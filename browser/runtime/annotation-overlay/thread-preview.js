@@ -167,7 +167,6 @@ import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
 import { threadKey } from "../thread/model.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
-import { addressableName } from "../addressable-names.js";
 import { coarsePointer } from "../pointer.js";
 import {
   attachedEdge,
@@ -1105,10 +1104,9 @@ export function createThreadPreview({
       scroll: session.transcript.scrollTop,
     };
     const present = () => {
-      const target = targetFor(entry);
-      const targetHeading = target && addressableName(target);
-      // A target with a name is named by it (`addressableName`), as a column or a tab by
-      // the <strong> or <header> it opens with. One without — an aside, a paragraph —
+      const targetHeading =
+        targetFor(entry)?.querySelector(":scope > strong")?.textContent;
+      // A target with a heading is named by it. One without — an aside, a paragraph —
       // is headed by the passage the selected thread quotes, as the panel heads it: a card
       // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
       // last sentence was a third name for one thread, and the least exact.

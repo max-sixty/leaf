@@ -187,7 +187,7 @@ SWEEP_PAGES = {
             f"{SWEEP_LEAD}"
             f'<div id="log" data-bound="start" style="--lf-bound: 10rem">'
             f"{SWEEP_ROWS.format(prefix='log')}</div>{SWEEP_LEAD}"
-            '<lf-pane id="notes" aria-label="Notes"><div id="notes-body">'
+            '<lf-pane id="notes" label="Notes"><div id="notes-body">'
             '<p id="note">Retries land on the largest tenants.</p>'
             f"{SWEEP_LEAD}</div></lf-pane>{SWEEP_LEAD}"
             f'<div id="outer" data-bound="start" style="--lf-bound: 14rem">{SWEEP_LEAD}'
@@ -200,13 +200,13 @@ SWEEP_PAGES = {
     "workspace": (
         leaf_page(
             "Placement sweep",
-            '<div id="split"><lf-pane id="findings" aria-label="Findings">'
+            '<div id="split"><lf-pane id="findings" label="Findings">'
             '<div id="findings-body">'
             f"{SWEEP_ROWS.format(prefix='find')}"
             '<div id="wlog" data-bound="start" style="--lf-bound: 10rem">'
             f"{SWEEP_ROWS.format(prefix='wlog')}</div>"
             f"{SWEEP_ROWS.format(prefix='more')}</div></lf-pane>"
-            '<lf-pane id="side" aria-label="Notes"><div id="side-body">'
+            '<lf-pane id="side" label="Notes"><div id="side-body">'
             "<p>Notes open the pane.</p>"
             '<p id="wnote">Retries land on the largest tenants.</p></div></lf-pane>'
             "</div>",

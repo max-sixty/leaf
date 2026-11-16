@@ -1336,13 +1336,13 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     )
     board = (
         '<lf-board id="triage">'
-        '<lf-column id="queue"><strong>Queued</strong>'
+        '<lf-column id="queue" label="Queued">'
         '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
         '<lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>'
         '<lf-card id="card-c"><strong>Retry budget</strong></lf-card>'
         "</lf-column>"
-        '<lf-column id="keep"><strong>Kept</strong></lf-column>'
-        '<lf-column id="pass"><strong>Passed</strong></lf-column>'
+        '<lf-column id="keep" label="Kept"></lf-column>'
+        '<lf-column id="pass" label="Passed"></lf-column>'
         "</lf-board>"
     )
     if where == "page":

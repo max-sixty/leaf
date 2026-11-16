@@ -37,9 +37,9 @@ def test_trace_bookmarks_leave_the_image_allocation(browser, serve):
         for image in record["images"]
     }
     viewers = "".join(
-        f'<lf-trace id="{name}" source="trace"><strong>{name.title()}</strong>'
+        f'<lf-trace id="{name}" label="{name.title()}" source="trace">'
         + "".join(
-            f'<lf-trace-bookmark target="{target}"><strong>Result {index}</strong></lf-trace-bookmark>'
+            f'<lf-trace-bookmark label="Result {index}" target="{target}"></lf-trace-bookmark>'
             for index in range(5)
         )
         + "</lf-trace>"
@@ -108,7 +108,7 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
         leaf_page(
             "Recorded evidence",
             '<h1 id="title">The journey</h1>'
-            '<lf-trace id="journey" source="trace"><strong>Journey</strong></lf-trace>',
+            '<lf-trace id="journey" label="Journey" source="trace"></lf-trace>',
         ),
         packages=("playwright",),
         media=media,
@@ -402,9 +402,9 @@ def scrolled_closed_tree(browser, serve, motion):
     node = action["phases"]["after"]["tree"]["nodes"][-1]
     phase = f"trace-{archive}-phase-{action['id']}-after"
     members = (
-        f'<lf-trace-bookmark target="{phase}"><strong>Checkpoint</strong></lf-trace-bookmark>'
-        f"<lf-trace-bookmark "
-        f'target="{phase}-node-{node["path"].encode().hex()}"><strong>Saved element</strong></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Checkpoint" target="{phase}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Saved element" '
+        f'target="{phase}-node-{node["path"].encode().hex()}"></lf-trace-bookmark>'
     )
     media = {
         image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
@@ -526,8 +526,8 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         for image in record["images"]
     }
     viewers = "".join(
-        f'<lf-trace id="{name}" source="{name}-trace"><strong>{name.title()}</strong>'
-        f'<lf-trace-bookmark key="settled" target="{target}"><strong>{name.title()} result</strong></lf-trace-bookmark>'
+        f'<lf-trace id="{name}" label="{name.title()}" source="{name}-trace">'
+        f'<lf-trace-bookmark key="settled" label="{name.title()} result" target="{target}"></lf-trace-bookmark>'
         "</lf-trace>"
         for name, target in zip(("before", "after"), targets, strict=True)
     )
@@ -625,10 +625,10 @@ def test_trace_initial_moment_uses_capture_order_and_skips_unavailable_targets(
     assert earlier["timestamp"] < later["timestamp"]
     earlier_target = f"trace-{archive}-image-{earlier['id']}"
     members = (
-        f'<lf-trace-bookmark target="trace-{archive}-image-absent"><strong>Missing capture</strong></lf-trace-bookmark>'
-        f'<lf-trace-bookmark target="trace-{archive}-image-{orphan["id"]}"><strong>Orphaned checkpoint</strong></lf-trace-bookmark>'
-        f'<lf-trace-bookmark target="trace-{archive}-image-{later["id"]}"><strong>Later</strong></lf-trace-bookmark>'
-        f'<lf-trace-bookmark target="{earlier_target}"><strong>Review begins</strong></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Missing capture" target="trace-{archive}-image-absent"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Orphaned checkpoint" target="trace-{archive}-image-{orphan["id"]}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Later" target="trace-{archive}-image-{later["id"]}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark label="Review begins" target="{earlier_target}"></lf-trace-bookmark>'
     )
     media = {
         image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
@@ -1038,11 +1038,11 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
         for action in actions
     ]
     bookmarks = "".join(
-        f'<lf-trace-bookmark key="result-{index}" target="{target}"><strong>Result {index + 1}</strong></lf-trace-bookmark>'
+        f'<lf-trace-bookmark key="result-{index}" label="Result {index + 1}" target="{target}"></lf-trace-bookmark>'
         for index, target in enumerate(targets)
     )
     viewers = "".join(
-        f'<lf-trace id="{name}" source="recording"><strong>{name.title()}</strong>{bookmarks}</lf-trace>'
+        f'<lf-trace id="{name}" label="{name.title()}" source="recording">{bookmarks}</lf-trace>'
         for name in ("before", "after")
     )
     media = {

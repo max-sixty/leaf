@@ -64,9 +64,9 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     source = leaf_page(
         "Thread in tabs",
         '<lf-tabs id="views">'
-        '<lf-tab id="first"><strong>First</strong>'
+        '<lf-tab id="first" label="First">'
         '<p id="inside">Commented words in the first tab.</p>'
-        '</lf-tab><lf-tab id="second"><strong>Second</strong>Other words.</lf-tab>'
+        '</lf-tab><lf-tab id="second" label="Second">Other words.</lf-tab>'
         "</lf-tabs>",
     )
     page = open_page(

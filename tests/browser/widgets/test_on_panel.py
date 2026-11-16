@@ -169,10 +169,9 @@ Adds --dry-run to every mutating command.
 </lf-options></lf-ask>
 <lf-ask id="tone-ask"><h2>Which notification?</h2>
 <lf-playground id="tone">
-  <lf-playground-control id="format" name="format" kind="choice" value="banner">
-    <strong>Format</strong>
-    <lf-playground-choice id="format-banner" value="banner"><strong>Banner</strong></lf-playground-choice>
-    <lf-playground-choice id="format-strip" value="strip"><strong>Strip</strong></lf-playground-choice>
+  <lf-playground-control id="format" name="format" label="Format" kind="choice" value="banner">
+    <lf-playground-choice id="format-banner" value="banner" label="Banner"></lf-playground-choice>
+    <lf-playground-choice id="format-strip" value="strip" label="Strip"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview><p id="tone-preview">The notification.</p></lf-playground-preview>
   <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>
@@ -645,14 +644,14 @@ def test_the_chosen_grouping_orders_on_me_and_the_m_walk_alike(browser, serve):
 TABBED_PAGE = leaf_page(
     "tabbed asks",
     '<h1 id="title">Every plan</h1><lf-tabs id="plans">'
-    '<lf-tab id="tab-first"><strong>First plan</strong>'
+    '<lf-tab id="tab-first" label="First plan">'
     '<header><h1 id="first-title">Move the runs into one sandbox</h1></header>'
     '<section><h2 id="first-context">What needs to change</h2>'
     "<p>The checkout stays fixed.</p></section>"
     '<section><lf-ask id="first-ask"><h3>Include self-hosted runners?</h3>'
     '<lf-options id="first-q" choose><lf-option id="first-yes">Yes</lf-option>'
     '<lf-option id="first-no">No</lf-option></lf-options></lf-ask></section></lf-tab>'
-    '<lf-tab id="tab-second"><strong>Second plan</strong>'
+    '<lf-tab id="tab-second" label="Second plan">'
     '<lf-ask id="second-ask"><h3>Ship on Tuesday?</h3>'
     '<lf-options id="second-q" choose><lf-option id="second-yes">Yes</lf-option>'
     '<lf-option id="second-no">No</lf-option></lf-options></lf-ask></lf-tab>'

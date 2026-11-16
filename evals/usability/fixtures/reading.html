@@ -33,15 +33,13 @@
       <section id="attempts">
         <h2>Attempts</h2>
         <lf-tabs id="attempt-tabs">
-          <lf-tab id="tab-current">
-            <strong>Current attempt</strong>
+          <lf-tab id="tab-current" label="Current attempt">
             <p id="current-attempt">
               The current attempt copies shards in parallel and verifies each checksum
               before switching reads.
             </p>
           </lf-tab>
-          <lf-tab id="tab-earlier">
-            <strong>Earlier attempt</strong>
+          <lf-tab id="tab-earlier" label="Earlier attempt">
             <p id="earlier-attempt">
               The earlier attempt copied shards one at a time and stopped at shard 37
               when the disk filled.
@@ -85,8 +83,8 @@
           id="copier-config"
           source="copier-config"
           class="language-toml"
-          ><strong>copier.toml</strong></lf-text-document
-        >
+          label="copier.toml"
+        ></lf-text-document>
       </section>
 
       <section id="mode">

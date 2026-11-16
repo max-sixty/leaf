@@ -1,14 +1,13 @@
 # Live samples
 
-Use `<lf-sample interactive>` to show working widgets inline, under the name its
-leading `<strong>` gives it and beside a gutter. Its contents belong to the surrounding page: choices and edits use that
+Use `<lf-sample interactive>` to show working widgets inline, with a sample label
+and gutter. Its contents belong to the surrounding page: choices and edits use that
 page's event log and Undo, and comments reach the same agent. Its widgets demonstrate
 rather than ask, so none of them goes on On Me. Give every widget its own page-wide
 id. This mode has no inner page, panel, Reset or Full view controls:
 
 ```html
-<lf-sample id="delivery-sample" interactive>
-  <strong>Delivery choices</strong>
+<lf-sample id="delivery-sample" interactive label="Delivery choices">
   <lf-options id="delivery-choice" choose>
     <lf-option id="delivery-standard">Standard delivery</lf-option>
     <lf-option id="delivery-express">Express delivery</lf-option>
@@ -24,8 +23,7 @@ sample is a column page unless the template's `class` names another Layout, such
 `class="layout-workspace density-working"`:
 
 ```html
-<lf-sample id="practice">
-  <strong>practice release note</strong>
+<lf-sample id="practice" label="practice release note">
   <template id="practice-page" data-sample>
     <h1>Weekend service</h1>
     <p id="service-note">The sample shuttle runs every hour.</p>
@@ -33,8 +31,8 @@ sample is a column page unless the template's `class` names another Layout, such
 </lf-sample>
 ```
 
-Put only the demonstrated page inside the template; the sample's name, your own
-controls and instructions for using the sample go outside it.
+Put only the demonstrated page inside the template; labels, your own controls and
+instructions for using the sample go outside it.
 
 The sample uses the parent's layer and has its own event log, so its decisions and
 comments never reach the parent's log or On Me. Its page starts as the sample nears
@@ -77,8 +75,7 @@ script in the same markup as the template and name its id in `data-sample-events
     }
   ]
 </script>
-<lf-sample id="service-window" window>
-  <strong>weekend service</strong>
+<lf-sample id="service-window" label="weekend service" window>
   <template id="service-page" data-sample data-sample-events="service-history">
     <h1>Weekend service</h1>
     <p id="service-note">The shuttle runs every hour.</p>

@@ -31,8 +31,7 @@ ACCENT = """() => {
 }"""
 
 
-REPLY_SAMPLE = """<lf-sample id="reply-practice">
-  <strong>Practice in a reply</strong>
+REPLY_SAMPLE = """<lf-sample id="reply-practice" label="Practice in a reply">
   <template id="reply-practice-source" data-sample>
     <h1 id="reply-child-heading">Practice from a reply</h1>
     <lf-ask id="reply-child-ask"><h2>Which approach?</h2>
@@ -94,44 +93,28 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
                 "Inline samples",
                 """
       <h1>Delivery</h1>
-      <lf-sample id="working" interactive>
-        <strong>Working choices</strong>
+      <lf-sample id="working" interactive label="Working choices">
         <lf-options id="delivery" choose>
           <lf-option id="standard">Standard</lf-option>
           <lf-option id="express">Express</lf-option>
         </lf-options>
       </lf-sample>
-      <lf-sample id="quoted">
-        <strong>Quoted choices</strong>
+      <lf-sample id="quoted" label="Quoted choices">
         <lf-options id="quoted-delivery" choose>
           <lf-option id="quoted-standard">Standard</lf-option>
         </lf-options>
-      </lf-sample>
-      <lf-sample id="excerpt">
-        <p>Our release train leaves every Tuesday.</p>
-        <h3 id="excerpt-heading">Exceptions</h3>
-        <p>Security fixes ship the same day.</p>
       </lf-sample>
     """,
             )
         ),
     )
     sample = page.locator("#working")
-    # A working sample's note is its name alone; a quoted one opens with "quoted".
+    # A working sample's note is its label alone; a quoted one opens with "quoted".
     prefix = """sample => getComputedStyle(
-      sample.querySelector(':scope > strong:first-child'), '::before'
+      sample.querySelector(':scope > [data-lf-said="label"]'), '::before'
     ).content"""
     assert sample.evaluate(prefix) == '""'
     assert page.locator("#quoted").evaluate(prefix) == '"quoted · "'
-    # A heading after the quoted page's first paragraph is that page's own, so it stays
-    # where it stands, and the note says "quoted" alone.
-    expect(page.locator("#excerpt-heading")).to_have_css("display", "block")
-    assert (
-        page.locator("#excerpt").evaluate(
-            "s => getComputedStyle(s, '::before').content"
-        )
-        == '"quoted"'
-    )
     expect(sample.locator("iframe")).to_have_count(0)
     expect(page.locator("#quoted").get_by_role("checkbox")).to_have_count(0)
     choice = sample.locator("#express").get_by_role("checkbox")

@@ -394,10 +394,15 @@ def release_ask(marker: str) -> str:
 
 
 def board_names_release(html: str, marker: str) -> bool:
-    """Read board text, column names included, excluding release-scoped resource
-    URLs."""
+    """Read board text and widget labels, excluding release-scoped resource URLs."""
     body = SourceDocument(html).tree.select_one("body")
-    return body is not None and marker in body.to_text()
+    return body is not None and (
+        marker in body.to_text()
+        or any(
+            marker in (element.attrs.get("label") or "")
+            for element in body.find_all(True)
+        )
+    )
 
 
 def ask_to_record(

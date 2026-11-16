@@ -7,15 +7,15 @@ test("a playground collects its own controls and leaves quoted value slots alone
   const host = document.createElement("lf-playground");
   host.id = "quoted-controls-drawing";
   host.innerHTML = `
-    <lf-playground-control name="tone" kind="text" value="quiet"><strong>Tone</strong></lf-playground-control>
+    <lf-playground-control name="tone" label="Tone" kind="text" value="quiet"></lf-playground-control>
     <lf-playground-preview><lf-sample data-lf-exhibit>
-      <lf-playground-control name="tone" kind="text" value="quoted"><strong>Quoted tone</strong></lf-playground-control>
-      <lf-playground-control name="quoted" kind="toggle" value="true"><strong>Quoted toggle</strong></lf-playground-control>
+      <lf-playground-control name="tone" label="Quoted tone" kind="text" value="quoted"></lf-playground-control>
+      <lf-playground-control name="quoted" label="Quoted toggle" kind="toggle" value="true"></lf-playground-control>
     </lf-sample></lf-playground-preview>
     <lf-playground-output><lf-playground-value for="tone"></lf-playground-value>
       <lf-sample data-lf-exhibit><lf-playground id="quoted-output-drawing">
-        <lf-playground-control name="tone" kind="text" value="quoted"><strong>Quoted tone</strong></lf-playground-control>
-        <lf-playground-control name="inner-tone" kind="text" value="independent"><strong>Inner tone</strong></lf-playground-control>
+        <lf-playground-control name="tone" label="Quoted tone" kind="text" value="quoted"></lf-playground-control>
+        <lf-playground-control name="inner-tone" label="Inner tone" kind="text" value="independent"></lf-playground-control>
         <lf-playground-preview><p>Inner preview</p></lf-playground-preview>
         <lf-playground-output><lf-playground-value for="tone"></lf-playground-value>
           <lf-playground-value for="inner-tone"></lf-playground-value></lf-playground-output>

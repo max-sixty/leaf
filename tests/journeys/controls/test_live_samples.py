@@ -117,14 +117,12 @@ def test_reading_keys_page_on_from_a_sample_to_its_page(browser, serve):
         f"""
 <h1>Sample reading keys</h1>
 <div style="height: 300px"></div>
-<lf-sample id="block">
-  <strong>A block sample</strong>
+<lf-sample id="block" label="A block sample">
   <template id="block-page" data-sample>
     <p id="child-text">A short child page.</p>
   </template>
 </lf-sample>
-<lf-sample id="window" window>
-  <strong>A window sample</strong>
+<lf-sample id="window" label="A window sample" window>
   <template id="window-page" data-sample>{filler}</template>
 </lf-sample>
 <div style="height: 2400px"></div>

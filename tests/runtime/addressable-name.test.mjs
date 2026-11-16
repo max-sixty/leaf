@@ -1,8 +1,9 @@
 /* What names an element: the one reading of the name the authoring contract gives it.
 
-   A section is named by its heading, a disclosure by its summary, and a titled compound
-   member or a widget by its leading <strong>. Anything else has no name, and the
-   caller decides what stands in for one. The words come through the passage reader, so
+   A section is named by its heading, a disclosure by its summary, a titled compound
+   member by its leading <strong>, and a registered widget that takes a `label` by
+   that attribute. Anything else has no name, and the caller decides what
+   stands in for one. The words come through the passage reader, so
    generated chrome inside an element names nothing.
 
    The chrome's label (`addressableLabel`) reads that name first and an element's words
@@ -10,8 +11,8 @@
 
    The words are the ones the author wrote, so the server names an obligation's element
    by the same rule off the document; `tests/name_cases.json` holds both runtimes to
-   one set of cases. Each case states its vocabulary rather than loading it, so a
-   declared word is caused by that declaration and by nothing a page might have
+   one set of cases. Each case states its vocabulary rather than loading it, so the
+   attribute route is caused by that declaration and by nothing a page might have
    vendored. */
 
 import assert from "node:assert/strict";
@@ -21,14 +22,12 @@ import { readFileSync } from "node:fs";
 import {
   addressableLabel,
   addressableName,
-  echoCopy,
   titledElement,
 } from "/runtime/addressable-names.js";
-import { openingTitle } from "/runtime/leading-title.js";
 import { renderSaid } from "/runtime/declared-words.js";
 import { registry } from "/runtime/registry.js";
 
-// The cases the server's `gesture_words.leading_title` answers too.
+// The cases the server's `gesture_words.element_name` answers too.
 const CASES = JSON.parse(
   readFileSync(new URL("../name_cases.json", import.meta.url), "utf8"),
 );
@@ -38,49 +37,18 @@ const declare = (vocabulary = {}) => {
   Object.assign(registry, vocabulary);
 };
 
-/** @param {string} markup */
-const element = (markup) => {
+const named = (markup) => {
   document.body.innerHTML = `<main>${markup}</main>`;
   renderSaid(document.body);
-  return /** @type {Element} */ (document.querySelector("#it"));
+  return addressableName(document.querySelector("#it"));
 };
-/** @param {string} markup */
-const named = (markup) => addressableName(element(markup));
 
-for (const { id, registry: vocabulary, markup, name, opens } of CASES)
+for (const { id, registry: vocabulary, markup, name } of CASES)
   test(`name: ${id}`, () => {
     declare(vocabulary);
     assert.equal(named(markup), name);
-    if (opens !== undefined)
-      assert.equal(openingTitle(element(markup))?.holder.localName ?? null, opens);
     declare();
   });
-
-test("a name drawn elsewhere is a copy of the markup the author wrote", () => {
-  declare();
-  document.body.innerHTML = `<main><lf-part id="it"><header>
-    <strong id="title"><code>README.md</code><span data-lf-gen="1">Δ</span></strong>
-    <p><span class="added">+120</span> <span class="removed">−45</span> lines</p>
-    </header><article><p>Body.</p></article></lf-part></main>`;
-  const part = /** @type {Element} */ (document.getElementById("it"));
-  const title = /** @type {Element} */ (openingTitle(part)?.title);
-  assert.equal(title.id, "title");
-  const copy = echoCopy(title);
-  const shown = document.createElement("span");
-  shown.append(...copy);
-  // The code type stays, a widget's own words and every id go.
-  assert.equal(shown.innerHTML, "<code>README.md</code>");
-  assert.equal(addressableName(part), "README.md");
-  // Asked again, the copy is the same nodes, so a drawing moves none of them.
-  assert.deepEqual(echoCopy(title), copy);
-  // After the title, the header's summary, its colours' classes included.
-  const header = /** @type {Element} */ (part.querySelector("header"));
-  const summary = document.createElement("span");
-  summary.append(...echoCopy(header, title));
-  assert.equal(summary.querySelector(".added")?.textContent, "+120");
-  assert.equal(summary.textContent.replace(/\s+/g, " ").trim(), "+120 −45 lines");
-  assert.equal(summary.querySelector("[id]"), null);
-});
 
 test("no element has no name", () => {
   assert.equal(addressableName(null), "");
@@ -170,12 +138,12 @@ test("past every name, plain markup is its words and a widget is its word", () =
   for (const tag of Object.keys(registry)) delete registry[tag];
 });
 
-test("a heading titles the outermost element it is the first heading of, short of a name", () => {
-  declare();
+test("a heading titles the outermost element it is the first heading of, short of a label", () => {
+  declare({ "lf-tab": {} });
   document.body.innerHTML = `<main><h1>Plan</h1>
     <lf-ask id="ask"><header><hgroup id="group"><p>Decision 1</p>
       <h2 id="question">Which store?</h2></hgroup></header><p>Two fit.</p></lf-ask>
-    <lf-tab id="tab"><strong>First route</strong><h3 id="step">Prepare</h3><p>Words.</p></lf-tab>
+    <lf-tab id="tab" label="First route"><h3 id="step">Prepare</h3><p>Words.</p></lf-tab>
     <section id="outer"><lf-ask id="inner"><h2 id="region">Which region?</h2></lf-ask>
     </section>
     <section id="notes-section"><lf-ask><h2 id="store">Which store?</h2></lf-ask>
@@ -200,7 +168,7 @@ test("a heading titles the outermost element it is the first heading of, short o
   const titled = (/** @type {string} */ id) =>
     titledElement(/** @type {Element} */ (document.getElementById(id))).id;
   assert.equal(titled("question"), "ask");
-  // A tab is named by its leading <strong>, so a heading after it titles only itself.
+  // A tab is named by its label, so the heading opening it titles only itself.
   assert.equal(titled("step"), "step");
   // A section wrapping a question is titled by the question's heading, its first.
   assert.equal(titled("region"), "outer");

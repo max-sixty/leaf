@@ -116,7 +116,7 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     page on the origin, but an isolated sample's child page starts without inheriting
     it: the child's panel stands at its row while its host's stays folded."""
     content = (
-        '<lf-sample id="practice"><strong>Practice</strong>'
+        '<lf-sample id="practice" label="Practice">'
         '<template id="practice-source" data-sample>'
         "<h1>Practice</h1><p>A sentence to practise on.</p>"
         "</template></lf-sample>"
@@ -611,7 +611,7 @@ def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, 
                 "a pane that moves",
                 """
 <h1>Moving pane</h1>
-<lf-pane id="moving-pane" aria-label="Moving pane"><header>Heading</header><div id="first-body"><input value="Authored"></div></lf-pane>
+<lf-pane id="moving-pane" label="Moving pane"><header>Heading</header><div id="first-body"><input value="Authored"></div></lf-pane>
 """,
             )
         ),

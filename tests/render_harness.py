@@ -361,6 +361,28 @@ CARRIED_PAGE = leaf_page(
 )
 
 
+# The words a widget renders from an attribute — a column's heading, a metric's number —
+# with room around them, so a drag across one is an ordinary drag and not a two-pixel
+# feat. Both column labels differ, so a quote can only anchor where it was picked.
+SAID_PAGE = leaf_page(
+    "said",
+    """
+<h1 id="h">This week</h1>
+<div class="layout-tiles" id="numbers">
+  <dl id="m-open" class="metric"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
+</div>
+<lf-board id="board">
+  <lf-column id="col-now" label="In flight">
+    <lf-card id="c-importer"><strong>Wire the importer</strong> Half done.</lf-card>
+  </lf-column>
+  <lf-column id="col-next" label="Queued">
+    <lf-card id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</lf-card>
+  </lf-column>
+</lf-board>
+""",
+)
+
+
 # Short card titles, so the whole board fits in an expected ARIA snapshot and the
 # snapshot stays about structure. One column starts empty: a keyboard user has to
 # hear it to move a card into it.
@@ -369,12 +391,11 @@ BOARD_PAGE = leaf_page(
     """
 <h1 id="h">Sprint</h1>
 <lf-board id="sprint">
-  <lf-column id="col-todo">
-    <strong>Todo</strong>
+  <lf-column id="col-todo" label="Todo">
     <lf-card id="card-heater"><strong>Heated perch</strong></lf-card>
     <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
   </lf-column>
-  <lf-column id="col-done"><strong>Done</strong></lf-column>
+  <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
 """,
 )
@@ -389,23 +410,19 @@ SAMPLE_PAGE = leaf_page(
     "sample",
     """
 <h1 id="h">What a decision looks like</h1>
-<lf-sample id="spec">
-  <strong>a decision</strong>
+<lf-sample id="spec" label="a decision">
   <lf-options id="quoted-group" choose>
     <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
     <lf-option id="q-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
   </lf-options>
   <lf-board id="quoted-board">
-    <lf-column id="q-col">
-      <strong>Doing</strong>
+    <lf-column id="q-col" label="Doing">
       <lf-card id="q-card"><strong>Wire the importer</strong></lf-card>
     </lf-column>
-    <lf-column id="q-col-next">
-      <strong>Next</strong>
+    <lf-column id="q-col-next" label="Next">
       <lf-card id="q-card-backfill"><strong>Backfill last month</strong></lf-card>
     </lf-column>
-    <lf-column id="q-col-done">
-      <strong>Done</strong>
+    <lf-column id="q-col-done" label="Done">
       <lf-card id="q-card-tokens"><strong>Tokenize the palette</strong></lf-card>
     </lf-column>
   </lf-board>
@@ -441,8 +458,7 @@ SAMPLE_PAGE = leaf_page(
   <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
 </lf-options></lf-ask>
 <lf-board id="live-board">
-  <lf-column id="l-col">
-    <strong>Doing</strong>
+  <lf-column id="l-col" label="Doing">
     <lf-card id="l-card"><strong>Wire the importer</strong></lf-card>
   </lf-column>
 </lf-board>
@@ -477,8 +493,7 @@ SAMPLE_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migra
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
-<lf-sample id="rp-spec">
-  <strong>the April thread</strong>
+<lf-sample id="rp-spec" label="the April thread">
   <lf-options id="rp-quoted" choose>
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
     <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
@@ -501,8 +516,8 @@ REPLAYED_PAGE = leaf_page(
   <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
 <lf-board id="work">
-  <lf-column id="col-doing"><strong>Doing</strong>{IMPORTER_CARD}</lf-column>
-  <lf-column id="col-done"><strong>Done</strong><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
+  <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
+  <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
 </lf-board>
 """,
 )

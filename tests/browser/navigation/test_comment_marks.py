@@ -450,7 +450,7 @@ OWN_COLOURS_PAGE = leaf_page(
 <h1 id="t">Own colours</h1>
 <p id="said">A line of prose with <a href="#t">a link someone commented on</a> in it.</p>
 <p id="kept">A line of prose someone reacted to with a token.</p>
-<lf-text-document id="doc" class="language-python"><strong>steps.py</strong><pre>{_STEPS}</pre></lf-text-document>
+<lf-text-document id="doc" label="steps.py"><pre><code class="language-python">{_STEPS}</code></pre></lf-text-document>
 """,
 )
 OWN_COLOURS = {

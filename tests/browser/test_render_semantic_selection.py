@@ -149,9 +149,9 @@ def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
         serve(
             leaf_page(
                 "Tabs",
-                '<lf-tabs id="views"><lf-tab id="one"><strong>One</strong>'
+                '<lf-tabs id="views"><lf-tab id="one" label="One">'
                 '<p id="open-words">Words in the open tab.</p></lf-tab>'
-                '<lf-tab id="two"><strong>Two</strong>'
+                '<lf-tab id="two" label="Two">'
                 '<p id="closed-words">Words in the closed tab.</p></lf-tab></lf-tabs>',
             )
         ),
@@ -1570,8 +1570,8 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
 <div style="display:none"><pre>needle source data</pre></div>
 <p style="visibility:hidden">needle invisible</p>
 <div style="display:contents"><p>needle contents</p></div>
-<section><lf-tabs id="views"><lf-tab id="shown"><strong>Shown</strong><p>Shown panel</p></lf-tab>
-<lf-tab id="fold"><strong>Folded</strong><p>needle folded</p></lf-tab></lf-tabs></section>
+<section><lf-tabs id="views"><lf-tab id="shown" label="Shown"><p>Shown panel</p></lf-tab>
+<lf-tab id="fold" label="Folded"><p>needle folded</p></lf-tab></lf-tabs></section>
 <details id="details"><summary>Evidence</summary><p>needle disclosed</p></details>
 <p hidden>copper</p><p>copper copper</p>""",
             )

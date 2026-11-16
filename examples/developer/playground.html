@@ -24,8 +24,7 @@
       <lf-ask id="job-question">
         <h2>Training settings</h2>
         <lf-playground id="job-configuration" submit-label="Send demo settings">
-          <lf-playground-preset id="preset-gpu-batch">
-            <strong>GPU batch</strong>
+          <lf-playground-preset id="preset-gpu-batch" label="GPU batch">
             <lf-playground-setting for="embeddings" value="a10"></lf-playground-setting>
             <lf-playground-setting for="ranking" value="a100"></lf-playground-setting>
             <lf-playground-setting
@@ -48,23 +47,31 @@
                     <lf-playground-control
                       id="embeddings"
                       name="embeddings"
+                      label="Embeddings accelerator"
                       kind="choice"
                       appearance="select"
                       value="cpu"
                     >
-                      <strong>Embeddings accelerator</strong>
-                      <lf-playground-choice id="embeddings-cpu" value="cpu"
-                        ><strong>CPU</strong></lf-playground-choice
-                      >
-                      <lf-playground-choice id="embeddings-a10" value="a10"
-                        ><strong>A10</strong></lf-playground-choice
-                      >
-                      <lf-playground-choice id="embeddings-a100" value="a100"
-                        ><strong>A100</strong></lf-playground-choice
-                      >
-                      <lf-playground-choice id="embeddings-h100" value="h100"
-                        ><strong>H100</strong></lf-playground-choice
-                      >
+                      <lf-playground-choice
+                        id="embeddings-cpu"
+                        value="cpu"
+                        label="CPU"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        id="embeddings-a10"
+                        value="a10"
+                        label="A10"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        id="embeddings-a100"
+                        value="a100"
+                        label="A100"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        id="embeddings-h100"
+                        value="h100"
+                        label="H100"
+                      ></lf-playground-choice>
                     </lf-playground-control>
                   </td>
                 </tr>
@@ -74,23 +81,31 @@
                     <lf-playground-control
                       id="ranking"
                       name="ranking"
+                      label="Ranking accelerator"
                       kind="choice"
                       appearance="select"
                       value="cpu"
                     >
-                      <strong>Ranking accelerator</strong>
-                      <lf-playground-choice id="ranking-cpu" value="cpu"
-                        ><strong>CPU</strong></lf-playground-choice
-                      >
-                      <lf-playground-choice id="ranking-a10" value="a10"
-                        ><strong>A10</strong></lf-playground-choice
-                      >
-                      <lf-playground-choice id="ranking-a100" value="a100"
-                        ><strong>A100</strong></lf-playground-choice
-                      >
-                      <lf-playground-choice id="ranking-h100" value="h100"
-                        ><strong>H100</strong></lf-playground-choice
-                      >
+                      <lf-playground-choice
+                        id="ranking-cpu"
+                        value="cpu"
+                        label="CPU"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        id="ranking-a10"
+                        value="a10"
+                        label="A10"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        id="ranking-a100"
+                        value="a100"
+                        label="A100"
+                      ></lf-playground-choice>
+                      <lf-playground-choice
+                        id="ranking-h100"
+                        value="h100"
+                        label="H100"
+                      ></lf-playground-choice>
                     </lf-playground-control>
                   </td>
                 </tr>
@@ -99,16 +114,20 @@
             <lf-playground-control
               id="priority"
               name="priority"
+              label="Scheduling priority"
               kind="choice"
               value="normal"
             >
-              <strong>Scheduling priority</strong>
-              <lf-playground-choice id="priority-normal" value="normal"
-                ><strong>Normal</strong></lf-playground-choice
-              >
-              <lf-playground-choice id="priority-high" value="high"
-                ><strong>High</strong></lf-playground-choice
-              >
+              <lf-playground-choice
+                id="priority-normal"
+                value="normal"
+                label="Normal"
+              ></lf-playground-choice>
+              <lf-playground-choice
+                id="priority-high"
+                value="high"
+                label="High"
+              ></lf-playground-choice>
             </lf-playground-control>
           </lf-playground-preview>
           <lf-playground-output

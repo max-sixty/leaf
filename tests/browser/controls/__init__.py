@@ -16,8 +16,7 @@ LIVE_SAMPLES_PAGE = leaf_page(
     "Independent practice pages",
     """
 <h1 id="host-heading">Practice without changing this page</h1>
-<lf-sample id="first-practice">
-  <strong>First practice</strong>
+<lf-sample id="first-practice" label="First practice">
   <template id="first-source" data-sample>
     <h1 id="child-heading">A practice decision</h1>
     <lf-ask id="child-ask"><h2>Which approach?</h2>
@@ -28,8 +27,7 @@ LIVE_SAMPLES_PAGE = leaf_page(
     </lf-ask>
   </template>
 </lf-sample>
-<lf-sample id="second-practice">
-  <strong>Second practice</strong>
+<lf-sample id="second-practice" label="Second practice">
   <template id="second-source" data-sample>
     <h1 id="child-heading">Another practice decision</h1>
     <lf-ask id="child-ask"><h2>Which approach?</h2>

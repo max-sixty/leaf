@@ -258,7 +258,7 @@ def test_fixture_media_follows_versions_draft_assets_and_live_edits(
             body = '<div class="picture">Picture</div>'
         elif kind == "sample":
             body = (
-                '<lf-sample id="sample"><strong>Picture</strong>'
+                '<lf-sample id="sample" label="Picture">'
                 f'<template data-sample id="sample-content">{body}</template></lf-sample>'
             )
         return (

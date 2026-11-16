@@ -1,16 +1,11 @@
 /* The timeline has one browser view. Labels pack by their measured extents in the
- * actual ruler column; stepping changes states and the playhead, never geometry.
- *
- * A run, a lane and an event are each named by the <strong> they open with
- * (`openingTitle`), and the chart sets each name as text: a label's room is its words
- * measured in the chart's font (`textWidth`), which markup in it would make wrong. */
+ * actual ruler column; stepping changes states and the playhead, never geometry. */
 import { html, nothing, repeat } from "/vendor/lit.js";
 import {
   offered,
   offeredAction,
   selectableOffered,
   generated,
-  openingTitle,
   assignRows,
   axisTicks,
   seconds,
@@ -42,10 +37,6 @@ const fraction = (value) => Math.round(value * 1e5) / 1e5;
 export function timelineModel(host) {
   /** @type {string[]} */
   const problems = [];
-  // An element's name as the chart sets it: its words, run onto one line.
-  /** @param {Element} element */
-  const named = (element) =>
-    openingTitle(element)?.title.textContent?.replace(/\s+/g, " ").trim() ?? "";
   /** @type {TimelineRun[]} */
   const runs = [];
   /** @type {TimelineLane[]} */
@@ -55,7 +46,7 @@ export function timelineModel(host) {
   /** @param {Element} lane @param {TimelineRun | null} run */
   const readLane = (lane, run) => {
     const index = lanes.length;
-    const label = named(lane);
+    const label = lane.getAttribute("label") ?? "";
     /** @type {TimelineLane} */
     const reading = {
       index,
@@ -76,7 +67,7 @@ export function timelineModel(host) {
         }
         return {
           id: event.id,
-          label: named(event),
+          label: event.getAttribute("label") ?? "",
           lane: reading,
           at,
           end: end === at ? null : end,
@@ -92,14 +83,14 @@ export function timelineModel(host) {
       bare ??= child;
     }
     if (child.localName !== "lf-run") continue;
-    const run = { label: named(child), row: ++row };
+    const run = { label: child.getAttribute("label") ?? "", row: ++row };
     runs.push(run);
     for (const lane of child.children)
       if (lane.localName === "lf-lane") readLane(lane, run);
   }
   if (runs.length && bare)
     problems.push(
-      `lf-lane "${named(bare)}" stands beside lf-run elements; put it in a run`,
+      `lf-lane "${bare.getAttribute("label")}" stands beside lf-run elements; put it in a run`,
     );
   const events = lanes.flatMap((lane) => lane.events);
   /** @type {TimelineStep[]} */

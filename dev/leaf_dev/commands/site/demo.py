@@ -95,7 +95,7 @@ BOARD = {
 
 def board_markup(board: dict[str, list[str]]) -> str:
     return "\n".join(
-        f'  <lf-column id="{column}">\n<strong>{label}</strong>\n'
+        f'  <lf-column id="{column}" label="{label}">\n'
         + "".join(
             f'    <lf-card id="{card}"><strong>{CARDS[card]}</strong></lf-card>\n'
             for card in board[column]

@@ -49,7 +49,7 @@ def test_a_visible_focused_element_is_the_reading_place_until_the_reader_scrolls
     }[control]
     source = leaf_page(
         "Editing in a reading region",
-        f'<lf-pane id="editor-pane" aria-label="Working text"><div>{before}'
+        f'<lf-pane id="editor-pane" label="Working text"><div>{before}'
         f"{field_markup}"
         f"{after}</div></lf-pane>",
         layout="workspace",
@@ -128,7 +128,7 @@ def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, regi
         for n in range(60)
     )
     lines = (
-        f'<lf-pane id="reading" aria-label="Reading"><div>{lines}</div></lf-pane>'
+        f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>'
         if region
         else lines
     )
@@ -246,7 +246,7 @@ def test_a_heading_above_a_flowing_pane_keeps_its_place_as_the_window_changes_wi
     source = leaf_page(
         "Heading above a pane",
         f'{filler}<h2 id="section">The section the reader landed on</h2>{lead}'
-        f'<lf-pane id="reading" aria-label="Reading"><div>{lines}</div></lf-pane>{filler}',
+        f'<lf-pane id="reading" label="Reading"><div>{lines}</div></lf-pane>{filler}',
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 800)

@@ -106,7 +106,7 @@ THREAD_PAGE = leaf_page(
     "Holding still",
     '<h1 id="title">Holding still</h1>'
     + paragraphs(0, 30)
-    + '<lf-test-plan id="hub"><strong>Before the frost</strong>'
+    + '<lf-test-plan id="hub" label="Before the frost">'
     '<lf-test-task id="upper" status="active" talk><strong>Which visit first?</strong>'
     " The mounts came down in January.</lf-test-task>"
     '<lf-test-task id="fresh" status="planned" talk><strong>Which tools to bring?'
@@ -114,11 +114,11 @@ THREAD_PAGE = leaf_page(
     '<lf-test-task id="jobs" status="active" talk><strong>Which jobs are worth '
     "starting?</strong> The beds need turning.</lf-test-task></lf-test-plan>"
     + paragraphs(30, 30)
-    + '<lf-test-plan id="later"><strong>After the frost</strong>'
+    + '<lf-test-plan id="later" label="After the frost">'
     '<lf-test-task id="notes" status="active" talk><strong>What did we learn?'
     "</strong> The frost came early.</lf-test-task></lf-test-plan>"
     + paragraphs(60, 30)
-    + '<lf-test-plan id="last"><strong>In the spring</strong>'
+    + '<lf-test-plan id="last" label="In the spring">'
     '<lf-test-task id="long" status="active" talk><strong>What changed?</strong>'
     " The lines below.</lf-test-task></lf-test-plan>",
 )
@@ -245,9 +245,9 @@ def tall_dial_page(serve):
 PANE_PAGE = leaf_page(
     "Panes",
     '<header><h1>Reading workspace</h1></header><div id="split">'
-    '<lf-pane id="left" aria-label="Left reading"><div id="left-body">'
+    '<lf-pane id="left" label="Left reading"><div id="left-body">'
     + paragraphs(0, 60, "q")
-    + '</div></lf-pane><lf-pane id="right" aria-label="Right reading"><div>'
+    + '</div></lf-pane><lf-pane id="right" label="Right reading"><div>'
     + paragraphs(0, 60, "r")
     + "</div></lf-pane></div>",
     head="<style>#split { display: grid; grid-template-columns: 1fr 1fr; }</style>",

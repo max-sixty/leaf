@@ -10,7 +10,7 @@ READING_REGIONS_PAGE = leaf_page(
     """
   <header><h1>Reading workspace</h1></header>
   <div id="reading-split">
-    <lf-pane id="left-reading" aria-label="Left reading">
+    <lf-pane id="left-reading" label="Left reading">
       <header><button id="left-head">Left header</button></header>
       <div>
         <p id="left-start">Left start with enough words to preserve this landmark.</p>
@@ -21,7 +21,7 @@ READING_REGIONS_PAGE = leaf_page(
       </div>
       <footer><button id="left-foot">Left footer</button></footer>
     </lf-pane>
-    <lf-pane id="right-reading" aria-label="Right reading">
+    <lf-pane id="right-reading" label="Right reading">
       <header><button id="right-head">Right header</button></header>
       <div>
         <p id="right-start">Right start with enough words to preserve this landmark.</p>
@@ -43,7 +43,7 @@ def color_cue_markup():
         "Color cue surfaces",
         '<h1>Review</h1><section id="review"><lf-tabs id="views">'
         + "".join(
-            f'<lf-tab id="{name}"><strong>{name}</strong>'
+            f'<lf-tab id="{name}" label="{name}">'
             f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>'
             f'<lf-options id="choice-{name}" choose>'
             f'<lf-option id="yes-{name}">Yes</lf-option>'

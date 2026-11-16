@@ -261,11 +261,29 @@
       "before": null
     },
     {
+      "id": "a said label stands apart from its element's words",
+      "markup": "<div id=\"s\"><lf-said-label label=\"Head\">body words</lf-said-label></div>",
+      "registry": {
+        "lf-said-label": {
+          "x-says": {
+            "label": "before"
+          }
+        }
+      },
+      "anchor": {
+        "section": "s",
+        "quote": "Head body"
+      },
+      "before": 0
+    },
+    {
       "id": "a said tip stands apart from its phrase in a text block",
       "markup": "<p id=\"s\">lead <lf-said-tip tip=\"Tip\">gloss</lf-said-tip> tail</p>",
       "registry": {
         "lf-said-tip": {
-          "x-says": ["tip"],
+          "x-says": {
+            "tip": "after"
+          },
           "x-inline": true
         }
       },
@@ -326,7 +344,10 @@
       "markup": "<div id=\"s\"><lf-said-pair head=\"MARK\" tail=\"one\"></lf-said-pair> <lf-said-pair head=\"MARK\" tail=\"two\"></lf-said-pair></div>",
       "registry": {
         "lf-said-pair": {
-          "x-says": ["head", "tail"],
+          "x-says": {
+            "head": "before",
+            "tail": "after"
+          },
           "x-inline": true
         }
       },

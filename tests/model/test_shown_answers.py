@@ -38,18 +38,18 @@ def board(columns: dict[str, list[str]], open_column: bool = True) -> str:
     return (
         '<lf-board id="plan">'
         + (
-            f'<lf-column id="col-open"><strong>Undecided</strong>{cards.get("open", "")}</lf-column>'
+            f'<lf-column id="col-open" label="Undecided">{cards.get("open", "")}</lf-column>'
             if open_column
             else ""
         )
         + "".join(
-            f'<lf-column id="col-{value}" value="{value}"><strong>{value.title()}</strong>'
+            f'<lf-column id="col-{value}" label="{value.title()}" value="{value}">'
             f"{cards.get(value, '')}</lf-column>"
             for value in ("next", "later", "drop")
         )
-        + '<lf-column id="col-mine"'
+        + '<lf-column id="col-mine" label="Mine"'
         + ("" if open_column else ' value="drop"')
-        + '><strong>Mine</strong><lf-card id="card-own"><strong>Own</strong></lf-card></lf-column>'
+        + '><lf-card id="card-own"><strong>Own</strong></lf-card></lf-column>'
         + "</lf-board>"
     )
 
@@ -124,7 +124,7 @@ def test_an_answer_no_column_holds_stands_with_those_that_name_none():
     """The group may offer an answer the board has no column for; its card then
     stands where the answers naming no value do, rather than nowhere."""
     no_drop = board({"open": ["rail"]}).replace(
-        '<lf-column id="col-drop" value="drop"><strong>Drop</strong></lf-column>', ""
+        '<lf-column id="col-drop" label="Drop" value="drop"></lf-column>', ""
     )
     page = leaf_page("Proposals", section("rail", chosen="drop") + no_drop)
     assert shown_findings(page) == []
@@ -146,8 +146,8 @@ def test_every_column_value_is_one_the_widget_can_answer():
         "Proposals",
         section("rail", chosen="later")
         + board({"later": ["rail"]}).replace(
-            '<lf-column id="col-mine"><strong>Mine</strong>',
-            '<lf-column id="col-mine" value="someday"><strong>Mine</strong>',
+            '<lf-column id="col-mine" label="Mine">',
+            '<lf-column id="col-mine" label="Mine" value="someday">',
         ),
     )
     assert found(

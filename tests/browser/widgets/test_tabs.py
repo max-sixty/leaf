@@ -72,12 +72,12 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
         "Selection motion",
         '<h1>Selection motion</h1><section><lf-tabs id="moving-tabs">'
         + "".join(
-            f'<lf-tab id="view-{i}"><strong>View number {i}</strong><p>Content {i}</p></lf-tab>'
+            f'<lf-tab id="view-{i}" label="View number {i}"><p>Content {i}</p></lf-tab>'
             for i in range(6)
         )
         + '</lf-tabs><lf-tabs id="side-tabs" list="side">'
-        '<lf-tab id="side-a"><header><strong>First</strong><p>First context</p></header><p>First.</p></lf-tab>'
-        '<lf-tab id="side-b"><header><strong>Second</strong><p>Second context</p></header><p>Second.</p></lf-tab>'
+        '<lf-tab id="side-a" label="First" summary="First context"><p>First.</p></lf-tab>'
+        '<lf-tab id="side-b" label="Second" summary="Second context"><p>Second.</p></lf-tab>'
         "</lf-tabs></section>",
         head="<style>#moving-tabs { max-width:480px }</style>",
     )
@@ -257,11 +257,11 @@ def _stacked_headers(browser, serve, flow):
                 "<h1>Stacked</h1>"
                 + ("<section>" if flow == "box" else "")
                 + f'<lf-tabs id="tabs"{flow_class}>'
-                f'<lf-tab id="diff-tab"{flow_class}><strong>Diff</strong><lf-diff id="patch"><pre>'
+                f'<lf-tab id="diff-tab" label="Diff"{flow_class}><lf-diff id="patch"><pre>'
                 + patch
                 + '</pre></lf-diff><lf-diff id="wide"><pre>'
                 + short
-                + f'</pre></lf-diff></lf-tab><lf-tab id="notes-tab"{flow_class}><strong>Notes</strong>'
+                + f'</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes"{flow_class}>'
                 "<p>Notes.</p></lf-tab></lf-tabs>"
                 + ("</section>" if flow == "box" else "")
                 + '<lf-diff id="after-tabs"><pre>'
@@ -385,7 +385,7 @@ def test_sticky_headers_stack_so_a_diff_in_a_tab_pins_under_the_strip(
 
 WIDE_TABLE_IN_A_FRAMED_SET = leaf_page(
     "A wide table in a framed set",
-    '<h1>Framed</h1><section><lf-tabs id="views"><lf-tab id="table-tab"><strong>Table</strong>'
+    '<h1>Framed</h1><section><lf-tabs id="views"><lf-tab id="table-tab" label="Table">'
     + "<p>Reading before the table.</p>" * 30
     + '<table id="wide"><thead><tr><th>Row</th>'
     + "".join(f"<th>Column {c}</th>" for c in range(12))
@@ -398,7 +398,7 @@ WIDE_TABLE_IN_A_FRAMED_SET = leaf_page(
     )
     + "</tbody></table>"
     + "<p>Reading after the table.</p>" * 30
-    + '</lf-tab><lf-tab id="other-tab"><strong>Other</strong><p>Other.</p></lf-tab>'
+    + '</lf-tab><lf-tab id="other-tab" label="Other"><p>Other.</p></lf-tab>'
     "</lf-tabs></section>" + "<p>After the set.</p>" * 30,
 )
 
@@ -488,8 +488,8 @@ def test_back_to_a_fragment_the_page_has_hidden_since_lands_on_it(
             f'<h1 id="top">Hidden fragment</h1><p><a href="#{target_id}">To target</a></p>'
             f"<details><summary>More</summary>{filler}</details>"
             '<section><lf-tabs id="views">'
-            '<lf-tab id="one"><strong>One</strong><p>One is short.</p></lf-tab>'
-            f'<lf-tab id="two"><strong>Two</strong>{filler}<p id="x">The target.</p></lf-tab>'
+            '<lf-tab id="one" label="One"><p>One is short.</p></lf-tab>'
+            f'<lf-tab id="two" label="Two">{filler}<p id="x">The target.</p></lf-tab>'
             '</lf-tabs></section><p><a href="#top">To top</a></p>'
             '<div style="height: 1200px"></div>',
         )
@@ -569,8 +569,8 @@ def test_tab_onto_a_nested_workspace_link_clears_the_floating_panel(
     source = leaf_page(
         "Review evidence",
         '<header><h1>Review evidence</h1></header><lf-tabs id="views">'
-        '<lf-tab id="changes"><strong>Changes</strong><lf-tabs id="experiments">'
-        '<lf-tab id="runtime"><strong>Runtime</strong>'
+        '<lf-tab id="changes" label="Changes"><lf-tabs id="experiments">'
+        '<lf-tab id="runtime" label="Runtime">'
         '<div style="height:380px"></div>'
         '<p style="text-align:center"><a id="output" href="#runtime">'
         "Try the output</a></p>"
@@ -603,9 +603,9 @@ def test_a_hidden_workspace_tab_preserves_lazy_image_dimensions(browser, serve):
     source = leaf_page(
         "Saved evidence",
         '<header><h1>Saved evidence</h1></header><lf-tabs id="views">'
-        '<lf-tab id="intro"><strong>Introduction</strong><p>Introduction.</p></lf-tab>'
-        '<lf-tab id="saved"><strong>Saved</strong><lf-tabs id="outputs">'
-        '<lf-tab id="output"><strong>Output</strong><figure><details>'
+        '<lf-tab id="intro" label="Introduction"><p>Introduction.</p></lf-tab>'
+        '<lf-tab id="saved" label="Saved"><lf-tabs id="outputs">'
+        '<lf-tab id="output" label="Output"><figure><details>'
         "<summary>More screens</summary>"
         f'<img id="capture" src="{src}" alt="Saved screen" loading="lazy"'
         ' width="600" height="300" style="aspect-ratio:2/1">'
@@ -647,9 +647,9 @@ def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
     source = leaf_page(
         "Workspace page tab",
         '<header><h1>Review</h1></header><lf-tabs id="views" class="layout-flow">'
-        '<lf-tab id="work"><strong>Work</strong><template></template>'
+        '<lf-tab id="work" label="Work"><template></template>'
         '<section id="surface"><p>Work here.</p>'
-        '</section></lf-tab><lf-tab id="notes"><strong>Notes</strong><p>Notes.</p>'
+        '</section></lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p>'
         "</lf-tab></lf-tabs>",
         layout="workspace",
     )
@@ -716,10 +716,10 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
     panel_flow = ' class="layout-flow"' if layout != "workspace" else ""
     content = (
         f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
-        f'<lf-tabs id="root-tabs" class="layout-flow"><lf-tab id="compare"{panel_flow}><strong>Compare</strong>{tables("in")}'
-        f'</lf-tab><lf-tab id="notes"{panel_flow}><strong>Notes</strong><p>Notes.</p></lf-tab></lf-tabs>'
-        f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open"><strong>Boxed</strong>{tables("boxed")}'
-        '</lf-tab><lf-tab id="boxed-other"><strong>Other</strong><p>Other.</p></lf-tab></lf-tabs>'
+        f'<lf-tabs id="root-tabs" class="layout-flow"><lf-tab id="compare" label="Compare"{panel_flow}>{tables("in")}'
+        f'</lf-tab><lf-tab id="notes" label="Notes"{panel_flow}><p>Notes.</p></lf-tab></lf-tabs>'
+        f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
+        '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
         "</section>"
     )
     # A sidebar's reading body owns the document's flow, including its tabs.
@@ -793,12 +793,12 @@ def test_a_scrolling_tab_panel_keeps_nested_headers_on_its_edge(browser, serve, 
             else "<style>#output { height: 360px; overflow: auto; }</style><section>"
         )
         + f'<lf-tabs id="outputs" {"list=side" if side else ""}>'
-        '<lf-tab id="output"><strong>Alert configuration</strong>'
-        '<lf-tabs id="arms"><lf-tab id="baseline"><strong>Leaf baseline</strong>'
+        '<lf-tab id="output" label="Alert configuration">'
+        '<lf-tabs id="arms"><lf-tab id="baseline" label="Leaf baseline">'
         "<h2>Saved configuration</h2><details><summary>Checks passed</summary>"
         "<p>Both checks passed.</p></details>"
         + "".join(f'<p id="row-{n}">Configuration row {n}.</p>' for n in range(40))
-        + '</lf-tab><lf-tab id="control"><strong>Plain HTML</strong><p>Control output.</p>'
+        + '</lf-tab><lf-tab id="control" label="Plain HTML"><p>Control output.</p>'
         "</lf-tab></lf-tabs></lf-tab></lf-tabs>" + ("" if side else "</section>"),
         layout="workspace" if side else "column",
     )
@@ -825,9 +825,9 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     source = leaf_page(
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
-        '<lf-tab id="only"><strong>Only withdrawn</strong>'
+        '<lf-tab id="only" label="Only withdrawn">'
         '<lf-options id="only-options" choose><lf-option id="only-pick">Only</lf-option></lf-options>'
-        '</lf-tab><lf-tab id="mixed"><strong>Answer and withdrawal</strong>'
+        '</lf-tab><lf-tab id="mixed" label="Answer and withdrawal">'
         '<lf-options id="answered-options" choose><lf-option id="answered-pick" chosen>Keep</lf-option></lf-options>'
         '<lf-options id="withdrawn-options" choose><lf-option id="withdrawn-pick">Retire</lf-option></lf-options>'
         "</lf-tab></lf-tabs>",
@@ -864,8 +864,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
         leaf_page(
             "a late queue",
             """<lf-tabs id="queue" list="side">
-<lf-tab id="t-a">
-  <header><strong>ESC-4107 · Northwind Labs</strong><p>Company-wide SSO outage · Severity 1</p></header>
+<lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
   <lf-ask id="ask-a"><h3 id="q-a">What happens to a?</h3>
     <lf-options id="o-a" choose>
       <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
@@ -874,7 +873,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
     </lf-options>
   </lf-ask>
 </lf-tab>
-<lf-tab id="t-b"><strong>Ticket b</strong><p id="p-b">Nothing to decide.</p></lf-tab>
+<lf-tab id="t-b" label="Ticket b"><p id="p-b">Nothing to decide.</p></lf-tab>
 </lf-tabs>""",
             layout="workspace",
             head="<style>#queue {grid-template-columns:14rem minmax(0,1fr)}</style>",
@@ -951,10 +950,9 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
             " that no label can share a phone's row with" if key == "c" else ""
         )
         return (
-            f'<lf-tab id="i-{key}"'
+            f'<lf-tab id="i-{key}" label="{name}"'
             + (f' group="{group}"' if group else "")
-            + f"><header><strong>{name}</strong><p>{key} summary</p></header>"
-            f'<p id="p-{key}">Item {key}.</p></lf-tab>'
+            + f' summary="{key} summary"><p id="p-{key}">Item {key}.</p></lf-tab>'
         )
 
     def queue(groups):
@@ -1110,8 +1108,8 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
     the list."""
     groups = ["Merge", "Close", "FYI"]
     tickets = "".join(
-        f'<lf-tab id="t-{n}" group="{groups[n // 10]}"'
-        f'><header><strong>Ticket {n}</strong><p>sev {n % 3}</p></header><p id="p-{n}">What went wrong with ticket {n}.</p>'
+        f'<lf-tab id="t-{n}" label="Ticket {n}" group="{groups[n // 10]}"'
+        f' summary="sev {n % 3}"><p id="p-{n}">What went wrong with ticket {n}.</p>'
         "</lf-tab>"
         for n in range(30)
     )
@@ -1156,9 +1154,9 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
 
     def views(key, summary):
         return "".join(
-            f'<lf-tab id="{key}-{i}"><header><strong>View {key} {i}</strong>'
-            + (f"<p>sev {i} · suggested fix</p>" if summary else "")
-            + f'</header><p id="{key}-words-{i}">View {key} {i}.</p></lf-tab>'
+            f'<lf-tab id="{key}-{i}" label="View {key} {i}"'
+            + (f' summary="sev {i} · suggested fix"' if summary else "")
+            + f'><p id="{key}-words-{i}">View {key} {i}.</p></lf-tab>'
             for i in range(12)
         )
 
@@ -1282,7 +1280,7 @@ def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
     but not the panel, so each one that kept its own stop put a zero-height stop in
     the walk: a queue of thirteen items took thirteen invisible presses to leave."""
     views = "".join(
-        f'<lf-tab id="item-{i}"><strong>Item {i}</strong><p>Item {i} is prose.</p></lf-tab>'
+        f'<lf-tab id="item-{i}" label="Item {i}"><p>Item {i} is prose.</p></lf-tab>'
         for i in range(4)
     )
     source = leaf_page(
@@ -1320,7 +1318,7 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
 
     def items(key, count):
         return "".join(
-            f'<lf-tab id="{key}-{i}"><strong>{key.title()} {i}</strong>'
+            f'<lf-tab id="{key}-{i}" label="{key.title()} {i}">'
             + "".join(f"<p>{key} {i} reads on, paragraph {n}.</p>" for n in range(30))
             + "</lf-tab>"
             for i in range(count)
@@ -1388,17 +1386,17 @@ def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):
         "Kitchen plan",
         """<h1>Redo the kitchen</h1>
 <lf-tabs id="views">
-  <lf-tab id="view-plan"><strong>Plan</strong><p>Cabinets first.</p></lf-tab>
-  <lf-tab id="view-costs"><strong>Costs</strong><p>Under budget.</p></lf-tab>
+  <lf-tab id="view-plan" label="Plan"><p>Cabinets first.</p></lf-tab>
+  <lf-tab id="view-costs" label="Costs"><p>Under budget.</p></lf-tab>
 </lf-tabs>
 <section id="finishes"><h2>Finishes</h2>
   <lf-tabs id="finish-sets">
-    <lf-tab id="finish-oak"><strong>Oak</strong><p>Warm.</p></lf-tab>
-    <lf-tab id="finish-ash"><strong>Ash</strong><p>Pale.</p></lf-tab>
+    <lf-tab id="finish-oak" label="Oak"><p>Warm.</p></lf-tab>
+    <lf-tab id="finish-ash" label="Ash"><p>Pale.</p></lf-tab>
   </lf-tabs>
   <lf-tabs id="handle-sets" aria-label="Handles">
-    <lf-tab id="handle-bar"><strong>Bar</strong><p>Long.</p></lf-tab>
-    <lf-tab id="handle-knob"><strong>Knob</strong><p>Round.</p></lf-tab>
+    <lf-tab id="handle-bar" label="Bar"><p>Long.</p></lf-tab>
+    <lf-tab id="handle-knob" label="Knob"><p>Round.</p></lf-tab>
   </lf-tabs>
 </section>""",
     )
@@ -1445,9 +1443,9 @@ def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
     source = leaf_page(
         "Workspace part",
         '<header><h1>Review</h1></header><lf-parts id="parts">'
-        '<lf-part id="work"><header><strong>Work</strong></header><div id="surface" class="layout-workspace">'
+        '<lf-part id="work" label="Work"><div id="surface" class="layout-workspace">'
         "<p>Work here.</p></div></lf-part>"
-        '<lf-part id="notes"><header><strong>Notes</strong></header><article class="layout-column"><p>Notes.</p>'
+        '<lf-part id="notes" label="Notes"><article class="layout-column"><p>Notes.</p>'
         "</article></lf-part></lf-parts>",
         layout=None,
     )
@@ -1577,7 +1575,7 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
     """A root side list reveals the history view without losing its return offset."""
     body = '<h1>Views</h1><p>Shared context.</p><lf-tabs id="views" list="side">'
     body += "".join(
-        f'<lf-tab id="view-{name.lower()}"><strong>{name}</strong>'
+        f'<lf-tab id="view-{name.lower()}" label="{name}">'
         + "".join(
             f"<p>{name} paragraph {i}. Reading continues here.</p>" for i in range(180)
         )
@@ -1629,15 +1627,15 @@ def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(
         '<aside><div class="layout-track"><p>Reading route</p></div></aside>'
         '<div class="layout-column"><p id="reading">The document prose track.</p>'
         '<section class="layout-flow"><lf-tabs id="flow" class="layout-flow">'
-        '<lf-tab id="flow-first" class="layout-flow"><strong>First</strong>'
+        '<lf-tab id="flow-first" label="First" class="layout-flow">'
         '<section class="layout-flow"><p id="first-prose">First reading.</p></section>'
         '<table data-width="wide"><tr><th>Context</th></tr><tr><td>First.</td></tr></table></lf-tab>'
-        '<lf-tab id="flow-second" class="layout-flow"><strong>Second</strong>'
+        '<lf-tab id="flow-second" label="Second" class="layout-flow">'
         '<section class="layout-flow"><p id="second-prose">Second reading.</p></section>'
         '<table data-width="available"><tr><th>Context</th></tr><tr><td>Second.</td></tr></table>'
         "</lf-tab></lf-tabs></section>"
-        '<section><lf-tabs id="boxed"><lf-tab id="boxed-first"><strong>Boxed first</strong>'
-        '<p>Boxed reading.</p></lf-tab><lf-tab id="boxed-second"><strong>Boxed second</strong>'
+        '<section><lf-tabs id="boxed"><lf-tab id="boxed-first" label="Boxed first">'
+        '<p>Boxed reading.</p></lf-tab><lf-tab id="boxed-second" label="Boxed second">'
         "<p>Other boxed reading.</p></lf-tab></lf-tabs></section></div>",
         layout="sidebar",
     )

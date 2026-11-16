@@ -51,7 +51,6 @@
  * quotation. A disconnect releases the child; moving the retained element within a
  * document does not reset its work. */
 import {
-  addressableName,
   aborted,
   describeFailure,
   deferredArrival,
@@ -326,7 +325,7 @@ export class Sample extends HTMLElement {
       full: offerAction("symbol", "lf-sample-action", undefined, { action: "expand" }),
     };
     this.#frame.className = "lf-sample-frame";
-    this.#frame.title = addressableName(this) || "Leaf sample";
+    this.#frame.title = this.getAttribute("label") || "Leaf sample";
     this.#frame.addEventListener("lf-sample-return", () => {
       if (isNativeLayer(this.#view)) this.#return();
       else focusDestination(this, "return");

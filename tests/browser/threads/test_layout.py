@@ -487,9 +487,9 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
     stops at controls and chrome, which state their own. A token set on :root, a
     condition on an ancestor and a pseudo-element keep working as page CSS does."""
     board = (
-        '<h1>t</h1><lf-board id="b"><lf-column id="c1"><strong>To do</strong>'
+        '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
         '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
-        '<lf-column id="c2"><strong>Done</strong></lf-column></lf-board>'
+        '<lf-column id="c2" label="Done"></lf-column></lf-board>'
         '<p>See <a href="#b">the board</a>.</p>'
     )
     page = open_page(
@@ -633,7 +633,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             leaf_page(
                 "t",
                 '<h1>t</h1><p><button id="own" type="button">Own</button></p>'
-                '<lf-board id="b"><lf-column id="c1"><strong>To do</strong>'
+                '<lf-board id="b"><lf-column id="c1" label="To do">'
                 '<lf-card id="k1">One</lf-card></lf-column></lf-board>',
             ),
             packages=("./theme",),

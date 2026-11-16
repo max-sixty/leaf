@@ -70,17 +70,15 @@ SHOWN_PANELS = """() => [...document.querySelectorAll('lf-tab')]
 TAB_SETS = """
 <h1 id="title">Views</h1>
 <lf-tabs id="views">
-  <lf-tab id="one"><strong>One</strong><p id="first">The first view is one line.</p></lf-tab>
-  <lf-tab id="two">
-    <strong>Two</strong>
+  <lf-tab id="one" label="One"><p id="first">The first view is one line.</p></lf-tab>
+  <lf-tab id="two" label="Two">
     <p id="second">The second view runs longer.</p>
     <p id="second-more">It holds a second paragraph, so it stands taller.</p>
   </lf-tab>
 </lf-tabs>
 <lf-tabs id="more">
-  <lf-tab id="near"><strong>Near</strong><p id="near-words">Near.</p></lf-tab>
-  <lf-tab id="far">
-    <strong>Far</strong>
+  <lf-tab id="near" label="Near"><p id="near-words">Near.</p></lf-tab>
+  <lf-tab id="far" label="Far">
     <p id="far-words">Far, and taller.</p>
     <p id="far-more">Another line.</p>
   </lf-tab>
@@ -195,13 +193,12 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
 INITIAL_DRAWING_PAGE = """
 <h1 id="title">First drawing</h1>
 <lf-playground id="drawing">
-  <lf-playground-control id="field-note-title" name="title" kind="text" value="Field note"><strong>Title</strong></lf-playground-control>
-  <lf-playground-control id="radius" name="radius" kind="range" value="12" min="0" max="24" unit="px"><strong>Corner radius</strong></lf-playground-control>
-  <lf-playground-control id="compact" name="compact" kind="toggle" value="false"><strong>Compact spacing</strong></lf-playground-control>
-  <lf-playground-control id="tone" name="tone" kind="choice" value="quiet">
-    <strong>Tone</strong>
-    <lf-playground-choice id="tone-quiet" value="quiet"><strong>Quiet</strong></lf-playground-choice>
-    <lf-playground-choice id="tone-bold" value="bold"><strong>Bold</strong></lf-playground-choice>
+  <lf-playground-control id="field-note-title" name="title" label="Title" kind="text" value="Field note"></lf-playground-control>
+  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" unit="px"></lf-playground-control>
+  <lf-playground-control id="compact" name="compact" label="Compact spacing" kind="toggle" value="false"></lf-playground-control>
+  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
+    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview><p>The actual preview, with its own words.</p></lf-playground-preview>
   <lf-playground-output>Build <lf-playground-value for="title"></lf-playground-value> with

@@ -50,7 +50,7 @@ def test_export_refuses_server_dependent_samples(serve, tmp_path):
     serve(
         leaf_page(
             "Live sample",
-            '<lf-sample id="practice"><strong>practice</strong>'
+            '<lf-sample id="practice" label="practice">'
             '<template id="practice-source" data-sample><h1>Child</h1></template>'
             "</lf-sample>",
         )
@@ -128,7 +128,7 @@ def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_p
     serve(
         leaf_page(
             "Data once",
-            '<lf-text-document id="notes" source="notes"><strong>notes.md</strong>'
+            '<lf-text-document id="notes" source="notes" label="notes.md">'
             '</lf-text-document><lf-diff id="patch" source="review-patch"></lf-diff>',
         )
     )
@@ -173,7 +173,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         '<lf-option id="drop">Drop</lf-option></lf-options>'
     )
     page_notes = (
-        '<lf-text-document id="notes" source="page-notes"><strong>notes.md</strong>'
+        '<lf-text-document id="notes" source="page-notes" label="notes.md">'
         "</lf-text-document>"
     )
     source = claimed / "index.html"
@@ -221,7 +221,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
             "text": "REPLYWORD",
             "markup": '<lf-options id="frozen"><lf-option id="yes">FROZENWORD'
             '</lf-option><lf-option id="PICKWORD">No</lf-option></lf-options>'
-            '<lf-text-document id="in-thread" source="thread-notes"><strong>notes.md</strong>'
+            '<lf-text-document id="in-thread" source="thread-notes" label="notes.md">'
             "</lf-text-document>",
         },
     )

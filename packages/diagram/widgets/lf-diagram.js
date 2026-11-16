@@ -36,7 +36,6 @@ import {
   once,
   failSoft,
   frameFor,
-  openingTitle,
   registerVisualParts,
   sizeObserver,
   whileConnected,
@@ -235,10 +234,7 @@ customElements.define(
       const same = this.#drawn?.svg === svg;
       this.#drawn = { for: width, width: drawnWidth, svg };
       if (same) return;
-      // The name the diagram opens with stays over its drawing (`openingTitle`).
-      const name = openingTitle(this)?.holder;
       this.innerHTML = svg;
-      if (name) this.prepend(name);
       nameWithoutTooltip(this.querySelector(":scope > svg"));
       this.style.setProperty("--lf-diagram-height", `${height}px`);
       this.style.setProperty("--lf-diagram-padding", `${drawingPadding}px`);

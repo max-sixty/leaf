@@ -38,9 +38,8 @@
       </header>
 
       <lf-parts id="root-parts">
-        <lf-part id="plan-part"
-          ><header><strong>Plan</strong></header>
-          <article class="layout-column">
+        <lf-part id="plan-part" label="Plan"
+          ><article class="layout-column">
             <section id="part-plan-return" class="layout-flow">
               <h2>Rollout plan</h2>
               <p>
@@ -107,9 +106,8 @@
           </article></lf-part
         >
 
-        <lf-part id="evidence-part"
-          ><header><strong>Evidence</strong></header>
-          <article class="layout-column">
+        <lf-part id="evidence-part" label="Evidence"
+          ><article class="layout-column">
             <section id="part-evidence-summary" class="layout-flow">
               <h2>Rehearsal results</h2>
               <p>
@@ -205,9 +203,8 @@
           </article></lf-part
         >
 
-        <lf-part id="workbench-part"
-          ><header><strong>Workbench</strong></header>
-          <article class="layout-column">
+        <lf-part id="workbench-part" label="Workbench"
+          ><article class="layout-column">
             <section id="part-workbench" class="layout-flow">
               <header>
                 <hgroup>
@@ -216,7 +213,7 @@
                 </hgroup>
               </header>
               <div id="part-workbench-regions">
-                <lf-pane id="part-queue-pane">
+                <lf-pane id="part-queue-pane" label="Cohort queue">
                   <header><h3>Cohort queue</h3></header>
                   <div>
                     <nav aria-label="Migration cohorts">
@@ -271,7 +268,7 @@
                   </footer>
                 </lf-pane>
 
-                <lf-pane id="part-detail-pane">
+                <lf-pane id="part-detail-pane" label="Cohort detail">
                   <header><h3>Selected cohort</h3></header>
                   <div>
                     <section id="part-cohort-staff">
@@ -362,9 +359,8 @@ observe --cohort staff</code></pre>
             </section>
           </article></lf-part
         >
-        <lf-part id="summary-part"
-          ><header><strong>Summary</strong></header>
-          <article class="layout-column">
+        <lf-part id="summary-part" label="Summary"
+          ><article class="layout-column">
             <section id="part-release-summary" class="layout-flow">
               <h2>Release decision</h2>
               <p>Advance only after the evidence meets every rollout gate.</p>

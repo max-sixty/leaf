@@ -38,7 +38,7 @@ def test_sample_upgrade_does_not_wait_for_child_saved_state(
         '<h1>Independent sample startup</h1><p id="outer">Parent passage.</p>'
         # The child's window holds a rail, so its page surface is a margin card; a
         # narrower one opens every thread in its panel.
-        '<lf-sample id="practice" window style="width: 1100px"><strong>Practice</strong>'
+        '<lf-sample id="practice" label="Practice" window style="width: 1100px">'
         '<template id="practice-source" data-sample data-sample-events="history">'
         '<h1>Practice</h1><p id="inner">Child passage.</p>'
         "</template></lf-sample>",
@@ -184,16 +184,14 @@ def test_samples_keep_native_loaders_forms_and_reload(browser, serve):
                 "Native sample delivery",
                 """
 <h1>Containing page</h1>
-<lf-sample id="practice" window>
-  <strong>Practice</strong>
+<lf-sample id="practice" label="Practice" window>
   <template id="practice-source" data-sample>
     <h1>Practice page</h1>
     <link rel="stylesheet" href="/page/native.css">
     <img src="/page/native.svg" alt="Native resource">
     <form id="form"><button id="submit">Submit</button></form>
     <button id="popup">Open window</button>
-    <lf-sample id="nested" window>
-      <strong>Nested practice</strong>
+    <lf-sample id="nested" label="Nested practice" window>
       <template id="nested-source" data-sample><h1>Nested page</h1></template>
     </lf-sample>
     <script type="module" src="/page/native.js"></script>
@@ -483,8 +481,7 @@ def test_sample_native_departure_keeps_destination_and_reset(
                 "Native departure",
                 """
 <h1>Containing page</h1>
-<lf-sample id="practice" window>
-  <strong>Practice</strong>
+<lf-sample id="practice" label="Practice" window>
   <template id="practice-source" data-sample>
     <h1>Practice page</h1>
     <form action="https://docs.example.invalid/reference.html" method="get">

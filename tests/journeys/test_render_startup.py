@@ -384,8 +384,7 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
     source = leaf_page(
         "Sample view",
         """<h1>Sample view</h1>
-<lf-sample id="practice">
-  <strong>Practice</strong>
+<lf-sample id="practice" label="Practice">
   <template id="practice-source" data-sample>
     <h2>Contained page</h2><p>Read this in its allocated viewport.</p>
   </template>
@@ -619,7 +618,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     source = leaf_page(
         "Uninterrupted draft",
         '<h1>Uninterrupted draft</h1><p id="passage">The prototype needs a mobile check.</p>'
-        '<lf-sample id="practice" window><strong>Practice</strong>'
+        '<lf-sample id="practice" label="Practice" window>'
         '<template id="practice-source" data-sample>'
         '<h1>Practice</h1><button id="inspect">Inspect</button>'
         "</template></lf-sample>",

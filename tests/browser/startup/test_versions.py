@@ -375,8 +375,7 @@ KEPT_BOARD = leaf_page(
     """
 <h1 id="title">Kept board</h1>
 <lf-board id="board">
-  <lf-column id="col-todo">
-    <strong>To do</strong>
+  <lf-column id="col-todo" label="To do">
     <lf-card id="card-x"><strong>Review</strong> Old words.</lf-card>
     <lf-card id="card-y"><strong>Ship</strong> Steady words.</lf-card>
   </lf-column>

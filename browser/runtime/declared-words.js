@@ -372,17 +372,21 @@ export function markDeclared(root) {
   }
 }
 
-// Words a widget says through an attribute, such as a gloss's tip, rendered as text the
-// user can reach. The theme renders the same words with `content: attr()`, and a
-// pseudo-element's glyphs are in no text node: no selection can cover them, so no
-// comment can be anchored on them, and the page shows text you can read and can't point
-// at. Not the widget author's to remember, either: the registry names the attributes
-// (x-says) and one pass renders them, so a widget cannot render a word the user can't
-// quote.
+// Words a widget says through an attribute — a metric's number, a chronology entry's time, an
+// option's chip band — rendered as text the user can reach. The theme renders the same
+// words with `content: attr()`, and a pseudo-element's glyphs are in no text node: no
+// selection can cover them, so no comment can be anchored on them, and the page shows
+// text you can read and can't point at. Not the widget author's to remember, either: the
+// registry names the attributes (x-says) and one pass renders them, so a widget cannot
+// render a word the user can't quote.
 //
-// Each value goes where its `::after` stood, after the element's own words. The pass
-// runs after the upgrades, so a module that rebuilds its own body can't wipe a span put
-// there first.
+// Each value goes at the edge its pseudo-element occupied (before = first child, after =
+// last) — the only placement a pseudo could ever have had, and so the line past which a
+// widget writes its own (a dashboard's labels may form a list mid-element;
+// lf-column's heading is its list's accessible name, which this pass knows nothing
+// about). Those write the same data-lf-said span, and the guard below means the two
+// compose rather than race. The pass runs after the upgrades, so a module that rebuilds
+// its own body can't wipe a span put there first.
 //
 // The theme's pseudo rules stay as the no-script fallback; they stand down where this
 // pass has been, asked by :has(), so the two are never both on. The span is data-lf-gen
@@ -399,17 +403,8 @@ export function markDeclared(root) {
 export function renderSaid(root) {
   for (const [tag, entry] of elementDeclarations()) {
     if (!entry["x-says"]) continue;
-    for (const el of elementsIn(root, tag)) {
-      // Inside the element's own words rather than past them. Trailing chrome stands
-      // *beside* the last of them and runs to the line's end, so a span placed at the
-      // element's true end lands on the far side of it, and on the far side of it from
-      // where the file's reading of that same version has it. Each goes before what
-      // followed the words, so the values keep their declared order.
-      const end =
-        [...el.childNodes]
-          .filter((n) => !(isElement(n) && n.getAttribute("data-lf-gen")))
-          .at(-1)?.nextSibling ?? null;
-      for (const attr of entry["x-says"]) {
+    for (const el of elementsIn(root, tag))
+      for (const [attr, edge] of Object.entries(entry["x-says"])) {
         const text = el.getAttribute(attr);
         const existing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
         // A live revision may change or drop the attribute under a span already
@@ -425,9 +420,38 @@ export function renderSaid(root) {
         span.dataset.lfSaid = attr;
         generatedElement(span, { says: true });
         span.textContent = text;
-        move(el, span, end);
+        // The two edges are not mirror images, because the chrome at them is not the same
+        // kind of thing.
+        //
+        // After: inside the element's own words rather than past them. Trailing chrome
+        // stands *beside* the last of them and runs to the line's end, so a span placed
+        // at the element's true end lands on the far side of it — an option's risk chip
+        // came out past the pick mark that ends a compact row, and on the far side of it
+        // from where the file's reading of that same version has it.
+        //
+        // Before: the element's own start. Leading chrome is not something the words
+        // stand beside; a module puts it there to speak *for* the whole element, so an
+        // authored attribute declared at this edge must precede it.
+        //
+        // Each edge skips what the other keeps, which is the whole of the difference:
+        // trailing chrome is passed over by looking for the last authored node, leading
+        // chrome by looking for the first node this pass has not already written. The
+        // second reading also settles the order of two attributes declared at this edge,
+        // though no shipped declaration names two.
+        const pastTrailingChrome = [...el.childNodes].filter(
+          (n) => !(isElement(n) && n.getAttribute("data-lf-gen")),
+        );
+        const beforeLeadingChrome = [...el.childNodes].find(
+          (n) => !(isElement(n) && n.getAttribute("data-lf-said")),
+        );
+        move(
+          el,
+          span,
+          (edge === "before"
+            ? beforeLeadingChrome
+            : pastTrailingChrome.at(-1)?.nextSibling) ?? null,
+        );
       }
-    }
   }
 }
 

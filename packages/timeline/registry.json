@@ -1,7 +1,7 @@
 {
   "lf-timeline": {
     "description": "An authored sequence of events over time, one lane per actor, that the reader steps through with Previous and Next while a playhead and a step list follow. Use it to explain an order of events, such as a race between jobs, or to compare several runs of the same sequence on one time axis, such as before and after a fix; use `lf-trace` for a recorded browser journey and `lf-motion` for continuous playback.",
-    "x-instructions": "Write one `lf-lane` per actor, in the order the reader should scan them, and in each an `lf-event` per thing that happened to it. `at` is the event's time in milliseconds from the sequence's start; add `end` for an event with duration, such as work in progress, and leave it out for an instant. Previous and Next visit events in start order: events with the same `at` share one step, and a span's end is not a step, so model a moment the reader must stop at, such as a write landing, as its own instant. Name each event with a `<strong>` holding a short clause, since the prose around the widget carries the explanation; the widget lays the names out so that none overlaps a bar, another name or the playhead. Give every event a page-unique `id`: it is the event's comment target.",
+    "x-instructions": "Write one `lf-lane` per actor, in the order the reader should scan them, and in each an `lf-event` per thing that happened to it. `at` is the event's time in milliseconds from the sequence's start; add `end` for an event with duration, such as work in progress, and leave it out for an instant. Previous and Next visit events in start order: events with the same `at` share one step, and a span's end is not a step, so model a moment the reader must stop at, such as a write landing, as its own instant. Keep each `label` to a short clause, since the prose around the widget carries the explanation; the widget lays labels out so that none overlaps a bar, another label or the playhead. Give every event a page-unique `id`: it is the event's comment target.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -16,30 +16,46 @@
     "x-visual": {
       "prefixes": ["event:"]
     },
-    "x-example": "<lf-timeline id=\"deploy-order\" aria-label=\"Deploy order\"><lf-lane><strong>Build</strong><lf-event id=\"deploy-compile\" at=\"0\" end=\"4000\"><strong>Compile</strong></lf-event><lf-event id=\"deploy-artifact\" at=\"4000\"><strong>Artifact ready</strong></lf-event></lf-lane><lf-lane><strong>Release</strong><lf-event id=\"deploy-rollout\" at=\"4500\" end=\"9000\"><strong>Roll out</strong></lf-event></lf-lane></lf-timeline>"
+    "x-example": "<lf-timeline id=\"deploy-order\" aria-label=\"Deploy order\"><lf-lane label=\"Build\"><lf-event id=\"deploy-compile\" at=\"0\" end=\"4000\" label=\"Compile\"></lf-event><lf-event id=\"deploy-artifact\" at=\"4000\" label=\"Artifact ready\"></lf-event></lf-lane><lf-lane label=\"Release\"><lf-event id=\"deploy-rollout\" at=\"4500\" end=\"9000\" label=\"Roll out\"></lf-event></lf-lane></lf-timeline>"
   },
   "lf-lane": {
-    "description": "One actor's row in an `lf-timeline`, opening with the `<strong>` that names the actor, then holding its events.",
+    "description": "One actor's row in an `lf-timeline`, holding its events.",
     "type": "object",
-    "properties": {},
+    "properties": {
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["label"],
     "additionalProperties": false,
     "x-owners": ["lf-timeline", "lf-run"],
     "x-content": "members"
   },
   "lf-run": {
-    "description": "One run of a compared sequence in an `lf-timeline`, such as the run before a fix, opening with the `<strong>` that names it, then holding its lanes. Every run in a timeline shares its time axis and its playhead, and a timeline with runs keeps every lane in one.",
+    "description": "One run of a compared sequence in an `lf-timeline`, such as the run before a fix, holding its lanes. Every run in a timeline shares its time axis and its playhead, and a timeline with runs keeps every lane in one.",
     "type": "object",
-    "properties": {},
+    "properties": {
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "required": ["label"],
     "additionalProperties": false,
     "x-owners": ["lf-timeline"],
     "x-content": "members",
-    "x-example": "<lf-timeline id=\"retry-order\" aria-label=\"Retry handling before and after the fix\"><lf-run><strong>Before the fix</strong><lf-lane><strong>Client</strong><lf-event id=\"retry-before-send\" at=\"0\" end=\"300\"><strong>Send</strong></lf-event><lf-event id=\"retry-before-resend\" at=\"1200\" end=\"1500\"><strong>Resend</strong></lf-event></lf-lane><lf-lane><strong>Server</strong><lf-event id=\"retry-before-apply\" at=\"400\"><strong>Apply</strong></lf-event><lf-event id=\"retry-before-reapply\" at=\"1600\"><strong>Apply again</strong></lf-event></lf-lane></lf-run><lf-run><strong>After the fix</strong><lf-lane><strong>Client</strong><lf-event id=\"retry-after-send\" at=\"0\" end=\"300\"><strong>Send</strong></lf-event><lf-event id=\"retry-after-resend\" at=\"1200\" end=\"1500\"><strong>Resend</strong></lf-event></lf-lane><lf-lane><strong>Server</strong><lf-event id=\"retry-after-apply\" at=\"400\"><strong>Apply</strong></lf-event><lf-event id=\"retry-after-skip\" at=\"1600\"><strong>Skip the duplicate</strong></lf-event></lf-lane></lf-run></lf-timeline>"
+    "x-example": "<lf-timeline id=\"retry-order\" aria-label=\"Retry handling before and after the fix\"><lf-run label=\"Before the fix\"><lf-lane label=\"Client\"><lf-event id=\"retry-before-send\" at=\"0\" end=\"300\" label=\"Send\"></lf-event><lf-event id=\"retry-before-resend\" at=\"1200\" end=\"1500\" label=\"Resend\"></lf-event></lf-lane><lf-lane label=\"Server\"><lf-event id=\"retry-before-apply\" at=\"400\" label=\"Apply\"></lf-event><lf-event id=\"retry-before-reapply\" at=\"1600\" label=\"Apply again\"></lf-event></lf-lane></lf-run><lf-run label=\"After the fix\"><lf-lane label=\"Client\"><lf-event id=\"retry-after-send\" at=\"0\" end=\"300\" label=\"Send\"></lf-event><lf-event id=\"retry-after-resend\" at=\"1200\" end=\"1500\" label=\"Resend\"></lf-event></lf-lane><lf-lane label=\"Server\"><lf-event id=\"retry-after-apply\" at=\"400\" label=\"Apply\"></lf-event><lf-event id=\"retry-after-skip\" at=\"1600\" label=\"Skip the duplicate\"></lf-event></lf-lane></lf-run></lf-timeline>"
   },
   "lf-event": {
-    "description": "One event in a timeline lane: an instant at `at`, or a span from `at` to `end`, in milliseconds, holding only the `<strong>` that names it.",
+    "description": "One event in a timeline lane: an instant at `at`, or a span from `at` to `end`, in milliseconds.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      },
       "at": {
         "type": "string",
         "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
@@ -49,9 +65,9 @@
         "pattern": "^(0|[1-9][0-9]*)(\\.[0-9]+)?$"
       }
     },
-    "required": ["id", "at"],
+    "required": ["id", "label", "at"],
     "additionalProperties": false,
     "x-owners": ["lf-lane"],
-    "x-content": "members"
+    "x-content": "empty"
   }
 }

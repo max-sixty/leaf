@@ -42,7 +42,7 @@ def test_code_copy_on_plain_http_machine_name(browser, serve, gesture):
 def test_sample_code_copy_keeps_its_clipboard_boundary(browser, serve):
     source = leaf_page(
         "Sample copy boundary",
-        '<h1>Sample copy boundary</h1><lf-sample id="sample"><strong>Sample</strong>'
+        '<h1>Sample copy boundary</h1><lf-sample id="sample" label="Sample">'
         '<template id="sample-page" data-sample>'
         "<pre><code>private sample</code></pre></template></lf-sample>",
     )

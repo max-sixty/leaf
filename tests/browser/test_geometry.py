@@ -13,13 +13,11 @@ def test_hidden_boxes_keep_native_bounds_until_tabs_reveal(browser, serve):
                 """
 <h1>Evidence</h1>
 <lf-tabs id="evidence-views">
-  <lf-tab id="summary"><strong>Summary</strong><p>The current summary.</p></lf-tab>
-  <lf-tab id="outer">
-    <strong>Evidence</strong>
+  <lf-tab id="summary" label="Summary"><p>The current summary.</p></lf-tab>
+  <lf-tab id="outer" label="Evidence">
     <lf-tabs id="saved-views">
-      <lf-tab id="overview"><strong>Overview</strong><p>Evidence overview.</p></lf-tab>
-      <lf-tab id="inner">
-        <strong>Saved</strong>
+      <lf-tab id="overview" label="Overview"><p>Evidence overview.</p></lf-tab>
+      <lf-tab id="inner" label="Saved">
         <p id="destination">Saved evidence becomes readable here.</p>
       </lf-tab>
     </lf-tabs>

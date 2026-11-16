@@ -174,11 +174,11 @@ def test_a_widget_without_a_thread_says_what_the_agent_is_doing(browser, serve):
     work_page = OBLIGATION_PAGE.replace(
         '<h1 id="h">Three jobs</h1>',
         '<h1 id="h">Three jobs</h1>\n'
-        '<lf-board id="work-board"><lf-column id="work-now">\n<strong>In flight</strong>\n'
+        '<lf-board id="work-board"><lf-column id="work-now" label="In flight">\n'
         '  <lf-card id="card-migration"><strong>Run the migration</strong> '
         "Check the shard before cutover.</lf-card>\n"
-        '</lf-column><lf-column id="work-next"><strong>Next</strong></lf-column>\n'
-        '<lf-column id="work-done"><strong>Done</strong></lf-column></lf-board>',
+        '</lf-column><lf-column id="work-next" label="Next"></lf-column>\n'
+        '<lf-column id="work-done" label="Done"></lf-column></lf-board>',
     )
     url = serve(work_page)
     page = open_page(browser, live_url(url))

@@ -1375,7 +1375,7 @@ def test_a_drag_released_mid_word_hugs_words_and_sentences(browser, serve):
         serve(
             INLINE_PAGE.replace(
                 '<p id="p">',
-                '<ul><li><lf-sample id="spec"><strong>mono</strong>glyphs set close'
+                '<ul><li><lf-sample id="spec" label="mono">glyphs set close'
                 "</lf-sample></li></ul>\n"
                 '<p id="sentence">🔴 🟢 “<strong>Opening</strong> words stay '
                 "<em>together</em>.” 🔴 🟢 Next sentence.</p>\n"

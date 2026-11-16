@@ -589,9 +589,9 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     attention and leaves the submission the agent's one input on the widget."""
     page = ModelPage(
         '<lf-ask id="ask"><h2>Which tone?</h2><lf-playground id="tone-playground">'
-        '<lf-playground-control id="tone" name="tone" kind="choice" value="calm"><strong>Tone</strong>'
-        '<lf-playground-choice id="tone-calm" value="calm"><strong>Calm</strong></lf-playground-choice>'
-        '<lf-playground-choice id="tone-urgent" value="urgent"><strong>Urgent</strong></lf-playground-choice>'
+        '<lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="calm">'
+        '<lf-playground-choice id="tone-calm" value="calm" label="Calm"></lf-playground-choice>'
+        '<lf-playground-choice id="tone-urgent" value="urgent" label="Urgent"></lf-playground-choice>'
         "</lf-playground-control>"
         "<lf-playground-preview><p>Deployed.</p></lf-playground-preview>"
         "<lf-playground-output>Build it.</lf-playground-output>"

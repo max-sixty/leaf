@@ -58,7 +58,7 @@ def test_reading_keys_chain_at_a_document_bound_but_stop_at_a_task_boundary(
         source = (
             leaf_page(
                 "A bounded task",
-                '<header><h1>Task</h1></header><lf-pane id="task" aria-label="Task">'
+                '<header><h1>Task</h1></header><lf-pane id="task" label="Task">'
                 "<div>" + content + "</div></lf-pane>",
                 layout="workspace",
             )
@@ -103,7 +103,7 @@ def test_a_focused_reading_surface_preserves_its_passage_on_reflow(browser, serv
     )
     source = leaf_page(
         "A focused reading surface",
-        f'<lf-pane id="reading" aria-label="Reading"><div tabindex="0">{paragraphs}</div></lf-pane>',
+        f'<lf-pane id="reading" label="Reading"><div tabindex="0">{paragraphs}</div></lf-pane>',
         layout="workspace",
     )
     page = open_page(browser, serve(source))
@@ -299,9 +299,9 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
             leaf_page(
                 "a rail beside its detail",
                 '<header><h1 id="top">Queue</h1></header><div id="regions">'
-                '<lf-pane id="rail" aria-label="Rail"><div><a href="#top">Top</a>'
+                '<lf-pane id="rail" label="Rail"><div><a href="#top">Top</a>'
                 '<p id="rail-words" style="min-height: 6000px">The words of the rail.</p>'
-                '</div></lf-pane><lf-pane id="detail" aria-label="Detail"><div>'
+                '</div></lf-pane><lf-pane id="detail" label="Detail"><div>'
                 f"{ask('first')}{words}{ask('second')}"
                 "<div style='height: 1400px'></div></div></lf-pane></div>",
                 head=regions_side_by_side("regions", "1fr 3fr"),
@@ -374,11 +374,11 @@ def test_the_page_hands_a_step_it_cannot_take_to_its_largest_pane_and_takes_it_b
             leaf_page(
                 "a rail, two panes and a footer",
                 '<header><h1>Queue</h1></header><div id="regions">'
-                '<lf-pane id="rail" aria-label="Rail"><div><a href="#long">Long</a>'
+                '<lf-pane id="rail" label="Rail"><div><a href="#long">Long</a>'
                 '<p style="min-height: 8000px">The words of the rail.</p></div></lf-pane>'
-                '<lf-pane id="short" aria-label="Short"><div><a href="#long">Long</a>'
+                '<lf-pane id="short" label="Short"><div><a href="#long">Long</a>'
                 '<p style="min-height: 1200px">The words of the short pane.</p></div>'
-                '</lf-pane><lf-pane id="long" aria-label="Long"><div>'
+                '</lf-pane><lf-pane id="long" label="Long"><div>'
                 f"{ask('first')}{words}{ask('second')}"
                 "<div style='height: 1400px'></div></div></lf-pane></div>",
                 head=regions_side_by_side("regions", "1fr 2fr 2fr"),
@@ -448,11 +448,11 @@ def test_of_two_panes_the_same_size_on_screen_the_one_with_more_to_scroll_takes_
         leaf_page(
             "a rail and two panes",
             '<header><h1>Queue</h1></header><div id="regions">'
-            '<lf-pane id="rail" aria-label="Rail"><div>'
+            '<lf-pane id="rail" label="Rail"><div>'
             '<p style="min-height: 8000px">The words of the rail.</p></div></lf-pane>'
-            '<lf-pane id="short" aria-label="Short"><div>'
+            '<lf-pane id="short" label="Short"><div>'
             '<p style="min-height: 1200px">The words of the short pane.</p></div>'
-            '</lf-pane><lf-pane id="long" aria-label="Long"><div>'
+            '</lf-pane><lf-pane id="long" label="Long"><div>'
             '<p style="min-height: 3000px">The words of the long pane.</p></div>'
             "</lf-pane></div>",
             head=regions_side_by_side("regions", "1fr 2fr 2fr"),
@@ -499,7 +499,7 @@ def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
     if workspace:
         source = leaf_page(
             "a log in a workspace",
-            '<header><h1>Deploy</h1></header><lf-pane id="pane" aria-label="Log"><div>'
+            '<header><h1>Deploy</h1></header><lf-pane id="pane" label="Log"><div>'
             f"{log_markup}</div></lf-pane>",
             layout="workspace",
         )
@@ -1208,12 +1208,12 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         .replace(
             '<main class="layout-workspace">',
             '<main class="layout-column"><lf-tabs id="reading-tabs" class="layout-flow">'
-            '<lf-tab id="first-tab" class="layout-flow"><strong>First</strong>',
+            '<lf-tab id="first-tab" label="First" class="layout-flow">',
         )
         .replace(
             "</main>",
-            '</lf-tab><lf-tab id="second-tab" class="layout-flow"><strong>Second</strong>'
-            '<lf-pane id="other-reading" aria-label="Other reading">'
+            '</lf-tab><lf-tab id="second-tab" label="Second" class="layout-flow">'
+            '<lf-pane id="other-reading" label="Other reading">'
             '<div><p id="other-start">Another reading with enough words to preserve its landmark.</p>'
             '<div style="height: 1000px"></div></div></lf-pane></lf-tab></lf-tabs></main>',
         )
@@ -1330,35 +1330,6 @@ def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
     expect(page.locator("#reading-flag")).to_be_checked()
     expect(page.locator("#reading-detail")).to_have_attribute("open", "")
     assert page.locator("#reading-inner").evaluate("el => el.scrollTop") == 220
-
-
-def test_a_pane_is_a_region_named_by_its_header_unless_its_author_named_it(
-    browser, serve
-):
-    """A pane is a region named as any element is, by the title its header opens with;
-    an `aria-label` its author gave names it instead. A revision that renames the pane
-    renames its region."""
-
-    def panes(title):
-        return leaf_page(
-            "Panes",
-            '<div class="layout-split">'
-            f'<lf-pane id="named"><header><h2>{title}</h2></header>'
-            "<div><p>One.</p></div></lf-pane>"
-            '<lf-pane id="labelled" aria-label="Raw log"><header><h2>Log</h2>'
-            "</header><div><p>Two.</p></div></lf-pane></div>",
-        )
-
-    page = open_page(browser, live_url(serve(panes("Findings"))))
-    expect(page.get_by_role("region", name="Findings", exact=True)).to_have_id("named")
-    expect(page.get_by_role("region", name="Raw log", exact=True)).to_have_id(
-        "labelled"
-    )
-    stamp_page(serve.page_dir, panes("Open findings"), "rename the findings pane")
-    wait_for_revision(page, 2)
-    expect(page.get_by_role("region", name="Open findings", exact=True)).to_have_id(
-        "named"
-    )
 
 
 @pytest.mark.parametrize("named", [False, True], ids=["unnamed-bodies", "named-bodies"])
@@ -1684,7 +1655,7 @@ def test_a_nested_pane_footer_travels_in_the_outer_region_that_contains_it(
     source = READING_REGIONS_PAGE.replace(
         '<p id="left-end">Left end</p>',
         """<section>
-  <lf-pane id="nested-pane" aria-label="Nested reading">
+  <lf-pane id="nested-pane" label="Nested reading">
     <div><p>Nested body context stays in ordinary flow.</p></div>
     <footer><p id="nested-footer">Nested footer destination with enough words to anchor.</p></footer>
   </lf-pane>

@@ -831,8 +831,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
   </lf-suggestion>
 </p>
 <lf-board id="packing">
-  <lf-column id="ready">
-    <strong>Ready</strong>
+  <lf-column id="ready" label="Ready">
     <lf-card id="map"><strong>Print the workshop map</strong></lf-card>
     <lf-card id="signs"><strong>Pack the direction signs</strong></lf-card>
   </lf-column>

@@ -26,18 +26,10 @@
  * source and Markdown renderers reconcile unchanged text across source updates, the
  * source only in the rows a new text changes (`rewrite`). HTML lives in a separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
- * stamped with its text before awaiting the frame's presentation.
- *
- * A document is named as any element is, by the <strong> it opens with
- * (`addressableName`), which stays the host's first child and heads the drawn frame as
- * its caption bar (text-document.css), so the name the frame shows is the one the page
- * wrote, which page search finds and a comment anchors on. A document with no name is
- * captioned by the source or widget it reads. */
-import { html, nothing, render } from "/vendor/lit.js";
+ * stamped with its text before awaiting the frame's presentation. */
+import { nothing } from "/vendor/lit.js";
 import {
-  addressableName,
   codeLanguage,
-  openingTitle,
   failSoft,
   ensureSyntaxLanguage,
   keeps,
@@ -1055,19 +1047,11 @@ class TextDocument extends LeafElement {
           : null;
       }
       const view = (this.view ??= this.build(preview));
-      const opening = openingTitle(this);
-      const title = opening?.title;
-      const name = opening?.holder;
-      const origin = this.getAttribute("source") ?? this.getAttribute("for");
-      render(
-        html`${title ? nothing : origin}${
-          value == null ? (title ? "No data" : " · no data") : nothing
-        }`,
-        view.caption,
-      );
-      // A named document's name stands above the figure rather than as its caption, so
-      // the figure is named by its words, as a caption would name it.
-      keeps(view.figure, "aria-label", (title && addressableName(this)) || null);
+      const label =
+        this.getAttribute("label") ??
+        this.getAttribute("source") ??
+        this.getAttribute("for");
+      keepsText(view.caption, value == null ? `${label} · no data` : label);
       const previous = this.lines;
       this.lines = next;
       if (this.cut) keepsText(this.cut.press, `Show all ${text.length} lines`);
@@ -1151,7 +1135,7 @@ class TextDocument extends LeafElement {
         this.cut && !view.figure.isConnected
           ? this.getBoundingClientRect().height
           : null;
-      setChildren(this, name ? [name, view.figure] : [view.figure]);
+      setChildren(this, [view.figure]);
       this.showLone();
       if (this.listed) this.refit();
       // Reports the draw: marks its text's items for whoever hosts the widget, in the
@@ -1179,7 +1163,6 @@ class TextDocument extends LeafElement {
   build(preview) {
     const figure = document.createElement("figure");
     figure.className = "lf-text-document-view";
-    // The caption of a document the page doesn't name: the source it reads.
     const caption = document.createElement("figcaption");
     const listing = document.createElement("div");
     listing.className = "lf-text-document-listing lf-ring-frame";
@@ -1194,30 +1177,21 @@ class TextDocument extends LeafElement {
     // Its members are this document's data readings, not authored page content.
     generatedElement(tabs, { says: false });
     const bound = this.getAttribute("data-lf-bound") ?? "start";
-    // Each reading's tab is named as an authored tab is, by the <strong> it opens
-    // with, which its tab shows a copy of; hidden, since the strip already says it.
-    /** @param {string} id @param {string} name */
-    const reading = (id, name) => {
-      const tab = document.createElement("lf-tab");
-      tab.id = `${this.id}--${id}`;
-      tab.setAttribute("data-lf-bound", bound);
-      const title = generatedElement(document.createElement("strong"), {
-        says: false,
-      });
-      title.hidden = true;
-      title.textContent = name;
-      tab.append(title);
-      return tab;
-    };
-    const rendered = reading("preview", "Preview");
-    const literal = reading("source", "Source");
+    const rendered = document.createElement("lf-tab");
+    rendered.id = `${this.id}--preview`;
+    rendered.setAttribute("label", "Preview");
+    rendered.setAttribute("data-lf-bound", bound);
+    const literal = document.createElement("lf-tab");
+    literal.id = `${this.id}--source`;
+    literal.setAttribute("label", "Source");
+    literal.setAttribute("data-lf-bound", bound);
     const drawn =
       preview === "html"
         ? document.createElement("iframe")
         : document.createElement("div");
     drawn.className = "lf-text-document-preview";
     if (drawn instanceof HTMLIFrameElement) {
-      drawn.title = `${addressableName(this) || this.getAttribute("source") || this.getAttribute("for")} preview`;
+      drawn.title = `${this.getAttribute("label") ?? this.getAttribute("source") ?? this.getAttribute("for")} preview`;
       drawn.setAttribute("sandbox", "allow-scripts");
     }
     rendered.append(drawn);

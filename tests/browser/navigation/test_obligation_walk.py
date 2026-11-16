@@ -68,9 +68,9 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         )
         if name == "first" and nested_source:
             options = (
-                '<lf-tabs id="source-views"><lf-tab id="source-context"><strong>Context</strong>'
+                '<lf-tabs id="source-views"><lf-tab id="source-context" label="Context">'
                 "<p>The evidence precedes the decision.</p></lf-tab>"
-                '<lf-tab id="source-answer"><strong>Answer</strong>'
+                '<lf-tab id="source-answer" label="Answer">'
                 + options
                 + "</lf-tab></lf-tabs>"
             )
@@ -86,11 +86,11 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     source = leaf_page(
         "Ask travel across tabs",
         '<h1>Review the two proposals</h1><lf-tabs id="views" class="layout-flow">'
-        '<lf-tab id="first"><strong>First</strong>'
+        '<lf-tab id="first" label="First">'
         '<div style="height: 1800px"></div>'
         + first
         + '<div style="height: 1000px"></div></lf-tab>'
-        '<lf-tab id="second"><strong>Second</strong>'
+        '<lf-tab id="second" label="Second">'
         + question("second")
         + '<div style="height: 3800px"></div></lf-tab></lf-tabs>',
     )
@@ -1451,11 +1451,11 @@ OBLIGATION_IN_A_PANE_PAGE = leaf_page(
     """
   <header><h1>Decisions</h1></header>
   <div id="ask-split">
-    <lf-pane id="ask-notes">
+    <lf-pane id="ask-notes" label="Notes">
       <header><h2>Notes</h2></header>
       <div><p>Notes that hold still while the decision pane scrolls.</p></div>
     </lf-pane>
-    <lf-pane id="ask-detail">
+    <lf-pane id="ask-detail" label="Decision">
       <header><h2>Evidence and decision</h2></header>
       <div>
         <p>Evidence the user reads before the question.</p>

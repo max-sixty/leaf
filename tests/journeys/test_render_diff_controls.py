@@ -348,21 +348,21 @@ def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
                 leaf_page(
                     "Review worktrees",
                     '<h1>Review worktrees</h1><lf-worktree-diffs id="trees">'
-                    '<lf-worktree id="drafts" '
+                    '<lf-worktree id="drafts" label="retain-drafts" '
                     'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
-                    f'head="{head}" status="changed" files="2" additions="2" deletions="2" open><strong>retain-drafts</strong>'
+                    f'head="{head}" status="changed" files="2" additions="2" deletions="2" open>'
                     "<p>Keep reply drafts keyed by thread</p>"
                     "<aside>Drafts survive changing the selected thread.</aside>"
                     "<details><summary>Snapshot details</summary>"
                     f"<p>Current commit <code>{head}</code></p></details>"
                     f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
-                    '</lf-worktree><lf-worktree id="missing" '
-                    'path="/workspace/missing" status="unavailable"><strong>missing checkout</strong>'
+                    '</lf-worktree><lf-worktree id="missing" label="missing checkout" '
+                    'path="/workspace/missing" status="unavailable">'
                     "<p>The supplied checkout could not be read.</p></lf-worktree>"
                     + "".join(
-                        f'<lf-worktree id="clean-{index}" '
+                        f'<lf-worktree id="clean-{index}" label="clean {index}" '
                         f'path="/workspace/clean-{index}" status="clean" files="0" '
-                        f'additions="0" deletions="0"><strong>clean {index}</strong>'
+                        f'additions="0" deletions="0">'
                         "<p>No changes.</p></lf-worktree>"
                         for index in range(3)
                     )
@@ -503,9 +503,9 @@ def test_file_tree_lands_at_the_file_start_after_reading_down(browser, serve, sc
         "</div>"
     )
     regions = (
-        '<lf-pane id="files-pane"><header>Files</header>'
+        '<lf-pane id="files-pane" label="Files"><header>Files</header>'
         + tree_markup
-        + '</lf-pane><lf-pane id="patch-pane"><header>Patch</header>'
+        + '</lf-pane><lf-pane id="patch-pane" label="Patch"><header>Patch</header>'
         + evidence_markup
         + "</lf-pane>"
         if pane

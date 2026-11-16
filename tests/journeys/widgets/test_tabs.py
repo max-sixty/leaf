@@ -23,7 +23,7 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     list stacks over the item, as a large root font makes it in a narrow workspace, the
     item takes the room below the list rather than standing over it."""
     tickets = "".join(
-        f'<lf-tab id="t-{n}"><header><strong>Ticket {n}</strong><p>sev {n % 3}</p></header>'
+        f'<lf-tab id="t-{n}" label="Ticket {n}" summary="sev {n % 3}">'
         + "".join(
             f'<p id="p-{n}-{line}">Line {line} of what went wrong with ticket {n}.</p>'
             for line in range(40)
@@ -414,7 +414,7 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
         '<h1 id="title">Queue</h1><section id="queue-section"><lf-tabs id="queue" '
         'list="side">'
         + "".join(
-            f'<lf-tab id="q-{i}"><header><strong>Item {i}</strong><p>sev {i}</p></header>'
+            f'<lf-tab id="q-{i}" label="Item {i}" summary="sev {i}">'
             f'<p id="q-words-{i}">Item {i}.</p></lf-tab>'
             for i in range(3)
         )
@@ -499,8 +499,8 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
 
     content = (
         f'<h1 id="t">Evidence</h1><p id="prose">Prose.</p>{tables("in")}'
-        f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open"><strong>Boxed</strong>{tables("boxed")}'
-        '</lf-tab><lf-tab id="boxed-other"><strong>Other</strong><p>Other.</p></lf-tab></lf-tabs>'
+        f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
+        '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
         "</section>"
     )
     # A sidebar page with no aside holds one flow: the page's own CSS gives each block
@@ -513,8 +513,8 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
     parts = leaf_page(
         "Evidence in a part",
         '<header><h1>Evidence</h1></header><lf-parts id="parts">'
-        f'<lf-part id="compare"><header><strong>Compare</strong></header><div id="box" class="layout-{layout}">'
-        f'{content}</div></lf-part><lf-part id="notes"><header><strong>Notes</strong></header>'
+        f'<lf-part id="compare" label="Compare"><div id="box" class="layout-{layout}">'
+        f'{content}</div></lf-part><lf-part id="notes" label="Notes">'
         '<article class="layout-column"><p>Notes.</p></article></lf-part></lf-parts>',
         head=head,
         layout=None,

@@ -8,6 +8,8 @@ second press in that window is swallowed. Four bundled widgets once did both, ea
 found by hand, so this presses every control in every bundled package's worked
 examples (`widget_quality.served_examples`) with the server's answer held."""
 
+from render_harness import Traffic, round_trip
+
 from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
 from leaf.render_checks import (
@@ -112,13 +114,6 @@ UNRESOLVED = """async () => {
     [event.attempt, event.kind, unsent(event)]);
 }"""
 
-# Whether every send has its outcome, by the runtime's own traffic ledger
-# (runtime/traffic.js).
-DELIVERED = """() => {
-  const traffic = document.documentElement.dataset.lfTraffic;
-  return !traffic || !JSON.parse(traffic).pending.length;
-}"""
-
 # Controls no worked example shows, by package directory: a `multiple` group's Done.
 STATES = {
     "default": """<lf-options id="pressed-many" required multiple>
@@ -160,6 +155,7 @@ def _example_pages(package):
 def open_served(browser, url):
     """The page a Leaf server serves at `url`, ready to be pressed."""
     page = browser.new_page(viewport=RENDER_VIEWPORT)
+    page.lf_traffic = Traffic(page)
     page.goto(url)
     wait_until_ready(page, served(page, url, "/api/state").json())
     rendered(page)
@@ -246,7 +242,7 @@ def press_each_control(page, within, restore=None):
             route.continue_()
         held.clear()
         page.unroute("**/api/event")
-        page.wait_for_function(DELIVERED)
+        round_trip(page)
         rendered(page)
         # A face the answer keeps is the press's own result, such as the next
         # thread a Resolve moves on to; one it takes away again was a flicker.

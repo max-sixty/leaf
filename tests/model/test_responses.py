@@ -89,7 +89,7 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
         ],
     )
     assert stale.exit_code != 0
-    assert refused_on(stale.stderr).code == "superseded-reply"
+    assert refused_on(stale.stdout).code == "superseded-reply"
 
     current = CliRunner().invoke(
         cli_model.cli,
@@ -121,7 +121,7 @@ def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
         + ["--markup", shown],
     )
 
-    assert refused_on(refused.stderr).values == {
+    assert refused_on(refused.stdout).values == {
         "tag": "lf-options",
         "id": "question",
         "needs": "`required`",
@@ -146,7 +146,7 @@ def test_a_message_asks_by_its_widget_or_its_words_not_both(page_dir):
             [*command, "--obligation", "--text", "Which?", "--markup", QUESTION],
         )
         assert refused.exit_code != 0
-        assert refused_on(refused.stderr).code == "obligation-beside-widget"
+        assert refused_on(refused.stdout).code == "obligation-beside-widget"
     assert events_model.read_events(page_dir) == before
 
 
@@ -208,7 +208,7 @@ def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, e
             + ["--text", "Tidied."],
         )
         assert posted.exit_code == 0, posted.output
-        return [json.loads(line) for line in posted.stderr.splitlines()]
+        return json.loads(posted.stdout).get("findings", [])
 
     (page_dir / "index.html").write_text(
         '<!doctype html><html lang="en"><head><title>t</title></head>'
@@ -394,14 +394,13 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
         args = ["thread", "reply", "--done", reference, "--text", text]
         refused = CliRunner().invoke(cli_model.cli, args)
         assert refused.exit_code == 1
-        assert reason in json.loads(refused.stderr)["error"]
+        assert reason in json.loads(refused.stdout)["error"]
         assert isinstance(refused.exception, SystemExit)
         launched = subprocess.run(
             [*LEAF_COMMAND, *args], capture_output=True, text=True, check=False
         )
         assert launched.returncode == 1, (launched.stdout, launched.stderr)
-        assert launched.stdout == ""
-        assert launched.stderr == refused.stderr
+        assert launched.stdout == refused.stdout
 
     revisioning_model.activate_source(page_dir)
     original = append_command(
@@ -549,7 +548,7 @@ def test_superseded_response_stays_refused_after_successor_ends(claimed):
         ["thread", "reply", "--done", reference, "--text", "Old worker"],
     )
     assert result.exit_code == 1
-    assert "claim no longer matches its delivery" in result.stderr
+    assert "claim no longer matches its delivery" in result.stdout
     assert events_model.read_events(claimed) == before
 
 

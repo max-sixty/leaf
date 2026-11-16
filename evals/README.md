@@ -31,7 +31,8 @@ pnpm run eval:view
 - **Harnesses.** `--harness claude-code`, `codex` or `both`, with no default. Author
   models use `MODELS` in `dev/leaf_dev/arms.py`; judging uses the separate
   `JUDGE_MODELS` pins. The hill-climbing playbook owns judge selection. `--model MODEL`
-  selects one Codex author model for every selected condition in that run.
+  selects the author model in place of the harness's pin, for every selected condition
+  in that run, such as `--harness claude-code --model claude-fable-5-2`.
 - **Conditions.** `--condition html` runs the plain HTML control on the tasks whose
   `metadata.conditions` declare one; `both` runs it beside Leaf. The control gets
   the same request, revisions and judge with no Leaf skill, runtime or widgets.
@@ -495,8 +496,11 @@ screenshot tree; the assertion
 supplies authored HTML to identify the references, without the author's trace.
 
 Use authoring cases for media preparation, widget markup and checking or repairing
-rendering. Keep source and reading probes for decisions that need no writable
-artifact. Use complete tasks for revisions, user feedback and delivery rounds.
+rendering. An author reads a widget's or package's instructions through `leaf page
+instructions`, which a probe can't run: it has no page, and in Claude Code no shell.
+Keep source and reading
+probes for decisions that need no writable artifact and whose rules the skill's
+references hold. Use complete tasks for revisions, user feedback and delivery rounds.
 Authoring adds page initialization, tool turns and a render check to each sample;
 `setup_seconds`, native trace accounting and Promptfoo's `latencyMs` expose those
 costs separately. Each sample has its own temp directory. Native tool permissions

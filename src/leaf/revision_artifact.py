@@ -71,6 +71,7 @@ from leaf.structure import (
     delivered_sheets,
     links_with_rel,
     script_kind,
+    splice,
 )
 from leaf.styles import dropped_css
 from leaf.validation.markup import unanswered_media
@@ -1044,7 +1045,7 @@ def _capture_artifact(
     )
     manifest = _canonical_json(
         {
-            "html": _digest(document.data),
+            "html": document.digest,
             "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
@@ -1563,9 +1564,9 @@ def authored_imports(data: bytes, logical_path: str):
 
 def bind_imports(data: bytes, imports, address) -> bytes:
     """Rewrite each ``(start, end, target)`` import span to ``address(target)``."""
-    for start, end, target in sorted(imports, reverse=True):
-        data = data[:start] + _json(address(target)) + data[end:]
-    return data
+    return splice(
+        data, [(start, end, _json(address(target))) for start, end, target in imports]
+    )
 
 
 def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Resource]):

@@ -223,7 +223,11 @@ customElements.define(
   class extends LeafElement {
     // What the obligation was answered with: the picked options' names, the group's own in its
     // order and then the user's in the order they added them. An option the user added
-    // is named by the words its `add` carries, and an authored one by its markup.
+    // is named by the words its `add` carries, and an authored one by its markup. A
+    // pick the group can't name gives no words, so the answer reads a bare Answered
+    // rather than a wrong name: an option the user added to a group in a thread message
+    // is known only to a drawing of that message, and the copy the message keeps while
+    // none shows it has only the authored options.
     /** @param {unknown} value @param {Element} group */
     static answerWords(value, group) {
       const picked = new Set(choiceIds(value));
@@ -234,12 +238,12 @@ customElements.define(
         (option) =>
           picked.has(option.id) && !added.some((record) => record.id === option.id),
       );
+      const named = added.filter(({ id }) => picked.has(id));
+      if (authored.length + named.length < picked.size) return "";
       return (
         [
           ...authored.map((option) => label(option) || option.id),
-          ...added
-            .filter(({ id }) => picked.has(id))
-            .map(({ text }) => markdownWords(text)),
+          ...named.map(({ text }) => markdownWords(text)),
         ].join(", ") || "No options selected"
       );
     }

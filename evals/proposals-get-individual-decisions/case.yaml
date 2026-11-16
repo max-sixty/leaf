@@ -71,6 +71,8 @@ variants:
   # Claude d693ee03-0814-46f1-bb84-52e638722236 read the complete instructions
   # and rich examples, then gave five well-explained fixes identical Do it / Not
   # now labels. Local context alone does not make the choices substantive.
+  # Without the prompt's pointer to the lf-ask, lf-options and lf-option entries,
+  # 2 of 2 Claude Code runs at 0e538e29d read authoring-on-me.md and passed.
   hardening-outcomes:
     metadata:
       purpose: "Choices: independent proposals name their concrete outcomes even when their questions already explain them."
@@ -106,8 +108,7 @@ variants:
           state-home path and permission handling. No compatibility behavior is required.
 
         No implementation has been authorized. The page directory is not reachable
-        here, so reply with the section's HTML. Read the lf-ask, lf-options and
-        lf-option registry entries before writing it.
+        here, so reply with the section's HTML.
     assert:
       - type: llm-rubric
         metric: specific-choice-names

@@ -13,6 +13,7 @@ from render_cases_interaction import (
     OBLIGATIONS_PAGE,
     ON_ITEM_SAYS,
 )
+from render_cases_navigation import source_revision
 from render_harness import (
     PANEL,
     expect_obligations_answered,
@@ -27,12 +28,15 @@ from render_harness import (
     refuse,
     resized,
     round_trip,
+    sending,
     show_done,
     told,
     watched,
 )
 
 from browser.navigation import expect_walk_position
+from leaf import data as data_model
+from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import panel_tab
 
@@ -828,6 +832,195 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
     done.click()
     round_trip(page)
     expect(page.locator("#tags .lf-done")).to_have_attribute("aria-pressed", "true")
+
+
+def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
+    """A choice the agent asks in a thread that isn't drawn stands on its On Me card,
+    in the message that asks it. With the card focused, digits pick its options, and
+    the pick is the same action a pick in the thread records. Done then names the
+    option, after the view is put away and after a reload, while the thread stays
+    undrawn. Until 15 November 2026 the card offered only Discuss and Show, and Done
+    said a bare Answered."""
+    url = serve(leaf_page("ship plan", '<h1 id="title">Ship plan</h1>'))
+    # As `leaf thread create --markup` writes it.
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "text": "Ship on Friday?",
+            "markup": '<lf-options id="ship" required>'
+            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    page = open_page(browser, url)
+    expect(page.locator("#ship")).to_have_count(0)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("ArrowDown")
+    card = on_card(page, "widget:ship")
+    expect(card).to_be_focused()
+    expect(card.locator("#ship-friday > .lf-key-badge")).to_have_text("1")
+    expect(card.locator("#ship-wait > .lf-key-badge")).to_have_text("2")
+    # The options themselves, with no second set of choices beside them.
+    rendered(page)
+    expect(card.locator(".lf-fp-answer:visible")).to_have_count(0)
+    with sending(page, "the pick"):
+        page.keyboard.press("1")
+    event = events_model.read_events(serve.page_dir)[-1]
+    assert (event["kind"], event["widget"], event["action"]) == (
+        "action",
+        "ship",
+        "choose",
+    ), event
+    assert event["detail"]["value"] == ["ship-friday"], event
+    expect(card.locator(".lf-fp-said")).to_have_text("Answered: Ship Friday")
+
+    def done_says():
+        open_on_me(page)
+        show_done(page)
+        expect(card).to_have_attribute("data-lf-list", "done")
+        expect(card.locator(".lf-fp-on-says > .lf-fp-value")).to_have_text(
+            "Answered: Ship Friday"
+        )
+
+    page.keyboard.press("Escape")
+    panel_settled(page, open=False)
+    done_says()
+    page.reload(wait_until="load")
+    wait_until_ready(page)
+    expect(page.locator("#ship")).to_have_count(0)
+    done_says()
+
+
+def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
+    browser, serve
+):
+    """Where the page shows the thread asking a choice, as a thread on a diff's line
+    does, opening On Me leaves the choice in that thread, so nothing below it moves.
+    The card draws the message's words and answers with the choice's options, and `1`
+    there picks in the thread. Until 15 November 2026 the card took the choice out of
+    the thread, and the paragraph after the diff rose by the choice's height."""
+    url = serve(
+        leaf_page(
+            "diff choice",
+            '<h1 id="title">Review the changed line</h1>'
+            '<lf-diff id="patch" source="review-patch"></lf-diff>'
+            '<p id="tail">The rollout can proceed once the line is reviewed.</p>',
+        )
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "review-patch",
+        'diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return "old"\n+return "new"\n',
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "anchor": {
+                "section": "patch",
+                "datum": '["app.py","new",1]',
+                "source": "review-patch",
+                "source_revision": source_revision(serve.page_dir, "review-patch"),
+            },
+            "text": "Ship on Friday?",
+            "markup": '<lf-options id="ship" required>'
+            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    page = open_page(browser, url)
+    thread = page.locator("#patch .lf-page-thread")
+    expect(thread.locator("#ship")).to_be_visible()
+    tail = page.locator("#tail").bounding_box()["y"]
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    panel_settled(page, view="queue")
+    page.keyboard.press("ArrowDown")
+    card = on_card(page, "widget:ship")
+    expect(card).to_be_focused()
+    # The card has drawn the message, which is when it could take the choice.
+    expect(card.locator(".lf-fp-asked .lf-msg")).to_contain_text("Ship on Friday?")
+    expect(card.locator("#ship")).to_have_count(0)
+    expect(thread.locator("#ship")).to_be_visible()
+    assert page.locator("#tail").bounding_box()["y"] == tail
+    expect(card.get_by_role("button", name="Ship Friday", exact=True)).to_be_visible()
+    with sending(page, "the pick"):
+        page.keyboard.press("1")
+    expect(thread.locator("#ship-friday")).to_have_attribute("selected", "")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_closes(
+    request, serve, engine
+):
+    """While On Me stands open, a margin card opening on the thread that asks a choice
+    takes the choice from On Me's card, and closing it may leave the choice there. The
+    card shows the choice once throughout: the options themselves while its drawing of
+    the message holds them, else its choices, never both and never neither. Firefox
+    kept the choices hidden after the choice left the card under a rule asking where the
+    choice stands (notes/browser-support.md, "A `:has()` subject left unrestyled when
+    its match moves out, in Firefox")."""
+    url = serve(
+        leaf_page(
+            "anchored choice",
+            '<h1 id="title">Ship plan</h1>'
+            '<p id="risk">The migration has run on staging twice without a failure.</p>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "agent": "Claude",
+            "revision": 1,
+            "anchor": {"section": "risk"},
+            "text": "Ship on Friday?",
+            "markup": '<lf-options id="ship" required>'
+            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
+            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1440, 900)
+    view = open_on_me(page)
+    card = on_card(page, "widget:ship")
+    margin = page.locator(".lf-margin-preview")
+
+    def shown():
+        return card.evaluate("""card => ({
+          options: Boolean(card.querySelector('#ship')?.checkVisibility()),
+          choices: [...card.querySelectorAll('.lf-fp-answer')]
+            .filter((choice) => choice.checkVisibility()).length,
+        })""")
+
+    expect(card.locator("#ship")).to_be_visible()
+    rendered(page)
+    assert shown() == {"options": True, "choices": 0}
+    # The walk opens the thread's margin card beside the passage, On Me still open.
+    page.keyboard.press("m")
+    expect(margin.locator("#ship")).to_be_visible()
+    expect(view).to_be_visible()
+    assert shown() == {"options": False, "choices": 2}
+    page.keyboard.press("Escape")
+    expect(margin.locator("#ship")).to_be_hidden()
+    expect(view).to_be_visible()
+    assert shown() in (
+        {"options": True, "choices": 0},
+        {"options": False, "choices": 2},
+    ), shown()
 
 
 # Two decisions, the first under a heading a thread can be anchored on.

@@ -110,7 +110,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     browser = request.getfixturevalue("browser")
     for target in (address, exported.as_uri()):
         if target != address:
-            leaf("page", "export", page_dir, "--out", exported)
+            leaf("page", "export", page_dir, "--out", exported, "--runtime")
         tab = browser.new_page()
         tab.goto(target)
         expect(tab.locator("body")).to_have_attribute("data-lf-presented", "1")

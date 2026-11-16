@@ -75,6 +75,40 @@ containment, masks or background painting did not repair the observed crash.
 This is a bounded report reproduction, not a standalone browser-engine diagnosis
 or a claim about other Chrome builds or engines.
 
+### Walking every element of a page of millions in Chromium
+
+The pages Leaf's checks and measurements drive are opened by
+`dev/leaf_dev/browser.py`. On 2026-11-15, on macOS 26.5.1, Playwright 1.65.0's
+Chromium headless shell 158.0.8127.18, build 1254, and installed Google Chrome
+157.0.8103.51, driven headlessly through Playwright's `chrome` channel, crashed
+the renderer of a page of 2.96 million elements partway through a run of
+back-to-back walks over every element. Playwright reported `Target crashed`,
+and the browser's log `V8 process OOM (ExternalEntityTable::AllocateEntry)`. A
+script's `for (const el of document.querySelectorAll("*"))` is such a walk, and
+crashed on the 24th to 26th. Each `page.query_selector` for a CSS selector is
+one too, because Playwright's injected CSS engine walks every element that way
+to look inside shadow roots, and crashed between the 22nd and the 32nd. A page
+of plain `div` rows built by a script crashed as the page of issue #4781 did,
+30 text documents of 4 MB with as many elements. With a forced full garbage
+collection after each walk (CDP `HeapProfiler.collectGarbage`), 100 walks
+passed, and 60 walks over 1.48 million elements passed without one. The counts
+fit one entry for each element a walk wraps, in a V8 pointer table of 2^26
+entries whose dead entries only a full collection frees; that mechanism is
+inferred from the counts, not read from V8.
+
+Opening #4781's 30 tabs walks only each opened document, and clicking them one
+after another crashed neither Chromium nor Playwright's Firefox 159.0, build
+1572; Firefox also survived the same journey driven by `page.query_selector`. A
+check or measurement that drives a page this size through Playwright selectors
+crashes the renderer itself, so it finds controls with `document.querySelector`
+inside `page.evaluate` and clicks the returned position with `page.mouse`.
+There is no Leaf workaround.
+
+Recheck: in a blank page opened by `leaf_dev.browser.launch("chromium")`, build
+2.96 million `div` rows by script and run the script walk above 100 times in a
+row, then again with a forced full collection after each walk. The gap stands
+while the first run ends in `Target crashed` and the second passes all 100.
+
 ### Tab underline travel between anchors
 
 The selected-tab underline in `packages/default/styles/tabs.css` follows its
@@ -154,16 +188,18 @@ kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
 `test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks` in
 `tests/browser/test_chrome_contracts.py` fails while the gap stands.
 
-### Contents spine lens
+### A near-grey colour's hue in relative `oklch()` in Chromium
 
-`packages/default/widgets/lf-toc.js` uses a paused animation updated on scroll
-where `ScrollTimeline` is absent. The lens still marks the visible part of the
-page, but follows scrolling a frame later than the native timeline.
-Installed Firefox 157.0.1 lacked the API on 2026-10-10; Chrome 155 exposed it.
-Revisit the fallback when supported engines provide it.
-`test_the_lens_follows_the_scroll_without_a_scroll_timeline` in
-`tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
-the native timeline with the API removed.
+Playwright Chromium 158.0.8127.18 (build 1254) reads the hue of a low-chroma colour as
+`none` in a relative `oklch()`: on 2026-11-14,
+`oklch(from #d1d0cc l calc(c * 3.4) h)` computed to `oklch(0.857 0.019 none)` and
+painted `rgb(219, 203, 207)`, a pink, where Firefox 159 and WebKit 27.2 kept the hue
+(95) and painted `rgb(212, 208, 195)`. The colour's chroma is 0.0055, and a hue of
+`none` is drawn at 0. The theme's neutrals are near-grey mixes of the paper and ink
+whose chroma is raised (`browser/styles/tokens.css`, at `--lf-paper`), so they scale
+the two axes of `oklab()` instead, which holds no hue and paints the same in all three
+engines. Recheck by loading that `oklch()` declaration in the engine: the gap stands
+while it computes a hue of `none`.
 
 ### Sticky boxes' own place
 
@@ -408,6 +444,30 @@ open when checked on 2026-10-22; this is published evidence, not a local Safari
 reproduction. Recheck native find-in-page on text inside a closed panel before
 removing this entry.
 
+### A `:has()` subject left unrestyled when its match moves out, in Firefox
+
+On Me's card for a choice asked in a thread hides its choices while its own drawing of
+the message holds the choice's widget. Keyed on the widget itself, as
+`.lf-fp-on-item:has(.lf-fp-asked:not([data-lf-carried]) [data-lf-awaits])`, the rule
+failed in Playwright Firefox 159.0 (build 1572) on 2026-11-15: with On Me open on a
+choice no thread on the page showed, `m` opened the thread's margin card, which took
+the widget out of the card, and the card's choices stayed `display: none` though the
+card no longer matched the rule (`card.matches()` read false). The card showed
+neither the options nor its choices in 337 of 437 recorded frames, and at each step
+of a probe through `m` and Escape. Chromium 158.0.8127.18 (build 1254) restyled at
+once. A minimal page in Firefox restyled correctly after moving the matching element
+out of the subject, whether moved directly, through a detached parent, into a shadow
+root, or with its parent replaced, so something in Leaf's DOM is needed to show it,
+not yet isolated.
+
+The rule reads a mark the drawing writes as it gains or loses the widget instead
+(`data-lf-holds`, `MessageView.present` in `browser/runtime/thread/messages.js`),
+which Firefox restyles. To recheck, key the rule in `browser/styles/floating-panel.css`
+on `[data-lf-awaits]` again and delete the `data-lf-holds` write: the Firefox arm of
+`test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_closes`
+(`tests/browser/widgets/test_on_panel.py`) fails while the gap stands, its card
+showing no choices after `m`, and the Chromium arm passes.
+
 ### An `auto` box under a fold in Firefox
 
 A box with `content-visibility: auto` whose ancestor skips its content, as a
@@ -432,6 +492,36 @@ colouring every line. `test_opening_a_closed_tab_draws_only_the_lines_in_view` i
 drawing all 32 runs of its document in the first frame after the press. Recheck by
 deleting the rule's `content-visibility: visible` and running that test: once its
 Firefox arm passes, the rule can go.
+
+### A root's touch-action in Firefox
+
+Draw mode states `touch-action: pinch-zoom` on `html` and Capture area
+`touch-action: none` (`browser/runtime/chrome.css`), so one finger draws or drags
+out an area while two still pan and zoom. On 2026-11-15, on macOS 26.5.1, Playwright
+1.65.0's Firefox 159.0 (build 1572) updated every box of the page each time the
+root's touch-action changed. On #4781's shape, thirty text documents of 50,000 lines
+in side tabs (1.51 million elements), toggling Draw mode's attribute on `html`
+alone, with a layout read after each toggle, took 24 ms, and 73 to 94 ms the first
+time; the Gecko profiler put the time in `RestyleManager::ProcessRestyledFrames`,
+with one element styled. On a page of 900,000 plain rows it took 8 to 12 ms, against
+under 1 ms for an attribute no rule reads. Playwright's Chromium 158.0.8127.18
+restyles every element it draws when the root's touch-action changes, 691 elements on
+a page of 600 paragraphs, though not what `content-visibility` skips, so on #4781's
+shape a whole Draw mode toggle took it 30 to 65 ms; the restyle count in
+`test_a_page_mode_restyles_only_what_the_pointer_is_over`
+(`tests/browser/test_chrome_contracts.py`) holds the root's touch-action through the
+page for that reason.
+
+Leaf keeps the rule on the root whenever either mode stands. Stating it only under
+`(any-pointer: coarse)` removed the cost on a computer without a touchscreen, but
+Firefox on Linux can report no touchscreen while it receives touch events, so
+`any-pointer: coarse` doesn't match there
+([Mozilla bug 1870900](https://bugzilla.mozilla.org/show_bug.cgi?id=1870900)), and
+one finger would pan the page rather than draw. Recheck with Playwright's Firefox on
+a page of 900,000 `div` rows and the rule `html[data-x] { touch-action: pinch-zoom; }`:
+toggle `data-x` on `html` and read `document.body.getBoundingClientRect()` after each
+toggle. The gap stands while a toggle takes several times as long as one of an
+attribute no rule reads.
 
 ### Native focus and scrolling inside samples
 
@@ -867,13 +957,18 @@ scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
 
-### A repeated reveal of an anchored fixed box in Chromium
+### A reveal of an anchored fixed box before the next frame in Chromium
 
-Chromium and WebKit reveal a caret in a `position: fixed` box anchored to page
-content by scrolling the page, which carries the box, and Chromium reveals the
-box itself the same way (`scrollIntoView`, focus). Playwright Chromium
-156.0.8078.4 (build 1248), on 2026-11-05, scrolled the page again for each such
-reveal made before the next frame, as if the first had not moved the box. Give
+A `position: fixed` box anchored to page content takes a scroll at the next
+frame: read after a script scrolls the page 200px, it stands where it stood
+until a frame passes, in Playwright Chromium 158.0.8127.18 (build 1254) and
+Firefox 159 alike on 2026-11-15, as the anchor positioning spec's scroll
+snapshot allows. Chromium and WebKit reveal a caret in such a box by scrolling
+the page, which carries the box, and Chromium reveals the box itself the same
+way (`scrollIntoView`, focus), so in Chromium a reveal made before the next
+frame scrolls for where the box stood. Playwright Chromium 156.0.8078.4 (build
+1248), on 2026-11-05, scrolled the page again for each such reveal, as if the
+first had not moved the box. Give
 a 4000px body an absolutely positioned anchor at `top: 2000px`, a 20px fixed
 box at `top: anchor(top)` through `position-anchor`, and the root
 `scroll-padding-bottom: 100px`; scroll the anchor 830px down an 860px window
@@ -887,8 +982,17 @@ reveals no fixed box through the page.
 In Leaf the root drops its scroll padding while the user writes in a floating
 box (`base.css`, `data-lf-floating-editor`), so only a caret outside the window
 is revealed, and each key that lands in the same frame adds another reveal's
-scroll; #5417 accepted that overshoot. Recheck the three calls in Chromium; a
-90px scroll means the gap has closed.
+scroll; #5417 accepted that overshoot. Tab pressed in the frame `t` sets off
+in lands the walk's glide first (scrolling.js, `landForKey`), and Chromium then
+reveals the thread card's next control where the card stood before the landing,
+scrolling the page on past where the walk leaves it; the glide matrix in
+`tests/journeys/navigation/test_reading_place.py` holds that case as known.
+Leaf's own readers ask where the glides land instead of reading an anchored box
+after a landing (scroll-containers.js, `seenAhead`), and a reading of the whole
+scene, as a hint map's, waits until the rendering update after a script's scroll
+(arrivals.js, `scrollDrawn`). Recheck the three calls in
+Chromium; a 90px scroll means the gap has closed, and the matrix's known case
+then passes.
 
 ### `calc()` in `overflow-clip-margin` in Chromium
 
@@ -1003,6 +1107,22 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: auto 100px`, scroll it out of view, write
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
+
+### A row moved to the head of a skipped run in Chromium
+
+Playwright Chromium 158.0.8127.18 (build 1254) builds no `::before` box for a row that
+`moveBefore` moves to the head of a `content-visibility: auto` box it is skipping, so
+where the head row resets a counter for the rows after it, as a text document's first
+row in each run does (`text-document.css`), that row draws no line number and the
+rows after it count from 1, also once the box comes into view. The same move made with
+`insertBefore` or `prepend`, or while the box is drawn, numbers right. On 2026-11-15
+#5916's reproduction (three such boxes of 40 rows, each drawn once and scrolled back
+out of view, then each box's last row moved to the head of the next with `moveBefore`)
+drew no number on the moved row in the third box and numbered the rows after it from
+1; with `insertBefore`, every row read its line. A text document moves a row only onto
+the end of a run or into a run a split has just made (`lf-text-document.js`,
+`regroup`). Recheck by running that reproduction: once the moved row reads its line
+number, a text document may move rows to a run's head again.
 
 ### Styling content Firefox skips
 

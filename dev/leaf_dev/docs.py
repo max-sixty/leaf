@@ -34,7 +34,7 @@ from pathlib import Path
 from leaf.media import media_name
 from leaf.schema import MEDIA_DIR
 from leaf.state import KERNEL_REGISTRY
-from leaf.structure import SourceDocument
+from leaf.structure import SourceDocument, splice
 from leaf_dev import ROOT, declared_records
 from leaf_dev.example_data import PRODUCT_DOCS, WORKED_EXAMPLES, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
@@ -591,6 +591,4 @@ def compose(source: Path, markup: str, *, assets: Path | None = None) -> str:
         name = listing.attrs["data-schemas"]
         assert isinstance(name, str)
         fill(listing, SCHEMA_LISTS[name]())
-    for start, end, text in sorted(edits, reverse=True):
-        markup = markup[:start] + text + markup[end:]
-    return markup
+    return splice(markup, edits)

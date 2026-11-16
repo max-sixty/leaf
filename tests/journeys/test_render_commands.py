@@ -90,7 +90,7 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}
-    assert {"1280px-1.png", "1920px-1.png", "390px-1.png"} <= names
+    assert {"desktop-1280px-1.png", "widest-1920px-1.png", "phone-390px-1.png"} <= names
     assert all((into / name).is_file() for name in names)
 
 
@@ -172,7 +172,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     shows = {screen["file"]: screen["shows"] for screen in screens["files"]}
     names = sorted(path.name for path in into.iterdir())
     assert set(shows) <= set(names)
-    assert {"1280px-1.png", "1920px-1.png", "390px-1.png"} <= set(names)
+    passes = {"desktop-1280px-1.png", "widest-1920px-1.png", "phone-390px-1.png"}
+    assert passes <= set(names)
     assert {
         "1280px-obligation-1.png",
         "1280px-obligation-2.png",
@@ -184,7 +185,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())
     assert any("<div id=2026-numbers> 4 → " in label for label in shows.values())
     # A page longer than its first screens says so rather than passing for read whole.
-    assert "390px-9.png" not in names
+    assert "phone-390px-9.png" not in names
     assert any("phone, the first 8 of the page's" in label for label in shows.values())
 
 
@@ -215,10 +216,38 @@ def test_a_render_check_reads_the_desktop_in_the_users_window(
     monkeypatch.delenv(PIN_VARIABLE)
     read, names = desktop()
     assert read == {"width": 1000, "height": 640, "from": "the user's window"}
-    assert "1000px-1.png" in names, names
+    assert "desktop-1000px-1.png" in names, names
     read, names = desktop(**{PIN_VARIABLE: "fixed"})
     assert (read["width"], read["height"]) == (1280, 720), read
-    assert "1280px-1.png" in names, names
+    assert "desktop-1280px-1.png" in names, names
+
+
+def test_a_desktop_at_the_widest_window_keeps_its_own_screens(
+    serve, headless_shell, monkeypatch
+):
+    """A reader whose window is already the widest the check resizes to gets one set of
+    screens at that width, labelled as their desktop, rather than a second pass that
+    repeats them."""
+    serve(LONG_PAGE)
+    d = serve.page_dir
+    window = user_view_report()
+    window["viewport"] = {"width": 1920, "height": 900}
+    user_views.observe_user_view(d, window)
+    monkeypatch.delenv(PIN_VARIABLE)
+    ran = subprocess.run(
+        [*LEAF_COMMAND, "page", "check", str(d), "--render"],
+        capture_output=True,
+        text=True,
+        check=True,
+        env=unnamed_browser() | {"LEAF_BROWSER_EXECUTABLE": headless_shell},
+    )
+    browser = json.loads(ran.stdout)["browser"]
+    assert browser["desktop"]["width"] == 1920, browser["desktop"]
+    files = [screen["file"] for screen in browser["screens"]["files"]]
+    assert len(files) == len(set(files)), files
+    shows = {screen["file"]: screen["shows"] for screen in browser["screens"]["files"]}
+    assert "desktop-1920px-1.png" in shows, shows
+    assert not [name for name in shows if name.startswith("widest-")], shows
 
 
 def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
@@ -667,7 +696,7 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
 
     refused = post(headless_shell)
     assert refused.returncode != 0, refused.stdout + refused.stderr
-    refusal = json.loads(refused.stderr)["error"]
+    refusal = json.loads(refused.stdout)["error"]
     assert refusal.startswith("comment markup doesn't draw:"), refusal
     assert '<lf-chart id="t-bad"> failed: ' in refusal
     assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]

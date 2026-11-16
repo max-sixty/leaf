@@ -147,6 +147,13 @@ export function createAim({
     if (held !== aiming) setAiming(held);
     else refreshAim();
   };
+  // A mouse that leaves the window stands over nothing a press could take, so the hand and
+  // the box come off while the page stays armed. The shared recorder hears the same
+  // event first and forgets the position (pointer.js).
+  /** @param {PointerEvent} ev */
+  const pointerOut = (ev) => {
+    if (ev.pointerType === "mouse" && !ev.relatedTarget) refreshAim();
+  };
 
   // ⌥-click means the item under the pointer, whatever it holds. It costs the page no
   // chrome and the user no selection, and it reaches an item whose words are all
@@ -166,12 +173,13 @@ export function createAim({
   // otherwise leave a press already taken from the page doing nothing at all.
   //
   // What is armed is the page rather than the items on it: an armed press aims where there
-  // is an item under it, and acts on nothing where there isn't. That is what the cursor is
-  // already saying, over everything the chrome doesn't hold out of it. Falling through to
-  // the page instead would leave the user reading the box to find out which of the
-  // two a press is about to be — and a suggestion's ✓ Accept stands in the margin
-  // layer over the page, so a press let through there sends Claude a decision. The aim
-  // takes it as a press on the change it stands by.
+  // is an item under it, and acts on nothing where there isn't. The hand says which over
+  // an item; elsewhere the page keeps its own cursor, the I-beam over words no item holds
+  // and over content the user edits (chrome.css). Falling through to the page instead
+  // would leave the user reading the box to find out which of the two a press is about
+  // to be — and a suggestion's ✓ Accept stands in the margin layer over the page, so a
+  // press let through there sends Claude a decision. The aim takes it as a press on the
+  // change it stands by.
   //
   // A press is its down, its up and the click they make, a double press one event more, and
   // the aim takes every one of them: which a widget listens on is not something the runtime
@@ -262,6 +270,7 @@ export function createAim({
     addEventListener("keyup", keyUp, true);
     addEventListener("blur", blur);
     document.addEventListener("pointermove", pointerMove);
+    document.addEventListener("pointerout", pointerOut);
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
   pageCommand(AIM);

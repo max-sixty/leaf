@@ -208,7 +208,7 @@ FIRST_PAINT_PAGE = leaf_page(
     + '<lf-diff id="file-view" view="file" collapsed><pre>'
     + _patch_file("docs/first.md", 1, ["The first file remains readable. " * 12])
     + "diff --git a/later.txt b/later.txt\nold mode 100644\nnew mode 100755\n"
-    + '</pre></lf-diff><lf-diff id="relative-font" style="--code-size:1em" overflow="wrap"><pre>'
+    + '</pre></lf-diff><lf-diff id="relative-font" style="--lf-code-size:1em" overflow="wrap"><pre>'
     + _patch_file(
         "docs/font.md", 1, ["A wrapped row uses its inherited code font. " * 12]
     )

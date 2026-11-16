@@ -406,7 +406,7 @@ def test_a_sideways_board_keeps_a_card_s_words_whole(browser, serve, subtests):
         card = page.locator("#sq-card-3")
         expect(card).to_have_class(re.compile(r"\blf-lift\b"))
         accent, border = card.evaluate(
-            """el => [getComputedStyle(document.documentElement).getPropertyValue('--accent'),
+            """el => [getComputedStyle(document.documentElement).getPropertyValue('--lf-accent'),
                       getComputedStyle(el).borderTopColor]"""
         )
         rest = page.locator("#sq-card-2").evaluate(

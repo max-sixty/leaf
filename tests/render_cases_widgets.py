@@ -428,13 +428,13 @@ DIAGRAM_ROOM = """() => {
     const main = document.querySelector('main'), ms = getComputedStyle(main);
     // The room an available block takes: the shell's width less a gutter each side.
     const room = parseFloat(ms.getPropertyValue('--lf-shell-width'))
-        - 2 * parseFloat(ms.getPropertyValue('--col-pad'));
+        - 2 * parseFloat(ms.getPropertyValue('--lf-col-pad'));
     return { drawn: svg.getBoundingClientRect().width,
              natural: svg.viewBox.baseVal.width,
              box: holder.clientWidth,
              room,
              wide: parseFloat(getComputedStyle(document.body)
-                       .getPropertyValue('--wide')),
+                       .getPropertyValue('--lf-wide')),
              board: board.getBoundingClientRect().width,
              column: main.querySelector('h1').getBoundingClientRect().width,
              scrolls: holder.scrollWidth > holder.clientWidth };
@@ -476,7 +476,7 @@ CHART_PAGE = leaf_page(
   ariaLabel: "Merged by quarter: apps 12, 19, 14; infra 7, 11, 17",
   fx: {label: null},
   y: {grid: true, label: "merged"},
-  color: {legend: true, range: ["var(--series-1)", "var(--series-2)"]},
+  color: {legend: true, range: ["var(--lf-series-1)", "var(--lf-series-2)"]},
   marks: [
     Plot.barY(
       [["apps", [12, 19, 14]], ["infra", [7, 11, 17]]].flatMap(([team, row]) =>
@@ -498,7 +498,7 @@ CHART_PAGE = leaf_page(
   marks: [
     Plot.barX(
       [{area: "platform infrastructure", open: 42}, {area: "billing", open: 19}],
-      {x: "open", y: "area", fill: "var(--series-1)"},
+      {x: "open", y: "area", fill: "var(--lf-series-1)"},
     ),
   ],
 }""",
@@ -507,7 +507,7 @@ CHART_PAGE = leaf_page(
                 "c-stack",
                 """{
   ariaLabel: "Hours by week: features 21 and 18, fixes 9 and 14",
-  color: {range: ["var(--series-1)", "var(--series-2)"]},
+  color: {range: ["var(--lf-series-1)", "var(--lf-series-2)"]},
   y: {tickFormat: (hours) => `${hours}h`},
   marks: [
     Plot.barY(
@@ -534,7 +534,7 @@ CHART_PAGE = leaf_page(
         {week: "2026-06-08", hours: 26},
         {week: "2026-06-15", hours: 19},
       ],
-      {x: "week", y: "hours", stroke: "var(--series-1)"},
+      {x: "week", y: "hours", stroke: "var(--lf-series-1)"},
     ),
   ],
 }""",
@@ -568,7 +568,7 @@ CHART_MARKS = """(id) => {
     const probe = document.createElement('span');
     document.body.append(probe);
     const tokens = [1, 2].map((n) => {
-        probe.style.color = `var(--series-${n})`;
+        probe.style.color = `var(--lf-series-${n})`;
         return getComputedStyle(probe).color;
     });
     probe.remove();
@@ -614,7 +614,7 @@ MESSAGE_CHART = """{
   marks: [
     Plot.barY(
       [{quarter: "Q1", merged: 12}, {quarter: "Q2", merged: 19}],
-      {x: "quarter", y: "merged", fill: "var(--series-1)"},
+      {x: "quarter", y: "merged", fill: "var(--lf-series-1)"},
     ),
   ],
 }"""
@@ -1045,7 +1045,7 @@ graph LR
 ).replace(
     "</head>",
     "<style>.nested-frame > .nested-frame { --lf-block-frame: 1; "
-    "border-inline-start: 1px solid var(--rule); padding-inline-start: 1rem; }"
+    "border-inline-start: 1px solid var(--lf-rule); padding-inline-start: 1rem; }"
     "</style></head>",
 )
 

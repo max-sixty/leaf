@@ -870,7 +870,7 @@ SEATED_PANE_PAGE = leaf_page(
     '<lf-pane id="seat-beside" label="Right"><div><p>A short pane beside it.</p></div>'
     "</lf-pane></div>",
     head="<style>#seat-panes { display: grid; grid-template-columns: 1fr 1fr;"
-    " gap: var(--sp-4); } lf-ask h3 { text-align: justify; }</style>",
+    " gap: var(--lf-sp-4); } lf-ask h3 { text-align: justify; }</style>",
     layout="workspace",
 )
 
@@ -946,7 +946,7 @@ def sticky_header_page(nested):
         + "</section>"
         + _PARAGRAPH * 6,
         head="<style>#sticky-head { position: sticky; top: 0; display: flex;"
-        " gap: var(--sp-2); background: var(--paper); }"
+        " gap: var(--lf-sp-2); background: var(--lf-paper); }"
         " #sticky-head button, #sticky-inner { flex: 1; display: flex; }"
         " #sticky-inner { position: sticky; top: 0; }"
         " #sticky-inner button { flex: 1; } #sticky-target { padding-right: 48px; }"

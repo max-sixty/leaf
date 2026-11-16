@@ -562,7 +562,7 @@ export function silentWords(declarations) {
 }
 
 // The smallest size the drawing idiom sets its labels at, in viewBox units
-// (`--drawing-small-size`). Both the live reading and the gate use this heuristic, and a
+// (`--lf-drawing-small-size`). Both the live reading and the gate use this heuristic, and a
 // reading carries the threshold so its consumer can distinguish it from a failure.
 const SHRUNK_LABEL_THRESHOLD_PX = 10;
 

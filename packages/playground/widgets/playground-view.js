@@ -414,6 +414,12 @@ export function createPlayground(host) {
       for (const control of controls) {
         const { name, kind, choices } = reading(control);
         const label = control.getAttribute("label");
+        // The words beside the input name it, so its preview, which says only what
+        // its face and labels don't, repeats none of them. A span rather than a
+        // `<label>`, since a press on the words selects them and works no control.
+        // Its id takes `lf-`, so a comment aimed at the words names the control
+        // rather than this generated span (anchor-resolution.js, `ADDRESSABLE`).
+        const labelId = `lf-${host.id}-${name}-label`;
         const select =
           kind === "choice" && control.getAttribute("appearance") === "select";
         if (!select)
@@ -456,7 +462,7 @@ export function createPlayground(host) {
           ${inputOffer}
           id=${`${host.id}-${name}-input`}
           name=${`${host.id}-${name}`}
-          aria-label=${label}
+          aria-labelledby=${labelId}
           role=${kind === "toggle" ? "switch" : nothing}
           min=${control.getAttribute("min") ?? nothing}
           max=${control.getAttribute("max") ?? nothing}
@@ -466,13 +472,15 @@ export function createPlayground(host) {
           .value=${kind === "toggle" ? "on" : next[name]}
         />`;
         render(
-          html`<span class="lf-playground-control-label" data-lf-gen="1">${label}</span>
+          html`<span class="lf-playground-control-label" id=${labelId} data-lf-gen="1"
+              >${label}</span
+            >
             ${
               select
                 ? html`<select
                     ${inputOffer}
                     name=${`${host.id}-${name}`}
-                    aria-label=${label}
+                    aria-labelledby=${labelId}
                     .value=${next[name]}
                   >
                     ${choices.map(
@@ -492,7 +500,7 @@ export function createPlayground(host) {
                     html`<div
                       class="lf-playground-input lf-playground-choices"
                       role="group"
-                      aria-label=${label}
+                      aria-labelledby=${labelId}
                     >
                       ${choices}
                     </div>`

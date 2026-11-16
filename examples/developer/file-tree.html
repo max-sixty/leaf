@@ -23,7 +23,7 @@
         display: flex;
         align-items: center;
         justify-content: space-between;
-        min-block-size: var(--aim-floor);
+        min-block-size: var(--lf-aim-floor);
         box-sizing: border-box;
       }
       #review-patch {
@@ -41,19 +41,19 @@
         }
         #patch-pane {
           --review-top: var(--lf-top);
-          --review-header-height: calc(var(--aim-floor) + 2px);
+          --review-header-height: calc(var(--lf-aim-floor) + 2px);
         }
         #patch-pane > header {
           position: sticky;
           top: var(--lf-top);
           block-size: var(--review-header-height);
           z-index: 1;
-          background: var(--paper);
+          background: var(--lf-paper);
         }
         #files-return {
           display: grid;
           place-items: center;
-          min-block-size: var(--aim-floor);
+          min-block-size: var(--lf-aim-floor);
         }
         #patch-evidence {
           --lf-top: calc(var(--review-top) + var(--review-header-height));

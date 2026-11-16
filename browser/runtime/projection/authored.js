@@ -11,7 +11,6 @@ import { authoredRank } from "./model.js";
 
 /** @typedef {import("../../types/domain.js").ActionSpec} ActionSpec */
 /** @typedef {import("../../types/domain.js").AuthoredWidget} AuthoredWidget */
-/** @typedef {import("../../types/domain.js").AuthoredMap} AuthoredMap */
 /** @typedef {import("../../types/domain.js").StateRecord} StateRecord */
 
 /* The authored initial condition, read once from validated source before upgrade.
@@ -126,8 +125,8 @@ function initialState(widget, spec) {
   return { action: null, value, detail: record ? { value } : {} };
 }
 
-/** @param {Document | Element | DocumentFragment} root @param {AuthoredMap} existing @returns {Map<string, AuthoredWidget>} */
-export function stageAuthoredStates(root = document, existing = authoredStates()) {
+/** @param {Document | Element | DocumentFragment} root @returns {Map<string, AuthoredWidget>} */
+export function stageAuthoredStates(root) {
   /** @type {Map<string, AuthoredWidget>} */
   const captured = new Map();
   /** @type {Map<string, Map<string, ActionSpec>>} */
@@ -141,7 +140,7 @@ export function stageAuthoredStates(root = document, existing = authoredStates()
     const widgets = [...root.querySelectorAll(tag)];
     if (root instanceof Element && root.matches(tag)) widgets.unshift(root);
     for (const widget of widgets) {
-      if (!widget.id || existing.has(widget.id)) continue;
+      if (!widget.id) continue;
       captured.set(widget.id, {
         tag,
         specs,

@@ -254,7 +254,7 @@ def test_annotations_read_the_native_prose_track_with_authored_geometry(
         "authored tracks",
         '<h1>Reading</h1><p id="prose">A paragraph on the prose track.</p>',
         head=f"""<style>main {{direction:{direction};width:1000px;max-width:100%;
-          box-sizing:border-box;padding-inline:43px;--col:34rem;
+          box-sizing:border-box;padding-inline:43px;--lf-col:34rem;
           transform:scale(.85);transform-origin:top left}}</style>""",
     )
     page = open_page(browser, serve(source))

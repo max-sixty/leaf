@@ -22,7 +22,8 @@ it hears the old and new words and changes them back or rewrites them as it woul
 own edit. That reverses the rejection of a clerk that rewrites the page for fixes of a
 few words; a fix that needs more goes to the agent as a message.
 
-Three principles, the user's (2026-10-30), bound what the fork may do:
+Four principles, the user's, bound what the fork may do, the first three set on
+2026-10-30:
 
 - It adds attention, not an actor. The fork is the agent looking again at its own
   bookkeeping, and gives the agent reminders; it does none of the user's work.
@@ -40,6 +41,16 @@ Three principles, the user's (2026-10-30), bound what the fork may do:
   agent, or the user who opened it, has the newer reading. A finding still
   reaches the agent then, naming the turn it came from, since the agent judges
   whether it still holds.
+- It is a check, not a review (2026-11-15). It answers briefly from what it holds:
+  the conversation it inherits, which the cache serves, and the page facts Leaf
+  hands it. It does no research, so each thing Leaf asks of it must be one those
+  two settle, and it leaves out a finding they don't.
+  Claude Code's `$.model.fork` already denies every tool call and stops the fork
+  after a second request (read in 2.1.325's source), so the rule bounds what Leaf
+  asks rather than what the fork can do. Leaf's question is never cached, and an
+  uncached token costs ten times a cached one: on 37 forks of five sessions on
+  Opus 5.5 from 2026-11-14 to 11-15, the input the cache didn't serve was a median
+  24,000 of 248,000 tokens and 38% of a fork's cost.
 
 What the fork is asked is prose in the shipped skill,
 `skills/leaf/references/turn-end-check.md`, which the agent can also read when one of
@@ -54,8 +65,9 @@ for how a question reads: the reference's own wording for it gave 47 of 47 recor
 questions as one unbroken paragraph, and the agent's guidance now shapes both.
 Findings for the agent:
 a page that still says what the work or the conversation has since changed, an On Me
-item already settled elsewhere, and work promised or set running that no page shows,
-for which the fork sees the items the page shows started. A first version also wrote
+item already settled elsewhere, work promised or set running that no page shows,
+for which the fork sees the items the page shows started, and an open thread whose
+agent messages the user would misread (`overtaken`). A first version also wrote
 the status line and named missed page steps; the user narrowed it on 2026-10-29 to
 the asks alone, in Leaf's own words rather than any one user's markers, then on
 2026-10-31 added back the findings. They left out an open-ended question about the
@@ -73,6 +85,24 @@ start written after the turn closed keeps the page reading working for the worki
 grace after the background work stops, since `activity._start_age` dates a start's
 hold by when it was written rather than by the turn it names. Restating lines needs
 that changed first.
+
+On 2026-11-15 the user chose to try three findings for what long sessions forget once
+compaction drops the rule a reference states, each kept only if replays of the turns
+where it should have fired catch it, a replay of ordinary recent turns stays near
+today's noise, and the fork takes no longer. Two became `overtaken`, which applies the
+agent's own guidance for threads (`GUIDANCE`): a correction posted as a new reply to
+the agent's unanswered one rather than edited into it (#5724), and a thread question
+or state later work overtook (#5804). Replayed at the turn where three #5724
+sessions left such a pile, it named the pile in 2 of 2 runs on triager-health, 1 of 1
+on agent-launch-wait and 0 of 1 on package-interface, where the check before it named
+it in 0 of 1 replays and 1 of 4 live forks. The wording before this one, which
+differed only in how it phrased the two cases, named no `overtaken` on 15 ordinary
+recent turns, and only on 2 others whose timer the replay itself had stopped; the
+fork took 1.13 times as long as a base replay run hours earlier (95% interval
+0.94–1.34). The third, a section reporting a finding without the material it
+rests on (#5401), was dropped: it missed the one such case left to replay, and on
+other turns asked for the run or script behind a count far more often than the user
+asks for material.
 
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
@@ -189,11 +219,8 @@ last request.
 The fork thinks at the session's own effort, and the check's reference asks it to
 answer straight away without thinking it over, as Claude Code's `$.model.fork`
 documentation suggests for a quick side job. From 2026-11-04 to 2026-11-14 the fork
-asked for `low` effort instead, which kept the cache only where Claude Code's
-per-message effort reaches the model. Elsewhere, as on Vertex, a low fork wrote the
-whole conversation to the cache again (#5891, #5904), and the hooks module learned
-that per backend from each check's usage (#5892, #5907): a stored answer, a rewrite
-to learn it and another to check it again each week. On the 15 turn-end cases of
+asked for `low` effort instead, which can cost a rewrite of the conversation to the
+cache (`runFork` in `hooks/claude-code.ts` says when). On the 15 turn-end cases of
 `leaf-dev eval run 'turn-end-check*' --base` on 2026-11-14, a fork at xhigh asked to
 answer straight away passed all 15, as the low fork did, and wrote 1.62 times its
 output (95% interval 1.26–2.09) in 1.23 times its time (1.10–1.38). The measurements
@@ -246,17 +273,30 @@ from .state import (
 REFERENCES = SKILL_FILE.parent / "references"
 # What the fork is asked, as the skill ships it.
 REFERENCE = REFERENCES / "turn-end-check.md"
-# The agent's own guidance the fork follows for its asks, each a paragraph of a
-# reference named by the words that open it: what goes On Me, what a question holds,
-# how a message reads in a thread's narrow card, and what it links.
+# The agent's own guidance the fork follows for its asks and its overtaken threads,
+# each a paragraph of a reference named by the words that open it: what goes On Me,
+# what a question holds, how a message reads in a thread's narrow card, what it
+# links, where a correction to an unanswered reply goes, and the reply a thread is
+# owed once the work it discusses is done.
 GUIDANCE = (
     ("conversation-loop.md", "The user's **On Me** list holds"),
     ("authoring-on-me.md", "Make each question self-contained"),
     ("threads.md", "A thread shows in a narrow card"),
     ("page-authoring.md", "Link each pull request"),
+    ("threads.md", "While your reply is still the thread's latest message"),
+    ("authoring-revisions.md", "The user reads threads to find out"),
 )
 
 _WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
+
+# Each kind of finding, as the agent's line names it: the one list of kinds, which
+# the answer's schema and form read.
+FOUND = {
+    "stale": "the page saying what has since changed",
+    "settled": "an On Me item already settled",
+    "unshown": "work no page shows",
+    "overtaken": "a thread of yours the user would misread",
+}
 
 ANSWER = {
     "type": "object",
@@ -287,7 +327,7 @@ ANSWER = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "kind": {"enum": ["stale", "settled", "unshown"]},
+                    "kind": {"enum": list(FOUND)},
                     "page": {"type": "string", "minLength": 1},
                     "summary": _WORDS,
                     # The agent's or the user's words, which the agent finds the
@@ -332,18 +372,12 @@ def answer_form() -> str:
         '"<message>", "passage": "<the page\'s words, or empty>", "again": "<the '
         'id of the question it asks again, or empty>", "quote": "<the agent\'s '
         'words>"}], "findings": [{"kind": '
-        '"stale" or "settled" or "unshown", "page": "<page path>", "summary": '
-        '"<summary>", "quote": "<the words it rests on>", "edit": {"words": "<the '
-        'page\'s words>", "replacement": "<the new words>"} or null}]}'
+        + " or ".join(f'"{kind}"' for kind in FOUND)
+        + ', "page": "<page path>", "summary": "<summary>", "quote": "<the words it '
+        'rests on>", "edit": {"words": "<the page\'s words>", "replacement": "<the '
+        'new words>"} or null}]}'
     )
 
-
-# What each kind of finding is, as the agent's line names it.
-FOUND = {
-    "stale": "the page saying what has since changed",
-    "settled": "an On Me item already settled",
-    "unshown": "work no page shows",
-}
 
 QUEUED = Record(
     "clerk",
@@ -494,7 +528,12 @@ def guidance() -> list[str]:
 
     def paragraph(name: str, opening: str) -> str:
         text = (REFERENCES / name).read_text()
-        start = text.index(f"\n\n{opening}") + 2
+        start = text.find(f"\n\n{opening}") + 2
+        if start < 2:
+            raise ValueError(
+                f"{name} has no paragraph opening {opening!r}, which clerk.GUIDANCE "
+                "names"
+            )
         end = text.find("\n\n", start)
         return text[start:] if end < 0 else text[start:end]
 
@@ -503,12 +542,13 @@ def guidance() -> list[str]:
 
 def fork_prompt(pages: list[dict]) -> str:
     """The one message a fork answers: the skill's account of the check
-    (`REFERENCE`), the agent's guidance for asking (`guidance`), each page's facts
-    (`page_facts`) and the answer's form (`answer_form`, `ANSWER`)."""
+    (`REFERENCE`), the agent's guidance for asking and for threads (`guidance`), each
+    page's facts (`page_facts`) and the answer's form (`answer_form`, `ANSWER`)."""
     blocks = "\n\n".join(_block(facts) for facts in pages)
     rules = "\n\n".join(guidance())
     return (
-        f"{OPENING}\n{REFERENCE.read_text().strip()}\n\n## Leaf's guidance for asking\n\n"
+        f"{OPENING}\n{REFERENCE.read_text().strip()}\n\n## Leaf's guidance for asking "
+        "and for threads\n\n"
         f"{rules}\n\n## Page state\n\n{blocks}\n\n{answer_form()}\n</leaf-fork-check>"
     )
 

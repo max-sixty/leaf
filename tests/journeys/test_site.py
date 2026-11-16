@@ -1259,7 +1259,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         )
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--col'))"
+            ".getPropertyValue('--lf-col'))"
         ), "the catalog painted at the prose measure and widened once leaf.js resolved"
     finally:
         for route in boot:

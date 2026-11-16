@@ -359,19 +359,46 @@ export function setScroll(box, options) {
   box.scrollTo({ ...options, behavior });
   if (behavior !== "instant") return;
   placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
-  if (box.scrollTop !== scrollTop || box.scrollLeft !== scrollLeft) announceScroll(box);
+  if (box.scrollTop === scrollTop && box.scrollLeft === scrollLeft) return;
+  drawLater();
+  announceScroll(box);
 }
+// A script's scroll write is drawn by the rendering update after it, and a reading of the
+// whole scene waits for that update (`scrollDrawn`): what flows in the box moves with the
+// write, but a box CSS anchors to that content, as a thread card is (css-anchors.js),
+// takes the write only as that update lays the page out (notes/browser-support.md, "A
+// reveal of an anchored fixed box before the next frame in Chromium"), and Chromium can
+// apply one last compositor scroll after a stop (`stopWhereItStands`). Read in between,
+// the card a walk was bringing over its margin entry still stood where the walk had left
+// it, so the Go-to map `g` armed as the walk landed named the entry the card covers, and
+// read again at the scroll's end, which comes before that update, named it again
+// (keyboard/hints.js). Two frame callbacks enclose the update. A reader waits for the
+// writes made before it asks, not for later ones, so a log a stream keeps at its end
+// holds no reading back for as long as it streams.
+/** @type {PromiseWithResolvers<void> | null} */
+let undrawn = null;
+function drawLater() {
+  const write = (undrawn = Promise.withResolvers());
+  nextFrame(() =>
+    nextFrame(() => {
+      write.resolve();
+      if (undrawn === write) undrawn = null;
+    }),
+  );
+}
+// Null where every scroll a script wrote is drawn, else the promise of the latest.
+export const scrollDrawn = () => undrawn?.promise ?? null;
 // Stop the scroll the browser drives in a box, leaving the box where it stands, as a
-// landing does before it places its destination (scrolling.js, `stopScroll`) and a glide
-// before it takes over a wheel's motion (`glideTo`). It is the one scroll write meant to
-// move nothing, which the write watch knows by this name (tests/write_watch.js,
-// `EXPECTED_SCROLLS`). An instant write alone stops too little: no instant write, even
-// one that moves the box, stops the smooth scroll a key such as PageDown sets off, in
-// Chromium or Firefox, and Firefox doesn't stop any smooth scroll for a write of the
-// position the page last saw (Chromium 158 and Firefox 159). So a `m` pressed as
-// PageDown moved the page lost its landing to PageDown. A smooth write takes the box
-// from whatever moves it, in both, and the instant one after ends that write's own
-// motion where the box stands.
+// landing does before it places its destination (scrolling.js, `stopBrowserScroll`)
+// and a glide before it takes over a wheel's motion (`glideTo`). It is the one scroll
+// write meant to move nothing, which the write watch knows by this name
+// (tests/write_watch.js, `EXPECTED_SCROLLS`). An instant write alone stops too little:
+// no instant write, even one that moves the box, stops the smooth scroll a key such as
+// PageDown sets off, in Chromium or Firefox, and Firefox doesn't stop any smooth scroll
+// for a write of the position the page last saw (Chromium 158 and Firefox 159). So a
+// `m` pressed as PageDown moved the page lost its landing to PageDown. A smooth write
+// takes the box from whatever moves it, in both, and the instant one after ends that
+// write's own motion where the box stands.
 /** @param {Element} box */
 export function stopWhereItStands(box) {
   const at = { top: box.scrollTop, left: box.scrollLeft };
@@ -379,6 +406,7 @@ export function stopWhereItStands(box) {
   box.scrollTo({ ...at, behavior: "instant" });
   placed.set(box, at);
   heardAt.set(box, standing(box));
+  drawLater();
 }
 // Whether a write to `top` and `left` takes the box a pixel or more from where it
 // stands, once the browser clamps it to the box's range.

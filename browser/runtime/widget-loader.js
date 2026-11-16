@@ -269,7 +269,7 @@ export async function prepareDocument(captured) {
   rememberPassageParts(scope, ["page", null], original);
   rememberAuthoredParents(scope, null, original);
   const descriptors = stageWidgetDescriptors(scope);
-  const authored = stageAuthoredStates(scope, new Map());
+  const authored = stageAuthoredStates(scope);
   const prior = readApplication().document;
   applicationState.captureDocument({
     ...prior,

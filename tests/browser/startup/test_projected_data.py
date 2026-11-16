@@ -1319,7 +1319,12 @@ def test_data_written_while_a_fresh_revision_starts_shows_once_it_has_started(
         const input = args[0];
         const url = typeof input === 'string' ? input : input.url;
         const path = new URL(url, location.href).pathname;
-        if (path.startsWith('/revisions/r2-') && path.endsWith('/registry.json')) {
+        const revision = document.querySelector('meta[name="lf-revision"]')?.content;
+        if (
+          revision === '2' &&
+          path.startsWith('/revisions/') &&
+          path.endsWith('/registry.json')
+        ) {
           window.__lfRevisionRegistryBlocked = true;
           return new Promise(resolve => {
             window.__lfReleaseRevisionRegistry = () => resolve(nativeFetch(...args));

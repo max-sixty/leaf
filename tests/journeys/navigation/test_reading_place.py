@@ -29,29 +29,21 @@ PLACES_PAGE = (
 # One glide of each kind: the two walks, travel to an edge, and a step.
 GLIDES = ("t", "m", "g g", "d")
 # Each key reads where the user is: `c` and Tab the focus they stand on, a walk where it
-# starts, and a step where the reading is.
-FOLLOWS = ("c", "Tab", "Shift+Tab", "t", "m", "d")
+# starts, a step where the reading is, PageDown the browser's own step, and `g` the
+# scene its Go-to map labels.
+FOLLOWS = ("c", "Tab", "Shift+Tab", "t", "m", "d", "PageDown", "g")
 
-# Pairs that end elsewhere pressed at once, each a defect to fix rather than a rule. An
-# entry that no longer fails fails the test, so a fix takes its entry away.
-REVEAL = (
-    "The reveal of the control Tab reaches, the browser's or Leaf's, reads the page "
-    "where the glide has it rather than where it lands, and stops the glide there"
-)
+# Cases that end elsewhere pressed during the glide, each a defect to fix rather than a
+# rule. An entry that no longer fails fails the test, so a fix takes its entry away.
 KNOWN = {
-    ("t", "Tab"): ({"chromium"}, REVEAL),
-    ("m", "Tab"): ({"chromium", "firefox"}, REVEAL),
-    ("m", "Shift+Tab"): ({"chromium", "firefox"}, REVEAL),
-    ("d", "Shift+Tab"): ({"chromium", "firefox"}, REVEAL),
-    ("m", "c"): (
-        {"chromium", "firefox"},
-        "`c` reads whether the ask is seen where the glide has it, so it brings the "
-        "ask forward and stops the glide short",
+    ("t", "Tab", "at once"): (
+        {"chromium"},
+        "Chromium reveals the card's next control where the card stood before the walk's "
+        "glide landed, since a box the page carries by anchoring takes a scroll at the "
+        "next frame (notes/browser-support.md, 'A reveal of an anchored fixed box "
+        "before the next frame in Chromium')",
     ),
 }
-# The same defect where it comes and goes with the frames the page gets: Chromium fails
-# it unthrottled and passes it at a tenth of the CPU, and Firefox fails it most runs.
-SOMETIMES = {("t", "Shift+Tab"): REVEAL}
 
 # Where focus stands, named by the Leaf surfaces down to it from the nearest authored
 # id, whether the user sees it, and the page's scroll.
@@ -82,26 +74,28 @@ AT_EACH_KEY = """addEventListener("keydown", () => { globalThis.__lfAtKey = scro
 
 
 # Daily, by the user's choice (2026-11-14): each case fits the browser tier's budget,
-# but the 48 together take minutes of CPU, which each push to main would pay.
+# but together they take minutes of CPU, which each push to main would pay.
+@pytest.mark.parametrize("when", ["at once", "under way"])
 @pytest.mark.parametrize("follow", FOLLOWS)
 @pytest.mark.parametrize("glide", GLIDES)
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_key_pressed_during_a_glide_acts_where_the_glide_lands(
-    engine, glide, follow, request, serve
+    engine, glide, follow, when, request, serve
 ):
     """A key pressed while one of Leaf's glides runs acts as it would once the glide had
     landed (user-place.js, `focusPlace`). Every glide here sets off from a link in the
     middle of the page and carries it away, and the key that follows ends the same way
-    pressed at once, before the glide's first frame, as pressed after its landing:
-    focus on the same control, as seen, and the page at the same scroll."""
+    pressed during the glide as after its landing: focus on the same control, as seen,
+    and the page at the same scroll. During it is at once, before the glide's first
+    frame, or under way, two frames after the glide first moved the page, which leaves
+    it most of the way along, where the destination of a second walk may already be in
+    view."""
     browser = request.getfixturevalue(engine)
-    engines, reason = KNOWN.get((glide, follow), ((), ""))
+    engines, reason = KNOWN.get((glide, follow, when), ((), ""))
     if browser.browser_type.name in engines:
         request.applymarker(pytest.mark.xfail(strict=True, reason=reason))
-    elif reason := SOMETIMES.get((glide, follow)):
-        request.applymarker(pytest.mark.xfail(strict=False, reason=reason))
 
-    def run(at_once):
+    def run(when):
         page = open_page(
             browser,
             serve(PLACES_PAGE, anchored=[("p41", "Paragraph 41.")]),
@@ -110,12 +104,22 @@ def test_a_key_pressed_during_a_glide_acts_where_the_glide_lands(
         page.locator("#p20 a").focus()
         scroll_settled(page)
         rendered(page)
-        with held_frames(page):
+        start = page.evaluate("scrollY")
+        with held_frames(page) as step:
             for key in glide.split():
                 page.keyboard.press(key)
-            if at_once:
+            if when == "under way":
+                for _ in range(30):
+                    if page.evaluate("scrollY") != start:
+                        break
+                    step()
+                else:
+                    raise AssertionError("the glide never set off")
+                step()
+                step()
+            if when != "after":
                 page.keyboard.press(follow)
-        if not at_once:
+        if when == "after":
             scroll_settled(page)
             rendered(page)
             page.keyboard.press(follow)
@@ -123,8 +127,8 @@ def test_a_key_pressed_during_a_glide_acts_where_the_glide_lands(
         rendered(page)
         return page.evaluate("__lfAtKey"), page.evaluate(OUTCOME)
 
-    landing, settled = run(at_once=False)
-    pressed_at, at_once = run(at_once=True)
+    landing, settled = run("after")
+    pressed_at, during = run(when)
     assert abs(pressed_at - landing) > 2, "the glide had landed before the key"
-    assert (at_once["focus"], at_once["seen"]) == (settled["focus"], settled["seen"])
-    assert at_once["top"] == pytest.approx(settled["top"], abs=2)
+    assert (during["focus"], during["seen"]) == (settled["focus"], settled["seen"])
+    assert during["top"] == pytest.approx(settled["top"], abs=2)

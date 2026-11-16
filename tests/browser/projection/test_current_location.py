@@ -587,7 +587,7 @@ def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve
     # An arrival rings the decision at the region's gap, outside its frame.
     arrived = choice.evaluate(
         "el => [getComputedStyle(el).outlineOffset, getComputedStyle("
-        "document.documentElement).getPropertyValue('--focus-region-gap').trim()]"
+        "document.documentElement).getPropertyValue('--lf-focus-region-gap').trim()]"
     )
     assert arrived[0] == arrived[1], arrived
 
@@ -630,7 +630,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     assert arrival_ring == [
         "solid",
         "2px",
-        token_colour(page, "--accent"),
+        token_colour(page, "--lf-accent"),
     ], f"the decision the walk stood the user on is not ringed: {arrival_ring}"
 
     # One press in, and the band moves to the row rather than doubling: the frame is the
@@ -646,7 +646,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     assert row_ring == [
         "solid",
         "2px",
-        token_colour(page, "--accent"),
+        token_colour(page, "--lf-accent"),
     ], f"the row the user is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin, so a user working one has

@@ -226,6 +226,12 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
     return events
 
 
+# Each state read (`served_state.service.LivePage.events`) and each page transaction
+# (`service.PageTransaction.events`) parses the whole log again: in a profile of the
+# cards page `leaf-dev bench` generates, at 1,024 events, a fifth of an append and a
+# quarter of a state read. Not yet built: the page server keeps the parsed events
+# under the log's inode and length, and parses only the lines appended since, as
+# `follow_events` reads on from its offset.
 def read_events(page_dir: Path) -> list:
     path = page_dir / EVENTS_FILE
     if not path.exists():

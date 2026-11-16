@@ -106,7 +106,7 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     readings = page.locator("label.lf-choice").evaluate_all("""labels => labels.map(label => {
       const style = getComputedStyle(label), box = label.getBoundingClientRect();
       const mark = label.querySelector('input').getBoundingClientRect();
-      return {height: box.height, floor: parseFloat(style.getPropertyValue('--aim-floor')),
+      return {height: box.height, floor: parseFloat(style.getPropertyValue('--lf-aim-floor')),
         mark: mark.height, border: style.borderStyle, background: style.backgroundColor};
     })""")
     for reading in readings:
@@ -323,7 +323,7 @@ ELEVATION_SHADOWS = """() => {
   // A height is written from its drop and blur tokens (base.css), so those read as
   // the lengths they hold, and a rule spelling a lift from them is still a lift.
   const theme = getComputedStyle(document.documentElement);
-  const parts = (value) => value.replace(/var\\((--raise-\\d-(?:drop|blur))\\)/g,
+  const parts = (value) => value.replace(/var\\((--lf-raise-\\d-(?:drop|blur))\\)/g,
     (_, name) => theme.getPropertyValue(name).trim());
   const found = [];
   const eaten = new Set();
@@ -383,11 +383,11 @@ ELEVATION_SHADOWS = """() => {
 }"""
 
 
-# A box that spends --shade, since the token itself is the same `light-dark()` text
+# A box that spends --lf-shade, since the token itself is the same `light-dark()` text
 # under either scheme.
 PAINTED_SHADE = """() => {
   const probe = document.createElement('div');
-  probe.style.color = 'var(--shade)';
+  probe.style.color = 'var(--lf-shade)';
   document.body.append(probe);
   const ink = getComputedStyle(probe).color;
   probe.remove();
@@ -402,14 +402,14 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 
     Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
     each other stood at different heights for no reason anyone chose, and nothing kept
-    the next one from writing a fifteenth. The `--raise-*` tokens (tokens.css, beside
-    --shade) are now the only declarations that write a blur; every other rule, a
+    the next one from writing a fifteenth. The `--lf-raise-*` tokens (tokens.css, beside
+    --lf-shade) are now the only declarations that write a blur; every other rule, a
     filter's drop-shadow() included, names one, with a hairline or ring beside it where
     its edge needs one.
 
     A drop shadow written as rgba(0,0,0,α) can only be right about one ground: at .12
     over the light paper a menu lifts its ground by 10 L*, and over the dark paper by
-    1.4. So the heights are cast in --shade, the ink stated once per scheme, and the two
+    1.4. So the heights are cast in --lf-shade, the ink stated once per scheme, and the two
     schemes are then asked for different answers from it.
 
     Asked of the declarations rather than of the paint, because that is where the fault
@@ -417,21 +417,21 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
     """
     page = open_page(browser, serve(LONG_PAGE))
     lifted = page.evaluate(ELEVATION_SHADOWS)
-    heights = {s["property"] for s in lifted if s["property"].startswith("--raise-")}
-    assert heights == {"--raise-1", "--raise-2", "--raise-3"}, (
-        f"the layer spells the heights {sorted(heights)}, not --raise-1 to --raise-3: "
+    heights = {s["property"] for s in lifted if s["property"].startswith("--lf-raise-")}
+    assert heights == {"--lf-raise-1", "--lf-raise-2", "--lf-raise-3"}, (
+        f"the layer spells the heights {sorted(heights)}, not --lf-raise-1 to --lf-raise-3: "
         f"this reading has stopped finding them and the assertions below are about "
         f"nothing"
     )
-    spelled = [s for s in lifted if not s["property"].startswith("--raise-")]
+    spelled = [s for s in lifted if not s["property"].startswith("--lf-raise-")]
     assert not spelled, (
-        f"{len(spelled)} lifts write their own geometry rather than naming a --raise-* "
+        f"{len(spelled)} lifts write their own geometry rather than naming a --lf-raise-* "
         f"height:\n  "
         + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in spelled)
     )
-    raw = [s for s in lifted if "var(--shade)" not in s["value"]]
+    raw = [s for s in lifted if "var(--lf-shade)" not in s["value"]]
     assert not raw, (
-        f"{len(raw)} heights are cast in a colour of their own rather than in --shade, "
+        f"{len(raw)} heights are cast in a colour of their own rather than in --lf-shade, "
         f"so the dark scheme cannot answer for them:\n  "
         + "\n  ".join(f"{s['said']} — {s['property']}: {s['value']}" for s in raw)
     )
@@ -546,3 +546,115 @@ button.dataset.connected = '';
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
+
+
+# The WCAG contrast of an element's words, or of its edge, against the ground they stand
+# on, each colour as the browser paints it.
+CONTRAST = """([selector, property]) => {
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = 1;
+    const context = canvas.getContext('2d', {willReadFrequently: true});
+    const painted = (colour) => {
+        context.fillStyle = colour;
+        context.fillRect(0, 0, 1, 1);
+        return [...context.getImageData(0, 0, 1, 1).data].slice(0, 3);
+    };
+    const luminance = (colour) => painted(colour)
+        .map((channel) => channel / 255)
+        .map((c) => (c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4))
+        .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
+    const element = document.querySelector(selector);
+    let ground = element;
+    while (getComputedStyle(ground).backgroundColor === 'rgba(0, 0, 0, 0)')
+        ground = ground.parentElement;
+    const [a, b] = [
+        luminance(getComputedStyle(element)[property]),
+        luminance(getComputedStyle(ground).backgroundColor),
+    ].sort((x, y) => y - x);
+    return (a + 0.05) / (b + 0.05);
+}"""
+
+
+@pytest.mark.parametrize("theme", [None, False])
+def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
+    """A page states its ground and its text once, as `--lf-paper` and `--lf-ink`, and
+    the neutral colours Leaf draws in step from the one toward the other
+    (styles/tokens.css), with a theme or without one. While each neutral was a colour
+    stated for the reading theme's paper, a dark page kept them: a control's quiet
+    words read 2.3:1 on it and a field's edge 1.2:1."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Night shift",
+                '<h1>Night shift</h1><p><button class="lf-btn" id="press" type="button">'
+                'Recompute</button> <input class="lf-field" id="field" aria-label="Volume">'
+                "</p>",
+                head="<style>:root { color-scheme: dark; --lf-paper: #101828;"
+                " --lf-ink: #e2e8f0; } html { background: var(--lf-paper); }</style>",
+            ),
+            theme=theme,
+        ),
+    )
+    words = page.evaluate(CONTRAST, ["#press", "color"])
+    edge = page.evaluate(CONTRAST, ["#field", "borderTopColor"])
+    assert words >= 4.5, f"a control's quiet words read {words:.2f}:1 on the page"
+    assert edge >= 1.3, f"a field's edge reads {edge:.2f}:1 against its ground"
+
+
+RESET = (
+    "@layer reset { *, ::before, ::after { margin: 0; padding: 0; border: 0 solid; }"
+    " button, input { background: transparent; border-radius: 0; font: inherit;"
+    " color: inherit; } }"
+)
+
+
+def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
+    """A page that brings its own framework takes no theme, and its reset in a layer
+    named `reset` clears the page's own elements and leaves what Leaf draws as it was
+    (layer.py, `PAGE_RESET_LAYER`). The layer ranked
+    above every tier of Leaf's, as any layer a page names does, and the reset took the
+    padding, border and ground from Leaf's buttons and fields and the frame from a
+    choice group."""
+    body = (
+        '<h1>Retention</h1><p id="own">Words.</p>'
+        '<p><button class="lf-btn" id="press" type="button">Recompute</button>'
+        ' <input class="lf-field" id="field" aria-label="Volume"></p>'
+        '<lf-options id="window" required><lf-option id="short"><strong>30 days</strong>'
+        ' In budget.</lf-option><lf-option id="long"><strong>90 days</strong>'
+        " Covers the hold.</lf-option></lf-options>"
+    )
+    faces = """() => Object.fromEntries(['press', 'field', 'window', 'short'].map((id) => {
+        const style = getComputedStyle(document.getElementById(id));
+        return [id, ['paddingTop', 'paddingLeft', 'borderTopWidth', 'borderTopLeftRadius',
+            'backgroundColor', 'fontFamily'].map((p) => style[p])];
+    }))"""
+    plain = open_page(browser, serve(leaf_page("Retention", body), theme=False))
+    expected = plain.evaluate(faces)
+    assert expected["press"][0] != "0px" and expected["window"][2] != "0px", expected
+    reset = open_page(
+        browser,
+        serve(
+            leaf_page("Retention", body, head=f"<style>{RESET}</style>"), theme=False
+        ),
+    )
+    assert reset.evaluate(faces) == expected
+    assert (
+        reset.evaluate("getComputedStyle(document.getElementById('own')).marginTop")
+        == "0px"
+    ), "the reset still clears the page's own elements"
+    # Only `reset` ranks low: an author's own layer still outranks the theme's look.
+    themed = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Retention",
+                body,
+                head="<style>@layer base { h1 { font-size: 80px; } }</style>",
+            )
+        ),
+    )
+    assert (
+        themed.evaluate("getComputedStyle(document.querySelector('h1')).fontSize")
+        == "80px"
+    ), "a page's own layer lost to the theme"

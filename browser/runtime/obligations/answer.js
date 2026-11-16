@@ -1,9 +1,14 @@
 /* Display wording for an obligation's canonical answer. This is presentation only:
    membership, typed values and completion come from the application publication.
-   A widget family formats answerWords(value, element); prose uses its typed text or token. */
+   A widget family formats answerWords(value, element); prose uses its typed text or token.
+   The element is the widget's authored markup wherever it stands: on the page, or in the
+   message an agent sent it in, which keeps it while no drawing of the message shows it
+   (thread/messages.js, `messageHolding`), so a choice made in a thread reads the same
+   once the thread is put away. */
 import { capitalized, labelWords } from "../words.js";
 import { widgetWord } from "../addressable-names.js";
-import { closestAcross, elementById } from "../passages.js";
+import { closestAcross } from "../passages.js";
+import { addressableAt } from "../thread/messages.js";
 import { perVocabulary, tagsDeclaring } from "../registry.js";
 import { answeredInWords } from "./model.js";
 import { leafSays } from "../voice.js";
@@ -25,7 +30,7 @@ export function ownedObligationControl(source, commandSource) {
 /** @param {AnswerableObligation} item */
 export function obligationWord(item) {
   if (answeredInWords(item)) return "Reply";
-  return capitalized(widgetWord(item.source.tag, elementById(item.source.id)));
+  return capitalized(widgetWord(item.source.tag, addressableAt(item.source.id)));
 }
 
 /** Answer text where the source supplies words or a widget formatter; other sources have none.
@@ -35,12 +40,13 @@ export function answerWords(item) {
   if (answeredInWords(item))
     return item.answer.value.text ?? item.answer.value.token ?? "";
   if (!hasObligationSource(item, "widget")) return "";
-  const source = elementById(item.source.id);
+  const source = addressableAt(item.source.id);
   const formatter = customElements.get(item.source.tag)?.answerWords;
   return labelWords(source && formatter ? formatter(item.answer.value, source) : "");
 }
 
-/* How a finished obligation ended, in the words a Done row and the floating panel show:
+/* How a finished obligation ended, in the words a Done row and the floating panel show,
+   as does the line under a thread message whose question the agent ended (thread-card.js):
    its answer, after a colon so the two never read as one phrase, an answer given
    elsewhere, or its withdrawal. Leaf says what became of what the page asked of the
    user (voice.js); the answer itself is the user's value, in the interface's face. */

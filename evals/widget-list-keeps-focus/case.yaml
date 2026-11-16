@@ -25,7 +25,7 @@ vars:
     closing the popup leaves focus nowhere. The user should stay in the list after a
     removal, on the nearest remaining row's Remove, or on Add item when the list is
     empty, and closing the popup should put them back on the Add item button that
-    opened it. Read the public references and show the JavaScript for the remove
+    opened it. Show the JavaScript for the remove
     handler, the list render, and the popup's close.
 assert:
   - type: llm-rubric

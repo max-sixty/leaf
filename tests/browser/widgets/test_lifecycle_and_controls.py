@@ -287,7 +287,7 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
       const read = node => Object.fromEntries(
         properties.map(key => [key, getComputedStyle(node)[key]]));
       const reference = document.createElement('span');
-      reference.style.fontFamily = 'var(--sans)';
+      reference.style.fontFamily = 'var(--lf-sans)';
       document.body.append(reference);
       const expected = read(reference);
       reference.remove();

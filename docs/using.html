@@ -25,12 +25,12 @@
         margin: 0;
       }
       .panels figcaption {
-        font: 14px/1.45 var(--sans);
-        color: var(--muted);
+        font: 14px/1.45 var(--lf-sans);
+        color: var(--lf-muted);
         margin-top: 10px;
       }
       .panels figcaption strong {
-        color: var(--ink);
+        color: var(--lf-ink);
         display: block;
         font-size: 15px;
         margin-bottom: 2px;
@@ -38,12 +38,12 @@
       /* Marks particular to these drawings, on the same tokens as the theme's
          svg.drawing idiom: the rail and a surface drawn over the page. */
       svg.drawing .rail {
-        fill: var(--accent-tint);
+        fill: var(--lf-accent-tint);
       }
       svg.drawing .over {
-        fill: var(--paper);
+        fill: var(--lf-paper);
         fill-opacity: 0.92;
-        stroke: var(--accent);
+        stroke: var(--lf-accent);
         stroke-width: 1.5;
         stroke-dasharray: 5 4;
       }
@@ -624,10 +624,14 @@
               it to no words.
             </p>
             <p id="unsent-words">
-              Words typed but not sent are kept after their box closes. If a new version
-              removes the content they were about, Resume writing (<kbd>g</kbd>
-              <kbd>i</kbd>) opens them, unsent, in Comment on the page, after any words
-              already there.
+              Words typed but not sent stay with what they are about after their box
+              closes: a comment with its passage or element, a reply with its thread.
+              Commenting somewhere else starts that place's own draft. Threads lists
+              these drafts under <strong>Drafts</strong>, and a press there opens one in
+              its box. While any wait and no thread has news, the On Me mark wears a
+              grey dot, and a press on it opens Threads. If a new version removes the
+              content they were about, Resume writing (<kbd>g</kbd> <kbd>i</kbd>) opens
+              them, unsent, in Comment on the page, after any words already there.
             </p>
           </section></lf-tab
         ><lf-tab id="keys" label="Keys and touch" class="layout-flow"

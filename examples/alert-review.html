@@ -10,7 +10,7 @@
       /* Each alert is one decision read top to bottom, so it keeps the evidence width
          rather than spreading its lines across a wide window. */
       #ar-queue > lf-tab > * {
-        max-inline-size: var(--wide);
+        max-inline-size: var(--lf-wide);
       }
     </style>
   </head>
@@ -71,7 +71,7 @@
         {hour: "18:00", pages: 12, deploy: true},
         {hour: "20:00", pages: 1, deploy: false},
       ],
-      {x: "hour", y: "pages", fill: (d) => (d.deploy ? "var(--series-1)" : "var(--series-3)")},
+      {x: "hour", y: "pages", fill: (d) => (d.deploy ? "var(--lf-series-1)" : "var(--lf-series-3)")},
     ),
     Plot.ruleY([0]),
   ],
@@ -226,7 +226,7 @@
         {hour: "05:00", pages: 0},
         {hour: "06:00", pages: 0},
       ],
-      {x: "hour", y: "pages", fill: "var(--series-1)"},
+      {x: "hour", y: "pages", fill: "var(--lf-series-1)"},
     ),
     Plot.ruleY([0]),
   ],
@@ -360,9 +360,9 @@
         {issuer: "Meridian", rate: 2},
         {issuer: "Pioneer", rate: 1},
       ],
-      {y: "issuer", x: "rate", fill: "var(--series-1)", sort: {y: "-x"}},
+      {y: "issuer", x: "rate", fill: "var(--lf-series-1)", sort: {y: "-x"}},
     ),
-    Plot.ruleX([8], {stroke: "var(--series-2)"}),
+    Plot.ruleX([8], {stroke: "var(--lf-series-2)"}),
     Plot.text([8], {x: (d) => d, frameAnchor: "top", dy: -14, dx: 4, textAnchor: "start", text: () => "pages above 8% overall"}),
     Plot.ruleX([0]),
   ],

@@ -194,6 +194,14 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         # The authored units the rank lies among, in their order on the sending
         # document: a later document that authors them differently has placed
         # the unit itself (`projection.move_absorbed`).
+        #
+        # Every move records the container's whole authored order, so on a board of
+        # n cards the log grows by n ids a move, and each fold compares each moved
+        # unit's list with the current order. Moves made on one revision record the
+        # same list for one container. Not yet built: a fold compares once per
+        # revision and container rather than once per move; and, with a protocol
+        # bump, a move records no list, and readers take the order from the document
+        # the move was made on.
         reading = (
             readings.page(event["revision"]) if scope == "page" else readings.thread
         )

@@ -35,6 +35,7 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as event_contracts_model
 from leaf import event_log as events_model
 from leaf import events as event_folds_model
+from leaf import holding as holding_model
 from leaf import hooks as hooks_model
 from leaf import leases as leases_model
 from leaf import obligations as obligations_model
@@ -867,7 +868,8 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "listening": True,
         "session_alive": True,
         "agent_turns": {},
-        "kept_back": [],
+        "fork_lane": None,
+        "handed": [],
     }
     reply = {
         "state": "active",
@@ -895,7 +897,7 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         now.isoformat(),
         reply=reply,
         updates=obligations_model.collection([record]),
-        holding=activity_model.present_holding(present, [], now.isoformat()),
+        holding=holding_model.reading_of([], present, now.isoformat(), {}),
     )
     [projected] = activity["workflows"]
     assert (projected["stage"], projected["condition"]) == ("replying", None)

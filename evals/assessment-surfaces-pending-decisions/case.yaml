@@ -204,7 +204,7 @@ variants:
           x: {domain: [0, 6600], ticks: width &lt; 480 ? 3 : 5, label: "Added lines", grid: true},
           y: {label: null, domain: ["Tests", "Runtime / tools", "Generated", "Docs"]},
           marks: [
-            Plot.barX(rows, {x:"lines",y:"kind",fill:"var(--series-1)"}),
+            Plot.barX(rows, {x:"lines",y:"kind",fill:"var(--lf-series-1)"}),
             Plot.text(rows, {x:"lines",y:"kind",text:d=&gt;d.lines.toLocaleString(),dx:5,textAnchor:"start"})
           ]
         };
@@ -389,8 +389,8 @@ variants:
         > All checks pass. Other rewrites remain proposals.
         You were about to leave the page available for comments and hand it over.
 
-        Finish this turn. You can read the installed Leaf instructions, but the
-        review page and its services are unreachable here. Write the commands and
+        Finish this turn. The review page and its services are unreachable here.
+        Write the commands and
         any HTML edits you would use, followed by the short final reply.
     assert:
       - type: llm-rubric

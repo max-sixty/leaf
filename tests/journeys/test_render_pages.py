@@ -39,7 +39,7 @@ from leaf import structure as structure_model
 from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import authored_sources, named_source
@@ -533,7 +533,7 @@ lf-roomy > section { min-height: 80px; border: 1px solid currentColor; }
         room: (() => {
           const style = getComputedStyle(el.parentElement);
           return parseFloat(style.getPropertyValue('--lf-shell-width'))
-            - 2 * parseFloat(style.getPropertyValue('--col-pad'));
+            - 2 * parseFloat(style.getPropertyValue('--lf-col-pad'));
         })(),
       };
     }""")
@@ -579,11 +579,11 @@ lf-roomy > section { min-height: 300px; border: 1px solid currentColor; }
 
 def test_named_wide_is_the_evidence_width_of_a_document_layout(browser, serve):
     """`wide` is the shared capped evidence width wherever a block stands on a document
-    page. A sidebar page's body is wider than `--wide` at a large window, so the
+    page. A sidebar page's body is wider than `--lf-wide` at a large window, so the
     breakout's growth alone left a named-wide block at the holder's width there. The
     cap holds an authored occurrence and a package default (a diff) alike, at the
-    page's own `--wide`, while a block that names no width still fills its holder and
-    `available` takes it all. At the theme's own `--wide`, which it derives from the
+    page's own `--lf-wide`, while a block that names no width still fills its holder and
+    `available` takes it all. At the theme's own `--lf-wide`, which it derives from the
     code size, the diff's 100-column line at four-digit line numbers reads without
     scrolling. A workspace states no evidence width, so there both fill
     their pane as a block that names none does. A narrow window's holder still bounds
@@ -613,7 +613,7 @@ diff --git a/feeders/mount.py b/feeders/mount.py
     configured = leaf_page(
         "Configured width",
         f"<div>{blocks}</div>",
-        head="<style>:root { --wide: 900px; }</style>",
+        head="<style>:root { --lf-wide: 900px; }</style>",
         layout="sidebar",
     )
     measure = """() => Object.fromEntries(
@@ -667,7 +667,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     framed = framed.replace("id='own-frame'", "id='own-frame' class='layout-flow'")
     source = OWN_MARGIN_FURNITURE.replace(
         "</head>",
-        "<style>main { position: relative; max-inline-size: var(--col); "
+        "<style>main { position: relative; max-inline-size: var(--lf-col); "
         "margin-inline: auto; grid-template-columns: [full-start prose-start] minmax(0, 1fr) "
         "[prose-end full-end]; } "
         "#sprint, #framed { width: 1080px; max-inline-size: none; } "
@@ -875,3 +875,180 @@ def test_sort_film_playback_keeps_the_stage_and_controls_still(browser, serve):
             }"""
         )
         assert len(layouts) == 1, (width, layouts)
+
+
+def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold(
+    browser, serve
+):
+    """A framed holder, a callout, requests its own width on column and sidebar pages:
+    its evidence stays inside that frame, and a wide child alone does not widen it. An
+    obligation frames nothing, so it takes no width of its own: a wide child stands in
+    the page's flow and the obligation's box grows round it. Workspace holders and
+    explicitly bounded cells keep the room their containing region grants."""
+    cells = "<td>p95 latency</td>" * 12
+    table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
+    item = (
+        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
+        'required><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
+    )
+    body = (
+        '<p id="prose">Prose.</p>'
+        + item.format(id="ask", width="", table="")
+        + item.format(id="stated", width=' data-width="wide"', table="")
+        + item.format(id="holds", width="", table=table.format(id="holds"))
+        + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
+        + '<aside class="callout" id="granted-c" data-width="wide">'
+        + table.format(id="granted-c")
+        + "</aside>"
+        + '<aside class="callout" id="contained-c">'
+        + table.format(id="contained-c")
+        + "</aside>"
+        + '<lf-options id="list" required><lf-option id="list-a">Leave it</lf-option>'
+        + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
+        + "</lf-options>"
+    )
+    measure = """() => Object.fromEntries(
+      ['prose', 'ask', 'stated', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']
+        .map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, {width: Math.round(box.width), left: Math.round(box.left)}];
+      }))"""
+    page = open_page(
+        browser,
+        serve(leaf_page("Sidebar body", f"<div>{body}</div>", layout="sidebar")),
+    )
+    resized(page, 1726, 900)
+    at = page.evaluate(measure)
+    edge = at["prose"]["left"]
+    wide = round(wide_width(page))
+    # An option list keeps the measure whatever one option holds: only a box's own
+    # blocks widen it. A width written on an obligation has no effect.
+    for boxed in ("ask", "stated", "callout", "contained-c", "list"):
+        assert at[boxed] == {"width": 720, "left": edge}, (boxed, at)
+    # A granted callout's padding and border fall inside the wide measure.
+    assert at["granted-c"] == {"width": wide, "left": edge}, at
+    # The obligation's box takes in the table it holds, which takes the room it declares.
+    assert at["holds-t"] == {"width": wide, "left": edge}, at
+    assert at["holds"]["left"] == edge and at["holds"]["width"] >= wide, at
+
+    # The obligation spans its block wherever the block breaks out. In a list obligation,
+    # which stands in from the column, and where the page arranged the obligation, in a
+    # grid track, it doesn't grow.
+    extras = (
+        "<ol><li>"
+        + item.format(id="listed", width="", table=table.format(id="listed"))
+        + "</li></ol>"
+        + item.format(
+            id="both", width=' data-width="available"', table=table.format(id="both")
+        )
+        + '<div style="display: grid; grid-template-columns: 350px 1fr">'
+        + item.format(id="tracked", width="", table=table.format(id="tracked"))
+        + "<p>Beside.</p></div>"
+        + item.format(
+            id="narrow",
+            width="",
+            table='<table data-width="wide"><tr><td>a</td><td>b</td></tr></table>',
+        )
+        + '<div id="wrapper" data-width="wide">'
+        + item.format(
+            id="wrapped",
+            width="",
+            table=f'<table data-width="available"><tr>{cells}</tr></table>',
+        )
+        + "</div>"
+        + '<div id="pulled" style="margin-inline: -150px">Pulled words.'
+        + '<div data-width="available">Room.</div></div>'
+        + '<div><span id="spilled" style="margin-left: -150px">Spilled words.'
+        + '<div data-width="wide">Room.</div></span></div>'
+        + '<div id="padded" style="margin-inline: -600px; padding-inline: 600px">'
+        + '<div data-width="wide">Room.</div></div>'
+        + '<div id="pinned" style="position: fixed; inset: auto 0 0 0">Pinned.</div>'
+    )
+    column = open_page(browser, serve(leaf_page("Column", body + extras)))
+    resized(column, 1726, 900)
+    at = column.evaluate(
+        measure.replace(
+            "'list']",
+            "'list', 'listed', 'listed-t', 'both', 'both-t', 'tracked', 'wrapper',"
+            " 'wrapped']",
+        )
+    )
+    assert at["holds-t"]["width"] == wide, at
+    assert at["holds-t"]["left"] == at["prose"]["left"], at
+    assert at["holds"] == at["holds-t"], at
+    heading = column.locator("#holds h3").bounding_box()
+    assert round(heading["x"]) == at["prose"]["left"], (heading, at)
+    assert at["ask"] == at["prose"], at
+    assert at["contained-c"]["width"] == at["prose"]["width"], at
+    assert at["granted-c"]["width"] == wide, at
+    assert at["listed"] == at["listed-t"], at
+    assert at["listed"]["width"] < at["prose"]["width"], at
+    assert at["both"] == at["both-t"] == {"width": wide, "left": at["holds"]["left"]}, (
+        at
+    )
+    assert at["tracked"]["width"] == 350, at
+    # An obligation inside a breakout takes its holder's room, as any block
+    # there does, however much room its own block asks for.
+    assert at["wrapped"] == at["wrapper"], at
+    # The column's room beside its prose is the page's: negative margins can leave the
+    # prose without leaving that room, the shell less a gutter each side. Only the
+    # padded box exceeds it.
+    boxes = column.evaluate("""() => {
+      const shell = document.body.getBoundingClientRect();
+      const gutter = parseFloat(getComputedStyle(document.querySelector('main'))
+        .getPropertyValue('--lf-col-pad'));
+      return {room: {left: shell.left + gutter, right: shell.right - gutter},
+        ...Object.fromEntries(['#pulled', '#spilled'].map(selector => {
+          const box = document.querySelector(selector).getBoundingClientRect();
+          return [selector, {left: box.left, right: box.right}];
+        }))};
+    }""")
+    for selector in ("#pulled", "#spilled"):
+        assert boxes[selector]["left"] >= boxes["room"]["left"], boxes
+        assert boxes[selector]["right"] <= boxes["room"]["right"], boxes
+    # The padded box's words stay on the prose and its padding is blank, so it stands
+    # in no margin; the window still clips the padding it carries past the page.
+    misplaced = evaluate_probe(column, "misplacedBoxes")
+    assert [(m["code"], m["at"]) for m in misplaced] == [
+        ("clipped-out", "<div id=padded>"),
+    ], misplaced
+
+    board = (
+        '<lf-board id="board"><lf-column id="board-c" label="Open">'
+        '<lf-card id="board-k">Retry</lf-card></lf-column></lf-board>'
+    )
+    workspace = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Workspace",
+                f'<div id="region">{body}{board}</div>',
+                layout="workspace",
+            )
+        ),
+    )
+    resized(workspace, 1726, 900)
+    at = workspace.evaluate(measure.replace("'list']", "'list', 'region', 'board']"))
+    for block in ("prose", "ask", "stated", "granted-c", "holds", "callout", "list"):
+        assert at[block] == at["region"], (block, at)
+    assert at["board"] == at["region"], at
+
+    # With no evidence width, a board reaches only its holder: six columns in a narrow
+    # cell of the page's grid scroll inside it rather than spread over the next cell.
+    columns = "".join(
+        f'<lf-column id="c{i}" label="C{i}"></lf-column>' for i in range(6)
+    )
+    cells = leaf_page(
+        "Workspace cells",
+        f'<div id="cells"><div id="cell"><lf-board id="six">{columns}</lf-board></div>'
+        "<div>Beside.</div></div>",
+        head="<style>#cells { display: grid; grid-template-columns: 290px 1fr; }</style>",
+        layout="workspace",
+    )
+    workspace = open_page(browser, serve(cells))
+    resized(workspace, 1726, 900)
+    box = workspace.evaluate(
+        """() => Object.fromEntries(['cell', 'six'].map(id =>
+          [id, Math.round(document.getElementById(id).getBoundingClientRect().width)]))"""
+    )
+    assert box["six"] == box["cell"], box

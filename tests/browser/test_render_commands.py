@@ -1324,15 +1324,20 @@ def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
 def test_reduced_motion_is_the_page_s_to_answer(browser, serve):
     """With the reader's preference for less motion, Leaf's stylesheets stop their own
     motion and leave the page's: a spinner the page never stops keeps turning, and the
-    gate's reading names it, while one the page stops under the preference is quiet."""
+    gate's reading names it, while one the page stops under the preference is quiet, as
+    is one a scroll timeline drives, which moves only as the reader scrolls."""
     url = serve(
         leaf_page(
             "motion",
             "<style>@keyframes turn { to { rotate: 1turn } }"
             ".spinner { width: 20px; height: 20px; animation: turn 1s linear infinite }"
             "@media (prefers-reduced-motion: reduce) { #calm { animation: none } }"
+            ".pan { width: 100px; overflow-x: auto; scroll-timeline: --pan x }"
+            "#panned { width: 400px; height: 10px; animation: turn linear both;"
+            " animation-timeline: --pan }"
             "</style><h1>Motion</h1>"
-            '<div class="spinner" id="busy"></div><div class="spinner" id="calm"></div>',
+            '<div class="spinner" id="busy"></div><div class="spinner" id="calm"></div>'
+            '<div class="pan"><div id="panned"></div></div>',
         )
     )
     page = open_page(browser, url)

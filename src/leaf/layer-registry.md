@@ -38,8 +38,9 @@ The layer record holds the selection and two identities:
   theme, the page's look, `{name, source}` with `source` explicit or default. A new
   page takes the user's default or else Leaf's bundled `reading`; null records taking
   none.
-  The theme composes right after the default package, before the content packages,
-  so a content package can restate what it declares. Re-running `page init` preserves
+  The reading look and then the theme compose right after the default package,
+  before the content packages (`themes.with_theme`), so a theme restates the look
+  and a content package restates either. Re-running `page init` preserves
   the recorded choice until `--theme` replaces it or `--no-theme` clears it. User
   catalogue changes affect new pages; `themes.py` owns selection and
   `package-themes.md` documents its authoring interface.

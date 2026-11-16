@@ -854,34 +854,6 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     )
 
 
-def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_dir):
-    """A thread inserts a message's markup through `template.innerHTML`, which runs no
-    script in it, so the browser run that draws the message's widgets before it posts
-    leaves its scripts unrun too, rather than refusing it for code the user never runs."""
-    publish(page_dir)
-    append_carried_log_record(
-        page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hm"}
-    )
-    posted = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "See:",
-            "--markup",
-            (
-                '<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
-                '<script type="module">throw new Error("inert-message-script")</script>'
-            ),
-        ],
-    )
-    assert posted.exit_code == 0, posted.output
-    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
-
-
 def test_reply_validates_typed_references_against_the_page(page_dir):
     """Reply markup naming a page element of the wrong role never freezes, nor does
     a command naming the page's seat, which it would fill from another document."""
@@ -1066,7 +1038,7 @@ def test_agent_messages_preserve_a_single_space(page_dir):
         cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
     )
     assert empty.exit_code != 0
-    assert json.loads(empty.stderr)["error"] == (
+    assert json.loads(empty.stdout)["error"] == (
         "empty text (pass --text, --file PATH or a pipe on stdin; --file - reads"
         " any stdin)"
     )
@@ -1168,16 +1140,16 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
         + ["--file", str(reply)],
     )
     assert both.exit_code == 2
-    assert "not both" in json.loads(both.stderr)["error"]
+    assert "not both" in json.loads(both.stdout)["error"]
     renamed = runner.invoke(
         cli_model.cli,
         ["thread", "edit", str(page_dir), opened["id"], "--title", "Label row"],
         input="Not the text.",
     )
     assert renamed.exit_code == 0, renamed.output
-    assert [
-        record["kind"] for record in map(json.loads, renamed.stdout.split("\n")[:-1])
-    ] == ["thread_title"]
+    assert [record["kind"] for record in json.loads(renamed.stdout)["records"]] == [
+        "thread_title"
+    ]
 
     planned = runner.invoke(
         cli_model.cli,
@@ -1185,40 +1157,6 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
         + ['[{"depth": 0, "title": "Check the rows", "state": "working"}]'],
     )
     assert planned.exit_code == 0, planned.output
-
-
-def test_the_wire_ships_a_message_as_logged(page_dir):
-    """The wire adds nothing to the log: text is Markdown the page's vendored runtime
-    renders (test_render holds that side), markup is the fragment the CLI gate
-    validated, and the only vocabulary a page's frozen layer has to keep speaking is
-    the log's own, which $events stamps."""
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "comment",
-            "id": "c1",
-            "author": "user",
-            "text": "two things:\n\n- one\n- **two**",
-        },
-    )
-    result = CliRunner().invoke(
-        cli_model.cli,
-        [
-            "thread",
-            "reply",
-            "--done",
-            response_reference(page_dir, "c1"),
-            "--text",
-            "Fixed in `poll()`.",
-            "--markup",
-            '<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
-        ],
-    )
-    assert result.exit_code == 0, result.output
-    wire = {e["kind"]: e for e in page_state(page_dir)["events"]}
-    assert wire["comment"]["text"] == "two things:\n\n- one\n- **two**"
-    assert "html" not in wire["comment"] and "html" not in wire["reply"]
-    assert wire["reply"]["markup"].startswith("<lf-diagram")
 
 
 def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
@@ -1451,7 +1389,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
             ],
         )
         assert result.exit_code == 0, result.output
-        revisions.append(json.loads(result.output))
+        [revision] = json.loads(result.output)["records"]
+        revisions.append(revision)
 
     history_result = CliRunner().invoke(
         cli_model.cli, ["page", "events", str(page_dir)]
@@ -1509,7 +1448,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
         ["thread", "edit", str(page_dir), root["id"], "--text", "Taken over."],
     )
     assert foreign.exit_code == 0, foreign.output
-    replacement = json.loads(foreign.output)
+    [replacement] = json.loads(foreign.output)["records"]
     assert replacement["session"] == "worker-2"
     assert replacement["message"] == root["id"]
     before = events_model.read_events(page_dir)
@@ -1543,7 +1482,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     )
     assert unidentified.exit_code == 0, unidentified.output
     assert before_unidentified_edit[-1]["id"] == sessionless["id"]
-    assert json.loads(unidentified.output)["message"] == sessionless["id"]
+    [unidentified_edit] = json.loads(unidentified.output)["records"]
+    assert unidentified_edit["message"] == sessionless["id"]
 
 
 def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
@@ -2299,7 +2239,7 @@ def test_an_agent_names_and_renames_a_thread_without_changing_its_speech(
         ],
     )
     assert renamed.exit_code == 0, renamed.output
-    title = json.loads(renamed.output)
+    [title] = json.loads(renamed.output)["records"]
     assert (title["kind"], title["thread"], title["title"]) == (
         "thread_title",
         root["id"],

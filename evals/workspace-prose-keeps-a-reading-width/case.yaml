@@ -26,6 +26,6 @@ assert:
       Read the HTML. Pass only if `main` has class `layout-workspace` and the incident
       write-up's paragraphs cannot run wider than about 1100px on a 2560px-wide window:
       the page's own stylesheet caps them or a box holding them (a `max-inline-size`,
-      `max-width`, `ch`-based width, or `var(--wide)`), or its grid gives the region that
+      `max-width`, `ch`-based width, or `var(--lf-wide)`), or its grid gives the region that
       holds them a track that cannot grow past that width. Fail if nothing in the page
       keeps those paragraphs from spanning the window beside the list.

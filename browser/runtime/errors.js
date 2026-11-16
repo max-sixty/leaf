@@ -17,8 +17,9 @@
    them (`passErrorsAt`; composing/input.js, `errorOver`). The floating panel's field
    also says an error about nothing, in its status's place while it is empty, until the
    user's first edit there (floating-panel.js). An error no field stands for, or one the user has
-   passed, waits in the Errors list in the leaf's menu, with a dot on the leaf until
-   the user opens the list (`seeErrors`). The user chose this on 17 October over
+   passed, waits in the Errors list in the leaf's menu, with a dot on the leaf and on
+   the menu's Errors until the user opens the list (`seeErrors`), so the row the
+   dotted leaf leads to reads at once. The user chose this on 17 October over
    errors riding the passing notice, which faded after four seconds, was replaced by
    whatever came next, and went unseen while the user typed; and on 19 October chose
    the cover at a passage's comment box, where the error had shown only as the leaf's
@@ -26,8 +27,16 @@
 
    A screen reader hears each error as it is raised, unless its producer already says
    it aloud, as page-status.js does a change of status. News and acknowledgements stay
-   notices (notifications.js); an error is never one. */
-import { signal } from "/runtime/framework.js";
+   notices (notifications.js); an error is never one.
+
+   Each error keeps the revision the page showed and the stack it was raised from
+   (`revision`, `stack`), so whoever is handed a copy of it starts from the source and
+   the code that raised it, however the page has moved on since (floating-panel.js,
+   `errorReport`).
+   The tab's trace records it among the gestures that led to it (interaction-log.js). */
+import { signal, untracked } from "/runtime/framework.js";
+import { runtime } from "./context.js";
+import { recordInteraction } from "./interaction-log.js";
 import { announce, gesture } from "./notifications.js";
 
 /**
@@ -36,6 +45,8 @@ import { announce, gesture } from "./notifications.js";
  *   message: string,
  *   subject: Element | null,
  *   at: number,
+ *   revision: number | null,
+ *   stack: string,
  *   passed: boolean,
  *   seen: boolean,
  * }>} RaisedError
@@ -81,8 +92,19 @@ function raise(message, subject, speak, replaced) {
       unsaid = [];
     });
   if (speak) unsaid.push(message);
+  const stack = new Error(message).stack ?? "";
+  recordInteraction("error", { message, stack });
   publish([
-    Object.freeze({ id, message, subject, at: Date.now(), passed: false, seen: false }),
+    Object.freeze({
+      id,
+      message,
+      subject,
+      at: Date.now(),
+      revision: untracked(() => runtime.currentRevision ?? null),
+      stack,
+      passed: false,
+      seen: false,
+    }),
     ...errors.peek().filter((entry) => entry.id !== replaced),
   ]);
   // An error about no field is the panel's to say, and its leaf shakes at it.

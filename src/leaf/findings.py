@@ -13,9 +13,9 @@ carries the records, so a command that reports it reads them from it. So does ev
 note a command gives beside its result, such as why a `leaf wait` ended. Each is
 produced where it is detected, the browser probes and sensors included, which return
 records rather than sentences, and its words are written here and nowhere else. A
-command prints `finding.json()`, its words as `text`, in its result or as a note on
-stderr (`note`), as the event door's refusal answer carries it, and a failing test
-prints the words; every
+command prints `finding.json()`, its words as `text`, in its result's `findings`
+(`note`), as the event door's refusal answer carries it, and a failing test prints
+the words; every
 other reader, the gate's retry policy and the suite among them, reads the fields.
 
 - `code` names what was found, and decides the words (`_TEXT`).
@@ -138,10 +138,44 @@ def _json(value) -> str:
     return json_value(value)
 
 
+# What the running command has noted for the record it prints (`hold`), or None
+# where no record will carry a note.
+_held: list[Finding] | None = None
+
+
+def hold() -> None:
+    """Keep what the running command notes for the record it prints on stdout
+    (`with_held`), from now until that record is printed."""
+    global _held
+    _held = []
+
+
+def release() -> list[Finding]:
+    """Stop keeping notes, so each later one prints on stderr, and return those
+    kept so far."""
+    global _held
+    held, _held = _held or [], None
+    return held
+
+
+def with_held(record: dict) -> dict:
+    """`record` with what the command has noted added to its `findings`, as the
+    command prints it on stdout (`cli`). A note after this prints on stderr, since no
+    record is left to carry it, as one noted by a process that prints no record,
+    such as a hook, a stream or a server, does."""
+    if not (held := release()):
+        return record
+    return record | {
+        "findings": [*record.get("findings", []), *(f.json() for f in held)]
+    }
+
+
 def note(*found: Finding) -> None:
-    """Say each finding beside a command's result, as one JSON line on stderr
-    (`cli`), after whatever the result has printed."""
-    sys.stdout.flush()
+    """Say each finding beside a command's result: in the `findings` of the record
+    it prints (`with_held`), or as a JSON line on stderr where none will print."""
+    if _held is not None:
+        _held.extend(found)
+        return
     for finding in found:
         print(
             json.dumps(finding.json(), ensure_ascii=False), file=sys.stderr, flush=True
@@ -161,21 +195,29 @@ def _explained(console: list[dict]) -> str:
 def _fork_holds_thread(holder: dict, answers: bool) -> str:
     """What a command acting as the main session hears where a fork or the line fork
     holds its thread (`holding.authorize`): the holder, and, for a fork, whether the
-    command's answer took the thread from it, how to stop it and how the fork's own
-    commands act as the fork. No command answers a message a line fork holds, which
-    page state gives no answer reference."""
+    command's answer took the thread from it, how to stop it, by its agent id, the one
+    address that reaches it (`forks.py`), and how the fork's own commands act as the
+    fork. A fork whose harness hasn't yet started it has no id, which Leaf tells the
+    main session once it starts (`forks.started`). No command answers a message a line
+    fork holds, which page state gives no answer reference."""
     if holder["kind"] == "line":
         return (
             "a line fork holds this thread while writing the agent's working message;"
             " this command acted as the main session beside it"
         )
-    fork = holder["name"]
+    agent = holder["agent"]
+    fork = "a fork Leaf is starting" if agent is None else f"fork {agent}"
+    stop = (
+        "SendMessage the agent id Leaf tells you once it starts"
+        if agent is None
+        else f"SendMessage {agent}"
+    )
     return (
-        f"fork {fork} held this thread; this command acted as the main session and"
+        f"{fork} held this thread; this command acted as the main session and"
         " took the thread from it, so the fork's own writes there are refused from"
-        f" now on; to stop the fork, SendMessage {fork}"
+        f" now on; to stop the fork, {stop}"
         if answers
-        else f"fork {fork} holds this thread; this command acted as the main session"
+        else f"{fork} holds this thread; this command acted as the main session"
         " beside it"
     ) + (
         " (a fork's `leaf` command acts as the fork only as a Bash call of its own"
@@ -1858,6 +1900,12 @@ _TEXT = {
     ),
     "summary-order": lambda at, v: (
         "summary must cover at least two messages in thread order"
+    ),
+    "summary-gap": lambda at, v: (
+        "summary would leave messages unsummarized above a summary, and only the"
+        " thread's opening message may stay there; summarize"
+        f" --from {v['take_from']!r} --through {v['take_through']!r}, with prose that"
+        " covers the added messages too"
     ),
     "reanchor-thread": lambda at, v: "reanchor needs an open anchored thread",
     "reanchor-section": lambda at, v: (

@@ -522,6 +522,344 @@ def test_a_reading_finds_words_drawn_outside_their_blocks_box(browser, serve):
     assert page.evaluate(reading) == "carrier"
 
 
+def test_a_reading_made_as_a_jump_lands_reads_the_words_it_brought(browser, serve):
+    """A reading of the screen in the task that jumps the page far down, before the
+    browser lays the page out again, reads the words the jump brought into the window:
+    the block on screen and the line the place names come from there, not from the
+    words the reading last found near the window."""
+    source = leaf_page(
+        "A long page",
+        "".join(
+            f'<p id="p{n}">Paragraph {n} of the long page, with words enough to name.</p>'
+            for n in range(300)
+        ),
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    page.evaluate("async () => (await window.__lfCheckApi()).readingBlock()")
+    rendered(page)
+    landed = page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          const target = document.getElementById("p250");
+          scrollTo({ top: target.getBoundingClientRect().top + scrollY, behavior: "instant" });
+          return { block: api.readingBlock()?.id, quote: api.capturePlace()?.quote };
+        }"""
+    )
+    assert landed["block"] == "p250"
+    assert landed["quote"].startswith("Paragraph 250 ")
+
+
+def test_a_reading_after_a_restyle_reads_the_layout_it_made(browser, serve):
+    """A restyle that moves the words under the window, with no change to the page's
+    text or height, leaves the next reading of the screen on the words there now. Scroll
+    anchoring keeps the paragraph read at the window's top as space opens above it, so
+    the reading stays on it."""
+    source = leaf_page(
+        "A restyled page",
+        '<div style="height: 30000px">'
+        + "".join(
+            f'<p id="p{n}">Paragraph {n} of the long page, with words enough to name.</p>'
+            for n in range(300)
+        )
+        + "</div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    reading = "async () => (await window.__lfCheckApi()).readingBlock()?.id"
+    page.evaluate(
+        """() => {
+          const target = document.getElementById("p150");
+          scrollTo({ top: target.getBoundingClientRect().top + scrollY, behavior: "instant" });
+        }"""
+    )
+    rendered(page)
+    assert page.evaluate(reading) == "p150"
+    page.evaluate(
+        "() => { document.getElementById('p10').style.marginTop = '2000px'; }"
+    )
+    rendered(page)
+    assert page.evaluate(reading) == "p150"
+
+
+def test_a_reading_after_a_scroll_reads_the_words_a_sticky_box_holds(browser, serve):
+    """A scroll carries the page's words past the window while a sticky box, such as a
+    table of contents beside them, stays in it, so a reading of the screen after the
+    scroll still finds the words that box holds there, as the sections a page comment
+    records do (`sectionsInView`)."""
+    source = leaf_page(
+        "A page with contents",
+        '<nav style="position: sticky; top: 0; float: left; width: 180px"><ol>'
+        + "".join(f'<li id="toc{n}">Part {n}</li>' for n in range(3))
+        + '</ol></nav><div style="margin-left: 200px">'
+        + "".join(
+            f'<p id="p{n}">Paragraph {n} of the long page, with words enough to name.</p>'
+            for n in range(300)
+        )
+        + "</div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    on_screen = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert "toc0" in page.evaluate(on_screen)
+    page.evaluate(
+        """() => {
+          const target = document.getElementById("p200");
+          scrollTo({ top: target.getBoundingClientRect().top + scrollY, behavior: "instant" });
+        }"""
+    )
+    rendered(page)
+    assert {"toc0", "p200"} <= set(page.evaluate(on_screen))
+
+
+def test_a_reading_after_a_scroll_reads_a_sticky_box_anywhere_its_block_lets_it_move(
+    browser, serve
+):
+    """A sticky box moves within its containing block: past an inline wrapper to the
+    block around it, and through the whole of a pane it stands in directly. So a reading
+    after a scroll of the page, or of the pane, still finds the words the sticky box holds
+    in the window."""
+    source = leaf_page(
+        "Sticky boxes",
+        '<section style="height: 3000px"><span>'
+        '<p id="wrapped" style="position: sticky; top: 100px; margin: 0">'
+        "Sticky words inside an inline wrapper, held in the window by sticking.</p>"
+        "</span></section>"
+        '<div id="pane" data-bound="start" style="height: 300px; overflow: auto">'
+        '<p id="heading" style="position: sticky; top: 0; margin: 0; background: white">'
+        "Sticky words standing directly in the pane, at its top as it scrolls.</p>"
+        + "".join(
+            f'<p id="row{n}">Row {n} of the pane, with words enough to name a place.</p>'
+            for n in range(60)
+        )
+        + "</div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    page_reading = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert "wrapped" in page.evaluate(page_reading)
+    page.evaluate("() => scrollTo({ top: 1000, behavior: 'instant' })")
+    rendered(page)
+    assert "wrapped" in page.evaluate(page_reading)
+    pane_reading = """async () => {
+      const api = await window.__lfCheckApi();
+      const region = api.readingRegions().find((each) => each.body.id === "pane");
+      return [...api.blocksOnScreen(region)].map(([block]) => block.id);
+    }"""
+    page.evaluate(
+        """() => document.getElementById("pane").scrollIntoView({ behavior: "instant" })"""
+    )
+    rendered(page)
+    assert "heading" in page.evaluate(pane_reading)
+    page.evaluate("() => { document.getElementById('pane').scrollTop = 1500; }")
+    rendered(page)
+    assert "heading" in page.evaluate(pane_reading)
+
+
+def test_a_reading_finds_words_placed_against_a_box_outside_the_pane_holding_them(
+    browser, serve
+):
+    """A positioned box is placed by its containing block, past a pane between them that
+    neither scrolls nor clips it: words fixed against a transformed section stand in the
+    window though the pane holding them is far below it."""
+    source = leaf_page(
+        "Placed words",
+        '<section style="transform: translateZ(0); height: 5000px; display: flow-root">'
+        '<div style="overflow: auto; height: 200px; margin-top: 3000px">'
+        '<p id="placed" style="position: fixed; top: 100px; left: 0; margin: 0">'
+        "Words positioned against their containing block, drawn in the window.</p>"
+        "</div></section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    on_screen = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert page.evaluate(on_screen) == ["placed"]
+
+
+def test_a_reading_after_a_scroll_reads_words_the_browser_skipped_until_then(
+    browser, serve
+):
+    """Words in a box whose contents the browser skips while it is far from the window
+    (`content-visibility: auto`) are read once a scroll brings them into it, though the
+    page's height stays as it was."""
+    source = leaf_page(
+        "A page that skips what it holds",
+        '<p id="first">The first paragraph, far above the words the scroll reaches.</p>'
+        '<div style="height: 10000px"></div>'
+        '<div id="skipper" style="content-visibility: auto;'
+        ' contain-intrinsic-size: 200px; height: 200px">'
+        '<p id="target">Words the browser draws once a scroll brings them near.</p>'
+        '</div><div style="height: 1000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    reading = """async () => {
+      const api = await window.__lfCheckApi();
+      return { block: api.readingBlock()?.id, quote: api.capturePlace()?.quote };
+    }"""
+    assert page.evaluate(reading)["block"] == "first"
+    page.evaluate(
+        """() => {
+          const box = document.getElementById("skipper");
+          scrollTo({ top: box.getBoundingClientRect().top + scrollY - 50, behavior: "instant" });
+        }"""
+    )
+    page.wait_for_function(
+        "document.getElementById('target').checkVisibility({contentVisibilityAuto: true})"
+    )
+    rendered(page)
+    assert page.evaluate(reading) == {
+        "block": "target",
+        "quote": "Words the browser draws once a scroll brings them near.",
+    }
+
+
+# Brings line `line` of the text document `#log` to the top of its box's landing band,
+# and says whether the browser draws the document's first line.
+LINE_AT_TOP = """(line) => {
+  const pre = document.querySelector('#log pre');
+  const row = pre.querySelectorAll('.lf-text-document-run > div')[line];
+  return window.__lfCheckApi().then((api) => {
+    pre.scrollTop += row.getBoundingClientRect().top - api.landingBand(pre).top;
+    return pre.querySelector('.lf-text-document-run > div')
+      .checkVisibility({contentVisibilityAuto: true});
+  });
+}"""
+
+
+def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
+    """A reading place in a long text document names the first line drawn at the top of
+    the document's box, with runs of lines the browser skips above it. The place passes
+    over each skipped run whole (reading-place.js, `lastHeld`), and passing over lines
+    past a run's end named a line further down."""
+    url = serve(
+        leaf_page(
+            "A long document",
+            '<lf-text-document id="log" source="log-text"></lf-text-document>',
+            head="<style>#log { --lf-bound: 400px; }</style>",
+        )
+    )
+    text = "".join(
+        f"Line {i:04d} names the place a reader stands.\n" for i in range(1500)
+    )
+    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page = open_page(browser, url)
+    resized(page, 1280, 900)
+    rendered(page)
+    place = """async () => {
+      const api = await window.__lfCheckApi();
+      return api.capturePlace(api.readingRegionFor(document.querySelector('#log pre')))
+        ?.quote;
+    }"""
+    for line in (300, 512, 700, 1000, 1280):
+        # Twice: the first scroll draws the runs it reaches, which may size them anew.
+        page.evaluate(LINE_AT_TOP, line)
+        scroll_settled(page, "#log pre")
+        assert not page.evaluate(LINE_AT_TOP, line), "the first line is drawn"
+        scroll_settled(page, "#log pre")
+        rendered(page)
+        assert page.evaluate(place).startswith(f"Line {line:04d} "), line
+
+
+def test_a_reading_after_a_disclosure_opens_reads_what_it_shows(browser, serve):
+    """Opening a disclosure shows what it held, though its box keeps its size, so the next
+    reading of the screen finds those words."""
+    source = leaf_page(
+        "A disclosure",
+        '<details id="fold" style="height: 200px">'
+        '<summary aria-label="More"></summary>'
+        '<p id="held">Words the disclosure shows once it opens, in a box that keeps its'
+        " size.</p></details>"
+        '<div style="height: 1000px"></div>',
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    on_screen = """async () => [...(await window.__lfCheckApi()).blocksOnScreen()]
+      .map(([block]) => block.id)"""
+    assert "held" not in page.evaluate(on_screen)
+    page.evaluate("() => { document.getElementById('fold').open = true; }")
+    rendered(page)
+    assert "held" in page.evaluate(on_screen)
+
+
+def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser, serve):
+    """A rearrangement that changes no size, such as a view swap moving words in from far
+    below, is said with `layoutChanged`, and the next reading of the screen finds the
+    words it brought, after each such notice from the box."""
+    source = leaf_page(
+        "A rearranged page",
+        '<section id="area" style="position: relative; height: 5000px">'
+        '<p id="incoming" style="position: absolute; top: 1800px; margin: 0">'
+        "Words a view swap brings into the window from far below it.</p>"
+        '<p id="standing" style="position: absolute; top: 350px; margin: 0">'
+        "Words that stay where they stood through the swap.</p>"
+        '<p id="past" style="position: absolute; top: 1100px; margin: 0">'
+        "Words just below the window, which stay too.</p>"
+        '<p id="later" style="position: absolute; top: 2500px; margin: 0">'
+        "Words a second swap brings into the window from further below.</p>"
+        "</section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    reading = "async () => (await window.__lfCheckApi()).readingBlock()?.id"
+    assert page.evaluate(reading) == "standing"
+    page.evaluate(
+        """async () => {
+          const area = document.getElementById("area");
+          document.getElementById("incoming").style.transform = "translateY(-1700px)";
+          (await window.__lfWidgetApi()).layoutChanged(area);
+        }"""
+    )
+    assert page.evaluate(reading) == "incoming"
+    on_screen = """async () => {
+      const area = document.getElementById("area");
+      document.getElementById("later").style.transform = "translateY(-2300px)";
+      (await window.__lfWidgetApi()).layoutChanged(area);
+      return [...(await window.__lfCheckApi()).blocksOnScreen()].map(([block]) => block.id);
+    }"""
+    assert "later" in page.evaluate(on_screen)
+
+
+def test_a_reading_in_a_scaled_pane_follows_its_scroll(browser, serve):
+    """A pane drawn at half its size moves its words half a pixel in the window for each
+    pixel it scrolls, so a reading of the pane after a scroll finds the words the scroll
+    brought into it."""
+    source = leaf_page(
+        "A scaled pane",
+        '<div id="pane" data-bound="start" style="height: 200px; width: 700px;'
+        ' overflow: auto; transform: scale(0.5); transform-origin: top left">'
+        '<div style="height: 1200px; position: relative">'
+        '<p id="p0" style="position: absolute; top: 0; margin: 0">'
+        "The first words in the scaled pane, before it scrolls.</p>"
+        '<p id="p9" style="position: absolute; top: 900px; margin: 0">'
+        "The last words in the scaled pane, after it scrolls.</p>"
+        "</div></div>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1000, 600)
+    rendered(page)
+    reading = """async () => {
+      const api = await window.__lfCheckApi();
+      const region = api.readingRegions().find((each) => each.body.id === "pane");
+      return api.readingBlock(region)?.id;
+    }"""
+    assert page.evaluate(reading) == "p0"
+    page.evaluate("() => { document.getElementById('pane').scrollTop = 900; }")
+    rendered(page)
+    assert page.evaluate(reading) == "p9"
+
+
 @pytest.mark.parametrize("separated", [False, True])
 def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     browser, serve, separated

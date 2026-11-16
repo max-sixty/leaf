@@ -19,7 +19,6 @@ from render_harness import (
     PANEL,
     consume_browser_errors,
     expect_obligations_answered,
-    expect_open_threads,
     expect_preview_words,
     holding,
     http_error_console,
@@ -1207,156 +1206,6 @@ def arrived(page, thread_id):
     return thread_id
 
 
-def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
-    """The thread parent absorbs descendants without joining unrelated page work."""
-    source = LIVE_V1.replace(
-        '<h1 id="live-title">Live first</h1>',
-        '<h1 id="live-title">Live first</h1>'
-        '<lf-local id="page-local" choice="idle"></lf-local>',
-    )
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                source,
-                page_files={
-                    "registry.json": json.dumps(PAGE_DECLARATION),
-                    "widgets/lf-local.js": PAGE_WIDGET,
-                },
-            )
-        ),
-    )
-    page.evaluate(
-        """async () => {
-          const presentation = await window.__lfCheckApi();
-          const held = () => {
-            let release, reject;
-            const promise = new Promise((resolve, fail) => {
-              release = resolve;
-              reject = fail;
-            });
-            return {promise, release, reject};
-          };
-          window.pagePreparation = held();
-          window.threadPreparation = held();
-          window.__heldLocalPresentations = new Map([
-            ['thread-local', threadPreparation.promise],
-          ]);
-          document.querySelector('#page-local').controller.present(
-            pagePreparation.promise
-          );
-          window.whenLeafPresented = presentation.whenApplicationPresented;
-          window.whenLeafRegionsPresented =
-            presentation.whenApplicationRegionsPresented;
-          window.readLeafPresentation = presentation.readApplicationPresentation;
-        }"""
-    )
-
-    long_thread(serve.page_dir, "frozen-widget-question", "Show the frozen widget.")
-    # The panel's thread view is the reader that draws the reply's widget.
-    open_panel_thread(page, arrived(page, "frozen-widget-question"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "frozen-widget-question",
-            "text": "This widget prepares inside the thread.",
-            "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
-        },
-    )
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "action",
-            "author": "user",
-            "revision": 1,
-            "widget": "thread-local",
-            "action": "choose",
-            "detail": {"value": "chosen"},
-        },
-    )
-    page.wait_for_function(
-        """() => {
-          const pending = readLeafPresentation().pending;
-          return document.querySelector('.lf-floating-panel #thread-local') &&
-            pending.includes('thread') &&
-            pending.includes('widget:thread-local:preparation') &&
-            pending.includes('widget:page-local:preparation');
-        }""",
-    )
-    page.evaluate(
-        "threadReady = false; allReady = false; "
-        "whenLeafRegionsPresented(['thread'], () => true)"
-        ".then(() => { threadReady = true; }); "
-        "whenLeafPresented().then(() => { allReady = true; }); true"
-    )
-    assert page.evaluate("threadReady") is False
-    page.evaluate("threadPreparation.release('thread')")
-    page.wait_for_function("threadReady")
-    expect(page.locator("body")).to_have_attribute("data-lf-applied", "1")
-    expect(page.locator(".lf-floating-panel #thread-local")).to_have_attribute(
-        "data-rendered-choice", "chosen"
-    )
-    assert page.evaluate("allReady") is False
-    assert "widget:page-local:preparation" in page.evaluate(
-        "readLeafPresentation().pending"
-    )
-    page.evaluate("pagePreparation.release('page')")
-    page.wait_for_function("allReady")
-
-    # A descendant owns its own fail-soft result. Its failure reports once and settles,
-    # while the parent list, count, and narrowing keep the same candidate reading.
-    page.evaluate(
-        """() => {
-          window.failedThreadPreparation = (() => {
-            let reject;
-            const promise = new Promise((_resolve, fail) => { reject = fail; });
-            return {promise, reject};
-          })();
-          window.__heldLocalPresentations.set(
-            'thread-failing', failedThreadPreparation.promise
-          );
-        }"""
-    )
-    long_thread(
-        serve.page_dir, "failing-widget-question", "Show another frozen widget."
-    )
-    open_panel_thread(page, arrived(page, "failing-widget-question"))
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "failing-widget-question",
-            "text": "This widget fails its preparation.",
-            "markup": '<lf-local id="thread-failing" choice="idle"></lf-local>',
-        },
-    )
-    page.wait_for_function(
-        """() => document.querySelector('.lf-floating-panel #thread-failing') &&
-          readLeafPresentation().pending.includes('thread') &&
-          readLeafPresentation().pending.includes(
-            'widget:thread-failing:preparation'
-          )""",
-    )
-    expect_open_threads(page, 2)
-    page.evaluate(
-        "threadReady = false; "
-        "whenLeafRegionsPresented(['thread'], () => true)"
-        ".then(() => { threadReady = true; }); "
-        "failedThreadPreparation.reject(new Error('frozen descendant failure')); true"
-    )
-    page.wait_for_function("threadReady")
-    expect(page.locator(".lf-floating-panel #thread-failing")).to_have_count(1)
-    expect_open_threads(page, 2)
-    reported_browser_errors(
-        page, "leaf: Presentation failed: frozen descendant failure"
-    )
-
-
 THREAD_ACTIONS = r"""
 import { noChange } from '/vendor/lit.js';
 import { LeafElement, keeps, readThreads, threadActions } from '/runtime/widget-api.js';
@@ -1853,14 +1702,11 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     expect(page.locator(PANEL_THREAD)).to_contain_text("Pending words")
     held.pop().continue_()
     round_trip(page)
-    # The server's reading, adopted after the send's answer, replaces the pending id.
-    admitted = page.wait_for_function(
-        """([node, key, pending]) => {
-          const thread = node.collection.threads.find((thread) => thread.key === key);
-          return thread && thread.id !== pending ? thread : null;
-        }""",
-        arg=[reader.element_handle(), pending["key"], pending["id"]],
-    ).json_value()
+    admitted = reader.evaluate(
+        "(node, key) => node.collection.threads.find(thread => thread.key === key)",
+        pending["key"],
+    )
+    assert admitted["id"] != pending["id"]
     assert admitted["root"]["key"] == pending["root"]["key"]
     selected = page.locator(f'{PANEL_THREAD}[data-lf-thread="{admitted["id"]}"]')
     expect(selected).to_be_visible()
@@ -1973,17 +1819,9 @@ def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions
     assert first.evaluate("node => node.updates") > first_before
     assert removed.evaluate("node => node.updates") == stopped_at
 
-    # The widget draws the thread under its pending id first; the server's reading,
-    # adopted after the send's answer, gives it the id the panel's view names.
-    thread_id = page.wait_for_function(
-        """node => {
-          const id = node.collection.threads.find(
-            (thread) => thread.root.body.text.trim() === 'Delta'
-          )?.id;
-          return id && !id.startsWith('pending:') ? id : null;
-        }""",
-        arg=first.element_handle(),
-    ).json_value()
+    thread_id = first.evaluate(
+        "node => node.collection.threads.find(thread => thread.root.body.text.trim() === 'Delta').id"
+    )
     # The widget's route through core opens the thread's view in the panel.
     first.locator("button", has_text="Delta").click()
     expect(

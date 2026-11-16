@@ -4,12 +4,11 @@
 
 idle before pickup:
   exit: 1
-  stdout: ''
-  stderr:
-    - error: >-
-        1 event nobody has picked up, so the page cannot close yet. Leaf's hook
-        puts them in your context at your next turn.
-      findings: []
+  stdout:
+    error: >-
+      1 event nobody has picked up, so the page cannot close yet. Leaf's hook puts
+      them in your context at your next turn.
+    findings: []
 
 the watch wakes the session: >-
   <page> has new input; Leaf's prompt hook puts it in your context with this notification
@@ -112,13 +111,12 @@ reminded at prompt:
 
 idle before answer:
   exit: 1
-  stdout: ''
-  stderr:
-    - error: >-
-        1 acknowledged user update with no answer (`leaf thread reply <delivery>:0:event-3`);
-        answer before closing. `leaf page state <page>` lists what is owed, and
-        `leaf page state <page> <message>` reads a thread's history.
-      findings: []
+  stdout:
+    error: >-
+      1 acknowledged user update with no answer (`leaf thread reply <delivery>:0:event-3`);
+      answer before closing. `leaf page state <page>` lists what is owed, and `leaf
+      page state <page> <message>` reads a thread's history.
+    findings: []
 
 answer:
   kind: reply

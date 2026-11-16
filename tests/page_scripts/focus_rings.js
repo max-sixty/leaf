@@ -28,7 +28,7 @@
   // and how far past its edge that band reaches. Two rules in the layer draw it that way —
   // the anchored response bar, which writes `outline: none` so its states keep one
   // silhouette, and the target hint the keyboard is browsing, a chip in a layer nothing can
-  // focus — and to a user they are the same band as every other ring (--focus-shadow,
+  // focus — and to a user they are the same band as every other ring (--lf-focus-shadow,
   // base.css).
   //
   // What makes it that band rather than the layer's other shadows: no offsets, no blur, and
@@ -38,12 +38,12 @@
   // a caller measures is the whole of the band; nought where the box paints no such thing.
   //
   // The accent arrives resolved twice because the layer spells it twice: a plain
-  // `var(--accent)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
+  // `var(--lf-accent)` serializes as `rgb(...)` while a `color-mix()` into srgb serializes as
   // `color(srgb r g b / a)`. The mix is matched on its triple alone, so how much of the
   // accent a rule laid down is not part of the question — the bar carries an accent border
   // as well and wants less of it than a chip standing over the page's own words.
   function shadowBand(cs, accent, mixed) {
-    const w = parseFloat(cs.getPropertyValue("--focus-ring-w")) || 0;
+    const w = parseFloat(cs.getPropertyValue("--lf-focus-ring-w")) || 0;
     if (!w) return 0;
     // Split on the commas between layers, not on the ones inside `rgba(...)`.
     for (const layer of cs.boxShadow.split(/,(?![^(]*\))/)) {
@@ -74,15 +74,16 @@
   // being read. The same span in <body> answers the same.
   function accentSwatch() {
     const swatch = document.createElement("span");
-    swatch.style.cssText = "outline: 1px solid var(--accent)";
+    swatch.style.cssText = "outline: 1px solid var(--lf-accent)";
     document.head.append(swatch);
     const accent = getComputedStyle(swatch).outlineColor;
-    swatch.style.outlineColor = "color-mix(in srgb, var(--accent) 100%, transparent)";
+    swatch.style.outlineColor =
+      "color-mix(in srgb, var(--lf-accent) 100%, transparent)";
     const mixed =
       getComputedStyle(swatch).outlineColor.match(
         /color\(srgb ([\d.]+ [\d.]+ [\d.]+)/,
       )?.[1] ?? null;
-    swatch.style.outlineColor = "var(--mark-ink)";
+    swatch.style.outlineColor = "var(--lf-mark-ink)";
     const markInk = getComputedStyle(swatch).outlineColor;
     swatch.remove();
     return { accent, mixed, markInk };
@@ -138,8 +139,8 @@
     // The band this box casts as a shadow, where it draws one, in the width it draws it
     // at. Its own comment carries what makes a shadow that band rather than a lift.
     const hereShadow = (cs) => shadowBand(cs, accent, mixed);
-    // Whether this box paints the layer's ring: `--focus-ring` is
-    // `var(--focus-ring-w) solid var(--accent)`, so style, width and colour are all what
+    // Whether this box paints the layer's ring: `--lf-focus-ring` is
+    // `var(--lf-focus-ring-w) solid var(--lf-accent)`, so style, width and colour are all what
     // the element computes them to.
     //
     // Or the same band cast as a shadow, which is the same ring to the user and so the
@@ -149,7 +150,7 @@
     const focused = deepFocus();
     const isFocusRing = (cs) =>
       (cs.outlineStyle === "solid" &&
-        cs.outlineWidth === cs.getPropertyValue("--focus-ring-w").trim() &&
+        cs.outlineWidth === cs.getPropertyValue("--lf-focus-ring-w").trim() &&
         cs.outlineColor === accent) ||
       hereShadow(cs) > 0;
     // Every box painting the ring, read off the composed page. Whether a ring is there is
@@ -810,7 +811,7 @@
     const { accent, mixed } = accentSwatch();
     const ringed = (cs) =>
       cs.outlineStyle === "solid" &&
-      cs.outlineWidth === cs.getPropertyValue("--focus-ring-w").trim() &&
+      cs.outlineWidth === cs.getPropertyValue("--lf-focus-ring-w").trim() &&
       cs.outlineColor === accent;
     // A box whose own content paints over its outline draws the same ring on a later
     // pseudo-element instead: the scrolling thread list's frame, a page thread over its

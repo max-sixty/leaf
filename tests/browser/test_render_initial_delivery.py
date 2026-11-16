@@ -295,7 +295,8 @@ def test_native_input_survives_progressive_render_revision_and_export(
         )
         export = tmp_path / "proof.html"
         result = CliRunner().invoke(
-            cli.cli, ["page", "export", str(serve.page_dir), "--out", str(export)]
+            cli.cli,
+            ["page", "export", str(serve.page_dir), "--out", str(export), "--runtime"],
         )
         assert result.exit_code == 0, result.output
         offline = browser.new_page()

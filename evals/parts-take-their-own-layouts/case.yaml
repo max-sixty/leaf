@@ -4,11 +4,13 @@
 # with arrangements of their own. Claude Code, at the change: base 0/3 (a
 # layout-workspace page of two lf-pane regions, the prose beside the playground),
 # head 3/3.
+# The case now authors the page and names nothing to read; it hasn't run in this form.
 description: parts-take-their-own-layouts
 metadata:
   purpose:
     "Parts of one subject that want their own Layouts: a playground to try beside the
     proposal it argues for is a page of parts, each part arranged by its own Layout."
+  authoring: true
   tags:
     - layout
     - playground
@@ -28,10 +30,8 @@ vars:
     The user reads the proposal and the reasoning after trying the panel, and comes
     back to the playground while they read.
 
-    Read ../../packages/playground/instructions/author.md relative to the leaf skill's base
-    directory. The page directory is not reachable here, so reply with the page's
-    complete `<main>` element and any `<style>` it needs; stub the playground's
-    preview content and the long prose with short placeholders.
+    Short placeholders can stand for the playground's preview content, the long
+    prose and the screenshots.
 assert:
   - type: llm-rubric
     metric: parts

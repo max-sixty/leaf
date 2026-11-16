@@ -2,7 +2,13 @@
  * through `x-thread-seat`, built by `threadBox`. */
 import { whileConnected } from "../arrivals.js";
 import { TEXT_FIELD } from "../control-selectors.js";
-import { loadDraft, saveDraft, sendMessage, watchDraft } from "../drafts.js";
+import {
+  loadDraft,
+  saveDraft,
+  seatContext,
+  sendMessage,
+  watchDraft,
+} from "../drafts.js";
 import { offlineInteractive } from "../context.js";
 import { inChrome } from "../passages.js";
 import { matchesWhen, registry } from "../registry.js";
@@ -30,7 +36,7 @@ export const threadBox = (el, hint, { createComment, onDraftChanged, wireInput }
   const row = offer("div", "lf-say lf-comment-box");
   const ta = offer(TEXT_FIELD);
   ta.name = "comment";
-  const ctx = "say:" + el.id;
+  const ctx = seatContext(el.id);
   ta.value = loadDraft(ctx)?.text ?? "";
   ta.setAttribute("aria-label", hint);
   row.append(ta);

@@ -24,7 +24,7 @@ vars:
     the staging copy entirely, so the region question no longer applies. Leave the
     production decision for me to make on the page. Update what waits on me."
 
-    Read whatever Leaf instructions you need. The page is unreachable in this
+    The page is unreachable in this
     exercise, so write out the commands you would run and your short closing reply.
 assert:
   - type: llm-rubric

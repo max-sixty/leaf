@@ -30,7 +30,8 @@
    target's `placement.status` says which it is. It may draw a thread only once the
    thread is asked for, as a margin draws a card: a route to a thread no outlet holds
    asks its `reveal(key)` (`revealOnPage`), and the pass that follows places the outlet
-   it then returns.
+   it then returns. Only a thread it was handed as a target is asked for, since it has
+   no outlet to return for any other, and each ask costs a pass.
 
    Which threads a widget has claimed is a reading other paints follow (`claimed`):
    the margin lists a thread no widget seats, so a commit that changes the answer
@@ -151,8 +152,6 @@ export function watchThreadSurfaces(commands) {
 export function placePageThreads(owner, render, { reveal }, services) {
   if (pageRegistration())
     throw new Error("The document already has a page Thread presentation");
-  if (reveal !== undefined && typeof reveal !== "function")
-    throw new TypeError("A page Thread presentation's reveal must be a function");
   return register(owner, render, services, "page", reveal ?? null);
 }
 const pageRegistration = () =>
@@ -164,11 +163,20 @@ const pageRegistration = () =>
 // the presentation took the thread, once the pass placing the outlet it gives has
 // shown. A presentation that declines (`false`) or fails leaves the thread to the next
 // reader the route asks.
+//
+// It is asked only for a thread it is handed as a target (`pageTarget`). One with no
+// place, as a quote the page no longer holds, has no outlet a presentation could return,
+// so the ask would draw nothing and the thread would go to the primary reader as the
+// last resort. Every pass then asks whether the page can take it back
+// (thread/destination.js, `returnToPage`), and each ask ran a pass of its own: 41 asks
+// in 800 ms on a page whose presentation did what its reference says.
 /** @param {string} name */
 export function revealOnPage(name) {
   const registration = pageRegistration();
   const thread = threadNamed(name);
   if (!registration?.reveal || !thread) return null;
+  const placement = registration.placements?.placedAt(thread.id);
+  if (!pageTarget({ anchor: thread.anchor, placement, thread })) return null;
   const { reveal } = registration;
   return (async () => {
     try {

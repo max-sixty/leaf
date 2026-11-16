@@ -551,7 +551,8 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
     asks its `reveal`, Leaf places the outlet it then returns and lands the user in it,
     and the panel stays shut. Awaiting the handle's `update()` waits for the placement.
     A presentation that declines leaves the thread to Leaf's panel, and one that draws
-    nothing over the page offers no command to hide annotations."""
+    nothing over the page offers no command to hide annotations. A thread with no place
+    is never handed over, so no route asks the page for it."""
     events = [
         {
             "id": f"{i:032x}",
@@ -569,6 +570,7 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
             ),
             (2, "About a control", {"section": "other", "part": "A named control"}),
             (3, "Settled already", {"section": "other"}),
+            (4, "Lost words", {"section": "subject", "quote": "words not on the page"}),
         ]
     ] + [{"kind": "resolve", "author": "user", "parent": f"{3:032x}"}]
     page = open_page(
@@ -665,6 +667,20 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
     page.keyboard.press("t")
     expect(page.locator(PANEL_THREAD)).to_contain_text("About the passage")
     expect(drawn).to_have_count(0)
+
+    # The page has no outlet to give a thread whose words it no longer holds, so the
+    # panel takes it unasked. Asked, a page that recorded it open would draw nothing,
+    # and every pass after would ask again whether the page could take it back.
+    page.evaluate("""async () => {
+      const {readThreads, threadActions} = await window.__lfWidgetApi();
+      window.declines = false;
+      window.asked = [];
+      const lost = readThreads().threads.find(
+        (thread) => thread.root.body.text.trim() === 'Lost words');
+      await threadActions.open(lost.key, {part: 'thread'});
+    }""")
+    expect(page.locator(PANEL_THREAD)).to_contain_text("Lost words")
+    assert page.evaluate("asked") == []
 
 
 def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, serve):

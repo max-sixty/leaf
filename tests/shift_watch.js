@@ -160,10 +160,9 @@
 // to the move a starved host draws in one frame, and both fail. A declaration's
 // permission (append growth, widening, reflow) is asked only of one frame's step, since
 // two permitted transitions need not form one from the first frame to the last, and
-// the run's comparison takes away what each step it permitted moved. A step of under a
-// pixel is never asked, so a declared region that grows by less than a pixel a frame
-// moves what follows it unpermitted. A landmark first read during the run, or read
-// again after it left the page, is compared from the frame that read it then.
+// the run's comparison takes away what each step it permitted moved. A landmark first
+// read during the run, or read again after it left the page, is compared from the
+// frame that read it then.
 //
 // A landmark that a scroll moves in a frame, as its scrollers' offsets changing say, is
 // judged on that frame's step alone, and its moves stand only where Chrome reports
@@ -194,12 +193,14 @@
 // without input fails as a layout move does: browser/AGENTS.md ("The page holds still
 // under the user's aim") keeps still what the user reads, whatever moves it.
 //
-// Two verdicts still depend on the frame rate. A roundtrip that Chrome doesn't report,
-// a transform's or one under 3 px a frame, fails on a fast host, which reads it in
-// several frames, and may pass on a starved host, which reads it once. A landmark's
+// Three verdicts still depend on the frame rate. A roundtrip that Chrome doesn't
+// report, a transform's or one under 3 px a frame, fails on a fast host, which reads it
+// in several frames, and may pass on a starved host, which reads it once. A landmark's
 // move in frames where a scroll also moves it stands only on Chrome's report, so one
 // under 3 px a frame, or a transform's, passes on a fast host and may fail on a
-// starved one.
+// starved one. A step that moves a landmark less than a pixel is never asked for a
+// declaration's permission, so a declared region growing that slowly fails what
+// follows it on a fast host and passes on a starved one, whose steps are larger.
 //
 // Unchanged frames. A reading appends to the ledger only where a node's reading
 // differs from its last, so a frame on which nothing could have changed keeps the

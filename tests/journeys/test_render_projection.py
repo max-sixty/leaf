@@ -558,12 +558,10 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     failures = render_gate_model.render_version(browser, url).failures
     assert [
-        (f.scheme, f.at, f.values["changed"])
-        for f in failures
-        if f.code == "relative-render"
+        (f.at, f.values["changed"]) for f in failures if f.code == "relative-render"
     ] == [
-        ("light", "<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
-        ("light", "<lf-tally id=tally-seen>", ["body text"]),
+        ("<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
+        ("<lf-tally id=tally-seen>", ["body text"]),
     ], failures
     # The relative widget's appended caption is its own fault in other readings too;
     # the current vocabulary beside it leaves the gate nothing to say.
@@ -742,7 +740,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     # no-ops against it and the mark has nothing left to say.
     d = serve.page_dir
     honored = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
-        'label="Done">', f'label="Done">{IMPORTER_CARD}'
+        "<strong>Done</strong>", f"<strong>Done</strong>{IMPORTER_CARD}"
     )
     stamp_page(d, honored, "t")
     third = open_page(browser, url.replace("v1.html", "v2.html"))

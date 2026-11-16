@@ -716,8 +716,8 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     carried = BOARD_PAGE.replace(
         '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n', ""
     ).replace(
-        '<lf-column id="col-done" label="Done">',
-        '<lf-column id="col-done" label="Done">'
+        '<lf-column id="col-done"><strong>Done</strong>',
+        '<lf-column id="col-done"><strong>Done</strong>'
         '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
     )
     stamp_page(d, carried, "carried")
@@ -1417,7 +1417,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     outer["properties"]["restated"] = {"type": "boolean"}
     outer["x-content"] = "members"
     outer["x-example"] = (
-        '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
+        '<lf-outer-board id="x-outer"><lf-column id="x-col"><strong>Todo</strong>'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
         "</lf-outer-board>"
     )
@@ -1454,11 +1454,12 @@ customElements.define("lf-outer-board", class extends LeafElement {
         """
 <h1 id="h">Nested owners</h1>
 <lf-outer-board id="outer">
-  <lf-column id="outer-todo" label="Todo"><lf-card id="outer-card"><strong>Outer</strong>
-    <lf-board id="inner"><lf-column id="inner-todo" label="Todo">
+  <lf-column id="outer-todo"><strong>Todo</strong><lf-card id="outer-card"><strong>Outer</strong>
+    <lf-board id="inner"><lf-column id="inner-todo">
+      <strong>Todo</strong>
       <lf-card id="inner-card"><strong>Inner</strong></lf-card></lf-column>
-      <lf-column id="inner-done" label="Done"></lf-column></lf-board>
-  </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
+      <lf-column id="inner-done"><strong>Done</strong></lf-column></lf-board>
+  </lf-card></lf-column><lf-column id="outer-done"><strong>Done</strong></lf-column>
 </lf-outer-board>""",
     )
     page = open_page(browser, serve(nested, packages=(*EXAMPLE_PACKAGES, "./.leaf")))
@@ -2452,8 +2453,8 @@ def test_a_move_on_a_version_a_newer_one_replaced_is_refused_and_restored(
     stamp_page(
         serve.page_dir,
         BOARD_PAGE.replace(
-            '<lf-column id="col-done" label="Done"></lf-column>',
-            '<lf-column id="col-done" label="Done">'
+            '<lf-column id="col-done"><strong>Done</strong></lf-column>',
+            '<lf-column id="col-done"><strong>Done</strong>'
             '<lf-card id="card-feeder"><strong>Feeder</strong></lf-card></lf-column>',
         ),
         "v2",
@@ -2620,7 +2621,7 @@ def test_the_comment_field_follows_its_passage_out_of_view(browser, serve):
 PANED_LONG_PAGE = leaf_page(
     "paned long",
     """<header><h1 id="t">Paned</h1></header>
-<lf-pane id="reading" label="Reading"><div id="reading-body">{paras}</div></lf-pane>
+<lf-pane id="reading" aria-label="Reading"><div id="reading-body">{paras}</div></lf-pane>
 """.format(
         paras="\n".join(
             f"<p id='p{i}'>Paragraph {i}. " + "Filler. " * 20 + "</p>"
@@ -2849,7 +2850,6 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
             }
         },

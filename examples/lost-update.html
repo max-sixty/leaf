@@ -31,78 +31,77 @@
         data-width="available"
         aria-label="The race before and after the fix"
       >
-        <lf-run label="Before the fix">
-          <lf-lane label="Job A">
-            <lf-event id="before-a-read" at="0" label="Reads balance: 100"></lf-event>
-            <lf-event id="before-a-work" at="200" end="4200" label="Adds 50"></lf-event>
-            <lf-event id="before-a-write" at="4200" label="Writes 150"></lf-event>
+        <lf-run>
+          <strong>Before the fix</strong>
+          <lf-lane>
+            <strong>Job A</strong>
+            <lf-event id="before-a-read" at="0"
+              ><strong>Reads balance: 100</strong></lf-event
+            >
+            <lf-event id="before-a-work" at="200" end="4200"
+              ><strong>Adds 50</strong></lf-event
+            >
+            <lf-event id="before-a-write" at="4200"
+              ><strong>Writes 150</strong></lf-event
+            >
           </lf-lane>
-          <lf-lane label="Job B">
-            <lf-event
-              id="before-b-read"
-              at="1000"
-              label="Reads balance: 100"
-            ></lf-event>
-            <lf-event
-              id="before-b-work"
-              at="1200"
-              end="5200"
-              label="Subtracts 30 from the stale 100"
-            ></lf-event>
-            <lf-event id="before-b-write" at="5200" label="Writes 70"></lf-event>
+          <lf-lane>
+            <strong>Job B</strong>
+            <lf-event id="before-b-read" at="1000"
+              ><strong>Reads balance: 100</strong></lf-event
+            >
+            <lf-event id="before-b-work" at="1200" end="5200"
+              ><strong>Subtracts 30 from the stale 100</strong></lf-event
+            >
+            <lf-event id="before-b-write" at="5200"
+              ><strong>Writes 70</strong></lf-event
+            >
           </lf-lane>
-          <lf-lane label="Balance">
-            <lf-event id="before-balance-start" at="0" label="100"></lf-event>
-            <lf-event id="before-balance-a" at="4200" label="150"></lf-event>
-            <lf-event
-              id="before-balance-b"
-              at="5200"
-              label="70: A's deposit is lost"
-            ></lf-event>
+          <lf-lane>
+            <strong>Balance</strong>
+            <lf-event id="before-balance-start" at="0"><strong>100</strong></lf-event>
+            <lf-event id="before-balance-a" at="4200"><strong>150</strong></lf-event>
+            <lf-event id="before-balance-b" at="5200"
+              ><strong>70: A's deposit is lost</strong></lf-event
+            >
           </lf-lane>
         </lf-run>
-        <lf-run label="After the fix">
-          <lf-lane label="Job A">
-            <lf-event id="after-a-read" at="0" label="Locks and reads: 100"></lf-event>
-            <lf-event id="after-a-work" at="200" end="4200" label="Adds 50"></lf-event>
-            <lf-event
-              id="after-a-write"
-              at="4200"
-              label="Writes 150, unlocks"
-            ></lf-event>
+        <lf-run>
+          <strong>After the fix</strong>
+          <lf-lane>
+            <strong>Job A</strong>
+            <lf-event id="after-a-read" at="0"
+              ><strong>Locks and reads: 100</strong></lf-event
+            >
+            <lf-event id="after-a-work" at="200" end="4200"
+              ><strong>Adds 50</strong></lf-event
+            >
+            <lf-event id="after-a-write" at="4200"
+              ><strong>Writes 150, unlocks</strong></lf-event
+            >
           </lf-lane>
-          <lf-lane label="Job B">
-            <lf-event
-              id="after-b-wait"
-              at="1000"
-              end="4200"
-              label="Waits for A's lock"
-            ></lf-event>
-            <lf-event
-              id="after-b-read"
-              at="4300"
-              label="Locks and reads: 150"
-            ></lf-event>
-            <lf-event
-              id="after-b-work"
-              at="4500"
-              end="8500"
-              label="Subtracts 30"
-            ></lf-event>
-            <lf-event
-              id="after-b-write"
-              at="8500"
-              label="Writes 120, unlocks"
-            ></lf-event>
+          <lf-lane>
+            <strong>Job B</strong>
+            <lf-event id="after-b-wait" at="1000" end="4200"
+              ><strong>Waits for A's lock</strong></lf-event
+            >
+            <lf-event id="after-b-read" at="4300"
+              ><strong>Locks and reads: 150</strong></lf-event
+            >
+            <lf-event id="after-b-work" at="4500" end="8500"
+              ><strong>Subtracts 30</strong></lf-event
+            >
+            <lf-event id="after-b-write" at="8500"
+              ><strong>Writes 120, unlocks</strong></lf-event
+            >
           </lf-lane>
-          <lf-lane label="Balance">
-            <lf-event id="after-balance-start" at="0" label="100"></lf-event>
-            <lf-event id="after-balance-a" at="4200" label="150"></lf-event>
-            <lf-event
-              id="after-balance-b"
-              at="8500"
-              label="120: both changes kept"
-            ></lf-event>
+          <lf-lane>
+            <strong>Balance</strong>
+            <lf-event id="after-balance-start" at="0"><strong>100</strong></lf-event>
+            <lf-event id="after-balance-a" at="4200"><strong>150</strong></lf-event>
+            <lf-event id="after-balance-b" at="8500"
+              ><strong>120: both changes kept</strong></lf-event
+            >
           </lf-lane>
         </lf-run>
       </lf-timeline>

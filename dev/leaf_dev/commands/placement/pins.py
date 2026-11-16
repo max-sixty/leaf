@@ -273,7 +273,7 @@ CASES = (
         " the first column's first card, whose corner faces the next column's card.",
         '<lf-board id="board-b">'
         + "".join(
-            f'<lf-column id="board-{column}" label="{label}">'
+            f'<lf-column id="board-{column}"><strong>{label}</strong>'
             + "".join(
                 f'<lf-card id="board-{column}-{i}"><strong>{title}</strong> Cosmetic'
                 " for most, wrong-day for UTC+13.</lf-card>"

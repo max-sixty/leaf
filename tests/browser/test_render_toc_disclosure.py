@@ -16,7 +16,8 @@ def test_an_outline_first_paints_with_its_complete_reading_scope(
     source = leaf_page(
         "streamed contents",
         f"""<h1 id="page-title">Field guide</h1>
-<lf-tabs id="topics"><lf-tab id="topic" label="Preparation">
+<lf-tabs id="topics"><lf-tab id="topic">
+  <strong>Preparation</strong>
   <lf-toc id="contents"{" open" if initially_open else ""}></lf-toc>
   <h2 id="first">Take inventory</h2><p>Read the current counts.</p>
   <!--pause-parsing-->

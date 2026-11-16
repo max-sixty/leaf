@@ -123,7 +123,8 @@ def _sample_containment_page():
   <output id="completed">0</output>
 </div>
 <div style="height: 1400px"></div>
-<lf-sample id="practice" label="Contained conversation" window>
+<lf-sample id="practice" window>
+  <strong>Contained conversation</strong>
   <template id="practice-source" data-sample data-sample-events="history">
     <h1>Child conversation</h1>
     <div style="height: 900px"></div>
@@ -185,17 +186,18 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
 </lf-options></lf-ask>
 <lf-tabs id="stable-tabs">
-  <lf-tab id="stable-tab-a" label="First">First panel.</lf-tab>
-  <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
+  <lf-tab id="stable-tab-a"><strong>First</strong>First panel.</lf-tab>
+  <lf-tab id="stable-tab-b"><strong>Second</strong>Second panel.</lf-tab>
 </lf-tabs>
 
 <lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
-  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-    value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
+  <lf-playground-control id="radius" name="radius" kind="range"
+    value="12" min="0" max="24" step="1" unit="px"><strong>Corner radius</strong></lf-playground-control>
+  <lf-playground-control id="tone" name="tone" kind="choice" value="quiet">
+    <strong>Tone</strong>
+    <lf-playground-choice id="tone-quiet" value="quiet"><strong>Quiet</strong></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold"><strong>Bold</strong></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview id="stable-playground-preview">
     <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
@@ -746,13 +748,15 @@ AIM_PAGE = leaf_page(
     """<h1 id="t">Aims</h1>
 <p id="aim-lead">The first view holds the board and the question.</p>
 <lf-tabs id="aim-views">
-  <lf-tab id="aim-first" label="First">
+  <lf-tab id="aim-first">
+    <strong>First</strong>
     <lf-board id="aim-board">
-      <lf-column id="aim-todo" label="Todo">
+      <lf-column id="aim-todo">
+        <strong>Todo</strong>
         <lf-card id="aim-card"><strong>Heated perch</strong></lf-card>
         <lf-card id="aim-other"><strong>Squirrel baffle</strong></lf-card>
       </lf-column>
-      <lf-column id="aim-done" label="Done"></lf-column>
+      <lf-column id="aim-done"><strong>Done</strong></lf-column>
     </lf-board>
     <lf-ask id="aim-ask"><h2>Which jobs?</h2>
       <lf-options id="aim-jobs" choose multiple>
@@ -763,7 +767,7 @@ AIM_PAGE = leaf_page(
     <p>Start at <lf-suggestion id="aim-change"><lf-old>nine.</lf-old><lf-new>ten.</lf-new>
     </lf-suggestion></p>
   </lf-tab>
-  <lf-tab id="aim-second" label="Second"><p>The second view.</p></lf-tab>
+  <lf-tab id="aim-second"><strong>Second</strong><p>The second view.</p></lf-tab>
 </lf-tabs>""",
 )
 
@@ -1016,7 +1020,8 @@ def test_sample_editor_focus_preserves_outer_scroll_and_the_caret(
                 "Editor focus containment",
                 """
 <h1>Containing page</h1><div style="height:1400px"></div>
-<lf-sample id="practice" label="Editor practice" window>
+<lf-sample id="practice" window>
+  <strong>Editor practice</strong>
   <template id="practice-source" data-sample>
     <h1>Practice page</h1><button id="entry">Enter practice</button>
         <script type="module">
@@ -1897,7 +1902,8 @@ def test_a_live_revision_mounts_and_resets_its_new_sample(browser, serve):
     """An arriving sample allocates from its own revision before that revision paints."""
     page = open_page(browser, live_url(serve(LIVE_SAMPLE_PAGE)))
     addition = """
-<lf-sample id="arriving-practice" label="New practice">
+<lf-sample id="arriving-practice">
+  <strong>New practice</strong>
   <template id="arriving-source" data-sample>
     <h1 id="arrival-heading">Practice added in the revision</h1>
   </template>
@@ -1944,12 +1950,14 @@ def test_sample_fixture_history_presents_before_ready_and_returns_on_reset(
         "History study",
         """
         <h1>History study</h1><output id="arrivals">0</output>
-        <lf-sample id="first-history" label="first treatment" window>
+        <lf-sample id="first-history" window>
+          <strong>first treatment</strong>
           <template id="first-history-page" data-sample data-sample-events="history">
             <h1>Weekend service</h1><p id="timetable">Trains run hourly.</p>
           </template>
         </lf-sample>
-        <lf-sample id="second-history" label="second treatment" window>
+        <lf-sample id="second-history" window>
+          <strong>second treatment</strong>
           <template id="second-history-page" data-sample data-sample-events="history">
             <h1>Weekend service</h1><p id="timetable">Trains run hourly.</p>
           </template>
@@ -2185,7 +2193,8 @@ def test_sample_reset_keeps_the_keyboard_position_while_loading(browser, serve):
         """
 <h1>Practice reset</h1>
 <button id="continue-reading" type="button">Continue reading</button>
-<lf-sample id="practice" label="Practice page">
+<lf-sample id="practice">
+  <strong>Practice page</strong>
   <template id="practice-source" data-sample><p>Start again here.</p></template>
 </lf-sample>
 """,
@@ -2258,13 +2267,14 @@ def test_a_window_sample_is_a_whole_leaf_window_that_scrolls_inside(browser, ser
         "window sample",
         f"""
 <h1>Window sample</h1>
-<lf-sample id="window-sample" label="a whole window" window>
+<lf-sample id="window-sample" window>
+  <strong>a whole window</strong>
   <template id="window-page" data-sample>
     <script type="module">history.replaceState(null, "", "#first-view");</script>
     <h1>Child</h1>
     <lf-tabs id="child-views">
-      <lf-tab id="first-view" label="Long view">{filler}</lf-tab>
-      <lf-tab id="second-view" label="Short view"><p>Another view.</p></lf-tab>
+      <lf-tab id="first-view"><strong>Long view</strong>{filler}</lf-tab>
+      <lf-tab id="second-view"><strong>Short view</strong><p>Another view.</p></lf-tab>
     </lf-tabs>
   </template>
 </lf-sample>

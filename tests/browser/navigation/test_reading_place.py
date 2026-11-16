@@ -217,7 +217,6 @@ ITEMS_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-example": '<lf-items id="items"></lf-items>',
     },
     "lf-item-link": {
@@ -232,7 +231,6 @@ ITEMS_LAYER = {
         "additionalProperties": False,
         "x-content": "empty",
         "x-refers": {"for": {}},
-        "x-upgrade": True,
         "x-example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
     },
 }
@@ -349,10 +347,10 @@ def test_back_across_root_tabs_draws_the_key_the_entry_names(request, serve, eng
         serve(
             leaf_page(
                 "Items in tabs",
-                '<lf-tabs id="views"><lf-tab id="first" label="First">'
+                '<lf-tabs id="views"><lf-tab id="first"><strong>First</strong>'
                 '<p><a id="to-part" href="#items:b/3">Part 3 of item b</a></p>'
                 '<lf-items id="items"></lf-items><div style="height:1600px"></div>'
-                '</lf-tab><lf-tab id="second" label="Second"><p>Elsewhere.</p>'
+                '</lf-tab><lf-tab id="second"><strong>Second</strong><p>Elsewhere.</p>'
                 "</lf-tab></lf-tabs>",
             ),
             layer_registry=ITEMS_LAYER,
@@ -2168,10 +2166,10 @@ def test_restore_selection_across_views_keeps_the_source_history_entry(browser, 
             leaf_page(
                 "Return across views",
                 '<h1>Review two views</h1><lf-tabs id="views">'
-                '<lf-tab id="first" label="First"><p id="remembered">'
+                '<lf-tab id="first"><strong>First</strong><p id="remembered">'
                 "The amber passage keeps <strong>its own identity</strong>.</p>"
                 '<div style="height:3000px"></div></lf-tab>'
-                '<lf-tab id="second" label="Second"><div style="height:1800px"></div>'
+                '<lf-tab id="second"><strong>Second</strong><div style="height:1800px"></div>'
                 '<p id="away">Read this other view.</p><div style="height:1300px"></div>'
                 "</lf-tab></lf-tabs>",
             )

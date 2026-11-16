@@ -60,10 +60,11 @@ def expect_accept_all(page, words):
 
 
 MOTION_SAMPLE_CONTENT = """
-<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<lf-code id="card-code"><pre><code class="language-python">print("retained")</code></pre></lf-code>
 <pre id="card-tree">root/
 └── retained.txt</pre>
-<lf-sample id="card-sample" label="Current sample">
+<lf-sample id="card-sample">
+  <strong>Current sample</strong>
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
     <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
@@ -93,7 +94,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     BOARD = (
         '<lf-board id="board">'
         + "".join(
-            f'<lf-column id="col-{i}" label="Column {i}"><lf-card id="card-{i}">'
+            f'<lf-column id="col-{i}"><strong>Column {i}</strong><lf-card id="card-{i}">'
             f"<strong>Card {i}</strong> text</lf-card></lf-column>"
             for i in range(6)
         )
@@ -102,7 +103,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
 
     def ticket(key):
         return f"""
-<lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
+<lf-tab id="t-{key}">
+  <header><strong>Ticket {key}</strong><p>sev {key} · suggested fix</p></header>
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
   <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
     <lf-options id="o-{key}" choose>
@@ -311,7 +313,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     )
     assert item.evaluate(
         """async node => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.scrollingElement;
         }"""
@@ -330,7 +332,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
         '<lf-ask id="session-triage-decision">',
-        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
+        '<lf-pane id="triage-pane" aria-label="Triage"><div>\n<lf-ask id="session-triage-decision">',
     ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
@@ -1796,12 +1798,14 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
 <lf-ask id="tone-ask">
   <h2>Which tone?</h2>
   <lf-playground id="tone-playground">
-    <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-      <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-      <lf-playground-choice id="tone-loud" value="loud" label="Loud"></lf-playground-choice>
+    <lf-playground-control id="tone" name="tone" kind="choice" value="quiet">
+      <strong>Tone</strong>
+      <lf-playground-choice id="tone-quiet" value="quiet"><strong>Quiet</strong></lf-playground-choice>
+      <lf-playground-choice id="tone-loud" value="loud"><strong>Loud</strong></lf-playground-choice>
     </lf-playground-control>
     <lf-playground-preview>
-      <lf-sample id="tone-sample" label="tone sample">
+      <lf-sample id="tone-sample">
+        <strong>tone sample</strong>
         <template id="tone-page" data-sample>
           <style>:root[data-playground-tone="loud"] p { color: rgb(200, 0, 0); }</style>
           <h1 id="child-title">Child page</h1>
@@ -1898,19 +1902,22 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
 <lf-ask id="ring-ask">
   <h2>Which ring?</h2>
   <lf-playground id="ring-playground">
-    <lf-playground-preset id="preset-wide" label="Wide">
+    <lf-playground-preset id="preset-wide">
+      <strong>Wide</strong>
       <lf-playground-setting for="width" value="4"></lf-playground-setting>
     </lf-playground-preset>
-    <lf-playground-control id="ring" name="ring" label="Ring" kind="choice" value="thin">
-      <lf-playground-choice id="ring-thin" value="thin" label="Thin"></lf-playground-choice>
-      <lf-playground-choice id="ring-thick" value="thick" label="Thick"></lf-playground-choice>
+    <lf-playground-control id="ring" name="ring" kind="choice" value="thin">
+      <strong>Ring</strong>
+      <lf-playground-choice id="ring-thin" value="thin"><strong>Thin</strong></lf-playground-choice>
+      <lf-playground-choice id="ring-thick" value="thick"><strong>Thick</strong></lf-playground-choice>
     </lf-playground-control>
-    <lf-playground-control id="width" name="width" label="Width" kind="range" value="2" min="1" max="4" step="1" unit="px"></lf-playground-control>
-    <lf-playground-control id="dim" name="dim" label="Dim" kind="toggle" value="false"></lf-playground-control>
-    <lf-playground-control id="note" name="note" label="Note" kind="text" value="hi"></lf-playground-control>
+    <lf-playground-control id="width" name="width" kind="range" value="2" min="1" max="4" step="1" unit="px"><strong>Width</strong></lf-playground-control>
+    <lf-playground-control id="dim" name="dim" kind="toggle" value="false"><strong>Dim</strong></lf-playground-control>
+    <lf-playground-control id="note" name="note" kind="text" value="hi"><strong>Note</strong></lf-playground-control>
     <lf-playground-preview>
       <button id="preview-button" type="button">A candidate button</button>
-      <lf-sample id="ring-sample" label="ring sample">
+      <lf-sample id="ring-sample">
+        <strong>ring sample</strong>
         <template id="ring-page" data-sample>
           <p>The page the candidate restyles.</p>
           <button id="child-button" type="button">The current location</button>

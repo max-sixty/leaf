@@ -144,10 +144,10 @@ interface Element {
     | null
     | undefined;
   /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
-  lfCopy?: () => string;
+  lfCopy?: (() => string) | undefined;
   /** The toolbar a widget draws over a block marked `data-lf-copy`, where Leaf stands
    * the block's Copy as the last mark (`code-copy.js`). */
-  lfBar?: HTMLElement;
+  lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
    * (`preview.js`): null adds nothing, false shows nothing here or around it. */
   lfPreview?: import("../runtime/preview.js").Read;
@@ -195,7 +195,6 @@ interface WindowEventMap {
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
-    incomplete: boolean;
     page: boolean;
   }>;
 }
@@ -247,6 +246,10 @@ interface Window {
 
 interface CustomElementConstructor {
   answerWords?: (value: unknown, element: Element) => unknown;
+  /** How a revision reaches the widget while it stands in the page: `"members"` has
+   * Leaf edit inside its direct authored children in place (`version.js`,
+   * `reachesMembers`). A class field's literal is typed `string`, so this is too. */
+  lfPatch?: string;
 }
 
 interface ShadowRootEventMap {

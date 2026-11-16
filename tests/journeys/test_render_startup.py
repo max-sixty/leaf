@@ -313,7 +313,9 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {LeafElement, noChange, clockValue} = await window.__lfWidgetApi();
+          const {LeafElement} = await window.__lfWidgetApi();
+          const {noChange} = await window.__lfVendorImport('lit.js');
+          const {clockValue} = await window.__lfCheckApi();
           window.clockVersion = 0;
           const probes = [];
           for (const stage of ['read', 'paint', 'async']) {
@@ -382,7 +384,8 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
     source = leaf_page(
         "Sample view",
         """<h1>Sample view</h1>
-<lf-sample id="practice" label="Practice">
+<lf-sample id="practice">
+  <strong>Practice</strong>
   <template id="practice-source" data-sample>
     <h2>Contained page</h2><p>Read this in its allocated viewport.</p>
   </template>
@@ -571,7 +574,6 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-example": '<lf-probe id="probe"></lf-probe>',
     }
@@ -617,7 +619,7 @@ def test_first_history_answer_keeps_an_open_quote_draft(browser, serve, answer, 
     source = leaf_page(
         "Uninterrupted draft",
         '<h1>Uninterrupted draft</h1><p id="passage">The prototype needs a mobile check.</p>'
-        '<lf-sample id="practice" label="Practice" window>'
+        '<lf-sample id="practice" window><strong>Practice</strong>'
         '<template id="practice-source" data-sample>'
         '<h1>Practice</h1><button id="inspect">Inspect</button>'
         "</template></lf-sample>",

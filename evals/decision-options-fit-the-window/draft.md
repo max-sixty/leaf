@@ -152,15 +152,12 @@ handoff and save it.
             <lf-playground-control
               id="route-choice"
               name="format"
-              label="Route into the panel"
               kind="choice"
               value="b"
             >
-              <lf-playground-choice
-                id="format-baseline"
-                value="baseline"
-                label="A. Keep Threads as the only way in"
-              >
+              <strong>Route into the panel</strong>
+              <lf-playground-choice id="format-baseline" value="baseline">
+                <strong>A. Keep Threads as the only way in</strong>
                 <p>
                   <small class="tag">no change</small> Close the card, press the Threads
                   mark, then the thread's row: three presses. The view opens at
@@ -187,11 +184,8 @@ handoff and save it.
                   </figure>
                 </div>
               </lf-playground-choice>
-              <lf-playground-choice
-                id="format-a"
-                value="a"
-                label="B. Add Open in panel to the card"
-              >
+              <lf-playground-choice id="format-a" value="a">
+                <strong>B. Add Open in panel to the card</strong>
                 <p>
                   <small class="tag">one press</small>
                   <small class="tag">today's size</small> The view opens where Threads
@@ -219,11 +213,8 @@ handoff and save it.
                   </figure>
                 </div>
               </lf-playground-choice>
-              <lf-playground-choice
-                id="format-b"
-                value="b"
-                label="C. Add Open in panel, opening at reading size"
-              >
+              <lf-playground-choice id="format-b" value="b">
+                <strong>C. Add Open in panel, opening at reading size</strong>
                 <p>
                   <small class="tag">one press</small>
                   <small class="tag">recommended</small> The view opens at More room to
@@ -259,7 +250,8 @@ handoff and save it.
               in the card's head. The window is smaller than yours, so it scrolls
               sooner.
             </p>
-            <lf-sample id="route-sample" label="long thread" window>
+            <lf-sample id="route-sample" window>
+              <strong>long thread</strong>
               <template
                 id="route-sample-page"
                 data-sample

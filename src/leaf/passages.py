@@ -9,6 +9,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
+from .registry.contract import upgraded
 from .registry.kernel import kernel_passages
 from .structure import VOID_TAGS, SourceDocument, pre_body
 
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
 # can be declared, and a fence carries the rest:
 #
 #   x-says      attribute values the user sees. renderSaid puts them in the DOM, so
-#               they go in here too, at the edge the registry names.
+#               they go in here too, after the element's own words.
 #   x-verbatim  an upgraded element that preserves its own words around nested upgraded
 #               widget boundaries. The source and document-order occurrence identify
 #               every owner, including one with no authored id. Those descendants keep
@@ -171,10 +172,6 @@ def markdown_dialect(message: bool):
     return parser
 
 
-def inline_markdown_words(source: str, *, added: bool = False) -> str:
-    return _rendered_words(markdown_dialect(added).renderInline(source))
-
-
 def markdown_markup(source: str) -> str:
     """A Markdown body (`x-text-format: markdown`) as the browser paints it, read as
     a file (markdown.js, `paintMarkdown`), as inert markup for passage reading and a
@@ -188,13 +185,17 @@ def feed_markdown(parser, source: str) -> None:
         _walk(parser, child)
 
 
+def created_words(words: str) -> str:
+    """A created child's words (`creates`) as the browser shows them: the user typed
+    them, so they read as inline Markdown, as a message does."""
+    return _rendered_words(markdown_dialect(True).renderInline(words))
+
+
 def shown_words(words: str, entry: dict, *, added: bool) -> str:
-    """The words an element's text shows: its entry's `x-text-format` applied, the
-    way an `added` child (one a user created, `data-lf-added`) renders it where
-    `added`. A created child's words are its creating action's, so their readers
-    pass `added=True`."""
-    if entry.get("x-text-format") == "inline-markdown":
-        return inline_markdown_words(words, added=added)
+    """The words an element's text shows: an `added` child's (one a user created,
+    `data-lf-added`) as `created_words`, else its entry's `x-text-format` applied."""
+    if added:
+        return created_words(words)
     if entry.get("x-text-format") == "markdown":
         return _rendered_words(markdown_markup(words))
     return words
@@ -444,7 +445,8 @@ class _PassageParser:
         entry = self.registry.get(tag) or {}
         joins = tag in JOINS_WORDS_TAGS or bool(entry.get("x-inline"))
         block = parent["block"] if parent and joins else self._fresh()
-        if entry.get("x-upgrade"):
+        upgrade = upgraded(self.registry, tag)
+        if upgrade:
             for ancestor in reversed(self.stack):
                 if ancestor["verbatim"]:
                     self.verbatim[ancestor["verbatim"]].boundary(tag, attrs_d.get("id"))
@@ -457,7 +459,7 @@ class _PassageParser:
             self.verbatim_owners += 1
         # An upgrade is opaque unless it preserves its own words and ordered nested
         # upgraded boundaries. Descendants keep their own contracts.
-        opaque = bool(entry.get("x-upgrade") and not entry.get("x-verbatim"))
+        opaque = upgrade and not entry.get("x-verbatim")
         editable = bool(parent and parent["editable"])
         if "contenteditable" in attrs_d:
             value = (attrs_d["contenteditable"] or "").lower()
@@ -534,7 +536,7 @@ class _PassageParser:
             "retired_by": retired_by,
             "opaque": opaque,
             "editable": editable,
-            "upgrade": bool(entry.get("x-upgrade")),
+            "upgrade": upgrade,
             "verbatim": provenance,
             "fenced": opaque or bool(parent and parent["opaque"]) or editing_boundary,
             # Whether its words are prose: it or an element around it is a text block.
@@ -550,22 +552,18 @@ class _PassageParser:
         }
         if frame["verbatim"]:
             self.verbatim[frame["verbatim"]] = _OwnedWords(frame["verbatim"])
-        # Each x-says value at the edge of the element's own words, in registry order,
-        # which is where renderSaid puts it and where a pseudo-element stood before it.
-        head = []
-        for attr, edge in (entry.get("x-says") or {}).items():
+        # Each x-says value after the element's own words, in registry order, which is
+        # where renderSaid puts it and where a pseudo-element stood before it.
+        for attr in entry.get("x-says") or ():
             value = attrs_d.get(attr)
-            if value is None:
-                continue
-            (head if edge == "before" else frame["tail"]).append(value)
+            if value is not None:
+                frame["tail"].append(value)
         if frame["fenced"]:
             self._fence()
         if retired_by and frame["id"]:
             self.retired[frame["id"]] = retired_by
         self.stack.append(frame)
-        if not frame["skip"]:
-            self._said(frame, head)
-        elif sub is not None:
+        if frame["skip"] and sub is not None:
             # The body's own write path, so a quote across the element's edge sees
             # the same adjacency the screen shows — no fence, nothing withheld.
             _verb, their_text = sub

@@ -66,6 +66,7 @@ from .structure import (
     delivered_elements,
     element_attrs,
     page_layout,
+    pre_body,
     rel_tokens,
     rewrite_attribute_references,
     script_kind,
@@ -462,25 +463,24 @@ def mark_declared(
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names
-        # (`x-prepaint`), first paint as the rendering their module will draw.
+        # (`x-prepaint`), first paint as the rendering their module will draw, in the
+        # `<pre>`'s place, after the name the element opens with.
         words = declaration.get("x-text-format") == "markdown"
         prepaint = declaration.get("x-prepaint")
         file = bool(prepaint) and attrs.get(prepaint) == "markdown"
         pre = element.select_one(":scope > pre") if words or file else None
-        if pre is not None:
-            text = "".join(
-                child.data
-                for child in pre.children
-                if isinstance(child, turbohtml.Text)
-            )
+        pre_location = pre.source_location if pre is not None else None
+        text = pre_body(element) if pre_location is not None else None
+        if pre_location is not None and text is not None:
             source_words = (
                 f' data-lf-source-words="{html.escape(text, quote=True)}"'
                 if words
                 else ""
             )
+            start = pre_location.start_tag
             edits.append(
                 (
-                    index(location.start_tag.end_line, location.start_tag.end_col),
+                    index(start.start_line, start.start_col),
                     (
                         '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1"'
                         f"{source_words}>{markdown_markup(text)}</div>"

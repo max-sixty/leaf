@@ -1,5 +1,9 @@
 /* A widget's shadow stage, independent of Leaf's page runtime. Retained nodes stay
-   connected; authored light children are removed after the renderer has read them.
+   connected; authored light children are removed after the renderer has read them,
+   but for the name the widget opens with (leading-title.js, `openingTitle`), which
+   stays in the light tree, where every reading of the widget's name finds it, and
+   stands at the top of the stage through a slot, so a widget that draws its own
+   content still shows the name the page wrote.
    WebKit unloads shadow iframes on replaceChildren(), so children leave individually.
    Native layer openings are observed in every stage, where toggle events stay local.
 
@@ -9,6 +13,8 @@
    without discarding a renderer's own. The host returns its retained style nodes so
    imperative staging keeps them alongside the rendering. */
 import { setChildren } from "./dom-children.js";
+import { keeps } from "./keeps.js";
+import { openingTitle } from "./leading-title.js";
 import { watchArrivalsIn } from "./arrivals.js";
 import { stagesFailure } from "./widget-upgrade.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
@@ -27,15 +33,30 @@ export function adoptShadowStage(root) {
   return root;
 }
 
+// The slot each stage shows its host's name through, kept so a stage drawn again keeps
+// the same node.
+/** @type {WeakMap<ShadowRoot, HTMLSlotElement>} */
+const nameSlots = new WeakMap();
+const NAME_SLOT = "lf-name";
+
 /** @param {Element} host @param {Iterable<Node>} nodes */
 export function shadowStage(host, nodes) {
   const root = host.shadowRoot ?? stageFor(host);
   watchArrivalsIn(root);
   watchLayers(root);
   const styles = integration?.(root) ?? [];
+  const name = openingTitle(host)?.holder ?? null;
+  let slot = nameSlots.get(root);
+  if (name && !slot) {
+    nameSlots.set(root, (slot = document.createElement("slot")));
+    slot.name = NAME_SLOT;
+  }
+  // Only the name: anything else the light tree gains after staging, such as a word
+  // the runtime says for the host (declared-words.js), stays out of the stage.
+  if (name) keeps(name, "slot", NAME_SLOT);
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
-  setChildren(root, [...styles, ...nodes]);
-  for (const child of [...host.childNodes]) child.remove();
+  setChildren(root, [...styles, ...(name && slot ? [slot] : []), ...nodes]);
+  for (const child of [...host.childNodes]) if (child !== name) child.remove();
   host.removeAttribute("data-lf-failed");
   return root;
 }

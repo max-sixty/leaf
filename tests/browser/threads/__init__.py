@@ -249,7 +249,6 @@ def _shadow_tree_widget(tag):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-example": f'<{tag} id="example"></{tag}>',
     }
@@ -439,7 +438,8 @@ def bounded_seat_page(steps, bound):
     return leaf_page(
         "bounded seat",
         f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-test-plan id="hub" '
-        f'label="Before the frost" data-bound="{bound}">{tasks}<lf-test-task id="jobs" '
+        f'data-bound="{bound}"><strong>Before the frost</strong>{tasks}'
+        '<lf-test-task id="jobs" '
         'status="active" talk><strong>Which jobs are worth starting?</strong> The '
         f"mounts came down in January.</lf-test-task></lf-test-plan>{SEAT_FILLER}",
         head="<style>#hub { --lf-bound: 18rem; }</style>",
@@ -457,8 +457,8 @@ def seated_page(serve, kind):
         return serve(
             leaf_page(
                 "bounded seat",
-                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-test-plan id="hub" '
-                'label="Before the frost"><lf-test-task id="jobs" status="active" talk '
+                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-test-plan id="hub">'
+                '<strong>Before the frost</strong><lf-test-task id="jobs" status="active" talk '
                 'data-bound="start"><strong>Which jobs are worth starting?</strong>'
                 f"</lf-test-task></lf-test-plan>{SEAT_FILLER}",
             )
@@ -467,8 +467,8 @@ def seated_page(serve, kind):
         return serve(
             leaf_page(
                 "seat",
-                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-test-plan id="hub" '
-                'label="Before the frost"><lf-test-task id="jobs" status="active" talk>'
+                f'<h1 id="h">Three jobs</h1>{SEAT_FILLER}<lf-test-plan id="hub">'
+                '<strong>Before the frost</strong><lf-test-task id="jobs" status="active" talk>'
                 "<strong>Which jobs are worth starting?</strong> The mounts came "
                 f"down in January.</lf-test-task></lf-test-plan>{SEAT_FILLER}",
             )

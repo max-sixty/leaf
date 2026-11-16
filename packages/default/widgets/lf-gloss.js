@@ -85,7 +85,7 @@ customElements.define(
       this.#bubble.style.positionAnchor = anchor;
       this.#mark.setAttribute("aria-controls", this.#bubble.id);
       this.#mark.setAttribute("aria-describedby", this.#bubble.id);
-      // x-says="after" puts the tip directly after the authored body and before any
+      // x-says puts the tip directly after the authored body and before any
       // trailing generated chrome. Writing that declared span here lets this module
       // also make it the popover; renderSaid sees the same marker and adds no duplicate.
       this.append(this.#bubble, this.#mark);

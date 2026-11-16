@@ -123,10 +123,10 @@ def test_exported_workspace_tabs_open_new_evidence_below_the_pinned_strip(
         "Evidence review",
         f"""<header><h1>Evidence review</h1></header>
 <lf-tabs id="views">
-  <lf-tab id="intro" label="Introduction"><p>Open the review.</p></lf-tab>
-  <lf-tab id="review" label="Review"><lf-tabs id="evidence">
-    <lf-tab id="first" label="First"><h2>First evidence</h2>{paragraphs}</lf-tab>
-    <lf-tab id="second" label="Second"><h2>Second evidence</h2>{paragraphs}</lf-tab>
+  <lf-tab id="intro"><strong>Introduction</strong><p>Open the review.</p></lf-tab>
+  <lf-tab id="review"><strong>Review</strong><lf-tabs id="evidence">
+    <lf-tab id="first"><strong>First</strong><h2>First evidence</h2>{paragraphs}</lf-tab>
+    <lf-tab id="second"><strong>Second</strong><h2>Second evidence</h2>{paragraphs}</lf-tab>
   </lf-tabs></lf-tab>
 </lf-tabs>""",
         head="<style>#views > lf-tab {padding-block-start:0}</style>",
@@ -377,8 +377,8 @@ def test_an_interactive_export_reads_each_source_offline(browser, serve, tmp_pat
             "offline data",
             """<h1>Review</h1>
 <lf-tabs id="notes" list="side">
-  <lf-tab id="first" label="First"><lf-text-document id="one" source="notes-one" label="one.md"></lf-text-document></lf-tab>
-  <lf-tab id="second" label="Second"><lf-text-document id="two" source="notes-two" label="two.md"></lf-text-document></lf-tab>
+  <lf-tab id="first"><strong>First</strong><lf-text-document id="one" source="notes-one"><strong>one.md</strong></lf-text-document></lf-tab>
+  <lf-tab id="second"><strong>Second</strong><lf-text-document id="two" source="notes-two"><strong>two.md</strong></lf-text-document></lf-tab>
 </lf-tabs>
 <lf-diff id="patch" source="review-patch" collapsed></lf-diff>""",
         )
@@ -629,8 +629,8 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
             "Reachable modules",
             '<h1>Reachable</h1><lf-chart id="c"><pre>'
             '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
-            '</pre></lf-chart><lf-code id="m" language="python" hi="1">'
-            "<pre>ship()</pre></lf-code>",
+            '</pre></lf-chart><lf-code id="m" hi="1">'
+            '<pre><code class="language-python">ship()</code></pre></lf-code>',
         )
     )
     root = append_carried_log_record(

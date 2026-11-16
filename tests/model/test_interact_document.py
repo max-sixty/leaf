@@ -54,6 +54,7 @@ from interact_support import (
     stamp,
     state_json,
     vendored_at_another_protocol,
+    with_modules,
     write_revision,
 )
 
@@ -746,10 +747,11 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
 
 
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
-    registry = {
-        "lf-shell": {"x-upgrade": True, "x-verbatim": True},
-        "lf-piece": {"x-upgrade": True, "x-verbatim": True},
-    }
+    registry = with_modules(
+        {"lf-shell": {"x-verbatim": True}, "lf-piece": {"x-verbatim": True}},
+        "lf-shell",
+        "lf-piece",
+    )
     plain = passages_model.page_passages(
         structure_model.SourceDocument(
             '<lf-shell id="shell"><p>set<em>up</em></p>'
@@ -857,47 +859,38 @@ def test_example_fragments_retain_context_sensitive_elements(fragment, tags, ids
     assert parsed.authoring.errors == [] and parsed.authoring.unclosed == []
 
 
-def test_option_passages_read_rendered_markdown_words():
-    source = structure_model.SourceDocument(
-        '<main><lf-options id="choices"><lf-option id="leave">'
-        "Can we leave it to the _widget_? <code>Already HTML</code> "
-        "[unsafe label](javascript:alert(1)) "
-        "![unsafe alt](javascript:alert(1))"
-        "</lf-option></lf-options></main>"
-    )
-
-    passages = passages_model.page_passages(
-        source, {"lf-option": {"x-text-format": "inline-markdown"}}
-    )
-    assert passages.text == (
-        "Can we leave it to the widget? Already HTML unsafe label unsafe alt"
-    )
-
-
 @pytest.mark.parametrize(
     "case",
     json.loads((Path(__file__).parents[1] / "option_markdown_cases.json").read_text()),
 )
-def test_option_markdown_file_words_match_browser_cases(case):
+def test_added_option_file_words_match_browser_cases(case):
+    """An option the user added reads its typed words as the browser draws them, as
+    inline Markdown (body-text.test.mjs reads the same cases), while an authored
+    option's words are its HTML's."""
     source = structure_model.SourceDocument(
-        f'<main><lf-option id="choice">{case["source"]}</lf-option></main>'
+        '<main><lf-options id="choices"><lf-option id="authored">'
+        "Leave it to the _widget_</lf-option></lf-options></main>"
     )
+    registry = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
+    added = {"tag": "lf-option", "id": "added", "text": case["source"]}
     passages = passages_model.page_passages(
-        source, {"lf-option": {"x-text-format": "inline-markdown"}}
+        source, registry, additions={"choices": [added]}
     )
-    assert passages.text == case["words"]
+    assert passages.text == f"Leave it to the _widget_ {case['words']}"
 
 
 def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     """Authored and replayed Markdown share anchors without losing their source value."""
-    registry: dict[str, dict] = {
-        "lf-draft": {
-            "x-content": "data",
-            "x-upgrade": True,
-            "x-verbatim": True,
-            "x-text-format": "markdown",
-        }
-    }
+    registry: dict[str, dict] = with_modules(
+        {
+            "lf-draft": {
+                "x-content": "data",
+                "x-verbatim": True,
+                "x-text-format": "markdown",
+            }
+        },
+        "lf-draft",
+    )
     source = "**Keep** `--dry-run`.\n\n- First\n- [Second](https://example.com)"
     doc = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{source}</pre></lf-draft></main>'
@@ -1038,7 +1031,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
     container in one order."""
     registry = model_layer()
     columns = "".join(
-        f'<lf-column id="{column}" label="{column}">'
+        f'<lf-column id="{column}"><strong>{column}</strong>'
         + "".join(f'<lf-card id="{card}">{card}</lf-card>' for card in cards)
         + "</lf-column>"
         for column, cards in case["authored"].items()
@@ -1481,7 +1474,7 @@ def test_check_rejects_widget_violations(page_dir):
             '<lf-gloss tip="A short explanation"/>'
             "<figure/>"
             "<lf-bogus></lf-bogus>"
-            '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
+            '<lf-column id="bad-tone" tone="medium"><strong>S</strong></lf-column>'
             '<lf-option id="stray"><strong>S</strong></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
@@ -1512,16 +1505,15 @@ def test_check_rejects_widget_violations(page_dir):
 
 def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
     """A data widget's text is its <pre> or its bound input, never both, so text
-    written under a binding, which the widget would never show, is refused. Written
-    text names its origin with a label, as a bound document names its file."""
+    written under a binding, which the widget would never show, is refused. The
+    <strong> naming a document stands before its <pre>, which it leaves the body."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2>"
             '<lf-text-document id="bound" source="notes"></lf-text-document>'
-            '<lf-text-document id="written" label="CHANGELOG.md" preview="markdown">'
+            '<lf-text-document id="written" preview="markdown"><strong>CHANGELOG.md</strong>'
             "<pre>**Fixed** a crash.</pre></lf-text-document>"
-            '<lf-text-document id="unnamed"><pre>Text</pre></lf-text-document>'
             '<lf-text-document id="both" source="notes"><pre>Unseen</pre>'
             "</lf-text-document>"
             '<lf-code id="bare-code"></lf-code>',
@@ -1532,52 +1524,36 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
         ("<lf-text-document>", True),
         ("<lf-code>", False),
     ]
-    assert [f.at for f in found(findings, "attribute-schema")] == ["<lf-text-document>"]
-    assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
 
 
-def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
-    """A widget attribute that declares itself a language (x-language) is held to the
-    layer's $languages list. A plain <pre><code class="language-…"> claims no
-    vocabulary: one the layer can't color stays the ink of an uncolored block."""
+def test_check_advises_on_a_language_class_nothing_will_colour(page_dir):
+    """Every block of code names its language one way, a `language-…` class, and one
+    check reads every such class, a widget's as a native block's: a name the layer
+    can't colour, a misspelling or a language it has no grammar for, is reported
+    beside the page and refuses nothing, since the class still names the code truly.
+    A grammar's alias, such as `py`, colours as its name does."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2>\n"
             '<pre><code class="language-pythn">x = 1</code></pre>\n'
-            '<lf-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></lf-code>',
+            '<pre><code class="language-py">y = 2</code></pre>\n'
+            '<lf-code id="walk-bad"><pre><code class="language-pythn">z = 3\n'
+            "</code></pre></lf-code>\n"
+            '<lf-text-document id="notes" source="notes" class="language-haskell">'
+            "</lf-text-document>",
         )
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
+    assert status == 0
     assert [
-        (f.at, f.values["path"])
-        for f in found(findings, "attribute-schema", keyword="enum")
-    ] == [("<lf-code>", ["language"])]
-
-
-def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
-    """The list is the layer's fact, not one widget's, so nothing in the lint knows
-    which widget takes a language: a tag whose declaration carries x-language is held to
-    $languages on the strength of the declaration. A thirteenth widget that colors
-    something — a terminal transcript, a diff — is covered without the lint moving."""
-
-    def declare(registry):
-        registry["lf-gloss"]["properties"]["dialect"] = {"type": "string"}
-        registry["lf-gloss"]["x-language"] = "dialect"
-
-    declare_on_page(page_dir, declare)
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" dialect="lisp">feeders</lf-gloss>',
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings, "attribute-schema", "<lf-gloss>", keyword="enum", path=["dialect"]
-    )
+        (f.at, f.values["language"], f.severity)
+        for f in found(findings, "uncoloured-language")
+    ] == [
+        ("<code>", "pythn", "advice"),
+        ("<code>", "pythn", "advice"),
+        ("<lf-text-document>", "haskell", "advice"),
+    ]
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -1620,7 +1596,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
             seen = used.get(tag, {}).get(attr)
             # A declared word's enum is the layer's list, stamped in
             # (`registry.contract.stamp_words`), not values the widget draws apart.
-            declared = {entry.get(key) for key, _ in DECLARED_WORDS}
+            declared = {word for word, _ in DECLARED_WORDS}
             if seen is None:
                 missing.append(f"{tag}[{attr}]")
             elif attr not in declared:
@@ -1647,14 +1623,13 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
         "additionalProperties": False,
         "x-content": "markup",
         "x-reading-role": "pane",
-        "x-upgrade": False,
     }
     declare_on_page(page_dir, lambda registry: registry.update({"lf-zone": zone}))
     version = page_dir / "index.html"
     regions = """<header><h2>Plan</h2></header>
   <div id="regions" style="display: grid; grid-template-columns: 1fr 2fr">
     <lf-zone id="queue" label="Queue"><p>First</p></lf-zone>
-    <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
+    <lf-pane id="detail" aria-label="Detail"><p>Second</p></lf-pane>
   </div>
   <footer><p>Finish</p></footer>"""
     version.write_text(
@@ -1680,9 +1655,9 @@ def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
         PAGE.replace(
             "<h2>Plan</h2>",
             """<h2>Plan</h2>
-<lf-pane id="queue" label="Queue"><p>Before.</p><header><h3>Queue</h3></header></lf-pane>
-<lf-pane id="detail" label="Detail"><p>First</p><p>Split</p></lf-pane>
-<lf-pane id="loose" label="Loose">Loose text</lf-pane>""",
+<lf-pane id="queue" aria-label="Queue"><p>Before.</p><header><h3>Queue</h3></header></lf-pane>
+<lf-pane id="detail" aria-label="Detail"><p>First</p><p>Split</p></lf-pane>
+<lf-pane id="loose" aria-label="Loose">Loose text</lf-pane>""",
         )
     )
     status, findings = check_findings(page_dir)
@@ -1699,7 +1674,7 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
     Layout, so a `main` holding them with a Layout of its own is refused; the same
     parts under a `main` with none pass."""
     parts = (
-        '<lf-parts id="parts"><lf-part id="read" label="Read">'
+        '<lf-parts id="parts"><lf-part id="read"><header><strong>Read</strong></header>'
         '<article class="layout-column"><p>Words.</p></article></lf-part></lf-parts>'
     )
     (page_dir / "index.html").write_text(
@@ -1715,8 +1690,8 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
     assert not found(findings, "parts-in-layout")
 
 
-def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none():
-    """A layer that names none colors none, so a page declaring one is asking for
+def test_a_layer_naming_no_tones_refuses_every_word_rather_than_none():
+    """A layer that names none paints none, so a page declaring one is asking for
     something it cannot get. The list is therefore read and indexed, never tested for
     emptiness: an empty list that stood the check down would be a check retiring itself
     the moment its list moved — and this is the check whose failures the user can't
@@ -1724,12 +1699,11 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none():
 
     Read where the words become the schema (`registry.contract.stamp_words`): no page
     can compose such a layer over the shipped one, whose widget examples name
-    languages."""
+    tones."""
     registry = copy.deepcopy(model_layer())
-    registry["$languages"]["names"] = []
-    registry["$languages"]["paths"] = {}
+    registry["$tones"]["names"] = []
     stamp_words(registry)
-    assert registry["lf-code"]["properties"]["language"]["enum"] == []
+    assert registry["lf-column"]["properties"]["tone"]["enum"] == []
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
@@ -1750,20 +1724,53 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
 
 
 def test_tabs_reject_structural_violations(page_dir):
-    # A label-less panel, a stray panel outside lf-tabs, and loose text between
-    # panels are each refused.
+    # A nameless panel, one whose heading follows a paragraph rather than opening it, a
+    # stray panel outside lf-tabs, and loose text between panels are each refused.
     bad = """<lf-tabs id="ws">
   loose text
   <lf-tab id="ws-a"><p>x</p></lf-tab>
+  <lf-tab id="ws-b"><p>x</p><h3>Queue item</h3></lf-tab>
 </lf-tabs>
-<lf-tab id="ws-stray" label="Stray"><p>y</p></lf-tab>
+<lf-tab id="ws-stray"><strong>Stray</strong><p>y</p></lf-tab>
 <lf-options>"""
     (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", bad))
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert found(findings, "attribute-schema", "<lf-tab>", keyword="required")
+    first = PAGE.split("<lf-options>")[0].count("\n")
+    assert [f.values["line"] for f in found(findings, "unnamed-view", "<lf-tab>")] == [
+        first + 3,
+        first + 4,
+    ]
     assert found(findings, "not-member", "<lf-tab>", owners=["lf-tabs"])
     assert found(findings, "loose-text", "<lf-tabs>")
+
+
+def test_a_widget_opens_with_its_name_and_a_tabs_header_holds_no_control(page_dir):
+    """A widget opens with the element its name stands in under the content model it
+    declares: a column before its cards, a document before its <pre>. A header with no
+    title names nothing, so it is no name. A view's tab, a control, copies its whole
+    header, so the header holds no link, control or widget; another widget's name is
+    drawn in place, so it may, as a question's heading links its pull request."""
+    named = """<lf-board id="b"><lf-column id="c"><strong><code>main</code></strong>
+  <lf-card id="k"><strong>Card</strong></lf-card></lf-column>
+  <lf-column id="c3"><header><p>No title</p></header></lf-column></lf-board>
+<lf-text-document id="d"><strong>notes.md</strong><pre>Text</pre></lf-text-document>
+<lf-tabs id="t"><lf-tab id="t1"><header><strong>Files</strong>
+  <p><a href="#k">see</a></p></header><p>x</p></lf-tab></lf-tabs>
+<lf-board id="b2"><lf-column id="c2"><strong><button>Go</button></strong></lf-column>
+</lf-board>
+<lf-options>"""
+    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", named))
+    _, findings = check_findings(page_dir)
+    assert [
+        (f.at, f.code)
+        for f in findings
+        if f.code in {"stray-members", "data-body", "loose-text", "unnamed-view"}
+    ] == [("<lf-column>", "stray-members")]
+    assert found(findings, "stray-members", "<lf-column>", found=["header"])
+    assert [(f.at, f.values["found"]) for f in found(findings, "interactive-name")] == [
+        ("<lf-tab>", ["a"]),
+    ]
 
 
 def test_suggestion_rejects_malformed_shapes(page_dir):
@@ -3836,16 +3843,15 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
             "type": "object",
             "properties": {},
             "x-content": "markup",
-            "x-upgrade": False,
             "x-owners": ["lf-column"],
         }
 
     declare_on_page(page_dir, declare)
     board = (
         '<lf-board id="reading-board">'
-        '<lf-column id="reading-todo" label="To do">'
+        '<lf-column id="reading-todo"><strong>To do</strong>'
         '<lf-card id="reading-a">A</lf-card></lf-column>'
-        '<lf-column id="reading-done" label="Done">'
+        '<lf-column id="reading-done"><strong>Done</strong>'
         "<lf-label>Already reviewed</lf-label>"
         '<lf-card id="reading-b">B</lf-card></lf-column></lf-board>'
     )
@@ -4297,7 +4303,6 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 
     registry: dict[str, dict] = {
         "lf-draft": {
-            "x-upgrade": True,
             "x-verbatim": True,
             "x-state": {
                 "edit": {
@@ -4307,6 +4312,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             },
         }
     }
+    with_modules(registry, "lf-draft")
     page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
     frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
 
@@ -4367,7 +4373,6 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 def test_projected_verbatim_includes_generated_children():
     registry = {
         "lf-list": {
-            "x-upgrade": True,
             "x-verbatim": True,
             "x-state": {
                 "add": {
@@ -4385,8 +4390,9 @@ def test_projected_verbatim_includes_generated_children():
                 }
             },
         },
-        "lf-item": {"x-upgrade": False},
+        "lf-item": {},
     }
+    with_modules(registry, "lf-list")
     markup = '<lf-list id="list">Authored item.</lf-list>'
     event: dict[str, dict | str | int] = {
         "kind": "action",

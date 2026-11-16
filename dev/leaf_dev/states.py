@@ -46,8 +46,9 @@ from leaf_dev.commands.generate.corpus import sources as corpus_sources
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 
-def printed_exhibit(page: Page) -> None:
-    """A breakout exhibit within the paper's prose track."""
+def printed(page: Page) -> None:
+    """The page on paper: a breakout exhibit within the paper's prose track, or a queue
+    whose list is gone, each item under its name."""
     page.emulate_media(media="print")
 
 
@@ -1626,6 +1627,14 @@ def screenshot_options(page: Page) -> None:
     shot.scroll_into_view_if_needed()
 
 
+def screenshot_startup(page: Page) -> None:
+    """The section holding a shot, at the top of the window, before the shot's module
+    draws it."""
+    page.locator("#rn-console-section").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+
+
 def image_in_page(page: Page) -> None:
     """An authored image in the reading flow, before its viewer opens."""
     page.get_by_role("tab", name="Threads", exact=True).click()
@@ -1851,7 +1860,7 @@ def option_add_hover(page: Page) -> None:
 
 def options_in_pane(page: Page) -> None:
     """An option list in a workspace pane, under the paragraphs it answers."""
-    page.get_by_text("Checkout p99 latency", exact=True).click()
+    page.get_by_role("tab", name="Checkout p99 latency").click()
     page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
@@ -2682,6 +2691,18 @@ def film_inspector(page: Page) -> None:
     )
 
 
+def parts_list(page: Page) -> None:
+    """A page of parts in its sample window, its list down the left: each row a copy
+    of the header its part opens with, one name in code type over a coloured
+    diffstat."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    sample = page.locator("#bg-parts-sample")
+    # Its page starts as the reader brings it near (lf-sample.js).
+    sample.scroll_into_view_if_needed()
+    sample.evaluate("sample => sample.ready")
+    expect(sample.frame_locator("iframe").get_by_role("tablist")).to_be_visible()
+
+
 def live_sample_embedded(page: Page) -> None:
     """The arrived practice page at its embedded content height."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
@@ -2760,7 +2781,8 @@ STATES = (
         dynamic_request_preview,
         region="#leaf-request-document",
     ),
-    State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
+    State("printed-exhibit", "lost-update", printed, region="main"),
+    State("printed-queue", "alert-review", printed, region="#ar-queue"),
     State("failed-widget", "review-a-plan", failed_widget, window=Window((1600, 900))),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
@@ -2904,6 +2926,7 @@ STATES = (
         live_sample_embedded,
         region="#bg-live-sample",
     ),
+    State("parts-list", "feature-gallery", parts_list, region="#bg-parts-sample"),
     State(
         "live-sample-full-view",
         "feature-gallery",
@@ -3005,6 +3028,13 @@ STATES = (
         "feature-gallery",
         screenshot_view_hover,
         region="#bg-shot .lf-shot-toolbar",
+    ),
+    State(
+        "screenshot-startup",
+        "release-notes",
+        screenshot_startup,
+        activated=False,
+        region="#rn-console-section",
     ),
     State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
     State("dial-press", "detail", dial_press, region="lf-dial"),

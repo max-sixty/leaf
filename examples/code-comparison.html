@@ -241,12 +241,11 @@
     <main class="layout-workspace density-working" id="code-comparison-workspace">
       <header><h1>Choose a code reader treatment</h1></header>
       <lf-tabs id="code-comparison-parts" class="layout-flow">
-        <lf-tab
-          id="code-comparison-choose"
-          class="layout-flow"
-          label="Compare"
-          summary="Tune both treatments and keep one"
-        >
+        <lf-tab id="code-comparison-choose" class="layout-flow">
+          <header>
+            <strong>Compare</strong>
+            <p>Tune both treatments and keep one</p>
+          </header>
           <lf-ask id="code-comparison-ask">
             <h2>Which code-reader treatment should the agent keep?</h2>
             <lf-playground
@@ -259,23 +258,24 @@
                   <lf-playground-control
                     id="width"
                     name="width"
-                    label="Comparison viewport"
                     kind="range"
                     value="420"
                     min="280"
                     max="520"
                     step="20"
                     unit="px"
-                  ></lf-playground-control>
+                    ><strong>Comparison viewport</strong></lf-playground-control
+                  >
 
                   <lf-playground-control
                     id="code-treatment"
                     name="chosen"
-                    label="Treatment"
                     kind="choice"
                     value="A"
                   >
-                    <lf-playground-choice id="treatment-a" value="A" label="A">
+                    <strong>Treatment</strong>
+                    <lf-playground-choice id="treatment-a" value="A">
+                      <strong>A</strong>
                       <section
                         class="code-candidate"
                         data-candidate="A"
@@ -283,8 +283,8 @@
                       >
                         <h3 class="code-candidate-title">compact · scroll</h3>
                         <p class="code-measurement" aria-live="polite">Measuring…</p>
-                        <lf-code id="compact-built-code" language="javascript" hi="2-4">
-                          <pre>
+                        <lf-code id="compact-built-code" hi="2-4">
+                          <pre><code class="language-javascript">
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -295,11 +295,12 @@ export function releaseLabels(releases) {
   return releases
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
-}</pre>
+}</code></pre>
                         </lf-code>
                       </section>
                     </lf-playground-choice>
-                    <lf-playground-choice id="treatment-b" value="B" label="B">
+                    <lf-playground-choice id="treatment-b" value="B">
+                      <strong>B</strong>
                       <section
                         class="code-candidate"
                         data-candidate="B"
@@ -307,8 +308,8 @@ export function releaseLabels(releases) {
                       >
                         <h3 class="code-candidate-title">comfortable · wrap</h3>
                         <p class="code-measurement" aria-live="polite">Measuring…</p>
-                        <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
-                          <pre>
+                        <lf-code id="wrapped-built-code" hi="2-4">
+                          <pre><code class="language-javascript">
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -319,7 +320,7 @@ export function releaseLabels(releases) {
   return releases
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
-}</pre>
+}</code></pre>
                         </lf-code>
                       </section>
                     </lf-playground-choice>
@@ -333,12 +334,11 @@ export function releaseLabels(releases) {
             </lf-playground>
           </lf-ask>
         </lf-tab>
-        <lf-tab
-          id="code-comparison-comment"
-          class="layout-flow"
-          label="Comment on the reader"
-          summary="Point at the part to change"
-        >
+        <lf-tab id="code-comparison-comment" class="layout-flow">
+          <header>
+            <strong>Comment on the reader</strong>
+            <p>Point at the part to change</p>
+          </header>
           <article id="code-comparison-reading">
             <section id="code-reader-feedback">
               <h2>Point at the reader element you want changed</h2>
@@ -358,10 +358,10 @@ export function releaseLabels(releases) {
                 <h3 id="target-reader-heading" class="reader-treatment-title">
                   Reader sample
                 </h3>
-                <lf-code id="target-built-code" language="javascript" hi="2">
-                  <pre>
+                <lf-code id="target-built-code" hi="2">
+                  <pre><code class="language-javascript">
 export const summarize = checks =>
-  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
+  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</code></pre>
                 </lf-code>
               </section>
             </section>

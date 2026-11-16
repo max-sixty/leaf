@@ -464,7 +464,7 @@ def test_thread_walks_start_at_the_selected_tabs_panel(browser, serve, subtests)
             '<h1>Discussions</h1><section id="wrap"><p>Intro words</p>'
             '<lf-tabs id="tabs" list="side">'
             + "".join(
-                f'<lf-tab id="panel-{name.lower()}" label="{name}">'
+                f'<lf-tab id="panel-{name.lower()}"><strong>{name}</strong>'
                 f'<p id="{name}">{name} discussion</p></lf-tab>'
                 for name in ("First", "Second", "Third")
             )
@@ -1296,8 +1296,8 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
         leaf_page(
             "Tabbed thread",
             '<h1 id="start">Tabbed thread</h1>'
-            '<lf-tabs id="views"><lf-tab id="first" label="First"><p>First view.</p>'
-            '</lf-tab><lf-tab id="second" label="Second">'
+            '<lf-tabs id="views"><lf-tab id="first"><strong>First</strong><p>First view.</p>'
+            '</lf-tab><lf-tab id="second"><strong>Second</strong>'
             '<p id="target">The discussed passage.</p>'
             '<a href="#start">Return to the heading</a></lf-tab></lf-tabs>',
         ),

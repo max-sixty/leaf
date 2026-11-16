@@ -229,8 +229,14 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     "Me ju… · Que…", and each gives all it can before the head reaches nothing. The
     user's queued message holds each part."""
     url = serve(PANEL_PAGE)
-    panel_comment(serve.page_dir, "Can it wait?", {"section": "lede"})
-    # The margin at this width caps the card short of the head's words and controls.
+    # A comment that stands taller than it is wide widens the card from its least
+    # width, and the margin at this width caps it short of the head's words and
+    # controls.
+    panel_comment(
+        serve.page_dir,
+        "Can it wait until the ceiling is settled? " * 16,
+        {"section": "lede"},
+    )
     context = browser.new_context(viewport={"width": 1456, "height": 900})
     page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
@@ -481,9 +487,9 @@ def test_a_pages_light_rules_stop_at_the_chrome(request, serve, engine):
     stops at controls and chrome, which state their own. A token set on :root, a
     condition on an ancestor and a pseudo-element keep working as page CSS does."""
     board = (
-        '<h1>t</h1><lf-board id="b"><lf-column id="c1" label="To do">'
+        '<h1>t</h1><lf-board id="b"><lf-column id="c1"><strong>To do</strong>'
         '<lf-card id="k1">One</lf-card><lf-card id="k2">Two</lf-card></lf-column>'
-        '<lf-column id="c2" label="Done"></lf-column></lf-board>'
+        '<lf-column id="c2"><strong>Done</strong></lf-column></lf-board>'
         '<p>See <a href="#b">the board</a>.</p>'
     )
     page = open_page(
@@ -612,7 +618,6 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
                     "required": ["id"],
                     "additionalProperties": False,
                     "x-content": "markup",
-                    "x-upgrade": False,
                 }
             }
         )
@@ -628,7 +633,7 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             leaf_page(
                 "t",
                 '<h1>t</h1><p><button id="own" type="button">Own</button></p>'
-                '<lf-board id="b"><lf-column id="c1" label="To do">'
+                '<lf-board id="b"><lf-column id="c1"><strong>To do</strong>'
                 '<lf-card id="k1">One</lf-card></lf-column></lf-board>',
             ),
             packages=("./theme",),

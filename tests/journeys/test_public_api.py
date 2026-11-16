@@ -5,7 +5,7 @@ from browser.test_public_api import output_package
 from model_folds import leaf_page
 
 from leaf.render_checks import RENDER_VIEWPORT, SERVED_TIMEOUT_MS
-from leaf.render_gate.scheme import _render_scheme
+from leaf.render_gate.scheme import _render_page
 from leaf.revision_artifact import read_artifact
 
 
@@ -20,7 +20,8 @@ def test_render_check_keeps_departed_samples_invalid_outputs(
             "Sample output",
             "<h1>Example producers</h1>"
             + "".join(
-                f"""<lf-sample id="example-{n}" label="producer example {n}">
+                f"""<lf-sample id="example-{n}">
+  <strong>producer example {n}</strong>
   <template id="example-page-{n}" data-sample>
     <lf-output-proof id="proof">Output example.</lf-output-proof>
   </template>
@@ -43,10 +44,9 @@ def test_render_check_keeps_departed_samples_invalid_outputs(
             for frame in page.frames[1:]:
                 frame.goto("about:blank")
 
-    findings, _, complete = _render_scheme(
+    findings, _, complete = _render_page(
         browser.unwatched,
         url,
-        "light",
         RENDER_VIEWPORT,
         SERVED_TIMEOUT_MS,
         pages,

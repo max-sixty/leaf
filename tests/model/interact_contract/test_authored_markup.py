@@ -78,7 +78,7 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
         PAGE.replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre data-bound="bottom">log</pre>'
-            '<lf-pane id="queue" label="Queue">loose<p>Two</p></lf-pane>',
+            '<lf-pane id="queue" aria-label="Queue">loose<p>Two</p></lf-pane>',
         )
     )
     status, findings = check_findings(page_dir)
@@ -270,12 +270,12 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
     }
     parts = structure_model.SourceDocument(
         '<main><header><h1>Review</h1></header><lf-parts id="parts">'
-        '<lf-part id="try" label="Try"><div class="layout-workspace"></div></lf-part>'
-        '<lf-part id="read" label="Read"><article class="layout-column"></article>'
+        '<lf-part id="try"><header><strong>Try</strong></header><div class="layout-workspace"></div></lf-part>'
+        '<lf-part id="read"><header><strong>Read</strong></header><article class="layout-column"></article>'
         "</lf-part></lf-parts></main>"
     )
     tabs = structure_model.SourceDocument(
-        '<main><lf-tabs id="tabs"><lf-tab id="one" label="One">'
+        '<main><lf-tabs id="tabs"><lf-tab id="one"><strong>One</strong>'
         '<div class="layout-workspace"></div></lf-tab></lf-tabs></main>'
     )
     assert structure_model.page_layout(parts, registry) == "workspace column"
@@ -436,7 +436,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             "parent": "aabb0011",
             "author": "agent",
             "text": "An answer",
-            "markup": '<lf-code id="duplicate" language="python"><pre>1</pre></lf-code>',
+            "markup": '<lf-code id="duplicate"><pre><code class="language-python">1</code></pre></lf-code>',
         },
     )
     (page_dir / "index.html").write_text(
@@ -767,11 +767,11 @@ def test_sample_fixture_refusals_reach_page_check(
     [
         ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown-widget"),
         (
-            '<lf-code id="child" language="python"><pre>1</pre></lf-code>',
+            '<lf-code id="child"><pre><code class="language-python">1</code></pre></lf-code>',
             "ids-taken",
         ),
         (
-            '<lf-code id="code" language="python"><pre>1</pre></lf-code><style>p {color:red}</style>',
+            '<lf-code id="code"><pre><code class="language-python">1</code></pre></lf-code><style>p {color:red}</style>',
             "message-style",
         ),
     ],

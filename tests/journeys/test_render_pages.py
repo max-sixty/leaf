@@ -509,7 +509,6 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
         "additionalProperties": False,
         "x-content": "markup",
         "x-space": "available",
-        "x-upgrade": False,
         "x-example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
     }
     source = leaf_page(
@@ -608,7 +607,7 @@ diff --git a/feeders/mount.py b/feeders/mount.py
     sidebar_page = leaf_page("Sidebar body", f"<div>{blocks}</div>", layout="sidebar")
     workspace_page = leaf_page(
         "Workspace pane",
-        f'<lf-pane id="pane" label="Evidence"><div id="holder">{blocks}</div></lf-pane>',
+        f'<lf-pane id="pane" aria-label="Evidence"><div id="holder">{blocks}</div></lf-pane>',
         layout="workspace",
     )
     configured = leaf_page(
@@ -1015,7 +1014,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     ], misplaced
 
     board = (
-        '<lf-board id="board"><lf-column id="board-c" label="Open">'
+        '<lf-board id="board"><lf-column id="board-c"><strong>Open</strong>'
         '<lf-card id="board-k">Retry</lf-card></lf-column></lf-board>'
     )
     workspace = open_page(
@@ -1037,7 +1036,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     # With no evidence width, a board reaches only its holder: six columns in a narrow
     # cell of the page's grid scroll inside it rather than spread over the next cell.
     columns = "".join(
-        f'<lf-column id="c{i}" label="C{i}"></lf-column>' for i in range(6)
+        f'<lf-column id="c{i}"><strong>C{i}</strong></lf-column>' for i in range(6)
     )
     cells = leaf_page(
         "Workspace cells",

@@ -136,8 +136,10 @@
     <main class="layout-column">
       <header id="top">
         <nav class="sitenav" aria-label="Site"></nav>
-        <p class="eyebrow">How it works</p>
-        <h1>How Leaf works</h1>
+        <hgroup>
+          <p>How it works</p>
+          <h1>How Leaf works</h1>
+        </hgroup>
         <p class="lede" id="intro">
           An agent builds a page around the work. The user comments, explores, and makes
           choices. The agent responds by revising the same page.
@@ -150,8 +152,9 @@
         </p>
       </header>
       <lf-tabs id="how" class="layout-flow"
-        ><lf-tab id="overview" label="Overview" class="layout-flow"
-          ><details class="topic-outline" id="overview-outline">
+        ><lf-tab id="overview" class="layout-flow"
+          ><strong>Overview</strong>
+          <details class="topic-outline" id="overview-outline">
             <summary>In this topic</summary>
             <nav aria-label="Overview sections">
               <ul>
@@ -253,8 +256,8 @@ flowchart TD
               changes. Each reading applies the events still in force. Undo records
               which gesture it withdraws, leaving the original event in history. Focus,
               scroll, selection, and open disclosures remain
-              <a href="#browser-local">browser-local interaction</a>; an unsent draft
-              can be recovered from browser storage.
+              <a href="#browser-local">browser-local interaction</a>; the page’s server
+              keeps an unsent draft outside the log, for every tab and device.
             </p>
             <p id="architecture-current-leaf">
               The Leaf serving, checking, or exporting a page supplies its current
@@ -272,7 +275,7 @@ flowchart TD
               the page as a whole. To make this choice yourself, try the
               <a href="#practice-caption">queue policy practice</a> in Workflow.
             </p>
-            <ol class="steps" id="exchange-steps">
+            <ol id="exchange-steps">
               <li id="exchange-author">
                 <strong>The agent prepares the page.</strong> It writes the
                 alternatives, checks the page, and opens its link.
@@ -363,8 +366,9 @@ flowchart TD
               </tbody>
             </table>
           </section></lf-tab
-        ><lf-tab id="workflow" label="Workflow" class="layout-flow"
-          ><details class="topic-outline" id="workflow-outline">
+        ><lf-tab id="workflow" class="layout-flow"
+          ><strong>Workflow</strong>
+          <details class="topic-outline" id="workflow-outline">
             <summary>In this topic</summary>
             <nav aria-label="Workflow sections">
               <ul>
@@ -459,11 +463,8 @@ leaf server start ./review</code></pre>
                 feed to see the choice marked undone. This example uses the page’s
                 activity log and Undo; its queue policy is fictional.
               </p>
-              <lf-sample
-                id="queue-example"
-                label="Practice: choose a queue policy"
-                interactive
-              >
+              <lf-sample id="queue-example" interactive>
+                <strong>Practice: choose a queue policy</strong>
                 <h2>Importer queue policy</h2>
                 <p id="queue-premise">
                   The importer receives bursts of records faster than it can process
@@ -626,10 +627,8 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   clauses and reads current state before answering: a newer update may
                   already have settled the response the captured batch requested.
                 </p>
-                <lf-sample
-                  id="handling-example"
-                  label="illustrative batch excerpt; other fields omitted"
-                >
+                <lf-sample id="handling-example">
+                  <strong>illustrative batch excerpt; other fields omitted</strong>
                   <pre id="handling-json"><code class="language-json">{
   "handling": {
     "h1": "Read the thread context before answering.",
@@ -1070,7 +1069,7 @@ flowchart TD
               App Server client. Pi’s experimental extension runs inside Pi. Each route
               supplies the same delivery format and says who confirms receipt.
             </p>
-            <ol id="wait-ack" class="steps">
+            <ol id="wait-ack">
               <li>
                 <strong>Confirm receipt separately from transport.</strong> Leaf counts
                 an update as received only when the agent or harness confirms it. A
@@ -1360,8 +1359,9 @@ flowchart TD
               </p>
             </details>
           </section></lf-tab
-        ><lf-tab id="state" label="State" class="layout-flow"
-          ><details class="topic-outline" id="state-outline">
+        ><lf-tab id="state" class="layout-flow"
+          ><strong>State</strong>
+          <details class="topic-outline" id="state-outline">
             <summary>In this topic</summary>
             <nav aria-label="State sections">
               <ul>
@@ -1417,6 +1417,14 @@ flowchart TD
                   <td>Data source</td>
                   <td>The latest value of one external feed, replaced whole.</td>
                   <td>its name</td>
+                </tr>
+                <tr id="ontology-draft">
+                  <td>Draft</td>
+                  <td>
+                    Words the user typed and hasn’t sent, the latest generation of each,
+                    outside the log. Every tab and device reads it; the agent doesn’t.
+                  </td>
+                  <td>what it is about, such as a passage or a thread</td>
                 </tr>
               </tbody>
               <tbody id="ontology-folded">
@@ -1512,11 +1520,11 @@ flowchart TD
                 <tr id="ontology-local">
                   <td>Browser-owned state</td>
                   <td>
-                    Focus, scroll, navigation position, open disclosures and unsent
-                    drafts. They stay outside shared state; browser stores preserve some
-                    across reloads (<a href="#data-survives">Data lifetime</a>).
+                    Focus, scroll, navigation position and open disclosures. They stay
+                    outside shared state; browser stores preserve some across reloads
+                    (<a href="#data-survives">Data lifetime</a>).
                   </td>
-                  <td>the element, or the draft's thread</td>
+                  <td>the element</td>
                 </tr>
               </tbody>
             </table>
@@ -1610,8 +1618,9 @@ flowchart TD
                 validates gestures and commands at the same entry point before appending
                 them to <code>events.jsonl</code>. Any process can publish whole values
                 with <code>leaf data set</code>. These stores travel with the page
-                directory. View state and drafts remain in the browser; session claims
-                and delivery coordination remain in the machine’s state home.
+                directory, and so do the user’s unsent drafts, outside the log. View
+                state remains in the browser; session claims and delivery coordination
+                remain in the machine’s state home.
               </figcaption>
             </figure>
             <p id="data-bookkeeping-lede">
@@ -1661,9 +1670,9 @@ flowchart TD
           <section id="data-survives">
             <h2>Data lifetime</h2>
             <p id="data-survives-lede">
-              Accepted events and external data survive closing a tab or restarting the
-              server. Browser stores preserve drafts and interface arrangements with the
-              scopes shown below. An update the server has not yet accepted has not
+              Accepted events, external data and unsent drafts survive closing a tab or
+              restarting the server. Browser stores preserve interface arrangements with
+              the scopes shown below. An update the server has not yet accepted has not
               reached durable storage; while the status says the connection is lost or
               the update is not through yet, keep its tab open until it is.
             </p>
@@ -1697,7 +1706,7 @@ flowchart TD
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
                   <td class="kept">✓</td>
-                  <td class="lost">✗</td>
+                  <td class="kept">✓</td>
                 </tr>
                 <tr id="survives-chrome">
                   <td>Arrangements of Leaf controls</td>
@@ -1716,15 +1725,17 @@ flowchart TD
               </tbody>
             </table>
             <p id="data-browser-lede">
-              Draft text is shared between tabs showing the same page; arranged controls
-              are shared across pages in that browser. Reading position, the active tab
-              or panel, and design mode belong to one browser tab. Comment text awaiting
-              acceptance remains in the draft store; pending widget actions have no
-              durable browser queue.
+              Draft text is shared between every tab and device showing the page, since
+              the page’s server keeps it; words typed while the server is out of reach
+              stay in their tab until it answers. Arranged controls are shared across
+              pages in that browser. Reading position, the active tab or panel, and
+              design mode belong to one browser tab. Comment text awaiting acceptance
+              remains a draft; pending widget actions have no durable browser queue.
             </p>
           </section></lf-tab
-        ><lf-tab id="event-log" label="Event log" class="layout-flow"
-          ><details class="topic-outline" id="event-log-outline">
+        ><lf-tab id="event-log" class="layout-flow"
+          ><strong>Event log</strong>
+          <details class="topic-outline" id="event-log-outline">
             <summary>In this topic</summary>
             <nav aria-label="Event log sections">
               <ul>
@@ -1848,7 +1859,8 @@ flowchart TD
               the changed history; it waits so arrivals never move the text being read.
               The three undos return the choices to their starting state.
             </p>
-            <lf-sample id="try-sample" label="release question" interactive>
+            <lf-sample id="try-sample" interactive>
+              <strong>release question</strong>
               <lf-ask id="ship-ask">
                 <h2>When should this ship?</h2>
                 <lf-options id="ship" choose>
@@ -1869,8 +1881,8 @@ flowchart TD
               This is everything <code>lf-options</code> tells Leaf about its three
               verbs and when its obligation counts as answered.
             </p>
-            <lf-code id="options-verbs" language="json" data-width="wide">
-              <pre>
+            <lf-code id="options-verbs" data-width="wide">
+              <pre><code class="language-json">
 "x-state": {
   "choose": {
     "unit": "widget",
@@ -1893,7 +1905,7 @@ flowchart TD
     "answer": {"when": {"multiple": [true]}}
   }
 }
-</pre>
+</code></pre>
               <lf-note at="2"
                 >The verb's name, which the widget sends as the event's
                 <code>action</code>.</lf-note
@@ -2015,8 +2027,8 @@ flowchart TD
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:
              tests/model/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
-            <lf-code id="captured-log" language="json" data-width="wide">
-              <pre>
+            <lf-code id="captured-log" data-width="wide">
+              <pre><code class="language-json">
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
@@ -2083,7 +2095,7 @@ flowchart TD
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
 {"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
-</pre>
+</code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
                 <code>widget</code>, <code>action</code>, <code>detail</code>, and
@@ -2207,8 +2219,9 @@ flowchart TD
               </li>
             </ul>
           </section></lf-tab
-        ><lf-tab id="revisions" label="Revisions" class="layout-flow"
-          ><details class="topic-outline" id="revisions-outline">
+        ><lf-tab id="revisions" class="layout-flow"
+          ><strong>Revisions</strong>
+          <details class="topic-outline" id="revisions-outline">
             <summary>In this topic</summary>
             <nav aria-label="Revisions sections">
               <ul>
@@ -2260,11 +2273,8 @@ flowchart TD
               Choose Publish the report, then choose it again. The request changes
               immediately, and the activity feed records the pick and its withdrawal.
             </p>
-            <lf-sample
-              id="permission-sample"
-              label="Permission for a sample report"
-              interactive
-            >
+            <lf-sample id="permission-sample" interactive>
+              <strong>Permission for a sample report</strong>
               <lf-ask id="sample-publish-report-decision">
                 <h2>Publish the sample report?</h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
@@ -2375,8 +2385,9 @@ flowchart TD
               an event naming its target, so the recomputed result survives reloads.
             </p>
           </section></lf-tab
-        ><lf-tab id="progress" label="Progress" class="layout-flow"
-          ><details class="topic-outline" id="progress-outline">
+        ><lf-tab id="progress" class="layout-flow"
+          ><strong>Progress</strong>
+          <details class="topic-outline" id="progress-outline">
             <summary>In this topic</summary>
             <nav aria-label="Progress sections">
               <ul>
@@ -2930,8 +2941,9 @@ EOF</code></pre>
               </p>
             </details>
           </section></lf-tab
-        ><lf-tab id="threads" label="Threads" class="layout-flow"
-          ><details class="topic-outline" id="threads-outline">
+        ><lf-tab id="threads" class="layout-flow"
+          ><strong>Threads</strong>
+          <details class="topic-outline" id="threads-outline">
             <summary>In this topic</summary>
             <nav aria-label="Threads sections">
               <ul>
@@ -3317,8 +3329,9 @@ EOF</code></pre>
               one, and disappear once its next ordinary reply arrives.
             </p>
           </section></lf-tab
-        ><lf-tab id="keys" label="Keys" class="layout-flow"
-          ><details class="topic-outline" id="keys-outline">
+        ><lf-tab id="keys" class="layout-flow"
+          ><strong>Keys</strong>
+          <details class="topic-outline" id="keys-outline">
             <summary>In this topic</summary>
             <nav aria-label="Keys sections">
               <ul>
@@ -3788,8 +3801,9 @@ EOF</code></pre>
               </li>
             </ul>
           </section></lf-tab
-        ><lf-tab id="runtime" label="Runtime" class="layout-flow"
-          ><details class="topic-outline" id="runtime-outline">
+        ><lf-tab id="runtime" class="layout-flow"
+          ><strong>Runtime</strong>
+          <details class="topic-outline" id="runtime-outline">
             <summary>In this topic</summary>
             <nav aria-label="Runtime sections">
               <ul>
@@ -4137,9 +4151,10 @@ flowchart TD
             <h2>Browser-owned state</h2>
             <p id="browser-local-owned">
               Focus, scroll, selection, open disclosures, unsent text and active drags
-              live outside shared state and the log. DOM nodes hold them;
+              live outside shared state and the log. DOM nodes hold them, and the page’s
+              server keeps the unsent text too;
               <a href="#data-survives">Data lifetime</a> names browser stores preserving
-              some across reloads.
+              some of the rest across reloads.
             </p>
             <table id="browser-local-handoff" class="runtime-table">
               <thead>

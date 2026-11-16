@@ -287,7 +287,7 @@ document.getElementById("tally").append(added);
 SCRIPTED = {
     "module": SCRIPT_WORDS.replace(
         "</head>",
-        '<script type="module">\nimport { html, render } from "/runtime/widget-api.js";'
+        '<script type="module">\nimport { html, render } from "/vendor/lit.js";'
         f"{SCRIPT_WRITES}"
         "render(html`<ul><li>Item alpha</li><li>Item beta</li></ul>`,"
         ' document.getElementById("listed"));\n</script>\n</head>',
@@ -375,7 +375,8 @@ KEPT_BOARD = leaf_page(
     """
 <h1 id="title">Kept board</h1>
 <lf-board id="board">
-  <lf-column id="col-todo" label="To do">
+  <lf-column id="col-todo">
+    <strong>To do</strong>
     <lf-card id="card-x"><strong>Review</strong> Old words.</lf-card>
     <lf-card id="card-y"><strong>Ship</strong> Steady words.</lf-card>
   </lf-column>

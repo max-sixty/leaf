@@ -462,7 +462,7 @@ def test_a_shot_compares_pixels_inside_an_opaque_live_sample(browser, serve):
     source = leaf_page(
         "Compare captured pixels in practice",
         "<h1>Compare captured pixels in practice</h1>"
-        '<lf-sample id="practice" label="Practice comparison" window>'
+        '<lf-sample id="practice" window><strong>Practice comparison</strong>'
         '<template id="practice-source" data-sample>'
         "<h1>Inspect the changed region</h1>"
         f'<lf-shot id="sample-shot" alt="a changed run list" '
@@ -549,10 +549,10 @@ def test_a_tall_shot_scrolls_its_images_then_chains_to_its_container(
     shot = f'<div style="block-size:500px;--lf-full-height:1">{shot}</div>'
     tail = '<p style="min-height:1200px">Reading after the comparison.</p>'
     markup = (
-        f'<lf-tabs id="scroll-tabs"><lf-tab id="scroll-pair" label="Comparison">{shot}{tail}</lf-tab>'
-        '<lf-tab id="scroll-other" label="Other"><p>Another view.</p></lf-tab></lf-tabs>'
+        f'<lf-tabs id="scroll-tabs"><lf-tab id="scroll-pair"><strong>Comparison</strong>{shot}{tail}</lf-tab>'
+        '<lf-tab id="scroll-other"><strong>Other</strong><p>Another view.</p></lf-tab></lf-tabs>'
         if holder == "tabs"
-        else f'<lf-pane id="scroll-pane" label="Comparison"><header>Comparison</header><section>{shot}{tail}</section></lf-pane>'
+        else f'<lf-pane id="scroll-pane" aria-label="Comparison"><header>Comparison</header><section>{shot}{tail}</section></lf-pane>'
     )
     page = open_page(
         browser,
@@ -1230,7 +1230,6 @@ FILM_DECLARATION = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
     }
     for tag in ("lf-film", "lf-loader")
 }

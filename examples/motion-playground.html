@@ -59,8 +59,10 @@
   <body>
     <main id="motion-page">
       <lf-ask id="motion-question">
-        <p class="eyebrow">Panel motion</p>
-        <h1>How should the panel move?</h1>
+        <hgroup>
+          <p>Panel motion</p>
+          <h1>How should the panel move?</h1>
+        </hgroup>
         <p>
           Compare the same fold, unfold and interrupted reversal.
           <strong>Balanced</strong> is the suggested starting point: easier to follow,
@@ -77,15 +79,15 @@
                 <lf-playground-control
                   id="timing"
                   name="timing"
-                  label="Panel timing"
                   kind="choice"
                   value="260 ms with cubic-bezier(.3, .7, .3, 1)"
                 >
+                  <strong>Panel timing</strong>
                   <lf-playground-choice
                     id="timing-original"
                     value="the original recorded 300 ms timing"
-                    label="Keep the original timing"
                   >
+                    <strong>Keep the original timing</strong>
                     <small class="tag">Baseline · 300 ms</small>
                     <p>Fast departure, long settling tail.</p>
                     <figure>
@@ -112,8 +114,8 @@
                   <lf-playground-choice
                     id="timing-crisp"
                     value="220 ms with cubic-bezier(.23, 1, .32, 1)"
-                    label="Make it crisp"
                   >
+                    <strong>Make it crisp</strong>
                     <small class="tag">A · 220 ms</small>
                     <p>Quick departure, short settle.</p>
                     <figure>
@@ -140,8 +142,8 @@
                   <lf-playground-choice
                     id="timing-balanced"
                     value="260 ms with cubic-bezier(.3, .7, .3, 1)"
-                    label="Make it balanced"
                   >
+                    <strong>Make it balanced</strong>
                     <small class="tag">B · 260 ms</small>
                     <small class="tag ok">recommended</small>
                     <p>Gentler departure, clean arrival.</p>
@@ -169,8 +171,8 @@
                   <lf-playground-choice
                     id="timing-glide"
                     value="280 ms with cubic-bezier(.4, 0, .2, 1)"
-                    label="Give it a glide"
                   >
+                    <strong>Give it a glide</strong>
                     <small class="tag">C · 280 ms</small>
                     <p>Build speed, then ease into place.</p>
                     <figure>

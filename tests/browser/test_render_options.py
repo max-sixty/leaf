@@ -4,7 +4,6 @@ import itertools
 import json
 import re
 from io import BytesIO
-from pathlib import Path
 
 import pytest
 from interact_support import (
@@ -77,9 +76,15 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 def assert_selected_mark(mark):
     """The selected box paints ink around a check cut out of its centre."""
+    # A canvas resolves the computed colour, which may be `oklab(…)`, to sRGB.
     ink = mark.evaluate(
-        """el => getComputedStyle(el, '::before').backgroundColor
-            .match(/\\d+/g).slice(0, 3).map(Number)"""
+        """el => {
+          const context = document.createElement('canvas')
+            .getContext('2d', {willReadFrequently: true});
+          context.fillStyle = getComputedStyle(el, '::before').backgroundColor;
+          context.fillRect(0, 0, 1, 1);
+          return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+        }"""
     )
     shot = Image.open(BytesIO(mark.screenshot())).convert("RGB")
     x, y = shot.width // 2, shot.height // 2
@@ -424,66 +429,11 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     )
 
 
-def test_option_markdown_visible_words_match_file_reading(browser, serve):
-    """Each case's option, read in the browser, says the words the file reading says
-    (`test_option_markdown_file_words_match_browser_cases`); one page holds them all."""
-    cases = json.loads(
-        (Path(__file__).parents[1] / "option_markdown_cases.json").read_text()
-    )
-    options = "".join(
-        f'<lf-option id="case-{n}">{case["source"]}</lf-option>'
-        for n, case in enumerate(cases)
-    )
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "markdown options",
-                '<h1 id="h">Cases</h1><lf-ask id="cases-ask"><h2>Which reads?</h2>'
-                f'<lf-options id="cases" choose multiple>{options}</lf-options></lf-ask>',
-            )
-        ),
-    )
-    words = page.locator("#cases > lf-option").evaluate_all(
-        """async options => {
-          const {wrote} = await window.__lfWidgetApi();
-          return options.map(wrote);
-        }"""
-    )
-    assert words == [case["words"] for case in cases]
-
-
-def test_unchanged_markdown_option_is_not_a_version_change(browser, serve):
-    source = OBLIGATION_PAGE.replace(
-        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
-    )
-    url = serve(source)
-    page = open_page(browser, live_url(url))
-    expect(page.locator("#job-mounts em")).to_have_text("widget")
-
+def test_an_option_state_change_offers_no_card(browser, serve):
+    page = open_page(browser, live_url(serve(OBLIGATION_PAGE)))
     stamp_page(
         serve.page_dir,
-        source.replace("Neither — the camera first", "Neither — fix the camera first"),
-        "two",
-    )
-    wait_for_revision(page, 2)
-    compare_with(page)
-    page.wait_for_function(
-        "() => document.querySelectorAll('.lf-ins-block').length > 0"
-    )
-    assert page.evaluate(
-        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
-    ) == ["job-camera"]
-
-
-def test_markdown_option_state_change_offers_no_card(browser, serve):
-    source = OBLIGATION_PAGE.replace(
-        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
-    )
-    page = open_page(browser, live_url(serve(source)))
-    stamp_page(
-        serve.page_dir,
-        source.replace('id="job-mounts"', 'id="job-mounts" chosen'),
+        OBLIGATION_PAGE.replace('id="job-mounts"', 'id="job-mounts" chosen'),
         "Choose the mounts option",
     )
     wait_for_revision(page, 2)
@@ -1006,7 +956,8 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     <lf-options id="framed-options" choose><lf-option id="framed-route">Route A</lf-option></lf-options>
   </lf-ask>
 </div>
-<lf-sample id="sample" label="a first Ask">
+<lf-sample id="sample">
+  <strong>a first Ask</strong>
   <template id="sample-page" data-sample>
     <lf-ask id="sample-ask"><h2>Choose the route</h2>
       <lf-options id="sample-options" choose><lf-option id="sample-route">Route A</lf-option></lf-options>
@@ -1172,10 +1123,10 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     page = open_page(browser, url)
     assert page.locator(".lf-error").count() == 0
 
-    # The exhibit rendered: the gutter's caption, and cards with real size. The label is
-    # the page's own word, so the runtime says it as text a user can quote; only the
-    # "quoted · " in front of it is the theme's, and only that is still pseudo-content.
-    label = page.locator('#spec > [data-lf-said="label"]')
+    # The exhibit rendered: the gutter's caption, and cards with real size. The caption
+    # is the sample's name, the <strong> it opens with, words the user can quote; only
+    # the "quoted · " in front of it is the theme's, and only that is pseudo-content.
+    label = page.locator("#spec > strong:first-child")
     assert label.text_content() == "a decision"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")
@@ -2261,7 +2212,6 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                     "additionalProperties": False,
                     "x-content": "markup",
                     "x-work": True,
-                    "x-upgrade": False,
                 }
             }
         )
@@ -2308,7 +2258,7 @@ def test_widget_work_in_a_declared_shadow_tree_keeps_its_button_and_leaves_with_
     projects the claim away."""
     work_page = TWICE_PAGE.replace(
         '<lf-diff id="patch">',
-        '<lf-board id="shadow-work"><lf-column id="shadow-now" label="Now">\n'
+        '<lf-board id="shadow-work"><lf-column id="shadow-now">\n<strong>Now</strong>\n'
         '  <lf-card id="shadow-card"><strong>Check the shard</strong></lf-card>\n'
         '</lf-column></lf-board>\n<lf-diff id="patch">',
     )
@@ -2381,9 +2331,8 @@ def test_the_sample_gutter_is_painted_in_both_schemes(browser, serve):
     """The gutter is the whole marking, and it is the one part of a sample with
     a color of its own: a token with no dark half would leave the bar
     transparent and the quoting silently gone. Nothing else catches that — not even
-    the sweep that now drives a sample through render_version in both palettes,
-    since a transparent border is not an error, resizes no box, and leaves every
-    word selectable."""
+    render_version, which reads only the light palette, and where a transparent border
+    is not an error, resizes no box, and leaves every word selectable."""
     url = serve(SAMPLE_PAGE)
     for scheme in ("light", "dark"):
         page = browser.new_page(color_scheme=scheme)
@@ -2402,7 +2351,7 @@ def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
     """
     source = leaf_page(
         "wide sample",
-        '<h1>A wide exhibit</h1><lf-sample id="spec" label="wide content">'
+        '<h1>A wide exhibit</h1><lf-sample id="spec"><strong>wide content</strong>'
         '<div id="wide-exhibit" style="overflow-x: auto">'
         '<div style="width: 600px">An exhibit wider than the page column.</div>'
         "</div></lf-sample>",
@@ -2470,10 +2419,8 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     ).to_be_attached()  # the reply's widgets upgraded
 
     # The gutter renders in the panel: the sample rules aren't scoped to the
-    # document's column, and neither is the label — which reaches the panel only
-    # because renderSaid runs over a reply's markup too, where no custom element
-    # upgrade would have carried it.
-    label = view.locator('#rp-spec > [data-lf-said="label"]')
+    # document's column, and neither is the caption the sample's name stands as.
+    label = view.locator("#rp-spec > strong:first-child")
     assert label.text_content() == "the April thread"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")
@@ -2725,18 +2672,11 @@ def test_a_pick_the_page_only_reports_can_still_be_pointed_at(browser, serve):
     ) == ["c-bearer"], "the diff read the mark as text the base version lacked"
 
 
-def test_option_words_render_markdown_without_losing_the_user_draft(browser, serve):
-    source = OBLIGATION_PAGE.replace(
-        "Replace the <code>M8</code> mounts", "Ask the _widget_ to decide"
-    )
-    url = serve(source)
-    page = open_page(browser, url)
-    authored = page.locator("#job-mounts")
-    expect(authored.locator(":scope > .lf-markdown-words em")).to_have_text("widget")
-    expect(authored.locator(":scope > .lf-pick")).to_have_attribute(
-        "aria-label", re.compile(r"Ask the widget to decide — option 1")
-    )
-
+def test_an_added_option_renders_its_markdown_and_keeps_its_source(browser, serve):
+    """The user's own option reads as the inline Markdown they typed, on arrival and
+    after a reload, which loads the renderer after the page shows, and the log keeps
+    the words as typed."""
+    page = open_page(browser, serve(OBLIGATION_PAGE))
     group = page.locator("#jobs")
     write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
     group.get_by_role("button", name="Add and select option").click()
@@ -2763,9 +2703,9 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
     browser, serve
 ):
     """Authors write a card's consequence after its title as a plain sentence, as one
-    holding an inline element or Markdown, or as a paragraph, and each reads as one
-    card: the paragraph's own margin had set it three times as far under the title, and
-    the title's margin set the sentence with an element 4px lower than a plain one."""
+    holding an inline element, or as a paragraph, and each reads as one card: the
+    paragraph's own margin had set it three times as far under the title, and the
+    title's margin set the sentence with an element 4px lower than a plain one."""
     page = open_page(
         browser,
         serve(
@@ -2776,8 +2716,6 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
                 "</lf-option>"
                 '<lf-option id="element"><strong>Stage it</strong> The cohort gets '
                 "<em>half</em> now.</lf-option>"
-                '<lf-option id="markdown"><strong>Pause it</strong> The cohort '
-                "waits *a day*.</lf-option>"
                 '<lf-option id="paragraph"><strong>Hold it</strong>'
                 "<p>The cohort waits for the fix.</p></lf-option>"
                 "</lf-options>",
@@ -2785,7 +2723,7 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
         ),
     )
     gaps = page.evaluate(
-        """() => Object.fromEntries(['sentence', 'element', 'markdown', 'paragraph'].map((id) => {
+        """() => Object.fromEntries(['sentence', 'element', 'paragraph'].map((id) => {
           const option = document.getElementById(id);
           const title = option.querySelector(':scope > strong');
           const walk = document.createTreeWalker(option, NodeFilter.SHOW_TEXT);
@@ -2797,5 +2735,5 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
           return [id, range.getClientRects()[0].top - title.getBoundingClientRect().bottom];
         }))"""
     )
-    for shape in ("element", "markdown", "paragraph"):
+    for shape in ("element", "paragraph"):
         assert gaps[shape] == pytest.approx(gaps["sentence"], abs=1), gaps

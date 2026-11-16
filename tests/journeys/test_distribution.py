@@ -80,8 +80,8 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     source = source.replace(
         "</main>",
         '<lf-playground id="prepared-playground">'
-        '<lf-playground-control id="label" name="label" label="Label" kind="text" '
-        'value="Prepared"></lf-playground-control>'
+        '<lf-playground-control id="label" name="label" kind="text" '
+        'value="Prepared"><strong>Label</strong></lf-playground-control>'
         "<lf-playground-preview><p>Native initial drawing works.</p>"
         "</lf-playground-preview><lf-playground-output>Use "
         '<lf-playground-value for="label"></lf-playground-value>.'

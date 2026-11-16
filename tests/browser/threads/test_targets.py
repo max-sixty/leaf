@@ -63,9 +63,9 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     source = leaf_page(
         "Thread in tabs",
         '<lf-tabs id="views">'
-        '<lf-tab id="first" label="First">'
+        '<lf-tab id="first"><strong>First</strong>'
         '<p id="inside">Commented words in the first tab.</p>'
-        '</lf-tab><lf-tab id="second" label="Second">Other words.</lf-tab>'
+        '</lf-tab><lf-tab id="second"><strong>Second</strong>Other words.</lf-tab>'
         "</lf-tabs>",
     )
     page = open_page(
@@ -480,7 +480,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
 def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):
     """A rewrite's slots are two words apart on the page and no characters apart in
     the text, so a thread anchored on one was quoted as "redblue". The module that
-    names its own kind (x-word) names its own words the same way."""
+    names its own kind (`lfWord`) names its own words the same way (`lfSays`)."""
     url = serve(
         leaf_page(
             "rewrite",
@@ -740,7 +740,8 @@ def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     """Subject identity survives a rewrite; neither its label nor location is the quote."""
     old = "The original requirement keeps a human review before release. " * 12
     module = """
-import {LeafElement, html} from '/runtime/widget-api.js';
+import { html } from '/vendor/lit.js';
+import { LeafElement } from '/runtime/widget-api.js';
 customElements.define('lf-quote-subject', class extends LeafElement {
   static properties = {label: {attribute: false}, words: {attribute: false}};
   setup() {
@@ -786,7 +787,6 @@ customElements.define('lf-quote-subject', class extends LeafElement {
                         "property": "value",
                     }
                 },
-                "x-upgrade": True,
                 "x-example": '<lf-quote-subject id="example"></lf-quote-subject>',
             }
         },

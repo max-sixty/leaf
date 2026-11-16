@@ -264,7 +264,7 @@ def test_a_revision_inside_a_study_keeps_the_paragraph_read_where_it_stood(
     request, serve, engine
 ):
     """A study builds its transport beside the authored previews and reads none of
-    them (`x-patch: members`), so a revision adding paragraphs above the one the reader
+    them (`lfPatch`), so a revision adding paragraphs above the one the reader
     reads inside it edits the study in place: the paragraph stays the node the browser's
     scroll anchoring holds, and stands where it stood. Replaced whole, the study took
     that node away."""

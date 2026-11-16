@@ -1362,7 +1362,7 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
     )
     page.evaluate(
         """async ({scheduler,order}) => {
-          const module=await window.__lfWidgetApi();
+          const module={...await window.__lfWidgetApi(),...await window.__lfCheckApi()};
           let schedule=module[scheduler];
           if(scheduler==='presenter') {
             const {bindQueuedWork}=await window.__lfCheckApi();

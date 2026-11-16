@@ -594,7 +594,7 @@ interaction log reports the focus within a quarter second, and the Worker posts
 `worker/src/agent.ts`). That starts the container and has it compose the page's layer,
 so both overlap the visitor's typing. Opening a thread focuses its comment box, so it
 prewarms too. The existing session Durable Object
-serves saved documents, comments, choices and private resources while compute is
+serves saved documents, comments, choices, drafts and private resources while compute is
 stopped. A write or a missing saved response starts Python, which restores the
 canonical page record before accepting requests. `leaf_website.storage` publishes
 canonical files and matching Python-produced responses atomically before a write

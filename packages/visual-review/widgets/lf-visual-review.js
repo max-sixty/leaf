@@ -9,15 +9,10 @@
  * themselves. */
 import "/widgets/lf-shot.js";
 /** @typedef {import("/widgets/lf-shot.js").Shot} Shot */
+import { html, nothing, repeat, ref, render, live } from "/vendor/lit.js";
 import {
   LeafElement,
-  html,
-  nothing,
-  repeat,
-  ref,
   generatedElement,
-  render,
-  live,
   generated,
   offered,
   offeredAction,

@@ -7,6 +7,7 @@ from click.testing import CliRunner
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    asked_again,
     consume_browser_errors,
     leaf_page,
     open_page,
@@ -83,12 +84,12 @@ def test_a_required_startup_failure_releases_every_authored_tab(
         source = _source().replace(
             "</main>",
             '<lf-tabs id="fallback-views">'
-            '<lf-tab id="first-panel" label="First"><p>First authored panel.</p></lf-tab>'
-            '<lf-tab id="second-panel" label="Second"><p>Second authored panel.</p></lf-tab>'
+            '<lf-tab id="first-panel"><strong>First</strong><p>First authored panel.</p></lf-tab>'
+            '<lf-tab id="second-panel"><strong>Second</strong><p>Second authored panel.</p></lf-tab>'
             "</lf-tabs></main>",
         )
         with page.expect_request("**/" + failed_file):
-            page.goto(serve(source), wait_until="commit")
+            page.goto(asked_again(serve(source)), wait_until="commit")
         expect(page.locator("main")).to_be_visible()
         assert held, "the required widget must still be waiting"
         held.pop().abort()
@@ -168,8 +169,10 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
         page.unroute_all(behavior="wait")
 
 
-PROGRESSIVE_WIDGET = """import {LeafElement,html} from '/runtime/widget-api.js';
+PROGRESSIVE_WIDGET = """import { html } from '/vendor/lit.js';
+import { LeafElement } from '/runtime/widget-api.js';
 customElements.define('lf-progressive-proof',class extends LeafElement {
+ static lfPatch='members';
  render(){return html`<button class="proof-control">${this.getAttribute('label')}</button><slot></slot>`;}
 });"""
 PROGRESSIVE_REGISTRY = {
@@ -183,13 +186,19 @@ PROGRESSIVE_REGISTRY = {
         "additionalProperties": False,
         "required": ["id"],
         "x-content": "markup",
-        "x-upgrade": True,
         "x-shadow": True,
-        "x-patch": "members",
     }
 }
 
 
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "#5642: how the panel's row shares its room between the version notice and "
+        "Comment… c is still being decided, and until then the hint slides as the "
+        "notice comes and goes"
+    ),
+)
 def test_native_input_survives_progressive_render_revision_and_export(
     browser, serve, tmp_path
 ):

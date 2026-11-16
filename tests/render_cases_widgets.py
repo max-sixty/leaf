@@ -17,9 +17,8 @@ from leaf.structure import SourceDocument
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
 # controlled independently, for page and frozen-message presentation journeys.
 PAGE_WIDGET = """\
-import {
-  html, keeps, layerFact, LeafElement, live,
-} from "/runtime/widget-api.js";
+import { html, live } from "/vendor/lit.js";
+import { keeps, layerFact, LeafElement } from "/runtime/widget-api.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {
@@ -78,7 +77,6 @@ PAGE_DECLARATION = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-state": {
             "choose": {
                 "unit": "widget",
@@ -185,7 +183,6 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
         "required": ["id", "parts"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-visual": {"parts": "parts"},
         "x-example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
     }
@@ -255,7 +252,6 @@ SHADOW_VISUAL_LAYER = {
         "required": ["id", "parts"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-visual": {"parts": "parts"},
         "x-example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
@@ -406,9 +402,9 @@ graph LR
   H --> O[write response]
 </pre></lf-diagram>
 <lf-board id="plan" data-width="wide">
-  <lf-column id="d1" label="Todo"><lf-card id="dk1"><strong>One</strong></lf-card></lf-column>
-  <lf-column id="d2" label="Doing"></lf-column>
-  <lf-column id="d3" label="Done"></lf-column>
+  <lf-column id="d1"><strong>Todo</strong><lf-card id="dk1"><strong>One</strong></lf-card></lf-column>
+  <lf-column id="d2"><strong>Doing</strong></lf-column>
+  <lf-column id="d3"><strong>Done</strong></lf-column>
 </lf-board>
 """,
 )
@@ -685,14 +681,16 @@ WIDE_AND_NARROW_PAGE = leaf_page(
 <h1 id="t">Release</h1>
 <p id="prose">The board is as wide as its columns are; this sentence is not.</p>
 <lf-board id="sprint">
-  <lf-column id="col-todo" label="Todo">
+  <lf-column id="col-todo">
+    <strong>Todo</strong>
     <lf-card id="card-heater"><strong>Heated perch</strong> Wire the south feeder.</lf-card>
   </lf-column>
-  <lf-column id="col-doing" label="Doing">
+  <lf-column id="col-doing">
+    <strong>Doing</strong>
     <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
   </lf-column>
-  <lf-column id="col-review" label="Review"></lf-column>
-  <lf-column id="col-done" label="Done"></lf-column>
+  <lf-column id="col-review"><strong>Review</strong></lf-column>
+  <lf-column id="col-done"><strong>Done</strong></lf-column>
 </lf-board>
 <lf-diff id="wide-patch"><pre>
 diff --git a/feeders/mount.py b/feeders/mount.py
@@ -703,10 +701,10 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-<lf-code id="patch" language="python"><pre>
+<lf-code id="patch"><pre><code class="language-python">
 def bracket():
     return "steel"
-</pre></lf-code>
+</code></pre></lf-code>
 """,
 )
 
@@ -776,7 +774,7 @@ LONG_LINE_DIFF_PAGE = leaf_page(
 PANE_DIFF_PAGE = leaf_page(
     "pane patch",
     "<header><h1 id='t'>Review</h1></header>"
-    '<lf-pane id="patch-pane" label="Patch"><header><h2>Patch</h2></header>'
+    '<lf-pane id="patch-pane"><header><h2>Patch</h2></header>'
     '<lf-diff id="patch" source="review-patch"></lf-diff></lf-pane>',
     layout="workspace",
 )
@@ -957,14 +955,15 @@ FRAMED_WIDE_PAGE = leaf_page(
 <h1 id="t">Framed</h1>
 <section id="loose" class="layout-flow">
   <lf-board id="in-section">
-    <lf-column id="s1" label="Todo"><lf-card id="sk1"><strong>One</strong></lf-card></lf-column>
-    <lf-column id="s2" label="Done"></lf-column>
+    <lf-column id="s1"><strong>Todo</strong><lf-card id="sk1"><strong>One</strong></lf-card></lf-column>
+    <lf-column id="s2"><strong>Done</strong></lf-column>
   </lf-board>
 </section>
-<lf-sample id="quoted" label="a board">
+<lf-sample id="quoted">
+  <strong>a board</strong>
   <lf-board id="in-sample">
-    <lf-column id="q1" label="Todo"><lf-card id="qk1"><strong>One</strong></lf-card></lf-column>
-    <lf-column id="q2" label="Done"></lf-column>
+    <lf-column id="q1"><strong>Todo</strong><lf-card id="qk1"><strong>One</strong></lf-card></lf-column>
+    <lf-column id="q2"><strong>Done</strong></lf-column>
   </lf-board>
 </lf-sample>
 <lf-ask id="pick-decision"><h2>Should the option include evidence?</h2>
@@ -994,14 +993,14 @@ graph LR
   <lf-option id="row-b">Under the lawn in a trench</lf-option>
 </lf-options></lf-ask>
 <lf-board id="evidence">
-  <lf-column id="e1" label="Todo"><lf-card id="ek1"><strong>With evidence</strong>
+  <lf-column id="e1"><strong>Todo</strong><lf-card id="ek1"><strong>With evidence</strong>
     <lf-diagram id="in-board-card"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
 </pre></lf-diagram>
   </lf-card></lf-column>
-  <lf-column id="e2" label="Done"></lf-column>
+  <lf-column id="e2"><strong>Done</strong></lf-column>
 </lf-board>
 <div class="layout-tiles" id="nums">
   <section id="me1" class="panel">
@@ -1024,12 +1023,12 @@ graph LR
     </section>
   </section>
 </section>
-<lf-code id="walk" language="python" hi="2"><pre>
+<lf-code id="walk" hi="2"><pre><code class="language-python">
 def bracket(temp):
     if temp &lt; 0:
         return "steel"
     return "cedar"
-</pre>
+</code></pre>
   <lf-note id="line-note" at="2">Freezing is the only threshold that matters.
     <lf-diagram id="in-note"><pre>
 graph LR
@@ -1060,9 +1059,9 @@ graph LR
 FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
     '<main class="layout-column">',
     "<main class=\"layout-column\">\n<div id='own-frame' style='border: 1px solid #999; overflow-x: auto'>"
-    "<lf-board id='framed'><lf-column id='f1' label='Todo'>"
+    "<lf-board id='framed'><lf-column id='f1'><strong>Todo</strong>"
     "<lf-card id='fk1'><strong>One</strong></lf-card></lf-column>"
-    "<lf-column id='f2' label='Done'></lf-column></lf-board></div>",
+    "<lf-column id='f2'><strong>Done</strong></lf-column></lf-board></div>",
 )
 
 
@@ -1090,19 +1089,19 @@ RAIL_BAND_PAGE = leaf_page(
   <lf-new><p>Refill a feeder when its camera shows it half-empty.</p></lf-new>
 </lf-suggestion>
 <lf-board id="plan">
-  <lf-column id="r1" label="Todo"><lf-card id="rk1"><strong>One</strong>
+  <lf-column id="r1"><strong>Todo</strong><lf-card id="rk1"><strong>One</strong>
     <lf-suggestion id="sug-card">
       <lf-old><p>By hand.</p></lf-old>
       <lf-new><p>On the timer.</p></lf-new>
     </lf-suggestion></lf-card></lf-column>
-  <lf-column id="r2" label="Doing"></lf-column>
-  <lf-column id="r3" label="Done"></lf-column>
+  <lf-column id="r2"><strong>Doing</strong></lf-column>
+  <lf-column id="r3"><strong>Done</strong></lf-column>
 </lf-board>
 <p id="gap" style="margin-block: 600px">Prose far enough below the changes that no row
 reaches this part of the page.</p>
 <lf-board id="later">
-  <lf-column id="l1" label="Todo"><lf-card id="lk1"><strong>Two</strong></lf-card></lf-column>
-  <lf-column id="l2" label="Done"></lf-column>
+  <lf-column id="l1"><strong>Todo</strong><lf-card id="lk1"><strong>Two</strong></lf-card></lf-column>
+  <lf-column id="l2"><strong>Done</strong></lf-column>
 </lf-board>
 """,
 )
@@ -1144,7 +1143,8 @@ CUT_BOXES_PAGE = leaf_page(
     f"""
 <h1 id="t">Flow</h1>
 <lf-tabs id="views">
-  <lf-tab id="flow-tab" label="Behaviour">
+  <lf-tab id="flow-tab">
+    <strong>Behaviour</strong>
     <lf-diagram id="flow"><pre>
 {FAN_OUT}</pre></lf-diagram>
   </lf-tab>
@@ -1198,7 +1198,8 @@ SQUEEZED_BOARD_PAGE = leaf_page(
 <lf-board id="crowd">
 """
     + "".join(
-        f"""  <lf-column id="sq-col-{i}" label="Lane {i}">
+        f"""  <lf-column id="sq-col-{i}">
+    <strong>Lane {i}</strong>
     <lf-card id="sq-card-{i}"><strong>Perch {i}</strong>
     The warden has documented every reading she takes at dawn.</lf-card>
   </lf-column>
@@ -1229,22 +1230,25 @@ NOTE_AND_WIDE_PAGE = leaf_page(
 <aside class="note" id="note">Counts are the warden's own, taken at dawn from the
 south hide, and the perch numbers are the ones she disputes.</aside></div>
 <lf-board id="sprint">
-  <lf-column id="col-todo" label="Todo">
+  <lf-column id="col-todo">
+    <strong>Todo</strong>
     <lf-card id="card-heater"><strong>Heated perch</strong> Wire the south feeder.</lf-card>
   </lf-column>
-  <lf-column id="col-doing" label="Doing">
+  <lf-column id="col-doing">
+    <strong>Doing</strong>
     <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
   </lf-column>
-  <lf-column id="col-review" label="Review"></lf-column>
-  <lf-column id="col-done" label="Done"></lf-column>
+  <lf-column id="col-review"><strong>Review</strong></lf-column>
+  <lf-column id="col-done"><strong>Done</strong></lf-column>
 </lf-board>
 <p id="gap" style="margin-block: 600px">Prose far enough below the note that nothing of
 it reaches this part of the page.</p>
 <lf-board id="later">
-  <lf-column id="late-todo" label="Todo">
+  <lf-column id="late-todo">
+    <strong>Todo</strong>
     <lf-card id="card-seed"><strong>Seed mix</strong> Switch to sunflower hearts.</lf-card>
   </lf-column>
-  <lf-column id="late-done" label="Done"></lf-column>
+  <lf-column id="late-done"><strong>Done</strong></lf-column>
 </lf-board>
 """,
 ).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')

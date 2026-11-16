@@ -99,10 +99,11 @@
  * example decision can't be answered. `settled` still collapses there, because quoting
  * gates the action channel and not presentation.
  *
- * Authored element children stay in place. The layer formats declared Markdown
- * before this module upgrades the options; generated children use that parser too. */
+ * Authored children stay in place, as their author wrote them. An option the user
+ * adds shows its words as inline Markdown (`OptionAddition`). */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
+import { nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
   addressableWord,
@@ -113,7 +114,6 @@ import {
   keeps,
   keepsText,
   LeafElement,
-  nothing,
   landInThread,
   markdownWords,
   offer,
@@ -155,7 +155,7 @@ const consequence = (option) => {
     else if (!(node instanceof Element)) continue;
     else if (getComputedStyle(node).display === "inline") {
       // `wrote` trims the element's own edges, which may be the spaces between words,
-      // as where Markdown emphasis splits a sentence.
+      // as where emphasis splits a sentence.
       const text = node.textContent;
       words += `${/^\s/.test(text) ? " " : ""}${wrote(node)}${/\s$/.test(text) ? " " : ""}`;
     } else {
@@ -621,9 +621,12 @@ customElements.define(
       mark.classList.toggle("lf-ui", pressable);
       keeps(mark, "role", pressable ? "checkbox" : "img");
       keeps(mark, "data-lf-offer", pressable ? "checkbox" : null);
-      // The option's words stand beside the mark and its position is a listener's, so
-      // pointing at the mark reads only the word its shape stands for.
-      mark.lfPreview = () => ({ name: mark.textContent });
+      // Pointing at the mark reads nothing: its round or square corner says whether the
+      // group takes one option or any, the option's words stand beside it, and the digit
+      // drawn on its option while focus is in the group says its key. Its name stays a
+      // listener's. Until 15 November 2026 it previewed "choose one", the word its shape
+      // stands for.
+      mark.lfPreview = () => false;
       this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card
       // places its mark out of flow in the header and cannot see this, so one insertion

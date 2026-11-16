@@ -385,8 +385,10 @@
       <nav class="sitenav" aria-label="Site"></nav>
 
       <header id="top">
-        <p class="eyebrow">extending</p>
-        <h1>Extending Leaf</h1>
+        <hgroup>
+          <p>extending</p>
+          <h1>Extending Leaf</h1>
+        </hgroup>
         <p class="lede" id="lede">
           A page is ordinary HTML that Leaf's widgets, themes and layouts extend, and
           packages add reusable widgets, themes and behavior to Leaf. Their contracts
@@ -403,8 +405,9 @@
       </header>
 
       <lf-tabs id="extensions" class="layout-flow">
-        <lf-tab id="pages" label="Pages" class="layout-flow"
-          ><details class="topic-outline" id="pages-outline">
+        <lf-tab id="pages" class="layout-flow"
+          ><strong>Pages</strong>
+          <details class="topic-outline" id="pages-outline">
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
               <ul>
@@ -430,19 +433,18 @@
               The browser runtime supplies the commenting and collaboration interface.
               Authors build the content with these tools, starting with ordinary HTML:
             </p>
-            <ol class="steps" id="page-sources">
+            <ol id="page-sources">
               <li id="src-html">
                 <strong>Ordinary HTML.</strong> Leaf's reading theme, which a page takes
-                by default, styles headings, paragraphs, tables, code, and
-                <code>details</code> without requiring CSS classes. These elements
-                provide most of a page's content.
+                by default, styles headings, an <code>hgroup</code>'s label above its
+                heading, paragraphs, tables, code, and <code>details</code> without
+                requiring CSS classes. These elements provide most of a page's content.
               </li>
               <li id="src-idioms">
                 <strong>Theme classes.</strong> The theme supplies classes for common
-                presentation patterns, including <code>.eyebrow</code>,
-                <code>.lede</code>, <code>.callout</code>, <code>aside.note</code> in a
-                <code>layout-note</code> row for a margin note, and
-                <code>ol.steps</code> for a numbered sequence like this list.
+                presentation patterns, including <code>.lede</code>,
+                <code>.callout</code>, and <code>aside.note</code> in a
+                <code>layout-note</code> row for a margin note.
               </li>
               <li id="src-widgets">
                 <strong>Widgets.</strong> A widget is a complete page feature, authored
@@ -492,11 +494,8 @@
                 choice, then press <strong>Activity changed</strong> in the feed. The
                 rollout audience remains selected.
               </p>
-              <lf-sample
-                id="spec-options-frame"
-                label="Example: release review"
-                interactive
-              >
+              <lf-sample id="spec-options-frame" interactive>
+                <strong>Example: release review</strong>
                 <p>Start with canary clients; expand after the error rate settles.</p>
                 <lf-options id="spec-options" choose>
                   <lf-option id="so-rewrite"
@@ -544,9 +543,11 @@
                 Incoming; press <strong>Activity changed</strong> in the feed to see the
                 move marked undone.
               </p>
-              <lf-sample id="spec-board-frame" label="Practice: board" interactive>
+              <lf-sample id="spec-board-frame" interactive>
+                <strong>Practice: board</strong>
                 <lf-board id="spec-board">
-                  <lf-column id="sb-incoming" label="Incoming">
+                  <lf-column id="sb-incoming">
+                    <strong>Incoming</strong>
                     <lf-card id="sc-flaky"
                       ><strong>Flaky auth test</strong> Fails one run in twenty on CI
                       only.</lf-card
@@ -555,12 +556,14 @@
                       ><strong>Dark-mode contrast pass</strong></lf-card
                     >
                   </lf-column>
-                  <lf-column id="sb-sprint" label="This week">
+                  <lf-column id="sb-sprint">
+                    <strong>This week</strong>
                     <lf-card id="sc-ratelimit"
                       ><strong>Rate-limit the export</strong></lf-card
                     >
                   </lf-column>
-                  <lf-column id="sb-done" label="Done">
+                  <lf-column id="sb-done">
+                    <strong>Done</strong>
                     <lf-card id="sc-tokens"
                       ><strong>Tokenize the palette</strong></lf-card
                     >
@@ -714,8 +717,9 @@ flowchart TD
               <a href="#styles-contract">the CSS tab's contract</a>.
             </p>
           </section></lf-tab
-        ><lf-tab id="layout" label="Layout" class="layout-flow"
-          ><details class="topic-outline" id="layout-outline">
+        ><lf-tab id="layout" class="layout-flow"
+          ><strong>Layout</strong>
+          <details class="topic-outline" id="layout-outline">
             <summary>In this topic</summary>
             <nav aria-label="Layout sections">
               <ul>
@@ -1716,8 +1720,9 @@ flowchart TD
               </figcaption>
             </figure>
           </section></lf-tab
-        ><lf-tab id="contracts" label="Contracts" class="layout-flow"
-          ><details class="topic-outline" id="contracts-outline">
+        ><lf-tab id="contracts" class="layout-flow"
+          ><strong>Contracts</strong>
+          <details class="topic-outline" id="contracts-outline">
             <summary>In this topic</summary>
             <nav aria-label="Contracts sections">
               <ul>
@@ -1841,7 +1846,7 @@ flowchart TD
           </section>
           <section id="boundaries" class="layout-flow">
             <h2>Choose the extension boundary</h2>
-            <ol class="steps">
+            <ol>
               <li id="extend-page">
                 <strong>One page.</strong> Semantic HTML, existing Leaf elements, a
                 page-local <code>&lt;style&gt;</code>, and inline SVG shape one
@@ -1958,8 +1963,9 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="build-package" label="Build a package" class="layout-flow"
-          ><details class="topic-outline" id="build-outline">
+        <lf-tab id="build-package" class="layout-flow"
+          ><strong>Build a package</strong>
+          <details class="topic-outline" id="build-outline">
             <summary>In this topic</summary>
             <nav aria-label="Build a package sections">
               <ul>
@@ -2065,9 +2071,8 @@ packages/callout/
   Writes pause for about two minutes.
 &lt;/lf-callout&gt;</code></pre>
             <p>
-              Its complete <code>registry.json</code> entry validates the attributes and
-              tells Leaf that the body is prose. <code>x-example</code> is the sample an
-              author queries with the entry:
+              Its complete <code>registry.json</code> entry validates the attributes.
+              <code>x-example</code> is the sample an author queries with the entry:
             </p>
             <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
@@ -2078,15 +2083,13 @@ packages/callout/
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
-    "x-upgrade": false,
     "x-example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
   }
 }</code></pre>
             <p>
-              <code>x-content</code> and <code>x-upgrade</code> are the two Leaf
-              declarations every widget requires. The ordinary JSON Schema fields
-              validate its attributes, and Leaf adds the grammar an
+              The entry is a JSON Schema and needs no Leaf declaration: the body is the
+              author's markup unless <code>x-content</code> says otherwise. The ordinary
+              JSON Schema fields validate its attributes, and Leaf adds the grammar an
               <code>id</code> follows; <code>description</code> and
               <code>x-example</code> make the merged registry useful to an author.
             </p>
@@ -2144,8 +2147,9 @@ $ leaf page check PAGE --render</code></pre>
             </dl>
           </section></lf-tab
         >
-        <lf-tab id="css" label="CSS" class="layout-flow"
-          ><details class="topic-outline" id="css-outline">
+        <lf-tab id="css" class="layout-flow"
+          ><strong>CSS</strong>
+          <details class="topic-outline" id="css-outline">
             <summary>In this topic</summary>
             <nav aria-label="CSS sections">
               <ul>
@@ -2396,8 +2400,9 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="packages" label="Packages" class="layout-flow"
-          ><section id="bundled" class="layout-flow">
+        <lf-tab id="packages" class="layout-flow"
+          ><strong>Packages</strong>
+          <section id="bundled" class="layout-flow">
             <h2>Choose a bundled package</h2>
             <p>
               The <a href="/examples/feature-gallery/">core product gallery</a> shows
@@ -2559,8 +2564,10 @@ flowchart TD
             aria-labelledby="developer-galleries-title"
           >
             <div class="developer-galleries-copy">
-              <p class="eyebrow">developer tools</p>
-              <h2 id="developer-galleries-title">Inspect the product</h2>
+              <hgroup>
+                <p>developer tools</p>
+                <h2 id="developer-galleries-title">Inspect the product</h2>
+              </hgroup>
               <p>
                 These developer pages are for debugging Leaf itself. The core product
                 gallery keeps Leaf’s controls and its core interactions on one page;
@@ -2602,8 +2609,9 @@ flowchart TD
             </div>
           </section></lf-tab
         >
-        <lf-tab id="registry-keys" label="Registry keys" class="layout-flow"
-          ><section id="keys" class="layout-flow">
+        <lf-tab id="registry-keys" class="layout-flow"
+          ><strong>Registry keys</strong>
+          <section id="keys" class="layout-flow">
             <h2>Registry keys</h2>
             <p id="keys-lede">
               An element declaration begins as JSON Schema. Its <code>x-*</code> keys

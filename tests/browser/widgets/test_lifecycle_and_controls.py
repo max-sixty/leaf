@@ -27,7 +27,6 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "data",
-        "x-upgrade": True,
     }
     stage = {**source, "x-content": "markup", "x-shadow": True}
     url = serve(
@@ -38,7 +37,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
             '<lf-source-stage id="stage"><p id="stage-face">Stage words.</p>'
             '<lf-source-view id="nested"><pre>source data</pre></lf-source-view>'
             "</lf-source-stage>"
-            '<lf-code id="code" language="python"><pre>print(1)</pre></lf-code>'
+            '<lf-code id="code"><pre><code class="language-python">print(1)</code></pre></lf-code>'
             '<lf-diagram id="diagram"><pre>flowchart LR\nA --> B</pre></lf-diagram>'
             '<lf-diff id="diff"><pre>diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n'
             "@@ -1 +1 @@\n-old\n+new\n</pre></lf-diff>",
@@ -440,8 +439,10 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         return {cursor: cs.cursor, opacity: cs.opacity, off,
                 face: face(el), armed: off ? armed(el) : null};
       };
+      // The resting comment box stands in for the field it opens and wears that field's
+      // face, its text cursor included (annotation-chrome.css).
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
-        .filter((el) => el.dataset.lfOffer !== '');
+        .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest'));
       const said = [document.querySelector('#intro > .tag'),
                     document.querySelector('#owner-fact > .tag')];
       return {

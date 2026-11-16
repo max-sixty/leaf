@@ -453,7 +453,7 @@ PANE_PIN_PAGE = leaf_page(
     "a pin in a pane",
     """
   <div id="pin-split">
-    <lf-pane id="pin-pane" label="Findings">
+    <lf-pane id="pin-pane" aria-label="Findings">
       <div>
         <div style="height: 200px"></div>
         <p id="pane-top">The first finding, commented on.</p>
@@ -461,7 +461,7 @@ PANE_PIN_PAGE = leaf_page(
         <p id="pane-end">The last finding.</p>
       </div>
     </lf-pane>
-    <lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane>
+    <lf-pane id="other-pane" aria-label="Notes"><div><p>Notes.</p></div></lf-pane>
   </div>
 """,
     head=regions_side_by_side("pin-split"),

@@ -107,9 +107,6 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     record_run_context,
 )
-from leaf_dev.thread_snapshot_plugin import (
-    image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
-)
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
@@ -364,28 +361,6 @@ CARRIED_PAGE = leaf_page(
 )
 
 
-# The words a widget renders from an attribute — a column's heading, a metric's number —
-# with room around them, so a drag across one is an ordinary drag and not a two-pixel
-# feat. Both column labels differ, so a quote can only anchor where it was picked.
-SAID_PAGE = leaf_page(
-    "said",
-    """
-<h1 id="h">This week</h1>
-<div class="layout-tiles" id="numbers">
-  <dl id="m-open" class="metric"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
-</div>
-<lf-board id="board">
-  <lf-column id="col-now" label="In flight">
-    <lf-card id="c-importer"><strong>Wire the importer</strong> Half done.</lf-card>
-  </lf-column>
-  <lf-column id="col-next" label="Queued">
-    <lf-card id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</lf-card>
-  </lf-column>
-</lf-board>
-""",
-)
-
-
 # Short card titles, so the whole board fits in an expected ARIA snapshot and the
 # snapshot stays about structure. One column starts empty: a keyboard user has to
 # hear it to move a card into it.
@@ -394,11 +369,12 @@ BOARD_PAGE = leaf_page(
     """
 <h1 id="h">Sprint</h1>
 <lf-board id="sprint">
-  <lf-column id="col-todo" label="Todo">
+  <lf-column id="col-todo">
+    <strong>Todo</strong>
     <lf-card id="card-heater"><strong>Heated perch</strong></lf-card>
     <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
   </lf-column>
-  <lf-column id="col-done" label="Done"></lf-column>
+  <lf-column id="col-done"><strong>Done</strong></lf-column>
 </lf-board>
 """,
 )
@@ -413,19 +389,23 @@ SAMPLE_PAGE = leaf_page(
     "sample",
     """
 <h1 id="h">What a decision looks like</h1>
-<lf-sample id="spec" label="a decision">
+<lf-sample id="spec">
+  <strong>a decision</strong>
   <lf-options id="quoted-group" choose>
     <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
     <lf-option id="q-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
   </lf-options>
   <lf-board id="quoted-board">
-    <lf-column id="q-col" label="Doing">
+    <lf-column id="q-col">
+      <strong>Doing</strong>
       <lf-card id="q-card"><strong>Wire the importer</strong></lf-card>
     </lf-column>
-    <lf-column id="q-col-next" label="Next">
+    <lf-column id="q-col-next">
+      <strong>Next</strong>
       <lf-card id="q-card-backfill"><strong>Backfill last month</strong></lf-card>
     </lf-column>
-    <lf-column id="q-col-done" label="Done">
+    <lf-column id="q-col-done">
+      <strong>Done</strong>
       <lf-card id="q-card-tokens"><strong>Tokenize the palette</strong></lf-card>
     </lf-column>
   </lf-board>
@@ -461,7 +441,8 @@ SAMPLE_PAGE = leaf_page(
   <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
 </lf-options></lf-ask>
 <lf-board id="live-board">
-  <lf-column id="l-col" label="Doing">
+  <lf-column id="l-col">
+    <strong>Doing</strong>
     <lf-card id="l-card"><strong>Wire the importer</strong></lf-card>
   </lf-column>
 </lf-board>
@@ -496,7 +477,8 @@ SAMPLE_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migra
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
-<lf-sample id="rp-spec" label="the April thread">
+<lf-sample id="rp-spec">
+  <strong>the April thread</strong>
   <lf-options id="rp-quoted" choose>
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
     <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
@@ -519,8 +501,8 @@ REPLAYED_PAGE = leaf_page(
   <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
 <lf-board id="work">
-  <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
-  <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
+  <lf-column id="col-doing"><strong>Doing</strong>{IMPORTER_CARD}</lf-column>
+  <lf-column id="col-done"><strong>Done</strong><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
 </lf-board>
 """,
 )
@@ -1305,24 +1287,26 @@ def fetch_whole_state(route, **fetch):
     return response, response.json()
 
 
-# A tab a test holds stale is stale only while nothing reaches it: every state
-# application reconciles the draft store against shared storage before it settles
-# anything (settleAcceptedDrafts), so a stale view the assertions take their time
-# reaching is a race a loaded runner loses. Refusing the state reads states it — but
+# A tab a test holds stale is stale only while nothing reaches it: a state read brings
+# it the log, and a drafts read the server's drafts (runtime/drafts.js, `lookForDrafts`),
+# so a stale view the assertions take their time reaching is a race a loaded runner
+# loses. Refusing both reads states it — but
 # only from before the page exists. `page.route` reaches no request already in the
 # wire, and a read reconciles when its response lands rather than when its request
 # went out, so a refusal registered on a live page leaves whatever is outstanding free
-# to arrive later, against storage the test has moved in the meantime. Registered
+# to arrive later, against drafts the test has moved in the meantime. Registered
 # through `primed`, the route is on the page before it navigates and no read is ever
 # unrouted. Freshness is not a state read and is not refused; failed state reads retry
-# on the two-second clock for as long as the route stands.
+# on the two-second clock for as long as the route stands. A drafts read needs none let
+# through, since a served document arrives with its drafts.
 #
-# The first is let through because `open_page` waits for the page's readiness facts,
+# The first state read is let through because `open_page` waits for the page's readiness facts,
 # including `lf-applied`, which rides on it — and that same wait is what leaves nothing
 # outstanding when the page is handed over. Where the tab has to hear the log again,
 # the test lifts the refusal itself.
 class CutOff:
-    """A page's state reads, stopped from outside it until the test says it can hear again."""
+    """A page's state and drafts reads, stopped from outside it until the test says it
+    can hear again."""
 
     def __init__(self, lets_through=0):
         self._lets_through = lets_through
@@ -1337,6 +1321,10 @@ class CutOff:
                 if self._live or next(seen) < self._lets_through
                 else refuse(route)
             ),
+        )
+        page.route(
+            "**/api/drafts",
+            lambda route: route.continue_() if self._live else refuse(route),
         )
         return self
 
@@ -1374,47 +1362,76 @@ def displayed(page):
         ) from error
 
 
-def draft_key(page, ctx: str) -> str:
-    """The `localStorage` key the page's own draft store keeps the draft at `ctx`
-    under, page scope included (`whereDraft`, runtime/drafts.js)."""
-    return page.evaluate(
-        """async ctx => (await window.__lfCheckApi())
-          .whereDraft(ctx).key""",
-        ctx,
+def stored_drafts(page) -> dict:
+    """The drafts the page's server holds, by context, once this tab has sent it every
+    word it holds (`draftsWaiting`, runtime/drafts.js): what another tab, another
+    device or a reload finds, whatever this tab shows. Asked through the context's
+    request API, as `told` asks, so page routes and the traffic watcher don't see it."""
+    waiting = page.evaluate_handle(
+        "async () => (await window.__lfCheckApi()).draftsWaiting"
     )
+    page.wait_for_function("waiting => waiting() === 0", arg=waiting)
+    origin = urlsplit(page.url)
+    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/drafts")
+    assert answer.ok, f"the server would not say what drafts it holds: {answer.status}"
+    return answer.json()["drafts"]
 
 
-def stored_draft(page):
-    """The page's own reader of stored drafts (`storedDraft`, runtime/drafts.js)."""
-    return page.evaluate_handle(
-        """async () => (await window.__lfCheckApi())
-          .storedDraft"""
-    )
+def stored_draft(page, ctx: str) -> dict | None:
+    """The record the page's server holds for the draft at `ctx` (`stored_drafts`), or
+    None once it is settled or absent."""
+    return stored_drafts(page).get(ctx)
 
 
 def stored_draft_text(page, ctx: str) -> str | None:
-    """The words storage holds for the draft at `ctx`, or None once it is settled or
-    absent: what another tab or a reload would find, whatever this tab shows."""
-    return page.evaluate(
-        """([read, ctx]) => {
-          const record = read(ctx);
-          return record && !record.settled ? record.text : null;
-        }""",
-        [stored_draft(page), ctx],
+    """The words the page's server holds for the draft at `ctx` (`stored_drafts`), or
+    None once it is settled or absent."""
+    record = stored_draft(page, ctx)
+    return record["text"] if record else None
+
+
+def heard_draft(page, ctx: str, text: str | None) -> None:
+    """Wait until this tab holds `text` as the words of the draft at `ctx`, None for
+    none: until it has heard another tab's write or send there (`loadDraft`)."""
+    load = page.evaluate_handle("async () => (await window.__lfWidgetApi()).loadDraft")
+    page.wait_for_function(
+        "([load, ctx, text]) => (load(ctx)?.text ?? null) === text",
+        arg=[load, ctx, text],
     )
 
 
-_STORED_DRAFT_SETTLED = "([read, ctx]) => read(ctx)?.settled === true"
+def write_draft_elsewhere(page, ctx: str, text: str) -> str:
+    """Write a new generation of the draft at `ctx` to the page's server, as another
+    tab or device would, over the one the server holds; return its attempt."""
+    current = stored_draft(page, ctx)
+    attempt = os.urandom(16).hex()
+    origin = urlsplit(page.url)
+    answer = page.request.post(
+        f"{origin.scheme}://{origin.netloc}/api/draft",
+        data={
+            "context": ctx,
+            "expect": current["attempt"] if current else None,
+            "record": {"attempt": attempt, "text": text},
+        },
+    )
+    assert answer.ok and answer.json()["written"], answer.text()
+    return attempt
 
 
 def stored_draft_settled(page, ctx: str) -> bool:
-    """Whether storage holds the draft at `ctx` as settled (its tombstone)."""
-    return page.evaluate(_STORED_DRAFT_SETTLED, [stored_draft(page), ctx])
+    """Whether the page's server holds no words for the draft at `ctx`: sent, put
+    away or never written."""
+    return stored_draft(page, ctx) is None
 
 
 def until_draft_settled(page, ctx: str) -> None:
-    """Wait until storage holds the draft at `ctx` as settled."""
-    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=[stored_draft(page), ctx])
+    """Wait until the page's server holds no words for the draft at `ctx`, as once a
+    send another tab made is admitted."""
+    wait_for(
+        lambda: stored_draft(page, ctx),
+        lambda record: record is None,
+        failure=lambda: f"the server still holds the draft {ctx}",
+    )
 
 
 _BROWSER_PROBLEM_LISTS = None
@@ -1469,13 +1486,30 @@ def clean_browser(test=None):
     finally:
         _BROWSER_PROBLEM_LISTS = None
         _TEST = None
-    problems = [
+    problems = _named_problems(captured)
+    if test is not None and (problems or getattr(test, "lf_failed", False)):
+        _picture_pages(test, [page for page, _ in captured])
+    assert not problems, "\n".join(problems)
+
+
+def _named_problems(captured):
+    return [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
     ]
-    if test is not None and (problems or getattr(test, "lf_failed", False)):
-        _picture_pages(test, [page for page, _ in captured])
+
+
+def reject_browser_problems():
+    """Fail now on every problem the watched pages have reported, taking them from the
+    collector, rather than at teardown (`clean_browser`). `conftest.py` calls this as
+    the body of a test marked `xfail` returns, since pytest reads that mark against
+    the call: reported at teardown, the same problems would error the test however
+    it was marked."""
+    captured = _BROWSER_PROBLEM_LISTS or ()
+    problems = _named_problems(captured)
+    for _, problem_list in captured:
+        problem_list.clear()
     assert not problems, "\n".join(problems)
 
 
@@ -1662,6 +1696,14 @@ def watch_sources(shifts: bool) -> str:
         f"try {{\n{sensor}\n}} catch (error) {{ queueMicrotask(() => {{ throw error; }}); }}"
         for sensor in sensors
     )
+
+
+def asked_again(url):
+    """`url` as the document startup recovery asks the server for once more
+    (`_leaf-recovered`, bootstrap.js). A page there that cannot start waits for another
+    server rather than asking again, so a test of how a page that cannot start stands
+    reads one document rather than racing its replacement."""
+    return f"{url}{'&' if '?' in url else '?'}_leaf-recovered"
 
 
 @contextmanager

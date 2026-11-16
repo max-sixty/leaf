@@ -8,6 +8,7 @@ from playwright.sync_api import expect
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
     PANEL,
+    asked_again,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -176,8 +177,8 @@ def test_package_reading_keys_work_while_history_waits_and_after_offline_fallbac
     source = leaf_page(
         "Reading before history",
         '<h1>Reading before history</h1><lf-tabs id="reading-views">'
-        '<lf-tab id="first" label="First">First view</lf-tab>'
-        '<lf-tab id="second" label="Second">Second view</lf-tab></lf-tabs>',
+        '<lf-tab id="first"><strong>First</strong>First view</lf-tab>'
+        '<lf-tab id="second"><strong>Second</strong>Second view</lf-tab></lf-tabs>',
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -309,7 +310,7 @@ def test_a_page_that_cannot_start_lets_its_held_keys_go(browser, serve):
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held, _ = _hold_startup(page, "module")
-    page.goto(serve(HELD_KEYS_PAGE), wait_until="commit")
+    page.goto(asked_again(serve(HELD_KEYS_PAGE)), wait_until="commit")
     holding(page, held, 1, "the runtime module")
     expect(page.locator("#said")).to_be_attached()
     page.evaluate(

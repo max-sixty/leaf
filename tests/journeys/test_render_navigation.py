@@ -439,7 +439,7 @@ def test_c_leaves_an_item_its_own_scroller_has_taken_away(browser, serve):
 <lf-board id="b">
 """
             + "\n".join(
-                f'<lf-column id="col{i}" label="Column {i}">'
+                f'<lf-column id="col{i}"><strong>Column {i}</strong>'
                 f'<lf-card id="card{i}">Card {i} with a '
                 f'<a href="https://example.invalid/{i}">link {i}</a> inside it.</lf-card>'
                 "</lf-column>"
@@ -927,7 +927,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     grammar = page.evaluate(
         """async () => {
           const {CONTRIBUTION_ENTRY_SCHEMA} =
-            await window.__lfWidgetApi();
+            await window.__lfCheckApi();
           return CONTRIBUTION_ENTRY_SCHEMA;
         }"""
     )
@@ -1510,7 +1510,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             childList: true,
             subtree: true,
           });
-          (await window.__lfWidgetApi())
+          (await window.__lfCheckApi())
             .notice('Agent replied — open Threads', {background: true});
         }"""
     )

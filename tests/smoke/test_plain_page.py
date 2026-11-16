@@ -73,8 +73,8 @@ PORTABLE = [
     Portable(
         "lf-code",
         "default",
-        '<lf-code id="lf-code" language="python" hi="2"><pre>\ndef bracket(temp):\n'
-        '    if temp &lt; 0:\n        return "steel"\n</pre></lf-code>',
+        '<lf-code id="lf-code" hi="2"><pre><code class="language-python">\ndef bracket(temp):\n'
+        '    if temp &lt; 0:\n        return "steel"\n</code></pre></lf-code>',
         # Its lines, coloured, the highlighted one among them.
         "pre:has(> .lf-code-line[data-lf-hi] [data-lf-syn])",
         sized="width",
@@ -98,9 +98,9 @@ PORTABLE = [
         "lf-timeline",
         "timeline",
         '<lf-timeline id="lf-timeline" aria-label="Deploy order">'
-        '<lf-lane label="Build"><lf-event id="compile" at="0" end="4000" '
-        'label="Compile"></lf-event><lf-event id="artifact" at="4000" '
-        'label="Artifact ready"></lf-event></lf-lane></lf-timeline>',
+        '<lf-lane><strong>Build</strong><lf-event id="compile" at="0" end="4000">'
+        '<strong>Compile</strong></lf-event><lf-event id="artifact" at="4000">'
+        "<strong>Artifact ready</strong></lf-event></lf-lane></lf-timeline>",
         # Its transport, its symbols drawn, and a row per step.
         ".lf-timeline-view:has(.lf-timeline-next > svg[data-lf-icon])"
         ":has(.lf-timeline-steps > li:nth-child(2))",
@@ -128,15 +128,13 @@ GRID = (
 )
 # The host's own markup beside the widgets, a row of its own above them so their drawing
 # moves none of it, which portable.css leaves as the host drew it: none of its rules
-# reaches past the widgets, so a host's `data-room`, a Leaf page's attribute idiom, and
-# its own `.button`, `.choice` and `.field`, names Leaf styles nowhere, keep the host's
-# look.
+# reaches past the widgets, so the host's own `.button`, `.choice` and `.field`, names
+# Leaf styles nowhere, keep the host's look.
 HOST = (
     '<section id="host" style="grid-column: 1 / -1"><p>Words</p><button>Press</button>'
     '<button class="button">Go</button><a class="button" href="#host">Link</a>'
     '<label class="choice"><input type="checkbox"> Pick</label>'
     '<input class="field" value="typed">'
-    '<span data-room="longer words"><span>short</span></span>'
     "<details><summary>More</summary></details><pre>code</pre>"
     "<select><option>One</option></select>"
     '<svg width="20" height="20" viewBox="0 0 10 10"></svg></section>'
@@ -550,13 +548,14 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{offer, nameAction, relabel, searchField}} =
+  const {{offer, nameAction, generatedElement, keepsText, searchField}} =
     await import("/runtime/portable-api.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
   nameAction(button, "close", {{label: "Close evidence"}});
   const label = offer("span");
-  relabel(label, "Evidence", {{says: "echo"}});
+  generatedElement(label, {{says: "echo"}});
+  keepsText(label, "Evidence");
   const search = searchField("host-search", {{name: "files", label: "Find files"}});
   document.querySelector("main").append(button, label, search);
 }} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}

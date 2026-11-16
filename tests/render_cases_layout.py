@@ -64,12 +64,7 @@ def resize_notice_after_last_probe(page):
 
     def with_notice(expression, *args, **kwargs):
         if "requestFrame()" in expression:
-            evaluate(
-                "() => requestAnimationFrame(() => {"
-                "if (matchMedia('(prefers-color-scheme: light)').matches) {"
-                + RESIZE_LOOP_EVENT
-                + "}})"
-            )
+            evaluate("() => requestAnimationFrame(() => {" + RESIZE_LOOP_EVENT + "})")
         return evaluate(expression, *args, **kwargs)
 
     page.evaluate = with_notice
@@ -520,7 +515,6 @@ DRAWING_CONTROL_LAYER = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
     }
 }
@@ -581,8 +575,8 @@ HIDDEN_SCROLLERS = {
             f"""
 <h1 id="t">Tabbed scroller</h1>
 <lf-tabs id="views">
-  <lf-tab id="tab-first" label="First"><p id="p-first">The tab shown first.</p></lf-tab>
-  <lf-tab id="tab-wide" label="Wide">{HIDDEN_SCROLLER_ROW}</lf-tab>
+  <lf-tab id="tab-first"><strong>First</strong><p id="p-first">The tab shown first.</p></lf-tab>
+  <lf-tab id="tab-wide"><strong>Wide</strong>{HIDDEN_SCROLLER_ROW}</lf-tab>
 </lf-tabs>
 """,
             head=HIDDEN_SCROLLER_STYLE,
@@ -633,10 +627,10 @@ def ceiling(limit, approvals):
 # line's reading, which clears the threshold, and never reach the one two lines down, and
 # a walkthrough's hi band is the surface where a code line is most often set on something
 # other than --lf-pre-bg.
-TINTED_CODE = """<lf-code id="tinted" language="python" hi="2"><pre>
+TINTED_CODE = """<lf-code id="tinted" hi="2"><pre><code class="language-python">
 first = "on the block's own colour"
 second = "on the band"
-</pre></lf-code>"""
+</code></pre></lf-code>"""
 
 # The same reading, in a shadow tree. lf-diff renders the page's words into one, so its
 # spans are in no document.querySelectorAll. The fault page changes only its number color,

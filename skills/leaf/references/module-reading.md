@@ -13,8 +13,7 @@ element so its computed styles supply these boundaries; a closed popover is supp
 Inline values stay in their sentence, and ordinary HTML source indentation collapses.
 To name one of the widget's own parts, use `wrote(element)`, which returns only the words the
 author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims leading
-blank lines and trailing whitespace, or with `dataBody(this)` where whitespace matters.
-A widget that also declares an `x-data` input reads that input's property instead,
+blank lines and trailing whitespace. A widget that also declares an `x-data` input reads that input's property instead,
 which Leaf sets to the `<pre>`'s text when the markup binds nothing
 (`package-data.md`, "External or derived data").
 
@@ -34,9 +33,37 @@ To name an element elsewhere, such as in a feed row, use `addressableLabel(eleme
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets
-an empty label, and `addressableWord(element)` gives the word for its kind instead. A
-widget whose title is an attribute, as a column's `label` is, declares it with
-`x-name`.
+an empty label, and `addressableWord(element)` gives the word for its kind instead.
+
+An element's name is markup it opens with: a section's heading, a disclosure's
+`<summary>`, or a `<strong>`, looked for inside a leading `<header>` or `<hgroup>` too.
+A widget is named that way, as a column by its leading `<strong>`, so give your widget's
+authors the same instruction rather than a name attribute. `openingTitle(element)` is
+the name the element opens with, `{title, holder}`, or null: `title` is the element
+whose words name it, and `holder`, the element's first element, is that title or the
+`<header>` or `<hgroup>` holding it, the name to draw, move or hide. The theme's
+selector for the holder is
+`:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)`. `page check`
+lets any widget open with its name before its members or its data, so a module that
+draws its own content keeps the holder where it draws, as a code block keeps its name
+over its lines: one that replaces its children puts the holder back first, and
+`shadowStage` slots it at the top of its stage. `page check --render` reports a name
+a module drew over (`dropped-name`).
+`addressableName(element)` is the name's words, for a place that takes only text, such
+as an `aria-label`, a native `<option>` or an announcement.
+
+To show the name away from its element, as a tab strip shows each panel's, draw
+`echoCopy(title)`, a copy of its markup without ids or generated words.
+`echoCopy(header, title)` copies only what a header holds after its title, as a tab
+copies its panel's summary. The name stays in its element, so every reading of it finds
+it there. Where the element still shows it, draw the copy inside a box marked
+`generated({ says: "echo" })`, so a comment on the words anchors where the page says
+them. Where the copy stands in for it, as a side list's does for each panel's, hide the
+name in its element and mark the copy's box `generated({ says: true })`, so search and
+comments find the words where the user reads them. A copy inside a control nests
+whatever the name holds in it, so a widget that draws one there refuses a name holding
+a link, a control or a widget, as the playground does; `page check` refuses one in a
+view's header, which its tab copies.
 
 `titledElement(heading)` is the element a heading titles: the outermost element whose
 first heading it is, such as its `hgroup`, the question it opens and a `section`
@@ -45,8 +72,8 @@ wrapping that question; where it titles no element, the heading itself. A `secti
 wrapper; any other element only where every other heading inside ranks below it, no
 words stand before it outside a `header` or `hgroup`, and each element between them
 takes it too.
-An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
-inside it. Every element between the two is titled by the heading too. `lf-toc` links
+An element named by a `<strong>` it opens with, such as a tab, is not titled by a
+heading after it. Every element between the two is titled by the heading too. `lf-toc` links
 each heading to one of them, and a heading's link preview counts a thread about any of
 them. The headings that count are those the reading of its document lists, the page's
 or a message's, Leaf's chrome aside, and "first" means first in reading order, which
@@ -83,14 +110,9 @@ keeps the reader's place and history and shows `missing` in Leaf's notice seat. 
 beside the evidence it selects. A lazy target can implement
 `lfRevealDatum(key)`, returning a promise that resolves once the datum is loaded,
 `lfDataDatum(key)` to map a key to its projected element, and `lfDatumLabel(key)` to
-name a datum not yet drawn. Where your key is a source location rather than the datum's
-lasting identity, translate it and read `projectedDatum(widget, key)`, the one matching
-element or `null`.
+name a datum not yet drawn.
 
-A URL reaches the same parts. `fragmentUrl(widget, key)` returns this page's URL with
-a fragment naming the part `key` names in `widget`, `#<widget-id>:<key>`, for a
-copy-link control or a link to hand on; `fragmentUrl(element)` names the element alone.
-Loading, following, reloading, or going Back or Forward to that URL draws the part
+A URL reaches the same parts, as `#<widget-id>:<key>`. Loading, following, reloading, or going Back or Forward to that URL draws the part
 through the same hooks; a load or followed link lands on it, or on the widget where the
 key names nothing. A widget that answers `navigateToDatum` needs nothing more for links
 to its parts.
@@ -99,11 +121,10 @@ to its parts.
 
 ### Markdown
 
-A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
-text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
-block Markdown while the recorded body stays the source. It reads as a Markdown file,
-as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-body`
-and repaint changing prose with `paintMarkdown(body, source)`.
+A widget whose entry declares `x-text-format: markdown` has its data body arrive
+rendered as block Markdown while the recorded body stays the source. It reads as a
+Markdown file, as `renderMarkdown(text, false)` does (below). Adopt the rendered
+`.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
@@ -131,10 +152,14 @@ changing prose repaints then.
 line ends in. `synNodes(tokens)` turns the tokens into nodes, and `tokenLines(tokens)`
 splits them by line. To colour a long text a part at a time, pass each part the state
 the part before it ended in, `syntax(part, lang, state)`, and it is coloured as it would
-be in the whole text. `lang` is a registry `$languages` name; `langForPath(path)` derives
-one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
-`highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language and that wears the reading face
+be in the whole text. `lang` is a registry `$languages` name; `codeLanguage(element)`
+reads one off the `language-…` class a block of code names it by, on a `<code>`, on the
+`<code>` in a widget's `<pre>` body, or else on the widget itself; it is null for a
+language Leaf doesn't colour, and undefined where no class names one, so only the
+latter takes a default; `langForPath(path)` derives one from a file name, and
+`ensureSyntaxLanguage(lang)` loads one ahead of time. `highlightBlocks(root)` colours
+each `pre > code` in `root` whose `language-…` class names a language and that wears
+the reading face, leaving a widget's data body to its module
 (`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
@@ -146,24 +171,20 @@ source text, such as numbered code lines, declares its own: give the block
 `data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
 returns the text to copy. Leaf stands the button right after the block while both are in
 the page, and a page without Leaf shows none. A widget that draws marks of its own over
-the block, as `lf-code` draws its notes mark, sets the block's `lfBar` to the
-`.lf-mark-bar` it places and shows over the block, and Leaf stands Copy last in it.
-Where the button belongs among the
-widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
-noun)` returns once the block is connected; it copies `source()`. A copy that stands
-among a widget's own controls rather than over a block, such as in a popover's header,
-is `copyControl(className, {label, success, error, role})`, a press of `role`, such as
-`"symbol"` for Copy's symbol; to copy through a press of your own built by its role,
-pass it as `trigger` instead. Set its `value` before it copies, and it reports
-`success` or `error` as a code block's does.
+the block, as `lf-code` draws its notes mark and a draft its editing marks, sets the
+block's `lfBar` to the `.lf-mark-bar` it places and shows over the block, and Leaf
+stands Copy last in it. A copy that stands among a widget's own controls rather than
+over a block, such as in a popover's header, is `copyControl(className, {label,
+success, error, role})`, a press of `role`, such as `"symbol"` for Copy's symbol; to
+copy through a press of your own built by its role, pass it as `trigger` instead. Set
+its `value` before it copies, and it reports `success` or `error` as a code block's
+does.
 
 ### Text alignment
 
-`alignText(before, after)` aligns two texts by words and returns runs `{kind, text}`,
-with `kind` `same`, `delete` or `insert`. To align by sentences, pass an
-`Intl.Segmenter` with `granularity: "sentence"` as the third argument. Its walk gives
-up after `MAX_EDIT_LENGTH` edits and returns the whole text replaced; a widget that
-walks its own units with jsdiff, such as a document's lines, passes the same cap.
+A widget that walks its own units with jsdiff, such as a document's lines, gives up
+after `MAX_EDIT_LENGTH` edits and treats the whole text as replaced, as Leaf's own
+alignment does.
 
 ### Media URLs
 
@@ -177,7 +198,7 @@ the drawing needs them.
 
 ### Icons
 
-`iconElement(name, className)` and `iconTemplate(name, className)` draw Leaf's icons,
+`iconTemplate(name, className)` draws Leaf's icons,
 for what something is or holds, such as a kind or a state. A press shows an action's
 symbol instead, so each action looks the same wherever it is offered. `ACTIONS` in
 `runtime/icon-paths.js` lists Leaf's actions with their symbol and name, and
@@ -190,7 +211,7 @@ tooltip and accessible name, unless `label` or `title` says more.
 face, such as the second of two symbols a press swaps by CSS.
 
 For a Lit control, `actionClass(role, className)` supplies the same face classes as
-`offerAction`; `actionName(action)` supplies the action's accessible name.
+`offerAction`.
 
 ### Time axes
 
@@ -272,6 +293,10 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
+`obligationsByRegion(regions, obligations)` answers the same for many regions in one
+pass, as a `Map` from each region to its obligations; a module that marks every card
+or section in one render reads it, since asking `obligationsIn` once per region costs
+the regions times the obligations.
 `tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
 open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
 does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.
@@ -334,13 +359,10 @@ widget restoring something from `tabStore` compares it with the history once `ph
 `ready`.
 
 A widget an agent reports on reads reports with `reportSequence(this)`, after checking
-`reportsReady(this)` and returning `noChange` while it is false; outside `render()`,
-`reportsPresented(target)` answers the same question. Each entry has `id`, `target`,
+`reportsReady(this)` and returning `noChange` while it is false. Each entry has `id`, `target`,
 `source`, `action`, `detail`, `text`, `ts` and `disposition`: `effective`, `outranked`
 by a newer report on the same unit and verb, or `settled` by a stamped version. Pass
 `{kind: "thread", id}` for a Thread's reports, or nothing for all of them.
-`saidAt(element)` is when the message holding `element` was sent, or the page
-published, for showing how long a worker has been quiet.
 
 ### Reading version changes
 
@@ -358,6 +380,3 @@ the element the removal emptied of every block. A removal's `at` is in the part 
 page the blocks were taken from, so a paragraph removed from a tab counts in that tab.
 The result's length counts changes as the reader does. Reading it during a
 `LeafElement` render subscribes that render to comparison changes.
-
-`revisionLabel(event.revision)` is the page's name for the version an event was
-recorded in.

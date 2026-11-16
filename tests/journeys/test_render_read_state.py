@@ -145,7 +145,8 @@ def _sample_reading_page(browser, serve, body, style):
             leaf_page(
                 "Sample reading practice",
                 body.format(
-                    sample=f"""<lf-sample id="read-practice" label="Read practice">
+                    sample=f"""<lf-sample id="read-practice">
+  <strong>Read practice</strong>
   <template id="read-source" data-sample data-sample-threads="{SAMPLE_READER}">
     <style>#child-rest {{ height: 3000px; }}</style>
     <h1>Child page</h1>
@@ -333,8 +334,8 @@ def _seat_filler(name):
 
 TASK_SEAT_PAGE = leaf_page(
     "seat",
-    f"<h1 id='h'>Three jobs</h1>{_seat_filler('lead')}<lf-test-plan id='hub' "
-    "label='Before the frost'><lf-test-task id='jobs' status='active' talk>"
+    f"<h1 id='h'>Three jobs</h1>{_seat_filler('lead')}<lf-test-plan id='hub'>"
+    "<strong>Before the frost</strong><lf-test-task id='jobs' status='active' talk>"
     f"<strong>Which jobs are worth starting?</strong></lf-test-task></lf-test-plan>"
     f"{_seat_filler('tail')}",
 )

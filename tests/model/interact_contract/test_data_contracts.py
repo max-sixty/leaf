@@ -153,33 +153,28 @@ def test_a_data_source_attribute_can_carry_ordinary_schema_metadata(page_dir):
     ("change", "code", "values"),
     [
         (
-            lambda entry: entry["x-measured"].update({"input": "missing"}),
-            "measured-input",
-            {"input": "missing"},
-        ),
-        (
             lambda entry: entry["required"].remove("source"),
             "measured-source",
-            {"attr": "source"},
+            {"input": "measurement", "attr": "source"},
         ),
         (
             lambda entry: entry["required"].remove("run"),
             "measured-run",
-            {"attr": "run"},
+            {"input": "measurement", "attr": "run"},
         ),
         (
             lambda entry: entry["properties"]["run"].pop("minLength"),
             "measured-run",
-            {"attr": "run"},
+            {"input": "measurement", "attr": "run"},
         ),
     ],
 )
-def test_a_measured_widget_joins_one_data_input_to_one_run_receipt(
+def test_a_measured_input_joins_its_source_to_one_run_receipt(
     page_dir, change, code, values
 ):
-    """The generic check cannot infer a widget's source or write receipt. Its registry
-    declaration names both, and the registry door refuses a half-readable join before
-    an authored value can silently miss the freshness advisory."""
+    """The generic check cannot infer a widget's source or write receipt. Its measured
+    input names both, and the registry door refuses a half-readable join before an
+    authored value can silently miss the freshness advisory."""
     registry = vocabulary(page_dir)
     change(registry["lf-num"])
 
@@ -195,7 +190,7 @@ def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):
     read from the immutable document."""
     registry = vocabulary(page_dir)
     widget = registry["lf-num"]
-    widget["x-upgrade"] = True
+    registry["$modules"]["lf-num"] = "widgets/lf-num.js"
     widget["properties"]["restated"] = {"type": "boolean"}
     widget["x-state"] = {
         "repin": {
@@ -528,7 +523,7 @@ def test_widget_data_inputs_accept_typed_outputs_and_refuse_ambiguous_bindings()
         )
         records = document.lf_elements
         by_id = {rec["attrs"]["id"]: rec for rec in records}
-        return widget_errors(records, registry) + reference_errors(
+        return widget_errors(document, registry) + reference_errors(
             records, registry, set(by_id), by_id, thread_ids=set()
         )
 

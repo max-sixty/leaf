@@ -98,12 +98,25 @@ lf-playground:has(> .lf-playground-split) {
     --lf-track-scroll-behavior: inherit;
   }
 
+  /* Bounded to the window as a track, which then holds its height
+     (`--lf-holds-height`, layouts.css), the rail gives up the controls' height first:
+     they scroll in their pane and the bar of actions stays whole under them, as in a
+     full-height workspace (below). The `fr` row shrinks to the rail's bound, where a
+     row sized to its content ran the bar past it, cut off behind the rail's scroll. */
   .lf-playground-rail:has(> .lf-playground-controls-region) {
+    container-name: lf-playground-rail;
     display: grid;
     grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
     align-content: start;
     align-self: start;
     gap: var(--lf-sp-4);
+  }
+  @container lf-playground-rail style(--lf-holds-height: 1) {
+    .lf-playground-controls {
+      overflow: auto;
+      --lf-holds-height: 1;
+    }
   }
 }
 
@@ -236,6 +249,13 @@ lf-playground-control {
   min-width: 0;
   font-weight: 600;
 }
+/* The playground draws a copy of each name where it shows it (playground-view.js), so
+   the <strong> a control, choice or preset opens with stands hidden once it has. */
+lf-playground.lf-rendered
+  :is(lf-playground-control, lf-playground-choice, lf-playground-preset)
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+  display: none;
+}
 
 /* Native fields have their full platform geometry before any component upgrade. */
 lf-playground-control > .lf-playground-input {
@@ -253,11 +273,18 @@ lf-playground-control > input[type="color"] {
   padding: var(--lf-sp-1) var(--lf-sp-2);
   min-block-size: var(--lf-aim-floor);
 }
+/* A toggle's mark stands alone, its words being the control's label, so it keeps no
+   room for words and stands centred in its target, as wide as a finger's under one. */
 lf-playground-control > .lf-choice {
+  display: inline-grid;
+  place-content: center;
   grid-column: 2;
   grid-row: 1;
   justify-self: end;
-  justify-content: center;
+  padding: var(--lf-choice-pad);
+  > input {
+    margin: 0;
+  }
 }
 lf-playground-control > input[type="range"] {
   margin: 0;
@@ -339,12 +366,29 @@ lf-playground-choice {
 :is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
   > lf-playground-choice
   > .lf-choice {
-  justify-content: start;
+  --lf-choice-pad: var(--lf-sp-3);
   justify-self: stretch;
-  padding: var(--lf-sp-3) var(--lf-sp-3) 0;
+  padding-block-end: 0;
   border: 0;
   border-radius: var(--lf-r);
   font: var(--lf-font-title);
+}
+/* The card is the choice, so the card wears its radio's focus ring, as an option's row
+   does (options.css): the label's own ring, inside a head with no foot room, ran
+   through its words and doubled the card's border. */
+:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
+  > lf-playground-choice
+  > .lf-choice
+  > input {
+  --lf-focus-box: lf-playground-choice;
+}
+:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
+  > lf-playground-choice[data-lf-control-focus-visible] {
+  outline: var(--lf-focus-ring);
+}
+:is(.lf-playground-candidates, .lf-playground-candidates > .lf-playground-choices)
+  > lf-playground-choice[data-lf-control-focus] {
+  --lf-wears-ring: 1;
 }
 .lf-playground-choice-preview {
   min-inline-size: 0;

@@ -184,9 +184,9 @@ def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
 
 PLAYGROUND_SETTINGS = (
     '<lf-playground id="pg"><lf-playground-control id="budget" name="budget"'
-    ' label="Page budget" kind="range" value="10" min="0" max="30">'
+    ' kind="range" value="10" min="0" max="30"><strong>Page budget</strong>'
     '</lf-playground-control><lf-playground-control id="finance" name="finance"'
-    ' label="Count finance pages" kind="toggle" value="false">'
+    ' kind="toggle" value="false"><strong>Count finance pages</strong>'
     "</lf-playground-control><lf-playground-preview><p>The budget.</p>"
     "</lf-playground-preview><lf-playground-output>Budget"
     ' <lf-playground-value for="budget"></lf-playground-value></lf-playground-output>'
@@ -205,6 +205,44 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
         tab_onto(control)
         rendered(page)
         assert not preview.is_visible(), preview.inner_text()
+
+
+# Option cards whose picks Done completes.
+FEEDERS = """<lf-ask id="ask"><h2>Which feeders should we refill?</h2>
+<lf-options id="feeders" choose multiple>
+<lf-option id="feeder-porch"><strong>The porch feeder</strong> Seen from the kitchen.
+</lf-option>
+<lf-option id="feeder-oak"><strong>The oak feeder</strong> Out of the wind.</lf-option>
+</lf-options></lf-ask>"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_leaves_out_what_its_control_already_shows(engine, request, serve):
+    """An option's pick mark previews nothing, to a resting pointer or to Tab: its
+    corner says one or any, the option's words stand beside it, and the digit drawn on
+    its card says its key. Done previews its label, which says more than its face,
+    without the digit the hints draw on it."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(leaf_page("Feeders", FEEDERS)),
+    )
+    preview = page.locator(PREVIEW)
+    mark = page.locator("#feeder-porch > .lf-pick")
+    mark.hover()
+    dwelt(page)
+    assert not preview.is_visible(), preview.inner_text()
+    tab_onto(mark)
+    rendered(page)
+    expect(page.locator("#feeder-porch > .lf-key-badge")).to_have_text("1")
+    assert not preview.is_visible(), preview.inner_text()
+
+    done = page.locator("#feeders .lf-done")
+    tab_onto(done)
+    expect(preview.locator(".lf-preview-word")).to_have_text(
+        done.get_attribute("aria-label")
+    )
+    expect(done.locator(".lf-key-badge")).to_have_text(re.compile(r"^\d$"))
+    expect(preview.locator("kbd.lf-key-badge")).to_have_count(0)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -750,7 +788,7 @@ after <a id="to-stall" href="#stall">the reconnect stall</a>; the vendor's notes
 <a id="to-site" href="https://example.com/notes">on their site</a>; the group meets
 at <a id="to-meeting" href="#meeting">the settled meeting point</a>, and support
 has <a id="to-support" href="#support">its own heading</a>.</p>
-<section id="stall"><p class="eyebrow">offline editing</p><h2>iOS reconnect stall</h2>
+<section id="stall"><p>offline editing</p><h2>iOS reconnect stall</h2>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
 <lf-ask id="decision"><h3>Patch decision</h3>
@@ -1698,7 +1736,7 @@ def _held(page, cdp, selector, words):
 # holds of the author's markup: an option's chip beside its mark, a link in an option,
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
-    '<lf-code id="code" language="python"><pre>marked_code = 1</pre></lf-code>'
+    '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
     '<lf-options id="opts" choose><lf-option id="o1"><small class="tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
     '<lf-option id="o2"><strong>Start wide</strong> Then '
@@ -1706,10 +1744,10 @@ WIDGET_WORDS = (
     '<lf-suggestion id="sug"><lf-old><p id="old">Refill every feeder each morning.'
     "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"
     "</lf-new></lf-suggestion>"
-    '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone"'
-    ' kind="choice" value="quiet"><lf-playground-choice id="tone-quiet" value="quiet"'
-    ' label="Quiet"></lf-playground-choice><lf-playground-choice id="tone-bold"'
-    ' value="bold" label="Bold"></lf-playground-choice></lf-playground-control>'
+    '<lf-playground id="pg"><lf-playground-control id="tone" name="tone"'
+    ' kind="choice" value="quiet"><strong>Tone</strong><lf-playground-choice id="tone-quiet" value="quiet"'
+    '><strong>Quiet</strong></lf-playground-choice><lf-playground-choice id="tone-bold"'
+    ' value="bold"><strong>Bold</strong></lf-playground-choice></lf-playground-control>'
     '<lf-playground-preview><p id="pg-words">The candidate banner reads well.</p>'
     "</lf-playground-preview><lf-playground-output>Use"
     ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'

@@ -161,7 +161,6 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
     }
     contract = {
@@ -188,7 +187,8 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
         },
     }
     module = """
-import {LeafElement, nothing, setChildren} from '/runtime/widget-api.js';
+import { nothing } from '/vendor/lit.js';
+import { LeafElement, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
     setChildren(this, (this.value?.rows ?? []).map(row => {
@@ -457,12 +457,12 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": '<lf-derived id="derived-example"></lf-derived>',
     }
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
-import {LeafElement, nothing, offer, setChildren} from '/runtime/widget-api.js';
+import { nothing } from '/vendor/lit.js';
+import { LeafElement, offer, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-derived', class extends LeafElement {
   render() { return nothing; }
   firstUpdated() {
@@ -523,12 +523,12 @@ customElements.define('lf-derived', class extends LeafElement {
 def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     """A document's source reads null until the page's first state answer brings its
     text, as it does for a source with nothing to read. Drawn then, it showed a one-row
-    "no data" listing whose gutter widened when the text arrived, so no caption or
-    listing appears before the text does."""
+    "no data" listing whose gutter widened when the text arrived, so no listing appears
+    before the text does, and no caption says "No data" under the document's name."""
     source_page = leaf_page(
         "waiting document",
         """
-<lf-text-document id="full" source="full-text" label="full.toml" language="toml"></lf-text-document>
+<lf-text-document id="full" source="full-text" class="language-toml"><strong>full.toml</strong></lf-text-document>
 """,
     )
     url = live_url(serve(source_page))
@@ -542,6 +542,7 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
           const view = document.querySelector('#full figure');
           if (view)
             window.documentDraws.push({
+              name: document.querySelector('#full > strong')?.textContent ?? '',
               caption: view.querySelector('figcaption').textContent,
               text: view.querySelector('code')?.textContent ?? '',
             });
@@ -553,13 +554,15 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     draws = page.evaluate("window.documentDraws")
     assert draws, "the document was never observed drawn"
     assert all(
-        draw["caption"] == "full.toml" and "line_20 = 20" in draw["text"]
+        draw["name"] == "full.toml"
+        and draw["caption"] == ""
+        and "line_20 = 20" in draw["text"]
         for draw in draws
-    )
+    ), draws
 
 
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
-    """A captured file reads under its authored label and follows its source. A
+    """A captured file reads under its authored name and follows its source. A
     revision that binds a source id nothing rewrites keeps the reviewed words through
     later writes to the first source."""
     long_label = "a-very-long-unbroken-source-label-" * 8 + "SKILL.md"
@@ -567,7 +570,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         "captured source",
         f"""
 <h1 id="title">Leaf skill</h1>
-<lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" language="markdown"></lf-text-document>
+<lf-text-document id="skill-source" source="leaf-skill" class="language-markdown"><strong>{long_label}</strong></lf-text-document>
 <p id="latency-line">Import latency: <lf-num source="import-latency" run="a41f103e236c985b">10 ms</lf-num>.</p>
 """,
     )
@@ -576,7 +579,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", skill_text)
 
     page = open_page(browser, url)
-    expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
+    expect(page.locator("lf-text-document > strong")).to_have_text(long_label)
     origin = {
         "input": "document",
         "source": "leaf-skill",
@@ -589,7 +592,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         "# Leaf\n\nOriginal instructions.\n"
     )
     page.set_viewport_size({"width": 320, "height": 720})
-    assert page.locator("lf-text-document figcaption").evaluate(
+    assert page.locator("lf-text-document > strong").evaluate(
         "node => node.scrollWidth <= node.clientWidth"
     )
     page.set_viewport_size({"width": 1280, "height": 720})
@@ -613,7 +616,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     )
     wait_for_revision(page, 2)
     data_model.cmd_data_set(serve.page_dir, "leaf-skill-reviewed", skill_text)
-    expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
+    expect(page.locator("lf-text-document > strong")).to_have_text(long_label)
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )
@@ -954,7 +957,6 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
             "required": ["id", "source"],
             "additionalProperties": False,
             "x-content": "empty",
-            "x-upgrade": True,
             "x-data": {
                 "data": {"contract": contract, "source": "source", "property": "value"}
             },
@@ -962,7 +964,8 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
         }
 
     def module(tag):
-        return """import {LeafElement, nothing} from '/runtime/widget-api.js';
+        return """import { nothing } from '/vendor/lit.js';
+        import { LeafElement } from '/runtime/widget-api.js';
 customElements.define(TAG, class extends LeafElement {
   render() {
     window.dataDeliveries ??= [];
@@ -1074,11 +1077,12 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
     result = page.evaluate(
         """async () => {
           const api = await window.__lfWidgetApi();
+          const {noChange} = await window.__lfVendorImport('lit.js');
           const settle = () => new Promise((resolve) => setTimeout(resolve));
           customElements.define('lf-projection-probe', class extends api.LeafElement {
             render() {
               this.work = undefined;
-              return this.paint?.() ?? api.noChange;
+              return this.paint?.() ?? noChange;
             }
             async getUpdateComplete() {
               const result = await super.getUpdateComplete();
@@ -1109,7 +1113,7 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
               if (name === 'rejecting') {
                 owner.work = Promise.reject(new Error(`${name} paint failed`));
                 owner.work.catch(() => {});
-                return api.noChange;
+                return noChange;
               }
               throw new Error(`${name} paint failed`);
             });
@@ -1124,7 +1128,7 @@ def test_a_returning_projection_subscriber_repaints_to_restore_subscriptions(
             paints += 1;
             api.readObligations();
             owner.work = finished;
-            return api.noChange;
+            return noChange;
           });
           owners.push(owner);
           await settle();
@@ -1158,11 +1162,12 @@ def test_a_held_reading_shows_once_unseen_after_its_owner_returns(browser, serve
     result = page.evaluate(
         """async () => {
           const api = await window.__lfWidgetApi();
+          const {noChange} = await window.__lfVendorImport('lit.js');
           const settle = () => new Promise((resolve) => setTimeout(resolve));
           customElements.define('lf-held-probe', class extends api.LeafElement {
             render() {
               shown = held.hold(current);
-              return api.noChange;
+              return noChange;
             }
           });
           const owner = document.createElement('lf-held-probe');
@@ -1201,7 +1206,7 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
     """
     page = open_page(browser, data_projection_page(serve))
     page.evaluate("""async () => {
-      const {nothing} = await window.__lfWidgetApi();
+      const {nothing} = await window.__lfVendorImport('lit.js');
       const widget = document.querySelector('lf-feed');
       window.beforeDataVersion = document.body.dataset.lfDataVersion;
       window.mountDeliveries = 0;
@@ -1232,7 +1237,7 @@ def test_data_readiness_settles_and_reports_failed_drawings(browser, serve):
     def deliver(value, failure):
         page.evaluate(
             """async (failure) => {
-              const {nothing} = await window.__lfWidgetApi();
+              const {nothing} = await window.__lfVendorImport('lit.js');
               const widget = document.querySelector('lf-feed');
               window.afterMountDataVersion ??= document.body.dataset.lfDataVersion;
               window.draws ??= {};

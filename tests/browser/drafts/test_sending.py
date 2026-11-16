@@ -23,7 +23,6 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     draft_control,
-    draft_key,
     expect_error_waits_in_menu,
     expect_panel_says,
     holding,
@@ -38,6 +37,7 @@ from render_harness import (
     select_words,
     stored_draft,
     stored_draft_text,
+    until_draft_settled,
     write,
 )
 
@@ -111,11 +111,8 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     expect(draft.locator("leaf-text")).to_have_count(0)
 
     page.evaluate("window.releaseDraftSend()")
-    page.wait_for_function(
-        """key => !document.getElementById('draft-ops').hasAttribute('aria-busy')
-          && JSON.parse(localStorage.getItem(key))?.settled === true""",
-        arg=draft_key(page, "edit:draft-ops"),
-    )
+    expect(draft).not_to_have_attribute("aria-busy", "true")
+    until_draft_settled(page, "edit:draft-ops")
     events = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -509,13 +506,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     ], "a gesture reached the wire naming a thread the log never took"
     # The thread went with its parent, so the reply's words wait in the parent's draft.
     assert stored_draft_text(page, f"reply:{attempt}") is None
-    assert (
-        page.evaluate(
-            "([read, ctx]) => read(ctx)?.held ?? null",
-            [stored_draft(page), "general"],
-        )
-        == reply
-    )
+    assert (stored_draft(page, "general") or {}).get("held") == reply
 
     # The refusal covers the words it gave back until the user comes back to them.
     cover = page.locator(".lf-fp-field .lf-compose-error")

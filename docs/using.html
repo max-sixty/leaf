@@ -63,8 +63,10 @@
     <main class="layout-column">
       <header id="top">
         <nav class="sitenav" aria-label="Site"></nav>
-        <p class="eyebrow">Using a page</p>
-        <h1>Using a Leaf page</h1>
+        <hgroup>
+          <p>Using a page</p>
+          <h1>Using a Leaf page</h1>
+        </hgroup>
         <p class="lede" id="intro">
           An agent hands the user a page about its work. The user reads it, comments on
           exact passages, makes the choices it asks for, and follows what the agent is
@@ -84,8 +86,9 @@
         </p>
       </header>
       <lf-tabs id="using" class="layout-flow"
-        ><lf-tab id="panel" label="The panel" class="layout-flow"
-          ><details class="topic-outline" id="panel-outline">
+        ><lf-tab id="panel" class="layout-flow"
+          ><strong>The panel</strong>
+          <details class="topic-outline" id="panel-outline">
             <summary>In this topic</summary>
             <nav aria-label="The panel sections">
               <ul>
@@ -468,8 +471,9 @@
               </tbody>
             </table>
           </section></lf-tab
-        ><lf-tab id="threads" label="Threads" class="layout-flow"
-          ><details class="topic-outline" id="threads-outline">
+        ><lf-tab id="threads" class="layout-flow"
+          ><strong>Threads</strong>
+          <details class="topic-outline" id="threads-outline">
             <summary>In this topic</summary>
             <nav aria-label="Threads sections">
               <ul>
@@ -537,7 +541,8 @@
                 }
               ]
             </script>
-            <lf-sample id="queue-exchange" label="fictional importer review" window>
+            <lf-sample id="queue-exchange" window>
+              <strong>fictional importer review</strong>
               <template id="queue-page" data-sample data-sample-events="queue-history">
                 <h1>Importer queue policy</h1>
                 <p id="queue-policy">
@@ -633,11 +638,14 @@
               Me mark wears a grey dot, and a press on it opens Threads. If a new
               version removes the content they were about, Resume writing (<kbd>g</kbd>
               <kbd>i</kbd>) opens them, unsent, in Comment on the page, after any words
-              already there.
+              already there. The page's server keeps drafts, so they reach every tab and
+              device showing the page; words typed while it is out of reach stay in
+              their tab until it answers again.
             </p>
           </section></lf-tab
-        ><lf-tab id="keys" label="Keys and touch" class="layout-flow"
-          ><details class="topic-outline" id="keys-outline">
+        ><lf-tab id="keys" class="layout-flow"
+          ><strong>Keys and touch</strong>
+          <details class="topic-outline" id="keys-outline">
             <summary>In this topic</summary>
             <nav aria-label="Keys and touch sections">
               <ul>

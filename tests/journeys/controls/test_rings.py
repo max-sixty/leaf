@@ -28,8 +28,8 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
 <h1 id="focus-heading">Focus routes</h1>
 <p><button class="lf-btn" id="focus-button" type="button">Ordinary button</button></p>
 <lf-tabs id="focus-tabs">
-  <lf-tab id="focus-first" label="First">First panel.</lf-tab>
-  <lf-tab id="focus-second" label="Second">Second panel.</lf-tab>
+  <lf-tab id="focus-first"><strong>First</strong>First panel.</lf-tab>
+  <lf-tab id="focus-second"><strong>Second</strong>Second panel.</lf-tab>
 </lf-tabs>
 <lf-ask id="focus-decision"><h2>Which option?</h2>
 <lf-options id="focus-options" choose>

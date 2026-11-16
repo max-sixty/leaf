@@ -216,7 +216,8 @@ SEATED_OBLIGATION_PAGE = leaf_page(
     "seated question",
     """
 <h1 id="h">Three jobs</h1>
-<lf-test-plan id="hub" label="Before the frost">
+<lf-test-plan id="hub">
+  <strong>Before the frost</strong>
   <lf-test-task id="jobs" status="active" talk><strong>Which jobs are worth starting?</strong>
   The mounts came down in January, the bird bath froze eleven mornings, and the camera
   is still in its box.</lf-test-task>
@@ -312,7 +313,7 @@ SETTLED_OBLIGATION_PAGE = OBLIGATION_PAGE.replace(
 EXHIBIT_EXTENT = """
 (id) => {
   const el = document.getElementById(id);
-  const label = el.querySelector(':scope > [data-lf-said="label"]');
+  const label = el.querySelector(':scope > strong:first-child');
   let top = Infinity, bottom = -Infinity;
   const walk = (n) => {
     for (const c of n.children) {
@@ -359,14 +360,15 @@ SUGGESTION_PAGE = leaf_page(
     <lf-new>Switch the north feeder to thistle in autumn.</lf-new>
   </lf-suggestion></p>
 <lf-board id="feeders">
-  <lf-column id="col-todo" label="To do">
+  <lf-column id="col-todo">
+    <strong>To do</strong>
     <lf-card id="card-heater"><strong>Heated perch</strong>
       <lf-suggestion id="sug-in-card">
         <lf-old>Wire the south feeder.</lf-old>
         <lf-new>Wire the south feeder to the porch circuit.</lf-new>
       </lf-suggestion></lf-card>
   </lf-column>
-  <lf-column id="col-done" label="Done"></lf-column>
+  <lf-column id="col-done"><strong>Done</strong></lf-column>
 </lf-board>
 """,
 )
@@ -539,7 +541,8 @@ OBLIGATIONS_PAGE = leaf_page(
   <li id="m-build"><small>active</small> <strong>Build the feeders</strong></li>
   <li id="m-install"><small>blocked</small> <strong>Install and watch</strong></li>
 </ol>
-<lf-sample id="spec" label="a decision">
+<lf-sample id="spec">
+  <strong>a decision</strong>
   <lf-options id="spec-opts" choose>
     <lf-option id="spec-paper"><strong>Paper maps</strong></lf-option>
   </lf-options>
@@ -666,10 +669,12 @@ CURRENT_OBLIGATION = (
 # The shipped board measures its grip from a live box. Author it into the page and
 # send it in a reply with the same words, so the two readings can be compared.
 ROOM_WIDGETS = """<lf-board id="{id}-b">
-  <lf-column id="{id}-todo" label="To do">
+  <lf-column id="{id}-todo">
+    <strong>To do</strong>
     <lf-card id="{id}-brackets"><strong>Steel brackets</strong> For the north pair.</lf-card>
   </lf-column>
-  <lf-column id="{id}-done" label="Done">
+  <lf-column id="{id}-done">
+    <strong>Done</strong>
     <lf-card id="{id}-mounts"><strong>South mounts</strong></lf-card>
   </lf-column>
 </lf-board>"""
@@ -737,7 +742,8 @@ THREAD_DIFF_PAGE = leaf_page(
     """
 <h1 id="cd-h">Bracket order</h1>
 <p id="cd-lede">The south pair is up and drawing traffic.</p>
-<lf-test-plan id="cd-command" label="Bracket extras">
+<lf-test-plan id="cd-command">
+  <strong>Bracket extras</strong>
   <lf-test-task id="cd-q" status="active" talk>
     <strong>Which extras go in?</strong>
     <p>Choose between a seed tray and a second pole.</p>
@@ -1060,8 +1066,8 @@ IN_FORCE_PAGE = leaf_page(
   <lf-option id="ab-ten"><strong>The top ten</strong> The rest follow in August.</lf-option>
 </lf-options></lf-ask>
 <lf-board id="ab-work">
-  <lf-column id="ab-doing" label="Doing"><lf-card id="ab-importer"><strong>Wire the importer</strong></lf-card></lf-column>
-  <lf-column id="ab-done" label="Done"><lf-card id="ab-notes"><strong>Draft the notes</strong></lf-card></lf-column>
+  <lf-column id="ab-doing"><strong>Doing</strong><lf-card id="ab-importer"><strong>Wire the importer</strong></lf-card></lf-column>
+  <lf-column id="ab-done"><strong>Done</strong><lf-card id="ab-notes"><strong>Draft the notes</strong></lf-card></lf-column>
 </lf-board>
 <lf-test-tasks id="ab-plan">
   <lf-test-task id="ab-baffles" status="active" owner="wren"><strong>Fit the baffles</strong></lf-test-task>
@@ -1085,10 +1091,11 @@ IN_FORCE_PAGE = leaf_page(
 </lf-options></lf-ask>
 <lf-ask id="ab-card-decision"><h2>How should the cutover note look?</h2>
 <lf-playground id="ab-card" submit-label="Use these settings">
-  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
+  <lf-playground-control id="radius" name="radius" kind="range" value="12" min="0" max="24" step="1" unit="px"><strong>Corner radius</strong></lf-playground-control>
+  <lf-playground-control id="tone" name="tone" kind="choice" value="quiet">
+    <strong>Tone</strong>
+    <lf-playground-choice id="tone-quiet" value="quiet"><strong>Quiet</strong></lf-playground-choice>
+    <lf-playground-choice id="tone-bold" value="bold"><strong>Bold</strong></lf-playground-choice>
   </lf-playground-control>
   <lf-playground-preview id="ab-card-preview">
     <article id="ab-card-note"><strong>The cutover lands on Friday</strong><p>Read the migration notes before the freeze.</p></article>
@@ -1292,10 +1299,12 @@ REF_PAGE = leaf_page(
 <h1 id="h">Feeder placement</h1>
 {"".join(f"<p>Fill paragraph {i}, long enough to take a line of its own.</p>" for i in range(10))}
 <lf-tabs id="projects">
-  <lf-tab id="tab-feeders" label="Winter feeders">
+  <lf-tab id="tab-feeders">
+    <strong>Winter feeders</strong>
     <p id="p-feeders">Two of the four feeders are mounted.</p>
   </lf-tab>
-  <lf-tab id="tab-bath" label="Heated bird bath">
+  <lf-tab id="tab-bath">
+    <strong>Heated bird bath</strong>
     <p id="p-bath">The thermostat arrived cracked and a replacement is on order.</p>
   </lf-tab>
 </lf-tabs>
@@ -1356,7 +1365,6 @@ SEATED_OBLIGATION_ENTRY = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "markup",
-    "x-upgrade": True,
     "x-state": {
         "settle": {
             "detail": {
@@ -1373,7 +1381,6 @@ SEATED_OBLIGATION_ENTRY = {
         "when": {"asks": [True]},
         "answered": {"settle": {}},
     },
-    "x-thread-surface": True,
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 

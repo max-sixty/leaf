@@ -17,21 +17,6 @@
    Each home re-exported here must load, and work, in a document Leaf did not compose:
    it reads nothing at import that Leaf's delivery or prepaint puts in a page.
    tests/smoke/test_plain_page.py holds the portable widgets to that. */
-export {
-  html,
-  noChange,
-  nothing,
-  render,
-  classMap,
-  createRef,
-  guard,
-  keyed,
-  live,
-  ref,
-  repeat,
-  styleMap,
-  unsafeHTML,
-} from "/vendor/lit.js";
 export { whileConnected, frameFor, setScroll } from "./arrivals.js";
 export {
   afterScript,
@@ -48,7 +33,6 @@ export {
   announce,
   bodyText,
   commandsChanged,
-  dataBody,
   failSoft,
   layoutChanged,
   once,
@@ -61,8 +45,13 @@ export { measure } from "./shown-box.js";
 export { registerVisualParts } from "./visual-parts.js";
 export { inBaseLayer } from "./base-layer.js";
 export { tabStore } from "./tab-store.js";
-export { ensureSyntaxLanguage, synNodes, syntax, tokenLines } from "./syntax-tokens.js";
-export { actionName } from "./icon-paths.js";
+export {
+  codeLanguage,
+  ensureSyntaxLanguage,
+  synNodes,
+  syntax,
+  tokenLines,
+} from "./syntax-tokens.js";
 export { onMotionPreferenceChange, reducedMotion } from "./motion.js";
 // The time axis the Playwright timeline and lf-timeline both draw on.
 export {
@@ -101,12 +90,15 @@ export { publishOutput } from "./widget-output.js";
 export { threadSurface, releaseOutlets } from "./thread/surface-handles.js";
 export { canvas2D } from "./canvas.js";
 
-export { nameAction, relabel, searchField } from "./control-labels.js";
+export { nameAction, searchField } from "./control-labels.js";
 
 export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus.js";
 export { retainUserIntent } from "./user-intent.js";
 export { scrollIntoView } from "./landing-scroll.js";
 export { inChrome } from "./shadow-tree.js";
+// `openingTitle(element)`: the name an element opens with, its title and the element
+// holding it, which a widget draws, moves or hides (leading-title.js).
+export { openingTitle } from "./leading-title.js";
 export { beginWalk, listWalkPosition } from "./walk-declaration.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 export { move } from "./dom-move.js";

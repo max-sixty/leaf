@@ -42,14 +42,14 @@ WORKSPACE_PAGE = leaf_page(
     <p id="review-status"><span class="tag warn">3 waiting</span></p>
   </header>
   <div id="review-regions">
-    <lf-pane id="queue" label="Items">
+    <lf-pane id="queue" aria-label="Items">
       <div>
         <p>Queue start</p>
         <div style="height: 1100px"></div>
         <p>Queue end</p>
       </div>
     </lf-pane>
-    <lf-pane id="detail" label="Selected item">
+    <lf-pane id="detail" aria-label="Selected item">
       <div>
         <p>Detail start</p>
         <div style="height: 1100px"></div>
@@ -105,8 +105,8 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
     """A bound inside a document keeps its own reading position but lets the user
     continue down the document once its last line is reached."""
     content = (
-        '<lf-text-document id="reader" source="capture" label="Run log" '
-        'data-bound="start"></lf-text-document>'
+        '<lf-text-document id="reader" source="capture" '
+        'data-bound="start"><strong>Run log</strong></lf-text-document>'
         if captured
         else '<div id="reader" data-bound="start">'
         + "<p>Run log line</p>" * 100
@@ -122,9 +122,10 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
         data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
     page = open_page(browser, url)
     if captured:
-        # The caption stays above the source that scrolls, as wide as its figure.
+        # The caption, the document's name, stays above the source that scrolls, as
+        # wide as its frame.
         capture = page.locator("#reader")
-        caption = capture.locator("figcaption")
+        caption = capture.locator(":scope > strong")
         expect(caption).to_be_visible()
         assert capture.evaluate("el => el.scrollHeight === el.clientHeight")
         assert caption.evaluate(
@@ -309,7 +310,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
 
     def item(key):
         return (
-            f'<lf-tab id="t-{key}" label="{key}"><lf-ask id="{key}-decision">'
+            f'<lf-tab id="t-{key}"><strong>{key}</strong><lf-ask id="{key}-decision">'
             f'<h2>Pick the {key}</h2><div style="height: 900px"></div>'
             f'<lf-options id="{key}" choose><lf-option id="{key}-a">Alpha</lf-option>'
             "</lf-options></lf-ask></lf-tab>"
@@ -327,9 +328,9 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
                 + item("first")
                 + item("second")
                 + "</lf-tabs>"
-                '<lf-tabs id="views"><lf-tab id="v-one" label="One">'
+                '<lf-tabs id="views"><lf-tab id="v-one"><strong>One</strong>'
                 '<div id="v-long" style="height: 1600px"></div></lf-tab>'
-                '<lf-tab id="v-two" label="Two"><p>Two</p></lf-tab></lf-tabs>',
+                '<lf-tab id="v-two"><strong>Two</strong><p>Two</p></lf-tab></lf-tabs>',
                 layout="workspace",
             )
         ),
@@ -363,12 +364,14 @@ PANE_BAND_PAGE = leaf_page(
     "A pane that opens on its words",
     """
   <div id="band-regions">
-    <lf-pane id="band-queue" label="Queue"><ul><li>First ticket</li></ul></lf-pane>
-    <lf-pane id="band-detail" label="Detail">
+    <lf-pane id="band-queue" aria-label="Queue"><ul><li>First ticket</li></ul></lf-pane>
+    <lf-pane id="band-detail" aria-label="Detail">
       <div id="band-body">
         <section id="band-ticket">
-          <p class="eyebrow" id="band-eyebrow">ESC-1 · sev 1</p>
-          <h2>The ticket's title</h2>
+          <hgroup>
+            <p id="band-eyebrow">ESC-1 · sev 1</p>
+            <h2>The ticket's title</h2>
+          </hgroup>
           <p>What happened.</p>
         </section>
         <section><h2>Another ticket</h2><p>Its account.</p></section>
@@ -383,8 +386,8 @@ PANE_BAND_PAGE = leaf_page(
 
 def test_a_pane_opens_on_its_first_words_through_a_bare_wrapper(browser, serve):
     """A pane's body trims the margin at its top edge, and a declared section wrapping its
-    content passes its first child's margin to that edge. The eyebrow above a heading
-    carries the heading's 48px, which stood as an empty band at the top of the pane;
+    content passes its first child's margin to that edge. A title group with an eyebrow
+    carries its heading's 48px, which stood as an empty band at the top of the pane;
     the body's own padding is all that stands above the first words."""
     page = open_page(browser, serve(PANE_BAND_PAGE))
     resized(page, 1440, 900)
@@ -410,7 +413,7 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
         serve(
             leaf_page(
                 "Pane table",
-                '<header><h1>Pane table</h1></header><lf-pane id="p1" label="Detail">'
+                '<header><h1>Pane table</h1></header><lf-pane id="p1" aria-label="Detail">'
                 "<header><h2>Detail</h2></header><div><p>Lead paragraph.</p>"
                 '<table id="t1"><tbody><tr><td id="c1">one</td><td>1</td></tr>'
                 "<tr><td>two</td><td>2</td></tr></tbody></table>"
@@ -459,7 +462,7 @@ def clear_of_the_bottom_chrome(page, selector):
     )
 
 
-LONG_PANE = """<lf-pane id="workspace-pane" label="Long reading"><div>
+LONG_PANE = """<lf-pane id="workspace-pane" aria-label="Long reading"><div>
   <p>Start</p><div style="height: 900px"></div><p id="pane-end">End</p>
 </div></lf-pane>"""
 
@@ -503,9 +506,9 @@ def test_a_bounded_stream_that_is_all_a_pane_holds_takes_the_panes_height(
         "Streams in panes",
         f"""<header><h1>Streams</h1></header>
 <div id="regions">
-<lf-pane id="alone" label="Alone"><div id="alone-body">
+<lf-pane id="alone" aria-label="Alone"><div id="alone-body">
 <div id="feed" data-bound="start">{rows}</div></div></lf-pane>
-<lf-pane id="mixed" label="Mixed"><div><p>Intro.</p>
+<lf-pane id="mixed" aria-label="Mixed"><div><p>Intro.</p>
 <div id="beside" data-bound="start">{rows}</div>
 <div id="outer" data-bound="start" style="--lf-bound: 300px">
 <div id="inner" data-bound="start" style="--lf-bound: 120px">{rows}</div></div>
@@ -553,7 +556,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     pane_scroll_behavior(page, pane, "flow")
     assert pane.evaluate(
         """async node => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           return leaf.regionScrollBehavior(node) === 'flow'
             && leaf.scrollerFor(node) === document.getElementById('cells');
         }"""
@@ -607,7 +610,6 @@ ZONE_PACKAGE = {
         "additionalProperties": False,
         "x-content": "markup",
         "x-reading-role": "pane",
-        "x-upgrade": False,
     }
 }
 
@@ -620,8 +622,8 @@ NESTED_PANES_PAGE = leaf_page(
       <p>A zone's reading.</p><div style="height: 900px"></div>
     </div></lf-zone>
   </div></lf-zone>
-  <lf-pane id="outer-pane" label="Panes"><div>
-    <lf-pane id="inner-pane" label="Inner pane"><div>
+  <lf-pane id="outer-pane" aria-label="Panes"><div>
+    <lf-pane id="inner-pane" aria-label="Inner pane"><div>
       <p>A pane's reading.</p><div style="height: 900px"></div>
     </div></lf-pane>
   </div></lf-pane>
@@ -725,7 +727,7 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             frame = "main"
         else:
             content = (
-                '<lf-pane id="frame" label="Review"><div id="reading">'
+                '<lf-pane id="frame" aria-label="Review"><div id="reading">'
                 + body
                 + "</div>"
                 + footer
@@ -735,10 +737,10 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         scroller = "#reading"
     elif container == "views":
         content = (
-            '<lf-tabs id="outer" class="layout-flow"><lf-tab id="review" label="Review">'
-            '<lf-tabs id="frame" list="side"><lf-tab id="reading" label="Experiment">'
+            '<lf-tabs id="outer" class="layout-flow"><lf-tab id="review"><strong>Review</strong>'
+            '<lf-tabs id="frame" list="side"><lf-tab id="reading"><strong>Experiment</strong>'
             + reading
-            + '</lf-tab><lf-tab id="other" label="Other"><p>Other result</p></lf-tab>'
+            + '</lf-tab><lf-tab id="other"><strong>Other</strong><p>Other result</p></lf-tab>'
             "</lf-tabs></lf-tab></lf-tabs>"
         )
         scroller = "#reading"
@@ -764,7 +766,7 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
             "<p>Start</p>", '<p><a href="#release-ask">Record decision</a></p>'
         )
         content = (
-            '<lf-pane id="frame" label="Review"><div id="reading">'
+            '<lf-pane id="frame" aria-label="Review"><div id="reading">'
             + reading
             + "</div></lf-pane>"
         )
@@ -840,7 +842,7 @@ def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
     source = leaf_page(
         "a comment in a pane",
         """
-  <lf-pane id="workspace-pane" label="Only a paragraph">
+  <lf-pane id="workspace-pane" aria-label="Only a paragraph">
     <p id="only">A paragraph that is the whole body of its pane.</p>
   </lf-pane>
 """,
@@ -873,14 +875,14 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
     source = leaf_page(
         "regions inside a pane body",
         """
-  <lf-pane id="host" label="Host"><div id="host-body">
+  <lf-pane id="host" aria-label="Host"><div id="host-body">
     <p>Host start</p>
     <section>
-      <lf-pane id="inner-pane" label="Inner pane">
+      <lf-pane id="inner-pane" aria-label="Inner pane">
         <div><p>Start</p><div style="height: 900px"></div><p>End</p></div>
       </lf-pane>
     </section>
-    <lf-pane id="loose-pane" label="Loose pane">
+    <lf-pane id="loose-pane" aria-label="Loose pane">
       <div><p>Start</p><div style="height: 900px"></div><p>End</p></div>
     </lf-pane>
   </div></lf-pane>
@@ -894,7 +896,7 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
         pane_scroll_behavior(page, page.locator(inner), "flow")
     readings = page.evaluate(
         """async () => {
-          const leaf = await window.__lfWidgetApi();
+          const leaf = await Promise.all([window.__lfWidgetApi(), window.__lfCheckApi()]).then(parts => Object.assign({}, ...parts));
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);
@@ -1282,8 +1284,8 @@ def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
         leaf_page(
             "Logs in a hidden tab",
             '<h1>Deploy</h1><section><lf-tabs id="views">'
-            '<lf-tab id="summary" label="Summary"><p>Running.</p></lf-tab>'
-            f'<lf-tab id="history" label="History"><div id="log" data-bound="end">'
+            '<lf-tab id="summary"><strong>Summary</strong><p>Running.</p></lf-tab>'
+            f'<lf-tab id="history"><strong>History</strong><div id="log" data-bound="end">'
             f"{entry * 30}</div></lf-tab></lf-tabs></section>",
         )
     )

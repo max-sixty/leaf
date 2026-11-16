@@ -44,7 +44,7 @@ def said_by_marks(scope):
     adds nothing now (null), as a caption with no words, is no mark."""
     scope.evaluate(
         """async (scope) => {
-          const {render} = await window.__lfWidgetApi();
+          const {render} = await window.__lfVendorImport('lit.js');
           for (const mark of scope.querySelectorAll('*')) {
             if (typeof mark.lfPreview !== 'function') continue;
             const said = mark.lfPreview();
@@ -1860,10 +1860,10 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
     )
     api_target = f"trace-{archive}-phase-{api['id']}-end"
     members = "".join(
-        f'<lf-trace-bookmark label="{escape(label, quote=True)}" target="{target}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark target="{target}"><strong>{escape(label, quote=True)}</strong></lf-trace-bookmark>'
         for label, target in zip(labels, targets, strict=True)
     )
-    members += f'<lf-trace-bookmark label="Recording setup complete" target="{api_target}"></lf-trace-bookmark>'
+    members += f'<lf-trace-bookmark target="{api_target}"><strong>Recording setup complete</strong></lf-trace-bookmark>'
     media = {
         image["url"]: (example_media() / Path(image["url"]).name).read_bytes()
         for image in record["images"]
@@ -2057,7 +2057,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     api = f"trace-{archive}-phase-{clicks[1]['id']}-after"
     labels = ["Inspect documentation", "Recheck that checkpoint", "Inspect the API"]
     members = "".join(
-        f'<lf-trace-bookmark label="{label}" target="{target}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark target="{target}"><strong>{label}</strong></lf-trace-bookmark>'
         for label, target in zip(labels, (docs, docs, api), strict=True)
     )
     media = {
@@ -2068,7 +2068,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         leaf_page(
             "Numbered trace moments",
             f'<h1>Numbered trace moments</h1><lf-trace id="journey" source="numbered-trace">{members}</lf-trace>'
-            f'<lf-sample id="quoted-recording" label="Recording example"><lf-trace id="quoted-journey" source="numbered-trace">{members}</lf-trace></lf-sample>',
+            f'<lf-sample id="quoted-recording"><strong>Recording example</strong><lf-trace id="quoted-journey" source="numbered-trace">{members}</lf-trace></lf-sample>',
         ),
         packages=("playwright",),
         media=media,
@@ -2220,7 +2220,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         for action in (setup, nearby, middle)
     ]
     boundary_members = "".join(
-        f'<lf-trace-bookmark label="Boundary {index}" target="{target}"></lf-trace-bookmark>'
+        f'<lf-trace-bookmark target="{target}"><strong>Boundary {index}</strong></lf-trace-bookmark>'
         for index, target in enumerate(boundary_targets)
     )
     boundary_url = serve(

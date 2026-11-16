@@ -30,6 +30,17 @@ lf-diagram.lf-rendered {
 lf-diagram.lf-rendered > * {
   flex: none;
 }
+/* A name the diagram opens with stands on a line of its own over the drawing
+ * (lf-diagram.js), centred over it as the drawing is in its box. */
+lf-diagram.lf-rendered:has(
+    > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+  ) {
+  flex-wrap: wrap;
+  & > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+    flex: 0 0 100%;
+    text-align: center;
+  }
+}
 /* Pele's viewport includes the scrollbar's clearance. Its natural height is the
  * minimum: overlay tracks cover the blank bottom padding, and a negative SVG margin
  * lets native classic tracks consume that padding, leaving 1px for strokes. A wider

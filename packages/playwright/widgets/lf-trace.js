@@ -74,6 +74,18 @@
  * the disclosure and lands on its destination instead.
  */
 import {
+  html,
+  live,
+  nothing,
+  classMap,
+  styleMap,
+  createRef,
+  ref,
+  render,
+  repeat,
+} from "/vendor/lit.js";
+import {
+  addressableName,
   alreadyShown,
   generatedElement,
   dragging,
@@ -86,21 +98,12 @@ import {
   focusDestination,
   closeNativeLayer,
   holdFocus,
-  html,
   actionTemplate,
   iconTemplate,
   inBaseLayer,
-  live,
-  nothing,
-  classMap,
-  styleMap,
   offered,
   offeredAction,
   pressIsKeyboardActivation,
-  createRef,
-  ref,
-  render,
-  repeat,
   keeps,
   keepsText,
   LeafElement,
@@ -723,7 +726,7 @@ export class Trace extends LeafElement {
         return {
           index,
           target,
-          label: member.getAttribute("label"),
+          label: addressableName(member),
           key: member.getAttribute("key"),
         };
       },

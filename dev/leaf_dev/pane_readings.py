@@ -42,7 +42,7 @@ READINGS = """async () => {
   const { readingRegions, readingRegionFor, shownRegionBounds } = await import(
     "/runtime/check-api.js"
   );
-  const { regionScrollBehavior } = await import("/runtime/widget-api.js");
+  const { regionScrollBehavior } = await import("/runtime/check-api.js");
   const workspaces = [...document.querySelectorAll(".layout-workspace")].filter(
     (box) => box.checkVisibility(),
   );
@@ -94,7 +94,6 @@ READINGS = """async () => {
     return Math.round((1 - filled / covered.length) * 100) / 100;
   };
   const label = (host) =>
-    host.getAttribute("label") ||
     host.getAttribute("aria-label") ||
     host.querySelector("h1, h2, h3, h4, summary")?.textContent.trim().slice(0, 60) ||
     host.id ||

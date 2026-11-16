@@ -328,79 +328,64 @@
           <lf-playground-control
             id="events"
             name="events"
-            label="Concurrent release events"
             kind="range"
             value="2"
             min="1"
             max="4"
             step="1"
-          ></lf-playground-control>
+            ><strong>Concurrent release events</strong></lf-playground-control
+          >
           <lf-playground-control
             id="radius"
             name="radius"
-            label="Corner radius"
             kind="range"
             value="10"
             min="0"
             max="24"
             step="1"
             unit="px"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="compact"
-            name="compact"
-            label="Compact spacing"
-            kind="toggle"
-            value="false"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="tone"
-            name="tone"
-            label="Tone"
-            kind="choice"
-            value="calm"
+            ><strong>Corner radius</strong></lf-playground-control
           >
-            <lf-playground-choice
-              id="tone-calm"
-              value="calm"
-              label="Calm"
-            ></lf-playground-choice>
-            <lf-playground-choice
-              id="tone-urgent"
-              value="urgent"
-              label="Urgent"
-            ></lf-playground-choice>
+          <lf-playground-control id="compact" name="compact" kind="toggle" value="false"
+            ><strong>Compact spacing</strong></lf-playground-control
+          >
+          <lf-playground-control id="tone" name="tone" kind="choice" value="calm">
+            <strong>Tone</strong>
+            <lf-playground-choice id="tone-calm" value="calm"
+              ><strong>Calm</strong></lf-playground-choice
+            >
+            <lf-playground-choice id="tone-urgent" value="urgent"
+              ><strong>Urgent</strong></lf-playground-choice
+            >
           </lf-playground-control>
           <lf-playground-control
             id="show-owner"
             name="show-owner"
-            label="Show service owner"
             kind="toggle"
             value="true"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="accent"
-            name="accent"
-            label="Accent"
-            kind="color"
-            value="#4f766f"
-          ></lf-playground-control>
+            ><strong>Show service owner</strong></lf-playground-control
+          >
+          <lf-playground-control id="accent" name="accent" kind="color" value="#4f766f"
+            ><strong>Accent</strong></lf-playground-control
+          >
           <lf-playground-control
             id="title"
             name="title"
-            label="Notification title"
             kind="text"
             value="Checkout deployed"
             placeholder="Notification heading"
-          ></lf-playground-control>
+            ><strong>Notification title</strong></lf-playground-control
+          >
 
-          <lf-playground-preset id="preset-routine-release" label="Routine release">
+          <lf-playground-preset id="preset-routine-release">
+            <strong>Routine release</strong>
             <lf-playground-setting for="events" value="2"></lf-playground-setting>
             <lf-playground-setting for="tone" value="calm"></lf-playground-setting>
             <lf-playground-setting for="compact" value="false"></lf-playground-setting>
             <lf-playground-setting for="accent" value="#4f766f"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preset id="preset-needs-attention" label="Needs attention">
+          <lf-playground-preset id="preset-needs-attention">
+            <strong>Needs attention</strong>
             <lf-playground-setting for="events" value="4"></lf-playground-setting>
             <lf-playground-setting for="tone" value="urgent"></lf-playground-setting>
             <lf-playground-setting for="compact" value="true"></lf-playground-setting>
@@ -417,12 +402,13 @@
               <lf-playground-control
                 id="format"
                 name="format"
-                label="Format"
                 kind="choice"
                 value="banner"
                 class="notification-demo-candidates"
               >
-                <lf-playground-choice id="format-banner" value="banner" label="Banner">
+                <strong>Format</strong>
+                <lf-playground-choice id="format-banner" value="banner">
+                  <strong>Banner</strong>
                   <figure
                     class="notification-demo-candidate"
                     data-notification-format="banner"
@@ -433,11 +419,8 @@
                     <div class="notification-demo-feed notification-demo-banner"></div>
                   </figure>
                 </lf-playground-choice>
-                <lf-playground-choice
-                  id="format-status-strip"
-                  value="status strip"
-                  label="Status strip"
-                >
+                <lf-playground-choice id="format-status-strip" value="status strip">
+                  <strong>Status strip</strong>
                   <figure
                     class="notification-demo-candidate"
                     data-notification-format="status strip"
@@ -456,7 +439,7 @@
               <lf-text-document
                 id="notification-artifact-source"
                 source="notification-artifact"
-                language="html"
+                class="language-html"
               ></lf-text-document>
             </section>
           </lf-playground-preview>

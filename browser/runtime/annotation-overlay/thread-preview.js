@@ -167,6 +167,7 @@ import { drawnThreadsWithId } from "../thread/selectors.js";
 import { threadIdNamed } from "../thread/state.js";
 import { threadKey } from "../thread/model.js";
 import { anchorLabel, releaseAuthoredUnder } from "../thread/messages.js";
+import { addressableName } from "../addressable-names.js";
 import { coarsePointer } from "../pointer.js";
 import {
   attachedEdge,
@@ -864,9 +865,9 @@ export function createThreadPreview({
               fromSubject &&
               !held.writing &&
               standsTall(preview.querySelectorAll(".lf-msg-text:not([hidden] *)"));
-            // A card at the least width reads its messages there before this fit
-            // writes, so news widens it in one write; a selection's first fit lays it
-            // out there first.
+            // A card at the least width, where each selection starts (`select`), reads
+            // its messages there before this fit writes, so news widens it in one
+            // write; one standing at another width lays out there first.
             const stoodNarrow = Math.abs(preview.offsetWidth - narrow) < 0.5;
             if (!session.wide && stoodNarrow && outgrown()) session.wide = true;
             // Choosing its spot, the card is capped by the boundary alone, and slides
@@ -1065,6 +1066,10 @@ export function createThreadPreview({
     };
     previewSession = session;
     tick(cardRevision);
+    // Another selection chooses its width afresh, from the least width the stylesheet
+    // stands an unsized card at, so its first fit reads its messages there rather than
+    // at the width the last selection left (`placeThreadPreview`).
+    preview.style.removeProperty("width");
     if (origin) session.side.adopt(origin);
     // A card Send opened stands at once where its box stood and grows out of the box's
     // field, rather than fade in (annotation-chrome.css).
@@ -1100,9 +1105,10 @@ export function createThreadPreview({
       scroll: session.transcript.scrollTop,
     };
     const present = () => {
-      const targetHeading =
-        targetFor(entry)?.querySelector(":scope > strong")?.textContent;
-      // A target with a heading is named by it. One without — an aside, a paragraph —
+      const target = targetFor(entry);
+      const targetHeading = target && addressableName(target);
+      // A target with a name is named by it (`addressableName`), as a column or a tab by
+      // the <strong> or <header> it opens with. One without — an aside, a paragraph —
       // is headed by the passage the selected thread quotes, as the panel heads it: a card
       // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
       // last sentence was a third name for one thread, and the least exact.

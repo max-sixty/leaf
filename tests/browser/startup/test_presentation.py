@@ -116,7 +116,7 @@ def test_a_sample_starts_without_its_host_s_saved_chrome(browser, serve):
     page on the origin, but an isolated sample's child page starts without inheriting
     it: the child's panel stands at its row while its host's stays folded."""
     content = (
-        '<lf-sample id="practice" label="Practice">'
+        '<lf-sample id="practice"><strong>Practice</strong>'
         '<template id="practice-source" data-sample>'
         "<h1>Practice</h1><p>A sentence to practise on.</p>"
         "</template></lf-sample>"
@@ -144,7 +144,7 @@ def test_a_projected_external_link_gets_the_pages_link_treatment(browser, serve)
     module = serve.page_dir / "page" / "widgets" / "lf-feed.js"
     module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
-        DATA_PROJECTION_MODULE.replace("{keeps,", "{keeps, keepsText,").replace(
+        DATA_PROJECTION_MODULE.replace("{ keeps,", "{ keeps, keepsText,").replace(
             "const row = document.createElement('p');\n"
             "      row.append(words, offer('button', 'inspect', 'Inspect'));",
             """const prior = [...this.children].find(row => row.dataset.lfDatum === key);
@@ -239,7 +239,6 @@ def test_reduced_motion_reaches_declared_shadow_stages(
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
     }
     registry = {
         tag: {
@@ -360,7 +359,6 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
     }
     settled = {**entry, "x-example": '<lf-settled-link id="settled"></lf-settled-link>'}
     shadow = {
@@ -613,7 +611,7 @@ def test_a_pane_registers_the_body_it_holds_across_moves_and_revisions(browser, 
                 "a pane that moves",
                 """
 <h1>Moving pane</h1>
-<lf-pane id="moving-pane" label="Moving pane"><header>Heading</header><div id="first-body"><input value="Authored"></div></lf-pane>
+<lf-pane id="moving-pane" aria-label="Moving pane"><header>Heading</header><div id="first-body"><input value="Authored"></div></lf-pane>
 """,
             )
         ),

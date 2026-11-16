@@ -23,8 +23,10 @@
   <body>
     <main class="layout-column">
       <header>
-        <p class="eyebrow">release 3.4 · candidate two</p>
-        <h1>Prepare the account migration</h1>
+        <hgroup>
+          <p>release 3.4 · candidate two</p>
+          <h1>Prepare the account migration</h1>
+        </hgroup>
         <p class="lede">
           Review the rollout plan, settle the remaining evidence question, and work
           through the migration queue without leaving this page.
@@ -32,7 +34,8 @@
       </header>
 
       <lf-tabs id="root-tabs" class="layout-flow">
-        <lf-tab id="plan-tab" label="Plan" class="layout-flow">
+        <lf-tab id="plan-tab" class="layout-flow">
+          <strong>Plan</strong>
           <section id="plan-return" class="layout-flow">
             <h2>Rollout plan</h2>
             <p>
@@ -98,7 +101,8 @@
           </section>
         </lf-tab>
 
-        <lf-tab id="evidence-tab" label="Evidence" class="layout-flow">
+        <lf-tab id="evidence-tab" class="layout-flow">
+          <strong>Evidence</strong>
           <section id="evidence-summary" class="layout-flow">
             <h2>Rehearsal results</h2>
             <p>
@@ -191,14 +195,17 @@
           </section>
         </lf-tab>
 
-        <lf-tab id="workbench-tab" label="Workbench" class="layout-flow">
+        <lf-tab id="workbench-tab" class="layout-flow">
+          <strong>Workbench</strong>
           <section id="workbench" class="layout-flow">
             <header>
-              <p class="eyebrow">migration workbench · eight cohorts</p>
-              <h2>Prepare and inspect each cohort</h2>
+              <hgroup>
+                <p>migration workbench · eight cohorts</p>
+                <h2>Prepare and inspect each cohort</h2>
+              </hgroup>
             </header>
             <div id="workbench-regions">
-              <lf-pane id="queue-pane" label="Cohort queue">
+              <lf-pane id="queue-pane">
                 <header><h3>Cohort queue</h3></header>
                 <div>
                   <nav aria-label="Migration cohorts">
@@ -239,7 +246,7 @@
                 </footer>
               </lf-pane>
 
-              <lf-pane id="detail-pane" label="Cohort detail">
+              <lf-pane id="detail-pane">
                 <header><h3>Selected cohort</h3></header>
                 <div>
                   <section id="cohort-staff">
@@ -325,7 +332,8 @@ observe --cohort staff</code></pre>
             </div>
           </section>
         </lf-tab>
-        <lf-tab id="summary-tab" label="Summary" class="layout-flow">
+        <lf-tab id="summary-tab" class="layout-flow">
+          <strong>Summary</strong>
           <section id="release-summary" class="layout-flow">
             <h2>Release decision</h2>
             <p>Advance only after the evidence meets every rollout gate.</p>

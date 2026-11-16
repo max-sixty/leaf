@@ -95,7 +95,7 @@ BOARD = {
 
 def board_markup(board: dict[str, list[str]]) -> str:
     return "\n".join(
-        f'  <lf-column id="{column}" label="{label}">\n'
+        f'  <lf-column id="{column}">\n<strong>{label}</strong>\n'
         + "".join(
             f'    <lf-card id="{card}"><strong>{CARDS[card]}</strong></lf-card>\n'
             for card in board[column]
@@ -155,8 +155,10 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <body>
 <main class="layout-column">
 <header id="top">
-<p class="eyebrow">demo · migration rehearsal</p>
+<hgroup>
+<p>demo · migration rehearsal</p>
 <h1>Migrating billing to the new service</h1>
+</hgroup>
 <p class="lede" id="demo-lede">The rehearsal is running now. This page follows each
 new version as the checks finish.</p>
 </header>
@@ -169,7 +171,7 @@ new version as the checks finish.</p>
 
 <section id="phases">
 <h2>Phases</h2>
-<ol class="steps">
+<ol>
   <li id="p1">Dual-write to old and new stores behind a flag.</li>
   <li id="p2">{phase_two}</li>
   <li id="p3">Use an online traffic swap, then retire the old store.</li>

@@ -80,7 +80,7 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
             serve.page_dir,
             original.replace(
                 '<lf-tabs class="layout-flow" id="bg-tabs">',
-                '<lf-tabs id="earlier-tabs"><lf-tab id="earlier-tab" label="Earlier">'
+                '<lf-tabs id="earlier-tabs"><lf-tab id="earlier-tab"><strong>Earlier</strong>'
                 "<p>Earlier views.</p></lf-tab></lf-tabs>"
                 '<lf-tabs class="layout-flow" id="bg-tabs">',
             ),
@@ -168,13 +168,15 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
 <p id="shared">This context belongs to every view.</p>
 <section id="views-section">
 <lf-tabs id="views">
-  <lf-tab id="implementation" label="Implementation">
+  <lf-tab id="implementation">
+    <strong>Implementation</strong>
     <section id="implementation-section">
       <h2 id="implementation-heading">Build the narrow path</h2>
       <p id="implementation-end">This closing line still belongs to Implementation.</p>
     </section>
   </lf-tab>
-  <lf-tab id="research" label="Research">
+  <lf-tab id="research">
+    <strong>Research</strong>
     <section id="research-section">
       <h2 id="research-heading">Test the broad premise</h2>
       <p id="research-end">This closing line still belongs to Research.</p>
@@ -204,7 +206,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
           const style = (element, pseudo) => getComputedStyle(element, pseudo);
           const face = tab => {
             const tabStyle = style(tab);
-            const label = tab.querySelector('[data-lf-said]');
+            const label = tab.querySelector('.lf-tab-name');
             const labelStyle = style(label);
             const markStyle = style(label, '::before');
             const underline = tab.closest('.lf-tabstrip').querySelector('.lf-tab-selection');
@@ -321,8 +323,8 @@ def test_a_pressed_tab_stops_naming_the_key_that_opens_it(browser, serve):
     reads the focused closed tab first and must drop those keys once the tab opens."""
     body = (
         "<header><h1>Two views</h1></header><section><h2>Views</h2>"
-        '<lf-tabs id="views"><lf-tab id="views-one" label="One"><p>First view.</p>'
-        '</lf-tab><lf-tab id="views-two" label="Two"><p>Second view.</p></lf-tab>'
+        '<lf-tabs id="views"><lf-tab id="views-one"><strong>One</strong><p>First view.</p>'
+        '</lf-tab><lf-tab id="views-two"><strong>Two</strong><p>Second view.</p></lf-tab>'
         "</lf-tabs></section>"
     )
     page = open_page(browser, live_url(serve(leaf_page("Two views", body))))

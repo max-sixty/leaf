@@ -250,9 +250,9 @@ def test_sample_admits_interactive_widgets(page_dir):
     # wrapper: nesting rules (lf-option under lf-options) still hold.
     registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
-        '<lf-sample id="sp" label="a decision">'
+        '<lf-sample id="sp"><strong>a decision</strong>'
         '<lf-options id="g" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
-        '<lf-board id="b"><lf-column id="c" label="To do">'
+        '<lf-board id="b"><lf-column id="c"><strong>To do</strong>'
         '<lf-card id="k"><strong>Card</strong></lf-card></lf-column></lf-board>'
         "</lf-sample>",
         registry,
@@ -289,7 +289,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     # obligation list, so the authored boundary must read the same relation.
     with_evidence = (
         '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
-        f'{first}<lf-sample id="quoted-example" label="another question">'
+        f'{first}<lf-sample id="quoted-example"><strong>another question</strong>'
         f"{second}</lf-sample></lf-ask>"
     )
     assert fragment_errors(with_evidence, registry) == []
@@ -298,7 +298,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     for mode in ("", " interactive"):
         only_shown = (
             '<lf-ask id="decision-shown"><h2>Choose</h2>'
-            f'<lf-sample id="shown-only" label="another question"{mode}>{second}'
+            f'<lf-sample id="shown-only"{mode}><strong>another question</strong>{second}'
             "</lf-sample></lf-ask>"
         )
         codes = [error.code for error in fragment_errors(only_shown, registry)]
@@ -308,8 +308,8 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     # hgroup after its eyebrow, a subheading, or context before the heading all
     # name the obligation. A frame whose leading title is not a heading is refused.
     for titled in (
-        f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
-        f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
+        f'<lf-ask id="d"><hgroup><p>#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
+        f'<lf-ask id="d"><p>#5</p><h2>Choose</h2>{first}</lf-ask>',
         f'<lf-ask id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></lf-ask>',
     ):
         assert fragment_errors(titled, registry) == []
@@ -538,7 +538,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     }
     assert apparatus
     eyebrows = re.findall(
-        r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
+        r'<p class="bg-feature-elements">(.*?)</p>',
         authored,
         flags=re.DOTALL,
     )
@@ -577,7 +577,7 @@ def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
         return fragment_errors(
             '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
             '<lf-playground id="kind-playground">'
-            f'<lf-playground-control id="{name}" name="{name}" label="Setting" {attributes}>'
+            f'<lf-playground-control id="{name}" name="{name}" {attributes}><strong>Setting</strong>'
             "</lf-playground-control>"
             "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
             "<lf-playground-output>Use this setting.</lf-playground-output>"
@@ -642,19 +642,19 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         )
 
     tone = (
-        '<lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">'
-        '<lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>'
-        '<lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>'
+        '<lf-playground-control id="tone" name="tone" kind="choice" value="quiet"><strong>Tone</strong>'
+        '<lf-playground-choice id="tone-quiet" value="quiet"><strong>Quiet</strong></lf-playground-choice>'
+        '<lf-playground-choice id="tone-bold" value="bold"><strong>Bold</strong></lf-playground-choice>'
         "</lf-playground-control>"
     )
     size = (
-        '<lf-playground-control id="size" name="size" label="Size" kind="range" value="2" '
-        'max="4"></lf-playground-control>'
+        '<lf-playground-control id="size" name="size" kind="range" value="2" '
+        'max="4"><strong>Size</strong></lf-playground-control>'
     )
 
     def preset(*names):
         return (
-            '<lf-playground-preset id="preset-loud" label="Loud">'
+            '<lf-playground-preset id="preset-loud"><strong>Loud</strong>'
             + "".join(
                 f'<lf-playground-setting for="{name}" value="bold"></lf-playground-setting>'
                 for name in names
@@ -715,7 +715,14 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
         value="tone",
     )
     assert found(
-        reply(playground("a", tone.replace('"quiet" label', '"bold" label'))),
+        reply(
+            playground(
+                "a",
+                tone.replace(
+                    'value="quiet"><strong>Quiet', 'value="bold"><strong>Quiet'
+                ),
+            )
+        ),
         "repeated-key",
         "<lf-playground-choice>",
         key="value",
@@ -763,9 +770,9 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     instruction it would be read into, is refused, naming where it may stand."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
     tone = (
-        '<lf-playground-control id="{name}" name="{name}" label="Tone" kind="choice" value="quiet">'
-        '<lf-playground-choice id="{name}-quiet" value="quiet" label="Quiet"></lf-playground-choice>'
-        '<lf-playground-choice id="{name}-bold" value="bold" label="Bold"></lf-playground-choice>'
+        '<lf-playground-control id="{name}" name="{name}" kind="choice" value="quiet"><strong>Tone</strong>'
+        '<lf-playground-choice id="{name}-quiet" value="quiet"><strong>Quiet</strong></lf-playground-choice>'
+        '<lf-playground-choice id="{name}-bold" value="bold"><strong>Bold</strong></lf-playground-choice>'
         "</lf-playground-control>"
     )
 
@@ -773,7 +780,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
         return fragment_errors(
             f'<lf-ask id="placed-ask"><h2>Which tone?</h2>{before}'
             f'<lf-playground id="placed-playground">{rail}'
-            '<lf-playground-preset id="preset-bold" label="Bold">'
+            '<lf-playground-preset id="preset-bold"><strong>Bold</strong>'
             '<lf-playground-setting for="item-tone" value="bold">'
             "</lf-playground-setting></lf-playground-preset>"
             '<lf-playground-preview><div class="item"><p>Item</p>'
@@ -809,8 +816,8 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     # the control's own: its nearest playground is the inner one.
     inner = (
         '<lf-playground id="inner-playground">'
-        '<lf-playground-control id="inner-tone" name="inner-tone" label="Tone" kind="toggle" '
-        'value="false"></lf-playground-control>'
+        '<lf-playground-control id="inner-tone" name="inner-tone" kind="toggle" '
+        'value="false"><strong>Tone</strong></lf-playground-control>'
         "<lf-playground-preview><p>Inner</p></lf-playground-preview>"
         "<lf-playground-output>Use it."
         + tone.format(name="lost-tone")
@@ -822,7 +829,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     # A quotation cannot supply a control to the surrounding playground, even if
     # its preview surrounds the quotation. Its names neither collide nor resolve.
     quoted = (
-        '<lf-sample id="quoted-control" label="Control example">'
+        '<lf-sample id="quoted-control"><strong>Control example</strong>'
         + tone.format(name="item-tone")
         + "</lf-sample>"
     )
@@ -848,7 +855,7 @@ def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
     # The quoted playground itself still owns the controls written inside it.
     assert not errors(
         tone.format(name="item-tone"),
-        '<lf-sample id="quoted-playground" label="Playground example">'
+        '<lf-sample id="quoted-playground"><strong>Playground example</strong>'
         + inner.replace(tone.format(name="lost-tone"), "")
         + "</lf-sample>",
     )

@@ -27,15 +27,11 @@ Keep the page's
 title, and a Layout's `header` and `footer`, inside `main`, and lay out what stands
 beside it with the page's own CSS, such as a grid on `body`.
 
-A site header the page fixes at the window's top, or makes sticky in `body` before
-`main` (a banner may stand above it) or at the start of `main`, needs no landing room of
-its own when it spans the middle of the column and reaches less than halfway down the
-window: Leaf lands links below it, and its own marks and controls pass under it
-(`module-scroll-and-motion.md`, "Headers over the document"). A header taller than that,
-as on a phone held sideways, or a sticky header further into `main` or inside a section,
-isn't read that way, so give its targets `scroll-margin-top`. A `scroll-margin-top` the
-page gives a target replaces the room Leaf leaves above it; a `scroll-padding-top` on
-the page's root has no effect.
+A site header the page fixes or makes sticky at the window's top covers what scrolls
+under it, and Leaf doesn't look for it. So give every element with an `id` a
+`scroll-margin-top` a little taller than the header, such as
+`[id] { scroll-margin-top: 4.5rem; }`, so a link or a walk lands its target below the
+header. A `scroll-padding-top` on the page's root has no effect.
 
 On a column page, a board, diagram or diff declares its own width, and any other block,
 such as a table, a trace or a playground, can ask for one with `data-width` ("Bounds and
@@ -58,8 +54,9 @@ so its items keep their top margins level.
 
 ## A page of parts
 
-Write one `lf-parts` in a `main` that carries no Layout, and give each `lf-part` one
-child carrying that part's Layout:
+Write one `lf-parts` in a `main` that carries no Layout. Open each `lf-part` with a
+`<header>` holding the `<strong>` that names it and a summary, then one child carrying
+that part's Layout:
 
 ```html
 <main>
@@ -67,10 +64,18 @@ child carrying that part's Layout:
     <h1>Floating comment panel</h1>
   </header>
   <lf-parts id="parts">
-    <lf-part id="try" label="Try" summary="The panel, live">
+    <lf-part id="try">
+      <header>
+        <strong>Try</strong>
+        <p>The panel, live</p>
+      </header>
       <div class="layout-workspace">…</div>
     </lf-part>
-    <lf-part id="proposal" label="Proposal" summary="What changes and why">
+    <lf-part id="proposal">
+      <header>
+        <strong>Proposal</strong>
+        <p>What changes and why</p>
+      </header>
       <article class="layout-column">…</article>
     </lf-part>
   </lf-parts>
@@ -78,9 +83,11 @@ child carrying that part's Layout:
 ```
 
 The page's `header` is the only element in `main` besides the parts. It appears at the
-top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
-under its label. Each part takes the rest of the width from the top of the window, so
-a workspace part fills the window. Keep the header to the page's title, since it shares
+top of a column along the window's left edge, followed by the list of parts, which shows
+each part's header, the summary under the name. A name or summary may hold phrasing
+markup, such as a file name in `<code>` or a diffstat coloured by your own classes, but
+no link or control, since the list draws it inside a tab. Each part takes the rest of the width from the top of the window, so
+a workspace part fills the window. Keep the page's header to its title, since it shares
 the column's width. Give each part its own heading, and a column part its own contents
 outline.
 
@@ -185,8 +192,14 @@ grid of panes:
     <p><span class="tag warn">…</span></p>
   </header>
   <div id="regions">
-    <lf-pane id="log" label="Log">…</lf-pane>
-    <lf-pane id="chart" label="Chart">…</lf-pane>
+    <lf-pane id="log"
+      ><header><h2>Log</h2></header>
+      …</lf-pane
+    >
+    <lf-pane id="chart"
+      ><header><h2>Chart</h2></header>
+      …</lf-pane
+    >
   </div>
 </main>
 ```
@@ -220,9 +233,11 @@ For a queue of items decided one at a time, such as tickets or findings, make th
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
 where the reader looks for the queue's state, such as the header. The list marks each
 tab's open obligations and the tally counts what is left, so write no script or count
-of your own, and don't state the count in prose or chips. Each item's `summary` shows under its label, so the user can choose an item
+of your own, and don't state the count in prose or chips. Open each item with a
+`<header>` holding the `<strong>` that names it and, after it, its summary, such as a
+`<p>`; the list shows that header, the summary under the name, so the user can choose an item
 without opening it. Start the summary with what the item is about, such as the problem
-a ticket reports, unless the label already says so, then what sets it apart from its
+a ticket reports, unless the name already says so, then what sets it apart from its
 neighbours, such as its age or suggested outcome. Leave out the item's group, which its
 heading shows. Where items fall into kinds the user works through in turn, such as
 merge, close and FYI, give each item its kind as `group` and place each kind's items
@@ -391,22 +406,6 @@ would lose that reservation. Use `display: grid` for a full-width message. For a
 counter, an invisible representative widest value can share the cell with the
 changing value; `font-variant-numeric: tabular-nums` equalizes digit widths but does
 not reserve space for additional digits.
-
-For concise, one-line text, Leaf's `data-room` shorthand holds representative widest
-strings, separated by newlines; its only child holds the current text. Its CSS reserves
-that space from first paint:
-
-```html
-<span role="status" data-room="Ready&#10;Saving changes…&#10;Saved"
-  ><span>Ready</span></span
->
-```
-
-Change the child's text, keeping the wrapper. The wrapper fits its container; text
-past that width is ellipsized, while its DOM text and accessible name stay whole.
-Use this for short feedback, with longer results and error details in readable content
-outside the controls' changing labels. Such content can grow; arrange it so the controls
-the reader needs next remain reachable.
 
 ## Activity from several contributors
 

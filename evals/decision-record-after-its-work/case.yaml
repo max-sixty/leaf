@@ -142,7 +142,8 @@ vars:
                 and fails on any error.
               </li>
             </ol>
-            <lf-sample id="plain-host" label="Proposed plain host — untested">
+            <lf-sample id="plain-host">
+              <strong>Proposed plain host — untested</strong>
               <pre><code class="language-html">&lt;script type="importmap"&gt;
       {
         "imports": {
@@ -578,7 +579,8 @@ variants:
                   alias them, so the bare name adds nothing. What a plain page lacks is a
                   module exporting the names the widgets import.
                 </p>
-                <lf-sample id="plain-host" label="Proposed plain host — untested">
+                <lf-sample id="plain-host">
+                  <strong>Proposed plain host — untested</strong>
                   <pre><code class="language-html">&lt;script type="importmap"&gt;
           {
             "imports": {

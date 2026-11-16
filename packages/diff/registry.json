@@ -148,9 +148,7 @@
         "contract": "file-list"
       }
     },
-    "x-upgrade": true,
     "x-shadow": true,
-    "x-thread-surface": true,
     "x-height": true,
     "x-example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre><lf-diff-note file=\"feeders/mount.py\" side=\"new\" at=\"2\">Steel carries the load.</lf-diff-note></lf-diff>"
   },
@@ -188,7 +186,6 @@
         }
       }
     },
-    "x-upgrade": true,
     "x-height": true,
     "x-example": "<lf-call-diff id=\"request-calls\" data-height=\"480\" source=\"request-call-diff\" diff=\"request-patch\"></lf-call-diff>"
   },
@@ -203,20 +200,14 @@
     "additionalProperties": false,
     "x-content": "members",
     "x-space": "wide",
-    "x-upgrade": true,
-    "x-patch": "members",
-    "x-example": "<lf-worktree-diffs id=\"review-worktrees\"><lf-worktree id=\"draft-worktree\" label=\"retain-drafts\" path=\"/workspace/leaf.retain-drafts\" branch=\"fix/retain-drafts\" head=\"c8ebd603f87d4c9db1ce17bf134b76567d8a409c\" status=\"changed\" files=\"1\" additions=\"1\" deletions=\"1\" open><p>Preserve a composer draft while switching threads.</p><lf-diff id=\"draft-patch\"><pre>\ndiff --git a/draft.js b/draft.js\n--- a/draft.js\n+++ b/draft.js\n@@ -1 +1 @@\n-clearDraft();\n+saveDraft();\n</pre></lf-diff></lf-worktree></lf-worktree-diffs>",
+    "x-example": "<lf-worktree-diffs id=\"review-worktrees\"><lf-worktree id=\"draft-worktree\" path=\"/workspace/leaf.retain-drafts\" branch=\"fix/retain-drafts\" head=\"c8ebd603f87d4c9db1ce17bf134b76567d8a409c\" status=\"changed\" files=\"1\" additions=\"1\" deletions=\"1\" open><strong>retain-drafts</strong><p>Preserve a composer draft while switching threads.</p><lf-diff id=\"draft-patch\"><pre>\ndiff --git a/draft.js b/draft.js\n--- a/draft.js\n+++ b/draft.js\n@@ -1 +1 @@\n-clearDraft();\n+saveDraft();\n</pre></lf-diff></lf-worktree></lf-worktree-diffs>",
     "x-shadow": true
   },
   "lf-worktree": {
-    "description": "One worktree snapshot inside lf-worktree-diffs, an expandable row whose summary Leaf writes from its attributes and whose body holds the evidence authored directly inside it.",
+    "description": "One worktree snapshot inside lf-worktree-diffs, an expandable row whose summary shows the `<strong>` it opens with, naming it, beside what Leaf writes from its attributes, and whose body holds the evidence authored after the name.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
-      "label": {
-        "type": "string",
-        "minLength": 1
-      },
       "path": {
         "type": "string",
         "minLength": 1
@@ -252,7 +243,7 @@
         "type": "boolean"
       }
     },
-    "required": ["id", "label", "path", "status"],
+    "required": ["id", "path", "status"],
     "allOf": [
       {
         "if": {
@@ -294,10 +285,6 @@
     ],
     "additionalProperties": false,
     "x-owners": ["lf-worktree-diffs"],
-    "x-content": "markup",
-    "x-name": "label",
-    "x-upgrade": true,
-    "x-patch": "members",
     "x-shadow": true
   },
   "lf-diff-note": {
@@ -320,8 +307,6 @@
     },
     "required": ["file", "side", "at"],
     "additionalProperties": false,
-    "x-owners": ["lf-diff"],
-    "x-content": "markup",
-    "x-upgrade": false
+    "x-owners": ["lf-diff"]
   }
 }

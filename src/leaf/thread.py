@@ -318,7 +318,7 @@ def cmd_comment(
             quote,
             section,
             part,
-            html=True,
+            markup,
             title=title,
             obligation=obligation,
         )
@@ -331,22 +331,21 @@ def open_thread(
     quote: str = "",
     section: str = "",
     part: str = "",
+    markup: str = "",
     *,
-    html: bool = False,
     title: str | None = None,
     obligation: bool = False,
     identity: dict | None = None,
 ) -> dict:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
-    describes, from a `body` already checked (`checked_text`) and read with HTML
-    where `html` says (`drawn_markup`); `identity` names the agent and session where
-    the writer isn't the agent's own process, as Leaf's clerk is
-    (`clerk.apply_answer`)."""
+    describes, from a `body` already checked (`checked_text`) and the markup it draws
+    (`drawn_markup`); `identity` names the agent and session where the writer isn't
+    the agent's own process, as Leaf's clerk is (`clerk.apply_answer`)."""
     events = page.events
     revision, anchor = current_anchor(
         page_dir, events, quote, section, part, transaction=page
     )
-    if markup := drawn_markup(body, html):
+    if markup:
         publication = revision_publication(page_dir, revision)
         fragment = check_markup(
             page_dir, "comment", markup, events, publication=publication

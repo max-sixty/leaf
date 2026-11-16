@@ -357,8 +357,8 @@ export function threadReading(thread, surface, commands) {
   // stands: a question the user still owes words to, a to-do still open on the
   // thread. Once the agent ends a question it asked (`task end`), because the user
   // answered it elsewhere or it no longer applies, a line under the question says how
-  // it ended, in the words an opened Done card uses (`obligationEnding`), one line for each
-  // question the message asked. The thread then no longer reads as asking.
+  // it ended, in the words an opened Done card uses (`obligationEnding`), one line for
+  // each question the message asked. The thread then no longer reads as asking.
   /** @type {Map<string | null, import("../voice.js").Words[]>} */
   const ended = new Map();
   for (const item of thread.obligations)

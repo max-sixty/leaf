@@ -638,19 +638,43 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
         page.unroute("**/registry.json", source)
 
 
-@pytest.mark.parametrize("fails", ["once", "every time"])
+# Marks the startup supervisor's probe (bootstrap.js, `check`), which asks for the
+# registry past the cache, apart from the runtime's own read of the same address.
+MARK_PROBES = """
+const nativeFetch = window.fetch.bind(window);
+window.fetch = (input, init = {}) => {
+  if (!String(input).includes("registry.json") || init.cache !== "no-store")
+    return nativeFetch(input, init);
+  const headers = new Headers(init.headers);
+  headers.set("Leaf-Test-Probe", "1");
+  return nativeFetch(input, {...init, headers});
+};
+"""
+
+
+@pytest.mark.parametrize(
+    ("lost", "fails"),
+    [
+        ("runtime/rendering.js", "once"),
+        ("runtime/rendering.js", "every time"),
+        ("theme.css", "once"),
+    ],
+)
 def test_a_page_whose_module_failed_to_load_asks_its_server_once_more(
-    browser, serve, fails
+    browser, serve, lost, fails
 ):
     """A module can fail on its way from a server that is still there, as when the
     machine's network changes under the request (`net::ERR_NETWORK_CHANGED`). The page
     then lacks it however long it waits, and it waited only for another server, so a
     page whose server kept answering never started. Once that server answers, the page
-    asks it for the document once more, and starts. A module the server fails every
-    time fails the second document too, which asks no third: the count is the
+    asks it for the document once more, and starts. A page that lost only its theme
+    upgrades without it, and asks too, though the network change took the first probe
+    with it and the page upgraded before a probe answered. A module the server fails
+    every time fails the second document too, which asks no third: the count is the
     assertion, one replacement and then the probe's own cadence."""
     page = browser.new_page()
-    documents, failed, rounds = [], [], []
+    page.add_init_script(MARK_PROBES)
+    documents, failed, rounds, probes = [], [], [], []
 
     def heard(request):
         if request.resource_type == "document":
@@ -658,18 +682,28 @@ def test_a_page_whose_module_failed_to_load_asks_its_server_once_more(
         elif len(documents) > 1 and "/registry.json" in request.url:
             rounds.append(request.url)
 
-    def module(route):
+    def lose(route):
         if failed and fails == "once":
             route.continue_()
         else:
             failed.append(route.request.url)
             route.abort("internetdisconnected")
 
+    def probe(route):
+        if "leaf-test-probe" in route.request.headers and not probes:
+            probes.append(route.request.url)
+            route.abort("internetdisconnected")
+        else:
+            route.continue_()
+
     page.on("request", heard)
-    page.route("**/runtime/rendering.js", module)
+    page.route(f"**/{lost}", lose)
+    page.route("**/registry.json", probe)
     page.goto(serve(LONG_PAGE), wait_until="load")
+    holding(page, documents, 2, "the document recovery asks for")
     if fails == "once":
         expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+        expect(page.locator("html")).to_have_attribute("data-lf-interactive", "")
         assert len(failed) == 1, failed
     else:
         expect(
@@ -679,5 +713,8 @@ def test_a_page_whose_module_failed_to_load_asks_its_server_once_more(
     assert len(documents) == 2, documents
     assert "_leaf-recovered" in documents[1], documents
     assert "_leaf-recovered" not in page.evaluate("location.href")
-    page.unroute("**/runtime/rendering.js", module)
-    consume_browser_errors(page, "rendering.js", "net::ERR_INTERNET_DISCONNECTED")
+    page.unroute(f"**/{lost}", lose)
+    page.unroute("**/registry.json", probe)
+    consume_browser_errors(
+        page, lost, "registry.json", "net::ERR_INTERNET_DISCONNECTED"
+    )

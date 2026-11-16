@@ -463,15 +463,16 @@
     stopHoldingKeys();
     if (recovering) return;
     recovering = true;
-    // The notice says the page has not started, and a page that upgrades has started,
-    // as one can whose theme did not arrive, so a user who is using the page would
-    // otherwise be reading that Leaf could not start, over a request a second that no
-    // answer ends. A fault can reach this after the upgrade, and the page has started
-    // then too unless the fault is the page's own or left it incomplete: a page whose
-    // runtime declared it failed once it had upgraded shows its readable fallback
-    // (prepaint.js).
-    const upgraded = () => Boolean(document.body?.hasAttribute("data-lf-upgraded"));
-    let started = !page && upgraded() && root.hasAttribute("data-lf-interactive");
+    // The notice says the page has not started, and a page that has upgraded whole has
+    // started, before the fault reached this or after, so a user who is using the page
+    // would otherwise be reading that Leaf could not start, over a request a second
+    // that no answer ends. A page that is incomplete has not started however far it
+    // got, as one whose theme did not arrive, or whose runtime declared it failed once
+    // it had upgraded and so shows its readable fallback (prepaint.js); it asks.
+    const whole = () =>
+      Boolean(document.body?.hasAttribute("data-lf-upgraded")) &&
+      root.hasAttribute("data-lf-interactive");
+    let started = !page && whole();
     const status = document.createElement("p");
     status.className = "lf-chrome";
     status.setAttribute("data-lf-runtime", "");
@@ -486,7 +487,7 @@
     else document.addEventListener("DOMContentLoaded", show, { once: true });
     if (page || started) return;
     const upgrade = new MutationObserver(() => {
-      if (!upgraded()) return;
+      if (!whole()) return;
       upgrade.disconnect();
       started = true;
       status.remove();

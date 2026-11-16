@@ -214,7 +214,7 @@ its link's preview counts them.
 | **Scope** | A registered boundary where commands apply and can hide outer ones |
 | **Design mode** | The `l` interaction that turns input into interface comments until the user exits |
 | **Draw mode** | The `w` interaction that turns pointer input into a drawing until the user exits |
-| **Annotation layer** | Everything Leaf draws over the page's content: pins, marks on commented and reacted passages, an open card, an unfolded cluster, but not the rail. `o` toggles whether it shows |
+| **Annotation layer** | Everything drawn over the page's content for its annotations: Leaf's pins, marks on commented and reacted passages, an open card and an unfolded cluster, or what a page presenting its own annotations draws there (`watchAnnotationLayer`), but not the rail. `o` toggles whether it shows |
 | **Go-to sequence** | The `g` keys: Leaf paints hint codes on the current Go-to targets and goes to the one whose code the user types |
 | **Target picker** | The `s` interaction that shows addressable elements and ends when the user picks one or closes it |
 | **Page search** | The `/` interaction that filters or steps through text matches for a query |

@@ -377,8 +377,9 @@ layer the user hides with `o` ("The annotation layer").
 The user hides everything drawn over the page's content with `o`, or Hide annotations in
 the leaf's menu, to read what lies under it. A widget that draws over the page, as a
 page's own margin draws pins and cards, joins that layer with
-`watchAnnotationLayer(watch)`. Leaf calls `watch(hidden)` at once and again at each
-change, and offers the command while anything watches. While `hidden` is true, draw
+`watchAnnotationLayer(watch)`. Leaf calls `watch(hidden)` at each change, and at once
+where the layer stands hidden as the widget joins, as after a reload; the command takes
+a press while anything watches or the layer is hidden. While `hidden` is true, draw
 nothing over the page's content, and first return the user from anything of the widget's
 that goes to the content it stood by. What takes room of its own, such as a rail beside
 the column, covers nothing and stays. Register it in `whileConnected`, and call the

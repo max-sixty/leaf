@@ -31,7 +31,7 @@ import { threadNamed } from "../thread/state.js";
 import { threadPreview } from "../thread/messages.js";
 import { declareRanges, pointRange } from "../preview.js";
 import { renderedParent, shadowHost, upFrom } from "../shadow.js";
-import { annotationsHidden, watchAnnotations } from "../annotation-layer.js";
+import { annotationsHidden, watchAnnotationLayer } from "../annotation-layer.js";
 import { keepsOnOne } from "../keeps.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
 
@@ -191,7 +191,7 @@ export function createAnchorPaint({
         : [...reacted.values()].flat();
     CSS.highlights.set(name, new Highlight(...ranges));
   }
-  watchAnnotations(() => {
+  watchAnnotationLayer(() => {
     if (!mounted) return;
     paintDurable(MARK);
     paintDurable(REACT);

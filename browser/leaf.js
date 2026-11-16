@@ -215,9 +215,7 @@ async function boot() {
     : null;
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-  // Leaf's own margin draws the layer `o` hides. A page presenting its own declares
-  // the command once something of its watches (annotation-layer.js).
-  if (overlaySelected) mountAnnotationControls();
+  mountAnnotationControls();
 
   /** @type {ReturnType<typeof mountApplication>} */
   let app;
@@ -817,7 +815,7 @@ async function boot() {
 
   if (!offlineInteractive) {
     restoreUserView({ setDesignMode: designMode.setActive });
-    if (overlaySelected) restoreAnnotations();
+    restoreAnnotations();
     // A page nobody has used starts Tab at the first control. Inputs before the
     // module graph arrived already gave this document a place to keep.
     recoverComposer.handoff(releaseFocus);

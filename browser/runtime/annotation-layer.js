@@ -4,10 +4,11 @@
    annotations. Under Leaf's own margin that is the margin rows shown as pins, whatever
    they hold, the durable marks on commented and reacted passages, an open card, and an
    unfolded cluster. The rail covers nothing, so it and everything standing in it stay.
-   A package that draws over the page's content joins the layer by watching it
-   (`watchAnnotationLayer`), as a page presenting its own annotations does
-   (`data-annotations="page"`). Hiding the layer changes no geometry, since nothing in
-   it takes up room; it lets the user see what lies under it.
+   A package that draws over the page's content, as a page presenting its own
+   annotations does (`data-annotations="page"`), joins the layer through the same door
+   Leaf's margin and passage paint use (`watchAnnotationLayer`). Hiding the layer
+   changes no geometry, since nothing in it takes up room; it lets the user see what
+   lies under it.
 
    The fact is this tab's view of the page, so it lives in the tab store and comes back
    with a reload, and a new page opens with the layer shown: a lasting "never show
@@ -20,11 +21,10 @@
    `annotationsHidden()` rather than the root attribute, which is a rendering; a
    renderer that reads it repaints when it changes.
 
-   The command is live while something watches, so a page with nothing over its content
-   offers no press that hides nothing. Boot declares it where Leaf's own margin draws
-   the layer; on a page that draws its own, the first package to watch declares it, so
-   a page whose presentation covers nothing, such as a rail of threads, shows no row for
-   it. */
+   The command stands on every page, and takes a press while something watches or the
+   layer is hidden, so a page with nothing over its content offers no press that hides
+   nothing, and a layer hidden when its last watcher left, as a page's own margin leaves
+   with a revision, can still be shown. */
 import { signal } from "/runtime/framework.js";
 import { tabStore } from "./tab-store.js";
 import { setRuntimeRootAttribute } from "./root-state.js";
@@ -41,40 +41,29 @@ const watchers = new Set();
 
 export const annotationsHidden = () => hidden.value;
 
-/** @param {(hidden: boolean) => void} watcher */
-export function watchAnnotations(watcher) {
-  watchers.add(watcher);
-}
-
-// A package's part of the layer (module-annotations.md, "Hiding what a widget draws
-// over the page"). Its watcher hears the state as it registers, which may follow the
-// tab's restored state by any time, and each change after; its registration is what
-// makes the command live, so it repaints the row that offers it.
+// Join the layer: `watcher(hidden)` hears each change, and hears at once a layer that
+// stands hidden as it joins, as one restored for the tab before a widget upgraded
+// does. A watcher joining a shown layer hears nothing, since it draws shown already.
+// Its coming and going change whether the command takes a press, so each repaints the
+// row that offers it. The returned function leaves the layer.
 /** @param {(hidden: boolean) => void} watcher */
 export function watchAnnotationLayer(watcher) {
-  if (typeof watcher !== "function")
-    throw new TypeError("watchAnnotationLayer needs a function to tell");
-  mountAnnotationControls();
-  restoreAnnotations();
   watchers.add(watcher);
   repaint();
-  watcher(hidden.value);
+  if (hidden.value) watcher(true);
   return () => {
     if (watchers.delete(watcher)) repaint();
   };
 }
 
-let mounted = false;
 export function mountAnnotationControls() {
-  if (mounted) return;
-  mounted = true;
   pageCommand({
     id: "annotations.toggle",
     keys: ["o"],
     title: () => (hidden.value ? "show annotations" : "hide annotations"),
     touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",
-    when: () => watchers.size > 0,
+    when: () => watchers.size > 0 || hidden.value,
     run: () => {
       setAnnotationsHidden(!hidden.value);
       notice(
@@ -101,7 +90,8 @@ function setAnnotationsHidden(on) {
   for (const watcher of watchers) watcher(on);
 }
 
-// Restore before presentation, after the actual overlay has installed its readers.
+// Restore before presentation, after Leaf's own margin has joined the layer; what a
+// package draws joins as its widget upgrades, and hears the restored state then.
 export function restoreAnnotations() {
   if (tabStore.get(ANNOTATIONS_KEY) === "hidden") setAnnotationsHidden(true);
 }

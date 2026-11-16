@@ -12,6 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, NoReturn, TypedDict
 
 from .files import read_json
+from .findings import Finding
 from .leases import end_if_terminated, lock_is_held
 from .refusals import Refused
 from .schema import (
@@ -137,6 +138,30 @@ def running_server(page_dir: Path) -> RunningService | None:
         **service,
         "url": page_url(service["host"], service["port"], host_key()),
     }
+
+
+def another_leaf_serving(page_dir: Path) -> list[Finding]:
+    """A note that the page's live server runs another commit of Leaf than this
+    process (`layer.running_leaf`). A server keeps the runtime and layer it started
+    with, so what this process checks may not be what the user's tab draws until
+    the server restarts. It compares commits alone: two checkouts at one commit
+    draw no note, even with uncommitted edits, and neither does a server or process
+    whose commit is unknown."""
+    from .layer import running_leaf
+
+    server = running_server(page_dir)
+    if server is None:
+        return []
+    served, own = server["runtime"].get("commit"), running_leaf().get("commit")
+    if not served or not own or served == own:
+        return []
+    return [
+        Finding(
+            "another-leaf-serving",
+            values={"page": str(page_dir), "server": served, "checked": own},
+            severity="advice",
+        )
+    ]
 
 
 def preview_metadata(page_dir: Path) -> dict | None:

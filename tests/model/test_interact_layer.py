@@ -25,6 +25,7 @@ from interact_support import (
     SKILL_ROOT,
     STATED_TIMEOUT,
     add_test_widget,
+    available_loopback_port,
     command_findings,
     declare_on_page,
     element_declaration,
@@ -34,12 +35,15 @@ from interact_support import (
     lock_contention,
     package_findings,
     publish,
+    read_record,
     record_claim,
     registry_refusal,
+    serving,
     shipped_payload,
     vendored_at_another_protocol,
     wait_for,
     words,
+    write_record,
 )
 from model_folds import leaf_page
 from packaging.requirements import Requirement
@@ -317,6 +321,37 @@ def test_a_command_leaves_a_page_a_newer_leaf_vendored(claimed):
     assert stated.returncode == 0, stated.stderr
     error = json.loads(stated.stdout)["source"]["error"]
     assert "Use a newer Leaf" in error
+
+
+def test_page_check_notes_a_live_server_running_another_leaf(page_dir):
+    """A server keeps the Leaf it started under, so a check by another commit of
+    Leaf may pass on code the user's tab doesn't run. `page check` notes that, with
+    the commands that restart the server, and the first reply on a revision repeats
+    its advice. A live server at this Leaf's commit, or a stopped one, draws no
+    note."""
+    (page_dir / "index.html").write_text(leaf_page("Notes", "<p>Ship Tuesday.</p>"))
+    activate_source(page_dir)
+    serving(page_dir, available_loopback_port())
+    service = read_record(page_dir / "service.json")
+
+    def advised(commit, enabled=True):
+        write_record(
+            page_dir / "service.json",
+            {**service, "enabled": enabled, "runtime": {"commit": commit}},
+        )
+        checked = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
+        assert checked.exit_code == 0, checked.output
+        return [
+            finding
+            for finding in json.loads(checked.output)["findings"]
+            if finding["code"] == "another-leaf-serving"
+        ]
+
+    [noted] = advised("0123456789ab")
+    restart = f"`leaf server stop {page_dir}` then `leaf server start {page_dir}`"
+    assert "runs Leaf 0123456789ab" in noted["text"] and restart in noted["text"]
+    assert advised(layer_model.running_leaf()["commit"]) == []
+    assert advised("0123456789ab", enabled=False) == []
 
 
 def test_a_later_layer_record_shape_is_not_read_as_none(claimed):

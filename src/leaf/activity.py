@@ -15,7 +15,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
 from .obligations import response_address
-from .state import turn_closed, turn_open
+from .state import leaf_invocation, turn_closed, turn_open
 
 if TYPE_CHECKING:
     from .holding import Holding
@@ -208,9 +208,11 @@ def reply_command(answer: dict, page_dir: Path) -> str:
     deliver the page's whole pending batch and mark its other input Delivered
     unseen, so the command names the `leaf wait` that delivers it, after the claim
     its receipt needs where this command's session does not hold the page
-    (`service.may_receive`)."""
+    (`service.may_receive`). The command that names a ref begins as the command
+    printing it does (`state.leaf_invocation`), so a fork that runs it as printed
+    answers in its own turn."""
     if "ref" in answer:
-        return f"`leaf thread reply {answer['ref']}`"
+        return f"`{leaf_invocation()} thread reply {answer['ref']}`"
     from .harness import session_harness
     from .service import may_receive, page_claim
 

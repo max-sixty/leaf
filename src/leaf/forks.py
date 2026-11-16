@@ -37,19 +37,29 @@ take: named with the fork's agent id at once for a fork it resumes, and once the
 module says which agent it spawned for a new one (`started`). Leaf records
 the take as that turn's pickup of the thread's waiting messages, with their receipt,
 fenced to the thread still being kept back, so the messages go from kept back to held
-with no moment in which neither has them. The fork's `leaf` commands act in its turn
-(`hooks.agent_command`), and as its run ends the module says so (`ended`), which
-closes the turn and judges each thread by what the turn picked up and wrote. The main
-session hears which fork took a thread once the module says the fork runs
-(`started`): as it says which agent it spawned for a new one, and once it has
-delivered a resumed one's message; and it hears as the fork's run ends
-(`clerk.queue`), since Claude Code
-tells it nothing of a fork a module made. The user chose these lines on 2026-11-11
-over the fork's own SendMessage to the main thread, which would wake it for every
-answer (`docs/forks.html`, "How a fork tells the main thread"). A line waits for the
-session's next tool boundary or prompt, and Leaf wakes an idle session only for what
-a fork's end leaves it owing: a thread given back, whose answer is owed again, and a
-to-do the fork opened, whose line wakes it (`ended`).
+with no moment in which neither has them. As the fork's run ends the module says so
+(`ended`), which closes the turn and judges each thread by what the turn picked up
+and wrote. The main session hears which fork took a thread once the module says the
+fork runs (`started`): as it says which agent it spawned for a new one, and once it
+has delivered a resumed one's message; and it hears as the fork's run ends
+(`clerk.queue`), since Claude Code tells it nothing of a fork a module made. The user
+chose these lines on 2026-11-11 over the fork's own SendMessage to the main thread,
+which would wake it for every answer (`docs/forks.html`, "How a fork tells the main
+thread"). A line waits for the session's next tool boundary or prompt, and Leaf wakes
+an idle session only for what a fork's end leaves it owing: a thread given back,
+whose answer is owed again, and a to-do the fork opened, whose line wakes it
+(`ended`).
+
+The fork's task names its turn and tells it to begin each `leaf` command with
+`leaf --turn` and that turn (`work_prompt`, `resume_prompt`), so the command acts in
+the turn from the fork's first command on, and is refused once the turn has closed
+(`state.acting_agent_turn`). A fork's command without it acts as the main thread's,
+as any command that names no turn does, and says beside its result which fork holds
+the thread (`holding.authorize`). The user chose on 2026-11-15 that the fork marks its
+own commands, over Leaf's PreToolUse hook rewriting each to name the fork's agent id:
+that hook could mark only a `leaf` that led its Bash call, so it denied every other,
+and Leaf learns a new fork's agent id only once Claude Code has spawned it, so until
+then it denied every agent's `leaf` command.
 
 These lines, the holder `leaf page state` prints (`holding.holder`) and the advice
 beside a command on a fork's thread all name the fork by its agent id, and the main
@@ -601,39 +611,42 @@ Reply with this JSON alone: {{"line": "<the line>", "work": "take" or "hand_over
 </leaf-line-fork>"""
 
 
-def work_prompt(delivery: dict) -> str:
+def work_prompt(delivery: dict, turn: str) -> str:
     """The task of the fork that does a thread's work: what it is for, the delivery
-    of the thread Leaf recorded as its turn's (`_take`), and the three ways it ends:
-    an answer, an answer that opens a to-do for work bigger than a message, which the
-    main thread schedules, or `HAND_BACK` for a message the main thread has to act on
-    now (`docs/forks.html`, "To-dos")."""
+    of the thread Leaf recorded as its turn's (`_take`), the turn `turn` each of its
+    `leaf` commands names, which is how Leaf tells them from the main thread's
+    (`state.acting_agent_turn`), and the three ways it ends: an answer, an answer
+    that opens a to-do for work bigger than a message, which the main thread
+    schedules, or `HAND_BACK` for a message the main thread has to act on now
+    (`docs/forks.html`, "To-dos")."""
     return f"""{WORK_OPENING}
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to do what the message asks beside the main session, which carries on with its own work and leaves this thread to you. You have the session's tools. Change nothing the main session is changing or about to change: its files and branch, the page's source, its pull requests.
 
 Leaf's delivery of the thread to you; "events" are the user's messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
 
-Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Run each `leaf` command as a Bash call of its own that begins with `leaf` and has no other `leaf` in it, which is how Leaf knows it is yours; give a reply's text with `--text`, or, where the text names a `leaf` command, with `--file` naming a file you wrote first with the Write tool. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message.
+Do the work, then answer the user in the thread yourself, as the session would, with the `leaf thread reply` the delivery's `answer` names. Leaf runs your work in a turn of its own, {turn}. Begin every `leaf` command you run with `leaf --turn {turn}`, as in `leaf --turn {turn} thread reply …`. Leaf takes a command as yours only where it names your turn; one without it acts as the main session's. Leaf hands you anything else the user writes in the thread at your next tool call, and your answer then goes to their newest message.
 
 If the work proves bigger than a message, such as a change to the session's files, branch, page or pull requests, or research long enough to need progress of its own, do what you can without changing those, then answer with what you found and add `--todo "<the rest of the work, in a few words>"` to that reply. The to-do is the session's: the main session takes it up in its own order, after its current work. If instead the main session has to act on the message now, because it answers a question the session asked, steers its current work, or would settle a question it is weighing, don't answer: end your turn with "{HAND_BACK}" and one line saying why, and Leaf gives the thread to the main session. Leaf tells the main session what you did either way.
 </leaf-fork-work>"""
 
 
-def resume_prompt(delivery: dict) -> str:
+def resume_prompt(delivery: dict, turn: str) -> str:
     """The message that resumes the fork that answered a thread, for the user's
-    further messages in it (`_take`): what Leaf gives it, that it reads the page's
-    state for what the rest of the session did there since its last turn, which its
-    transcript lacks, and the delivery Leaf recorded as its new turn's. The fork's
-    first task (`work_prompt`) stays in its transcript, so this repeats only how it
-    answers."""
+    further messages in it (`_take`): what Leaf gives it, its new turn `turn`, which
+    its `leaf` commands name in place of the one its transcript names, that it reads
+    the page's state for what the rest of the session did there since its last turn,
+    which its transcript lacks, and the delivery Leaf recorded as its new turn's. The
+    fork's first task (`work_prompt`) stays in its transcript, so this repeats only
+    how it answers."""
     page = shlex.quote(delivery["batches"][0]["page"])
     return f"""{WORK_OPENING}
-This message comes from Leaf, not the user. The user wrote again in the thread you answered, and Leaf gives it to you in a new turn of your own. Your transcript lacks what the rest of the session has done on the page since your last turn, so read where the page stands with `leaf page state {page}` before you answer.
+This message comes from Leaf, not the user. The user wrote again in the thread you answered, and Leaf gives it to you in a new turn of your own, {turn}, in place of your last one: begin every `leaf` command you run from now on with `leaf --turn {turn}`. Your transcript lacks what the rest of the session has done on the page since your last turn, so read where the page stands with `leaf --turn {turn} page state {page}` before you answer.
 
 Leaf's delivery of the thread to you; "events" are the user's new messages, oldest first, and the one that owes the thread's answer carries its `answer`:
 {json.dumps(delivery, ensure_ascii=False)}
 
-Answer as before: do the work, then reply with the `leaf thread reply` the delivery's `answer` names, run as a Bash call of its own that begins with `leaf` and has no other `leaf` in it, adding `--todo` where the rest of the work is bigger than a message; or, if the main session has to act on the message now, end your turn with "{HAND_BACK}" and one line saying why.
+Answer as before: do the work, then reply with `leaf --turn {turn} thread reply` and the reference the delivery's `answer` names, adding `--todo` where the rest of the work is bigger than a message; or, if the main session has to act on the message now, end your turn with "{HAND_BACK}" and one line saying why.
 </leaf-fork-work>"""
 
 
@@ -844,9 +857,9 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
         **posted,
         "turn": turn,
         **(
-            {"prompt": work_prompt(delivery)}
+            {"prompt": work_prompt(delivery, turn)}
             if resumed is None
-            else {"prompt": resume_prompt(delivery), "resume": resumed}
+            else {"prompt": resume_prompt(delivery, turn), "resume": resumed}
         ),
     }
 
@@ -874,15 +887,14 @@ def _given(session_id: str, basis: dict, turn: str, agent: str) -> None:
 
 def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     """Record that the agent its harness names `agent` runs the fork turn `turn`
-    Leaf opened for the thread `basis` names (`state.name_agent_turn`), so its
-    commands act in that turn and its tool boundaries carry the thread's further
-    messages, and its turn is believed for the working grace, and tell the main
-    session which fork has the thread (`_given`): the fork the module spawned, whose
-    id Leaf learns only now, or resumed, once the module has sent it the thread's
-    messages. A turn that ended first,
-    as its session's may have, is left closed, and the main session hears of it only
-    by that end (`ended`): a fork Leaf never named then acts as any subagent of the
-    session does (`state.acting_agent_turn`)."""
+    Leaf opened for the thread `basis` names (`state.name_agent_turn`), so its tool
+    boundaries carry the thread's further messages and its turn is believed for the
+    working grace, and tell the main session which fork has the thread (`_given`):
+    the fork the module spawned, whose id Leaf learns only now, or resumed, once the
+    module has sent it the thread's messages. A turn that ended first, as its
+    session's may have, is left closed, and the main session hears of it only by
+    that end (`ended`); the fork's commands naming it are refused
+    (`state.acting_agent_turn`)."""
     named = name_agent_turn(session_id, turn, agent)
     if named:
         _given(session_id, basis, turn, agent)

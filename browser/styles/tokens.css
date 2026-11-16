@@ -490,6 +490,19 @@
   --lf-code-ink: light-dark(#24292f, #e8e7e3);
   --lf-code-muted: light-dark(#57606a, #9b9992); /* near-neutral, as its canvas is */
   --lf-code-border: light-dark(#d0d7de, #3b3a37);
+  /* An author's note on a code line is a card on that canvas: a pale ground of the
+     accent's hue, set by lightness rather than mixed with the canvas, since a mix of
+     the blue accent and a warm ground turns grey, and a border the accent warms. The
+     chroma is capped, so a vivid brand accent tints no more strongly than the default. */
+  --lf-code-note-bg: light-dark(
+    oklch(from var(--lf-accent) 0.968 min(c, 0.022) h),
+    oklch(from var(--lf-accent) 0.26 min(c, 0.03) h)
+  );
+  --lf-code-note-border: color-mix(
+    in oklab,
+    var(--lf-accent) 22%,
+    var(--lf-code-border)
+  );
   /* A neutral chip's ground. */
   --lf-chip: light-dark(
     oklab(

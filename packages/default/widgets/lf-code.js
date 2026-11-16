@@ -29,6 +29,15 @@
  * Until the reader chooses, authored presentation remains the default. Paper wraps
  * complete lines regardless of the screen choice.
  *
+ * A docked note carries its line's indent (`--lf-code-indent`, as the line does), so
+ * the theme stands it under the line's first character. A block with notes offers
+ * Hide notes above its top right, and `n` in its scope, which hides them and then,
+ * as Show 8 notes, shows them again, so a reader can read the code whole; it is reading state kept as
+ * wrapping is, and paper shows the notes whatever the screen's choice. A hidden note's
+ * line keeps its number in the accent, so the reader sees where the notes were. The
+ * toggle is Leaf's control, drawn only where Leaf runs, since only Leaf's register
+ * answers its press.
+ *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` draws it too: coloured, numbered by its own stylesheet where
  * the page loads it, and with nothing of Leaf's. What Leaf adds it reads from outside:
@@ -41,7 +50,9 @@ import {
   bodyText,
   commandsChanged,
   failSoft,
+  keepsText,
   layoutChanged,
+  offerAction,
   once,
   synNodes,
   syntax,
@@ -138,7 +149,9 @@ customElements.define(
       // The code is the <pre>'s and nothing else's; notes are its siblings and say
       // which line they are about, so a note never sits between two halves of the
       // source and there is no interrupted-line arithmetic to get right.
-      const notes = [...this.querySelectorAll(":scope > lf-note")];
+      const notes = /** @type {HTMLElement[]} */ ([
+        ...this.querySelectorAll(":scope > lf-note"),
+      ]);
       const source = bodyText(this);
       try {
         const lang = this.getAttribute("language");
@@ -201,15 +214,36 @@ customElements.define(
           }
           pre.append(line);
           // Moved, not copied: the authored element keeps its text and id.
-          pre.append(...(byLine.get(n) ?? []));
+          for (const note of byLine.get(n) ?? []) {
+            if (indent) note.style.setProperty("--lf-code-indent", String(indent));
+            else note.style.removeProperty("--lf-code-indent");
+            pre.append(note);
+          }
           previous = n;
         });
-        pre.append(...notes.filter((note) => !pre.contains(note)));
+        const foot = notes.filter((note) => !pre.contains(note));
+        for (const note of foot) note.style.removeProperty("--lf-code-indent");
+        pre.append(...foot);
         // Copied as the source the lines were drawn from, never as the lines' text,
         // which carries the notes docked among them.
         pre.dataset.lfCopy = "code";
         pre.lfCopy = () => source;
-        this.replaceChildren(pre);
+        const notesKey = `code-notes:${this.id}`;
+        let notesShown = tabStore.get(notesKey) !== "hidden";
+        const notesToggle =
+          notes.length && document.documentElement.hasAttribute("data-lf-interactive")
+            ? offerAction("word", "lf-code-notes-toggle")
+            : null;
+        // The press says what it will do, and hidden notes say how many wait.
+        const showNotes = `Show ${notes.length} note${notes.length === 1 ? "" : "s"}`;
+        const paintNotes = () => {
+          if (notesShown) this.removeAttribute("data-lf-notes");
+          else this.setAttribute("data-lf-notes", "hidden");
+          if (notesToggle)
+            keepsText(notesToggle, notesShown ? "Hide notes" : showNotes);
+        };
+        paintNotes();
+        this.replaceChildren(...(notesToggle ? [notesToggle] : []), pre);
         this.classList.add("lf-rendered");
         const key = `code-wrap:${this.id}`;
         const saved = tabStore.get(key);
@@ -236,6 +270,23 @@ customElements.define(
               title: () => (wrapped ? "unwrap lines" : "wrap lines"),
               run: toggleWrap,
             },
+            ...(notesToggle
+              ? [
+                  {
+                    id: "code.notes",
+                    keys: ["n"],
+                    title: () => (notesShown ? "hide notes" : "show notes"),
+                    control: notesToggle,
+                    touch: /** @type {false} */ (false),
+                    run: () => {
+                      notesShown = !notesShown;
+                      tabStore.set(notesKey, notesShown ? "shown" : "hidden");
+                      paintNotes();
+                      layoutChanged(this);
+                    },
+                  },
+                ]
+              : []),
           ],
         };
         commandsChanged(this);

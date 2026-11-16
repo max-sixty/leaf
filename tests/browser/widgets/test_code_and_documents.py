@@ -1464,8 +1464,8 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
     """An lf-code body with `lines` is a quotation from a longer file. What the user
     reads is the file's own numbering: the gutter counts from where the quote starts
     and jumps where it skips, each skip stands as an elided row saying how much is
-    left out, and the gutter widens so four digits still leave the code in line with
-    its notes. Everything that points into the block — `hi`, a note's `at`, a key
+    left out, and the gutter widens so four digits still leave a note's card under its
+    line's first character. Everything that points into the block — `hi`, a note's `at`, a key
     another widget navigates to — names lines by those numbers. A left-out number
     addresses the elided row standing for it, so a note placed there is that row's
     caption, and a number outside the block addresses nothing. A body longer than its ranges goes on counting,
@@ -1532,18 +1532,34 @@ only
     expect(vast).to_have_count(1)
     assert vast.evaluate("r => getComputedStyle(r, '::before').content") == '"1"'
 
-    code_x, note_x = page.evaluate(
+    # The note on 1551 hangs from that line's first character, past its indent, so its
+    # card's left edge stands under the `let` it explains.
+    code_x, key_x, card_x = page.evaluate(
         """() => {
           const start = (node) => {
             const range = document.createRange();
             range.setStart(node.firstChild.firstChild ?? node.firstChild, 0);
             return range.getBoundingClientRect().left;
           };
+          const line = document.querySelector('#walk [data-lf-line="1551"]');
+          const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          let key = null;
+          for (let node = walker.nextNode(); node && !key; node = walker.nextNode()) {
+            const at = node.data.search(/\\S/);
+            if (at < 0) continue;
+            key = document.createRange();
+            key.setStart(node, at);
+            key.setEnd(node, at + 1);
+          }
+          const note = document.querySelector('#walk pre > lf-note');
+          const card = note.getBoundingClientRect().left
+            + parseFloat(getComputedStyle(note, '::before').left);
           return [start(document.querySelector('#walk .lf-code-line')),
-                  start(document.querySelector('#walk pre > lf-note'))];
+                  key.getBoundingClientRect().left, card];
         }"""
     )
-    assert abs(code_x - note_x) < 1, (code_x, note_x)
+    assert key_x > code_x + 1, (code_x, key_x)
+    assert abs(card_x - key_x) < 1, (key_x, card_x)
 
     # The caption sits after the gutter and the count, on the elided row's own line.
     gutter, caption = page.evaluate(
@@ -1683,3 +1699,58 @@ def ceiling(limit):
     page.emulate_media(media="print")
     expect(line).to_have_css("white-space", "pre-wrap")
     expect(line).to_have_css("overflow-wrap", "anywhere")
+
+
+def test_a_reader_hides_a_blocks_notes_to_read_its_code_whole(browser, serve):
+    """A block with notes offers Hide notes above its top right, and `n` while the
+    reader is on the block, so they can read the code without the cards between its
+    lines. A hidden note's line keeps its number in the accent, so the reader still
+    sees where the notes were. The choice is the tab's reading state, as wrapping is:
+    it holds across a reload, and paper shows the notes whatever the screen chose. A
+    block without notes offers no toggle."""
+    url = serve(
+        leaf_page(
+            "notes",
+            """
+<h1 id="t">Brackets</h1>
+<lf-code id="walk" language="python"><pre>
+def bracket(temp):
+    if temp &lt; 0:
+        return "steel"
+    return "cedar"
+</pre>
+<lf-note id="freeze" at="2">Freezing is the only threshold that matters.</lf-note>
+</lf-code>
+<lf-code id="plain" language="python"><pre>
+print("no notes")
+</pre></lf-code>
+""",
+        ),
+    )
+    page = open_page(browser, url)
+    toggle = page.locator("#walk .lf-code-notes-toggle")
+    note = page.locator("#freeze")
+    number = page.locator('#walk [data-lf-line="2"]')
+    expect(toggle).to_have_text("Hide notes")
+    expect(note).to_be_visible()
+    expect(page.locator("#plain .lf-code-notes-toggle")).to_have_count(0)
+    shown = number.evaluate("line => getComputedStyle(line, '::before').color")
+
+    toggle.click()
+    expect(toggle).to_have_text("Show 1 note")
+    expect(note).to_be_hidden()
+    assert number.evaluate("line => getComputedStyle(line, '::before').color") != shown
+
+    page.locator("#walk pre").focus()
+    page.keyboard.press("n")
+    expect(toggle).to_have_text("Hide notes")
+    expect(note).to_be_visible()
+
+    page.keyboard.press("n")
+    expect(note).to_be_hidden()
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("#walk .lf-code-notes-toggle")).to_have_text("Show 1 note")
+    expect(page.locator("#freeze")).to_be_hidden()
+    page.emulate_media(media="print")
+    expect(page.locator("#freeze")).to_be_visible()

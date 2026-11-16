@@ -1715,12 +1715,6 @@ _TEXT = {
         f"widget examples could not be drawn: {v['error']}"
     ),
     "example": lambda at, v: f"{at} example: no worked example shows it",
-    "passive-layout-shift": lambda at, v: (
-        f"{at} moved without input during a {v['observed_ms']}ms observation after"
-        f" presentation: {v['before']} → {v['after']}. These are the moved node's"
-        " boxes, not necessarily the cause; reserve space for changing content."
-        " Later timers and gesture paths were not checked."
-    ),
     "keeps-first-box": lambda at, v: (
         f"{at} keeps-first-box: in a {v['layout']} page, {_size(v['first'])}"
         f" before upgrade, {_size(v['now'])} once presented"

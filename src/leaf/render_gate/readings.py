@@ -9,8 +9,6 @@ belongs in widget_quality; readings of Leaf's own chrome or theme belong in the 
 which holds Leaf's half."""
 
 import json
-import time
-from contextlib import contextmanager
 from dataclasses import dataclass
 from itertools import pairwise
 
@@ -26,7 +24,6 @@ from leaf.projection import (
 from leaf.registry.contract import is_element_name, retirement_slots
 from leaf.render_checks import (
     evaluate_probe,
-    observe_probe,
     one_frame,
     rendered,
     wait_for_probe,
@@ -598,14 +595,6 @@ def shrunk_label_advice(readings) -> list[Finding]:
     )
 
 
-# One passive reading on the loaded desktop, rather than a wait in every scheme and
-# sweep width. Three seconds reaches the reported 1.5s autoplay tick twice without
-# slowing plain page check or message admission. It promises only this observation,
-# the least it lasts: the gate reads its other pages meanwhile, so the reading waits
-# only for what of it they leave.
-PASSIVE_OBSERVATION_MS = 3000
-
-
 def drawn_height_advice(page, viewport: str) -> list[Finding]:
     """Each drawing whose height differs from the box it showed before drawing
     (`drawnHeights`), as advice read at one viewport, the user's window
@@ -617,27 +606,3 @@ def drawn_height_advice(page, viewport: str) -> list[Finding]:
         Finding.read(height, severity="advice").but(viewports=(viewport,))
         for height in evaluate_probe(page, "drawnHeights")
     ]
-
-
-@contextmanager
-def passive_layout_shift_advice(page):
-    """Painted movement while no gate action changes the page, as author advice, in a
-    list filled when the scope ends. The observation lasts the scope, and at least
-    `PASSIVE_OBSERVATION_MS`, so the caller can read other pages meanwhile; a resize of
-    this page would count as input, and Chrome reports no shift for 500ms after one.
-    """
-    rendered(page)
-    found = []
-    started = time.monotonic()
-    with observe_probe(page, "passiveLayoutShifts") as records:
-        yield found
-        # This is an observation interval, not a readiness wait: let real timers and
-        # Chrome's compositor run, with Playwright still dispatching page events.
-        if (left := PASSIVE_OBSERVATION_MS - (time.monotonic() - started) * 1000) > 0:
-            page.wait_for_timeout(left)
-        one_frame(page)
-    observed = round((time.monotonic() - started) * 10) * 100
-    found.extend(
-        Finding.read(record, severity="advice").but(values={"observed_ms": observed})
-        for record in records
-    )

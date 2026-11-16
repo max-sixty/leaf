@@ -1,0 +1,75 @@
+{
+  "about": "Whether a name's markup holds content a control drawn around a copy of it would nest: content that takes input of its own, or a widget. Page check's `interactive-name` (`validation/instances.py`, `nested_in`) and the playground (`playground-view.js`, `nestedIn`) both answer these, and each holds its list to the tags these cases name.",
+  "cases": [
+    {
+      "id": "words and phrasing markup nest nothing",
+      "markup": "<strong id=\"it\">A <code>name</code>, <em>set</em> as <span class=\"tag\">phrasing</span></strong>",
+      "nests": []
+    },
+    {
+      "id": "<a> takes input of its own",
+      "markup": "<strong id=\"it\">Per <a href=\"#it\">the review</a></strong>",
+      "nests": ["a"]
+    },
+    {
+      "id": "<audio> takes input of its own",
+      "markup": "<strong id=\"it\">Per <audio src=\"/media/a.ogg\" controls></audio></strong>",
+      "nests": ["audio"]
+    },
+    {
+      "id": "<button> takes input of its own",
+      "markup": "<strong id=\"it\">Per <button>Go</button></strong>",
+      "nests": ["button"]
+    },
+    {
+      "id": "<details> takes input of its own",
+      "markup": "<strong id=\"it\">Per <details><summary>More</summary>x</details></strong>",
+      "nests": ["details"]
+    },
+    {
+      "id": "<embed> takes input of its own",
+      "markup": "<strong id=\"it\">Per <embed src=\"/media/a.svg\"></strong>",
+      "nests": ["embed"]
+    },
+    {
+      "id": "<iframe> takes input of its own",
+      "markup": "<strong id=\"it\">Per <iframe title=\"frame\"></iframe></strong>",
+      "nests": ["iframe"]
+    },
+    {
+      "id": "<input> takes input of its own",
+      "markup": "<strong id=\"it\">Per <input type=\"checkbox\"></strong>",
+      "nests": ["input"]
+    },
+    {
+      "id": "<label> takes input of its own",
+      "markup": "<strong id=\"it\">Per <label>Pick</label></strong>",
+      "nests": ["label"]
+    },
+    {
+      "id": "<select> takes input of its own",
+      "markup": "<strong id=\"it\">Per <select><option>One</option></select></strong>",
+      "nests": ["select"]
+    },
+    {
+      "id": "<textarea> takes input of its own",
+      "markup": "<strong id=\"it\">Per <textarea></textarea></strong>",
+      "nests": ["textarea"]
+    },
+    {
+      "id": "<video> takes input of its own",
+      "markup": "<strong id=\"it\">Per <video src=\"/media/a.webm\"></video></strong>",
+      "nests": ["video"]
+    },
+    {
+      "id": "a widget upgrades wherever a copy of it stands",
+      "markup": "<strong id=\"it\">A <lf-gloss tip=\"Explained.\">gloss</lf-gloss></strong>",
+      "nests": ["lf-gloss"]
+    },
+    {
+      "id": "a custom element that is no widget nests nothing",
+      "markup": "<strong id=\"it\">A <x-mark>mark</x-mark></strong>",
+      "nests": []
+    }
+  ]
+}

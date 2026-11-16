@@ -45,7 +45,7 @@ export function timelineModel(host) {
   // An element's name as the chart sets it: its words, run onto one line.
   /** @param {Element} element */
   const named = (element) =>
-    openingTitle(element)?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    openingTitle(element)?.title.textContent?.replace(/\s+/g, " ").trim() ?? "";
   /** @type {TimelineRun[]} */
   const runs = [];
   /** @type {TimelineLane[]} */

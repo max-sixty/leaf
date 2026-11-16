@@ -40,9 +40,10 @@ An element's name is markup it opens with: a section's heading, a disclosure's
 `<summary>`, or a `<strong>`, looked for inside a leading `<header>` or `<hgroup>` too.
 A widget is named that way, as a column by its leading `<strong>`, so give your widget's
 authors the same instruction rather than a name attribute. `openingTitle(element)` is
-the title naming the element, where it or the `<header>` or `<hgroup>` holding it is the
-element's first element, else null; the element's child holding it is the name to
-draw, move or hide, and the theme's selector for that child is
+the name the element opens with, `{title, holder}`, or null: `title` is the element
+whose words name it, and `holder`, the element's first element, is that title or the
+`<header>` or `<hgroup>` holding it, the name to draw, move or hide. The theme's
+selector for the holder is
 `:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)`.
 `addressableName(element)` is the name's words, for a place that takes only text, such
 as an `aria-label`, a native `<option>` or an announcement.

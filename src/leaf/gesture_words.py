@@ -76,8 +76,8 @@ def leading_title_node(node: dict) -> dict | None:
 def leading_title_holder(node: dict) -> dict | None:
     """The element that opens `node` and holds its leading title, the title itself or
     the <header> or <hgroup> around it, which a widget draws, moves or hides as its
-    name; None where the title doesn't open `node`. The browser's `openingTitle` reads
-    the same rule (leading-title.js)."""
+    name; None where the title doesn't open `node`. It is the `holder` the browser's
+    `openingTitle` returns (leading-title.js)."""
     title = leading_title_node(node)
     first = next(
         (child for child in node["content"] if not isinstance(child, str)), None

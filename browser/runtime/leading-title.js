@@ -10,12 +10,13 @@
  * inside the floating panel's chrome and its heading is still its name.
  *
  * A widget takes its name only where it opens the widget (`openingTitle`): the title,
- * or the <header> or <hgroup> holding it, is the widget's first element. A quoted
+ * or the <header> or <hgroup> holding it, is the widget's first element, which is the
+ * element a widget draws, moves or hides as its name. A quoted
  * sample whose second paragraph is a heading keeps the heading where it stands rather
  * than lifting it into its note, and a tab whose heading follows a paragraph is unnamed,
  * which `page check` refuses (`unnamed-view`). The theme's selector for the element
  * holding it is `:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header,
- * hgroup)`. Packages read only that title (portable-api.js), which `page check` holds
+ * hgroup)`. Packages read only that name (portable-api.js), which `page check` holds
  * every widget's name to; the leading title, which a section's or an option's label
  * reads past an eyebrow or chips, stays the runtime's (addressable-names.js).
  *
@@ -45,13 +46,13 @@ export function leadingTitle(container) {
   return null;
 }
 
-/** The title naming `container` where it opens it: the title itself, or the one in the
- * <header> or <hgroup> that is `container`'s first element; null otherwise. The element
- * a widget draws, moves or hides as its name is its child holding this title.
- * @param {Element} container @returns {Element | null} */
+/** The name `container` opens with: its `title`, and the `holder`, its first element,
+ * which is the title itself or the <header> or <hgroup> holding it, and which a widget
+ * draws, moves or hides as its name; null where the title doesn't open `container`.
+ * @param {Element} container @returns {{title: Element, holder: Element} | null} */
 export function openingTitle(container) {
   const title = leadingTitle(container);
   if (!title) return null;
-  const first = [...container.children].find((child) => !uiInside(child, container));
-  return first?.contains(title) ? title : null;
+  const holder = [...container.children].find((child) => !uiInside(child, container));
+  return holder?.contains(title) ? { title, holder } : null;
 }

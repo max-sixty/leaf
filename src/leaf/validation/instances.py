@@ -262,11 +262,25 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
 
 # Content that takes input of its own, which a control drawn around a copy of it would
-# nest inside itself; a widget's own markup upgrades wherever a copy of it stands.
+# nest inside itself; a widget's own markup upgrades wherever a copy of it stands. The
+# playground refuses the same in a name it draws inside a control (playground-view.js,
+# `NESTED`); `tests/nested_name_cases.json` holds both to the same answers.
 INTERACTIVE = frozenset(
     {"a", "audio", "button", "details", "embed", "iframe", "input", "label"}
     | {"select", "textarea", "video"}
 )
+
+
+def nested_in(name: dict) -> list[str]:
+    """The tags inside a name that a control drawn around a copy of it would nest:
+    content that takes input of its own (`INTERACTIVE`), or a widget."""
+    return sorted(
+        {
+            inner["tag"]
+            for inner in _within(name)
+            if inner["tag"] in INTERACTIVE or is_element_name(inner["tag"])
+        }
+    )
 
 
 def name_errors(document: SourceDocument, registry: dict) -> list[Finding]:
@@ -292,14 +306,7 @@ def name_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         if name is None:
             errors.append(found_at("unnamed-view", rec))
             continue
-        found = sorted(
-            {
-                inner["tag"]
-                for inner in _within(name)
-                if inner["tag"] in INTERACTIVE or is_element_name(inner["tag"])
-            }
-        )
-        if found:
+        if found := nested_in(name):
             errors.append(found_at("interactive-name", rec, found=found))
     return errors
 

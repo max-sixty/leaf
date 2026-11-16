@@ -16,7 +16,7 @@
  * draws the name, beside a field, as a radio's label or on a preset's button
  * (`echoCopy`), and a select's option, which takes only text, its words. A copy inside
  * a control would nest whatever the name holds in it, so the view refuses a name
- * holding a link, a control or a widget (`NESTED`). The name itself stays the
+ * holding a link, a control or a widget (`nestedIn`). The name itself stays the
  * element's first child, hidden (defaults.css), so every reading of the element's name
  * takes the one the page wrote.
  */
@@ -47,11 +47,34 @@ function requiredAttribute(element, name) {
   if (value === null) throw new Error(`${element.localName} needs ${name}`);
   return value;
 }
-// What a name holds, besides words and phrasing markup: content that takes input of its
-// own, or a widget, which the copy of the name drawn inside a control, as a radio's
-// label or a preset's button, would nest inside that control.
-const NESTED =
-  "a, audio, button, details, embed, iframe, input, label, select, textarea, video";
+// What a name may not hold, besides words and phrasing markup: content that takes
+// input of its own, or a widget (`lf-`), which the copy of the name drawn inside a
+// control, as a radio's label or a preset's button, would nest inside that control.
+// `page check` refuses the same in a view's header (validation/instances.py,
+// `INTERACTIVE`); `tests/nested_name_cases.json` holds both to the same answers.
+export const NESTED = Object.freeze([
+  "a",
+  "audio",
+  "button",
+  "details",
+  "embed",
+  "iframe",
+  "input",
+  "label",
+  "select",
+  "textarea",
+  "video",
+]);
+/** The tags inside `name` that NESTED names, and its widgets', sorted.
+ * @param {Element} name @returns {string[]} */
+export const nestedIn = (name) =>
+  [
+    ...new Set(
+      [...name.querySelectorAll("*")]
+        .map((el) => el.localName)
+        .filter((tag) => NESTED.includes(tag) || tag.startsWith("lf-")),
+    ),
+  ].sort();
 /** @param {Element} host @param {Element} member */
 const belongsTo = (host, member) =>
   member.parentElement?.closest("lf-playground, [data-lf-exhibit]") === host;
@@ -155,17 +178,13 @@ export function createPlayground(host) {
   /** @type {Map<Element, {node: Element | null, copy: Node[], words: string}>} */
   const names = new Map();
   for (const root of [...controls, ...choicesByName.values()].flat().concat(presets)) {
-    const title = openingTitle(root);
-    const node =
-      (title && [...root.children].find((child) => child.contains(title))) ?? null;
-    const nested =
-      title?.querySelector(NESTED) ??
-      [...(title?.querySelectorAll("*") ?? [])].find((el) =>
-        el.localName.includes("-"),
-      );
+    const opening = openingTitle(root);
+    const title = opening?.title ?? null;
+    const node = opening?.holder ?? null;
+    const [nested] = title ? nestedIn(title) : [];
     if (nested)
       throw new Error(
-        `${root.localName} ${addressableName(root)}: its name holds <${nested.localName}>, ` +
+        `${root.localName} ${addressableName(root)}: its name holds <${nested}>, ` +
           `and the name is drawn inside a control, so it holds words and phrasing markup only`,
       );
     names.set(root, {

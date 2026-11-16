@@ -107,8 +107,8 @@ export { focusDestination, focused, holdFocus, currentLocationIn } from "./focus
 export { retainUserIntent } from "./user-intent.js";
 export { scrollIntoView } from "./landing-scroll.js";
 export { inChrome } from "./shadow-tree.js";
-// `openingTitle(element)`: the title naming an element where it opens it, the name a
-// widget draws, moves or hides (leading-title.js).
+// `openingTitle(element)`: the name an element opens with, its title and the element
+// holding it, which a widget draws, moves or hides (leading-title.js).
 export { openingTitle } from "./leading-title.js";
 export { beginWalk, listWalkPosition } from "./walk-declaration.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";

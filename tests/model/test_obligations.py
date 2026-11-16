@@ -15,8 +15,10 @@ from leaf import obligations as obligations_model
 from leaf.gesture_words import leading_title, leading_title_holder
 from leaf.passages import SourceReading
 from leaf.projection import page_reading
+from leaf.registry.contract import is_element_name
 from leaf.served_state.browser import browser_state
 from leaf.structure import SourceDocument
+from leaf.validation.instances import INTERACTIVE, nested_in
 from leaf.work_reading import WorkReading
 
 OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-option id="b">B</lf-option></lf-options>'
@@ -1059,7 +1061,7 @@ def _element(content: list, id: str) -> dict | None:
 def test_an_element_is_named_as_the_browser_names_it(case):
     """An obligation's prompt is its element's name, read off the document by the rule
     the browser's `addressableName` reads off the live page, and the element its name
-    opens it with is the one holding the browser's `openingTitle`."""
+    opens it with is the `holder` the browser's `openingTitle` returns."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.authoring.content, "it")
     assert node is not None
@@ -1067,6 +1069,34 @@ def test_an_element_is_named_as_the_browser_names_it(case):
     if "opens" in case:
         holder = leading_title_holder(node)
         assert (holder and holder["tag"]) == case["opens"]
+
+
+NESTED_NAMES = json.loads(
+    Path(__file__).parents[1].joinpath("nested_name_cases.json").read_text()
+)
+
+
+@pytest.mark.parametrize("case", NESTED_NAMES["cases"], ids=lambda case: case["id"])
+def test_a_name_nests_what_the_playground_says_it_nests(case):
+    """What page check refuses in a view's header, content a control drawn around a copy
+    of the name would nest, is what the playground refuses in a name it draws inside a
+    control (`nestedIn`, playground-view.js)."""
+    document = SourceDocument(model.leaf_page("Nested names", case["markup"]))
+    node = _element(document.authoring.content, "it")
+    assert node is not None
+    assert nested_in(node) == case["nests"]
+
+
+def test_the_nested_name_cases_name_every_tag_page_check_refuses():
+    """Each tag `INTERACTIVE` lists has a case, so the playground's list, which the
+    runtime holds to the same cases, cannot drift from it."""
+    named = {
+        tag
+        for case in NESTED_NAMES["cases"]
+        for tag in case["nests"]
+        if not is_element_name(tag)
+    }
+    assert named == INTERACTIVE
 
 
 EXHIBITS = json.loads(

@@ -12,8 +12,7 @@ import { keeps, openingTitle } from "/runtime/widget-api.js";
 
 /** @param {HTMLElement} host */
 export function render(host) {
-  const title = openingTitle(host);
-  const name = title && [...host.children].find((child) => child.contains(title));
+  const name = openingTitle(host)?.holder;
   if (name) keeps(name, "slot", "lf-worktree-name");
   const branch = host.getAttribute("branch");
   const head = host.getAttribute("head");

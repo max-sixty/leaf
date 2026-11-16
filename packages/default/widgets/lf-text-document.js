@@ -1043,8 +1043,9 @@ class TextDocument extends LeafElement {
           : null;
       }
       const view = (this.view ??= this.build(preview));
-      const title = openingTitle(this);
-      const name = title && [...this.children].find((child) => child.contains(title));
+      const opening = openingTitle(this);
+      const title = opening?.title;
+      const name = opening?.holder;
       const origin = this.getAttribute("source") ?? this.getAttribute("for");
       render(
         html`${title ? nothing : origin}${

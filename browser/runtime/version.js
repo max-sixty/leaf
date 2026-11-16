@@ -711,7 +711,7 @@ function diffBlocks(root) {
   const names = new Set(
     tags
       ? [...root.querySelectorAll(tags)].flatMap((named) => {
-          const title = openingTitle(named);
+          const title = openingTitle(named)?.title;
           return title && !title.closest(opaque) ? [title] : [];
         })
       : [],

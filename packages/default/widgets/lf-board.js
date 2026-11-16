@@ -146,7 +146,7 @@ customElements.define(
         col.setAttribute("role", "list");
         keeps(col, "aria-label", addressableName(col) || null);
         for (const card of this.#cards(col)) card.setAttribute("role", "listitem");
-        const title = openingTitle(col);
+        const title = openingTitle(col)?.title;
         if (title) keeps(title, "aria-hidden", "true");
         if (col.querySelector(":scope > .lf-column-count")) continue;
         // How many cards stand in the column, beside its heading rather than in it, so

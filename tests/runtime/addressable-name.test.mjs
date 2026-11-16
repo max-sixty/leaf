@@ -51,12 +51,8 @@ for (const { id, registry: vocabulary, markup, name, opens } of CASES)
   test(`name: ${id}`, () => {
     declare(vocabulary);
     assert.equal(named(markup), name);
-    if (opens !== undefined) {
-      const it = element(markup);
-      const title = openingTitle(it);
-      const holder = title && [...it.children].find((child) => child.contains(title));
-      assert.equal(holder?.localName ?? null, opens);
-    }
+    if (opens !== undefined)
+      assert.equal(openingTitle(element(markup))?.holder.localName ?? null, opens);
     declare();
   });
 
@@ -67,7 +63,7 @@ test("a name drawn elsewhere is a copy of the markup the author wrote", () => {
     <p><span class="added">+120</span> <span class="removed">−45</span> lines</p>
     </header><article><p>Body.</p></article></lf-part></main>`;
   const part = /** @type {Element} */ (document.getElementById("it"));
-  const title = /** @type {Element} */ (openingTitle(part));
+  const title = /** @type {Element} */ (openingTitle(part)?.title);
   assert.equal(title.id, "title");
   const copy = echoCopy(title);
   const shown = document.createElement("span");

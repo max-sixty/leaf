@@ -1017,15 +1017,15 @@ _TEXT = {
         f"{_line(at, v)}: loose text between its members isn't allowed"
     ),
     "unnamed-view": lambda at, v: (
-        f"{_line(at, v)}: a view is listed by its name — open it with the <strong>"
-        " that names it, or a <header> holding that <strong> and a summary after it"
+        f"{_line(at, v)}: a view is listed by its name — make its first element the"
+        " <strong> that names it, or a <header> holding that <strong> and a summary"
+        " after it"
     ),
     "interactive-name": lambda at, v: (
-        f"{_line(at, v)}: its name holds "
+        f"{_line(at, v)}: its header holds "
         + ", ".join(f"<{tag}>" for tag in v["found"])
-        + "; Leaf draws a widget's name in controls such as a tab, a radio's label or a"
-        " preset's button, so the name, and a tab's summary, hold words and phrasing"
-        " markup only"
+        + "; its tab, a control, draws a copy of the header, so the header holds words"
+        " and phrasing markup only"
     ),
     "parts-in-layout": lambda at, v: (
         f"{_line(at, v)}: stands in a <main> that carries {v['layout']}; a page of"

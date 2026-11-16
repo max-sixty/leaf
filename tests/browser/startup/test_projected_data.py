@@ -521,8 +521,8 @@ customElements.define('lf-derived', class extends LeafElement {
 def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     """A document's source reads null until the page's first state answer brings its
     text, as it does for a source with nothing to read. Drawn then, it showed a one-row
-    "no data" listing whose gutter widened when the text arrived, so no caption or
-    listing appears before the text does."""
+    "no data" listing whose gutter widened when the text arrived, so no listing appears
+    before the text does, and no caption says "No data" under the document's name."""
     source_page = leaf_page(
         "waiting document",
         """
@@ -540,6 +540,7 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
           const view = document.querySelector('#full figure');
           if (view)
             window.documentDraws.push({
+              name: document.querySelector('#full > strong')?.textContent ?? '',
               caption: view.querySelector('figcaption').textContent,
               text: view.querySelector('code')?.textContent ?? '',
             });
@@ -551,9 +552,11 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     draws = page.evaluate("window.documentDraws")
     assert draws, "the document was never observed drawn"
     assert all(
-        draw["caption"] == "full.toml" and "line_20 = 20" in draw["text"]
+        draw["name"] == "full.toml"
+        and draw["caption"] == ""
+        and "line_20 = 20" in draw["text"]
         for draw in draws
-    )
+    ), draws
 
 
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):

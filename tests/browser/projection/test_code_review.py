@@ -103,8 +103,11 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
             source,
             source_revision(serve.page_dir, source),
         )
-    expect(page.locator("#reviewed figcaption")).to_have_text("Reviewed")
-    expect(page.locator("#current figcaption")).to_have_text("instructions")
+    # A named document's name heads its frame where the page wrote it and names its
+    # figure; a nameless one's caption is the source it reads.
+    expect(page.locator("#reviewed > strong")).to_have_text("Reviewed")
+    expect(page.get_by_role("figure", name="Reviewed", exact=True)).to_be_visible()
+    expect(page.get_by_role("figure", name="instructions", exact=True)).to_be_visible()
 
     data_model.cmd_data_set(serve.page_dir, "instructions", "Moved instructions.\n")
     told(page)

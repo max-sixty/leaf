@@ -303,7 +303,7 @@ html[data-lf-interactive] lf-worktree:not(:defined) {
 }
 html[data-lf-interactive]
   lf-worktree:not(:defined)
-  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   position: absolute;
   inset-block-start: 0;
   inset-inline: calc(2 * var(--lf-sp-3) + 1rem) var(--lf-sp-3);
@@ -318,7 +318,7 @@ html[data-lf-interactive]
 }
 html[data-lf-interactive]
   lf-worktree:is([branch], [head]):not(:defined)
-  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)::after {
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)::after {
   content: "";
   font: var(--lf-font-code);
   block-size: 1lh;

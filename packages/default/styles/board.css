@@ -143,7 +143,7 @@ lf-column {
    nothing else but its cards). Where the upgrade ran, the column carries its words as
    its name and the heading is hidden from the tree (lf-board.js), so they reach the
    tree once; where no script runs, the heading is read as any other words. */
-lf-column > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+lf-column > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   display: block;
   font: var(--lf-font-title);
   color: var(--lf-ink-2);
@@ -167,7 +167,7 @@ lf-column[tone="warn"] {
 lf-column[tone="danger"] {
   --lf-tone-dot: var(--lf-danger);
 }
-lf-column > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+lf-column > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   padding-left: calc(var(--lf-card-inset) + 14px);
   padding-right: calc(var(--lf-card-inset) + 2.5em);
   background: radial-gradient(circle, var(--lf-tone-dot) 3.5px, transparent 4px)

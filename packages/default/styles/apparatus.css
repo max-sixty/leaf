@@ -14,7 +14,7 @@
  * of this rule (reading.css) carries the norm it answers. */
 .lf-shotcap,
 lf-sample::before,
-lf-sample > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
-lf-column > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+lf-sample > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+lf-column > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   font-variant-numeric: tabular-nums;
 }

@@ -42,17 +42,24 @@ A widget is named that way, as a column by its leading `<strong>`, so give your 
 authors the same instruction rather than a name attribute. `leadingTitle(element)` is
 the element holding the name, or null; `addressableName(element)` is its words, for a
 place that takes only text, such as an `aria-label`, a native `<option>` or an
-announcement. To show the name away from its element, as a tab strip shows each panel's,
-draw `echoCopy(leadingTitle(element))`, a copy of its markup without ids or generated
-words. `echoCopy(header, title)` copies only what a header holds after its title, as a
-tab copies its panel's summary. The name stays in its element, so every reading of it
-finds it there. Where the element still shows it, draw the copy inside a box marked
+announcement. A section's heading may follow an eyebrow, and an option's title its
+chips, but a widget that draws, moves or hides its name takes it only where it opens
+the widget: `nameHolder(element)` is the title, or the `<header>` or `<hgroup>` holding
+it, where that is the element's first element, else null, and the theme's selector for
+it is `:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)`.
+
+To show the name away from its element, as a tab strip shows each panel's, draw
+`echoCopy(title)`, a copy of its markup without ids or generated words.
+`echoCopy(header, title)` copies only what a header holds after its title, as a tab
+copies its panel's summary. The name stays in its element, so every reading of it finds
+it there. Where the element still shows it, draw the copy inside a box marked
 `generated({ says: "echo" })`, so a comment on the words anchors where the page says
 them. Where the copy stands in for it, as a side list's does for each panel's, hide the
 name in its element and mark the copy's box `generated({ says: true })`, so search and
 comments find the words where the user reads them. A copy inside a control nests
-whatever the name holds in it, so `page check` refuses a link, control or widget in a
-widget's name, and in a view's header, which its tab copies.
+whatever the name holds in it, so a widget that draws one there refuses a name holding
+a link, a control or a widget, as the playground does; `page check` refuses one in a
+view's header, which its tab copies.
 
 `titledElement(heading)` is the element a heading titles: the outermost element whose
 first heading it is, such as its `hgroup`, the question it opens and a `section`

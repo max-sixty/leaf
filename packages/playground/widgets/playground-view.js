@@ -14,9 +14,11 @@
  * A control, a choice and a preset are each named by the <strong> they open with, as
  * any element is (addressable-names.js). The view draws a copy of that markup where it
  * draws the name, beside a field, as a radio's label or on a preset's button
- * (`echoCopy`), and a select's option, which takes only text, its words. The name
- * itself stays the element's first child, hidden (defaults.css), so every reading of
- * the element's name takes the one the page wrote.
+ * (`echoCopy`), and a select's option, which takes only text, its words. A copy inside
+ * a control would nest whatever the name holds in it, so the view refuses a name
+ * holding a link, a control or a widget (`NESTED`). The name itself stays the
+ * element's first child, hidden (defaults.css), so every reading of the element's name
+ * takes the one the page wrote.
  */
 import {
   addressableName,
@@ -24,6 +26,7 @@ import {
   generated,
   generatedElement,
   leadingTitle,
+  nameHolder,
   offerElement,
   offeredAction,
 } from "/runtime/widget-api.js";
@@ -45,13 +48,11 @@ function requiredAttribute(element, name) {
   if (value === null) throw new Error(`${element.localName} needs ${name}`);
   return value;
 }
-// The child an element opens with that holds its name, which the view keeps first and
-// draws a copy of (above).
-/** @param {Element} element */
-const nameOf = (element) => {
-  const title = leadingTitle(element);
-  return [...element.children].find((child) => child.contains(title)) ?? null;
-};
+// What a name holds, besides words and phrasing markup: content that takes input of its
+// own, or a widget, which the copy of the name drawn inside a control, as a radio's
+// label or a preset's button, would nest inside that control.
+const NESTED =
+  "a, audio, button, details, embed, iframe, input, label, select, textarea, video";
 /** @param {Element} host @param {Element} member */
 const belongsTo = (host, member) =>
   member.parentElement?.closest("lf-playground, [data-lf-exhibit]") === host;
@@ -155,11 +156,22 @@ export function createPlayground(host) {
   /** @type {Map<Element, {node: Element | null, copy: Node[], words: string}>} */
   const names = new Map();
   for (const root of [...controls, ...choicesByName.values()].flat().concat(presets)) {
-    const node = nameOf(root);
+    const node = nameHolder(root);
+    const title = node && leadingTitle(root);
+    const nested =
+      title?.querySelector(NESTED) ??
+      [...(title?.querySelectorAll("*") ?? [])].find((el) =>
+        el.localName.includes("-"),
+      );
+    if (nested)
+      throw new Error(
+        `${root.localName} ${addressableName(root)}: its name holds <${nested.localName}>, ` +
+          `and the name is drawn inside a control, so it holds words and phrasing markup only`,
+      );
     names.set(root, {
       node,
-      copy: echoCopy(leadingTitle(root)),
-      words: addressableName(root),
+      copy: echoCopy(title),
+      words: node ? addressableName(root) : "",
     });
   }
   /** @param {Element} root */

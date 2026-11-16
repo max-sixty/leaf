@@ -727,7 +727,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
-| The element holding another's name, the markup that opens it                                          | `leading-title.js` `leadingTitle`                                                  |
+| The element holding another's name, and the element opening it that holds the name                    | `leading-title.js` `leadingTitle`, `nameHolder`                                    |
 | An element's name as words, and a copy of its markup to show it elsewhere                             | `addressable-names.js` `addressableName`, `echoCopy`                               |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
 | Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |

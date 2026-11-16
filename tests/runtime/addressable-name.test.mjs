@@ -24,7 +24,7 @@ import {
   echoCopy,
   titledElement,
 } from "/runtime/addressable-names.js";
-import { leadingTitle } from "/runtime/leading-title.js";
+import { leadingTitle, nameHolder } from "/runtime/leading-title.js";
 import { renderSaid } from "/runtime/declared-words.js";
 import { registry } from "/runtime/registry.js";
 
@@ -38,16 +38,21 @@ const declare = (vocabulary = {}) => {
   Object.assign(registry, vocabulary);
 };
 
-const named = (markup) => {
+/** @param {string} markup */
+const element = (markup) => {
   document.body.innerHTML = `<main>${markup}</main>`;
   renderSaid(document.body);
-  return addressableName(document.querySelector("#it"));
+  return /** @type {Element} */ (document.querySelector("#it"));
 };
+/** @param {string} markup */
+const named = (markup) => addressableName(element(markup));
 
-for (const { id, registry: vocabulary, markup, name } of CASES)
+for (const { id, registry: vocabulary, markup, name, opens } of CASES)
   test(`name: ${id}`, () => {
     declare(vocabulary);
     assert.equal(named(markup), name);
+    if (opens !== undefined)
+      assert.equal(nameHolder(element(markup))?.localName ?? null, opens);
     declare();
   });
 

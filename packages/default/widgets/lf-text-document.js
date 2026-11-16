@@ -37,6 +37,7 @@ import {
   addressableName,
   html,
   leadingTitle,
+  nameHolder,
   render,
   failSoft,
   ensureSyntaxLanguage,
@@ -1043,8 +1044,8 @@ class TextDocument extends LeafElement {
           : null;
       }
       const view = (this.view ??= this.build(preview));
-      const title = leadingTitle(this);
-      const name = title && [...this.children].find((child) => child.contains(title));
+      const name = nameHolder(this);
+      const title = name && leadingTitle(this);
       const origin = this.getAttribute("source") ?? this.getAttribute("for");
       render(
         html`${title ? nothing : origin}${
@@ -1052,6 +1053,9 @@ class TextDocument extends LeafElement {
         }`,
         view.caption,
       );
+      // A named document's name stands above the figure rather than as its caption, so
+      // the figure is named by its words, as a caption would name it.
+      keeps(view.figure, "aria-label", (title && addressableName(this)) || null);
       const previous = this.lines;
       this.lines = next;
       if (this.cut) keepsText(this.cut.press, `Show all ${text.length} lines`);

@@ -32,40 +32,6 @@ lf-tabs[data-lf-views] > lf-tab {
   display: inline;
   margin: 0;
 }
-/* A strip along a row shows only each panel's name, so the panel keeps the <strong> or
- * <header> naming it as the eyebrow over its first heading, in the label face (base.css,
- * `.lf-label`): its name, then what follows the name, on one line; a heading naming a
- * panel stays a heading. A list down beside the panels shows the name and the summary,
- * so there the panel hides its name, whatever its kind, as a page's parts do (below). */
-lf-tabs[data-lf-views]
-  > lf-tab
-  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
-  &:is(header, strong) {
-    display: block;
-    margin: 0 0 6px;
-    font: var(--lf-font-label);
-    letter-spacing: 0.06em;
-    text-transform: uppercase;
-    color: var(--lf-muted);
-    & > * {
-      display: inline;
-      margin: 0;
-      font: inherit;
-    }
-    & > * + *::before {
-      content: " · ";
-    }
-    /* What follows stands at the panel's top edge, as the panel's first block would
-       (base.css, at `--lf-frame-start`), so its heading sits under the eyebrow. */
-    & + * {
-      margin-block-start: 0;
-      --lf-frame-start: 1;
-    }
-  }
-  lf-tabs[list="side"] > lf-tab > & {
-    display: none;
-  }
-}
 /* Laid out by the live-page block below; hidden until then, because a row of
  * buttons is worth showing only where something will answer one. */
 .lf-tabstrip {
@@ -215,6 +181,46 @@ lf-tabs[data-lf-views]
   :is(lf-tabs, lf-tab, .lf-tabstrip) {
     scroll-padding-block-end: var(--lf-end-room);
   }
+  /* A strip along a row shows only each panel's name, so the panel keeps the <strong>
+   * or <header> naming it as the eyebrow over its first heading: its name, then what
+   * follows the name, on one line, in the reading theme's eyebrow face
+   * (packages/reading/defaults.css, `.eyebrow`), so it reads as one with a section's
+   * own eyebrow under it. A heading naming a panel stays a heading. A list down beside
+   * the panels shows the name and the summary, so there the panel hides its name,
+   * whatever its kind, as a page's parts do (below). On paper the strip is gone and
+   * each panel opens with its name as written. */
+  lf-tabs[data-lf-views]
+    > lf-tab
+    > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+    &:is(header, strong) {
+      display: block;
+      margin: 0 0 10px;
+      font-family: var(--lf-sans);
+      font-size: var(--lf-t-6);
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--lf-muted);
+      & > * {
+        display: inline;
+        margin: 0;
+        font: inherit;
+      }
+      & > * + *::before {
+        content: " · ";
+      }
+    }
+    lf-tabs[list="side"] > lf-tab > & {
+      display: none;
+    }
+    /* What follows the eyebrow, or the name a side list hides, stands at the panel's
+       top edge, as the panel's first block would (base.css, at `--lf-frame-start`). */
+    &:is(header, strong) + *,
+    lf-tabs[list="side"] > lf-tab > & + * {
+      margin-block-start: 0;
+      --lf-frame-start: 1;
+    }
+  }
   @scope (html[data-lf-interactive]) {
     /* :where keeps the frame face below the generic edge trim's specificity. */
     :where(lf-tabs[data-lf-views]) {
@@ -349,7 +355,9 @@ lf-tabs[data-lf-views]
         var(--lf-tabstrip-h) + var(--lf-tab-context-h) + var(--lf-tab-outcome-h)
       );
     }
-    lf-tabs[list="side"]:has(> lf-tab[summary]) {
+    /* A tab has a summary where its panel opens with a <header> holding more than its
+     * title (lf-tabs.js, `summaryOf`). */
+    lf-tabs[list="side"]:has(> lf-tab > header:first-child > * + *) {
       --lf-tab-context-h: calc(var(--lf-t-working-label) * var(--lf-ui-lh));
     }
     lf-tabs[list="side"]:has(> lf-tab [data-lf-awaits]) {
@@ -862,7 +870,7 @@ lf-tabs[data-lf-views]
        * with it. */
       :scope:is(lf-parts)[data-lf-views]
         > lf-part
-        > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+        > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
         display: none;
       }
       /* On a phone the list is a row that sticks over the open part as the page tabs'
@@ -934,8 +942,8 @@ lf-tabs[data-lf-views]
               1
                 of
                 :not(
-                  :nth-child(
-                    1 of summary,
+                  :first-child:is(
+                    summary,
                     h1,
                     h2,
                     h3,
@@ -957,7 +965,7 @@ lf-tabs[data-lf-views]
           1
             of
             :not(
-              :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+              :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
             )
         ):last-child {
         --lf-end-room: inherit;
@@ -1042,8 +1050,8 @@ lf-tabs[data-lf-views]
                     script,
                     style,
                     template,
-                    :nth-child(
-                      1 of summary,
+                    :first-child:is(
+                      summary,
                       h1,
                       h2,
                       h3,
@@ -1074,7 +1082,7 @@ lf-tabs[data-lf-views]
                 script,
                 style,
                 template,
-                :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+                :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
               )
           ):nth-last-child(1 of :not(script, style, template)) {
           flex: 1 1 0;

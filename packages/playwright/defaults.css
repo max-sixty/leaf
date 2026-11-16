@@ -913,7 +913,7 @@ lf-trace-compare lf-trace {
    <strong> it opens with stands hidden over its viewer. */
 lf-trace-compare
   lf-trace
-  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   display: none;
 }
 

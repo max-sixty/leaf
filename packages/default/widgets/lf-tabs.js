@@ -100,6 +100,7 @@ import {
   addressableName,
   echoCopy,
   leadingTitle,
+  nameHolder,
   wrote,
   afterScript,
   setScroll,
@@ -170,19 +171,22 @@ const substantiveChildren = (owner) =>
 /** @param {Element} owner */
 const soleSubstantiveElement = (owner) => {
   const children = substantiveChildren(owner);
-  const named =
-    children[0] instanceof Element && children[0].contains(leadingTitle(owner));
+  const named = children[0] instanceof Element && children[0] === nameHolder(owner);
   const body = named ? children.slice(1) : children;
   return body.length === 1 && body[0] instanceof Element ? body[0] : null;
 };
+// The title naming a panel, where it opens the panel (`nameHolder`), which its tab
+// draws a copy of.
+/** @param {Element} panel */
+const titleOf = (panel) => (nameHolder(panel) ? leadingTitle(panel) : null);
 // What a panel's leading <header> says after the title naming it, the summary its tab
 // shows as a copy and its description says: a part listing a file has its diffstat
 // there. Its words are those the author wrote (`wrote`).
 /** @param {Element} panel @returns {{copy: Node[], words: string}} */
 const summaryOf = (panel) => {
-  const title = leadingTitle(panel);
-  const header = title?.closest("header");
-  if (!title || header?.parentElement !== panel) return { copy: [], words: "" };
+  const title = titleOf(panel);
+  const header = nameHolder(panel);
+  if (!title || header?.localName !== "header") return { copy: [], words: "" };
   const after = [...header.childNodes].slice(
     [...header.childNodes].findIndex((node) => node.contains(title)) + 1,
   );
@@ -523,7 +527,7 @@ export class TabSet extends LeafElement {
       @click=${(/** @type {MouseEvent} */ event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
       ><span class="lf-tab-name" ${generated({ says: this.#down || "echo" })}
-        >${echoCopy(leadingTitle(panel))}${this.#down ? nothing : mark}</span
+        >${echoCopy(titleOf(panel))}${this.#down ? nothing : mark}</span
       >${
         this.#down && summary.copy.length
           ? html`<span class="lf-tab-summary" ${generated({ says: true })}

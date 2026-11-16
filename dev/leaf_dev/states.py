@@ -46,8 +46,9 @@ from leaf_dev.commands.generate.corpus import sources as corpus_sources
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 
-def printed_exhibit(page: Page) -> None:
-    """A breakout exhibit within the paper's prose track."""
+def printed(page: Page) -> None:
+    """The page on paper: a breakout exhibit within the paper's prose track, or a queue
+    whose list is gone, each item under its name."""
     page.emulate_media(media="print")
 
 
@@ -2754,7 +2755,8 @@ STATES = (
         dynamic_request_preview,
         region="#leaf-request-document",
     ),
-    State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
+    State("printed-exhibit", "lost-update", printed, region="main"),
+    State("printed-queue", "alert-review", printed, region="#ar-queue"),
     State("failed-widget", "review-a-plan", failed_widget, window=Window((1600, 900))),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(

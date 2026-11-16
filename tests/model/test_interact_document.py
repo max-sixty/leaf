@@ -1747,30 +1747,33 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
 
 
 def test_tabs_reject_structural_violations(page_dir):
-    # A nameless panel, a stray panel outside lf-tabs, and loose text between
-    # panels are each refused.
+    # A nameless panel, one whose heading follows a paragraph rather than opening it, a
+    # stray panel outside lf-tabs, and loose text between panels are each refused.
     bad = """<lf-tabs id="ws">
   loose text
   <lf-tab id="ws-a"><p>x</p></lf-tab>
+  <lf-tab id="ws-b"><p>x</p><h3>Queue item</h3></lf-tab>
 </lf-tabs>
 <lf-tab id="ws-stray"><strong>Stray</strong><p>y</p></lf-tab>
 <lf-options>"""
     (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", bad))
     status, findings = check_findings(page_dir)
     assert status == 1
+    first = PAGE.split("<lf-options>")[0].count("\n")
     assert [f.values["line"] for f in found(findings, "unnamed-view", "<lf-tab>")] == [
-        PAGE.split("<lf-options>")[0].count("\n") + 3
+        first + 3,
+        first + 4,
     ]
     assert found(findings, "not-member", "<lf-tab>", owners=["lf-tabs"])
     assert found(findings, "loose-text", "<lf-tabs>")
 
 
-def test_a_widget_opens_with_its_name_and_its_name_holds_no_control(page_dir):
+def test_a_widget_opens_with_its_name_and_a_tabs_header_holds_no_control(page_dir):
     """A widget opens with the element its name stands in under the content model it
     declares: a column before its cards, a document before its <pre>. A header with no
-    title names nothing, so it is no name. Leaf draws a name in controls such as a
-    preset's button, so a name holds no link, control or widget, and a view's tab copies
-    its whole header, so neither does the summary after its title."""
+    title names nothing, so it is no name. A view's tab, a control, copies its whole
+    header, so the header holds no link, control or widget; another widget's name is
+    drawn in place, so it may, as a question's heading links its pull request."""
     named = """<lf-board id="b"><lf-column id="c"><strong><code>main</code></strong>
   <lf-card id="k"><strong>Card</strong></lf-card></lf-column>
   <lf-column id="c3"><header><p>No title</p></header></lf-column></lf-board>
@@ -1790,7 +1793,6 @@ def test_a_widget_opens_with_its_name_and_its_name_holds_no_control(page_dir):
     assert found(findings, "stray-members", "<lf-column>", found=["header"])
     assert [(f.at, f.values["found"]) for f in found(findings, "interactive-name")] == [
         ("<lf-tab>", ["a"]),
-        ("<lf-column>", ["button"]),
     ]
 
 

@@ -5,15 +5,24 @@
  * <strong>, and a widget the same way, so a tab, a column or a playground control holds
  * its name as markup. Leading means no words come before it; elements may, as a titled
  * member's comparison chips stand in the band above its title and an eyebrow above a
- * header's heading. Chrome inside the element names nothing, asked about the element's
+ * section's heading. Chrome inside the element names nothing, asked about the element's
  * own insides, since a widget an agent sent in a reply stands inside the floating
  * panel's chrome and its heading is still its name.
  *
+ * A widget that draws, moves or hides its name takes it only where it opens the widget
+ * (`nameHolder`): the title, or the <header> or <hgroup> holding it, is the widget's
+ * first element. A quoted sample whose second paragraph is a heading keeps the heading
+ * where it stands rather than lifting it into its note, and a tab whose heading follows
+ * a paragraph is unnamed, which `page check` refuses (`unnamed-view`). The theme's
+ * selector for the same element is `:first-child:is(summary, h1, h2, h3, h4, h5, h6,
+ * strong, header, hgroup)`. Where a name is only read, as a section's or an option's
+ * label, it may follow those elements, as on any element.
+ *
  * It reads only the element's children, so it loads in any document (portable-api.js):
  * a widget that runs on a plain page names its parts by the same rule. On a Leaf page,
- * addressable-names.js keeps each answer with the page reading and reads the name's
- * words; the server reads the same rule off the document (`gesture_words.leading_title`),
- * and `tests/name_cases.json` holds both runtimes to the same cases.
+ * addressable-names.js reads the name's words; the server reads the same rule off the
+ * document (`gesture_words.leading_title`, `leading_title_holder`), and
+ * `tests/name_cases.json` holds both runtimes to the same cases.
  *
  * Replaced: a registry entry could declare one of its attributes as its element's
  * name, as a tab's `label` was. An attribute holds only text, so a tab listing
@@ -34,4 +43,15 @@ export function leadingTitle(container) {
     if (["header", "hgroup"].includes(node.localName)) return leadingTitle(node);
   }
   return null;
+}
+
+/** The element that opens `container` and holds its leading title, the title itself or
+ * the <header> or <hgroup> around it, which a widget draws, moves or hides as its name;
+ * null where the title doesn't open the container.
+ * @param {Element} container @returns {Element | null} */
+export function nameHolder(container) {
+  const title = leadingTitle(container);
+  if (!title) return null;
+  const first = [...container.children].find((child) => !uiInside(child, container));
+  return first?.contains(title) ? first : null;
 }

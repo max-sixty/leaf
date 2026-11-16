@@ -270,13 +270,14 @@ INTERACTIVE = frozenset(
 
 
 def name_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Leaf draws a widget's name away from it, in places such as a tab, a radio's
-    label or a preset's button, which are controls, so the leading title naming a
-    widget (`gesture_words.leading_title_node`) holds no link, control or widget: the
-    browser draws a control nested in another without complaint, and the outer one
-    takes the press. A view's (`x-views`) tab copies its whole leading <header>, the
-    summary after the title too, and a view is chosen by its name, so one without a
-    name, an empty tab nobody can tell from another, is refused."""
+    """A view (`x-views`) is chosen by its name, which its tab shows, so one whose name
+    doesn't open it (`gesture_words.leading_title_holder`), an empty tab nobody can
+    tell from another, is refused. The tab, a control, draws a copy of the view's whole
+    leading <header>, so the header holds no link, control or widget: the browser draws
+    a control nested in another without complaint, and the outer one takes the press.
+    Another widget's name is drawn in place or read as words, so a link in a question's
+    heading or an option's title stands; a playground, which draws its names in
+    controls, refuses one in its own module (playground-view.js)."""
     views = {
         declaration["x-views"]["members"]
         for tag, declaration in registry.items()
@@ -285,13 +286,11 @@ def name_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     errors = []
     for rec in document.lf_elements:
         node = document.authoring.node_of(rec)
-        if node is None:
+        if node is None or rec["tag"] not in views:
             continue
-        view = rec["tag"] in views
-        name = leading_title_holder(node) if view else leading_title_node(node)
+        name = leading_title_holder(node)
         if name is None:
-            if view:
-                errors.append(found_at("unnamed-view", rec))
+            errors.append(found_at("unnamed-view", rec))
             continue
         found = sorted(
             {

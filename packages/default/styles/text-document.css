@@ -25,7 +25,7 @@ lf-text-document > .lf-text-document-view {
    the frame the figure draws alone, and the name heads it as the caption bar, as it does
    before the document draws (below). */
 lf-text-document:has(
-  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
     + .lf-text-document-view
 ) {
   border: 1px solid var(--lf-code-border);
@@ -50,25 +50,25 @@ lf-text-document:has(
    document draws, the host stands in for its frame and caption (below). */
 lf-text-document figcaption,
 lf-text-document
-  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup):has(
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup):has(
     + .lf-text-document-view
   ),
 html[data-lf-interactive]
   lf-text-document:not(
     :has(
       > :not(
-        :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+        :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
         pre,
         [data-lf-prepaint]
       )
     )
   )
-  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
 html[data-lf-interactive]
   lf-text-document:not(
     :has(
       > :not(
-        :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+        :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
         pre,
         [data-lf-prepaint]
       )
@@ -249,7 +249,7 @@ lf-text-document .lf-text-document-run:only-child {
     lf-text-document:not(
       :has(
         > :not(
-          :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+          :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
           pre,
           [data-lf-prepaint]
         )
@@ -258,11 +258,11 @@ lf-text-document .lf-text-document-run:only-child {
     border: 1px solid var(--lf-code-border);
     border-radius: var(--lf-r);
     background: var(--lf-pre-bg);
-    & > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+    & > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
       display: block;
     }
     &:not(
-        :has(> :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup))
+        :has(> :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup))
       )::before {
       content: attr(source);
       display: block;

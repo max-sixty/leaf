@@ -12,7 +12,7 @@ from interact_support import (
 )
 
 from leaf import obligations as obligations_model
-from leaf.gesture_words import leading_title
+from leaf.gesture_words import leading_title, leading_title_holder
 from leaf.passages import SourceReading
 from leaf.projection import page_reading
 from leaf.served_state.browser import browser_state
@@ -1059,11 +1059,15 @@ def _element(content: list, id: str) -> dict | None:
 )
 def test_an_element_is_named_as_the_browser_names_it(case):
     """An obligation's prompt is its element's name, read off the document by the rule
-    the browser's `addressableName` reads off the live page."""
+    the browser's `addressableName` reads off the live page, and the element its name
+    opens it with is the one the browser's `nameHolder` finds."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.authoring.content, "it")
     assert node is not None
     assert leading_title(node) == case["name"]
+    if "opens" in case:
+        holder = leading_title_holder(node)
+        assert (holder and holder["tag"]) == case["opens"]
 
 
 EXHIBITS = json.loads(

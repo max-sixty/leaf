@@ -62,16 +62,28 @@
   {
     "id": "a name's markup is read as its words",
     "markup": "<lf-part id=\"it\"><header><strong><code>README.md</code></strong><p><span class=\"added\">+120</span> <span class=\"removed\">−45</span> lines</p></header><article><p>Body.</p></article></lf-part>",
-    "name": "README.md"
+    "name": "README.md",
+    "opens": "header"
   },
   {
     "id": "a leading name comes before a heading",
     "markup": "<lf-tab id=\"it\"><strong>Ready</strong><h3>Later</h3></lf-tab>",
-    "name": "Ready"
+    "name": "Ready",
+    "opens": "strong"
+  },
+  {
+    "id": "a heading after a paragraph names an element but doesn't open it",
+    "markup": "<lf-sample id=\"it\"><p>Intro.</p><h3>Exceptions</h3><p>Body.</p></lf-sample>",
+    "name": "Exceptions",
+    "opens": null
   },
   {
     "id": "a gloss's tip is no part of a heading's name",
-    "registry": { "lf-gloss": { "x-says": ["tip"] } },
+    "registry": {
+      "lf-gloss": {
+        "x-says": ["tip"]
+      }
+    },
     "markup": "<section id=\"it\"><h2>Deploy a <lf-gloss tip=\"A thin, end-to-end path.\">walking skeleton</lf-gloss></h2></section>",
     "name": "Deploy a walking skeleton"
   }

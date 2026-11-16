@@ -108,8 +108,9 @@ export { retainUserIntent } from "./user-intent.js";
 export { scrollIntoView } from "./landing-scroll.js";
 export { inChrome } from "./shadow-tree.js";
 // `leadingTitle(element)`: the element holding its name, by the rule every runtime
-// names an element by (leading-title.js).
-export { leadingTitle } from "./leading-title.js";
+// names an element by, and `nameHolder(element)` the element opening it that holds the
+// name, which a widget draws, moves or hides (leading-title.js).
+export { leadingTitle, nameHolder } from "./leading-title.js";
 export { beginWalk, listWalkPosition } from "./walk-declaration.js";
 export { atLayoutPrecision, keeps, keepsHidden, keepsText, layoutPx } from "./keeps.js";
 export { move } from "./dom-move.js";

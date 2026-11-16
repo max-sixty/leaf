@@ -107,6 +107,11 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
           <lf-option id="quoted-standard">Standard</lf-option>
         </lf-options>
       </lf-sample>
+      <lf-sample id="excerpt">
+        <p>Our release train leaves every Tuesday.</p>
+        <h3 id="excerpt-heading">Exceptions</h3>
+        <p>Security fixes ship the same day.</p>
+      </lf-sample>
     """,
             )
         ),
@@ -118,6 +123,15 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
     ).content"""
     assert sample.evaluate(prefix) == '""'
     assert page.locator("#quoted").evaluate(prefix) == '"quoted · "'
+    # A heading after the quoted page's first paragraph is that page's own, so it stays
+    # where it stands, and the note says "quoted" alone.
+    expect(page.locator("#excerpt-heading")).to_have_css("display", "block")
+    assert (
+        page.locator("#excerpt").evaluate(
+            "s => getComputedStyle(s, '::before').content"
+        )
+        == '"quoted"'
+    )
     expect(sample.locator("iframe")).to_have_count(0)
     expect(page.locator("#quoted").get_by_role("checkbox")).to_have_count(0)
     choice = sample.locator("#express").get_by_role("checkbox")

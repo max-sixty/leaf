@@ -636,3 +636,48 @@ def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser,
     finally:
         page.unroute("**/api/state", foreign)
         page.unroute("**/registry.json", source)
+
+
+@pytest.mark.parametrize("fails", ["once", "every time"])
+def test_a_page_whose_module_failed_to_load_asks_its_server_once_more(
+    browser, serve, fails
+):
+    """A module can fail on its way from a server that is still there, as when the
+    machine's network changes under the request (`net::ERR_NETWORK_CHANGED`). The page
+    then lacks it however long it waits, and it waited only for another server, so a
+    page whose server kept answering never started. Once that server answers, the page
+    asks it for the document once more, and starts. A module the server fails every
+    time fails the second document too, which asks no third: the count is the
+    assertion, one replacement and then the probe's own cadence."""
+    page = browser.new_page()
+    documents, failed, rounds = [], [], []
+
+    def heard(request):
+        if request.resource_type == "document":
+            documents.append(request.url)
+        elif len(documents) > 1 and "/registry.json" in request.url:
+            rounds.append(request.url)
+
+    def module(route):
+        if failed and fails == "once":
+            route.continue_()
+        else:
+            failed.append(route.request.url)
+            route.abort("internetdisconnected")
+
+    page.on("request", heard)
+    page.route("**/runtime/rendering.js", module)
+    page.goto(serve(LONG_PAGE), wait_until="load")
+    if fails == "once":
+        expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
+        assert len(failed) == 1, failed
+    else:
+        expect(
+            page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
+        ).to_be_visible()
+        holding(page, rounds, 3, "three probe rounds from the replacement document")
+    assert len(documents) == 2, documents
+    assert "_leaf-recovered" in documents[1], documents
+    assert "_leaf-recovered" not in page.evaluate("location.href")
+    page.unroute("**/runtime/rendering.js", module)
+    consume_browser_errors(page, "rendering.js", "net::ERR_INTERNET_DISCONNECTED")

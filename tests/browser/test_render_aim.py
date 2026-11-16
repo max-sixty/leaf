@@ -63,7 +63,6 @@ from render_harness import (
     REPLAYED_PAGE,
     SUBJECT_MARK,
     assert_follows_in_every_frame,
-    draft_key,
     expect_comment_notes,
     field_press,
     gesture_writes,
@@ -4250,11 +4249,11 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
         browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
     )
     context = 'composer:[["section","bg-contents"]]'
-    saved = draft_key(page, context)
+    assert stored_draft_text(page, context) == words
     resized(page, 480, 900)
     rendered(page)
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
-    assert draft_key(page, context) == saved
+    assert stored_draft_text(page, context) == words
     resized(page, 1200, 900)
     rendered(page)
     page.keyboard.press("Escape")
@@ -4267,8 +4266,8 @@ def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, ser
     rendered(page)
     judge_watches()
     assert _draft_in_view(page, words)
-    assert draft_key(page, context) == saved
-    draft = page.evaluate("([read, ctx]) => read(ctx)", [stored_draft(page), context])
+    draft = stored_draft(page, context)
+    assert draft is not None
     assert draft["payload"]["anchor"] == {"section": "bg-contents"}
     assert draft["text"] == words
     page.keyboard.press("Escape")

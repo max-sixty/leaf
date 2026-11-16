@@ -16,6 +16,7 @@ from typing import Protocol
 
 from .. import presence as presence_model
 from ..data import read_data
+from ..drafts import read_drafts
 from ..event_facts import EventFacts
 from ..event_log import read_events
 from ..files import (
@@ -68,6 +69,10 @@ class PageSource(Protocol):
 
     def news(self) -> str:
         """The page's own reading, which a visible tab polls (`PageEndpoint._news`)."""
+
+    def drafts(self) -> dict:
+        """The user's unsent drafts with the store's version (`drafts.py`), which a
+        tab reads once the news names a version it hasn't heard."""
 
     def other_pages(self) -> list[dict]:
         """The machine's other live pages, which `/api/pages` answers apart from the
@@ -129,6 +134,9 @@ class LivePage:
         with PageTransaction(self.page_dir) as page:
             artifact = read_artifact(self.page_dir, revision)
             return artifact, page.events, read_data(self.page_dir, artifact.registry)
+
+    def drafts(self) -> dict:
+        return read_drafts(self.page_dir)
 
     def news(self) -> str:
         """The token naming the page's current reading, the same one a state read

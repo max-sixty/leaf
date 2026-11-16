@@ -78,6 +78,7 @@
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
  * there is no failSoft. */
+import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
   afterScript,
@@ -128,11 +129,6 @@ import {
   pressIsKeyboardActivation,
   signal,
   LeafElement,
-  html,
-  nothing,
-  render,
-  repeat,
-  ref,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
@@ -151,6 +147,7 @@ const soleSubstantiveElement = (owner) => {
 };
 
 export class TabSet extends LeafElement {
+  static lfPatch = "members";
   // Whether the set is a page's parts (lf-parts.js).
   get parts() {
     return false;

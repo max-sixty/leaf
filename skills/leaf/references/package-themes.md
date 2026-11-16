@@ -115,8 +115,8 @@ Shared CSS selects widgets by what their registry entries declare, which deliver
 writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
 `[data-lf-exhibit]` and similar attributes, rather than by tag. An element that names
 page media also arrives with `data-lf-media-width` and `data-lf-media-height`, the
-largest width and height among its images, so a theme can give the frame their shape
-before they load, as `lf-shot` does with `aspect-ratio`.
+largest width and height among its images, so a widget can size its frame before they
+decode, as `lf-shot` does.
 
 The page decides how wide it is and how its blocks are arranged (`page-layout.md`,
 "Layouts"). A package's element fills its box. One that needs more room than the
@@ -228,7 +228,7 @@ since Leaf already scopes it.
 ```
 
 The comment box and threads a widget seats in an outlet of its own
-(`x-thread-surface`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
+(`threadOutlets`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
 and take the widget's look rather than the theme's `chrome.css`. The part names are
 the chrome's public interface. Its classes are private and change between Leaf
 versions, so a rule naming one can stop applying after an update. A page that restyles
@@ -287,7 +287,7 @@ Type, space and shape:
 | Spacing          | `--lf-sp-1` to `--lf-sp-5`: 4, 8, 16, 24 and 32px, through `--lf-sp-2`, `--lf-sp-3` and `--lf-sp-4`                                                                                                                                                                                                                                                                   |
 | Corners          | `--lf-r`, a control's or box's; `--lf-r-s`, half of it, for a mark no taller than a line; `--lf-r-l`, twice it, for a surface floating over the page                                                                                                                                                                                                                  |
 | Lift             | `--lf-raise-1`, `--lf-raise-2`, `--lf-raise-3`, the shadow of a box lying on the page, opening over it, or standing over it for a task, each cast in `--lf-shade`                                                                                                                                                                                                     |
-| Controls         | `--lf-line`, a one-line control's height; `--lf-aim-floor`, the smallest box a user aims at, larger under a finger; `--lf-reach-room`, the room a control's reach takes past its face                                                                                                                                                                                 |
+| Controls         | `--lf-line`, a one-line control's height; `--lf-aim-floor`, the smallest box a user aims at, larger under a finger; `--lf-reach-room`, the room a control's reach takes past its face; `--lf-choice-gap`, the room between a radio's or checkbox's mark and its words                                                                                                 |
 | Focus            | `--lf-focus-ring` as an outline and `--lf-focus-shadow` as a shadow, set together; where a ring stands is `--lf-ring-at` ("A theme change")                                                                                                                                                                                                                           |
 | Page geometry    | `--lf-col`, the reading column; `--lf-wide`, a wide block; `--lf-sidebar` and `--lf-aside`, a sidebar's and a note's track; `--lf-page-pad-start` and `--lf-page-pad-end`, the room above and below the page                                                                                                                                                          |
 

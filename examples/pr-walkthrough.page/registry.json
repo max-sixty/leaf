@@ -126,7 +126,6 @@
         "property": "value"
       }
     },
-    "x-upgrade": true,
     "x-height": true
   }
 }

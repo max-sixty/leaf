@@ -84,7 +84,7 @@ rule draws at once is drawn.
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
-  nodes it doesn't change, as a revision's patch, a widget declaring `x-patch: members`
+  nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
   and a message's words (`setRenderedChildren` in `dom-children.js`) do, and Leaf turns
   anchoring off on no box the reader reads in. A revision then restores the reader's
   landmark (`version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
@@ -311,8 +311,8 @@ Each treatment draws the eye, so each marks hierarchy or state, and a difference
 reader sees always means something (`../SOUL.md`, "Let the user work as directly as in a terminal").
 
 - **Contours are solid.** A dotted or dashed line marks a distinct state, such as a
-  draft or a drag placeholder. One contour shows one control state, and a segmented group
-  shares one-pixel seams. A box edged on one side is never rounded: mark a state with a
+  drag placeholder. One contour shows one control state, and a segmented group shares
+  one-pixel seams. A box edged on one side is never rounded: mark a state with a
   whole contour, or a stripe on a square box. Avoid reflexive cards, tints, gradients and
   soft shadows. Check: `test_no_rule_rounds_a_box_edged_on_one_side`.
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
@@ -601,6 +601,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | threads, workflow, attention, obligations, to-dos, activity, unread                                            | the server's state, which the browser selects without folding again (obligations: `obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read                                                                                                                                                                                       |
 | what waits on the user and on the agent                                                                        | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                                                                                                                                                                                                                                                  |
 | the machine's other live pages                                                                                 | the server's `/api/pages` answer, read again only when a news look names another pages reading than the one last asked for (`live-leaves.js`, `hearPages`); it keeps no consistency with the page's own reading, and nothing this page reads waits for it                                                                                                                           |
+| the user's unsent drafts                                                                                       | the page server's drafts (`src/leaf/drafts.py`), read again when a news look names another drafts version than the tab holds (`drafts.js`, `lookForDrafts`); the tab's own copy holds only words the server hasn't taken yet                                                                                                                                                        |
 | what the DOM shows                                                                                             | the presentation coordinator's renderer tickets and preparation regions                                                                                                                                                                                                                                                                                                             |
 | when a document-wide renderer paints                                                                           | the DOM dependencies `PRESENTATION_DOM` in `runtime/semantic-state.js` declares                                                                                                                                                                                                                                                                                                     |
 | where each thread's passage is                                                                                 | `anchor-placement.js`, resolving its anchor in this version                                                                                                                                                                                                                                                                                                                         |
@@ -715,6 +716,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
 | When a message was said, naming its day unless that is today                                          | `presence.js` `saidAt`                                                             |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                           |
+| The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                            |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
@@ -767,7 +769,7 @@ keeps work off the presentation path and how held keys replay.
 5. Index passage fences and parent ids, then capture each widget's descriptor and
    typed authored state from the source DOM.
 6. Publish that document contract once.
-7. Import the modules `x-upgrade` declares for the tags present, and no others.
+7. Import the modules the layer holds (`$modules`) for the tags present, and no others.
 8. Run the dressing passes and wait for the presentation coordinator.
 9. Join the page-interface owners' reconciliation (`PAGE_INTERFACE`), separately
    from this document's own presentation check.

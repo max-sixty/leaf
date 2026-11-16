@@ -429,10 +429,10 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 ):
     """A box stands at one of three heights, and only the theme spells them out.
 
-    Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
-    each other stood at different heights for no reason anyone chose, and nothing kept
-    the next one from writing a fifteenth. The `--lf-raise-*` tokens (tokens.css, beside
-    --lf-shade) are now the only declarations that write a blur; every other rule, a
+    Lifts that each write their own geometry stand two menus beside each other at
+    different heights for no reason anyone chose, and nothing keeps the next one from
+    writing another. The `--lf-raise-*` tokens (tokens.css, beside --lf-shade) are the
+    only declarations that write a blur; every other rule, a
     filter's drop-shadow() included, names one, with a hairline or ring beside it where
     its edge needs one.
 

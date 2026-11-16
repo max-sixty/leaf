@@ -1578,10 +1578,10 @@ def test_a_diff_in_a_pane_pins_the_file_name_at_the_pane_top_and_lands_below_it(
     browser, serve
 ):
     """The same two halves inside a full-height workspace pane, whose body is the box that
-    scrolls the rows. The header used to stop the window's slot below the pane's top,
-    because the offset it pinned at was the window's: rows scrolled past in the 42px
-    above the name that headed them, and a `]` landing, which aligns to the pane's own
-    top, put the row above its header. Where a sticking box stops is `--lf-top`, and a
+    scrolls the rows. A header pinned at the window's offset would stop the window's
+    slot below the pane's top: rows would scroll past in the room above the name that
+    headed them, and a `]` landing, which aligns to the pane's own top, would put the
+    row above its header. Where a sticking box stops is `--lf-top`, and a
     scrolling pane body declares it as its own top edge.
 
     Short enough a window that the patch overflows the pane, and still tall enough that

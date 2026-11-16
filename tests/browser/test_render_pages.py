@@ -807,8 +807,8 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
 def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
     """The selected thread may strengthen its contour, but it stays hollow.
 
-    This is the checkout-release regression: the metric fills its host edge to edge,
-    so a mark projected above the widget also sat above every word the widget draws.
+    The metric fills its host edge to edge, so a mark projected above the widget would
+    also sit above every word the widget draws.
     Comparing the interior with the card's mark taken off makes the guarantee
     independent of the widget's DOM, colors, and stacking choices.
     """
@@ -1397,8 +1397,8 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
 
 def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
     """A widget's preferred minimum never claims the sidebar's margin. Native wide and
-    available blocks read the same capacity; four and five board columns previously
-    overrode it at mid widths, while the control without a sidebar fitted there.
+    available blocks read the same capacity; four and five board columns don't
+    override it at mid widths, where the control without a sidebar fits.
     A board too narrow to share between columns stacks them inside that allocation,
     so neither it nor the page scrolls sideways.
     """
@@ -1615,8 +1615,8 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
 def test_a_table_caption_reads_at_its_tables_size_and_colour(browser, serve):
     """A caption names what its table covers, such as which case a table among
     several shows, so it reads at least at the size and in the colour of the cells
-    it names. Set as apparatus, at the chip size in the muted colour, it was the
-    faintest text around the table, and a reader took three tables for one (#5403)."""
+    it names. Set as apparatus, at the chip size in the muted colour, it would be the
+    faintest text around the table, and a reader could take three tables for one."""
     page = open_page(
         browser,
         serve(
@@ -2688,11 +2688,11 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
 
 def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     """The room is the page's to give, and a widget inside a box that paints is not held
-    by the page. A quoted board that took the window stood outside the gutter marking it
-    as quoted — the exhibit escaping its own exhibit — while a diagram in an option card
-    was worse for being invisible: a choose group clips to its own cells, so the widest
-    part of the evidence an option argued on was cut off at the card's edge rather than
-    drawn past it, and nothing on the page said a word.
+    by the page. A quoted board that took the window would stand outside the gutter
+    marking it as quoted — the exhibit escaping its own exhibit — while a diagram in an
+    option card is worse for being invisible: a choose group clips to its own cells, so
+    the widest part of the evidence an option argued on would be cut off at the card's
+    edge rather than drawn past it, and nothing on the page would say a word.
 
     A plain section is the control. It paints nothing and is the column's own width, so a
     board inside one takes the room exactly as it would standing alone — which is what
@@ -2700,23 +2700,24 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
 
     Which boxes those are is read off `--lf-block-frame`, the word a box already says where it
     draws its frame, so the metric here is held by declaring one and the page's own div by
-    declaring the same one. A list of tags stood in for that reading and shadowed it: the
-    metric declared the frame and was not in the list, and no list a layer writes can
-    reach the div at all.
+    declaring the same one. A list of tags standing in for that reading would shadow it:
+    the metric declares the frame and isn't in such a list, and no list a layer writes
+    can reach the div at all.
 
     The nested section and the note are the two a list of tags could not have named
     even in principle. A section's rail is drawn by `.nested-frame > .nested-frame`,
-    so it frames what it holds only where it is nested, and a note's box is drawn by `lf-code > pre > lf-note`,
-    a rule on where the code block's module docks it rather than on the tag. Each let a diagram out ~245px over the
-    column until the rule that draws it declared the frame.
+    so it frames what it holds only where it is nested, and a note's box is drawn by
+    `lf-code > pre > lf-note`, a rule on where the code block's module docks it rather
+    than on the tag. Each lets a diagram out over the column unless the rule that draws
+    it declares the frame.
 
     The row form is the declaration's limit, and the reason the sizing is asserted
     too. A row option is a table hugging its words, and legacy table sizing answers
-    to content where every modern layout clamps a scroll container — so with the
-    frame declared all along, a diagram in a row grew the row, the row grew the
-    shared track, and the group's clip cut the evidence off at its border. And a
+    to content where every modern layout clamps a scroll container — so even with the
+    frame declared, a diagram in a row would grow the row, the row would grow the
+    shared track, and the group's clip would cut the evidence off at its border. And a
     separated table adds its padding outside the width it is given, so every row on
-    every joined group stood 30px past its group, diagram or no diagram, the clip
+    every joined group would stand past its group, diagram or no diagram, the clip
     spending the overhang out of the pick's word-room. The box a wide widget gets
     answers to the room and never to its content (contain: inline-size, base.css),
     and the row keeps its reservation inside the width it states (box-sizing:
@@ -2781,8 +2782,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         f"{boxes['rowPick']['right']:.0f}, group ends at {boxes['rowGroup']['right']:.0f}"
     )
     # A board's own card is the same box asked from inside a scroller, which is where the
-    # gate below had been blind: this diagram stood 332px past its card and across the
-    # next column of the board, and every reading of the page called it clean.
+    # gate below is blind: this diagram can stand past its card and across the next
+    # column of the board while every reading of the page calls it clean.
     assert boxes["inBoardCard"]["left"] >= boxes["boardCard"]["left"] - 1, (
         "the diagram crossed its card's left edge on the board"
     )
@@ -3420,8 +3421,8 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     browser, serve
 ):
     """A bare button or field an author writes into the page reads in Leaf's type, as
-    `.lf-btn` and `.lf-field` do; left to the browser it drew 13.33px Arial beside the
-    page's own type (#2559). The default weighs nothing, so a page rule of element
+    `.lf-btn` and `.lf-field` do; left to the browser it draws 13.33px Arial beside the
+    page's own type. The default weighs nothing, so a page rule of element
     selectors alone still sets its type."""
     page = open_page(
         browser,

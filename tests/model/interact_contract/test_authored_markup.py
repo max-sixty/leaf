@@ -29,9 +29,9 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     Both namespaces are reserved by prefix, so the fourth element here wears a
     class the runtime does not coin today and is refused all the same. A list of
     the names it happens to write is a list that admits the next one it coins:
-    .lf-quiet was outside the list this once held, and the chrome stylesheet
-    clipped an authored copy of it to 1x1 with both render gates skipping the
-    class unconditionally, so nothing anywhere said the page's own words had
+    were .lf-quiet outside such a list, the chrome stylesheet would clip an
+    authored copy of it to 1x1 with both render gates skipping the class
+    unconditionally, so nothing anywhere would say the page's own words had
     gone. The <p class="note"> is the control: an ordinary class is the author's
     to write, and the count below is exact so a reservation that swallowed it
     would be caught here rather than in a page that stopped rendering. The button

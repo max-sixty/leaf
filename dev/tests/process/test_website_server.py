@@ -1337,17 +1337,14 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
 
-    `publish-site` deployed release `4ef93dd9…` and then failed on the reload after a
-    healthy turn: `never presented, reaching no startup milestone`. The pages the
-    release pass walks come from the edge and present in about a second, which is what
-    the default bound is for. The reloaded one is answered by a container that has just
-    run a hosted model turn, whose first `/api/state` read costs seconds rather than
-    milliseconds — measured against the live deployment, 123 ms before a turn and
-    2252-3918 ms after one, on the same session and page.
+    The pages the release pass walks come from the edge and present in about a second,
+    which is what the default bound is for. The reloaded one is answered by a container
+    that has just run a hosted model turn, whose first `/api/state` read costs seconds
+    rather than milliseconds.
 
     The gate gives the reload that bound both to present and, after presentation, to
-    follow the revision its first read brings back. The second wait is required now that
-    presentation no longer implies the read has answered.
+    follow the revision its first read brings back. The second wait is required because
+    presentation does not imply the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
     recorded = f"Deployment {release[:8]} verified"

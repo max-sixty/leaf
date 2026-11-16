@@ -558,11 +558,10 @@ def test_away_from_an_obligation_the_reference_names_widget_owned_options(
 
 def test_the_reference_reads_the_same_way_twice(browser, serve):
     """A widget registers its scope at upgrade, and the set the reference walks is
-    insertion-ordered, so the sections came out in whatever order the modules happened to
-    finish in. The same build read twice put "On a tab" above "On a card grip" once and
-    below it the next time. A reference whose headings move between loads is one a user
-    cannot learn the shape of, and any assertion on it flakes rather than fails — which is
-    how it was found, a reviewer taking a reordering for fallout from an unrelated change.
+    insertion-ordered, so read in that order the sections would come out in whatever
+    order the modules happened to finish in, which differs between two reads of the same
+    build. A reference whose headings move between loads is one a user cannot learn the
+    shape of, and any assertion on it flakes rather than fails.
 
     So the widgets' sections read in the order the page holds them. Asserted twice over:
     the same page loaded twice gives the same list, and that list is the document's own

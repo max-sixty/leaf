@@ -26,8 +26,8 @@ def test_words_scrolled_past_a_card_head_show_nowhere_above_it(
     scroller's edge, past the room, so the name stood 6px above the actions and words
     showed over Resolve; in Chromium they showed above the name. Nor do words show
     beneath the actions, a summary's included, and the head row holding the line
-    lends them its ground: an arriving message's tint runs behind them, where the
-    actions' own paper box used to cut it whenever the card was scrolled."""
+    lends them its ground: an arriving message's tint runs behind them rather than
+    being cut by the actions' own paper box whenever the card is scrolled."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}

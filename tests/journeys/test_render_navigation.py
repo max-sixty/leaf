@@ -118,10 +118,11 @@ commandsChanged(document.querySelector("#local-shortcuts"));
 
 def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     """A let-go lands on what the user is reading in the page region they last acted
-    in. Opening Threads over a pane once replaced that region with the panel's list, so
-    closing it landed on the workspace header; and a pane showing no words where it
-    stood (a figure, a spacer) had no block to land on, so the user was dropped on the
-    body and the pane forgotten. Either way `d` and `u` stopped moving the pane.
+    in. It guards two failures: opening Threads over a pane replacing that region with
+    the panel's list, so closing it lands on the workspace header; and a pane showing
+    no words where it stands (a figure, a spacer) having no block to land on, so the
+    user is dropped on the body and the pane forgotten. Either way `d` and `u` stop
+    moving the pane.
 
     A pane that flows inside a scrolling workspace body keeps answering after it scrolls
     out of the window, which a test of the pane's own visibility must not mistake for a
@@ -1283,9 +1284,9 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
 ):
     """Contents must be available before the reader works through this long review.
 
-    The former sidebar placed the outline after the complete PR facts and history;
-    when the tracks stacked, it also came after the entire article. The authored
-    reading order now puts navigation first and supporting evidence in the article.
+    The authored reading order puts navigation first and supporting evidence in the
+    article. An outline placed after the complete PR facts and history would, when the
+    tracks stack, also come after the entire article.
     """
     source = named_source("pr-walkthrough")
     url = serve(source)

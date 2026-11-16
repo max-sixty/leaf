@@ -2087,7 +2087,7 @@ def test_shift_judgement_waits_for_paint_instead_of_a_time_cap(browser):
       document.getElementById('above').style.height = '40px';
       window.shiftJudged = false;
       window.lfShiftsJudged().then(() => window.shiftJudged = true);
-      // This callback proves the former 500ms fallback would have run, without
+      // This callback proves a 500ms time cap would have run, without
       // assuming the machine completes any work within a particular duration.
       setTimeout(() => window.pastFormerCap = true, 600);
     }""")

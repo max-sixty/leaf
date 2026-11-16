@@ -729,9 +729,7 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     outline is painted by its control at its control's level while an outline's pixels
     are not hit-testable — so a sample outside the control's box returns whatever is
     beneath. That is sound while the control's surface takes hits and unsound inside one
-    that does not, where the answer comes back inverted: the old shortcut bar stood over
-    the page at z-index 8940 with `pointer-events: none`, and the code under its More
-    button read as standing over it.
+    that does not, where the answer comes back inverted.
 
     So the reading declines inside such a surface, and that is a way for it to go quiet
     everywhere by accident. The plant is the population assertion: thin enough to lie
@@ -777,12 +775,11 @@ def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     of cannot stand over the ring around it — but the hit test that answers this half
     samples the band outside the control's box, where whatever is beneath comes back.
 
-    The side panel's edge grip was the shape that made that matter: it floated over the
-    threads at z-index 1, so its band crossed their own lines at every width and scroll
-    position, and the reading named whichever line it happened to land on. A two-pixel
-    change to a card's padding (#374) put a receipt under the grip's foot and took a
-    resize test down with nothing about the page wrong. The plant keeps that shape: a
-    control at z-index 1 in a positioned holder.
+    A side panel's edge grip is the shape that makes that matter: floating over the
+    threads at z-index 1, its band crosses their own lines at every width and scroll
+    position, and the reading names whichever line it happens to land on, taking a test
+    down with nothing about the page wrong. The plant keeps that shape: a control at
+    z-index 1 in a positioned holder.
 
     So: one neighbour under the grip's band and clear of its box, planted three times —
     where the grip paints across it, where a z-index of its own lifts it past the grip,

@@ -510,14 +510,13 @@ def test_a_module_that_stages_bare_text_is_refused_in_its_own_name(
     `parentElement` is null there, so those words have no block to sit in, no cell to be
     fenced by and nothing for a mark to hang on, and admitting them would split the
     page's reading from the file's. The page refuses to present at all, which is the
-    loud direction — but the refusal used to arrive as `Cannot read properties of null
-    (reading 'closest')` over a blank page, naming neither the widget nor the mistake,
+    loud direction — but a refusal arriving as `Cannot read properties of null
+    (reading 'closest')` over a blank page names neither the widget nor the mistake,
     which is a bug report against leaf rather than against the module that caused it.
 
-    The refusal is also final. It used to be raised again by every later reader of the
-    page's words: each repaint frame, key and selection threw it, so a wheel, a resize
-    and three presses took one page from 6 errors to 25, while the notice waited for a
-    server update that cannot fix a module's mistake. Now the first refusal declares
+    The refusal is also final. Raised again by every later reader of the page's words,
+    it would be thrown by each repaint frame, key and selection, while the notice waited
+    for a server update that cannot fix a module's mistake. The first refusal declares
     the page failed: its widgets fall back at once, the notice says the page itself has
     a problem, and later readers read past the refused words, so the agent and the
     console hear it once."""

@@ -270,8 +270,9 @@ def test_the_reading_keys_accumulate_and_reverse(browser, serve):
         "() => document.scrollingElement.scrollHeight > document.scrollingElement.clientHeight * 3"
     ), "the page is too short for these steps to be told apart"
     # A callback's frame timestamp may predate performance.now() in the key handler.
-    # Make that browser timing deterministic: a negative first fraction used to write
-    # above the page, get clamped to zero, then cancel the glide as if the user moved.
+    # Make that browser timing deterministic: a negative first fraction that wrote
+    # above the page would get clamped to zero, then cancel the glide as if the user
+    # moved.
     page.evaluate(
         """downs => {
       const raf = requestAnimationFrame;
@@ -458,12 +459,12 @@ def test_the_reading_keys_jump_under_reduced_motion(browser, serve):
 
 
 def test_the_page_has_one_door_to_a_comparison(browser, serve):
-    """`=` marked what changed since the previous version from anywhere on the page, and
-    the case for it was that it named no version — "since the last one I saw" is a
-    question a user has without opening anything. Naming no version is also naming
-    nothing to check, and the two are not the same question: on a page that ships a
-    version whenever the work moves, a user back after a week got v(n-1) and no way to
-    see that they had. So the door is the menu, where every base says which one it is.
+    """A `=` that marks what changed since the previous version from anywhere on the
+    page has a case: it names no version — "since the last one I saw" is a question a
+    user has without opening anything. Naming no version is also naming nothing to
+    check, and the two are not the same question: on a page that ships a version
+    whenever the work moves, a user back after a week gets v(n-1) and no way to see
+    that they have. So the door is the menu, where every base says which one it is.
 
     Pressed rather than read off the table, on both sides: a key bound to nothing looks
     exactly like one that works in the command reference dialog, which is how the removal would go
@@ -491,6 +492,6 @@ def test_the_page_has_one_door_to_a_comparison(browser, serve):
     page.keyboard.press("Escape")
     expect(versions).to_be_hidden()
 
-    # The door, and it marks the same passage the key used to.
+    # The door, and it marks the same passage the key would.
     compare_with(page)
     expect(page.locator("#p3")).to_have_class(re.compile(r"lf-ins-block"))

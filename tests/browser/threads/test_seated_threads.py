@@ -693,8 +693,9 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
     browser, serve, resolved, annotations
 ):
     """A new patch takes each thread off the diff to the margin, since its anchor
-    names the patch it was written on, and the reply box the user was typing in went
-    with it: focus fell to the page, and the next letters ran page commands. The
+    names the patch it was written on, and the reply box the user was typing in goes
+    with it, where focus falling to the page would let the next letters run page
+    commands. The
     user follows the thread to its margin card, typing on in the same editor at the
     same caret, with its undo history, and no task between the two finds them on
     the page."""
@@ -858,7 +859,7 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
 ):
     """The user leaves the margin card's reply before the patch comes back: by Tab onto
     the margin (`open`), or by Shift+Tab to the card's Close and Enter (`closed`). Its
-    editing session goes on: the diff line used to draw a fresh editor holding only
+    editing session goes on: a diff line drawing a fresh editor would hold only
     the words, while the hidden card kept the one with the undo history. The diff line
     takes that editor."""
     url, root = seated_thread(serve, "diff", 2)

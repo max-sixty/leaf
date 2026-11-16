@@ -281,7 +281,7 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     )
     page = open_page(browser, serve(source))
     # 900 leaves the composer no side lane, so it takes the vertical route; at 1200 the
-    # root's margin once put it 40px left of its lane, over the item.
+    # root's margin can put it 40px left of its lane, over the item.
     resized(page, width, 900)
 
     target = page.locator("#lq-keep")
@@ -774,8 +774,8 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
     """A line the comment box gains at the window's foot shifts it up in the frame the
     key lands, its words and Send with its edges, as a textarea's would; a line
     removed carries the words back down with the top edge over the floating boxes'
-    tween while Send rides the foot (box-motion.js, "Whose change it is"). The new line
-    used to travel too, hiding the word being typed until the edge reached it."""
+    tween while Send rides the foot (box-motion.js, "Whose change it is"). A new line
+    that travelled too would hide the word being typed until the edge reached it."""
     page = open_page(
         browser,
         serve(
@@ -872,8 +872,8 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
 def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
     """A comment box keeps its width as it takes its first lines and grows downward, so
     a key that takes it a new line stands it at its new height in the frame the key lands, as a
-    textarea sized to its words does (box-motion.js, "Whose change it is"). Each key
-    used to start a tween that trailed the caret, and the field's cut hid what was
+    textarea sized to its words does (box-motion.js, "Whose change it is"). A tween
+    each key started would trail the caret, and the field's cut would hide what was
     just typed until the tween caught up. A line taken at the window's foot is
     `test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go`."""
     page = open_page(
@@ -1952,7 +1952,7 @@ def test_the_armed_page_promises_only_what_a_press_would_take(browser, serve, su
         expect(page.locator(".lf-fab-bar")).to_be_hidden()
         page.evaluate(RELEASE_FOCUS)
 
-    # Holding ⌥ used to draw a plain arrow over the whole page, which leaves the one
+    # Drawing a plain arrow over the whole page while ⌥ is held leaves the one
     # question the outline can't answer for a user who hasn't looked yet: would this click
     # do anything at all? An armed press takes the addressable element under it and acts
     # on nothing where there is none (claimPress), so the hand says it takes one, read
@@ -3145,11 +3145,11 @@ def test_the_legend_follows_the_page_it_is_a_reading_of(browser, serve):
     box yet, and the boxes are drawn in document space), the panel opening (the column
     re-centred, every block reflowed, and no scroll or replay said so — each obligation's own
     resize does), and the name under the pointer, which is drawn beside the box in the
-    same space: it sat in viewport space once, with the scroll added on top, and stood a
+    same space: in viewport space, with the scroll added on top, it would stand a
     screen below its box on any page scrolled at all. The aim's name is one more of
     the chrome's promises over the same page, so the reflow doors repaint it too
-    (pageShifted): it once kept its old coordinates through the panel's column motion,
-    floating half a panel to the right of the element it named."""
+    (pageShifted): a name that kept its old coordinates through the panel's column
+    motion would float half a panel to the right of the element it named."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("l")
     page.wait_for_function(LEGEND_TRUE)
@@ -3222,9 +3222,9 @@ def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
     each side of it, so a control far into a long paragraph is told apart by the words
     beside it, and a control's own words after its name, said once. A picture says none
     of its own words, since its name describes it: over a text document Design mode
-    aims at its view, a picture of the whole document, whose name once read all of it
-    twice at each move of the pointer, 0.3 to 1.7 s on a document of 50,000 lines
-    (anchor-resolution.js, `controlContext`)."""
+    aims at its view, a picture of the whole document, whose name would otherwise read
+    all of it twice at each move of the pointer (anchor-resolution.js,
+    `controlContext`)."""
     filler = " ".join(f"word{n}" for n in range(400))
     lines = "".join(f"line {n} of the document\n" for n in range(3000))
     page = open_page(
@@ -3966,9 +3966,9 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
     """A pass that runs paints the truth, whatever ran it.
 
     A replay of another tab's action moves content and repaints the marks where they
-    now belong — and the aim used to ride that pass as an answer latched from the last
-    mouse event, so the pass itself painted a promise about a card no longer there.
-    The aimed element is derived inside the pass now, and the events only decide when a
+    now belong — and an aim that rode that pass as an answer latched from the last
+    mouse event would have the pass itself paint a promise about a card no longer there.
+    The aimed element is derived inside the pass, and the events only decide when a
     pass is worth running. Nothing here moves the mouse after the arm: the page moves
     instead, and the box must follow or clear."""
     url = serve(REPLAYED_PAGE)
@@ -4008,12 +4008,12 @@ def test_a_replay_under_a_held_aim_repaints_the_promise(browser, serve):
 def test_the_aim_shows_over_the_widgets_own_paint(browser, serve):
     """The promise is visible over the widget's own paint.
 
-    The aim used to wear the mark's rail, and that band sat at the border edge — the one
-    band of an element nobody else paints in, and exactly where a widget draws a border
-    of its own. Over an accented option, whose border is already the accent, arming
-    changed nothing a user could see. The aim's veil fills the box; the pixel diff
-    here is armed against unarmed with the pointer held still, so the widget's own
-    hover wash is in both frames and the difference is the promise alone."""
+    The aim doesn't wear the mark's rail, since that band sits at the border edge — the
+    one band of an element nobody else paints in, and exactly where a widget draws a
+    border of its own. Over an accented option, whose border is already the accent,
+    arming would change nothing a user could see. The aim's veil fills the box; the
+    pixel diff here is armed against unarmed with the pointer held still, so the
+    widget's own hover wash is in both frames and the difference is the promise alone."""
     from PIL import ImageChops  # a dev dependency already, for the demo recorder
 
     page = open_page(browser, serve(AIM_PAINT_PAGE))
@@ -4441,7 +4441,7 @@ def _paint_mode(page, mode, words):
         expect(page.locator(".lf-key-hint[data-lf-hint-code]").first).to_be_visible()
 
 
-# Every mode's paint in a pane, the frame each of them once trailed by a frame; the
+# Every mode's paint in a pane, the frame each of them can trail by a frame; the
 # legend in every frame, and chips under a header's cut and in the window's own plane.
 @pytest.mark.parametrize(
     ("mode", "scroller"),
@@ -4656,8 +4656,8 @@ OFF_FLOW_PAGE = leaf_page(
 def test_legend_tags_step_apart_as_the_page_slides_under_a_sticky_bar(browser, serve):
     """A paragraph's tag scrolls past the tag a sticky bar keeps still, and the two
     step apart as they meet, with no legend pass between (design.js, `placeTags`):
-    a scroll that left every tag on the same side of its box once kept the steps it
-    found, though the tags it had stepped apart now stood elsewhere."""
+    a scroll that left every tag on the same side of its box doesn't keep the steps it
+    found, though the tags it had stepped apart now stand elsewhere."""
     page = open_page(browser, serve(OFF_FLOW_PAGE))
     resized(page, 1280, 720)
     _design_mode(page)
@@ -5364,8 +5364,8 @@ def test_a_side_comment_grows_down_from_the_line_it_was_opened_on(
 ):
     """Beside a passage, a draft that wraps keeps what the user has written where they
     wrote it: the field's top holds and its foot, with Send, moves down a line per wrap,
-    as in an editor. Enter sends, so a hand on the keys never chases Send. (#1159 held
-    the foot and raised the words above it; the user chose this instead.)"""
+    as in an editor. Enter sends, so a hand on the keys never chases Send. (The user
+    chose this over holding the foot and raising the words above it.)"""
     page = open_page(
         browser,
         serve(

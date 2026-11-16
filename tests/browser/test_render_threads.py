@@ -197,8 +197,8 @@ def test_agent_titles_update_without_losing_the_users_draft(browser, serve):
 def test_the_user_rewrites_their_own_message_where_it_stands(browser, serve):
     """A double click, or ↑ from the thread's empty reply box, opens the user's own
     words in place. Enter sends the rewrite; Escape and Cancel leave the message as it
-    was and discard the words, so one Escape undoes the ↑ (the user's decision,
-    2026-10-06). Words a rewrite still holds when the page goes, as on a reload, wait
+    was and discard the words, so one Escape undoes the ↑ (the user's decision).
+    Words a rewrite still holds when the page goes, as on a reload, wait
     for the next opening, which Resume writing reaches.
 
     The rewrite draws on the message in the gesture, labelled edited, and reaches the

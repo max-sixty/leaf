@@ -142,9 +142,9 @@ def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
     start, since its repeats are the one press that took the caret there. The Edit
     control is for a pointer or a finger, so it takes no Tab stop in the thread.
 
-    The walk once opened a rewrite wherever it stood, which in a long thread was above
-    the panel's top or below its foot: the user typed into a box they could not see.
-    Each one opened now stands in the panel's view, clear of the reply row pinned at
+    A rewrite opened wherever the walk stood would, in a long thread, be above the
+    panel's top or below its foot: the user would type into a box they could not see.
+    Each one opened stands in the panel's view, clear of the reply row pinned at
     its foot.
 
     ↑ from the start of a rewrite, and opening another message's in the thread, closed
@@ -390,13 +390,13 @@ FIRST_LINE = """n => {
 
 @pytest.mark.parametrize("surface", ["panel", "seat", "card", "feed"])
 def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surface):
-    """Opening a rewrite with ↑ swapped the message for a bordered box with Cancel on a
-    row of its own, pushing every turn and the reply box below it down 55px, and Escape
-    left that room behind and the user located on the thread rather than in the box
-    they pressed ↑ from. A later box painted around the words, with no padding of its
-    own, moved nothing but read as a thinner, narrower field than the reply box beside
-    it; the reply box's own field that followed moved the words down by its padding
-    and, in Feed mode, across by its inset. The rewrite is now a comment box whose
+    """A rewrite opened with ↑ that swapped the message for a bordered box with Cancel
+    on a row of its own would push every turn and the reply box below it down, and
+    Escape would leave that room behind and the user located on the thread rather than
+    in the box they pressed ↑ from. A box painted around the words, with no padding of
+    its own, would move nothing but read as a thinner, narrower field than the reply box
+    beside it; the reply box's own field would move the words down by its padding and,
+    in Feed mode, across by its inset. The rewrite is a comment box whose
     frame and padding stand around the words, which keep their place; where the thread
     draws its reply box under the message, the rewrite takes its width. Discard and
     Save take the message's head, and every way out steps back up to the reply box,
@@ -456,7 +456,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
             box,
             head,
         )
-        # A pointer reaches it: a seat's first head once cut Save off at its end.
+        # A pointer reaches it: a seat's first head could cut Save off at its end.
         control.click(trial=True)
     page.keyboard.type("Z")
     expect(editor).to_have_js_property("value", "Fit the north bracket.Z")
@@ -643,11 +643,11 @@ def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
 def test_a_rewrite_opened_on_held_words_starts_from_the_words_as_they_stand(
     browser, serve
 ):
-    """A rewrite another tab made, which Feed held back behind its news notice, stayed
-    under a rewrite opened here: the editor opened on the old words over the old
-    revision, so even a Save of words the user had not changed was sent, and the log
-    refused it. Until the user changes them, the editor's words follow the message, so
-    it shows the other rewrite and is written over it."""
+    """A rewrite another tab made, which Feed holds back behind its news notice, would
+    stay under a rewrite opened here if the editor opened on the old words over the old
+    revision: even a Save of words the user had not changed would be sent, and the log
+    would refuse it. Until the user changes them, the editor's words follow the message,
+    so it shows the other rewrite and is written over it."""
     page, workspace, message = _rewrite_surface(browser, serve, "feed")
     mine = message.get_attribute("data-lf-event")
     words = message.locator(".lf-msg-text")
@@ -763,8 +763,8 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
 def test_a_rewrite_saves_its_exact_words(browser, serve):
     """Saving the message's own words changes nothing, but a rewrite that changes only
     their leading or trailing space saves it: that space is part of what a rewrite
-    sends, as a suggestion's newline is, and the editor once compared trimmed words and
-    dropped it as "No change to save"."""
+    sends, as a suggestion's newline is, and an editor comparing trimmed words would
+    drop it as "No change to save"."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     editor = message.locator(".lf-msg-editor leaf-text")
     message.locator(".lf-msg-text").dblclick()
@@ -934,11 +934,11 @@ def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
     browser, serve, finger
 ):
     """A later message's controls stand aside while its head sticks on the line of the
-    card's actions, and that once hid an open rewrite's Discard and Save too, though the
-    rewrite stood open below them. On a card at its least width under a finger, beside
-    Previous and Next, the pair, two fingers wide, then ran past the head into the
-    actions, and a tap on Save pressed Previous. The pair stays, over the head's
-    words."""
+    card's actions, and standing an open rewrite's Discard and Save aside too would hide
+    them, though the rewrite stands open below them. On a card at its least width under
+    a finger, beside Previous and Next, a pair, two fingers wide, that ran past the head
+    into the actions would turn a tap on Save into a press of Previous. The pair stays,
+    over the head's words."""
     url = serve(PANEL_PAGE)
     section = {"section": "how-store"}
     root = panel_comment(serve.page_dir, "Fit the north bracket.", section)
@@ -1539,10 +1539,9 @@ def test_saving_one_of_two_open_rewrites_leaves_no_gap(browser, serve):
 
 @pytest.mark.watch_shifts
 def test_a_rewrite_saved_in_a_resolved_thread_goes_with_its_thread(browser, serve):
-    """Saving a rewrite reopens its thread, which dropped the user's focus on the list
+    """Saving a rewrite reopens its thread, which would drop the user's focus on the list
     the thread was read from. The save carries them into the open thread, landing in its
-    reply box, with nothing moving after the key (#46, the user's decision,
-    2026-10-07)."""
+    reply box, with nothing moving after the key (the user's decision)."""
     page, _, message = _rewrite_surface(browser, serve, "panel", resolved=True)
     settle = page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)")
     expect(settle).to_have_accessible_name("Reopen")

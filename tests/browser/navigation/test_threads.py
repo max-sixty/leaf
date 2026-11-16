@@ -95,8 +95,8 @@ def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
 
 def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     """Threads opens in the panel, the region named Leaf, under its title, and a thread
-    card on the page is where a send or a walk can stand the user. Both were once
-    unnamed, so a screen reader arriving on either heard only "dialog" or "group"."""
+    card on the page is where a send or a walk can stand the user. Were either unnamed,
+    a screen reader arriving on it would hear only "dialog" or "group"."""
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -707,8 +707,8 @@ def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     """A walk shows the thread it lands on and no other, so `c` and the walk's position
     have one thread to mean. From a thread open in the panel, `t` to a thread about a
     passage opens its card and puts the panel's view away; from that card, `t` to a
-    thread about the whole page opens it in the panel and closes the card. Both once
-    stayed open, and the panel said "Thread 2 of 2" under the thread the user had
+    thread about the whole page opens it in the panel and closes the card. Were both to
+    stay open, the panel would say "Thread 2 of 2" under the thread the user had
     left."""
     url = serve(INLINE_PAGE)
     first = panel_comment(

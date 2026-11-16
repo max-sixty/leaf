@@ -1666,9 +1666,10 @@ def test_a_page_loads_from_other_servers_as_written(server, page_dir):
 def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_dir):
     """The live root, a stamped version and a revision are all this page.
 
-    The revision address used to fall through to the static file branch, which
-    returned the authored bytes. The module that source names still started a
-    runtime, but without the layer's bootstrap or the revision identity that tells the runtime which document it is showing. Each
+    The revision address doesn't fall through to the static file branch, which
+    returns the authored bytes: the module that source names would still start a
+    runtime, but without the layer's bootstrap or the revision identity that tells the
+    runtime which document it is showing. Each
     address names the page root as canonical, which is how a user sent to one of
     them, and a crawler that finds all three, arrive at one page.
     """
@@ -3564,15 +3565,14 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     the user's whole explanation. Every one of these is deterministic, so the loop
     never ends.
 
-    The state-dependent refusals were written through `event_rejection` from the start
-    and the gates in front of them were not, which is the split this asserts away: the
-    read-only preview server and each shape gate answer in the door's own shape rather
-    than in the shape of whichever branch decided them, and each names the attempt it
-    read. The key gate is not among them: it reads no event and lasts only until the
-    printed link is opened (`test_a_user_without_the_key_reads_and_writes_nothing`). A
-    page's runtime is vendored at
-    `page init` and the layer around it moves, so the shape gates are reachable by an
-    older page's honest event, not only by a hand-written POST."""
+    The state-dependent refusals are written through `event_rejection`, and this asserts
+    the gates in front of them are too: the read-only preview server and each shape gate
+    answer in the door's own shape rather than in the shape of whichever branch decided
+    them, and each names the attempt it read. The key gate is not among them: it reads
+    no event and lasts only until the printed link is opened
+    (`test_a_user_without_the_key_reads_and_writes_nothing`). A page's runtime is
+    vendored at `page init` and the layer around it moves, so the shape gates are
+    reachable by an older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
     attempt = "attempt-for-the-door-x"
     comment = {"kind": "comment", "revision": 1, "text": "hello", "attempt": attempt}
@@ -4812,8 +4812,8 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
 
     A persistent server under the machine's `~/.local/state/leaf/pages` looks to
     the sweep exactly like a page a test forgot: a held lease under an enabled
-    service. The sweep once took its root from the environment before
-    `isolated_session` had moved it, and stopped every such server on the
+    service. A sweep that took its root from the environment before
+    `isolated_session` had moved it would stop every such server on the
     machine after every test (tests/AGENTS.md, "Processes and servers").
 
     So a run is made against a home planted the way the developer's is, of the

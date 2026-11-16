@@ -440,7 +440,7 @@ def test_a_sigterm_its_handler_takes_inside_a_finalizer_still_ends_the_wait(
     """Python discards an exception raised in a weakref callback, as it does one
     raised in `__del__` or a GC callback, so a SIGTERM whose handler runs inside
     one cannot end the wait by raising. A page memory's finalizer joins threads,
-    which is where a stopped wait once kept running. The wait still ends with
+    which is where a stopped wait could keep running. The wait still ends with
     SIGTERM's status and releases its lease."""
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
@@ -798,11 +798,11 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
 
     The claims this writes have to go to a relocated home. A record left in a shared
     directory outlives the run that made it, and a constant id in one is a name every
-    run answers to: an earlier version of this test wrote into the developer's own
-    `~/.local/state/leaf/claims`, one unreleased claim per run under this same id and
-    nothing ever sweeping them. Seventy-six had collected when one of their pids came
-    round again on a live process, and the rule below read as true for a claim no run
-    of this test had made. `isolated_session` supplies the home.
+    run answers to: written into the developer's own `~/.local/state/leaf/claims`, one
+    unreleased claim per run under this same id collects with nothing ever sweeping
+    them, until one of their pids comes round again on a live process and the rule below
+    reads as true for a claim no run of this test made. `isolated_session` supplies the
+    home.
     """
     page = tmp_path / "page"
     page.mkdir()

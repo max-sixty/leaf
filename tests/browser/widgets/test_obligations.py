@@ -456,9 +456,9 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
 ):
     """Two semantic readings, collected from declarations rather than from any tag.
 
-    The count used to be a query for `lf-suggestion:not([data-lf-state])`: perfect for
+    A count that queried `lf-suggestion:not([data-lf-state])` would be perfect for
     suggestions, and silently nothing for every other thing a page waits on. What
-    makes an instance an obligation is now the entry's own attribute condition, and the entry
+    makes an instance an obligation is the entry's own attribute condition, and the entry
     explicitly names which state verbs answer it — so this page's five active obligations are
     one authored answer, a live question, a change nobody has decided, and two explicit
     questions nested in tasks.
@@ -566,8 +566,8 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
         expect_obligations_answered(page, "1/5")
 
     # Every request has an answering control, so the walk never has to leave a borrowed
-    # tab stop on an obligation it has left. A generated custom element may now be the public
-    # role-bearing control itself, so a dash in its tag no longer means authored widget
+    # tab stop on an obligation it has left. A generated custom element may be the public
+    # role-bearing control itself, so a dash in its tag doesn't mean authored widget
     # paint. Obligation ids are the exact ownership boundary this assertion is about; the
     # current obligation alone may retain the stop that focus is using.
     expect(page.locator(CURRENT_OBLIGATION)).to_have_count(1)
@@ -612,20 +612,18 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
 def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, serve):
     """The decision is the question's whole reading region, not only its answer control.
 
-    An options group used to be both the state owner and the navigation target. When
-    the heading, premise, and evidence stood immediately above it, `d` centred the
-    options and made the user scroll backward before they could answer. `lf-ask`
+    Were an options group both the state owner and the navigation target, then when
+    the heading, premise, and evidence stood immediately above it, `d` would centre the
+    options and make the user scroll backward before they could answer. `lf-ask`
     encodes that broader unit while the nested x-awaits widget still owns the action:
     the walk rings the region, aligns its opening at the window's head, and stands the
     user on it.
 
-    On it, and not on the control that answers it, which was where the walk landed until
-    the scroll and the focus were measured against each other. The scroll puts the
-    region's opening at the top of the window and the answering control is as far down as
-    the context and evidence are long: on the shipped corpus at 1200x900 the heading stood
-    at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the user was
-    told to look at one thing while located on another they could not see, and their next
-    Space would have worked it. The picks are the next Tab stops instead, which is what a
+    On it, and not on the control that answers it. The scroll puts the region's opening
+    at the top of the window and the answering control is as far down as the context
+    and evidence are long, so a walk landing on the control would tell the user to look
+    at one thing while located on another they could not see, and their next Space
+    would work it. The picks are the next Tab stops instead, which is what a
     stop at `tabindex: -1` on the region buys: it keeps its place in document order and
     everything inside the decision comes after it.
     """
@@ -662,7 +660,8 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     )
     scroll_settled(page)
     # Where the user was left is on the screen the walk has just arranged, and the pick
-    # the walk used to stand them on is the measurement that says the two cannot both be.
+    # the walk could stand them on instead is the measurement that says the two cannot
+    # both be.
     position = page.evaluate(
         """() => {
           const box = document.activeElement.getBoundingClientRect();
@@ -1531,13 +1530,14 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
 def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     """A suggestion is one decision, so it wears one ring, whatever its slots are made of.
 
-    The wrapper generated no box once — the same "take the form your content takes" with
-    the box left out — and an element with none measures (0,0) at the document's origin,
-    which is not a degenerate answer but a wrong one. Everything that asked the wrapper
-    where it was believed it, so the travel centred the top of the document and a page
-    whose open decisions were all suggestions answered `d` by appearing to do nothing at all.
+    A wrapper that generated no box — the same "take the form your content takes" with
+    the box left out — would measure (0,0) at the document's origin, as an element with
+    none does, which is not a degenerate answer but a wrong one. Everything that asked
+    the wrapper where it was would believe it, so the travel would centre the top of the
+    document and a page whose open decisions were all suggestions would answer `d` by
+    appearing to do nothing at all.
 
-    Hanging the ring on the pieces instead covered that and said the wrong thing about
+    Hanging the ring on the pieces instead covers that and says the wrong thing about
     the change: two outlines meeting down the middle of a sentence, or stacked across
     two block slots, read as two boxes touching rather than as the one decision the user is
     located in. So what is asserted here is that the user is taken to the change, and
@@ -1704,17 +1704,17 @@ def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note
     The paint pass writes one hidden line per block holding a comment, saying how many
     it holds, and for an element anchor that line lands inside the element the anchor
     names. It is clipped to a pixel, so it has a box — and a wrapper that draws none of
-    its own then had two children with area, its slot and the runtime's word about the
-    page. Area alone kept the wrong ones out only by luck: the family's control line
+    its own then has two children with area, its slot and the runtime's word about the
+    page. Area alone keeps the wrong ones out only by luck: the family's control line
     happens to be zero-wide, and this one is not.
 
-    The order is why nothing caught it. The note is written after the marks are placed,
+    The order hides it. The note is written after the marks are placed,
     so the first paint of a page sees no note and the ring is right; it moves onto the
     pixel on the next pass — which the On Me walk always is, the user having pressed a
     key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
     ring beside the change instead of on it.
 
-    The shipped wrapper draws a box of its own now, so the page supplies the boxless
+    The shipped wrapper draws a box of its own, so the page supplies the boxless
     one here — the line of CSS any page can write is what keeps this reachable."""
     url = serve(
         OBLIGATIONS_PAGE.replace(

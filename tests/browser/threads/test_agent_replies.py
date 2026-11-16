@@ -1179,7 +1179,7 @@ def test_progress_the_user_spoke_after_keeps_its_steps_and_its_place(browser, se
     the step it shows draws at once while the user stands on its toggle in the thread,
     as news in the thread the user is in does: the toggle stays where it stood, the
     page scrolling away what grows above it, and the user's message below moves by the
-    run's growth alone. It once waited behind the thread's notice ("1 message
+    run's growth alone. It doesn't wait behind the thread's notice ("1 message
     edited")."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?", {"section": "jobs"})

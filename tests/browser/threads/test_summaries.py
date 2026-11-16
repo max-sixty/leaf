@@ -608,11 +608,11 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
     assert owned == [message.evaluate("node => node.id") for message in covered]
 
-    # A press, with those words still selected, folds and unfolds them: the guard that
-    # takes a drag ending on a control for the selection's mouseup once asked the whole
-    # card, so a selection anywhere in it deadened the toggle. Show and Hide leave their
-    # toggle under the user's aim: the thread landing it brought the thread's head back
-    # into view and lifted the toggle 20px.
+    # A press, with those words still selected, folds and unfolds them: were the guard
+    # that takes a drag ending on a control for the selection's mouseup to ask the whole
+    # card, a selection anywhere in it would deaden the toggle. Show and Hide leave their
+    # toggle under the user's aim: a thread landing that brought the thread's head back
+    # into view would lift the toggle.
     toggle.scroll_into_view_if_needed()
     stood = toggle.evaluate("node => node.getBoundingClientRect().top")
     toggle.click()

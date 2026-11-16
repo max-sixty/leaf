@@ -294,7 +294,7 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
     """A change sent in a reply keeps the canonical circular control.
 
     A reply is upgraded inside a closed comment panel, where its box is zero, and its
-    controls used to be measured there and collapse. The control's circle is fixed,
+    controls, measured there, would collapse. The control's circle is fixed,
     so it is the same shape in the reply as on the page.
 
     The page's own change is the geometry reference."""

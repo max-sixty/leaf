@@ -2248,12 +2248,12 @@ print("queued")
 def under_codex(spawn, codex_program):
     """A command run the way Codex runs one: a session process that stays for the
     thread, and between it and the command a shell of the moment — which is what
-    a pipeline leaves there, and what Leaf once mistook for the session.
+    a pipeline leaves there, and what Leaf must not mistake for the session.
 
     `; exit` is what puts that shell there: a lone command is exec'd in place by
-    the shell wrapping it, which is why some command shapes recorded the right
-    pid by accident. It also keeps the command's own status, where the `| cat`
-    that produced the shape in the wild would report the pipeline's last exit.
+    the shell wrapping it, which is why some command shapes would record the right
+    pid by accident. It also keeps the command's own status, where a `| cat`
+    would report the pipeline's last exit.
     PYTHONHOME because a copied interpreter has no prefix beside it to find its
     own standard library in. It is the copy's alone: the runner drops it before
     the shell, so the command gets the environment the test gave it, and a

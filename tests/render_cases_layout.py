@@ -100,18 +100,16 @@ def arrival_findings(browser, url):
     What it reads: a fresh context holds nothing, so every other reading in the suite
     is of a first visit — design mode off, the annotations shown —
     and each of those is something a user turns on once and gets back on every load
-    afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a drawer someone had left open came up as a ReferenceError
-    instead of a page: it was put up by code running while the runtime was still
-    evaluating, which could reach almost nothing. It reached the user, who reported
-    it.
+    afterwards. That leaves the restores as the one road onto a page with nothing
+    watching it, and a drawer someone had left open can come up as a ReferenceError
+    instead of a page: it is put up by code running while the runtime is still
+    evaluating, which can reach almost nothing.
 
     One page, reloaded into each restore case, which is what a returning user does:
     the store is written on the origin the page is already on and read while the next
     load evaluates. What comes back is completed presentation, any page transition that
-    began before it, and the console. Boxes are not measured again: every shipped example
-    was measured in each of these restore cases and none of them moved a box that a first
-    visit didn't.
+    began before it, and the console. Boxes are not measured again: in these restore
+    cases, no shipped example moves a box that a first visit doesn't.
     """
 
     page = browser.new_page(
@@ -144,9 +142,8 @@ def arrival_findings(browser, url):
         # the served documents and want a page that has stopped asking for things,
         # while everything here is either the stamp below — which the page raises
         # for itself, and which is the stronger fact — or a console the handlers
-        # above are already attached to. Network quiet costs 3.5x what the load
-        # event does over the five navigations here, measured on
-        # the former design-decision example, and buys this nothing.
+        # above are already attached to. Network quiet costs more than the load
+        # event does over the five navigations here, and buys this nothing.
         page.goto(url, wait_until="load")
         render_checks_model.wait_until_ready(page)
     except (PlaywrightTimeout, render_checks_model.PageNotReady):
@@ -676,8 +673,7 @@ CODE_FAULT_PAGE = LONG_PAGE.replace(
     + "\n</main>",
 )
 
-# The shipped dark comment ink must clear the add-line tint behind it. A large real patch
-# put enough comments on that surface for the former 4.4:1 contrast gap to become visible.
+# The shipped dark comment ink must clear the add-line tint behind it.
 CODE_CONTROL_PAGE = LONG_PAGE.replace(
     "</main>",
     CODE_BLOCK + SHADOWED_DIFF_BODY.format(id="default-shadow") + "\n</main>",
@@ -1131,12 +1127,12 @@ def mark_edges(page, ident, ink, outset=None):
     be compared with each other rather than with an earlier frame.
 
     Each scan starts at the element's own edge and stops at the first pixel that
-    isn't the mark's colour, because the first draft counted the first ink-coloured
-    run *anywhere* along the scanline: an accent status dot sitting in the clip's own
-    padding reported 26 device pixels of "mark" on a side the mark never reached, and
-    a marked code block would have counted its identifiers. What follows from that is
-    the tolerance too — ±12 per channel admits the stroke's antialiased shoulder and
-    nothing else, where ±40 reached both --lf-accent and --lf-syn-name.
+    isn't the mark's colour, because counting the first ink-coloured run *anywhere*
+    along the scanline reads an accent status dot sitting in the clip's own padding as
+    "mark" on a side the mark never reached, and a marked code block would count its
+    identifiers. What follows from that is the tolerance too — ±12 per channel admits
+    the stroke's antialiased shoulder and nothing else, where ±40 reaches both
+    --lf-accent and --lf-syn-name.
 
     Three samples a side, returned as a set rather than a majority. A majority is a
     vote for the mark being intact when part of the edge has been painted over, which
@@ -1386,7 +1382,7 @@ def overlapped_words(page):
 
     Axe answers these as incomplete, not as violations, so a sweep keeping violations
     alone passes words it never measured. A window-sized transparent layer over the
-    first screen hid every word under it this way (#2559). The run reads the same
+    first screen hides every word under it this way. The run reads the same
     exposed documents as `serious_axe_violations`."""
     axe = Axe()
     unread = []

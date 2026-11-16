@@ -967,9 +967,9 @@ def test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll(
     never moves it (margin-layout.js: remeasuring after a scroll writes the same
     insets). A sticky header inside the target is drawn wherever the scroll sticks it,
     so it is read at its own place in the target: read where it was drawn, a pass made
-    while the header stuck far down the target left the seat by its top clear, and the
-    next unrelated pass after scrolling back found the header's control there and moved
-    the pin, with no input (#5165). A sticky box inside the header moves with the
+    while the header sticks far down the target leaves the seat by its top clear, and
+    the next unrelated pass after scrolling back finds the header's control there and
+    moves the pin, with no input. A sticky box inside the header moves with the
     header's offset as well as its own, which is counted once."""
     page = open_page(
         request.getfixturevalue(engine),

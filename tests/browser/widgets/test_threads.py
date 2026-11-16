@@ -221,10 +221,10 @@ def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, se
     page holds and keys each by `wrote`, which is exactly the reading that leaves
     generated words out, so those blocks key to nothing and are skipped.
 
-    They stopped being skipped when `wrote` was bounded at the element handed in: a
+    Bounding `wrote` at the element handed in would stop them being skipped: a
     reading can start *inside* generated chrome, and rooted at one of those `<p>`s the
-    box above it was no longer over the reading. The base version is parsed unupgraded
-    and holds no thread at all, so every message became an insertion — the
+    box above it is not over the reading. The base version is parsed unupgraded
+    and holds no thread at all, so every message would become an insertion — the
     user's own comment and the agent's reply painted as changes to the document, and
     the count in the version note inflated by both.
 

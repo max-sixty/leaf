@@ -42,8 +42,7 @@ def _refreshes_restate_no_margin_name(page, population):
     `render` follows semantic and viewport refreshes, so an unconditional write here
     restates itself on a page nobody has touched: the mutation stream a
     screen reader rebuilds its buffer from, and a dirty box for whatever reads
-    next. The corpus used to restate 205 attributes and the margin entry's
-    words on every pass.
+    next.
 
     What the pass wrote without changing anything is one reading rather than two.
     An attribute the pass leaves carrying the value it opened with said nothing,
@@ -365,7 +364,7 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     heading already says the question, and a preview nobody pointed at covers the ask's
     controls.
 
-    Hovering an obligation's marker shows the obligation's question, where it used to show only
+    Hovering an obligation's marker shows the obligation's question, not only
     "Ask…", which the marker's glyph already says. Its accessible name identifies
     the question too, independently of how the visible label fits."""
     page = open_page(browser, serve(OBLIGATION_MARKERS_PAGE))

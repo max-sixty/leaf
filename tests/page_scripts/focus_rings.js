@@ -253,16 +253,15 @@
     delete globalThis.__lfRingClaims;
     const answers = [];
     for (const [index, { el, cs, pseudo, cast, outlined, here }] of claimed.entries()) {
-      // Straight off the computed style, which holds because no ring in this layer moves.
-      // A ring on its way somewhere reads as wherever it has got to — mid-transition the
-      // platform reports the animated value, which early on is the value the property is
-      // leaving — and this once read every ring that way, because the theme's
-      // reduced-motion guard shortened transitions rather than removing them and
-      // `transition-property` is `all`, so a ring arriving was a ring in transit for two
-      // frames on every page. That is fixed where it was made (base.css). A layer that
-      // deliberately animates a ring owes this reading a wait on `getAnimations()`; one
-      // written here now would wait on nothing, in front of the reading it is meant to
-      // protect.
+      // Straight off the computed style, which holds because no ring in this layer
+      // moves. A ring on its way somewhere reads as wherever it has got to —
+      // mid-transition the platform reports the animated value, which early on is the
+      // value the property is leaving. The theme's reduced-motion guard removes
+      // transitions rather than shortening them (base.css): `transition-property` is
+      // `all`, so a shortened one makes a ring arriving a ring in transit for two
+      // frames on every page. A layer that deliberately animates a ring owes this
+      // reading a wait on `getAnimations()`; one written here would wait on nothing, in
+      // front of the reading it is meant to protect.
       //
       // The band, and how far past the box's own edge it reaches. An outline's is its
       // width and its offset, which the layer's inset rings write negative; a shadow
@@ -303,7 +302,7 @@
       const taken = {};
       // A mark on a box that ends the page's flow at the window's foot, as a question
       // filling a full-height workspace does, runs its bottom band below the window: Leaf
-      // doesn't pad the page for a mark (#5306). The focused control's own ring is still
+      // doesn't pad the page for a mark. The focused control's own ring is still
       // held to its foot, since a landing keeps a control's ring room, and so is a box
       // fixed there, which no scroll moves.
       const own = el === focused || el === wearer || carriesFocus(el, focused);
@@ -370,8 +369,8 @@
       // `clipped` in runtime/geometry.js is this walk, and this is its shape: from the box itself
       // rather than its parent, skipping the box's own band because an element is not clipped
       // by its own overflow, and stopping at the first fixed box. Its comment records what
-      // starting at the parent cost — "the question of every ancestor of a fixed box and
-      // never of the box" — which is the bug this reading had too.
+      // starting at the parent costs — "the question of every ancestor of a fixed box and
+      // never of the box" — which it would cost this reading too.
       for (let a = el; a; a = above(a)) {
         if (a !== el) {
           if (a.scrollHeight > a.clientHeight) scrolled = true;
@@ -523,29 +522,24 @@
           // something, the ring's run on that side is behind whatever the control is behind,
           // which is a fact about where the control was put rather than about the ring being
           // drawn outside its box. The claim worth making is the other one: where the control
-          // can be seen, so can the ring that names it. Stated without a case on purpose —
-          // the one this was written for was a drawer's edge handle running the whole height
-          // of the window under the chrome at its top, which stopped being true in 3a8f16f0,
-          // the commit that added this comment and the handle's top inset together.
+          // can be seen, so can the ring that names it. Stated without a case on purpose.
           //
           // The step in has to clear the ring's own band. Past an outward ring, `grow + 1`
           // lands on the control's own outermost pixels, so a control whose edge stands
-          // behind the cover counts as behind it: a button whose last 4px ran under the
-          // open Threads panel was reported for the ring's run there. An inset ring, where
-          // grow is nought, needs `grow + w + 1` to land `w + 1` inside the box. With
-          // `grow + 1` there, every covered inset ring answered that the control was behind
-          // the same thing and was dropped without a word. The rings the panel's own list
-          // draws are all inset, so this went blind in the same commit that made them so —
-          // a thread lying two pixels under a cover is a card with three sides, and the
-          // gate written to catch exactly that reported nothing.
+          // behind the cover counts as behind it. An inset ring, where grow is nought,
+          // needs `grow + w + 1` to land `w + 1` inside the box. With `grow + 1` there,
+          // every covered inset ring would answer that the control was behind the same
+          // thing and be dropped without a word. The rings the panel's own list draws are
+          // all inset — a thread lying two pixels under a cover is a card with three
+          // sides, and the gate written to catch exactly that would report nothing.
           const step = grow > 0 ? grow + 1 : grow + w + 1;
           const inx = x + (side === "left" ? step : side === "right" ? -step : 0);
           const iny = y + (side === "top" ? step : side === "bottom" ? -step : 0);
           const inside = document.elementsFromPoint(inx, iny);
           if (inside.includes(over)) break;
           // The same surface counts, not only the same box: a page control under the open
-          // Threads panel, where it overlays a narrow window, had its ring's run under one
-          // card's title while the stepped-in point landed on the card's body.
+          // Threads panel, where it overlays a narrow window, can have its ring's run under
+          // one card's title while the stepped-in point lands on the card's body.
           const front = inside.findIndex((n) => n === el || holds(el, n));
           if (
             inside
@@ -713,7 +707,7 @@
         );
         const end = radius + grow + w + 1;
         // A focus preview stands clear of its control and of what the user could work
-        // next, and may cover the rest of the page (preview.js, #5614), such as the
+        // next, and may cover the rest of the page (preview.js), such as the
         // question around the control, so only the focused control's own ring is read
         // under it.
         const preview = document.getElementById("lf-preview");

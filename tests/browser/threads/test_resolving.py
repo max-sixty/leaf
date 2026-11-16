@@ -678,8 +678,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
 def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, serve):
     """Resolve in a card shows the thread after the resolved one at the same passage,
     else the one before, standing the user on it, and the page doesn't move; `z` brings
-    the thread back where it was resolved (thread-preview.js, the user's choice of 4
-    November 2026)."""
+    the thread back where it was resolved (thread-preview.js, the user's choice)."""
     comment = {
         "kind": "comment",
         "author": "user",

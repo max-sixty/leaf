@@ -47,9 +47,9 @@ LEAVES = panel_view("leaves")
 def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, serve):
     """The dot going red is not an announcement.
 
-    The chrome once flipped to the offline colour and rewrote its line while the live
-    region went on holding whatever it last said, so a user who is not watching the
-    chrome learned nothing. A kind changing — work starting, a turn ending, the server
+    A chrome that flips to the offline colour and rewrites its line while the live
+    region goes on holding whatever it last said tells a user who is not watching the
+    chrome nothing. A kind changing — work starting, a turn ending, the server
     going, then refusing this tab's key — is what is worth interrupting for, and what it says is the status's own
     sentence rather than a second account of it. The age moving and a count turning over
     are not kinds and stay out of the region."""

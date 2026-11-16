@@ -5,17 +5,16 @@ downstream of that (a widget's upgrade, the theme's CSS, the runtime's injected
 chrome) meets for the first time in the browser, and the failures that live
 there are invisible to a linter. This suite drives the shipped examples and
 developer feature gallery through Playwright's pinned Chromium headless shell and
-asserts the handful of things that were each, at some point, wrong:
+asserts such failures as:
 
-  - a widget that upgrades into a box of no size (lf-tabs marked itself with a
-    class the runtime's chrome had already claimed for its visually-hidden live
-    region, so every tabbed page rendered blank below the lede);
+  - a widget that upgrades into a box of no size, as one does that marks itself
+    with a class the runtime's chrome claims for its visually-hidden live region;
   - the document and the thread panel scrolling in one region, which stacks two
     scrollbars in the same few pixels at the window's right edge;
-  - a text box sized by script, which had to shrink itself to re-measure and so
-    flashed a scrollbar on every keystroke;
+  - a text box sized by script, which has to shrink itself to re-measure and so
+    flashes a scrollbar on every keystroke;
   - the passage under the open composer going unmarked, because focusing the box
-    drops the browser's own selection and nothing drew it back.
+    drops the browser's own selection and nothing draws it back.
 
 One journey test walks the loop the product is — select a passage, comment on
 it, drag a card, follow the next version, and find the comment still anchored —
@@ -1151,8 +1150,8 @@ def plant_quiet_word(page, selector, holding):
 #
 # So ask the page whether it has caught up with what the server holds: its readiness
 # reading answers that against an `/api/state` answer, and names no transport.
-# Counting answered requests said the same thing only while a fixed interval made them
-# the same thing: the page now asks when its freshness reading says the page has moved, so a
+# Counting answered requests would say the same thing only if a fixed interval made them
+# the same thing: the page asks when its freshness reading says the page has moved, so a
 # count of obligations started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page):
@@ -1185,7 +1184,7 @@ def nudge(page_dir):
 
     The page asks for state when its freshness reading says the page has moved, and the
     reading names file stamps. A test that wants the page's next obligation — to park it, or to
-    watch it refused — used to wait for the poll's timer; now it moves the revisions
+    watch it refused — doesn't wait for the poll's timer; it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
     os.utime(page_dir / "revisions")
@@ -1256,10 +1255,9 @@ def available_commands(page):
     """What the dispatcher would run from the current location now, read once after
     every repaint the input so far queued: `{command id: [keys]}`.
 
-    The bottom key line used to say this as hints; the panel says it nowhere but in a
-    command's effect, so prefer pressing the key and asserting what it did. Read this
-    where the subject is that a command is withheld, such as Undo while a gesture is
-    unaccounted for."""
+    The panel says this nowhere but in a command's effect, so prefer pressing the key
+    and asserting what it did. Read this where the subject is that a command is
+    withheld, such as Undo while a gesture is unaccounted for."""
     rendered(page)
     return page.evaluate(AVAILABLE_COMMANDS)
 
@@ -2564,9 +2562,8 @@ def opened_tab(page, destination, press):
 #
 # Interception is not free, though. While any route is set, Playwright pauses every
 # request the page makes until its driver lets it go, and turns Chromium's HTTP cache
-# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). Measured on a plain test
-# page in October 2026, the arm added about 30 ms of CPU to each opening's 550, in the
-# browser process and the driver. Most pages are never routed.
+# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). The arm adds CPU to each
+# opening, in the browser process and the driver. Most pages are never routed.
 #
 # So a page the suite makes arms itself when something first routes it or its
 # context, on a pattern nothing else asks for, ahead of that first route. Before the

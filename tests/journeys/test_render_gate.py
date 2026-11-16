@@ -136,7 +136,7 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subt
     resized(page, 1440, 900)
     margins_laid_out(page)
     # The placement event precedes deferred Reach and chrome work. A measurement
-    # starting here used to include whatever that previous invalidation still owed.
+    # starting here would include whatever that previous invalidation still owes.
     rendered(page)
     # Each a subtest, so a failing margin reading leaves the later readings to report.
     with subtests.test(reading="margin refresh count"):
@@ -171,8 +171,7 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subt
 def _layout_passes_batch_without_refolding_controls(page):
     """Layout work is bounded by phases, not the number of contributed controls.
 
-    The corpus used to force 26 layouts and 44 style recalculations per unchanged
-    pass (about 45 ms in local Chrome). Count the browser's work rather than time;
+    Count the browser's work rather than time;
     the contributor's primary/overflow state must also remain untouched.
     """
     # A placement delivery precedes deferred Reach and chrome paints. Finish the

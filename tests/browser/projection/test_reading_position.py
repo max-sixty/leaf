@@ -932,11 +932,11 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     an element that generates no box measures (0,0) at the document's origin.
 
     Read raw, that answer arrives on both sides of the subtraction — once when the
-    place is written down and once when it is put back — so the correction came out 0
-    and a restore that had somewhere to land did nothing at all. The user was left at
-    the top of a page they had been thirty paragraphs into. It is quiet twice over: only
-    a user whose quote the new version rewrote reaches this branch, and a page whose
-    sections all draw boxes never sees it."""
+    place is written down and once when it is put back — so the correction would come
+    out 0 and a restore that had somewhere to land would do nothing at all, leaving the
+    user at the top of a page they had been thirty paragraphs into. It is quiet twice
+    over: only a user whose quote the new version rewrote reaches this branch, and a
+    page whose sections all draw boxes never sees it."""
     url = serve(BOXLESS_SECTION_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))

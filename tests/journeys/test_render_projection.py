@@ -316,12 +316,12 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
 ):
     """A read that never comes back is a sentence, not a hang.
 
-    Every document the gate reads used to be fetched inside the page, and
-    `page.evaluate` sends the driver no timeout at all — measured, an evaluate
-    awaiting a fetch that never answers is still running at 200s. So a server that
-    accepted a request and then went quiet left `page check --render` running with
-    nothing printed, which is the one failure a user cannot tell from slowness: the
-    gate stopping is loud, and the gate never stopping looks like a slow machine.
+    `page.evaluate` sends the driver no timeout at all: an evaluate awaiting a fetch
+    that never answers keeps running. So a document the gate fetched inside the page,
+    from a server that accepted the request and then went quiet, would leave
+    `page check --render` running with nothing printed, which is the one failure a user
+    cannot tell from slowness: the gate stopping is loud, and the gate never stopping
+    looks like a slow machine.
 
     Stall the gate's second read of this version, after its first read delivered the
     page. Stalling that first read would wedge navigation instead and report the
@@ -765,12 +765,12 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
-    page's reading has dropped. The mark and the hide used to be each holder
-    module's own duty, stated in the module contract and the key table and enforced
-    nowhere, and the first family that forgot would have split the page's reading
-    from the file's in silence. Later the layer painted them only through a
-    controller the module subscribed to, which left the same duty under another
-    name. The second half drives it all back out: the fold
+    page's reading has dropped. The mark and the hide are not each holder module's
+    own duty, which the module contract and the key table would state and nothing
+    enforce, so the first family that forgot would split the page's reading from the
+    file's in silence; nor does the layer paint them only through a controller the
+    module subscribes to, which leaves the same duty under another name. The second
+    half drives it all back out: the fold
     keeps the last surviving action per verb and unit, so a decision on an outcome
     that settles nothing displaces the one before it, and the mark, the marker and
     the hide follow it."""
@@ -1023,11 +1023,9 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # And it butts that hairline, like every other cell of the control. This is the one
     # place the reading is asked at all: the joined-cell readings in the render gate see
     # a served version, and a thread group lives in the panel the runtime builds, so the
-    # gate never reaches it. The press was written as a control floating inside the
-    # group on a margin of its own, and the theme comment said so — but the group is a
-    # grid and had been stretching it to the full column all along, so what the 8px
-    # actually drew was a hairline with dead ground under it, on every thread the agent
-    # asked a set question in.
+    # gate never reaches it. The group is a grid and stretches the press to the full
+    # column, so an 8px margin of the press's own draws a hairline with dead ground
+    # under it, on every thread the agent asks a set question in.
     seam = page.locator("#tq-set").evaluate(
         """el => { const done = el.querySelector('.lf-done');
                    const last = done.parentElement.previousElementSibling;
@@ -1199,7 +1197,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     """A request started by the old realm cannot apply a later response in the new one."""
 
     # A new executable identity requires the fresh-document path. An in-place patch
-    # can retain the page-comment editor and no longer waits for this draft.
+    # can retain the page-comment editor and doesn't wait for this draft.
     version_url = serve(executable_revision(LIVE_V1, "one"))
     page = open_page(browser, live_url(version_url))
     general = page_comment(page)

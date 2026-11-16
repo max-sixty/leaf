@@ -897,7 +897,7 @@ def test_trace_comparison_shows_each_wrapped_recording_in_one_place(browser, ser
 
     # A source switch after inspecting a moment must keep the chooser reachable
     # when its controls wrap. Moving its focused native radio into the other view
-    # before hiding the old one once scrolled that chooser above a short phone.
+    # before hiding the old one would scroll that chooser above a short phone.
     resized(user, 320, 520)
     user.locator("#paired-after .lf-trace-bookmark").click()
     wait_until_ready(user)

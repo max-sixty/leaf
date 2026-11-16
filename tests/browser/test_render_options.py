@@ -1253,7 +1253,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     assert page.locator("#quoted-settled lf-option:visible").count() == 3
 
     # The exception, once that group is open: the card the document marks carries its
-    # inert check below the prose. It needs the strip a live header state no longer does.
+    # inert check below the prose. It needs the strip a live header state doesn't.
     assert page.locator("#q-lax").evaluate(pad) != page.locator("#l-shim").evaluate(pad)
 
     # Standalone cards also answer with a wash, while quoted cards remain inert.
@@ -1435,12 +1435,12 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
 
     with subtests.test("a group says how many of it the user may take"):
         # How many a group takes is the one thing about it a user has to know before
-        # pressing anything, and for a while the page said it nowhere. A `multiple`
-        # group drew the identical circles a single-pick group draws — the shape every
-        # platform uses for "one of these" — so the two questions were pixel-for-pixel
-        # the same and the only thing that distinguished them was the author remembering
-        # to say so in prose. A user who took the marks at their word would pick once
-        # and expect the next click to replace it.
+        # pressing anything. A `multiple` group drawing the identical circles a
+        # single-pick group draws — the shape every platform uses for "one of these" —
+        # would make the two questions pixel-for-pixel the same, and the only thing to
+        # distinguish them the author remembering to say so in prose. A user who took
+        # the marks at their word would pick once and expect the next click to replace
+        # it.
         #
         # So the mark carries the arity, in both of the registers one control has: its
         # corner is round for one and square for any, and its word is "choose one" or
@@ -1572,14 +1572,14 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
     with subtests.test("a row label keeps the spacing it was written with"):
         # A row is a line of prose with apparatus after it, and the prose is the
         # author's: what it says between two words is a space, and the page owes them
-        # that space and no other. Laid out as flex items it owed them whatever the
-        # row's own `gap` was, because every stretch of a label became an item of its
-        # own and a flex item's edge whitespace is trimmed — `Replace the
-        # <code>M8</code> mounts` came out with 8px either side of the code and without
-        # the space that was written there, and zeroing the gap took the space away
-        # without giving it back. So the room between the last word and the code it runs
-        # into is read against the space itself: that the space is on the screen at all,
-        # and that nothing else is standing in for it.
+        # that space and no other. Laid out as flex items it would owe them whatever
+        # the row's own `gap` was, because every stretch of a label becomes an item of
+        # its own and a flex item's edge whitespace is trimmed — `Replace the
+        # <code>M8</code> mounts` would come out with 8px either side of the code and
+        # without the space that was written there, and zeroing the gap would take the
+        # space away without giving it back. So the room between the last word and the
+        # code it runs into is read against the space itself: that the space is on the
+        # screen at all, and that nothing else is standing in for it.
         room = """() => {
                     const code = document.querySelector('#job-mounts code');
                     const text = code.previousSibling;   // "Replace the "
@@ -1603,13 +1603,12 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
         # user — and the file's reading of that same version — find the chip inside the
         # row's own words rather than out among the row's machinery.
         #
-        # The rule was written against an attribute rendered by `x-says`, where the edge
-        # a pseudo-element would have taken stops being the element's own words the
-        # moment a module injects chrome, and appending put the page's words on the far
-        # side of it. A chip is authored markup now, written before the title, so it
-        # cannot land there by construction — which is the stronger form of the same
-        # guarantee, and this holds the outcome rather than the mechanism that used to
-        # threaten it.
+        # In an attribute rendered by `x-says`, the edge a pseudo-element would take
+        # stops being the element's own words the moment a module injects chrome, and
+        # appending puts the page's words on the far side of it. A chip is authored
+        # markup, written before the title, so it cannot land there by construction —
+        # which is the stronger form of the same guarantee, and this holds the outcome
+        # rather than the mechanism that would threaten it.
         #
         # The mark leads the row and the `for` reference ends it, so the words are what
         # stands between them, and the chip is read against both edges rather than
@@ -2091,9 +2090,8 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     nothing heals it, since replay states a widget whole and every later reading of the
     page is of the log it left.
 
-    It reached CI before it was ever seen here, on the test above: two clicks three
-    lines apart landed reversed on a loaded runner, twice, while two dozen runs of that
-    same sequence in the dockerised Linux suite never once managed it. So the race is
+    Two clicks three lines apart can land reversed on a loaded runner, while runs of
+    that same sequence in the dockerised Linux suite don't reproduce it. So the race is
     stated rather than run for. The first send is stopped in the wire and the second
     click made while it is still there, which is the whole of a loaded machine's
     contribution; what the page does about that click is the instrument, since it paints
@@ -2478,7 +2476,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
 def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     """A reply is Markdown, so it can hold a table, and on a phone the panel is narrow.
     Prose there breaks anywhere — the thing a reply overflows on is a URL no wrap
-    can help — and a table caught the same rule: "12,000" came out as "12,0" over
+    can help — and a table under the same rule would show "12,000" as "12,0" over
     "00", in the column of figures the table was written to compare. Both halves
     are asserted together, since turning the breaking off everywhere reads the
     same in a cell and is the actual regression to fear."""

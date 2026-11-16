@@ -695,10 +695,9 @@ TWO_COPIES_PAGE = leaf_page(
 """,
 ).replace("{passage}", LONG_PASSAGE)
 # Prose past the pattern's own ceiling. One expression with a term per character stops
-# compiling somewhere past ten thousand of them — measured on the corpus: 1.3ms at four
-# hundred characters, 11.6ms at five thousand, a SyntaxError at twelve — and the throw
-# would land inside the pass that draws every mark on the page, not just this one's. A
-# user reaches it in one keystroke, so the guard is a page long enough to prove it.
+# compiling somewhere past ten thousand of them, and the throw would land inside the
+# pass that draws every mark on the page, not just this one's. A user reaches it in one
+# keystroke, so the guard is a page long enough to prove it.
 CEILING_PAGE = leaf_page(
     "everything",
     """

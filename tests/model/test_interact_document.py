@@ -2005,11 +2005,9 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
 def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     """One door, so a rule is stated once and holds for whoever appends.
 
-    The `leaf` writers used to append with whatever contract each of them
-    remembered: four with none at all, and the two that checked reaching two
-    different homes. Nothing between them and the log read the event's own
-    record schema, so a shape the browser door has always refused could still
-    land — and stay, because `page init` re-reads every stored record before it
+    A writer that appends with whatever contract it remembers, with nothing between it
+    and the log reading the event's own record schema, lets a shape the browser door
+    refuses land — and stay, because `page init` re-reads every stored record before it
     will replace a layer, and refuses the re-vendor rather than the event.
 
     Each arm below is a writer that reaches the log by a different route: a reply
@@ -3767,11 +3765,10 @@ def _palette(theme, look, half):
 
 def test_the_series_palette_clears_the_floors_it_claims_to():
     """The theme's comment beside these tokens tells the next editor to check them rather
-    than look at them, and until this test there was nothing to check them with — the
-    syntax roles have UNREAD_SYNTAX in the render gate and the series steps had the
-    honour system. What made the argument was the first attempt at the line, chosen by
-    eye: its blue and its plum came out 0.3 apart under simulated deuteranopia, which is
-    one colour to a user who has no way to tell us.
+    than look at them, and this test checks the series steps, as UNREAD_SYNTAX in the
+    render gate checks the syntax roles. A line chosen by eye can put two steps, such as
+    a blue and a plum, close enough under simulated deuteranopia to be one colour to a
+    user who has no way to tell us.
 
     Every pair rather than the neighbours, because a stacked bar puts any two of them
     edge to edge, and both palettes, because the dark steps are stepped against a
@@ -4043,7 +4040,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
 ):
     """A retry or new version reuses completed historical registration work.
 
-    A history larger than the parse cache used to parse every predecessor on every
+    A history larger than the parse cache doesn't parse every predecessor on every
     read. Count parses rather than time, so contention cannot change the result.
     """
     from leaf.work_reading import WorkReading
@@ -4513,9 +4510,9 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
     """An action admitted by an earlier Leaf stays in force, and keeps its obligation
     answered, under a Leaf that records the same operation's definition with other
-    fields. Before #2329 the definition carried `update`, the verb flag now
-    named `text`; matching every recorded field dropped each decision on a page
-    that Leaf version had served."""
+    fields. An earlier Leaf's definition carries `update` where this one names the
+    verb flag `text`; matching every recorded field would drop each decision on a
+    page that Leaf version served."""
     source = page_dir / "index.html"
     source.write_text(
         PAGE.replace(

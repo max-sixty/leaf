@@ -493,13 +493,13 @@ def test_an_obligations_digits_are_drawn_whole(browser, serve):
     How far down the column it stands is each form's own answer, so each is asked for the
     fact it states rather than for one number covering both. A card's digit rides at the
     head of that column, beside the title rather than over it; a row's is centred on the
-    row. Pinned as one 8px it was level with a 15px row, and the day the row went to the
-    page's own 17px it was two pixels too high with the gate still green — because what
-    the gate read was the number the theme stated, and the claim beside it, that a row's
-    digit is level with its words, was checked by nothing.
+    row. Pinned as one number, it is level with one row size and too high at another with
+    the gate still green — because what the gate reads is the number the theme states,
+    and the claim beside it, that a row's digit is level with its words, is checked by
+    nothing.
 
     How far in it stands is each form's own relation: edge, digit, then prose for a row;
-    prose opening, then digit, then edge for a card. The two forms deliberately no longer
+    prose opening, then digit, then edge for a card. The two forms deliberately don't
     claim one rail, while every option within a form still claims one stable seat."""
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     seats = {"card": {}, "row": {}}
@@ -1270,8 +1270,8 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
 
 def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser, serve):
     """The card a block's thread opens beside an obligation inside the block is the
-    thread the user is at, so `c` writes in its reply. It once closed that card and
-    opened a box on the obligation, answering a reply with a new thread."""
+    thread the user is at, so `c` writes in its reply. Closing that card and opening a
+    box on the obligation would answer a reply with a new thread."""
     url = serve(
         leaf_page(
             "calls",
@@ -1301,9 +1301,9 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
 def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, serve):
     """A question's frame holds what it asks about, so a press on a control there is the
     user reading the question. After `m`, a click that flips the shot or drags its divider
-    once moved `c` onto the shot, because it put focus on the shot's own controls, while
-    a press on its Pixels button left `c` on the question, and once the question was
-    answered every press named the shot. The control is the same press on a shot
+    puts focus on the shot's own controls, which would move `c` onto the shot, while
+    a press on its Pixels button would leave `c` on the question, and once the question
+    was answered every press would name the shot. The control is the same press on a shot
     outside any question, where `c` names the shot."""
     shot = (
         f'alt="the board before and after" before="{SHOT_SRC["before"]}" '

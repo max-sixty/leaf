@@ -122,7 +122,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     and reads as it will once the change is settled. The row takes its line
     from an anchor inside the change, so how deep the
     change sits costs it nothing: one inside a card — a positioned ancestor, which
-    `left: 100%` used to resolve against, dropping the row back into the text —
+    `left: 100%` would resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
     measurement no lint can make: where a row stands as a pin, it touches the change
     it decides, over none of the change's words, and stays on the page."""
@@ -237,7 +237,7 @@ def test_the_page_says_a_change_is_only_proposed(browser, serve):
 
 def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     """The row is the column's child, not the change's, so the subtree a card
-    travels in no longer carries it: a card dragged to another column, or moved by
+    travels in doesn't carry it: a card dragged to another column, or moved by
     the replay of someone else's drag, leaves and re-enters the document with its
     row unhooked. Re-connection has to hang it again, or the user loses the
     only way to decide a change that is still plainly pending on the page. Replayed
@@ -575,12 +575,13 @@ def test_a_refused_undo_keeps_the_outcome_and_its_undo(browser, serve):
 def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve):
     """The line saying a block carries a comment goes in the block, and a block inside a
     widget is still a block — so `textContent` on a widget's own slot now returns the
-    author's words with the runtime's appended. A suggestion labels itself from that slot,
-    and offered to accept “Retry three times. 1 comment”. It reads the slot the way the
-    page is read instead, which is what `says` is for — read before deciding, because a
-    reject retires the very slot the label comes from, and a retired slot says nothing:
-    the announcement then named the widget's id instead of the words the user judged. Short
-    on purpose: the label cuts at 48 characters, which hid this on every shipped example."""
+    author's words with the runtime's appended. A suggestion labelling itself from that
+    slot's `textContent` would offer to accept “Retry three times. 1 comment”. It reads
+    the slot the way the page is read instead, which is what `says` is for — read before
+    deciding, because a reject retires the very slot the label comes from, and a retired
+    slot says nothing: the announcement would then name the widget's id instead of the
+    words the user judged. Short on purpose: the label cuts at 48 characters, which
+    hides this on a longer suggestion."""
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -617,9 +618,9 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     """A decision may move the page; it may not teleport it.
 
     A block change is a struck old paragraph stacked over a tinted new one, and
-    accepting used to drop the old one with `display: none` in the frame of the press —
-    179 measured pixels out of the middle of the shipped design page, with everything
-    below jumping up under the pointer that had just pressed. The rule this layer
+    accepting by dropping the old one with `display: none` in the frame of the press
+    would take its height out of the middle of the page, with everything below jumping
+    up under the pointer that had just pressed. The rule this layer
     already carries is that a change the user asked for may move the page and must do
     it as motion, because motion is the form the eye can follow to where the sentence
     went.

@@ -466,9 +466,9 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
 ):
     """A document's Preview/Source strip stands directly under its caption, however
     many tab strips stand over the document. Each strip passes its height on as
-    `--lf-top`, where the document's strip sticks. While the frame was a scroll
-    container, the strip stuck at that height inside the frame, below the caption and
-    over the preview's first lines (issue #5017)."""
+    `--lf-top`, where the document's strip sticks. Were the frame a scroll
+    container, the strip would stick at that height inside the frame, below the caption
+    and over the preview's first lines."""
     url = serve(
         leaf_page(
             "Prompt and notes",

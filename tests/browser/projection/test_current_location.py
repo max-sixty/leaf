@@ -110,8 +110,8 @@ def test_a_revision_that_restates_an_obligation_preserves_the_users_location_in_
 
     A patch keeps every node the revision did not rewrite, so an untouched control is
     still holding the focus the user put on it. The question they are answering is the
-    one thing a revision is most likely to rewrite, and rewriting it replaced every node
-    inside — which used to drop the user onto `body` in the same breath as "Updated
+    one thing a revision is most likely to rewrite, and rewriting it replaces every node
+    inside — which would drop the user onto `body` in the same breath as "Updated
     to …". An obligation is named by a declared id rather than by a control's shape, so the
     current location is a lookup: the user is put back on the obligation, or on the control that
     answers it, according to which of the two they held. A revision that withdraws the
@@ -605,11 +605,12 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     """One ring, meaning one thing: this is where the user is located. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
 
-    The walk used to write it, and nothing ever took it off. So it said where the walk
+    Written by the walk, with nothing to take it off, it would say where the walk
     had left them rather than where they were: press `d`, click away, work in the panel
-    for ten minutes, and a decision nobody was located in went on wearing "you are here" —
-    while a user who had reached the same decision by Tab or by clicking one of its
-    controls got no ring at all. The same place, marked or not by how they arrived.
+    for ten minutes, and a decision nobody was located in would go on wearing "you are
+    here" — while a user who had reached the same decision by Tab or by clicking one of
+    its controls would get no ring at all. The same place, marked or not by how they
+    arrived.
 
     The chrome wears the same band, because a user who has backed out of the panel is
     located on a button and that is the same fact about them. It wore the browser's own

@@ -393,8 +393,8 @@ def test_a_chart_gives_its_legend_the_room_a_late_font_takes(engine, request, se
     """A legend's height comes from its type as well as its width: a font that arrives
     after the chart has drawn, as the wider spacing set here does, wraps the swatches
     onto more lines at the same width. The drawing gives the legend that room and still
-    ends at the box's foot. Measured once per width, the legend ran past the box onto
-    the paragraph below."""
+    ends at the box's foot. Measured once per width, the legend would run past the box
+    onto the paragraph below."""
     body = """{
   ariaLabel: "Merged by team",
   color: {legend: true},

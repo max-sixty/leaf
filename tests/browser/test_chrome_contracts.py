@@ -414,7 +414,7 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
     """Resolve closes the thread's card and returns focus to the thread's words, and
     focus marks every ancestor of them, the column's `main` and its article included.
     Restyling one of those ancestors must not restyle everything under it. Two rules
-    once made it do so, each restyling the whole page on a resolve: a rule keyed on the
+    make it do so, each restyling the whole page on a resolve: a rule keyed on the
     focus mark whose last compound names no type (reading.css, the sticky row names),
     and the column's room, a length less a percentage, registered as a
     `<length-percentage>` (layouts.css). Counted in the browser's own restyled elements,
@@ -443,7 +443,7 @@ def test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks(browser, s
     """Shift+Tab from the last section's link to the one before it. Focus marks each
     ancestor of the link it leaves and lands on, the column's `main` among them, and
     each `:has()` that reads a focus mark is asked again of the elements on that path.
-    Two shapes once made each move restyle every section before the link: a
+    Two shapes make each move restyle every section before the link: a
     `:has(~ …)` asked of every child of `main`, which sends Chromium back through
     every earlier sibling (the static guard beside it in test_interact_layer.py), and
     the column's room registered as a `<length-percentage>`, which Chromium counts as

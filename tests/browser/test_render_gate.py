@@ -1019,7 +1019,8 @@ def test_replay_findings_keep_the_throw_site(browser, serve):
 
 
 def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve):
-    """Both sources used to draw successfully while silently dropping their words."""
+    """Both sources keep their words, where a draw can succeed while silently dropping
+    them."""
     page = open_page(
         browser,
         serve(
@@ -2712,8 +2713,8 @@ def adopted_sheet_findings(page):
     delivered, and a rule that wins by it beats the page's own rule at equal specificity
     — a default outranking the thing it is a default for. Nothing catches that, because
     no test and no browser gate can read a rule that never applied: .lf-ui's face stated
-    there drew .lf-ref at 14px ink where its own rule asked for 11.5px muted, and
-    .lf-margin-more's ink never reached the `…` it was written for.
+    there would draw .lf-ref at 14px ink where its own rule asks for 11.5px muted, and
+    .lf-margin-more's ink would never reach the `…` it is written for.
 
     So the same rules are served from a stylesheet standing first in the head instead.
     Specificity does not change, so every computed value that moves was decided by sheet
@@ -2769,10 +2770,10 @@ def adopted_sheet_findings(page):
 def short_aim_findings(page):
     """One floor, and it has to reach the page as well as the chrome.
 
-    The rule naming Leaf's aims used to stand inside chrome.css's `@scope`, so it floored
-    the controls in the runtime's own chrome and nothing else: under a finger, 41 of this
-    page's 73 buttons and all 21 of its margin entries stood below 44px while the six
-    inside the chrome were correct. Stated in shadow.css it reaches the document, the
+    The rule naming Leaf's aims inside chrome.css's `@scope` would floor the controls in
+    the runtime's own chrome and nothing else: under a finger, the page's buttons and
+    its margin entries would stand below 44px while those inside the chrome were
+    correct. Stated in shadow.css it reaches the document, the
     chrome, and the declared widget trees alike.
 
     Reach is only half of it. The floor is one rule at each control's own weight, so any
@@ -3347,9 +3348,9 @@ FRAMED_TABLES_PAGE = leaf_page(
 
 def test_a_scrolling_table_keeps_its_caption_and_status_words_whole(browser, serve):
     """A table that scrolls its columns keeps its caption on the part of it on screen,
-    where the caption used to run on past the scrollport; and a status tag in a narrow
-    column holds its word, where `overflow-wrap: anywhere` let the table's automatic
-    layout squeeze "passed" to "pas" over "sed"."""
+    rather than running on past the scrollport; and a status tag in a narrow column
+    holds its word, where `overflow-wrap: anywhere` lets the table's automatic layout
+    squeeze "passed" to "pas" over "sed"."""
     caption = "What the final revision demonstrates and what remains to be measured"
     source = WIDE_TABLE_PAGE.replace(
         '<table id="sessions">', f'<table id="sessions"><caption>{caption}</caption>'
@@ -4568,11 +4569,11 @@ def test_a_page_wider_than_the_window_scrolls_sideways_to_its_far_side(browser, 
 
 
 def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, serve):
-    """The theme's second case, reached by a table that used to fall through to the
-    third: a column of test names beside a column of prose. A name is one word to
-    the line breaker, and unbreakable it held its column at 583px of the 720px
-    measure, squeezed the prose to 118px and a few words a line, and scrolled the
-    table 83px sideways for the rest. In <code> it breaks inside its cell where it
+    """The theme's second case, reached by a table that would otherwise fall through
+    to the third: a column of test names beside a column of prose. A name is one word
+    to the line breaker, and unbreakable it holds its column at most of the measure,
+    squeezes the prose to a few words a line, and scrolls the table sideways for the
+    rest. In <code> it breaks inside its cell where it
     must, and the table fits. The names are longer than any share of the measure a
     column gets, so a name that did not break is a name that fitted by luck rather
     than by the rule, and the test says so."""
@@ -4600,14 +4601,14 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
 def test_a_row_headings_name_stays_on_one_line(engine, request, serve):
     """The other side of the rule above: an option table, a column of short names beside
     a column of sentences. With every name breakable anywhere, the table's automatic
-    layout gave the name column almost nothing past one character, so `--output-dir`
-    stood as `--output-` over `dir` on the full measure and every name took two or
-    three lines in a 420px window. A row heading keeps its name whole, and the table
-    still fits. A name wider than a third of the column breaks inside a box that third
-    wide, and the sentence beside it keeps the rest. A name in another column is the
-    table's to break until the page keeps its cells on one line, which it can. It holds
-    in every engine: the rule once used a feature Firefox lacks, and the names stayed
-    broken there."""
+    layout would give the name column almost nothing past one character, so
+    `--output-dir` would stand as `--output-` over `dir` on the full measure and every
+    name take two or three lines in a 420px window. A row heading keeps its name whole,
+    and the table still fits. A name wider than a third of the column breaks inside a
+    box that third wide, and the sentence beside it keeps the rest. A name in another
+    column is the table's to break until the page keeps its cells on one line, which it
+    can. It holds in every engine: a rule using a feature Firefox lacks would leave the
+    names broken there."""
     rows = (
         ("--plugin", "lf-options", "Loads the named plugin before the run starts, so"),
         ("--dry-run", "lf-ask", "Reports what the run would change without writing,"),

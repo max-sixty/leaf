@@ -796,9 +796,9 @@ MANIFEST_DIFF_PAGE = leaf_page(
 # Range over each run of its visible characters, which is what `_SELECT_IN_ROW` reads
 # for the same reason. A space where a wrapped line breaks hangs past the box, as
 # `pre-wrap` lets it, and draws nothing, so a range over the whole row counts it cut.
-# Reading the row's own box instead gives every row in a file the file's overhang, which
-# is how this last went wrong: 18 of 24 rows counted cut where one line overflowed, and
-# `widest` named a trailing-context line the user could see whole. Text wider than the
+# Reading the row's own box instead gives every row in a file the file's overhang, so
+# every row counts cut where one line overflows, and `widest` names a trailing-context
+# line the user can see whole. Text wider than the
 # room is text the user cannot reach without scrolling the file sideways, and on paper,
 # text that is simply gone. `worst` and `widest` are for the failure to say which line and
 # by how much, since "some row overflows" sends its user back to the browser.

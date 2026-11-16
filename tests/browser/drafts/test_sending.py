@@ -304,8 +304,7 @@ def test_a_refused_detached_comment_reopens_beside_its_words(held_events, serve)
     """Only the browser's selection knew where a detached comment's words stand, and
     nothing beside them draws its thread, so the send opens that thread in the panel.
     A refusal brings the box back beside the words, where the user wrote, and the
-    thread's view goes with the thread. The box once came back in the window's corner,
-    under a view saying the thread was not on the page."""
+    thread's view goes with the thread."""
     browser, held = held_events
     page = open_page(browser, serve(FENCED_PAGE))
     words = "Why this colour?"

@@ -288,8 +288,8 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
             '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
         ),
         # Fourteen one-word options, drawn as a column of cells that all but fill the
-        # group: a guess at whether a target is drawn by its parts once took them for
-        # the group's own face and stood the pin in the first cell.
+        # group: a guess at whether a target is drawn by its parts would take them for
+        # the group's own face and stand the pin in the first cell.
         '<lf-option id="o-close">Close</lf-option>'
         '<lf-option id="o-leave">Leave open</lf-option>'
         + "".join(f'<lf-option id="o-{n}">Option {n}</lf-option>' for n in range(12)),

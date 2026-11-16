@@ -207,7 +207,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
     Space, PageDown, and arrows work before a user has clicked anywhere. Leaf still
     places focus on body so there is a stable page location to return to after chrome,
-    but scrolling no longer depends on teaching the browser about a non-root box.
+    but scrolling doesn't depend on teaching the browser about a non-root box.
 
     All three keys, because they are one fact about which box the browser is scrolling
     rather than three rows in a table — a fix that reached only the key this test named
@@ -368,13 +368,11 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     widget markup the gate allows — and its column is the narrower of the two, so a box
     that scrolls anywhere scrolls here.
 
-    The sweep that was supposed to cover this stood where each message body is built,
-    and needed two things it did not have: that body is not in the document yet, where
-    `getComputedStyle` answers "" for every property, and the widget in it has not
-    rendered, where the look a scroll box has arrives with the class its module sets on
-    the way out. It read an empty overflow off everything it walked and had tagged
-    nothing since it was written, which reads as coverage and is the only reason it
-    lasted.
+    A sweep standing where each message body is built would need two things it does not
+    have: that body is not in the document yet, where `getComputedStyle` answers "" for
+    every property, and the widget in it has not rendered, where the look a scroll box
+    has arrives with the class its module sets on the way out. It would read an empty
+    overflow off everything it walked and tag nothing, which reads as coverage.
 
     The reply arrives while the panel is already open, because that is the case with
     exactly one reconcile in it. A diff renders asynchronously, so a sweep run where the

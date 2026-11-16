@@ -238,7 +238,7 @@ def test_a_margin_card_is_one_frame_that_rings_for_its_thread(browser, serve):
     fills it with no tint and no ring of its own, and the card wears the ring, whole,
     at its own edge. The reply field keeps its box, standing at the card's padding.
 
-    It used to ring and tint the thread inside the card's border, a frame in a frame
+    It doesn't ring and tint the thread inside the card's border, a frame in a frame
     with the reply field a third box inside that.
     """
     page = open_page(browser, serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]))
@@ -721,10 +721,9 @@ def test_a_press_that_changes_the_edge_holding_a_card_moves_it_from_where_it_sto
     travel starts from where the card stood held: at the motion's first frame its
     outline and head row are drawn where they were, and at rest the card has moved
     down. Read by the edge holding the card after the press, its placement's move
-    read as the page carrying it, which drew it part of a line lower for a frame before
-    it travelled back (reported on 31 October 2026 in Firefox, for a line a key took
-    from the reply, which beside its passage now holds the card's foot instead:
-    thread-preview.js, `heldEdge`)."""
+    would read as the page carrying it, which draws it part of a line lower for a frame
+    before it travels back (in Firefox, for a line a key took from the reply, which
+    beside its passage holds the card's foot instead: thread-preview.js, `heldEdge`)."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(LOW_PASSAGE_PAGE, events=STEPPED_THREAD),
@@ -1647,8 +1646,8 @@ def test_a_growing_draft_over_its_words_holds_the_reply_s_foot(browser, serve):
     """Over its words, a card being written in keeps its foot and the reply's, so each
     new line rises over the transcript and the words the thread is about stay in view
     below it; the card climbs to the window's head, then the transcript gives way,
-    then further lines scroll inside the editor (the user's decision, 2026-10-31).
-    Kept at its top, the draft grew down over those words."""
+    then further lines scroll inside the editor (the user's decision).
+    Kept at its top, the draft would grow down over those words."""
     page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 520)
     held = page.evaluate(CARD_AND_REPLY)
     readings = [held]
@@ -1719,8 +1718,7 @@ def test_an_answer_arriving_lifts_a_card_beside_its_words(browser, serve, repeat
     its thread rather than in its reply, rises as an answer arrives, the window's foot
     lifting it, so the question stays in view above the answer. An answer the window
     can't hold fills the window and scrolls inside the card. Held at its top, the card
-    scrolled the answer in under the question and hid it (the user's decision,
-    2026-10-31)."""
+    would scroll the answer in under the question and hide it (the user's decision)."""
     source = leaf_page(
         "Room for a conversation",
         '<h1>Room for a conversation</h1><div style="height: 100vh"></div>'

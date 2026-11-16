@@ -704,7 +704,8 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     # which is what this case is named for. So it starts at the first of them and steps
     # down, against the count the walk itself publishes, rather than pressing from
     # wherever the card left the user: from the last marker on screen the press
-    # clamps, and this case used to read that clamp as a walk that had failed to move.
+    # clamps, and a case pressing from there would read that clamp as a walk that had
+    # failed to move.
     # Home is the margin's own key, so the user has to be in the margin to press it —
     # the card handed them back to the page, which is not.
     marker.focus()

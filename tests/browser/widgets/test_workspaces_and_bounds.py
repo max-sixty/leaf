@@ -1147,13 +1147,13 @@ def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
 ):
     """A `<pre>` log grows by text alone, which resizes no element a size observer
     reports, and a log mounted under a `display: none` ancestor has no end until it is
-    drawn. The end keeper's first version missed both: the `<pre>` stayed 200px short of
-    its end, and the late log opened at its top. End pressed at a log's end starts a
-    scroll that moves nothing; a log emptied and refilled while it runs is clamped to its
-    top in between, and a keeper that deferred its writes for that scroll missed the
-    clamp and left the refilled log 771px short of its end. A wheel across the log does
-    hold the keeper's writes until its scroll ends, and a keeper that stopped reading the
-    box meanwhile took that clamp for the reader's move and left the log at its top."""
+    drawn. An end keeper that misses either leaves the `<pre>` short of its end, or the
+    late log opened at its top. End pressed at a log's end starts a scroll that moves
+    nothing; a log emptied and refilled while it runs is clamped to its top in between,
+    and a keeper that deferred its writes for that scroll would miss the clamp and leave
+    the refilled log short of its end. A wheel across the log does hold the keeper's
+    writes until its scroll ends, and a keeper that stopped reading the box meanwhile
+    would take that clamp for the reader's move and leave the log at its top."""
     page = open_page(browser, live_url(serve(FEED_PAGE)))
     resized(page, 1280, 900)
     at_end = """(id) => { const log = document.getElementById(id);
@@ -1288,8 +1288,8 @@ def test_logs_in_a_hidden_tab_open_on_their_newest_entries(browser, serve):
     """A bounded log in a tab the user is not viewing grows, and another arrives,
     without Leaf styling or measuring either while the tab is hidden. Opening the tab
     shows each log's newest entry, every time the logs grew while hidden. Such a read
-    makes the browser style the hidden panel first, and in Chromium that forced pass left
-    a decided suggestion's retired words showing (#1868)."""
+    makes the browser style the hidden panel first, and in Chromium that forced pass can
+    leave a decided suggestion's retired words showing."""
     entry = "<p>Entry: the deploy copied a shard to the new key format.</p>"
     url = serve(
         leaf_page(

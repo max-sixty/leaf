@@ -118,11 +118,11 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     """⌥-click takes the addressable element under the pointer, and that is the whole of what it does.
 
     Holding ⌥ outlines what a click would take, which is a promise about the next press.
-    The runtime used to read that press on the way back up, after every handler out on the
-    page had already had it, so the press kept the promise and did something else besides:
-    ⌥-clicking an option card opened the composer *and* picked the option, sending Claude a
-    decision the user never made, while ⌥-clicking a tab's name aimed at the widget and
-    switched the panel under it. Neither shows in the composer, which opens either way.
+    A runtime that reads that press on the way back up, after every handler out on the
+    page has already had it, keeps the promise and does something else besides:
+    ⌥-clicking an option card opens the composer *and* picks the option, sending Claude a
+    decision the user never made, while ⌥-clicking a tab's name aims at the widget and
+    switches the panel under it. Neither shows in the composer, which opens either way.
 
     So both halves are asserted together — the composer opens on the item that was
     outlined, the press does not focus the control beneath it, and the page's markup
@@ -133,8 +133,8 @@ def test_an_aimed_press_does_only_what_the_outline_promised(
     """
     url = serve(example)
     if case_name == "ship-review":
-        # The native section replaced the task widget that used to carry this mark.
-        # Seed one on a remaining widget so the aim still crosses an existing mark.
+        # Seed a mark on one of the example's widgets so the aim crosses an existing
+        # mark.
         append_carried_log_record(
             serve.page_dir,
             {

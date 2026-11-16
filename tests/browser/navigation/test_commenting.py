@@ -295,11 +295,12 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
 
 
 def test_c_comments_on_what_the_user_is_located_in(browser, serve):
-    """Focus supplies an element anchor. `c` once read the 💬 alone, so a user
-    working from the keys had two destinations where explicit pointer targeting had
+    """Focus supplies an element anchor. A `c` that read the 💬 alone would give a user
+    working from the keys two destinations where explicit pointer targeting has
     three: an item, a quote, or the whole page. A
-    focused link put them on an option and the box that opened still said "Comment on the
-    page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
+    focused link would put them on an option and the box that opened would still say
+    "Comment on the page" — the ⌥ aim's "the item under the pointer" with no twin for
+    the cursor.
 
     Where they are located is the unanswered decision first, because that is what the page
     has already told them: markHere rings the whole obligation when m/M lands on its control.
@@ -369,9 +370,10 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     # A link inside a question, open and settled: the same markup, and the same answer.
     # Located in a decision is not working one — a user who focused a link has named
     # something more particular than the question around it, and answering the question
-    # there both overrode what they named and made the reply turn on whether that question
-    # happened to be open. The settled one is the contrast that shows it was the openness
-    # doing it: it always said "option", and the open one used to say "options".
+    # there would both override what they named and make the reply turn on whether that
+    # question happened to be open. The settled one is the contrast that shows the
+    # openness doing it: it says "option", where an open one answered as the question
+    # would say "options".
     for expected_id in ("sh-steel", "st-keep"):
         drop()
         rendered(page)
@@ -1147,7 +1149,7 @@ DECK_SLIDES = {
 @pytest.mark.parametrize("shown", ["results", "chart"])
 def test_a_page_comment_records_the_sections_on_screen(browser, serve, shown):
     """A comment on the whole page has no passage, so on a deck that shows one slide at
-    a time, "drop this one" reached the agent without saying which slide (#5026). The
+    a time, "drop this one" would reach the agent without saying which slide. The
     panel's send records the sections whose words or pictures are on screen: the
     header's, read off the page, and the shown slide's, read in the workspace region
     that scrolls the slides, but none of the slides the page hides. A slide that is
@@ -1182,7 +1184,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     on: `c` opens the page comment, and the panel says only that a comment will not
     send yet. What it has not got is a thread list, so narrowing by what awaits the
     user is dead. Find remains available as the panel's empty search, and the panel's
-    scope used to take `c` down with the missing list, so `c` is pressed from the empty
+    scope could take `c` down with the missing list, so `c` is pressed from the empty
     list too.
 
     Offline rather than mid-load, because it is the state that stays: a loading page

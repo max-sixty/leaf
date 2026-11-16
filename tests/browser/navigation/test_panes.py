@@ -196,11 +196,12 @@ def test_a_click_on_a_panes_words_makes_it_the_subject_of_every_scroll_key(
     browser, serve
 ):
     """A click on words focuses nothing, and Chrome then starts Space, PageDown and the
-    arrows from the node last pressed. A permanent `tabindex` on body made the body the
-    focusable ancestor of every word, so the click focused it and those keys scrolled the
-    root, which a full-height workspace keeps still: both panes stayed at 0. Leaf's own `d` and
-    `j` read only focus and did the same, and Go-to's `g g` and `g G` still glided only
-    the root once `d` and `u` followed the pane."""
+    arrows from the node last pressed. A permanent `tabindex` on body would make the
+    body the focusable ancestor of every word, so the click would focus it and those
+    keys would scroll the root, which a full-height workspace keeps still, leaving both
+    panes at 0.
+    Leaf's own `d` and `j`, reading only focus, would do the same, and Go-to's `g g` and
+    `g G` could glide only the root even with `d` and `u` following the pane."""
     left_body = "#left-reading > :not(header, footer)"
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     tops = """() => ['left-reading', 'right-reading'].map((id) =>
@@ -272,8 +273,8 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
 ):
     """A wheel in a pane, or a click on its words, leaves focus on the body, which
     stands on nothing, so the pane the user acted in answers for the reading keys and
-    for where a walk starts. Focus on the body once read as standing in the page, and
-    then `j` scrolled a page a workspace keeps still and `m` walked from the page's top.
+    for where a walk starts. Focus on the body read as standing in the page would have
+    `j` scroll a page a workspace keeps still and `m` walk from the page's top.
 
     Each body holds a control, so neither is a tab stop a click would focus (reach.js),
     which would answer through focus and leave the body's route unread. The rail holds
@@ -491,8 +492,8 @@ def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
     top moved it with no region named, and the log stopped following; the page keeps that
     step, as it keeps every step it can take, and so does a short `main` that a site
     header pushes past the window's foot. The window holds all of a workspace's `main`,
-    so there `k` moves the log back from its newest entry, and a site footer after
-    `main`, which gives the page a little scroll, used to leave `k` moving nothing."""
+    so there `k` moves the log back from its newest entry, even with a site footer after
+    `main`, which gives the page a little scroll and could leave `k` moving nothing."""
     entries = "".join(f"<p>Entry {n}: a line of the deploy.</p>" for n in range(60))
     log_markup = f'<div id="log" data-bound="end">{entries}</div>'
     workspace = shape.startswith("workspace")
@@ -556,10 +557,10 @@ def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
 def test_a_closed_threads_panel_hands_the_page_back_where_the_user_was_reading(
     browser, serve
 ):
-    """The Threads list is a reading region of its own, and it used to stand in for the
-    page's after the panel closed or while the user left it: `d` after a pointer closed
-    the panel scrolled a list no one could see, and `g p` from the open panel landed at
-    the top of the document rather than on the paragraph in view."""
+    """The Threads list is a reading region of its own, and it doesn't stand in for the
+    page's after the panel closes or while the user leaves it, where `d` after a pointer
+    closed the panel would scroll a list no one could see, and `g p` from the open panel
+    would land at the top of the document rather than on the paragraph in view."""
     paragraphs = "".join(
         f'<p id="p{n}" style="min-height: 12rem">Paragraph {n} has '
         f'<a href="#p{n}">a link</a>.</p>'

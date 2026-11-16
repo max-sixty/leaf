@@ -25,7 +25,7 @@ KNOWN: dict[str, set[tuple[str, str]]] = {
     # The live view generates each control's label and native field from its
     # declarations and arranges the preview beside the controls, so the playground
     # resizes once on activation. Authoring that structure would repeat the
-    # declarations by hand (#4951).
+    # declarations by hand.
     "playground": {
         ("lf-playground", "keeps-first-box"),
         ("lf-playground-choice", "keeps-first-box"),

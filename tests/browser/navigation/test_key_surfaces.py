@@ -292,9 +292,9 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 def test_a_page_at_rest_repaints_the_panel_only_when_the_state_moves(browser, serve):
     """A repaint that schedules the next one is a loop no surface reports.
 
-    The banner's More once wrote `aria-expanded` inside the shared repaint, which the
-    runtime watches over the whole document, so the paint delivered its own write back
-    to itself and asked for another frame, and the page went on repainting for as long
+    Were the banner's More to write `aria-expanded` inside the shared repaint, which the
+    runtime watches over the whole document, the paint would deliver its own write back
+    to itself and ask for another frame, and the page would go on repainting for as long
     as it was open — every browser test on every page paying for it. The panel stands
     in the same repaint and writes the same kind of state.
 

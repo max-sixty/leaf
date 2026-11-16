@@ -13,17 +13,18 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_an_emptied_rewrite_keeps_nothing_and_saved_deletes_its_message(browser, serve):
-    """A rewrite cleared and left kept its empty words, so every later opening showed an
-    empty box in place of the message, without saying it held anything. A rewrite keeps
-    words: a page reloaded over an emptied one opens on the message's own.
+    """A rewrite cleared and left keeps none of its empty words, which would show an
+    empty box in place of the message at every later opening, without saying it held
+    anything. A rewrite keeps words: a page reloaded over an emptied one opens on the
+    message's own.
 
-    Saved, an emptied rewrite deletes its message, where its Save once stood drawn live
-    and did nothing. The box says so before the press, its field reading Delete message
-    and its Save turning to Delete; the message then reads Deleted in its place, above
-    the answer given to it, offering no rewrite, and still does after a reload.
+    Saved, an emptied rewrite deletes its message, rather than its Save standing drawn
+    live and doing nothing. The box says so before the press, its field reading Delete
+    message and its Save turning to Delete; the message then reads Deleted in its place,
+    above the answer given to it, offering no rewrite, and still does after a reload.
 
-    A deletion, as any rewrite, once ended `z`'s walk and could not be taken back. `z`
-    now gives the message its words back in the press, and the log keeps them."""
+    A deletion, as any rewrite, can be taken back: `z` gives the message its words back
+    in the press, and the log keeps them."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     words = message.locator(".lf-msg-text")
     editor = message.locator(".lf-msg-editor leaf-text")

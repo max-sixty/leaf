@@ -2563,7 +2563,7 @@
   // least width does until a long message arrives (thread-preview.js), may grow at its
   // inline end, keeping its inline start and top, and carry all it holds as its words
   // take the new width. It is the one case where news may carry controls sideways,
-  // which the user chose on 14 November 2026 for a card that widens once.
+  // which the user chose for a card that widens once.
   const permittedWidening = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
     if (around.length !== 3) return false;

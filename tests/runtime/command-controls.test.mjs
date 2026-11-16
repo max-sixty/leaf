@@ -2515,9 +2515,8 @@ test("a chosen contribution offer retains its exact reading across a later updat
   }
 });
 
-// A focus move reads again the keys whose rows ask where the user is, and only those:
-// on a page of five hundred sections a Tab once read every widget's keys and every
-// command button again, though only the widgets it moved between asked.
+// A focus move reads again the keys whose rows ask where the user is, and only those,
+// not every widget's keys and every command button.
 test("a focus move reads again only the keys and buttons that ask where the user is", () => {
   const asking = document.createElement("section");
   const still = document.createElement("section");

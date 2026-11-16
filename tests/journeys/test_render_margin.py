@@ -427,7 +427,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     editor = preview.locator("leaf-text")
     # The answer's arrival uncovers the card's foot over 300ms, and until it has, the
     # reply box's clipped part takes no press: the click lands on the thread, and
-    # Playwright's retry scrolls the box into view (#5942).
+    # Playwright's retry scrolls the box into view.
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     expect(editor).to_be_focused()

@@ -70,8 +70,8 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     the new words render and the user sees the widget identified as one whose
     decision this version undid.
 
-    It costs a word, where losing a decision used to cost nothing, which is the
-    whole asymmetry: the failure that stays silent is now the one that needs
+    It costs a word, where losing a decision silently would cost nothing, which is the
+    whole asymmetry: the failure that stays silent is the one that needs
     saying out loud."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir

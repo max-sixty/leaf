@@ -768,7 +768,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     envelope spells out the elements the gesture names, from the revision the
     user pressed on, so a later version that rewords an option does not
     change what they chose. Done on a group whose pick another verb records
-    says that pick, as the choice worded it, not every word of the group (#5620),
+    says that pick, as the choice worded it, not every word of the group,
     and an undo says what it takes back."""
     asked = PAGE.replace(
         "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
@@ -841,7 +841,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
 
 def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
     """Done with nothing picked completes the answer with no option, so it quotes
-    none of the group's words (#5620)."""
+    none of the group's words."""
     (page_dir / "index.html").write_text(
         PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
     )

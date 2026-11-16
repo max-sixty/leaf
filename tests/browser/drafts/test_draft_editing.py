@@ -580,8 +580,8 @@ def test_a_rendered_continuation_click_edits_the_exact_source_position(browser, 
 def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
     """A draft an agent sends in a reply opens at a click on its words in the panel's
     thread, as one on the page does. The message the reader draws it in is Leaf's own
-    surface, marked as generated chrome, and the draft once took that mark for a press
-    of its own and left the click to it, so only its ✎ opened it."""
+    surface, marked as generated chrome, and a draft that took that mark for a press
+    of its own would leave the click to it, so only its ✎ would open it."""
     url = serve(leaf_page("Reply draft", "<h1>Reply draft</h1>"))
     question = panel_comment(serve.page_dir, "Could you draft the note?")
     replied = CliRunner().invoke(

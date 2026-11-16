@@ -354,11 +354,8 @@ def test_a_state_read_waits_while_news_answers_and_ends_when_a_look_fails(
     """A state read waits for its answer while the server answers the page's news
     looks, and ends as offline once a look goes unanswered.
 
-    `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
-    then read the reloaded page still on the revision from before the turn. A
-    container that has just run a turn answers its next state read in seconds rather
-    than milliseconds — measured against a live deployment at 123 ms before a turn and
-    2252-3918 ms after one. A bound inside that spread does not delay such a read, it
+    A container that has just run a turn answers its next state read in seconds rather
+    than milliseconds. A bound inside that spread does not delay such a read, it
     ends it: an expiry is a completed offline answer, so the page takes the container
     for gone while the answer it asked for is still on its way. A slow container still
     answers news, so the looks, not a deadline on the read, say when the server is gone.
@@ -553,9 +550,9 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
 def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser, serve):
     """A reload is only an answer when the document would come back different.
 
-    The page refuses an answer from another layer because it cannot read that state, and
-    it used to reload on the spot. That is right when re-vendoring has moved the page out
-    from under an open tab. It is wrong the other way around — a server behind the
+    The page refuses an answer from another layer because it cannot read that state.
+    Reloading on the spot is right when re-vendoring has moved the page out from under
+    an open tab. It is wrong the other way around — a server behind the
     document it served, which is what the website looks like while a release's containers
     are still starting — because the reload lands on the same document and the next answer
     says the same thing, so the user watches the page restart for as long as the

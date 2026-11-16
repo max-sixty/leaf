@@ -632,8 +632,8 @@ def test_a_card_s_title_clears_its_grip_and_its_prose_starts_under_it(
 
     with subtests.test("only the title clears the grip"):
         # The grip stands at the card's top corner and the lines beside it, the title's,
-        # stop short of it; the prose below runs the card's whole width, where it used to
-        # be set in a column that kept clear of the grip down the card's full height. No
+        # stop short of it; the prose below runs the card's whole width, rather than in a
+        # column that keeps clear of the grip down the card's full height. No
         # line stands under the grip's box, so a press there is always the grip's.
         measured = page.locator("#card-a").evaluate(
             """(card) => {

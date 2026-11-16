@@ -839,8 +839,7 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     in the message that asks it. With the card focused, digits pick its options, and
     the pick is the same action a pick in the thread records. Done then names the
     option, after the view is put away and after a reload, while the thread stays
-    undrawn. Until 15 November 2026 the card offered only Discuss and Show, and Done
-    said a bare Answered."""
+    undrawn."""
     url = serve(leaf_page("ship plan", '<h1 id="title">Ship plan</h1>'))
     # As `leaf thread create --markup` writes it.
     append_carried_log_record(
@@ -904,8 +903,7 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
     """Where the page shows the thread asking a choice, as a thread on a diff's line
     does, opening On Me leaves the choice in that thread, so nothing below it moves.
     The card draws the message's words and answers with the choice's options, and `1`
-    there picks in the thread. Until 15 November 2026 the card took the choice out of
-    the thread, and the paragraph after the diff rose by the choice's height."""
+    there picks in the thread."""
     url = serve(
         leaf_page(
             "diff choice",

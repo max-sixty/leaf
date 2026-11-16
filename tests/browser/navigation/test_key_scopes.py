@@ -389,11 +389,11 @@ def test_a_widget_that_renames_its_role_keeps_the_press_offer_gave_it(browser, s
     arrows and Home/End that walk it, and it is the only thing that consumes Space —
     which is otherwise the page's scroll.
 
-    That row is what a page-wide control scope used to supply, and the scope was the wrong
-    place for it: read off the role it stopped seeing tabs, so Enter did nothing and Space
-    threw the user down the page from a control that looked like it had answered; read
-    off the tabindex it claimed every focus target `offer` builds and led with a press over
-    a thread that answers nothing. Declared where the strip is, the press
+    A page-wide control scope could supply that row, and is the wrong place for it: read
+    off the role it stops seeing tabs, so Enter does nothing and Space throws the user
+    down the page from a control that looked like it had answered; read off the tabindex
+    it claims every focus target `offer` builds and leads with a press over a thread that
+    answers nothing. Declared where the strip is, the press
     cannot be lost to a rename or promised where nothing runs it, and the word on the line
     is the strip's own — it names the tab rather than the control.
 
@@ -456,7 +456,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     dispatcher offers for the key under the user's finger rests on the attribute watch
     rather than on the two-second poll behind it. Both readings of it are taken once:
     an assertion that retries cannot tell the watch from a poll that lands inside its
-    budget, and the first version of this test went green with the watch broken.
+    budget.
 
     Shift+← is the last thing this holds to: a summary's words are the page's, and
     extending a selection through them must not shut the section they are in."""
@@ -521,9 +521,9 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     assert "ArrowLeft" in said and "ArrowRight" not in said, said
     # The dispatcher is one of two surfaces naming this row's keys, and the other is read by
     # somebody who cannot see the first. A row whose bindings answer from its own state
-    # has to repaint both when the state moves, and only the line had a watch: the
-    # attribute kept whichever way the row was set when the scope was declared, so
-    # it went on promising the arrow that no longer moves this section and withholding
+    # has to repaint both when the state moves; with only the line watched, the
+    # attribute keeps whichever way the row was set when the scope was declared, so
+    # it goes on promising the arrow that no longer moves this section and withholding
     # the one that does.
     #
     # Read once for the reason the line is, and by the same clock: the heartbeat repaints
@@ -679,7 +679,7 @@ def test_escape_passes_a_manual_popover_the_user_is_not_in(browser, serve):
     """A manual popover the user isn't in, such as a hover card, leaves Escape its steps
     beneath it: the panel's comment field and a link let go under it as they do with no
     card open. The browser never closes a manual popover on Escape, so standing the steps
-    down under one left every press dead until the card closed (#5582). Focus inside the
+    down under one would leave every press dead until the card closed. Focus inside the
     card makes it the user's layer again, and the page beneath stays out of Escape's
     reach."""
     page = open_page(browser, serve(HOVER_CARD_PAGE))
@@ -768,10 +768,10 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
 def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     """A page's own menu that answers Escape or Enter on its item, preventing the key's
     default and handing focus back to its trigger, keeps the user there: Leaf takes no
-    step of its own for that key. Leaf's dispatcher used to read the key again at the
-    document, at the trigger the menu had just focused, so Escape stepped the user off
-    it to the document and Enter pressed the trigger again, reopening the menu. UI SDK's
-    menu and select behave this way, as most popup libraries do."""
+    step of its own for that key. Were Leaf's dispatcher to read the key again at the
+    document, at the trigger the menu had just focused, Escape would step the user off
+    it to the document and Enter would press the trigger again, reopening the menu.
+    UI SDK's menu and select behave this way, as most popup libraries do."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
       const trigger = document.createElement('button');
@@ -1956,13 +1956,13 @@ def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, se
 def test_a_control_takes_only_the_keys_it_uses_and_leaves_the_page_the_rest(
     browser, serve, subtests
 ):
-    """A scope claims the keys it uses and leaves the rest in place. The typing scope once
-    stood wherever focus was in a form control, on the reading that a letter is a
-    keystroke there: true of a text box, false of a radio, a checkbox and a slider, none
-    of which the platform ever hands a letter. So a user focusing a screenshot's
-    before/after switch lost c, the walks, the version keys and the reference itself, and
-    the line went blank rather than wrong, which is how it reaches its author as "the
-    keyboard stopped working".
+    """A scope claims the keys it uses and leaves the rest in place. A typing scope
+    standing wherever focus is in a form control would rest on the reading that a letter
+    is a keystroke there: true of a text box, false of a radio, a checkbox and a slider,
+    none of which the platform ever hands a letter. So a user focusing a screenshot's
+    before/after switch would lose c, the walks, the version keys and the reference
+    itself, and the line would go blank rather than wrong, which is how it reaches its
+    author as "the keyboard stopped working".
 
     The claim has to hold in both directions or it has bought nothing, so the control's
     own key is asserted beside the page's: a page whose keyboard stands over a radio must

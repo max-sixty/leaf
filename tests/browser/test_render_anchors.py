@@ -586,8 +586,8 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     the theme paints stands down the moment the strip exists — so if the strip's button
     can't be quoted, the user can read the tab's name and never point at it.
 
-    That is what a user hit, twice, on a draft's heading: the words were the page's
-    and the row holding them was marked as the runtime's. `.lf-ui` is a look, and
+    A draft's heading is such a case: the words are the page's and the row holding
+    them is marked as the runtime's. `.lf-ui` is a look, and
     anchoring's question is whose words these are — so the label answers it where it is
     written (relabel), and the nearest answer wins over the box around it.
 
@@ -1455,7 +1455,7 @@ def test_resizing_closed_code_sections_does_not_lay_out_each_hidden_section(
     browser, serve
 ):
     """Previously viewed code stays skipped when its disclosure closes and the window
-    resizes. Reading every block's header cuts used to force one layout per hidden
+    resizes. Reading every block's header cuts would force one layout per hidden
     section; never-opened sections conceal that cost because they have no old layout."""
     sections = "".join(
         f"<details open><summary>Example {i}</summary>"
@@ -3055,7 +3055,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
     longer raises, and not the margin entry's selection.
 
     So the current location holds across the whole press, every frame from mouse-down until after
-    the click. The reaction beside the comment is the case that first showed the gap.
+    the click.
     """
     url = serve(INLINE_PAGE)
     append_carried_log_record(
@@ -3401,15 +3401,15 @@ def test_a_passage_among_padded_emoji_confirms_its_neighbours(browser, serve):
 def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
     browser, serve, html
 ):
-    """A passage closing its section used to store a suffix clipped at the section's
-    edge — one character, a bar the identical copy above it also cleared, so the mark
-    painted there while the user was still composing. The neighbours now come from
+    """A passage closing its section doesn't store a suffix clipped at the section's
+    edge — one character, a bar the identical copy above it also clears, so the mark
+    would paint there while the user was still composing. The neighbours come from
     the whole document and the section only filters where the search may land, so the
     closing copy is told apart by the words of the section after it.
 
     Where the document itself ends there is no second side to store, and an empty one is
     not an absent constraint: it says nothing followed the passage anywhere, which is true
-    of exactly one occurrence. Refusing to read it that way left the same wrong mark."""
+    of exactly one occurrence. Refusing to read it that way leaves the same wrong mark."""
     page = open_page(browser, serve(html))
     chosen = page.evaluate_handle("""() => {
         const p = document.querySelectorAll('#edge p')[1];
@@ -3432,11 +3432,11 @@ def test_a_repeated_passage_at_an_edge_anchors_where_it_was_picked(
 
 def test_a_passage_longer_than_the_pattern_is_anchored_whole(browser, serve):
     """A quote is the passage, so what is stored is what the page marks and what the
-    comment is on. It used to be cut at four hundred characters: a user who selected
-    a paragraph got a comment on its opening and a highlight that shrank to match, on
-    most of the paragraphs a leaf page holds, and nothing said so. Storing the
-    whole of it is only affordable because the bound moved to the search's pattern,
-    which is what could not take a long passage — so this drags one past that bound and
+    comment is on. Cut at four hundred characters, it would give a user who selected
+    a paragraph a comment on its opening and a highlight that shrank to match, on
+    most of the paragraphs a leaf page holds, and nothing would say so. Storing the
+    whole of it is only affordable because the bound is on the search's pattern,
+    which is what cannot take a long passage — so this drags one past that bound and
     asks the mark, the log and the panel the same question, on the second of two
     identical copies, which is also the case where the lead alone cannot answer it."""
     url = serve(TWO_COPIES_PAGE)
@@ -3529,8 +3529,8 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
 
 def test_select_all_on_a_page_with_a_diff_leaves_the_page_responsive(browser, serve):
     """Select-all on a page holding an x-shadow widget. The composed selection spans
-    <html>, past the words the page reads, and the capture once grew its neighbourhood
-    forever from a position that reading lacked, pinning the tab. The press is bounded so
+    <html>, past the words the page reads, and the capture can grow its neighbourhood
+    forever from a position that reading lacks, pinning the tab. The press is bounded so
     that regression fails here rather than hanging the run."""
     page = open_page(browser, serve(TWICE_PAGE))
     page.locator("body").press("ControlOrMeta+a")
@@ -4005,9 +4005,9 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
 
 def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     """The case this exists for, and the one a section cannot narrow: a diff carries the
-    same line added and removed under a single id, so the user commenting on the fix
-    had their comment marked against the bug — stored that way, and shown to Claude that
-    way in the next round.
+    same line added and removed under a single id, so a comment on the fix can be
+    marked against the bug — stored that way, and shown to Claude that way in the next
+    round.
 
     The passage is picked out of the rendered widget, where syntax colour has cut the
     line into spans: `return` is a keyword and ` request.path` is the text after it, so

@@ -52,8 +52,7 @@ def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, se
 def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     """An lf-ask draws no box of its own around its blocks, so they stand in the page's
     flow: its words and its options keep the prose's edge, and a block declaring more
-    room takes it, on a page with both. A width written on the question moves nothing.
-    The words used to go with the question's box, 480px left of the page's column."""
+    room takes it, on a page with both. A width written on the question moves nothing."""
     options = (
         '<lf-options id="{id}-options" choose>'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
@@ -111,9 +110,9 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     """Beside a contents map, a question or section written in the other direction from
     the page takes the same room as the page's own blocks: an available block reaches
     the page's room, and a wide one grows from the prose toward its own end, which faces
-    the map, within the room before the prose. Both used to grow toward the map, the
-    available block 334px past the window's edge, since the flow read the room on the
-    column's start side as the room on its own."""
+    the map, within the room before the prose. A flow that read the room on the
+    column's start side as the room on its own would grow both toward the map, the
+    available block past the window's edge."""
     other = "rtl" if direction == "ltr" else "ltr"
     options = '<lf-options id="{id}-o" choose><lf-option id="{id}-y">Yes</lf-option>'
     question = (

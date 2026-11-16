@@ -1870,8 +1870,8 @@ def test_a_selection_change_offers_a_visual_target_without_replacing_an_open_com
     flight, which is the state the press leaves behind: opening Comment marks the
     handoff at once and lands the focus on a later frame. Holding the page's frames
     keeps that gap open for the whole of the selection rather than leaving its width to
-    the machine — measured here, the handoff lands about eight milliseconds after the
-    press returns, which is the same span the driver spends making the next call. The
+    the machine — the handoff lands about as long after the press returns as the
+    driver spends making the next call. The
     passage is offered whether or not the handoff has landed.
     """
     page = open_page(browser, serve(PART_DIAGRAM_PAGE))
@@ -2542,7 +2542,7 @@ def test_a_reply_to_a_reaction_opens_a_thread_and_resolve_is_its_floor(browser, 
 
 def test_z_takes_back_a_reaction_the_agent_answered_into_its_place(browser, serve):
     """A reaction someone has answered is the user's to take back, as one nobody has
-    answered is, where the log used to refuse it and `z` did nothing. Taking it back
+    answered is. Taking it back
     draws its place in the thread Deleted in the press, before the log answers, above
     the answer, which stays, as does the thread; the mark stays off the page."""
     url = serve(PANEL_PAGE)

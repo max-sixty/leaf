@@ -219,7 +219,7 @@ def test_a_head_s_words_take_its_controls_room_while_they_hide(
     browser, serve, subtests
 ):
     """A message's Edit and Copy show only under the pointer or focus, and its head
-    lends their room to its words while they hide: a card's head that held it read
+    lends their room to its words while they hide: a card's head that held it would read
     "Me just now · Qu…" beside room for controls nobody could see. At rest the user's
     queued message says its whole receipt; under the pointer the controls stand over
     the receipt's end, which neither moves nor changes its size. A head too narrow for
@@ -322,7 +322,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
 def test_every_message_says_when_it_was_said(browser, serve):
     """Every message in a thread says when it was said, naming its day unless that is
     today (presence.js, `saidAt`): replies hours apart three days ago each read their
-    own time, where an age read "3d ago" once over all of them."""
+    own time, where an age would read "3d ago" over all of them."""
     url = serve(PANEL_PAGE)
     # Local wall times, each with its own offset, so a change of daylight saving
     # between them moves no clock reading.
@@ -420,9 +420,9 @@ def test_the_user_s_words_end_where_the_agent_s_do(browser, serve, surface):
 def test_opening_message_reactions_does_not_reflow_the_thread(browser, serve):
     """The picker floats from its message corner without moving the thread.
 
-    A reaction list used to add forty pixels to its thread only while open. That moved
-    every later message under the pointer and made choosing a reaction change the
-    layout being acted on. The next message is the single-factor neighbor: opening the
+    A reaction list that added room to its thread only while open would move every
+    later message under the pointer and make choosing a reaction change the layout
+    being acted on. The next message is the single-factor neighbor: opening the
     picker is the only change between these two frames."""
     url = serve(PANEL_PAGE)
     first = panel_comment(serve.page_dir, "Keep the route visible.")
@@ -558,8 +558,8 @@ def test_a_sheet_a_page_script_writes_later_stops_at_the_chrome(browser, serve):
     """A CSS framework such as Tailwind builds its sheet in the head after the page
     loads and rewrites it as classes change, and each rewrite is a new sheet. Its
     element rules reach the page's prose and stop at the chrome, as the page's own
-    stylesheet's and its imports' do: Tailwind's reset once took the family of every
-    chrome button."""
+    stylesheet's and its imports' do: Tailwind's reset would otherwise take the family
+    of every chrome button."""
     url = serve(
         leaf_page(
             "t",
@@ -663,7 +663,7 @@ def test_a_packages_shadow_rules_reach_only_trees_its_widgets_host(
     """Every declared shadow tree receives the layer's composed shadow sheet in every
     engine, so a package's `widget-shadow.css` rule naming its host, `:host(lf-own-tree)
     span`, dresses that widget's tree and not another package's. Each engine reads the
-    composed sheet itself: Firefox once applied none of a generated `:host` scope."""
+    composed sheet itself."""
     own, own_module = _shadow_tree_widget("lf-own-tree")
     other, other_module = _shadow_tree_widget("lf-other-tree")
     project = tmp_path / ".leaf"
@@ -765,8 +765,8 @@ def test_a_package_restyles_the_chrome_by_its_parts(tmp_path, request, serve, en
 def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     """The chrome's private rules live in one @scope block rooted at the runtime's
     own container, so whatever name a widget or a page coins, it matches none of
-    them: lf-tabs once marked itself lf-live — the chrome's name for its
-    visually-hidden live region — and every tabbed page clipped to a pixel. An
+    them: lf-tabs marking itself lf-live — the chrome's name for its
+    visually-hidden live region — would otherwise clip every tabbed page to a pixel. An
     element in the page wearing every private class at once must render exactly as
     its unclassed twin.
 
@@ -908,7 +908,7 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     landed = transcript.evaluate(CARD_TOP_AUTHORS)
     assert landed["scrolled"] and landed["named"] > 0 and landed["row"], landed
     # At the scroll limit a sliver of the previous author can precede a clear gap,
-    # with the next turn's own visible name below it (the known edge from #1763).
+    # with the next turn's own visible name below it (a known edge).
     assert landed["under"] == landed["named"] or (
         landed["under"] == -1 and landed["endGap"]
     ), landed

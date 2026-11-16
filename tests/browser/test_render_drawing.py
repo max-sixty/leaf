@@ -737,9 +737,9 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
 
 def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
     """Draw mode lasts while the user moves about the page, so on a phone two fingers
-    still scroll and zoom it, and one finger draws. The mode once set `touch-action:
-    none` on the whole document, so neither scrolling nor zoom worked until the user
-    left it."""
+    still scroll and zoom it, and one finger draws. A mode that set `touch-action:
+    none` on the whole document would leave neither scrolling nor zoom working until
+    the user left it."""
     filler = "".join(f"<p>Paragraph {n}. " + "Filler. " * 30 + "</p>" for n in range(8))
     html = TARGETS_PAGE.replace("</main>", filler + "</main>")
     context = browser.new_context(

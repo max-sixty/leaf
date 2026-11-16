@@ -22,6 +22,7 @@ from leaf.render_checks import (
     install_window_errors,
     observe_output_documents,
     output_values,
+    rendered,
     start_near_work,
     wait_for_probe,
     wait_until_ready,
@@ -224,15 +225,20 @@ def _render_scheme(
     then=None,
     implementations=None,
     declaration_sources=None,
+    page_code=None,
 ):
     """Read and report the browser gate for one color scheme and viewport: the
     findings that refuse the version, the ResizeObserver loop notices its retry
     policy judges (`version.render_version`), and whether every reading completed.
 
     `then`, when given, is handed the settled page and its registry after every reading
-    here, for additional version-level readings before the page closes."""
+    here, for additional version-level readings before the page closes. `page_code`,
+    when given, is a list this page's page-code reading (`page_code.PageCode`) fills
+    once the page is ready; where it fails the page, nothing more is read."""
     from playwright.sync_api import Error as PlaywrightError
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
+
+    from .page_code import PageCode
 
     page = browser.new_page(viewport=viewport, color_scheme=scheme)
     stand_in_other_leaves(page)
@@ -272,8 +278,10 @@ def _render_scheme(
     page.on("console", console_message)
     collect_page_exceptions(page, errors)
     # The runtime writes each report to the console too, which is where this reading
-    # takes it.
-    answer_reports(page, lambda text: None)
+    # takes it, unless it is the page-code reading's too.
+    code = PageCode(page) if page_code is not None else None
+    if code is None:
+        answer_reports(page, lambda text: None)
     devtools = DevtoolsIssues(page)
     install_window_errors(page, window_error)
     try:
@@ -349,13 +357,24 @@ def _render_scheme(
     # under load alone, which is how one page passed at a desk and reported words
     # drawn over words under a full suite. The readings take in every document the
     # page can show, so work it holds until the reader nears it starts first.
+    unready = None
     try:
-        wait_until_ready(page, state, timeout_ms=handover_left())
-        start_near_work(page, state, timeout_ms=handover_left())
+        wait_until_ready(page, state, timeout_ms=handover_left(), fixed_server=True)
+        start_near_work(page, state, timeout_ms=handover_left(), fixed_server=True)
     except PageNotReady as error:
-        failed_stage = error.stage
+        unready = error
+    if code is not None and page_code is not None:
+        if unready is None:
+            # As `run_page_code` reads it: a widget that paints from a rendering
+            # callback throws there, so every callback it queued has run first.
+            rendered(page)
+        page_code.extend(code.findings(page, unready))
+        if page_code:
+            return ended([], complete=True)
+    if unready is not None:
+        failed_stage = unready.stage
         unsettled = [
-            Finding("not-ready", values={"stage": error.stage, "error": str(error)})
+            Finding("not-ready", values={"stage": unready.stage, "error": str(unready)})
         ]
     else:
         try:

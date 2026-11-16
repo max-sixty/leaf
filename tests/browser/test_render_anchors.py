@@ -1766,7 +1766,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         sansFont: getComputedStyle(document.documentElement)
           .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
-          left: noteRect.left - blockRect.left,
+          left: noteRect.left - parseFloat(noteStyle.marginInlineStart) - blockRect.left,
           right: blockRect.right - noteRect.right,
         },
       };
@@ -1788,8 +1788,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["cardRadius"] != "0px", appearance
     assert appearance["noteFont"] == appearance["sansFont"], appearance
     assert appearance["noteSize"] < appearance["codeSize"], appearance
-    # The card stands inside the frame, sized to its words.
-    assert appearance["noteInset"]["left"] == 1, appearance
+    # The card stands inside the frame, sized to its words. Its line's indent is the
+    # note's inline-start margin, so the margin box is what meets the frame.
+    assert appearance["noteInset"]["left"] == pytest.approx(1, abs=0.1), appearance
     assert appearance["noteInset"]["right"] >= 1, appearance
 
     # A quote spans the command name and its argument tokens.
@@ -6399,11 +6400,13 @@ def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser,
     )
     page.keyboard.press("Shift+n")
     expect(page.locator(".lf-live")).to_have_text("Searching")
+    # Run the held slices, and the ones they schedule, until the search ends: a closed
+    # search shows no count to wait on, and a step back while it still runs stays.
     page.evaluate(
         """() => {
-          window.setTimeout = window.__run;
           delete window.__steps;
-          for (const run of window.__held.splice(0)) run();
+          while (window.__held.length) window.__held.shift()();
+          window.setTimeout = window.__run;
         }"""
     )
     page.keyboard.press("Shift+n")

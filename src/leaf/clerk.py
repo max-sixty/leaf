@@ -35,7 +35,7 @@ Four principles, the user's, bound what the fork may do, the first three set on
   id and words, as its own, and keeps, withdraws or replaces it as it would one it
   wrote. Leaf opens no thread whose title a thread the agent opened on the page to
   ask something already has. It shows the fork the questions On Me no longer holds,
-  answered, withdrawn or closed unanswered, each with its id, so the fork doesn't
+  answered or closed unanswered, each with its id, so the fork doesn't
   word one anew and asks one again under its id. It writes no record once a turn
   has opened since the fork read the conversation (`basis`), since that turn's
   agent, or the user who opened it, has the newer reading. A finding still
@@ -412,8 +412,8 @@ OPENING = "<leaf-fork-check>"
 def page_facts(state: dict, events: list) -> dict:
     """What the fork is shown of one page, from `state` as `leaf page state` prints
     it and the page's `events`: its On Me; the questions asked in words that On Me no
-    longer holds, each with its id, its thread and how it ended (answered, dropped,
-    or its thread closed unanswered), which the fork words anew only to ask one again
+    longer holds, each with its id, its thread and how it ended (answered, or its
+    thread closed unanswered), which the fork words anew only to ask one again
     under its id; and each item the agent has started with the line its start gives
     it (`todos.item_starts`)."""
     from .todos import item_starts
@@ -455,8 +455,6 @@ def page_facts(state: dict, events: list) -> dict:
 
     def ended(record: dict) -> str | None:
         """How a question On Me no longer holds ended, or None while it stands."""
-        if record["status"] == "withdrawn":
-            return "dropped"
         if record["status"] != "open":
             return "answered"
         if closer := (threads.get(record["thread"]) or {}).get("resolved"):
@@ -1162,13 +1160,13 @@ def _told(path: str, title: str, text: str, passage: str, record: dict) -> str:
         )
         put = f", in a new thread on {where}, opened by your message {record['id']}"
     quoted = "\n".join(f"> {line}" for line in text.splitlines())
-    withdraw = f"leaf task end {path} {question} dropped"
+    withdraw = f"leaf thread resolve {path} {record['id']}"
     return (
         f'From your last reply, Leaf asked the user "{title}" On Me{put}:\n'
         f"{quoted}\nIt is yours "
         "like any message you write: the user's reply reaches you as any reply does, "
-        f"and if it isn't theirs to decide, withdraw it with `{withdraw}`, and ask it "
-        "another way if you'd rather."
+        f"and if it isn't theirs to decide, resolve its thread with `{withdraw}`, and "
+        "ask it another way if you'd rather."
     )
 
 

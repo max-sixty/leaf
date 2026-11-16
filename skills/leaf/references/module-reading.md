@@ -236,8 +236,7 @@ including those with the agent. Each record looks like this:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | answered_elsewhere | withdrawn
-  end: null,          // a question the agent ended unanswered: {detail, event}
+  status: "answered", // open | answered | withdrawn
   next_actor: null,   // user | agent | null
 }
 ```
@@ -255,8 +254,8 @@ arrives. Each `source.kind` adds its own facts:
   record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
-  `answered_elsewhere` or `withdrawn` and `end.detail` says why.
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. While
+  its thread is resolved, it stays `open` with no `next_actor`.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,

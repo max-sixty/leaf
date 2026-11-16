@@ -40,15 +40,17 @@ does, which left On Me full until the agent had read each reply, and over asking
 under a new id, which left the plan step reading done. Asking again is the declaration
 asking is, an `obligation` naming the questions, rather than a second one beside it.
 
-A record's `status` is one of four, and this module is their one producer: `open`;
-`answered`, its typed answer in the record; `answered_elsewhere`, a question an agent
-message asks that the agent ended `done` because the user answered on another surface,
-with no answer value; and `withdrawn`, an obligation the document no longer makes or a
-question an agent message asks that the agent ended `dropped`. A page widget's
-obligation never takes `answered_elsewhere`: an answer given elsewhere goes into the
-widget's declared state in a revision, which records the value itself. No revision
-can write the state of a widget frozen in a message, so the agent ends its question
-as it ends one asked in words (`asked_in_a_message`)."""
+A record's `status` is one of three, and this module is their one producer: `open`;
+`answered`, its typed answer in the record; and `withdrawn`, an obligation the
+document no longer makes. A question asked in a thread message, in words or by a
+widget frozen in it, also stops waiting on the user when either side resolves its
+thread: it stays `open` with nobody's move until the thread reopens. That is how the
+agent ends one the user answered on another surface, or that no longer applies, so
+the thread reads as settled wherever it shows. The user asked for this on 15 November
+2026 over an agent end of its own (`todo_end` on the question's id, read as
+`answered_elsewhere` or `withdrawn` with the agent's note), which added a status, a
+line under the question and a Done row, and left half of the threads it ended open. A
+page widget's answer given elsewhere goes into its declared state in a revision."""
 
 import hashlib
 import json
@@ -100,17 +102,6 @@ def encloses(entry: dict) -> bool:
     return bool(entry.get("x-encloses"))
 
 
-def end_question(record: dict, ending: dict) -> None:
-    """Retire a question asked in a thread message that the agent ended with
-    `todo_end`: `done` where the user answered it on another surface, `dropped`
-    where it no longer applies. An end records no answer value."""
-    record["status"] = (
-        "answered_elsewhere" if ending["state"] == "done" else "withdrawn"
-    )
-    record["end"] = {"detail": ending["detail"], "event": event_reference(ending)}
-    record["next_actor"] = None
-
-
 def question_ids(message: dict) -> list[str]:
     """The ids of the questions an agent message asks in words: the ones its
     `obligation` lists, each the id of the message that first asked it, or where it is
@@ -119,21 +110,9 @@ def question_ids(message: dict) -> list[str]:
     return [f"message:{message['id']}"] if asked is True else asked
 
 
-def settle_by_words(
-    record: dict, asked: int, answer: dict | None, ending: dict | None
-) -> None:
-    """Settle a message obligation from the user's message that answers it and the
-    agent's `todo_end` on its id, whichever came first, where the message now asking
-    it stands at seq `asked`, so a reopening outlasts an end before it. An end records
-    no answer, since the user's words are not in the log; the user's message after an
-    end reopens nothing, as the end already retired it."""
-    if ending is not None and (
-        ending["seq"] < asked or (answer is not None and answer["seq"] < ending["seq"])
-    ):
-        ending = None
-    if ending is not None:
-        end_question(record, ending)
-    elif answer is not None:
+def settle_by_words(record: dict, answer: dict | None) -> None:
+    """Settle a message obligation from the user's message that answers it, if any."""
+    if answer is not None:
         record["status"] = "answered"
         record["answer"] = {
             "value": {key: answer[key] for key in ("text", "token") if key in answer},
@@ -229,7 +208,6 @@ def update_obligation(
         "prompt": {"text": None, "target": subject["id"]},
         "answer": {"value": None, "event": event_reference(answer)} if answer else None,
         "status": "answered" if answer else "open",
-        "end": None,
         "next_actor": next_actor,
     }
 
@@ -844,7 +822,6 @@ class _ObligationReducer:
                     if present
                     else None,
                     "status": status,
-                    "end": None,
                     "next_actor": "user" if status == "open" else None,
                 }
             )
@@ -1018,7 +995,6 @@ class _ObligationReducer:
                     if has_content
                     else None,
                     "status": status,
-                    "end": None,
                     "next_actor": "user" if status == "open" else None,
                 }
             )
@@ -1069,7 +1045,7 @@ def thread_obligation_readings(
     until the work a reply after it promised ends, as a thread anchored on a page
     obligation does (`anchors_with_agent`). That turn instead answers a message
     obligation, as does a reaction on the message whose token settles it; `log` is the
-    page's `todos.TodoReading`, whose `ends` hold the agent's `todo_end` on each id."""
+    page's `todos.TodoReading`, whose `owed` holds the work replies promised."""
     reducer = _ObligationReducer(
         obligation_sources(reading.structure, registry),
         reading.projection,
@@ -1105,7 +1081,6 @@ def thread_obligation_readings(
             "prompt": {"text": first[question], "target": None},
             "answer": None,
             "status": "open",
-            "end": None,
             "next_actor": "user",
         }
         for question, (identity, message) in newest.items()
@@ -1126,12 +1101,7 @@ def thread_obligation_readings(
         in_words = answered_in_words(record)
         asked = answers.seq(record["message"])
         if record["status"] == "open" and in_words:
-            answer = answers.first_answer(record["message"])
-            settle_by_words(record, asked, answer, log.ends.get(record["id"]))
-        # No revision can write a frozen widget's state, so an answer in words
-        # retires its question through the agent's end, as for a question in words.
-        elif record["status"] == "open" and (ending := log.ends.get(record["id"])):
-            end_question(record, ending)
+            settle_by_words(record, answers.first_answer(record["message"]))
         if record["next_actor"] is None:
             continue
         owed = answers.owed
@@ -1200,19 +1170,9 @@ def settled_by_message(records: list[dict]) -> dict[str, list[dict]]:
 
 
 def answered_in_words(record: dict) -> bool:
-    """Whether a conversational answer, or agent ending, can settle this source: an
-    agent message's obligation."""
+    """Whether a conversational answer can settle this source: an agent message's
+    obligation."""
     return record["source"]["kind"] == "message"
-
-
-def asked_in_a_message(record: dict) -> bool:
-    """Whether the agent ends this obligation with `todo_end` when the user answers
-    it elsewhere: a question an agent message asks, in words or by a widget frozen
-    in it. A page widget's answer goes into its state in a revision instead."""
-    return (
-        record["source"]["kind"] in {"message", "widget"}
-        and record["message"] is not None
-    )
 
 
 def waiting_in_thread(

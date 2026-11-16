@@ -129,7 +129,6 @@ import { iconTemplate } from "../icons.js";
 import { threadNamed } from "./state.js";
 import { settleThread } from "./folding.js";
 import { answeredInWords } from "../obligations/model.js";
-import { obligationEnding } from "../obligations/answer.js";
 import { SAY_BOX, wholeThread } from "./selectors.js";
 import {
   threadAttention,
@@ -355,18 +354,7 @@ export function threadReading(thread, surface, commands) {
   const attention = threadAttention(thread, agentName());
   // An answer says what it leaves (an lf-ask, `--todo`); its head says so while that
   // stands: a question the user still owes words to, a to-do still open on the
-  // thread. Once the agent ends a question it asked (`task end`), because the user
-  // answered it elsewhere or it no longer applies, a line under the question says how
-  // it ended, in the words an opened Done card uses (`obligationEnding`), one line for
-  // each question the message asked. The thread then no longer reads as asking.
-  /** @type {Map<string | null, import("../voice.js").Words[]>} */
-  const ended = new Map();
-  for (const item of thread.obligations)
-    if (item.end && answeredInWords(item)) {
-      const lines = ended.get(item.message) ?? [];
-      ended.set(item.message, lines);
-      lines.push(obligationEnding(item));
-    }
+  // thread.
   const asking = new Set(
     thread.obligations
       .filter((item) => item.next_actor === "user" && answeredInWords(item))
@@ -396,7 +384,6 @@ export function threadReading(thread, surface, commands) {
           commands.authoredRank ?? (surface === "margin" ? HOLDS.margin : HOLDS.page),
         workflows: message.workflows,
         leaves: leaves(message),
-        endings: ended.get(message.id) ?? [],
       }),
     );
   const summary = threadSummary(thread);

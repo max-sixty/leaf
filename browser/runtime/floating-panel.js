@@ -315,7 +315,7 @@ import {
 } from "./queues.js";
 import { agePreview, ago, shortAgo } from "./presence.js";
 import { userChoice } from "./storage.js";
-import { obligationEnding, obligationOutcome } from "./obligations/answer.js";
+import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationPlace } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
@@ -4187,7 +4187,7 @@ export function createFloatingPanel({
         >${voiced(itemOutcome(item))}${item.ended ? html` ${panelAge(item.ended)}` : nothing}</span
       >`;
     else if (answered && !opened)
-      end = html`<span class="lf-fp-value">${voiced(obligationOutcome(record))}</span>`;
+      end = html`<span class="lf-fp-value">${voiced(obligationEnding(record))}</span>`;
     else if (where) end = html`<span class="lf-fp-value">${where}</span>`;
     const name = heading || (thread ? threadHeading(thread) : queueTitle(item));
     return html`<section

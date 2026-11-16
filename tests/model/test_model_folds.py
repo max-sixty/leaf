@@ -721,10 +721,10 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
     ]
 
 
-def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
+def test_questions_settle_one_by_one():
     """Each question in a thread waits on the user until a message or settling
-    reaction after it answers it; the thread's head marks the latest. A reply after
-    the agent ended a question does not change that end."""
+    reaction after it answers it, and leaves their list while the thread is
+    resolved; the thread's head marks the latest."""
     events = []
 
     def add(kind, identity, author="agent", **fields):
@@ -745,17 +745,12 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
         "message:first"
     ]
     assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
-    state = add(
-        "todo_end",
-        "end",
-        todo="message:first",
-        outcome="dropped",
-        detail="Asked elsewhere",
-    )
-    assert served_obligations(state)["user"] == []
     state = add("reply", "answer", "user", parent="first", text="Route A")
     first, second = served_obligations(state)["all"]
-    assert (first["status"], first["answer"]) == ("withdrawn", None)
+    assert (first["status"], first["answer"]["value"]) == (
+        "answered",
+        {"text": "Route A"},
+    )
     assert (second["status"], second["answer"]["event"]["id"]) == (
         "answered",
         "reaction",

@@ -101,7 +101,6 @@ import {
 
 import { paintBarReactions, reactionAvailable } from "../reactions.js";
 import { threadInput, currentLocationThread } from "../thread/landing.js";
-import { replyDraftContext } from "../thread/replies.js";
 import { advertisesKeys } from "../keyboard/bindings.js";
 import { activeCommandLabel } from "../keyboard/dispatch.js";
 import { pageCommand, pageRung, pageScope } from "../keyboard/register.js";
@@ -636,8 +635,9 @@ export function createResponseSurface({
 
   // Every explicit target gesture ends here. The gesture has already resolved its stable
   // authored anchor; this command owns the one transition from that target into Comment.
-  // Focusing the field drops any older browser selection, and an unsent draft follows the
-  // deliberate move. Escape resolves the same structural parent for every entry route.
+  // Focusing the field drops any older browser selection, and the field opens on the
+  // target's own draft, leaving an earlier one with its passage. Escape resolves the
+  // same structural parent for every entry route.
   /** @param {{anchor: Anchor, element?: Element | null, point?: Element | null}} target */
   function commentOnTarget({ anchor, element = null, point = null }) {
     stopSelectionUpdate();
@@ -645,7 +645,7 @@ export function createResponseSurface({
     targetActivation = true;
     const selection = getSelection();
     if (selection?.rangeCount) selection.removeAllRanges();
-    openComment(anchor, "", { carry: true, point });
+    openComment(anchor, "", { point });
     setTimeout(() => {
       targetActivation = false;
       // A browser command or touch handle can replace the visual target while its
@@ -1391,9 +1391,8 @@ export function createResponseSurface({
       (!here || (target && under(target, heldObligation() ?? here.element)));
     // A captured passage outranks the focus it preceded, but a kept draft is not a
     // current target. Read both page and thread location before choosing the aim.
-    // After the user lands elsewhere, Comment names that new place;
-    // commentOnTarget carries the old words without replacing a destination's
-    // independent draft.
+    // After the user lands elsewhere, Comment names that new place and opens its own
+    // draft, the old words staying with theirs.
     if (
       anchor &&
       (pageSelection() ||
@@ -1414,7 +1413,7 @@ export function createResponseSurface({
         ...commenting("thread"),
         box: said.box,
         go: () => {
-          composer.carryComposerToReply(replyDraftContext(said.box));
+          composer.leaveForThread();
           landIn(said);
         },
       };
@@ -1428,7 +1427,7 @@ export function createResponseSurface({
             travel: false,
           });
           if (!destination) return;
-          composer.carryComposerToReply(replyDraftContext(destination));
+          composer.leaveForThread();
           landIn({ box: destination });
         },
       };

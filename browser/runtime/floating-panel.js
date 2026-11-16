@@ -273,6 +273,8 @@ import {
   anchorLabel,
   messageReading,
   messageText,
+  messageWords,
+  PREVIEWED_LINE,
   threadHeading,
   threadName,
   threadPassage,
@@ -281,15 +283,15 @@ import {
 } from "./thread/messages.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { declareThreadParts } from "./thread/selectors.js";
-import { inPageOrder } from "./thread/placement.js";
+import { inPageOrder, threadPlace } from "./thread/placement.js";
+import { isComposerDraft } from "./composing/selection.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
 import {
   PAGE_DRAFT,
-  draftHasContent,
   loadDraft,
+  messageDrafts,
   mirrorDraft,
   saveDraft,
-  replyContext,
   sendMessage,
   tellDraft,
 } from "./drafts.js";
@@ -380,7 +382,7 @@ import { registerReadingRegion } from "./reading-regions.js";
 import { sectionsInView } from "./reading-place.js";
 import { agentName, documentChanged } from "./semantic-state.js";
 import { runtime } from "./context.js";
-import { renderedUnder, under } from "./shadow.js";
+import { byRenderedOrder, renderedUnder, under } from "./shadow.js";
 import { nativeModalAdmits } from "./keyboard/layer-stack.js";
 import { commandSteps } from "./keyboard/control-keys.js";
 import {
@@ -497,7 +499,8 @@ customElements.define("leaf-floating-panel", FloatingPanel);
  * placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"],
  * openThreadSubject: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openThreadSubject"],
  * showsOnPage: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["showsOnPage"],
- * annotationsHidden: () => boolean}} FloatingPanelOptions */
+ * annotationsHidden: () => boolean,
+ * resumeDraft: ReturnType<typeof import("./drafts.js").createWritingResume>["resumeDraft"]}} FloatingPanelOptions */
 /** @param {FloatingPanelOptions} dependencies */
 export function createFloatingPanel({
   wireInput,
@@ -513,6 +516,7 @@ export function createFloatingPanel({
   openThreadSubject,
   showsOnPage,
   annotationsHidden,
+  resumeDraft,
 }) {
   const host = new FloatingPanel();
   host.className = "lf-ui lf-floating-panel";
@@ -673,6 +677,9 @@ export function createFloatingPanel({
     // the task that put the menu away and showed it.
     const quickHidden =
       initial || (Boolean(top) && !exit) || (!exit && (writing || drafted));
+    // Drafts are marked only where nothing has news, so the dot stays news's mark, and
+    // only while the mark or the folded leaf shows, so writing never reads them.
+    const kept = news || !(folded || (!quickHidden && !exit)) ? 0 : keptDrafts();
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
@@ -683,7 +690,11 @@ export function createFloatingPanel({
       : selection
         ? "Selection"
         : nothing;
-    const newsName = news ? `${counted(news, "thread")} with news` : "";
+    const newsName = news
+      ? `${counted(news, "thread")} with news`
+      : kept
+        ? `${counted(kept, "draft")} unsent`
+        : "";
     const onUserName = [onUser ? `On Me: ${onUser}` : "On Me", newsName]
       .filter(Boolean)
       .join(", ");
@@ -706,7 +717,11 @@ export function createFloatingPanel({
         exit
           ? nothing
           : html`<span class="lf-fp-num">${onUser || ""}</span
-              ><span class="lf-fp-news lf-unread-dot" ?hidden=${!news}></span>`
+              ><span
+                class="lf-fp-news lf-unread-dot"
+                ?hidden=${!news && !kept}
+                ?data-lf-drafts=${!news}
+              ></span>`
       }
     </button>`;
     const viewClose = html`<button
@@ -799,7 +814,8 @@ export function createFloatingPanel({
               <span
                 class="lf-fp-news-dot lf-unread-dot"
                 aria-hidden="true"
-                ?data-lf-shown=${news > 0}
+                ?data-lf-shown=${news > 0 || kept > 0}
+                ?data-lf-drafts=${!news}
               ></span>
             </button>
             <div class="lf-fp-field">
@@ -1539,19 +1555,26 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
+  // The drafts Threads lists (`draftRows`): every message draft but the page's own,
+  // which the field holds.
+  const listedDrafts = () => messageDrafts().filter((draft) => draft.part !== "page");
+  // Where nothing has news, the On Me mark and the folded leaf wear the unread dot
+  // grey for these, and the mark opens Threads on them. The user asked for it on 15
+  // November 2026, so a draft put away stays in sight without opening Threads.
+  const keptDrafts = () => listedDrafts().length;
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   // Ordinary open state is implicit, and news is the row's mark (`data-lf-unread`),
   // which says New to assistive tech alone. Only an open thread is news (`isNews`), as
   // the On Me mark's dot counts it: the user chose (2026-10-25) that a resolved
-  // thread's unread reply says nothing new. Rows name attention and drafts, and a
-  // resolved thread says so with how long ago, as a Done line says its outcome and age.
+  // thread's unread reply says nothing new. Rows name attention, and a resolved thread
+  // says so with how long ago, as a Done line says its outcome and age. A reply the user
+  // is writing stands under Drafts (`draftRows`).
   /** @param {ReturnType<typeof readThreads>["threads"][number]} thread */
   const threadStatus = (thread) => {
     const word = thread.resolved
       ? RESOLVED
       : threadAttention(thread, agentName())?.word;
-    const draft = draftHasContent(replyContext(thread.key)) && "Draft";
-    return html`${word ? voiced(word) : nothing}${thread.resolved?.ts ? html` ${panelAge(thread.resolved.ts)}` : nothing}${word && draft ? " · " : ""}${draft || nothing}`;
+    return html`${word ? voiced(word) : nothing}${thread.resolved?.ts ? html` ${panelAge(thread.resolved.ts)}` : nothing}`;
   };
   const rows = () => pageControls();
 
@@ -1604,7 +1627,10 @@ export function createFloatingPanel({
       quiet: () => true,
       draw: () => threadsView(),
       controls: () => threadsControls(),
-      rows: ".lf-fp-thread, .lf-fp-settled",
+      rows: ".lf-fp-draft, .lf-fp-thread, .lf-fp-settled",
+      // It opens on its first thread, so Enter there opens a conversation whether or
+      // not Drafts stands over it.
+      at: ".lf-fp-thread",
       keys: [
         {
           id: "panel.floating.threads.find",
@@ -3070,8 +3096,90 @@ export function createFloatingPanel({
       </button>
     </h3>`;
   }
+  // Every message the user has started and not sent stands under Drafts, over the
+  // threads, but the page's own, which the field under the list holds. A draft stays
+  // with what it is about (drafts.js, `draftSubject`), so this is where the user finds
+  // one whose box is out of sight, and a press resumes it in that box: its passage's
+  // comment box, or its thread's reply or rewrite. A row reads the draft's words, then
+  // what it is about, dim, as a menu row's note: the passage or element a comment is
+  // on, or the thread a reply or rewrite is in. Its end says what Send makes of it, and
+  // its preview reads both whole. The rows read in the page's order, each where the
+  // thread it starts or joins stands, and a search reads their subjects and words.
+  // Each paint of the list reads the drafts afresh, and nothing paints it for draft
+  // news: while the user reads the list nothing in this tab writes a draft, and a
+  // draft another tab writes, or a refusal hands back, is a rare path that shows at
+  // the list's next paint rather than costing a paint per keystroke typed elsewhere. The
+  // user asked for this on 15 November 2026, in place of unsent words following the
+  // next Comment to another target; Drafts as a filter was rejected on 25 October with
+  // the other filters, which a second row of tabs would have had to hold.
+  function draftRows() {
+    const words = query.trim().toLowerCase();
+    const rows = listedDrafts().map((draft) => {
+      const inThread = draft.part === "reply" || draft.part === "rewrite";
+      const thread = inThread ? threadByKey(draft.name) : null;
+      const composed =
+        draft.part === "comment" && isComposerDraft(draft.payload)
+          ? draft.payload
+          : null;
+      const anchor =
+        draft.part === "seat" ? { section: draft.name } : (composed?.anchor ?? null);
+      const kinds = {
+        comment: composed?.suggest ? "Suggestion" : "Comment",
+        seat: "Comment",
+        reply: "Reply",
+        rewrite: "Edit",
+      };
+      return {
+        context: draft.context,
+        // A reply or rewrite whose thread the log no longer holds, as an undo takes
+        // one back, says so in Leaf's voice; a press moves its words to the page.
+        gone: inThread && !thread,
+        about: thread
+          ? threadName(thread)
+          : inThread
+            ? "Thread gone"
+            : anchorLabel(anchor, composed?.about) || "The page",
+        kind: kinds[draft.part],
+        said: messageWords({
+          attempt: `draft:${draft.context}`,
+          text: draft.text,
+          suggestion: Boolean(composed?.suggest),
+          drawing: composed?.drawing,
+        }),
+        place: thread ?? { id: "", anchor },
+      };
+    });
+    return byRenderedOrder(
+      words
+        ? rows.filter((row) => `${row.about} ${row.said}`.toLowerCase().includes(words))
+        : rows,
+      (row) => threadPlace(row.place, placedAt),
+    );
+  }
+  /** @param {ReturnType<typeof draftRows>[number]} draft */
+  const draftRow = (draft) =>
+    html`<button
+      type="button"
+      ${offeredAction("row", "lf-fp-draft")}
+      data-lf-draft=${draft.context}
+      .lfPreview=${() => ({
+        name: excerptWords(draft.about, PREVIEWED_LINE),
+        detail: [excerptWords(draft.said, PREVIEWED_LINE)],
+      })}
+      @click=${() => putAwayThen(() => resumeDraft(draft.context))}
+    >
+      <span class="lf-row-lead"></span>
+      <span class="lf-fp-label lf-row-main"
+        >${draft.said}
+        <span class="lf-fp-note"
+          >${draft.gone ? voiced(leafSays(draft.about)) : draft.about}</span
+        ></span
+      >
+      <span class="lf-row-end">${draft.kind}</span>
+    </button>`;
   function threadsView() {
     const { rows, searched } = threadsListing();
+    const drafts = draftRows();
     const listed = rows
       .filter(({ section }) => section !== "resolved")
       .map(({ thread }) => thread);
@@ -3128,8 +3236,13 @@ export function createFloatingPanel({
       },
     ].filter((group) => group.items.length);
     return html`<div class="lf-fp-list lf-rows">
+      ${bandedGroups(
+        drafts.length ? [{ key: "drafts", title: "Drafts", items: drafts }] : [],
+        (draft) => draft.context,
+        draftRow,
+      )}
       ${
-        listed.length || !inventoried()
+        listed.length || (searched && drafts.length) || !inventoried()
           ? nothing
           : html`<p class="lf-rows-empty">
               ${searched ? "Nothing matches." : `${NO_OPEN_THREADS}. Comment below to start one.`}
@@ -3435,10 +3548,11 @@ export function createFloatingPanel({
     else open({ view: "queue" });
   }
   // The mark opens On Me, or Threads where nothing waits on the user but a reply they
-  // have not read, as the Threads mark it replaced opened on its Unread filter. It
-  // stands only while no view does, so it never closes one; the seat's ✕ does that.
+  // have not read or a draft they put away, as the Threads mark it replaced opened on
+  // its Unread filter. It stands only while no view does, so it never closes one; the
+  // seat's ✕ does that.
   function pressMark() {
-    if (!onUserCount() && newCount()) {
+    if (!onUserCount() && (newCount() || keptDrafts())) {
       query = "";
       refit();
       open({ view: "threads" });

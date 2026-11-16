@@ -907,7 +907,8 @@
       transition: opacity var(--lf-motion-disclosure);
     }
   }
-  /* What waits on the user, on the folded leaf: a count, and a dot for news. */
+  /* What waits on the user, on the folded leaf: a count, and a dot for news, grey for
+     a put-away draft where nothing has news (controls.css). */
   .lf-fp-badge,
   .lf-fp-news-dot {
     position: absolute;

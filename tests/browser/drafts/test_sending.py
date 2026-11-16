@@ -561,12 +561,12 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     )
 
 
-def test_a_refused_comments_reply_travels_with_it_to_another_passage(
+def test_a_refused_anchored_comments_reply_comes_back_with_its_resend(
     held_events, serve
 ):
-    """The reply a refusal hands back is part of the comment's draft, so whatever moves
-    the draft moves the reply: carried with Alt-click to another passage and sent from
-    there, the comment's new thread has the reply back in its box."""
+    """The reply a refusal hands back is part of the comment's draft on its passage, so
+    resumed there and sent again, the comment's new thread has the reply back in its
+    box."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     parent = "The anchored parent the server will refuse."
@@ -580,6 +580,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
     card.get_by_role("button", name="Send", exact=True).click()
 
     attempt = held[0].request.post_data_json["attempt"]
+    anchor = held[0].request.post_data_json["anchor"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held.pop(0).fulfill(
             status=400,
@@ -598,12 +599,8 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
     field = page.locator(".lf-fab-input")
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", parent)
-    page.locator("#p5").scroll_into_view_if_needed()
-    page.locator("#p5").click(modifiers=["Alt"])
-    expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", parent)
     page.keyboard.press("Enter")
-    holding(page, held, 1, "the parent sent from its new passage")
+    holding(page, held, 1, "the parent sent again")
     held.pop(0).continue_()
     page.unroute("**/api/event")
     round_trip(page)
@@ -612,7 +609,7 @@ def test_a_refused_comments_reply_travels_with_it_to_another_passage(
         for event in events_model.read_events(serve.page_dir)
         if event.get("text") == parent
     )
-    assert sent["anchor"]["section"] == "p5"
+    assert sent["anchor"] == anchor
     thread = page.locator(".lf-margin-preview .lf-page-thread")
     expect(thread.locator("leaf-text").first).to_have_js_property("value", reply)
     consume_browser_errors(page, http_error_console(400))

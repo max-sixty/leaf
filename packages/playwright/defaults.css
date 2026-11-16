@@ -803,12 +803,21 @@ lf-trace-bookmark {
   }
 }
 
-/* A playback frame stands exactly where lf-trace.js places it, over the committed
-   capture, rather than stretched to the canvas as its source image is. */
+/* The committed capture, at the place and scale the reader pans and zooms it to, is
+   what a playback frame covers and the recorded input's point stands on. A capture
+   still preparing out of sight names none. */
+.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas > img {
+  anchor-name: --lf-trace-capture;
+}
+/* A playback frame stands exactly over the committed capture, rather than stretched
+   to the canvas as its source image is. */
 .lf-trace-canvas > .lf-trace-playback-image {
   position: absolute;
+  position-anchor: --lf-trace-capture;
   z-index: 1;
-  inset: auto;
+  inset: anchor(top) auto auto anchor(left);
+  inline-size: anchor-size(width);
+  block-size: anchor-size(height);
   max-inline-size: none;
   pointer-events: none;
 }
@@ -830,8 +839,14 @@ lf-trace-bookmark {
   font: var(--lf-font-heading);
   pointer-events: none;
 }
+/* The input's point in the capture's viewport, as fractions of the viewport's width
+   (lf-trace.js, `#drawInput`): a capture scales the viewport by its width, and a
+   screencast frame may crop its foot, so the capture's height is no scale. */
 .lf-trace-input-point {
   position: absolute;
+  position-anchor: --lf-trace-capture;
+  left: calc(anchor(left) + anchor-size(width) * attr(data-lf-x type(<number>)));
+  top: calc(anchor(top) + anchor-size(width) * attr(data-lf-y type(<number>)));
   z-index: 2;
   inline-size: 18px;
   block-size: 18px;

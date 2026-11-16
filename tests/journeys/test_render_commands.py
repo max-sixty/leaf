@@ -931,7 +931,7 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     assert any(
         report["kind"] == "Script"
         and report["error"] == "net::ERR_FAILED"
-        and report["frame"] == url
+        and report["frame"] == url.split("?")[0]
         and report["url"].endswith("/page/helper.js")
         for report in by_code["request-failed"]
     ), failed

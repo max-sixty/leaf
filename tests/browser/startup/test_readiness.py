@@ -18,7 +18,6 @@ from render_cases_widgets import (
 )
 from render_harness import (
     LONG_PAGE,
-    asked_again,
     consume_browser_errors,
     expect_obligations_answered,
     expect_panel_offers,
@@ -41,7 +40,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import asked_again, wait_until_ready
 from leaf.render_gate.page_code import run_page_code
 from leaf_dev.example_data import named_source
 

@@ -43,6 +43,7 @@ from leaf.findings import Finding
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     PageNotReady,
+    asked_again,
     rendered,
     start_near_work,
     wait_for_probe,
@@ -161,6 +162,11 @@ def _failed_requests(page) -> list[Finding]:
         frame = params["frame"]
         frame_urls[frame["id"]] = frame.get("url", "")
 
+    def cdp_same_document(params):
+        # The address the frame shows, which the bootstrap rewrites before any request
+        # it makes, taking off its marks (`asked_again`) and the host key.
+        frame_urls[params["frameId"]] = params["url"]
+
     def cdp_started(params):
         request = params["request"]
         request_id = params["requestId"]
@@ -214,6 +220,7 @@ def _failed_requests(page) -> list[Finding]:
             )
 
     cdp.on("Page.frameNavigated", cdp_frame)
+    cdp.on("Page.navigatedWithinDocument", cdp_same_document)
     cdp.on("Network.requestWillBeSent", cdp_started)
     cdp.on("Network.loadingFinished", cdp_finished)
     cdp.on("Network.loadingFailed", cdp_failed)
@@ -232,7 +239,7 @@ def run_page_code(browser, url: str) -> list[Finding]:
     page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
     code = PageCode(page)
     try:
-        page.goto(url)
+        page.goto(asked_again(url))
         unready = None
         try:
             state = served(page, url, "/api/state").json()

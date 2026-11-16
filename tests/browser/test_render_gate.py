@@ -96,7 +96,7 @@ from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf.findings import Finding
 from leaf.registry.contract import is_element_name
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
@@ -554,7 +554,8 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
         "severity": "error",
         "values": {
             "text": "Failed to load resource: the server responded with a status of 401 (Unauthorized)",
-            "url": refused,
+            # The gate asks for the document startup recovery would not replace.
+            "url": asked_again(refused),
         },
     } in failure.values["console"], failure
 

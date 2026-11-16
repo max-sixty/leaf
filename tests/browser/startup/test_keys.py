@@ -8,7 +8,6 @@ from playwright.sync_api import expect
 from render_cases_navigation import JOURNEY_V1, _publish
 from render_harness import (
     PANEL,
-    asked_again,
     consume_browser_errors,
     holding,
     leaf_page,
@@ -27,7 +26,7 @@ from browser.startup import (
     _hold_startup,
 )
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed

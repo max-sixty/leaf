@@ -7,7 +7,6 @@ from click.testing import CliRunner
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
-    asked_again,
     consume_browser_errors,
     leaf_page,
     open_page,
@@ -16,7 +15,7 @@ from render_harness import (
 )
 
 from leaf import cli
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import asked_again, wait_until_ready
 
 
 def _source():

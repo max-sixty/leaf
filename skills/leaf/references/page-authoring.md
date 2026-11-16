@@ -214,13 +214,6 @@ surface; cards and playground previews set this property for their contents.
 `page-layout.md`, "Page CSS and Leaf's controls", says how page CSS meets Leaf's own
 controls.
 
-When page CSS reveals controls while a container is hovered or focused, include
-`:has([data-lf-control-active])` in the condition if it contains a code block.
-Leaf marks that block while its floating Copy control is hovered or focused, since
-Copy lives outside the block's tree. For example,
-`.card:is(:hover, :focus-within, :has([data-lf-control-active])) .actions`
-keeps a card's actions visible when the pointer or focus moves onto Copy.
-
 `page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
 for inspecting how much CSS a page adds and where it comes from.
 

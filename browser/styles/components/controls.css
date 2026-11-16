@@ -1971,6 +1971,10 @@ textarea.lf-field {
   padding: 0 2px;
   background: none;
 }
+/* First in its list, as `alone` leaves it, it keeps the room an empty line would. */
+.lf-rows > .lf-rows-group:first-child > .lf-rows-head[data-lf-quiet] {
+  margin-block-start: 6px;
+}
 .lf-rows-empty.lf-fp-empty-fold {
   display: flex;
   align-items: center;

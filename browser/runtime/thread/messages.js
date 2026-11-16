@@ -68,7 +68,7 @@ import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { dressCode } from "../code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../presence.js";
-import { elementById } from "../passages.js";
+import { elementById, says } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
@@ -392,7 +392,12 @@ export function prepareAuthoredMessage(message, thread) {
     });
     const authored = stageAuthoredStates(template.content);
     rememberPassageParts(template.content, ["event", message.id]);
-    const text = template.content.textContent;
+    // The message's words as the page reading says them (`says`). `says` refuses text
+    // with no element over it, and a message may open with bare text, so it reads a
+    // copy inside a <div> of the template's inert document, where nothing upgrades.
+    const body = template.content.ownerDocument.createElement("div");
+    body.append(template.content.cloneNode(true));
+    const text = says(body);
     const nodes = Object.freeze([...template.content.childNodes]);
     prepared = {
       message: message.id,

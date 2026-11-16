@@ -816,7 +816,7 @@ export function createSelectionComposer({
         // press did beyond sending, and names the comment too, since it is the later
         // write to the live region and would otherwise be all a listener heard. What
         // being held means is the widget's to say, as it labelled the press.
-        if (holds) notice("Commented — held until this thread is resolved");
+        if (holds) notice("Held until resolved");
         // A refusal withdraws the thread the send drew and hands the words back to this
         // passage's draft. While the user has done nothing since Send, the box comes back
         // with them, as the page comment card's does. Withdrawing the thread the send

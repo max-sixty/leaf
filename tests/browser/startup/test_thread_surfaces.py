@@ -351,8 +351,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
 def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
     """A thread names its widget by id, so an instance without one can seat no thread
     and open no comment box. The page reports that as the widget's own failure once the
-    instance would have registered, which page state and the render check show without
-    a press. Its opener stays null, so the Comment control a module offers by it never
+    instance would have registered, which `page check` shows without a press. Its opener stays null, so the Comment control a module offers by it never
     shows, and the instance beside it, which has an id, opens its box."""
     entry = {
         "description": "A card that seats the threads about it.",

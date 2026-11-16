@@ -31,7 +31,7 @@ from functools import cached_property
 from pathlib import Path
 
 from .events import InForce, event_document
-from .passages import SourceReading, collapse, enclosing_of, shown_words
+from .passages import SourceReading, collapse, created_words, enclosing_of
 from .projection import (
     attribute_marks,
     frozen_thread_reading,
@@ -273,8 +273,8 @@ class GestureWords:
 
     def _created(self, gesture: dict, identity: str) -> str | None:
         """The words a user-written child had when `gesture` named it: those of the
-        latest action creating that id at or before the gesture, shown as the
-        child's `x-text-format` renders them."""
+        latest action creating that id at or before the gesture, as the child
+        shows them (`created_words`)."""
         at = self._positions.get(gesture["id"], len(self.events))
         creators = [
             event
@@ -294,11 +294,7 @@ class GestureWords:
         )
         if not creates:
             return None
-        document = self._document(creator)
-        assert document is not None
-        entry = document.registry.get(creator["meaning"]["creates"], {})
-        words = creator["detail"][creates["words"]]
-        return collapse(shown_words(words, entry, added=True))
+        return collapse(created_words(creator["detail"][creates["words"]]))
 
     def says(self, event: dict) -> dict[str, str]:
         """id → what it says, for the elements one gesture names.

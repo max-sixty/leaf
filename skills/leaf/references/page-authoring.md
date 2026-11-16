@@ -335,8 +335,9 @@ that can outgrow a narrow window in a box of its own that scrolls sideways, as a
 one line, holds its column at its full length, and once the table scrolls sideways,
 prose in the other columns wraps a word per line. Under the face, put identifiers in
 `<code>`, which can break inside a cell, and write each row's name as its first cell,
-a `<th scope="row">`, so the names stay in view while the other columns scroll. Keep
-the columns to what fits at the narrowest width the page's readers use.
+a `<th scope="row">`: a name in `<code>` there stays on one line, up to a third of the
+column, and the names stay in view while the other columns scroll. Keep the columns
+to what fits at the narrowest width the page's readers use.
 
 ## Stable anchors
 

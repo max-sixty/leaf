@@ -349,24 +349,29 @@ dl.lf-facts dd {
       background: none;
       font-size: 0.9em;
     }
-    /* A row's first cell names it, and a short name there stays whole, as an option
-     * table in a man page keeps `--output-dir`. `anywhere` (above) gives a name a
-     * one-character minimum, and a table's automatic layout hands the room above each
-     * column's minimum out by how much more it would take, so a column of names beside
-     * a column of sentences got almost none: at 720px `--output-dir` stood as
-     * `--output-` over `dir`, and at 420px every name took two or three lines. The
-     * name's minimum is its own width up to 20ch or a quarter of the nearest size
-     * container (the body, unless a box nearer declares one), whichever is less, so a
-     * longer one still breaks rather than hold the column open. Only the
-     * first cell, because code in a sentence is not a name the row is read by: on every
-     * cell, `allowUnsandboxedCommands` in a sentence made a four-column table scroll at
-     * 560px. A minimum needs a box, hence the inline-block. Firefox and WebKit lack
-     * calc-size(), and keep the breakable name. */
-    @supports (min-inline-size: calc-size(max-content, size)) {
-      :is(th, td):first-child :is(code, samp):not(pre *) {
-        display: inline-block;
-        min-inline-size: calc-size(max-content, min(size, 20ch, 25cqi));
-      }
+    /* A row's first cell names it, and a name there stays whole, as an option table in a
+     * man page keeps `--output-dir`. `anywhere` (above) gives a name a one-character
+     * minimum, and a table's automatic layout hands the room above each column's minimum
+     * out by how much more it would take, so a column of names beside a column of
+     * sentences got almost none: at 720px `--output-dir` stood as `--output-` over `dir`,
+     * and `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box
+     * of its own width, which the column can't go under, up to a third of the reading
+     * column, or of the nearest size container where that is narrower (the body, unless
+     * a box nearer declares one). The names take a third at most and the cells beside
+     * them keep the rest; a longer name breaks inside its box rather than hold the
+     * column open. Only the first cell, because code in a sentence is not a name the row
+     * is read by: on every cell, `allowUnsandboxedCommands` in a sentence made a
+     * four-column table scroll at 560px.
+     *
+     * The box's width is its least and its most, so a name past the third breaks there
+     * even in a table with room for it. `calc-size(max-content, min(size, 20ch))` as
+     * the box's minimum capped only the least, and until November 2026 was the rule, but
+     * Firefox lacks calc-size() and kept every name breakable there. This width is one
+     * every engine computes. */
+    :is(th, td):first-child :is(code, samp):not(pre *) {
+      display: inline-block;
+      inline-size: max-content;
+      max-inline-size: min(var(--lf-col) / 3, 33cqi);
     }
     /* A caption says what its table covers, such as which case each of several tables
        shows, so it is the table's title rather than apparatus: it takes the table's
@@ -760,6 +765,13 @@ leaf-text.lf-fab-input,
      "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
 .lf-msg-body :is(th, td) {
   overflow-wrap: normal;
+}
+/* A name in a row's first cell takes a third of the narrowest thread card here. No
+   rule can read how wide the card or panel holding a message is, and at the reading
+   column's third a three-column table in a 320px card drew its names whole and
+   scrolled its other columns out of sight. */
+.lf-msg-body :is(th, td):first-child :is(code, samp):not(pre *) {
+  max-inline-size: calc(var(--lf-thread-card-min) / 3);
 }
 .lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
   margin: 8px 0 4px;

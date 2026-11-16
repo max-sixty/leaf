@@ -4646,13 +4646,15 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
         assert scrolls == 0, (width, scrolls)
 
 
-def test_a_short_name_in_a_rows_first_cell_stays_on_one_line(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_short_name_in_a_rows_first_cell_stays_on_one_line(engine, request, serve):
     """The other side of the rule above: an option table, a column of short names beside
     a column of sentences. With every name breakable anywhere, the table's automatic
     layout gave the name column almost nothing past one character, so `--output-dir`
     stood as `--output-` over `dir` on the full measure and every name took two or
     three lines in a 420px window. A row's first cell keeps its name whole, and the
-    table still fits."""
+    table still fits. In every engine: a rule only Chromium computed left the names
+    broken in Firefox, where nothing run in Chromium showed it."""
     rows = (
         ("--plugin", "Loads the named plugin before the run starts, so its commands"),
         ("--dry-run", "Reports what the run would change without writing anything,"),
@@ -4663,7 +4665,7 @@ def test_a_short_name_in_a_rows_first_cell_stays_on_one_line(browser, serve):
         for name, does in rows
     )
     page = open_page(
-        browser,
+        request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "Options",

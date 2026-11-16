@@ -191,14 +191,6 @@ PROGRESSIVE_REGISTRY = {
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "#5642: how the panel's row shares its room between the version notice and "
-        "Comment… c is still being decided, and until then the hint slides as the "
-        "notice comes and goes"
-    ),
-)
 def test_native_input_survives_progressive_render_revision_and_export(
     browser, serve, tmp_path
 ):

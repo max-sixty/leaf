@@ -15,6 +15,7 @@ from render_harness import (
     open_page,
     open_threads,
     panel_settled,
+    put_preview_away,
     resized,
     select_words,
     selection_field,
@@ -144,6 +145,9 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
     words = page.locator("#words")
     words.hover()
     expect(words).to_have_css("cursor", "pointer")
+    # The words preview their thread after a dwell, and that preview can stand over the
+    # buttons below, so put it away before aiming at them.
+    put_preview_away(page)
 
     # Armed, a press is the aim's, and a button keeps its own cursor whether or not a
     # thread marks it: the same as its unmarked twin's.

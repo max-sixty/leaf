@@ -335,7 +335,7 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
         "Heading continuity",
         f"""
 <header id="summary">
-  <p class="eyebrow">Playground replacement audit</p>
+  <p>Playground replacement audit</p>
   <h1>{title}</h1>
   <p>The opening account is long enough to become the next reading landmark.</p>
 </header>

@@ -1957,7 +1957,7 @@ INDENTED_PAGE = leaf_page(
     + _indented("control")
     + f'<ul><li>One<ol><li>Two<ul><li id="nested">Three{_indented("nested")}</li></ul>'
     "</li></ol></li></ul>"
-    + f'<ol class="steps"><li id="steps">A step{_indented("steps")}</li></ol>'
+    + f'<ol><li id="ordered">A step{_indented("ordered")}</li></ol>'
     + f'<ul class="plain"><li id="plain">An item{_indented("plain")}</li></ul>'
     + f'<div class="inset" id="inset">An indented block{_indented("inset")}</div>'
     # Boxes the page arranges itself: breakouts that are items in the second track of

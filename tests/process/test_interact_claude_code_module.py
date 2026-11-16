@@ -784,9 +784,8 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
         for event in events_model.read_events(page_dir)
         if event["kind"] == "pickup"
     )
-    monkeypatch.setenv(state_model.TURN_VARIABLE, first)
-    assert thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(first):
+        assert thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
     ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
     driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
     wait_for(

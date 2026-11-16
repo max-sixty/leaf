@@ -1674,22 +1674,20 @@ def task_start(page_dir: Path, item: str, line: str) -> dict:
     return cmd_start(page_dir, item, line)
 
 
-@task.command("end", short_help="End a to-do or settle a conversational obligation.")
+@task.command("end", short_help="End a to-do.")
 @page_argument(renew=True)
 @click.argument("task_id", metavar="ID")
 @click.argument("outcome", type=click.Choice(["done", "failed", "dropped"]))
 @click.option("--text", "detail", help="where the result is, or why there is none")
 def task_end(page_dir: Path, task_id: str, outcome: str, detail: str | None) -> dict:
-    """End the to-do or conversational obligation named by ID in `page state`.
+    """End the to-do named by ID in `page state`.
 
     A to-do ends done, failed or dropped. --text says where
     the result is, such as the version or reply holding it, or why there is none.
 
-    For a message obligation (`message:<id>`) or a question widget answered in
-    words (`widget:<id>`), done records that the user answered elsewhere, or that
-    you saw a step's effect, --text saying where or what you saw; dropped withdraws
-    the question. These outcomes record no answer from the user. A widget answered
-    through its controls ends through its state or an authored withdrawal.
+    A question you asked in a thread is the user's to answer, not a to-do: once they
+    answer it elsewhere, or you see the step it asked for take effect, or it no longer
+    applies, resolve its thread with `leaf thread resolve`.
     """
     from leaf.todos import cmd_end
 

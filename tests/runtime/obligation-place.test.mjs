@@ -92,7 +92,6 @@ test("the obligation at a node costs as much on a page of 64 obligations as of 8
       prompt: { text: `Choose ${id}.`, target: id },
       answer: null,
       status: "open",
-      end: null,
       next_actor: "user",
     }));
     applicationState.adopt(servedState({ browser: { views: { 1: { obligations } } } }));

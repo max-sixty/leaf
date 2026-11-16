@@ -302,9 +302,9 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     )
     assert shown_text.rstrip("\n") == shown_log(shown)
 
-    # Each note sits under the last line of what it describes, so it is placed by
-    # the record layout rather than by hand: pasted records that shift the lines
-    # fail here with the lines to write instead.
+    # Each note sits under the line that opens what it describes (lf-note's authoring
+    # instruction), so it is placed by the record layout rather than by hand: pasted
+    # records that shift the lines fail here with the lines to write instead.
     lines = shown_text.rstrip("\n").split("\n")
     starts = [n for n, line in enumerate(lines, 1) if line.startswith("{")]
 
@@ -325,13 +325,12 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
         n for n, record in enumerate(shown) if "answer" in record.get("meaning", {})
     )
     undo = next(n for n, record in enumerate(shown) if record["kind"] == "undo")
-    # `attention` opens the line after the group `meaning` closes.
     expected = [
         starts[0],  # what the browser sent, from the record's first line
-        line_of(0, "attention") - 1,  # stamped meaning, under its last line
+        line_of(0, "meaning"),  # stamped meaning, from the line that opens it
         line_of(0, "id"),  # the minted id and seq
-        line_of(answered, "attention") - 1,  # the answer closes that record's meaning
-        last_line(undo),  # an undo, under its last line
+        line_of(answered, "answer"),  # the answer that record's meaning names
+        starts[undo],  # the gesture an undo names, on its first line
     ]
     notes = source.tree.select("lf-code#captured-log > lf-note")
     assert '"answer": ' in lines[expected[3] - 1]

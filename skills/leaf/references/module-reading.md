@@ -145,7 +145,10 @@ Leaf adds a Copy button to each `pre > code` in the page. A widget block holding
 source text, such as numbered code lines, declares its own: give the block
 `data-lf-copy`, naming what it holds, such as `"code"`, and an `lfCopy()` method that
 returns the text to copy. Leaf stands the button right after the block while both are in
-the page, and a page without Leaf shows none. Where the button belongs among the
+the page, and a page without Leaf shows none. A widget that draws marks of its own over
+the block, as `lf-code` draws its notes mark, sets the block's `lfBar` to the
+`.lf-mark-bar` it places and shows over the block, and Leaf stands Copy last in it.
+Where the button belongs among the
 widget's own controls, as in a draft's toolbar, place the one `copyBlock(block, source,
 noun)` returns once the block is connected; it copies `source()`. A copy that stands
 among a widget's own controls rather than over a block, such as in a popover's header,
@@ -236,8 +239,7 @@ including those with the agent. Each record looks like this:
   message: null,
   prompt: {text: "When should this ship?", target: "release-context"},
   answer: {value: ["release-later"], event: null},
-  status: "answered", // open | answered | answered_elsewhere | withdrawn
-  end: null,          // a question the agent ended unanswered: {detail, event}
+  status: "answered", // open | answered | withdrawn
   next_actor: null,   // user | agent | null
 }
 ```
@@ -255,8 +257,9 @@ arrives. Each `source.kind` adds its own facts:
   record key in `source.unit`.
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. When the agent ends it with `leaf task end`, `status` is
-  `answered_elsewhere` or `withdrawn` and `end.detail` says why.
+  settling reaction); `answeredInWords(obligation)` says whether an obligation is one. Once its
+  thread is resolved after it, it stays `open` with no `next_actor`, even when the
+  thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,

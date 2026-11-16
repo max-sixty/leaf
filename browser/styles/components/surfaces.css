@@ -1271,14 +1271,6 @@ button.lf-thread-news {
 .lf-msg-head .lf-msg-leaves {
   color: var(--lf-ink-2);
 }
-/* The line under a question the agent ended, saying how it ended (thread-card.js). It
-   stands on its own line, which wraps, since the agent's note on where or why runs to a
-   sentence that the head's single line would cut. */
-.lf-msg-ending {
-  margin: var(--lf-sp-1) 0 0;
-  color: var(--lf-ink-2);
-  font: var(--lf-font-small);
-}
 /* A quote of the words a thread is about, where its container asks for one, as the
    floating panel's view does (thread-card.js, `#drawQuote`). The panel stands in the
    chrome and a thread drawn by a package's reader stands in the page, so the face is

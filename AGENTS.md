@@ -229,7 +229,8 @@ instructions (the `AGENTS.md` files and project skills), these prose defects are
 public surface traps: mechanism written for a reader other than the one the text
 addresses, a second copy of a rule another text owns, a coined term used without its
 definition, and, in maintainer guidance, a sentence that says how the diff's code
-works rather than what other code must rely on, which belongs in the module header.
+works rather than what other code must rely on, which belongs in the module header,
+or how a rule came to be, which belongs in the commit message.
 
 ### Use dependencies
 

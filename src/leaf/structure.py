@@ -78,8 +78,7 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # carries onto its child's body (`$authored` in the kernel registry).
 PAGE_ALLOCATIONS = kernel_authored()["allocations"]
 # The `lf-` classes an author writes: those the kernel's selector idioms name, such as
-# `lf-btn` on a button that wears Leaf's face (browser/registry.json). A page's own
-# names never take one of Leaf's faces, so where it wants one it writes Leaf's name.
+# `lf-scroll` on a box the page scrolls (browser/registry.json).
 AUTHORED_CLASSES = frozenset(
     name
     for key in json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))

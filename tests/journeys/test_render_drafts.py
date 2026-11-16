@@ -3,6 +3,7 @@
 import pytest
 from browser.margin import leave_card
 from browser.threads import open_panel_thread
+from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
     SEATED_OBLIGATION_PAGE,
@@ -175,10 +176,21 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     accepted. The first tab adopts that durable outcome instead of reporting failure
     or offering the words as a second message."""
     url = serve(SEATED_OBLIGATION_PAGE)
+    root = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Which job should come first?",
+        },
+    )["id"]
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
-    second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
+    reply = f'#jobs .lf-page-thread[data-lf-thread="{root}"] > .lf-thread-reply'
+    first_say = first.locator(reply)
+    second_say = second.locator(reply)
     raw = "  Retry this exact answer.  "
     write(first_say.locator("leaf-text"), raw)
     expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
@@ -193,18 +205,18 @@ def test_a_failed_concurrent_question_send_keeps_the_accepted_attempt(
     refuse(held[0])
     first.unroute("**/api/event")
     round_trip(first)
-    # The words shown in the seat's own thread are what says the send landed;
+    # The words shown in the seated thread are what says the send landed;
     # a notice saying so beside them would be the same acknowledgement twice.
-    expect(first.locator("#jobs > .lf-thread-seat")).to_contain_text(raw.strip())
-    roots = [
+    expect(first.locator("#jobs .lf-page-thread")).to_contain_text(raw.strip())
+    replies = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "reply"
     ]
-    assert [event["text"] for event in roots] == [raw]
-    # Asked of the words rather than of the box: a seat that can hold keeps its composer
-    # open after every root (renderSeats), so an empty one is what says the
-    # tab adopted the durable outcome instead of holding the words for a second send.
+    assert [event["text"] for event in replies] == [raw]
+    # Asked of the words rather than of the box: a reply box stays after every send,
+    # so an empty one is what says the tab adopted the durable outcome instead of
+    # holding the words for a second send.
     expect(first_say.locator("leaf-text")).to_have_js_property("value", "")
     expect(second_say.locator("leaf-text")).to_have_js_property("value", "")
 

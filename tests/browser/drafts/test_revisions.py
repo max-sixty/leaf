@@ -4,7 +4,7 @@ focus and session, and the revision a draft aims at."""
 import pytest
 from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
-from render_cases_interaction import live_url, panel_comment
+from render_cases_interaction import live_url, open_seat_box, panel_comment
 from render_cases_navigation import JOURNEY_V1, NOTED_PAGE, _publish
 from render_harness import (
     REPLY_HOST_PAGE,
@@ -213,7 +213,8 @@ def editing_read(editor):
         "composer",
         # The margin card's reply; the panel's open thread holds the same reply editor.
         "reply",
-        "first-message",
+        # The comment box where a widget seats it, in an outlet of its own.
+        "seated",
         "edit",
         # A document edit opened and selected in, with no words changed, so no draft.
         "edit-unchanged",
@@ -224,8 +225,8 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     page = open_page(browser, live_url(serve(editing_revision_source("overlay"))))
     if kind == "authored":
         editor = page.locator("#authored-draft")
-    elif kind == "first-message":
-        editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
+    elif kind == "seated":
+        _seat, editor = open_seat_box(page, "#seat-root")
     elif kind in {"edit", "edit-unchanged"}:
         page.locator("#draft-root .lf-draft-body").click()
         editor = page.locator("#draft-root leaf-text")
@@ -331,7 +332,9 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
     assert stored_draft_text(page, context) == words
 
 
-@pytest.mark.parametrize("kind", ["edit", "first-message", "option"])
+# `seated` is the comment box in a widget's outlet, the one editor here Leaf carries
+# from the replaced widget to its successor rather than generating again.
+@pytest.mark.parametrize("kind", ["edit", "seated", "option"])
 def test_in_place_revision_restores_the_current_generated_editor(browser, serve, kind):
     original = editing_revision_source("same-module")
     page = open_page(browser, live_url(serve(original)))
@@ -341,8 +344,8 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
         revised = original.replace(
             "Current editable text.", "A revised authored draft body."
         )
-    elif kind == "first-message":
-        editor = page.locator("#seat-root > .lf-thread-seat > .lf-say leaf-text")
+    elif kind == "seated":
+        _seat, editor = open_seat_box(page, "#seat-root")
         revised = original.replace("What should we do?", "What should we do next?")
     else:
         editor = page.locator("#options-root > .lf-another leaf-text")
@@ -360,7 +363,7 @@ def test_in_place_revision_restores_the_current_generated_editor(browser, serve,
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin") == birth
     expect(editor).to_be_visible()
-    if kind != "option":
+    if kind == "edit":
         assert not editor.evaluate("el=>Boolean(el.__outgoingEditor)")
     expect(editor).to_be_focused()
     assert editing_read(editor) == before

@@ -46,8 +46,8 @@ normal use, with only the fixture facts the case needs, and keep grading criteri
 harness bookkeeping out of its input. Let the installed instructions teach the
 workflow and route the subject to their references, rather than telling it what to
 read or repeating their procedure; a replay preserves what the recorded session had
-read. Where an author reaches the rule through a command, the case authors the page
-(`evals/README.md`, "Case format"). A case that states the situation plainly usually
+read. Where an author reaches the rule through `leaf page instructions`, the case
+gives the subject a page to run it on (`evals/README.md`, "Case format"). A case that states the situation plainly usually
 passes on both arms, so paste in the earlier turns or competing instruction that
 pulled the failing session the other way.
 A rule that fails only late in a long session needs a replay of that session.

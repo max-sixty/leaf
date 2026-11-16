@@ -822,16 +822,6 @@ img {
   text-transform: uppercase;
   color: var(--lf-muted);
 }
-@media screen {
-  html:root {
-    .lf-thread-seat {
-      display: block;
-    }
-    .lf-say {
-      display: flex;
-    }
-  }
-}
 
 /* lf-suggestion / lf-old / lf-new: a proposed change to content the user has seen. The
  * wrapper takes the form its content takes — inline among the words for a change of a

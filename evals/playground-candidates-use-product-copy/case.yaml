@@ -7,15 +7,15 @@
 # the final paragraph. These score authored strings, not animation behavior.
 # A removal survey exposed inconsistent grading of retained outer controls. Judge
 # partial revisions by what they change and explicitly preserve, not repeated markup.
-# The case now authors the page and names nothing to read, so the author writes every
-# control and the judgment no longer accepts a partial revision; it hasn't run in
-# this form.
+# The judgment accepts no partial revision, since the author writes every control. Now a
+# probe given a page with its packages, it passed Claude Code 1 of 2, Codex 2 of 2 at
+# b90df8d3a2.
 description: playground-candidates-use-product-copy
 metadata:
   purpose:
     "Playground: candidates use realistic product content; exploration commentary stays around
     the interface."
-  authoring: true
+  page: [playground]
   tags:
     - playground
 vars:

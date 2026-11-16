@@ -787,8 +787,8 @@ def test_keys_pressed_as_g_g_sets_off_act_where_g_g_lands(browser, serve):
 
 
 def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
-    """The page side of the same question. A widget that seats its own thread
-    (`x-thread-seat`) holds one thread per exchange, each with its own box, and the
+    """The page side of the same question. A widget that seats its own threads
+    (`threadOutlets`) holds one thread per exchange, each with its own box, and the
     user can stand in any of them — so "say something about this" means the box of the
     thread they are in, exactly as it does in the panel. One reading answers both, because
     a rule for the panel and a different one for the page is two answers to one question:

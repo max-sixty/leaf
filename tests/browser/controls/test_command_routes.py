@@ -793,11 +793,12 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
     Obligation forwarding and the intrinsic route must preserve that choice and merge into
     one hint when both bindings reach the same original command.
     """
+    # This test's module seats no thread, so its entry declares no thread surface.
     registry = {
         "lf-verdict": {
             key: value
             for key, value in SEATED_OBLIGATION_LAYER["lf-verdict"].items()
-            if key != "x-thread-seat"
+            if key != "x-thread-surface"
         }
     }
     page = open_page(

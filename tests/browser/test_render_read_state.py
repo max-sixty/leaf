@@ -528,7 +528,7 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         },
     )["id"]
     page = open_page(request.getfixturevalue(engine), url)
-    thread = page.locator(f'.lf-thread-seat .lf-page-thread[data-lf-thread="{root}"]')
+    thread = page.locator(f'#jobs .lf-page-thread[data-lf-thread="{root}"]')
     thread.evaluate(
         """thread => document.scrollingElement.scrollBy({
           top: thread.getBoundingClientRect().top - innerHeight / 3,
@@ -597,9 +597,9 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         with sending(page, "the user's reply"):
             page.keyboard.press("Enter")
     elif end == "tabbed":
-        # The seat's comment box stands below the thread, so Shift+Tab from it arrives
-        # in the thread's reply row, which the replies draw above.
-        page.locator(".lf-thread-seat > .lf-say leaf-text").click()
+        # The task's Comment control stands below the thread, so Shift+Tab from it
+        # arrives in the thread's reply row, which the replies draw above.
+        page.locator("#jobs > .lf-test-comment").focus()
         row = thread.locator(":scope > .lf-thread-reply")
         stood = row.bounding_box()["y"]
         page.keyboard.press("Shift+Tab")

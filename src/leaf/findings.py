@@ -704,10 +704,6 @@ _TEXT = {
     "silent-word": lambda at, v: (
         f'{at} declares {v["attr"]} as x-says and never says "{v["value"]}"'
     ),
-    "missing-thread-seat": lambda at, v: (
-        f"{at} declares x-thread-seat but rendered {v['hosts']} matching hosts; its"
-        " module must place exactly one threadBox"
-    ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
         " declare it as a verb's record form (x-state) if a version is meant to carry"
@@ -1150,7 +1146,7 @@ _TEXT = {
     ),
     "unpointable-wide": lambda at, v: (
         "unpointable — a comment aimed at a block with no id lands on the whole of"
-        f" the section named: {_blocks(v)}; give each block its own id"
+        f" the element named: {_blocks(v)}; give each block its own id"
     ),
     "measurement-lag": lambda at, v: (
         f"measurement behind its source: {_line(at, v)} pins source {v['source']!r}"
@@ -1384,12 +1380,6 @@ _TEXT = {
             v,
             f"at {_json(v['value'])}, which its own schema does not admit:"
             f" {v['reason']}",
-        )
-    ),
-    "seat-written": _declared(
-        lambda v: (
-            "x-thread-seat predicate attributes are authored and static, but"
-            f" {_json(v['attrs'])} are written by value records"
         )
     ),
     "binding-written": _declared(
@@ -1872,8 +1862,8 @@ _TEXT = {
         f"datum anchor source {v['source']!r} has never been supplied to this page"
     ),
     "hold-target": lambda at, v: (
-        "comment holds must name its exact-section anchor on a matching x-thread-seat"
-        " hold target"
+        "comment holds must name the widget on the page that its anchor names, with"
+        " no passage, datum or part"
     ),
     "visual-with-passage": lambda at, v: (
         f"visual anchor {v['visual']!r} names a box rather than a passage, so it"

@@ -41,6 +41,36 @@ from leaf.findings import Finding
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
+# The box most of these tests share between tabs: the reply to a thread a widget seats,
+# which stands in every tab that shows the thread and holds one draft.
+SEAT_THREAD = "seat-thread"
+SEAT_DRAFT = f"reply:{SEAT_THREAD}"
+
+
+def seated_reply_page(serve):
+    """Serve a page with one thread seated in a widget, and return its URL."""
+    url = serve(SEATED_OBLIGATION_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": SEAT_THREAD,
+            "author": "user",
+            "revision": 1,
+            "anchor": {"section": "jobs"},
+            "text": "Which job should come first?",
+        },
+    )
+    return url
+
+
+def seat_reply(page):
+    """The row the seated thread's reply is written in."""
+    return page.locator(
+        f'#jobs .lf-page-thread[data-lf-thread="{SEAT_THREAD}"] > .lf-thread-reply'
+    )
+
+
 def refuse_draft_writes(page):
     """Refuse this tab's draft writes, as a server out of reach would, until the test
     unroutes them: the words stay in the tab until a write gets through."""
@@ -237,16 +267,14 @@ def test_words_sent_while_the_server_refuses_drafts_settle_when_it_answers(
     expect(page_comment(shared)).to_have_js_property("value", "")
 
 
-def test_a_stale_question_first_message_cannot_append_across_tabs(
-    browser, serve, one_user
-):
+def test_a_stale_question_reply_cannot_append_across_tabs(browser, serve, one_user):
     """A tab that missed another's send of the generation it shows sends it once more,
     and the log, which knows the attempt, appends nothing."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
-    second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
+    first_say = seat_reply(first)
+    second_say = seat_reply(second)
     raw = "  Keep one exact first answer.  "
     write(first_say.locator("leaf-text"), raw)
     expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
@@ -261,7 +289,7 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     held[0].continue_()
     first.unroute("**/api/event")
     round_trip(first)
-    until_draft_settled(first, "say:jobs")
+    until_draft_settled(first, SEAT_DRAFT)
     expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
     second_send = second_say.get_by_role("button", name="Send", exact=True)
     expect(second_send).to_have_attribute("aria-disabled", "false")
@@ -273,11 +301,9 @@ def test_a_stale_question_first_message_cannot_append_across_tabs(
     roots = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "reply"
     ]
-    assert [(event["anchor"], event["text"]) for event in roots] == [
-        ({"section": "jobs"}, raw)
-    ]
+    assert [(event["parent"], event["text"]) for event in roots] == [(SEAT_THREAD, raw)]
 
 
 def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user):
@@ -295,9 +321,7 @@ def test_a_question_reply_appends_one_event_across_tabs(browser, serve, one_user
     )
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    selector = (
-        f'#jobs > .lf-thread-seat > .lf-page-thread[data-lf-thread="{root["id"]}"]'
-    )
+    selector = f'#jobs .lf-page-thread[data-lf-thread="{root["id"]}"]'
     first_thread = first.locator(selector)
     second_thread = second.locator(selector)
     raw = "  The camera, then the mounting work.  "
@@ -330,11 +354,11 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
     browser, serve, one_user, newer
 ):
     """A final answer belongs to one execution; the accepted log owns the draft."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     first = open_page(browser, url, context=one_user)
     second = open_page(browser, url, context=one_user)
-    first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
-    second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
+    first_say = seat_reply(first)
+    second_say = seat_reply(second)
     raw = "The shared generation one tab will accept."
     write(first_say.locator("leaf-text"), raw)
     expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
@@ -351,7 +375,7 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
         second_say.get_by_role("button", name="Send", exact=True).click()
         round_trip(second)
         expect(first_say.locator("leaf-text")).to_have_js_property("value", "")
-        until_draft_settled(first, "say:jobs")
+        until_draft_settled(first, SEAT_DRAFT)
         holding(first, held_state, 1, "the accepted attempt's state read")
         if newer is not None:
             write(first_say.locator("leaf-text"), newer)
@@ -393,9 +417,9 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
 def test_a_question_can_send_when_the_server_refuses_draft_writes(browser, serve):
     """A server out of reach costs the draft its copy elsewhere, not the live box's
     Send action."""
-    page = open_page(browser, serve(SEATED_OBLIGATION_PAGE))
+    page = open_page(browser, seated_reply_page(serve))
     refuse_draft_writes(page)
-    say = page.locator("#jobs > .lf-thread-seat > .lf-say")
+    say = seat_reply(page)
     raw = "  Send even though this draft cannot reach the server.  "
     write(say.locator("leaf-text"), raw)
     say.get_by_role("button", name="Send", exact=True).click()
@@ -404,7 +428,7 @@ def test_a_question_can_send_when_the_server_refuses_draft_writes(browser, serve
     roots = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "reply"
     ]
     assert [event["text"] for event in roots] == [raw]
 
@@ -422,16 +446,16 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     is in the log before it sends, or it would correctly decline to. Both go through
     `held_stale` rather than a live `page.route`, which reaches no read already in the
     wire."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     first = open_page(browser, url, context=held_stale(one_user))
     raw = "One answer survives its sender closing."
-    first_say = first.locator("#jobs > .lf-thread-seat > .lf-say")
+    first_say = seat_reply(first)
     write(first_say.locator("leaf-text"), raw)
-    assert stored_draft_text(first, "say:jobs") == raw
+    assert stored_draft_text(first, SEAT_DRAFT) == raw
     # Held from its first read, the second tab has its words from the document.
     second_held = held_stale(one_user)
     second = open_page(browser, url, context=second_held)
-    second_say = second.locator("#jobs > .lf-thread-seat > .lf-say")
+    second_say = seat_reply(second)
     expect(second_say.locator("leaf-text")).to_have_js_property("value", raw)
     first.evaluate(
         """() => {
@@ -458,7 +482,7 @@ def test_a_closed_sender_cannot_append_its_accepted_attempt_twice(
     roots = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "reply"
     ]
     assert len(roots) == 1
     assert roots[0]["text"] == raw
@@ -469,15 +493,15 @@ def test_an_older_settlement_cannot_erase_a_newer_unsaved_edit(
     browser, serve, one_user
 ):
     """Words the server hasn't taken outrank its news that their predecessor was sent."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     other = open_page(browser, url, context=one_user)
     old = "The older saved answer."
-    other_say = other.locator("#jobs > .lf-thread-seat > .lf-say")
+    other_say = seat_reply(other)
     write(other_say.locator("leaf-text"), old)
 
     local = open_page(browser, url, context=one_user)
     refuse_draft_writes(local)
-    local_say = local.locator("#jobs > .lf-thread-seat > .lf-say")
+    local_say = seat_reply(local)
     expect(local_say.locator("leaf-text")).to_have_js_property("value", old)
     newer = "The newer local answer the server hasn't taken."
     write(local_say.locator("leaf-text"), "A first unsaved edit on the same branch.")
@@ -486,7 +510,7 @@ def test_an_older_settlement_cannot_erase_a_newer_unsaved_edit(
 
     other_say.get_by_role("button", name="Send", exact=True).click()
     round_trip(other)
-    until_draft_settled(other, "say:jobs")
+    until_draft_settled(other, SEAT_DRAFT)
     told(local)
     expect(local_say.locator("leaf-text")).to_have_js_property("value", newer)
 
@@ -496,7 +520,7 @@ def test_an_older_settlement_cannot_erase_a_newer_unsaved_edit(
     roots = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "reply"
     ]
     assert [event["text"] for event in roots] == [old, newer]
     assert len({event["attempt"] for event in roots}) == 2
@@ -507,12 +531,12 @@ def test_an_accepted_unsaved_branch_cannot_settle_a_newer_shared_generation(
 ):
     """A send whose words never reached the server settles them only over the
     generation it replaced, so words another tab wrote meanwhile stand."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     older = open_page(browser, url, context=held_stale(one_user))
     refuse_draft_writes(older)
     newer_tab = open_page(browser, url, context=one_user)
-    older_say = older.locator("#jobs > .lf-thread-seat > .lf-say")
-    newer_say = newer_tab.locator("#jobs > .lf-thread-seat > .lf-say")
+    older_say = seat_reply(older)
+    newer_say = seat_reply(newer_tab)
     old = "The older unsaved answer already in flight."
     newer = "The newer saved answer survives the older response."
     write(older_say.locator("leaf-text"), old)
@@ -522,7 +546,7 @@ def test_an_accepted_unsaved_branch_cannot_settle_a_newer_shared_generation(
     older_say.get_by_role("button", name="Send", exact=True).click()
     holding(older, held, 1, "the unsaved send")
     write(newer_say.locator("leaf-text"), newer)
-    assert stored_draft_text(newer_tab, "say:jobs") == newer
+    assert stored_draft_text(newer_tab, SEAT_DRAFT) == newer
     newer_tab.close()
 
     held[0].continue_()
@@ -531,13 +555,13 @@ def test_an_accepted_unsaved_branch_cannot_settle_a_newer_shared_generation(
     # The send settles its generation over the none the server held of it as this tab
     # knew it, which the server, holding the newer words, refuses and answers with them.
     older.unroute("**/api/draft")
-    restored = older.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
+    restored = seat_reply(older).locator("leaf-text")
     expect(restored).to_have_js_property("value", newer)
-    assert stored_draft_text(older, "say:jobs") == newer
+    assert stored_draft_text(older, SEAT_DRAFT) == newer
     roots = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "reply"
     ]
     assert [event["text"] for event in roots] == [old]
 
@@ -546,22 +570,22 @@ def test_an_unsaved_branch_yields_to_another_tab_s_later_words(
     browser, serve, one_user
 ):
     """Words the server never took give way to a generation another tab wrote there."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     local = open_page(browser, url, context=one_user)
     refuse_draft_writes(local)
     shared = open_page(browser, url, context=one_user)
-    local_say = local.locator("#jobs > .lf-thread-seat > .lf-say")
-    shared_say = shared.locator("#jobs > .lf-thread-seat > .lf-say")
+    local_say = seat_reply(local)
+    shared_say = seat_reply(shared)
     old = "The local write failed before the server held anything."
     newer = "The later saved generation owns the draft now."
     write(local_say.locator("leaf-text"), old)
     write(shared_say.locator("leaf-text"), newer)
-    assert stored_draft_text(shared, "say:jobs") == newer
+    assert stored_draft_text(shared, SEAT_DRAFT) == newer
     local.unroute("**/api/draft")
 
     expect(local_say.locator("leaf-text")).to_have_js_property("value", newer)
     expect(shared_say.locator("leaf-text")).to_have_js_property("value", newer)
-    assert stored_draft_text(local, "say:jobs") == newer
+    assert stored_draft_text(local, SEAT_DRAFT) == newer
 
 
 def test_a_stale_tab_sends_what_it_shows_and_the_newer_words_stay_a_draft(
@@ -569,30 +593,30 @@ def test_a_stale_tab_sends_what_it_shows_and_the_newer_words_stay_a_draft(
 ):
     """A tab that missed another's later words sends the words on its screen, and the
     later words stay the draft in both tabs."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     stale_held = held_stale(one_user)
     stale = open_page(browser, url, context=stale_held)
     current = open_page(browser, url, context=one_user)
-    stale_say = stale.locator("#jobs > .lf-thread-seat > .lf-say")
-    current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
+    stale_say = seat_reply(stale)
+    current_say = seat_reply(current)
     old = "The stale tab's older generation."
     newer = "The newer shared generation."
     write(stale_say.locator("leaf-text"), old)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", old)
     write(current_say.locator("leaf-text"), newer)
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", old)
-    assert stored_draft_text(stale, "say:jobs") == newer
+    assert stored_draft_text(stale, SEAT_DRAFT) == newer
 
     stale_say.get_by_role("button", name="Send", exact=True).click()
     round_trip(stale)
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
     stale_held.restore()
     expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
-    assert stored_draft_text(current, "say:jobs") == newer
+    assert stored_draft_text(current, SEAT_DRAFT) == newer
     assert [
         event["text"]
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "reply"
     ] == [old]
 
 
@@ -626,17 +650,17 @@ def test_the_log_taking_an_older_attempt_leaves_a_newer_generation_standing(
     browser, serve, one_user
 ):
     """An older attempt reaching the log settles nothing written after it."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     stale_held = held_stale(one_user)
     stale = open_page(browser, url, context=stale_held)
     current = open_page(browser, url, context=one_user)
-    stale_say = stale.locator("#jobs > .lf-thread-seat > .lf-say")
-    current_say = current.locator("#jobs > .lf-thread-seat > .lf-say")
+    stale_say = seat_reply(stale)
+    current_say = seat_reply(current)
     old = "The accepted generation the stale tab still shows."
     newer = "The newer generation written before the older one was accepted."
     write(stale_say.locator("leaf-text"), old)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", old)
-    old_record = stored_draft(stale, "say:jobs")
+    old_record = stored_draft(stale, SEAT_DRAFT)
     assert old_record is not None
     old_attempt = old_record["attempt"]
     write(current_say.locator("leaf-text"), newer)
@@ -645,10 +669,10 @@ def test_the_log_taking_an_older_attempt_leaves_a_newer_generation_standing(
     append_carried_log_record(
         serve.page_dir,
         {
-            "kind": "comment",
+            "kind": "reply",
             "author": "user",
             "revision": 1,
-            "anchor": {"section": "jobs"},
+            "parent": SEAT_THREAD,
             "text": old,
             "attempt": old_attempt,
         },
@@ -658,7 +682,7 @@ def test_the_log_taking_an_older_attempt_leaves_a_newer_generation_standing(
     # together, and keeps the newer words.
     stale_held.restore()
     told(stale)
-    assert stored_draft_text(current, "say:jobs") == newer
+    assert stored_draft_text(current, SEAT_DRAFT) == newer
     expect(stale_say.locator("leaf-text")).to_have_js_property("value", newer)
     expect(current_say.locator("leaf-text")).to_have_js_property("value", newer)
 
@@ -666,25 +690,25 @@ def test_the_log_taking_an_older_attempt_leaves_a_newer_generation_standing(
 def test_a_sent_draft_does_not_return_in_another_tab(browser, serve, one_user):
     """Settlement is the server's as it admits the send, so a tab opened after it
     is handed no words."""
-    url = serve(SEATED_OBLIGATION_PAGE)
+    url = seated_reply_page(serve)
     first = open_page(browser, url, context=one_user)
     raw = "A sent draft must not return."
-    say = first.locator("#jobs > .lf-thread-seat > .lf-say")
+    say = seat_reply(first)
     write(say.locator("leaf-text"), raw)
     say.get_by_role("button", name="Send", exact=True).click()
     round_trip(first)
-    until_draft_settled(first, "say:jobs")
+    until_draft_settled(first, SEAT_DRAFT)
 
     again = open_page(browser, url, context=one_user)
     # The composer is still open — a seat that can hold keeps it — so the claim is
     # about what it opens with: a settled draft is words the next tab must not be handed.
     expect(
-        again.locator("#jobs > .lf-thread-seat > .lf-say leaf-text")
+        seat_reply(again).locator("leaf-text")
     ).to_have_js_property("value", "")
     roots = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event["kind"] == "comment"
+        if event["kind"] == "reply"
     ]
     assert [event["text"] for event in roots] == [raw]
 

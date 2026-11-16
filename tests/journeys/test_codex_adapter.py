@@ -1314,7 +1314,7 @@ def test_a_later_claim_preserves_the_running_transport(
             stderr=subprocess.PIPE,
             text=True,
         )
-        [(status, first, err), (refused, _, refusal), (joined, again, _)] = wait_for(
+        [(status, first, err), (refused, refusal, _), (joined, again, _)] = wait_for(
             lambda: files_model.read_json(results),
             lambda reading: reading is not None,
             failure="the persistent Codex harness did not finish its three start commands",
@@ -1322,7 +1322,10 @@ def test_a_later_claim_preserves_the_running_transport(
         assert status == 0, err
         assert json.loads(first) == {"session": "codex-thread"}
         assert refused != 0
-        assert "not through App Server unix:///tmp/elsewhere.sock" in refusal
+        assert (
+            "not through App Server unix:///tmp/elsewhere.sock"
+            in json.loads(refusal)["error"]
+        )
         assert joined == 0
         assert json.loads(again) == {"session": "codex-thread"}
         release_held(started)

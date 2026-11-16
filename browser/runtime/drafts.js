@@ -367,24 +367,19 @@ function heardWrite(ctx, sent, { written, version, record }) {
 // - `page`: the page's own comment, the floating panel's field (`PAGE_DRAFT`);
 // - `comment`: a comment on a passage or element, under its anchor's key
 //   (composing/selection.js, `anchorKey`), its record holding the anchor;
-// - `seat`: a comment written in the thread seat a widget declares, under the widget's
-//   id (thread/box.js);
 // - `reply`: a thread's reply box, under the thread's key (`threadKey`, a first
 //   message's attempt until the log names the thread);
 // - `rewrite`: a rewrite of a message, under that message's id (thread/message-edit.js).
 // Any other draft, such as a widget's edit, is a value rather than a message.
-/** @typedef {"comment" | "seat" | "reply" | "rewrite"} DraftPart */
+/** @typedef {"comment" | "reply" | "rewrite"} DraftPart */
 /** @type {Record<DraftPart, string>} */
 const PREFIX = {
   comment: "composer:",
-  seat: "say:",
   reply: "reply:",
   rewrite: "rewrite:",
 };
 /** @param {string} key */
 export const commentContext = (key) => PREFIX.comment + key;
-/** @param {string} id */
-export const seatContext = (id) => PREFIX.seat + id;
 /** @param {string} key */
 export const replyContext = (key) => PREFIX.reply + key;
 /** @param {string} id */
@@ -584,12 +579,10 @@ function listDraft(ctx) {
   else listing.delete(ctx);
   listed.value = Object.freeze([...listing.values()]);
 }
-// Where on the page a listed draft is about, as an anchor: a comment's, or the widget
-// a seat's comment is written at. A reply or rewrite has none of its own; it stands
-// where its thread does.
+// Where on the page a listed draft is about, as an anchor: a comment's. A reply or
+// rewrite has none of its own; it stands where its thread does.
 /** @param {ListedDraft} draft @returns {import('../types/domain.js').Anchor | null} */
 export const draftAnchor = (draft) => {
-  if (draft.part === "seat") return { section: /** @type {string} */ (draft.name) };
   if (draft.part !== "comment") return null;
   const anchor = /** @type {import('../types/domain.js').Anchor | undefined} */ (
     field(draft.payload, "anchor")
@@ -602,7 +595,6 @@ export const draftSends = (draft) =>
   ({
     page: "Comment",
     comment: field(draft.payload, "suggest") ? "Suggestion" : "Comment",
-    seat: "Comment",
     reply: "Reply",
     rewrite: "Edit",
   })[draft.part];

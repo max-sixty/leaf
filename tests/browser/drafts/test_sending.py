@@ -7,7 +7,11 @@ import pytest
 from interact_support import append_carried_log_record
 from model_folds import leaf_page
 from playwright.sync_api import expect
-from render_cases_interaction import SEATED_OBLIGATION_PAGE, panel_comment
+from render_cases_interaction import (
+    SEATED_OBLIGATION_PAGE,
+    open_seat_box,
+    panel_comment,
+)
 from render_cases_navigation import (
     JOURNEY_V1,
     NOTED_PAGE,
@@ -668,9 +672,8 @@ def test_every_message_send_says_so_to_a_user_listening(held_events, serve):
     browser, held = held_events
     page = open_page(browser, serve(SEATED_OBLIGATION_PAGE))
     live = page.locator(".lf-live")
-    seat = page.locator("#jobs > .lf-thread-seat > .lf-say")
-    field = seat.locator("leaf-text")
-    press = seat.get_by_role("button", name="Send", exact=True)
+    seat, field = open_seat_box(page, "#jobs")
+    press = seat.locator(".lf-compose-submit")
     write(field, "A remark whose arrival nothing else will say.")
     press.click()
     # Held: the gesture is the only thing that can have written the region, and the

@@ -1,6 +1,6 @@
 {
-  "hgroup": {
-    "description": "A heading with its eyebrow, the short label above it, or its subtitle below it. The theme sets a `<p>` that opens the group, before the heading, as small capitals, and leaves one after the heading in the body's face.",
+  "hgroup > p:first-child": {
+    "description": "The `<p>` that opens a heading group, before its heading: an eyebrow, the short label above the heading, set in small capitals. A `<p>` after the heading, a subtitle, keeps the body's face.",
     "x-example": "<hgroup>\n  <p>design proposal</p>\n  <h1>Widgets</h1>\n</hgroup>"
   },
   ".lede": {
@@ -17,7 +17,7 @@
   },
   "section.panel": {
     "description": "A titled region on a sidebar page (`<main class=\"layout-sidebar\">`) holding one thing, such as a table, a log or a list of steps, under a short heading that names it. The heading and spacing group the region without an enclosing card; its contents keep their own visual structure.",
-    "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>\u2026</table>\n</section>"
+    "x-example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
   },
   ".facts": {
     "description": "A grid of labels and values for summary facts, written as a definition list. As a direct child of an `lf-option` titled with a `<strong>`, it floats right as a narrow column where the option is wide enough, so the options' figures line up.",

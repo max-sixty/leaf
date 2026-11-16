@@ -7,6 +7,7 @@
       content="Leaf's core page vocabulary on one synthetic page, with live examples and its core interactions to try in live samples."
     />
     <script type="module" src="/page/generated-sample.js"></script>
+    <script type="module" src="/page/rail-placement.js"></script>
     <style>
       @import url("/page/theme.css");
 
@@ -2076,7 +2077,24 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 all its messages fit. The reply field keeps the same inset at both sides
                 and below.
               </li>
+              <li>
+                Press Move the rail, below: this page's module places the rail left of
+                the column with <code>placeMarginRail</code>, and the Projection sample
+                and every other marker in the rail cross over to stand there. Press it
+                again and Leaf places the rail, right of the column.
+              </li>
             </ul>
+            <p id="bg-rail-side-control">
+              <button id="bg-rail-side" class="lf-btn" type="button">
+                Move the rail
+              </button>
+              <span
+                id="bg-rail-side-status"
+                role="status"
+                data-room="Leaf places the rail.&#10;This page places the rail, on the left."
+                ><span>Leaf places the rail.</span></span
+              >
+            </p>
             <lf-margin-entry-gallery
               id="bg-margin-controls-samples"
             ></lf-margin-entry-gallery>

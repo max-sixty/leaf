@@ -456,8 +456,9 @@ STRIP_PAGE = leaf_page(
 <script type="module" src="/page/rail.js"></script>""",
 ).replace("<body>", '<body>\n<aside id="notes-strip"></aside>')
 
-# The module `module-annotations.md`, "Where the margin's rail stands", shows, with the
-# page's own move of its strip and the withdrawal for the test to call.
+# A page whose rail stands in a strip it lays out itself (`module-annotations.md`, "Where
+# the margin's rail stands"), with the page's own move of its strip and the withdrawal
+# for the test to call.
 STRIP_RAIL = """
 import { layoutChanged, placeMarginRail } from "/runtime/widget-api.js";
 

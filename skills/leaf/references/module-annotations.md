@@ -81,24 +81,26 @@ column, wherever the window leaves it room. A page or package whose layout keeps
 margin somewhere else, such as left of the column or in a strip of its own, calls
 `placeMarginRail(place)`.
 
-Leaf calls `place({column, shell})` whenever it lays out the margin, so keep it cheap.
-`column` is the box of the column's prose and `shell` holds the page's `left` and
-`right` edges, all in window coordinates, as `getBoundingClientRect` gives them. Return
-`{edge, side}`, or `null` for no rail. `side` is the side of the column the rail is on,
-`"left"` or `"right"`, and `edge` is the line entries stand against on that side: a left
-rail's entries end at `edge`, and a right rail's start there. `place` only reads layout.
-After your own code moves the strip, call `layoutChanged(strip)`, so Leaf asks again
-(`module-authoring.md`).
+Leaf calls `place({column, shell, width, hang})` whenever it lays out the margin, so
+keep it cheap. `column` is the box of the column's prose and `shell` holds the page's
+`left` and `right` edges, in window coordinates, as `getBoundingClientRect` gives them.
+`width` is the room a rail needs, and `hang` is the gap Leaf's own rail leaves between
+the column and its entries. Return `{edge, side}`, or `null` for no rail. `side` is the
+side of the column the rail is on, `"left"` or `"right"`, and `edge` is the line entries
+stand against on that side: a left rail's entries end at `edge`, and a right rail's
+start there. This placement mirrors Leaf's own on the column's left:
 
 ```js
 import { placeMarginRail } from "/runtime/widget-api.js";
 
-const strip = document.getElementById("notes-strip");
-const withdraw = placeMarginRail(() => {
-  const box = strip.getBoundingClientRect();
-  return box.width ? { edge: box.right, side: "left" } : null;
-});
+const withdraw = placeMarginRail(({ column, shell, width, hang }) =>
+  column.left - shell.left >= width ? { edge: column.left - hang, side: "left" } : null,
+);
 ```
+
+A page with a strip of its own returns an edge of the strip's box instead. `place` only
+reads layout. After your own code moves the strip, call `layoutChanged(strip)`, so Leaf
+asks again (`module-authoring.md`).
 
 One placement stands at a time: a later call replaces it, and the function the call
 returns withdraws it, which restores the default. Leaf keeps every rule about a single

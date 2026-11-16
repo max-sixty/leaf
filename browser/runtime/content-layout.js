@@ -134,9 +134,10 @@ export function proseRect(main = layoutBox()) {
 // edge, where the shell leaves the rail's width (`--lf-rail`) there. A page or package
 // that keeps its margin elsewhere, such as in a strip of its own left of the column,
 // registers a placement with `placeMarginRail`. Leaf then asks that placement instead,
-// with the column's prose box (`column`) and the shell's edges (`shell`). One placement
-// stands at a time: registering replaces it, and withdrawing the one that stands
-// restores the default. A page that presents its own annotations
+// with what the default reads: the column's prose box (`column`), the shell's edges
+// (`shell`), the rail's width (`width`) and its hang (`hang`). One placement stands at a
+// time: registering replaces it, and withdrawing the one that stands restores the
+// default. A page that presents its own annotations
 // (`data-annotations="page"`) or gives its margin to its content (`data-rail="none"`)
 // has no rail, whatever is registered.
 //
@@ -148,18 +149,14 @@ export function proseRect(main = layoutBox()) {
 // (2026-11-15). The thread card's side (annotation-overlay/comment-placement.js) and the
 // room `data-rail="right"` gives up (annotation-theme.css) still follow the default.
 /** @typedef {{edge: number, side: "left" | "right"}} Rail
- * @typedef {{column: ProseBox, shell: {left: number, right: number}}} RailRoom
+ * @typedef {{column: ProseBox, shell: {left: number, right: number}, width: number, hang: number}} RailRoom
  * @typedef {(room: RailRoom) => Rail | null} RailPlacement */
-/** @type {RailPlacement | null} */
-let railPlacement = null;
-/** @param {Element} main @param {RailRoom} room @returns {Rail | null} */
-const besideColumnEnd = (main, { column, shell }) => {
-  const width = parseFloat(getComputedStyle(main).getPropertyValue("--lf-rail")) || 0;
-  if (shell.right - column.right < width) return null;
-  const root = getComputedStyle(document.documentElement);
-  const hang = parseFloat(root.getPropertyValue("--lf-rail-hang")) || 0;
-  return { edge: column.right + hang, side: "right" };
-};
+/** @type {RailPlacement} */
+const besideColumnEnd = ({ column, shell, width, hang }) =>
+  shell.right - column.right < width
+    ? null
+    : { edge: column.right + hang, side: "right" };
+let railPlacement = besideColumnEnd;
 /** @param {Element | null} [main] @returns {Rail | null} */
 export function marginRail(main = layoutBox()) {
   if (
@@ -168,11 +165,15 @@ export function marginRail(main = layoutBox()) {
     document.body.dataset.rail === "none"
   )
     return null;
-  const room = {
+  /** @param {Element} box @param {string} token */
+  const length = (box, token) =>
+    parseFloat(getComputedStyle(box).getPropertyValue(token)) || 0;
+  return railPlacement({
     column: proseRect(main),
     shell: { left: shellLeft(), right: shellRight() },
-  };
-  return railPlacement ? railPlacement(room) : besideColumnEnd(main, room);
+    width: length(main, "--lf-rail"),
+    hang: length(document.documentElement, "--lf-rail-hang"),
+  });
 }
 /** @param {Element | null} [main] */
 export const railStands = (main = layoutBox()) => Boolean(marginRail(main));
@@ -184,7 +185,7 @@ export function placeMarginRail(place) {
   railMoved();
   return () => {
     if (railPlacement !== place) return;
-    railPlacement = null;
+    railPlacement = besideColumnEnd;
     railMoved();
   };
 }

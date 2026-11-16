@@ -223,14 +223,35 @@ const writtenMarks = (changes, doc) => {
     [...starts].sort((a, b) => a - b).map((at) => writtenLine.range(at)),
   );
 };
-// The transaction a write from elsewhere makes of `changes` on `state`: not the
-// reader's to undo, and marking the lines it changed.
-/** @param {EditorState} state @param {ChangeSet} changes */
-const writeFromElsewhere = (state, changes) => ({
-  changes,
-  effects: markWritten.of(writtenMarks(changes, changes.apply(state.doc))),
-  annotations: [Transaction.addToHistory.of(false), fromElsewhere.of(true)],
-});
+// Every editor's undo history, in one compartment the module shares, so a write from
+// elsewhere restarts a kept file's history as it restarts the shown one's.
+const undoHistory = new Compartment();
+// The transactions a write from elsewhere makes of `changes` on `state`: the change,
+// not the reader's to undo, marking the lines it changed (or with `mark` false taking
+// every mark away), then a new undo history. CodeMirror maps the history it keeps
+// through a change it doesn't record, and an earlier edit the change overlaps then
+// undoes into neither version: "one" typed over as "user" and then written "agent"
+// elsewhere undid to "agonent", which autosave would write to disk. So the edits before
+// a write from elsewhere belong to the version it replaced, whether the editor follows
+// the write or merges it into a draft, and whether the file is shown or kept.
+/** @param {EditorState} state @param {ChangeSet} changes @param {boolean} [mark]
+ * @returns {import("@codemirror/state").TransactionSpec[]} */
+const writeFromElsewhere = (state, changes, mark = true) => [
+  {
+    changes,
+    effects: [
+      undoHistory.reconfigure([]),
+      markWritten.of(
+        mark ? writtenMarks(changes, changes.apply(state.doc)) : Decoration.none,
+      ),
+    ],
+    annotations: [Transaction.addToHistory.of(false), fromElsewhere.of(true)],
+  },
+  { effects: undoHistory.reconfigure(history()) },
+];
+/** @param {EditorState} state @param {import("@codemirror/state").TransactionSpec[]} specs */
+const applied = (state, specs) =>
+  specs.reduce((at, spec) => at.update(spec).state, state);
 /** The changes that turn `from` into `to`, in CodeMirror's terms.
  * @param {string} from @param {string} to */
 const changesBetween = (from, to) =>
@@ -285,7 +306,7 @@ export function mergeKept(kept, base, theirs) {
   return (
     changes && {
       ...kept,
-      state: kept.state.update(writeFromElsewhere(kept.state, changes)).state,
+      state: applied(kept.state, writeFromElsewhere(kept.state, changes)),
     }
   );
 }
@@ -297,13 +318,13 @@ export function followKept(kept, text) {
   const changes = changesBetween(kept.state.doc.toString(), text);
   return {
     ...kept,
-    state: kept.state.update(writeFromElsewhere(kept.state, changes)).state,
+    state: applied(kept.state, writeFromElsewhere(kept.state, changes)),
   };
 }
 
 /** Create a file editor. External text changes use CodeMirror transactions,
- * mapping selection through the dependency's diff. Adopting changed external text
- * starts a new undo history: earlier local edits belong to the replaced version.
+ * mapping selection through the dependency's diff. Taking in text written elsewhere,
+ * followed or merged, starts a new undo history (`writeFromElsewhere`).
  * @param {HTMLElement} parent
  * @param {{text?: string, filename?: string, original?: string | null, readOnly?: boolean,
  *   label?: string, description?: string, onChange?: (text: string) => void,
@@ -324,8 +345,7 @@ export function createEditor(
 ) {
   const editable = new Compartment(),
     language = new Compartment(),
-    hint = new Compartment(),
-    undoHistory = new Compartment();
+    hint = new Compartment();
   let shownHint = "";
   let readonly = readOnly,
     /** @type {string | null | undefined} */
@@ -425,26 +445,22 @@ export function createEditor(
       });
     return language.reconfigure(ready || []);
   };
-  // Adopt `value` as the file's text, from a new undo history; `mark` marks the lines
-  // it changed as written elsewhere, and otherwise every mark goes.
-  /** @param {string} value @param {boolean} mark */
-  const adopt = (value, mark) => {
-    if (value === reading().doc.toString()) return;
+  // Take the text through `changes`, written elsewhere (`writeFromElsewhere`).
+  /** @param {ChangeSet} changes @param {boolean} [mark] */
+  const write = (changes, mark) => {
     replacing = true;
     try {
-      const changes = changesBetween(reading().doc.toString(), value);
-      const write = writeFromElsewhere(reading(), changes);
-      dispatch({
-        ...write,
-        effects: [
-          undoHistory.reconfigure([]),
-          mark ? write.effects : markWritten.of(Decoration.none),
-        ],
-      });
-      dispatch({ effects: undoHistory.reconfigure(history()) });
+      for (const spec of writeFromElsewhere(reading(), changes, mark)) dispatch(spec);
     } finally {
       replacing = false;
     }
+  };
+  // Adopt `value` as the file's text; `mark` marks the lines it changed as written
+  // elsewhere, and otherwise every mark goes.
+  /** @param {string} value @param {boolean} mark */
+  const adopt = (value, mark) => {
+    if (value === reading().doc.toString()) return;
+    write(changesBetween(reading().doc.toString(), value), mark);
   };
   let retained = state(text);
   /** @type {InstanceType<typeof LeafEditorView> | null} */
@@ -493,17 +509,12 @@ export function createEditor(
       adopt(value, true);
     },
     // Fold `theirs` into the text being edited (`lineMerge`), keeping the reader's
-    // selection and undo history; say whether it did.
+    // selection; say whether it did.
     /** @param {string} base @param {string} theirs */
     merge(base, theirs) {
       const changes = lineMerge(base, reading().doc.toString(), theirs);
       if (!changes) return false;
-      replacing = true;
-      try {
-        dispatch(writeFromElsewhere(reading(), changes));
-      } finally {
-        replacing = false;
-      }
+      write(changes);
       return true;
     },
     // What the editor would keep of `text` read afresh, for a file not yet shown.

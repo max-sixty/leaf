@@ -25,9 +25,10 @@
  * lines apart from the draft's, as a line merge would, so an agent writing one part of
  * a file while the reader types in another meets no conflict however the two requests
  * interleave; changes to the same or adjacent lines retain both versions for explicit
- * review. Either way the lines a version written elsewhere changed stay marked until the
- * next such version or the reader's edit of them (editor.js, `written`), so a reader
- * whose file an agent edited sees where; a file's first reading marks nothing.
+ * review. Either way the version taken in starts the file's undo history afresh, open
+ * or kept (editor.js, `writeFromElsewhere`), and the lines it changed stay marked until
+ * the next such version or the reader's edit of them (editor.js, `written`), so a
+ * reader whose file an agent edited sees where; a file's first reading marks nothing.
  * The editor reads the open file when it connects, when the tab is shown again, when
  * the reader opens it and when the page's state stamps its binding anew
  * (`boundFile().watch`). A read asked for while another request on that file is in

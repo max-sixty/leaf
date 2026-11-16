@@ -643,6 +643,8 @@ export function createFloatingPanel({
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   let expanded = false;
+  // Whether a row's press is running its command (`putAwayThen`).
+  let rowPress = false;
   // One template owns the panel's shell, views and editor placement. Its detached first
   // drawing establishes the retained nodes that setup wires below. The peek must follow
   // the leaf in the tree so it can anchor to it.
@@ -650,7 +652,12 @@ export function createFloatingPanel({
   // stance's way out. Its count keeps its room even when empty; a count arriving moves
   // nothing beside it. The corner mark presses the fold command's row, as the menu
   // does, so its press is announced and logged like the key's.
+  // The leaf's dots and count, and the quick seat, follow the field and the view standing
+  // over the row. While a row's press runs they keep what they show, and the press draws
+  // them once it has finished (`putAwayThen`).
   function panelTemplate(initial = false) {
+    /** @param {unknown} drawn */
+    const marks = (drawn) => (rowPress ? noChange : drawn);
     const top = initial ? null : (trail.value.at(-1) ?? null);
     const search = initial ? null : activeSearch();
     const searchMode = initial ? "" : searchModeOf(search);
@@ -806,20 +813,25 @@ export function createFloatingPanel({
               .lfPreview=${leafPreview}
               @click=${pressLeaf}
             >
-              <span
-                class="lf-fp-error-dot"
-                aria-hidden="true"
-                ?data-lf-shown=${unseen}
-              ></span>
-              <span class="lf-fp-badge" aria-hidden="true" ?data-lf-shown=${onUser > 0}
-                >${onUser || ""}</span
-              >
-              <span
-                class="lf-fp-news-dot lf-unread-dot"
-                aria-hidden="true"
-                ?data-lf-shown=${news > 0 || kept > 0}
-                ?data-lf-drafts=${!news}
-              ></span>
+              ${marks(
+                html`<span
+                    class="lf-fp-error-dot"
+                    aria-hidden="true"
+                    ?data-lf-shown=${unseen}
+                  ></span>
+                  <span
+                    class="lf-fp-badge"
+                    aria-hidden="true"
+                    ?data-lf-shown=${onUser > 0}
+                    >${onUser || ""}</span
+                  >
+                  <span
+                    class="lf-fp-news-dot lf-unread-dot"
+                    aria-hidden="true"
+                    ?data-lf-shown=${news > 0 || kept > 0}
+                    ?data-lf-drafts=${!news}
+                  ></span>`,
+              )}
             </button>
             <div class="lf-fp-field">
               <div class="lf-fp-editors" ?hidden=${Boolean(search)}>
@@ -867,7 +879,7 @@ export function createFloatingPanel({
             <div class="lf-fp-row-notice" ?hidden=${!notice}>
               ${notice ? rowNoticeTemplate(notice) : nothing}
             </div>
-            <div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>
+            ${marks(html`<div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>`)}
           </div>
         </div>
       </div>
@@ -1923,13 +1935,25 @@ export function createFloatingPanel({
   // before its command runs, so the pressed row going takes no one's focus to the body:
   // a layer the command opens records the leaf as where its close returns (focus.js,
   // `openLayer`), folding leaves the user on the leaf it folds to, and a command that
-  // places the user elsewhere still does.
+  // places the user elsewhere still does. The command runs on the panel the put-away
+  // drew, and may then open a view or fold the panel, as `z` showing a thread does. The
+  // leaf's dots and the quick seat (`panelTemplate`) wait for the command, so they change
+  // once, from where the press found the panel to where it leaves it, rather than
+  // showing the empty row's On Me mark in between. Rejected: drawing the put-away only
+  // with the command's own change, which ran the command with the view still drawn,
+  // and Align from the menu then left the page where it was.
   /** @param {() => unknown} run */
   function putAwayThen(run) {
     const inside = currentLocationIn(host);
-    close();
-    if (inside) focusDestination(leaf, "return");
-    run();
+    rowPress = true;
+    try {
+      close();
+      if (inside) focusDestination(leaf, "return");
+      run();
+    } finally {
+      rowPress = false;
+      paint();
+    }
   }
 
   // ---------- motion: everything follows the box ----------
@@ -2549,9 +2573,7 @@ export function createFloatingPanel({
     return copy;
   }
   // A row leading to a list of the panel's own opens that list over the menu, whose way
-  // back returns there. Folding takes the menu away with the rest of the panel, as its
-  // key does (`setRest`), so the panel is drawn once, folded, rather than first open
-  // and then folded. Any other row runs its command.
+  // back returns there; any other row runs its command.
   /** @param {ReturnType<typeof pageControls>[number]} entry */
   function rowFor(entry) {
     if (entry.copies) return copyItem(entry);
@@ -2561,7 +2583,6 @@ export function createFloatingPanel({
       rowEnd(entry),
       () => {
         if (route) open(route);
-        else if (entry.key === `command:${FOLD}`) entry.press?.(null);
         else putAwayThen(() => entry.press?.(heldCurrentLocation));
       },
       {

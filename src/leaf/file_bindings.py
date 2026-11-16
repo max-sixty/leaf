@@ -167,6 +167,18 @@ def bound_files(page_dir: Path) -> dict[str, dict[str, str]]:
     }
 
 
+def granted_files(page_dir: Path) -> dict[str, dict[str, str]]:
+    """Each binding's label, the name the page shows for it (`labels`), and the path
+    it grants, for the agent: `leaf page state` reports them under the served state's
+    name, `files`, with the path the browser never gets."""
+    paths = bound_paths(page_dir)
+    named = labels(paths)
+    return {
+        binding: {"label": named[binding], "path": str(path)}
+        for binding, path in paths.items()
+    }
+
+
 def _target(page_dir: Path, binding: str) -> tuple[Path, str] | None:
     """The binding's file and label, or None where the page binds no such file."""
     _validate_binding(binding)

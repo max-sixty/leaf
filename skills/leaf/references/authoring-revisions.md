@@ -12,7 +12,8 @@ When `source.live` is false, `index.html` differs from the live revision and
 the rest of the output may be wrong until you do.
 
 `data_bindings` names each external data source and the widgets that read it; change a
-source's value with `leaf data set`.
+source's value with `leaf data set`. `files` names each file the page's editors edit, by
+its binding: the label the page shows and the path to write it at.
 
 Read the author instructions for the page's packages and the widgets you are revising
 (`page-authoring.md`, "Read the registry"). They own how each widget keeps the user's

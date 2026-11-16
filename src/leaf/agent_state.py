@@ -32,6 +32,7 @@ from .delivery import current_responses
 from .document_reading import DocumentReading
 from .event_facts import EventFacts
 from .events import bare_reaction, is_reaction
+from .file_bindings import granted_files
 from .files import revision_path
 from .passages import page_passages
 from .projection import FrozenThreadReading, retirement_outcomes
@@ -145,6 +146,8 @@ def _base_state(
             else {}
         ),
         "measurement_lag": [],
+        # The files the page's editors edit, each by its binding (`granted_files`).
+        "files": granted_files(page_dir),
         # What is on the user (On Me) and what is on the agent (On <agent>), each item
         # naming its kind and subject (`served_state.queues`); the to-dos on either
         # side; the agent's plan, which arranges them (`plans`); and the complete

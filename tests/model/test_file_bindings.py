@@ -104,6 +104,24 @@ def test_each_bound_file_is_named_by_its_path_among_the_pages_files(page_dir, tm
     }
 
 
+def test_page_state_names_each_bound_file_for_the_agent(page_dir, tmp_path):
+    """A later session finds the files a page's editors edit in `leaf page state`,
+    by binding, under the name the page shows and the path to write."""
+    (tmp_path / "deploy").mkdir()
+    values = tmp_path / "deploy" / "values.yaml"
+    values.write_text("replicas: 3\n")
+    runbook = tmp_path / "runbook.md"
+    runbook.write_text("# Runbook\n")
+    bind_file(page_dir, "values", values)
+    bind_file(page_dir, "runbook", runbook)
+    result = CliRunner().invoke(cli, ["page", "state", str(page_dir)])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.output)["files"] == {
+        "runbook": {"label": "runbook.md", "path": str(runbook.resolve())},
+        "values": {"label": "deploy/values.yaml", "path": str(values.resolve())},
+    }
+
+
 def test_a_file_in_the_page_directory_moves_with_the_page(page_dir, tmp_path):
     """A grant inside the page names its file from there, so a copy of the page,
     such as a published example in its visitor's container, edits its own copy."""

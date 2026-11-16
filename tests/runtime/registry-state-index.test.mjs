@@ -40,7 +40,7 @@ test("authoring selectors and shared facts never enter widget state", () => {
     "lf-index-owner": { "x-state": { set: {} } },
     "lf-index-owner.selected": idiom,
     table: idiom,
-    ".eyebrow": idiom,
+    ".lede": idiom,
     $keys: { "x-state": "State meanings." },
   });
   assert.deepEqual(

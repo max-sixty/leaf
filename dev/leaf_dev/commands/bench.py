@@ -511,6 +511,17 @@ def side_documents(n: int) -> str:
     return page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
 
 
+def side_asks(n: int) -> str:
+    """A side list of `n` tabs, each holding one section's ask, so each tab marks the
+    state of the obligation its panel holds. A click on an option redraws every tab's
+    mark, so the CPU of that click reads what counting each panel's obligations costs
+    (#5722)."""
+    tabs = "".join(
+        f'<lf-tab id="t{g}" label="Tab {g}">{ask(g)}</lf-tab>' for g in range(1, n + 1)
+    )
+    return page("Asks", f'<lf-tabs id="tabs" list="side">{tabs}</lf-tabs>')
+
+
 def document_text(d: int, first: str | None = None) -> str:
     """Document `d`'s text: DOCUMENT_STEPS steps, with its first line `first` where
     given, as an agent's write changes one line of it."""
@@ -697,6 +708,7 @@ COLLECTIONS: dict[str, Collection] = {
     ),
     "rows": Collection(table_rows),
     "documents": Collection(side_documents, data=document_sources),
+    "asktabs": Collection(side_asks),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
     ),

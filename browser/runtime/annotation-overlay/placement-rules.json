@@ -132,6 +132,10 @@
           "swept": ["leaves-past-top", "leaves-past-foot"]
         },
         {
+          "id": "scroll-covers",
+          "says": "It may cover all that shows of the box that scrolls its text, as a card under a row of a log does in a pane about as wide as the card, once the row passes the log's top. The wheel then can't reach that box, so the reader closes the card to scroll it, and opens it again."
+        },
+        {
           "id": "scroll-stays-open",
           "says": "A scroll never closes it.",
           "swept": ["closed"]

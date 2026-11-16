@@ -471,9 +471,6 @@ name; in a template, write `<h2 ${generated({ says: true })}>`. `wrote()` then l
 and a comment's quote doesn't run across them into the author's words. Don't write the
 `data-lf-gen`, `data-lf-said` or `data-lf-echo` attributes yourself.
 
-A module writes `data-lf-room` where a page writes `data-room` (`page-layout.md`,
-"Space for changing text"), so the page's CSS for it reaches only its own controls.
-
 A widget can upgrade inside a shut panel where every box measures zero, so take
 measurements inside `measure(element, take)`, which runs `take` once the element has a
 box. After a view swap that rearranges a widget's contents without resizing it, call

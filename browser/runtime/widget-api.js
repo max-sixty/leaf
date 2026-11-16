@@ -68,7 +68,7 @@ export {
 export { TEXT_FIELD } from "./control-selectors.js";
 export { answeredInWords, readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them reads.
-export { obligationsIn } from "./obligations/place.js";
+export { obligationsByRegion, obligationsIn } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 // A view's reading and writing of another widget's answer (x-shows).
@@ -163,7 +163,6 @@ export {
   whenNear,
   whileInterfaceConnected,
 } from "./presentation.js";
-export { copyBlock } from "./code-copy.js";
 export { copyControl } from "./copy-control.js";
 // Whether a press is the plain one a control claims: the primary button, no modifier;
 // and whether a click came from the keyboard rather than a pointer.

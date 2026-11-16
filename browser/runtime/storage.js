@@ -22,8 +22,9 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // there. `tabStore` is what only this window keeps, and it dies with the tab — the reading
 // position, which panel of a widget stands open, whether design mode is on — because each
 // of those is about the window rather than about the page. `writingStore` is where in
-// this page this browser was last writing, which Resume writing returns to, and it
-// outlives the tab, because closing one is the ordinary end of a tab here. The words
+// this page this browser was last writing, which Resume writing returns to, with the
+// draft writes a tab closed before the page's server took them, and it outlives the
+// tab, because closing one is the ordinary end of a tab here. The words
 // themselves, what the user typed or drew into a composition the log settles (a
 // comment, a reply, an `lf-draft`) and hasn't sent, are every tab's and every device's,
 // so the page's server keeps them (drafts.js), and the agent reads none of them, because

@@ -11,9 +11,11 @@ from render_cases_interaction import OBLIGATION_PAGE, SEATED_OBLIGATION_PAGE
 from render_cases_navigation import JOURNEY_V1, compose
 from render_harness import (
     LONG_PAGE,
+    TOKEN,
     CutOff,
     _traffic,
     _until,
+    consume_browser_errors,
     draft_control,
     expect_panel_says,
     expect_preview_words,
@@ -21,6 +23,7 @@ from render_harness import (
     heard_draft_settled,
     held_stale,
     holding,
+    is_problem,
     open_page,
     open_threads,
     page_comment,
@@ -30,6 +33,7 @@ from render_harness import (
     stored_draft,
     stored_draft_settled,
     stored_draft_text,
+    take_browser_errors,
     told,
     until_draft_settled,
     write,
@@ -41,6 +45,7 @@ from browser.drafts import (
     choose_comment_target,
 )
 from leaf import event_log as events_model
+from leaf import hosting as hosting_model
 from leaf.findings import Finding
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -761,6 +766,74 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_us
 
     again = open_page(browser, url, context=one_user)
     expect(page_comment(again)).to_have_js_property("value", typed)
+
+
+def test_words_typed_while_the_server_is_out_of_reach_outlive_the_tab(
+    browser, serve, one_user
+):
+    """A tab closed while its server was down took the words typed since with it, so
+    a server restarting while the user wrote cost them their sentence. The page going
+    away now queues its writes in this browser, and its next load here sends them on."""
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url, context=one_user)
+    port = serve.httpd.server_address[1]
+    next(server for server in serve.servers if server.httpd is serve.httpd).close()
+    typed = "Written while the server was down."
+    write(page_comment(page), typed)
+    page.close()
+    consume_browser_errors(page, "net::ERR")
+    server = hosting_model.TemporaryPageServer(serve.page_dir, token=TOKEN, port=port)
+    serve.servers.append(server.start())
+
+    again = open_page(browser, url, context=one_user)
+    expect(page_comment(again)).to_have_js_property("value", typed)
+    assert stored_draft_text(again, "general") == typed
+
+
+def test_words_put_away_elsewhere_stay_away_after_their_tab_closed_mid_write(
+    browser, serve, one_user
+):
+    """A tab that closes with a write still out leaves that write to the server, which
+    may take it, so it is not queued for the next load: a replay after another device
+    put the words away would bring them back, since the store keeps nothing of a
+    draft it settled."""
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url, context=one_user)
+    box = page_comment(page)
+    write(box, "Fit the south bracket.")
+    assert stored_draft_text(page, "general") == "Fit the south bracket."
+    held = []
+    page.route("**/api/draft", lambda route: held.append(route))
+    write(box, "Fit the south bracket. Or the east.")
+    holding(page, held, 1, "the write still out")
+    # The server takes the write, and stops before the page hears back, so the page
+    # closes with it still out and its resend reaches nothing.
+    held[0].fetch()
+    port = serve.httpd.server_address[1]
+    next(server for server in serve.servers if server.httpd is serve.httpd).close()
+    page.close()
+    # The page may close before any request meets the stopped server.
+    assert all(is_problem(error, "net::ERR") for error in take_browser_errors(page))
+    server = hosting_model.TemporaryPageServer(serve.page_dir, token=TOKEN, port=port)
+    serve.servers.append(server.start())
+
+    origin = urlsplit(url)
+    drafts = f"{origin.scheme}://{origin.netloc}/api/draft"
+    taken = one_user.request.get(f"{drafts}s").json()["drafts"]["general"]
+    assert taken["text"] == "Fit the south bracket. Or the east."
+    put_away = one_user.request.post(
+        drafts,
+        data={
+            "context": "general",
+            "expect": [taken["attempt"]],
+            "record": {"attempt": taken["attempt"], "settled": True},
+        },
+    )
+    assert put_away.json()["written"]
+
+    again = open_page(browser, url, context=one_user)
+    assert stored_draft_settled(again, "general")
+    expect(page_comment(again)).to_have_js_property("value", "")
 
 
 def test_words_typed_while_a_write_is_out_survive_the_page_going_away(

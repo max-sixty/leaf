@@ -15,7 +15,8 @@
    (`draftCache`), which every box here reads and writes at once, and the copy goes on
    to the server behind the keystroke (`writeDraft`); a page going away sends what is
    still waiting. Words typed while the server is out of reach stay in this document
-   until a look reaches it again; a tab closed before then takes them with it. A server
+   until a look reaches it again; a tab closed before then leaves their writes queued in
+   this browser, which the page's next load here sends on (`QUEUED`). A server
    that comes back holding less than this document heard from it gets its words back.
    On leaf.page the first write starts the visitor's private page. An exported page
    has no server, so its drafts last as long as its tab. No failed write disables the
@@ -129,8 +130,8 @@ import { signal } from "./framework.js";
 // is as likely to be closed as any other. Tab-local storage carried a draft through
 // everything but the one gesture nobody thinks of as destructive. Browser storage then
 // carried it through that, but not to the user's other browser or device, which the
-// page's server now does (November 2026), at the cost of words typed while the server
-// can't be reached.
+// page's server now does (November 2026). Browser storage keeps only the writes a tab
+// closed before the server took them (`QUEUED`).
 //
 // So the draft is the user's, and one draft has one copy: every box showing it, in
 // every tab, is a view of the server's record, and a keystroke reaches the rest through
@@ -362,16 +363,32 @@ const writeWaiting = () => {
 // resend names every generation this document wrote since it last heard an answer
 // (`ours`) beside the one it knew the server held: whichever the server holds, the
 // newest words replace it.
+//
+// A server out of reach takes none of them, so the page also queues in this browser
+// (`writingStore`) each draft whose last write failed, and its next load here takes
+// the queue back as its own waiting words, sent on like any; that load empties it. The
+// server's answer decides as for every write, so the queue holds writes, never a copy
+// of the drafts. A draft with a write still out is left to the resend: the server may
+// take that write, and since the store keeps no record of a generation it settled,
+// replaying it after another tab sent or put the words away would bring them back. A
+// failed write the server took before failing, as when it stops before answering, is
+// replayed all the same, and of several closing tabs whose writes of one draft
+// failed, the last one's words are queued.
+const QUEUED = "lf-drafts-queued";
+/** @returns {Record<string, {record: DraftRecord, stored: string | null, ours: string[]}>} */
+const queuedWrites = () => JSON.parse(writingStore.get(QUEUED) ?? "{}");
 addEventListener("pagehide", () => {
   if (offlineInteractive) return;
+  const queued = queuedWrites();
   for (const [ctx, copy] of draftCache) {
     if (copy.durable) continue;
-    draftCache.set(ctx, {
-      ...copy,
-      ours: new Set([...copy.ours, copy.record.attempt]),
-    });
-    void postDraft(ctx, [copy.stored, ...copy.ours], copy.record, true).catch(() => {});
+    const ours = new Set([...copy.ours, copy.record.attempt]);
+    draftCache.set(ctx, { ...copy, ours });
+    if (!writing.has(ctx))
+      queued[ctx] = { record: copy.record, stored: copy.stored, ours: [...ours] };
+    void postDraft(ctx, [copy.stored, ...ours], copy.record, true).catch(() => {});
   }
+  writingStore.set(QUEUED, Object.keys(queued).length ? JSON.stringify(queued) : null);
 });
 // How many drafts hold words the server hasn't taken yet, for a check that reads what
 // another tab or device would find.
@@ -1285,8 +1302,19 @@ export function mirrorDraft(
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 
-// The drafts start from those the document was served with (`lf-drafts`); every later
+// The drafts start from the writes a page here queued as it went away (`QUEUED`), then
+// those the document was served with (`lf-drafts`), which a queued write's words stand
+// over only where they replace what the server holds (`hearReading`); every later
 // change reaches the list through the maps. A document served without them, as a
 // release's or an export's, hears them at its first look, or has none.
+for (const [ctx, { record, stored, ours }] of Object.entries(queuedWrites()))
+  draftCache.set(ctx, {
+    record,
+    stored,
+    version: 0,
+    durable: false,
+    ours: new Set(ours),
+  });
+writingStore.set(QUEUED, null);
 const served = document.getElementById("lf-drafts")?.textContent;
 if (served) hearReading(/** @type {DraftsReading} */ (JSON.parse(served)), false);

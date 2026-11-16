@@ -66,11 +66,9 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-encloses": true,
     "x-flow": true,
     "x-word": "question",
-    "x-upgrade": false,
     "x-example": "<section id=\"storage-section\">\n  <lf-ask id=\"storage-decision\">\n    <h2>What should a full store do?</h2>\n    <p>The beta never reached the cap. This decides what the first workspace at it sees; each option draws its document list once the store fills. I recommend dropping the oldest documents, because editing continues and the server keeps a copy of each one.</p>\n    <lf-options id=\"full-store\" choose>\n      <lf-option id=\"store-evict\"><small class=\"tag\">editing: continues</small> <small class=\"tag ok\">recommended</small> <strong>Drop the oldest documents</strong> Editing continues; the server keeps a copy.\n        <figure id=\"store-evict-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-label=\"The oldest document leaves the device; the rest stay editable\">\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"ghost\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <text class=\"small\" x=\"228\" y=\"44\" text-anchor=\"end\">server only</text>\n          </svg>\n        </figure>\n      </lf-option>\n      <lf-option id=\"store-stop\"><small class=\"tag\">editing: paused</small> <strong>Pause offline editing</strong> Nothing leaves.\n        <figure id=\"store-stop-fig\">\n          <svg class=\"drawing\" width=\"240\" viewBox=\"0 0 240 56\" role=\"img\" aria-label=\"Every document stays on the device, read-only until it reconnects\">\n            <rect class=\"frame\" x=\"1\" y=\"1\" width=\"238\" height=\"54\" rx=\"4\"/>\n            <rect class=\"line\" x=\"12\" y=\"12\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"25\" width=\"130\" height=\"6\" rx=\"3\"/><rect class=\"line\" x=\"12\" y=\"38\" width=\"130\" height=\"6\" rx=\"3\"/>\n            <circle class=\"warn\" cx=\"224\" cy=\"28\" r=\"5\"/><text class=\"small\" x=\"212\" y=\"31\" text-anchor=\"end\">read-only</text>\n          </svg>\n        </figure>\n      </lf-option>\n    </lf-options>\n  </lf-ask>\n</section>"
   },
   "lf-gloss": {
@@ -86,10 +84,8 @@
     },
     "required": ["tip"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-inline": true,
     "x-says": ["tip"],
-    "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "Deploy through a <lf-gloss tip=\"A thin, end-to-end path through the real system.\">walking skeleton</lf-gloss> before parallelizing."
   },
@@ -111,19 +107,14 @@
     },
     "required": ["source", "run"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-data": {
       "measurement": {
         "contract": "measured-scalar",
-        "source": "source"
+        "source": "source",
+        "measured": "run"
       }
     },
     "x-inline": true,
-    "x-measured": {
-      "input": "measurement",
-      "run": "run"
-    },
-    "x-upgrade": false,
     "x-example": "The import now takes <lf-num source=\"import-latency\" run=\"a41f103e236c985b\" via=\"uv run bench-import\">184 ms</lf-num> at p95."
   },
   "lf-text-document": {
@@ -154,10 +145,8 @@
         "property": "value"
       }
     },
-    "x-language": "language",
     "x-prepaint": "preview",
     "x-bound": "start",
-    "x-upgrade": true,
     "x-example": "<lf-text-document id=\"changelog-fix\" preview=\"markdown\"><strong>CHANGELOG.md</strong><pre>**Fixed** a crash when `--config` names a missing file.</pre></lf-text-document>",
     "x-refers": {
       "for": {}
@@ -180,7 +169,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-upgrade": true,
     "x-spine": true,
     "x-example": "<h1>Migration plan</h1>\n<lf-toc id=\"plan-contents\"></lf-toc>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
@@ -196,7 +184,6 @@
     "x-content": "empty",
     "x-bound": "start",
     "x-history": true,
-    "x-upgrade": true,
     "x-example": "<section id=\"recent\">\n  <h2>Recent activity</h2>\n  <lf-activity id=\"page-activity\"></lf-activity>\n</section>"
   },
   "lf-options": {
@@ -230,8 +217,6 @@
     },
     "additionalProperties": false,
     "x-content": "members",
-    "x-word": "module",
-    "x-upgrade": true,
     "x-awaits": {
       "value": "choose",
       "when": {
@@ -314,12 +299,10 @@
     "x-unique": {
       "value": "lf-options"
     },
-    "x-content": "markup",
     "x-text-format": "inline-markdown",
     "x-refers": {
       "for": {}
-    },
-    "x-upgrade": false
+    }
   },
   "lf-code": {
     "description": "A source-code excerpt with syntax coloring, highlighted lines, and line-anchored remarks.",
@@ -342,13 +325,11 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
-    "x-language": "language",
-    "x-upgrade": true,
     "x-example": "<lf-code id=\"bracket-walk\" language=\"python\" hi=\"2\"><pre>\ndef bracket(temp):\n    if temp &lt; 0:\n        return \"steel\"\n    return \"cedar\"\n</pre>\n  <lf-note at=\"2\">Freezing is the only threshold that matters.</lf-note>\n</lf-code>"
   },
   "lf-note": {
     "description": "A prose remark anchored to a line or omitted range of its lf-code parent.",
-    "x-instructions": "Set at to the line number as the parent numbers it: 1-based by default, or the source number declared in lines.",
+    "x-instructions": "Set at to the line number as the parent numbers it: 1-based by default, or the source number declared in lines. The note stands under that line, so a note about a key, field or definition names the line it starts on.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -359,9 +340,7 @@
     },
     "required": ["at"],
     "additionalProperties": false,
-    "x-owners": ["lf-code"],
-    "x-content": "markup",
-    "x-upgrade": false
+    "x-owners": ["lf-code"]
   },
   "lf-chart": {
     "description": "An Observable Plot chart authored with Plot\u2019s API and sized to its place in the page.",
@@ -373,7 +352,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
-    "x-upgrade": true,
     "x-visual": "whole",
     "x-height": 400,
     "x-example": "<lf-chart id=\"review-latency\"><pre>\n{\n  ariaLabel: \"Hours to first review by week: backend fell from 31 to 12, frontend from 18 to 11\",\n  x: {type: \"utc\", ticks: \"monday\", label: null},\n  y: {grid: true, label: \"hours to first review\"},\n  color: {legend: true, range: [\"var(--lf-series-1)\", \"var(--lf-series-2)\"]},\n  marks: [\n    Plot.lineY(\n      [\n        {week: \"2026-05-04\", team: \"backend\", hours: 31},\n        {week: \"2026-05-11\", team: \"backend\", hours: 26},\n        {week: \"2026-05-18\", team: \"backend\", hours: 12},\n        {week: \"2026-05-04\", team: \"frontend\", hours: 18},\n        {week: \"2026-05-11\", team: \"frontend\", hours: 21},\n        {week: \"2026-05-18\", team: \"frontend\", hours: 11},\n      ],\n      {x: \"week\", y: \"hours\", stroke: \"team\", marker: true},\n    ),\n  ],\n}\n</pre></lf-chart>"
@@ -399,7 +377,6 @@
     "required": ["id", "before", "after", "alt"],
     "additionalProperties": false,
     "x-content": "empty",
-    "x-upgrade": true,
     "x-visual": "whole",
     "x-example": "<h3>The option cards</h3>\n<p>The chips now sit above the title, so a scanning eye reads cost before prose.</p>\n<lf-shot id=\"shot-cards\" alt=\"the decision page's option cards\" before=\"/media/0f2c91a4b7de3105.png\" after=\"/media/6b40ac7719ee5d82.png\"></lf-shot>"
   },
@@ -413,7 +390,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": true,
     "x-state": {
       "move": {
         "unit": "unit",
@@ -443,9 +419,7 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-owners": ["lf-board"],
-    "x-content": "members",
-    "x-tone": "tone",
-    "x-upgrade": false
+    "x-content": "members"
   },
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
@@ -468,9 +442,7 @@
       "attr": "shows",
       "value": "value"
     },
-    "x-content": "markup",
-    "x-work": true,
-    "x-upgrade": false
+    "x-work": true
   },
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
@@ -486,8 +458,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": true,
-    "x-patch": "members",
     "x-views": { "members": "lf-tab" },
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\">\n    <strong>Implementation</strong>\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\">\n    <strong>Vision</strong>\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
@@ -509,7 +479,6 @@
     "x-refers": {
       "for": {}
     },
-    "x-upgrade": true,
     "x-shadow": true,
     "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\">\n    <strong>Retry storm</strong>\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\">\n    <strong>Stale flag</strong>\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
   },
@@ -525,9 +494,7 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-owners": ["lf-tabs"],
-    "x-content": "markup",
-    "x-upgrade": false
+    "x-owners": ["lf-tabs"]
   },
   "lf-parts": {
     "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",
@@ -539,8 +506,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": true,
-    "x-patch": "members",
     "x-views": { "members": "lf-part", "parts": true },
     "x-example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\">\n    <header><strong>Decide</strong><p>Ship the retry cap?</p></header>\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\">\n    <header><strong>Background</strong></header>\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"
   },
@@ -553,9 +518,7 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-owners": ["lf-parts"],
-    "x-content": "markup",
-    "x-upgrade": false
+    "x-owners": ["lf-parts"]
   },
   "lf-draft": {
     "description": "A block of text the user owns and can rewrite in place, with recorded revision history.",
@@ -573,7 +536,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "data",
-    "x-word": "module",
     "x-awaits": {
       "value": "edit",
       "when": {
@@ -583,7 +545,6 @@
         "edit": {}
       }
     },
-    "x-upgrade": true,
     "x-verbatim": true,
     "x-text-format": "markdown",
     "x-state": {
@@ -609,9 +570,7 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-exhibit": { "when": { "interactive": [false] } },
-    "x-upgrade": true,
     "x-example": "<lf-sample id=\"spec-gear\">\n  <strong>next season's kit</strong>\n  <p>I'd take the GPS, the better tool in the field.</p>\n  <lf-options>\n    <lf-option id=\"sp-paper\"><small class=\"tag\">effort: low</small> <strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\"><small class=\"tag\">effort: med</small> <small class=\"tag ok\">recommended</small> <strong>Dedicated GPS</strong> Offline maps, week-long battery.</lf-option>\n  </lf-options>\n</lf-sample>"
   },
   "lf-pane": {
@@ -623,10 +582,7 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
     "x-reading-role": "pane",
-    "x-upgrade": true,
-    "x-patch": "members",
     "x-verbatim": true,
     "x-example": "<lf-pane id=\"detail\"><header><h2>Selected record</h2></header><p>Read the selected record.</p></lf-pane>"
   },

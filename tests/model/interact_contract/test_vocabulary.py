@@ -15,6 +15,7 @@ from interact_support import (
     check_findings,
     element_declaration,
     fresh_process,
+    model_layer,
     page_packages,
     publish,
     registry_refusal,
@@ -32,6 +33,7 @@ from leaf import service as service_model
 from leaf import structure as structure_model
 from leaf import vendoring as vendoring_model
 from leaf.registry import contract as registry_contract
+from leaf.registry import layer as registry_layer
 from leaf.registry import page as registry_page
 from leaf.registry import storage as registry_storage
 from leaf.registry import validation as registry_validation
@@ -111,6 +113,29 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     }
 
 
+@pytest.mark.parametrize(
+    "order", [("lf-moved", "lf-struck"), ("lf-struck", "lf-moved")]
+)
+def test_two_layers_each_add_a_member_one_decision_retires(order):
+    """A layer adds a retiring member to a widget another layer declares by declaring
+    the member alone, so two layers that each add one compose in either order and the
+    decision retires both. Named on the owner's verb instead, each layer restated the
+    owner's entry whole, and the later layer's dropped the earlier one's member with
+    no refusal."""
+    outcome = {"lf-moved": "accept", "lf-struck": "reject"}
+    registry = deepcopy(model_layer())
+    for tag in order:
+        member = {**deepcopy(registry["lf-old"]), "x-retired-when": outcome[tag]}
+        registry_layer.merge_layer_declarations(registry, {tag: member})
+    registry_validation.validate_registry(registry, "two layers")
+    registry_layer.stamp_composition(registry)
+
+    assert registry["$decisions"]["lf-suggestion"]["retires"] == {
+        "accept": ["lf-old", "lf-moved"],
+        "reject": ["lf-new", "lf-struck"],
+    }
+
+
 @pytest.mark.parametrize(("schema", "stamped"), [(True, "words"), (False, False)])
 def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     page_dir, schema, stamped
@@ -120,7 +145,6 @@ def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     layer = registry_storage.load_registry(page_dir)
     declaration = element_declaration("lf-local")
     declaration["properties"]["tone"] = schema
-    declaration["x-tone"] = "tone"
     layer_4 = registry_storage.layer_record(page_dir)
     assert layer_4 is not None
     widget_paths = set(registry_storage.layer_widgets(layer_4, page_dir))
@@ -132,6 +156,46 @@ def test_a_boolean_schema_for_a_toned_attribute_is_stamped_with_its_words(
     assert composed["lf-local"]["properties"]["tone"] == (
         {"enum": layer["$tones"]["names"]} if stamped else False
     )
+
+
+def test_a_module_that_goes_is_refused_by_a_composition_validated_with_it(page_dir):
+    """A module's file decides whether its tag is upgraded, so a declaration can stand
+    unchanged while what it relies on goes. A composition reusing the validation of
+    the same declarations still refuses it, where it would otherwise serve a stateful
+    widget with nothing to draw or send its state."""
+    layer = registry_storage.load_registry(page_dir)
+    declarations = {"lf-local": _stateful_page_declaration(page_dir)}
+    record = registry_storage.layer_record(page_dir)
+    assert record is not None
+    layer_paths = set(registry_storage.layer_widgets(record, page_dir))
+
+    held = registry_page.compose_page_registry(
+        layer, declarations, {*layer_paths, "page/widgets/lf-local.js"}
+    )
+    assert held.widget_sources["lf-local"] == "page/widgets/lf-local.js"
+
+    finding = registry_refusal(
+        lambda: registry_page.compose_page_registry(
+            layer, declarations, layer_paths, validated=(layer, declarations)
+        )
+    )
+    assert (finding.code, finding.at) == ("needs-module", "<lf-local>")
+
+
+def test_a_page_widget_module_no_tag_names_is_refused(page_dir):
+    """A page's widget module is loaded by its tag's name alone, so one under a name
+    no declaration has is refused where the page is checked."""
+    widgets = page_dir / "page" / "widgets"
+    widgets.mkdir(parents=True)
+    (widgets / "lf-locl.js").write_text("export {};\n")
+    (page_dir / "page" / "registry.json").write_text(
+        json.dumps({"lf-local": element_declaration("lf-local")})
+    )
+
+    finding = registry_refusal(lambda: registry_storage.read_page_registry(page_dir))
+
+    assert finding.code == "unnamed-module"
+    assert finding.values["modules"] == ["page/widgets/lf-locl.js"]
 
 
 def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir):
@@ -202,7 +266,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
         ),
         (
             json.dumps({"lf-local": element_declaration("lf-local", upgrade=True)}),
-            "missing-module",
+            "needs-module",
             "<lf-local>",
         ),
     ],
@@ -245,23 +309,32 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
         # Faults against the other declarations, once every one holds alone.
         (
             {
-                "lf-beta": _faulty("lf-beta", **{"x-tone": "label"}),
+                "lf-beta": _faulty("lf-beta", **{"x-says": ["label"]}),
                 "lf-eps": _faulty(
                     "lf-eps", **{"x-reading-role": "pane", "x-content": "empty"}
                 ),
+                # What only a module provides, with no module for the tag.
+                "lf-delta": _faulty("lf-delta", upgrade=True),
             },
-            [("undeclared-attributes", "<lf-beta>"), ("requires", "<lf-eps>")],
+            [
+                ("undeclared-attributes", "<lf-beta>"),
+                ("requires", "<lf-eps>"),
+                ("needs-module", "<lf-delta>"),
+            ],
         ),
-        # An example and a module, once the vocabulary holds.
+        # Each example, once the vocabulary holds.
         (
             {
                 "lf-gamma": _faulty(
                     "lf-gamma",
                     **{"x-example": '<lf-gamma id="g" tone="x">G</lf-gamma>'},
                 ),
-                "lf-delta": _faulty("lf-delta", upgrade=True),
+                "lf-delta": _faulty(
+                    "lf-delta",
+                    **{"x-example": '<lf-delta id="d" tone="x">D</lf-delta>'},
+                ),
             },
-            [("invalid-example", "<lf-gamma>"), ("missing-module", "<lf-delta>")],
+            [("invalid-example", "<lf-gamma>"), ("invalid-example", "<lf-delta>")],
         ),
     ],
 )
@@ -589,6 +662,9 @@ def test_candidate_vocabulary_leaves_removed_page_widgets_to_captured_history(pa
     ]
 
     authored.write_text("{}")
+    # A module no declared tag names is refused, so the widget's module goes with
+    # its declaration.
+    (page_dir / "page" / "widgets" / "lf-local.js").unlink()
     (page_dir / "index.html").write_text(PAGE)
     events = events_model.read_events(page_dir)
     activated = revisioning_model.activate_source(page_dir)

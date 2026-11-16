@@ -42,13 +42,13 @@
  * place takes only text, such as a move button or an announcement, the name is its
  * words (`addressableName`). */
 import Sortable from "/vendor/sortable.esm.js";
+import { nothing } from "/vendor/lit.js";
 import {
   addressableName,
   openingTitle,
   setScroll,
   elementById,
   LeafElement,
-  nothing,
   move,
   offer,
   offerAction,

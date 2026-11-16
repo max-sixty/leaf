@@ -3,8 +3,8 @@ import "/runtime/stage-integration.js";
    nodes without changing the document coordinates those inputs established. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render, generatedElement, holdAuthoredBody } from "/runtime/widget-api.js";
-import { authoredBody } from "/runtime/widget-elements.js";
+import { render } from "/vendor/lit.js";
+import { generatedElement } from "/runtime/widget-api.js";
 import { drawToc } from "../../packages/default/widgets/toc-view.js";
 import { render as worktree } from "../../packages/diff/widgets/worktree-view.js";
 import { render as worktrees } from "../../packages/diff/widgets/worktree-diffs-view.js";
@@ -200,17 +200,6 @@ test("generated words declare whether they are said, echoed or apparatus", () =>
   assert.deepEqual(markers(declared), ["1", "label", null]);
   generatedElement(name, { says: false });
   assert.deepEqual(markers(name), ["1", null, null]);
-});
-
-test("an authored body retains every authored child for member patching", () => {
-  const host = document.createElement("lf-bodied");
-  host.innerHTML = "<p>One</p> <p>Two</p>";
-  const written = [...host.childNodes];
-  const body = holdAuthoredBody(host, document.createElement("div"));
-  host.append(body);
-  assert.deepEqual([...body.childNodes], written);
-  assert.equal(authoredBody(host), body);
-  assert.equal(authoredBody(document.createElement("lf-plain")), null);
 });
 
 test("worktree presentation keeps native disclosure and authored evidence while totals change", () => {

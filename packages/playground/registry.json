@@ -20,7 +20,6 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
-    "x-upgrade": true,
     "x-awaits": {
       "value": "choose",
       "answered": {
@@ -175,8 +174,7 @@
     "x-unique": { "name": "lf-playground" },
     "x-owners": ["lf-playground"],
     "x-within": ["lf-playground-preview"],
-    "x-content": "members",
-    "x-upgrade": false
+    "x-content": "members"
   },
   "lf-playground-choice": {
     "description": "One selectable value, optionally containing the preview itself.",
@@ -193,9 +191,7 @@
     "additionalProperties": false,
     "x-word": "option",
     "x-unique": { "value": "lf-playground-control" },
-    "x-owners": ["lf-playground-control"],
-    "x-content": "markup",
-    "x-upgrade": false
+    "x-owners": ["lf-playground-control"]
   },
   "lf-playground-preset": {
     "description": "A named partial playground configuration the user can apply at once.",
@@ -208,8 +204,7 @@
     "additionalProperties": false,
     "x-word": "preset",
     "x-owners": ["lf-playground"],
-    "x-content": "members",
-    "x-upgrade": false
+    "x-content": "members"
   },
   "lf-playground-setting": {
     "description": "One control value applied by a playground preset.",
@@ -228,8 +223,7 @@
     },
     "x-unique": { "for": "lf-playground-preset" },
     "x-owners": ["lf-playground-preset"],
-    "x-content": "empty",
-    "x-upgrade": false
+    "x-content": "empty"
   },
   "lf-playground-preview": {
     "description": "The live preview the user operates in a playground, such as the candidates being compared.",
@@ -238,9 +232,7 @@
       "id": { "type": "string" }
     },
     "additionalProperties": false,
-    "x-owners": ["lf-playground"],
-    "x-content": "markup",
-    "x-upgrade": false
+    "x-owners": ["lf-playground"]
   },
   "lf-playground-output": {
     "description": "The task instruction displayed by a playground and sent with the chosen configuration.",
@@ -249,9 +241,7 @@
       "id": { "type": "string" }
     },
     "additionalProperties": false,
-    "x-owners": ["lf-playground"],
-    "x-content": "markup",
-    "x-upgrade": true
+    "x-owners": ["lf-playground"]
   },
   "lf-playground-value": {
     "description": "A live scalar value embedded in a playground instruction.",
@@ -268,7 +258,6 @@
     "x-owners": ["lf-playground-output"],
     "x-within": ["lf-playground-output"],
     "x-content": "empty",
-    "x-inline": true,
-    "x-upgrade": false
+    "x-inline": true
   }
 }

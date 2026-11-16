@@ -33,16 +33,14 @@
  * its caption bar (text-document.css), so the name the frame shows is the one the page
  * wrote, which page search finds and a comment anchors on. A document with no name is
  * captioned by the source or widget it reads. */
+import { html, nothing, render } from "/vendor/lit.js";
 import {
   addressableName,
-  html,
   openingTitle,
-  render,
   failSoft,
   ensureSyntaxLanguage,
   keeps,
   LeafElement,
-  nothing,
   whileConnected,
   keepsText,
   setRenderedChildren,

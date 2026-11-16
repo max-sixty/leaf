@@ -222,6 +222,8 @@ VERB_SCHEMA = {
         "unsent": {"const": True},
         "creates": ACTION_CREATES,
         "decides": {"const": True},
+        # The deciding verb's outcome that declines the proposal (`$state`).
+        "withdraws": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "contract": {
             "type": "object",
             "properties": {
@@ -235,6 +237,7 @@ VERB_SCHEMA = {
         "text": {"const": True},
     },
     "required": ["unit"],
+    "dependentRequired": {"withdraws": ["decides"]},
     "allOf": [
         {
             "if": {"required": ["record"]},
@@ -322,23 +325,15 @@ DATA_INPUTS_SCHEMA = {
             # The element property the runtime sets to the delivered value
             # (element-data.js, "Bound values").
             "property": {"type": "string", "pattern": "^[a-z][A-Za-z0-9]*$"},
+            # The widget attribute holding the receipt of the source's run that
+            # produced the value written in the element's content.
+            "measured": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "dependentRequired": {"reference": ["output"], "output": ["reference"]},
         "required": ["contract"],
         "anyOf": [{"required": ["source"]}, {"required": ["reference", "output"]}],
         "additionalProperties": False,
     },
-}
-MEASURED_SCHEMA = {
-    "type": "object",
-    "properties": {
-        # The x-data input whose source receipt identifies the current run.
-        "input": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        # The widget attribute holding the source write's opaque receipt.
-        "run": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-    },
-    "required": ["input", "run"],
-    "additionalProperties": False,
 }
 
 _ATTRIBUTE_NAME = {"type": "string", "pattern": f"^{HTML_NAME}$"}
@@ -363,10 +358,6 @@ EXTENSION_SCHEMA = {
             },
         },
         "x-example": {"type": "string"},
-        "x-example-data": {
-            "type": "object",
-            "propertyNames": {"pattern": f"^{DATA_SOURCE_NAME}$"},
-        },
         "x-exhibit": {
             "oneOf": [
                 {"type": "boolean"},
@@ -381,11 +372,8 @@ EXTENSION_SCHEMA = {
         "x-instructions": {"type": "string", "pattern": r"\S"},
         "x-inline": {"type": "boolean"},
         "x-encloses": {"const": True},
-        "x-language": _ATTRIBUTE_NAME,
         "x-prepaint": _ATTRIBUTE_NAME,
         "x-reading-role": {"enum": ["pane"]},
-        "x-measured": MEASURED_SCHEMA,
-        "x-patch": {"enum": ["members"]},
         "x-owners": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
@@ -410,15 +398,12 @@ EXTENSION_SCHEMA = {
             "additionalProperties": False,
         },
         "x-state": STATE_SCHEMA,
-        "x-thread-surface": {"const": True},
-        "x-tone": _ATTRIBUTE_NAME,
         "x-unique": {
             "type": "object",
             "minProperties": 1,
             "propertyNames": {"pattern": f"^{HTML_NAME}$"},
             "additionalProperties": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
         },
-        "x-upgrade": {"type": "boolean"},
         "x-verbatim": {"type": "boolean"},
         "x-visual": {
             "oneOf": [
@@ -463,7 +448,6 @@ EXTENSION_SCHEMA = {
             "required": ["members"],
             "additionalProperties": False,
         },
-        "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-within": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
@@ -472,20 +456,10 @@ EXTENSION_SCHEMA = {
         "x-word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
         "x-work": {"const": True},
     },
-    "required": ["x-content", "x-upgrade"],
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
         "x-within": ["x-owners"],
-        "x-measured": ["x-data"],
         "x-shows": ["x-owners", "x-refers"],
-    },
-    # An upgraded container can retain authored children, native markup included.
-    "if": {"required": ["x-patch"]},
-    "then": {
-        "properties": {
-            "x-content": {"enum": ["members", "markup"]},
-            "x-upgrade": {"const": True},
-        }
     },
     "additionalProperties": False,
 }
@@ -607,16 +581,14 @@ LAYER_FACTS = {
 # of them, because the failure is one — the attribute is absent, so the pass reading the
 # key finds nothing and does nothing, and the widget is simply missing from it with no
 # error anywhere (validate_registry holds every key here to the entry's `properties`).
-# The verb keys of the same shape (x-retired-when, x-withdrawn-as) are not in it: they
-# name an outcome rather than an attribute, and sharing a spelling is no reason to share
-# a check. x-awaits and x-data name attributes too and keep their own loops, having more
-# to say about each than that it exists.
+# x-retired-when, of the same shape, is not in it: it names an outcome rather than an
+# attribute, and sharing a spelling is no reason to share a check. x-awaits and x-data
+# name attributes too and keep their own loops, having more to say about each than
+# that it exists.
 ATTRIBUTE_KEYS = (
-    "x-language",
     "x-prepaint",
     "x-refers",
     "x-says",
-    "x-tone",
     "x-unique",
 )
 

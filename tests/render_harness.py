@@ -107,9 +107,6 @@ from leaf_dev.page_fixtures import (
     read_fixture,
     record_run_context,
 )
-from leaf_dev.thread_snapshot_plugin import (
-    image_snapshot,  # noqa: F401 — fixture for comparisons and explicit captures
-)
 
 ROOT = Path(__file__).parent.parent
 WRITE_WATCH_SOURCE = Path(__file__).with_name("write_watch.js")
@@ -1450,13 +1447,30 @@ def clean_browser(test=None):
     finally:
         _BROWSER_PROBLEM_LISTS = None
         _TEST = None
-    problems = [
+    problems = _named_problems(captured)
+    if test is not None and (problems or getattr(test, "lf_failed", False)):
+        _picture_pages(test, [page for page, _ in captured])
+    assert not problems, "\n".join(problems)
+
+
+def _named_problems(captured):
+    return [
         f"{getattr(page, 'url', '<browser page>')}: {problem}"
         for page, problem_list in captured
         for problem in problem_list
     ]
-    if test is not None and (problems or getattr(test, "lf_failed", False)):
-        _picture_pages(test, [page for page, _ in captured])
+
+
+def reject_browser_problems():
+    """Fail now on every problem the watched pages have reported, taking them from the
+    collector, rather than at teardown (`clean_browser`). `conftest.py` calls this as
+    the body of a test marked `xfail` returns, since pytest reads that mark against
+    the call: reported at teardown, the same problems would error the test however
+    it was marked."""
+    captured = _BROWSER_PROBLEM_LISTS or ()
+    problems = _named_problems(captured)
+    for _, problem_list in captured:
+        problem_list.clear()
     assert not problems, "\n".join(problems)
 
 

@@ -2,12 +2,14 @@
 
 from .contract import (
     deciding_outcomes,
+    deciding_verb,
     deciding_verbs,
     declares_string,
     detail_schema,
     registry_error,
     state_specs,
     verb_writer,
+    withdrawing_outcome,
 )
 from .schema import json_validator, schema_reading
 
@@ -70,9 +72,7 @@ def validate_widget_state_relations(
                 "x-awaits",
                 "x-work",
                 "x-history",
-                "x-thread-surface",
                 "x-data",
-                "x-measured",
             )
             owned = [key for key in owner_keys if child.get(key)]
             if isinstance(child.get("x-visual"), dict):
@@ -194,9 +194,15 @@ def validate_widget_record_contracts(
 def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) -> None:
     # Withdrawal names a declared deciding outcome; it does not require slots
     # whose historical ids a future revision must retain.
-    withdrawn = entry.get("x-withdrawn-as")
+    withdrawn = withdrawing_outcome(entry)
     if withdrawn is not None and withdrawn not in deciding_outcomes(entry):
-        raise registry_error("withdrawn-as", path, tag, outcome=withdrawn)
+        raise registry_error(
+            "withdraws-outcome",
+            path,
+            tag,
+            verb=deciding_verb(entry),
+            outcome=withdrawn,
+        )
     retired = entry.get("x-retired-when")
     if retired is None:
         return

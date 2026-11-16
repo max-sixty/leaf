@@ -13,9 +13,8 @@ export {
 
    A behavior module builds injected controls with `offer`, a press wearing one of
    Leaf's control faces with `offerAction` by its role, marks words it writes that
-   should stand apart from the author's with `generatedElement`, and uses `relabel`
-   (control-labels.js) when a control's label is also one of the page's words. A Lit template reaches the
-   same writers through element directives built by `elementDirective`. A behavior module
+   should stand apart from the author's with `generatedElement`. A Lit template reaches
+   the same writers through element directives built by `elementDirective`. A behavior module
    reads a box from inside `measure` (shown-box.js). A label
    whose words change holds one room for all of them with `data-lf-room`, which the
    theme sizes without script and which cuts words past it (controls.css). A module that
@@ -54,7 +53,6 @@ export {
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
 import { pageRange, selectionBackward } from "./native-selection.js";
-import { move } from "./dom-move.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { registry, tagsDeclaring } from "./registry.js";
@@ -378,17 +376,4 @@ export function motionPreview(label) {
   preview.inert = true;
   preview.setAttribute("aria-hidden", "true");
   return preview;
-}
-
-// A widget's generated wrapper holding the children the page authored. Revision
-// member patching edits this body, while the widget keeps the wrapper itself.
-/** @type {WeakMap<Element, HTMLElement>} */
-const authoredBodies = new WeakMap();
-/** @param {Element} host */
-export const authoredBody = (host) => authoredBodies.get(host) ?? null;
-/** @template {HTMLElement} T @param {Element} host @param {T} body @returns {T} */
-export function holdAuthoredBody(host, body) {
-  for (const node of [...host.childNodes]) move(body, node, null);
-  authoredBodies.set(host, body);
-  return body;
 }

@@ -4,7 +4,7 @@
    is named (`addressableName`), where its author gave it no `aria-label` instead, and
    registers its body, so reading keys, travel
    and continuity find the place whichever box scrolls it. The module reads only which
-   child is which, so a revision edits inside them in place (`x-patch: members`) and the
+   child is which, so a revision edits inside them in place (`lfPatch`) and the
    browser's scroll anchoring keeps the reader's place in the body, which a pane
    replaced whole would lose. A revision that replaces the body re-registers the region
    under the same id. */
@@ -23,6 +23,7 @@ const bodyOf = (pane) =>
 customElements.define(
   "lf-pane",
   class extends HTMLElement {
+    static lfPatch = "members";
     /** @type {Element | null} */
     #body = null;
     /** @type {(() => void) | null} */

@@ -84,7 +84,7 @@ rule draws at once is drawn.
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
-  nodes it doesn't change, as a revision's patch, a widget declaring `x-patch: members`
+  nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
   and a message's words (`setRenderedChildren` in `dom-children.js`) do, and Leaf turns
   anchoring off on no box the reader reads in. A revision then restores the reader's
   landmark (`version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
@@ -769,7 +769,7 @@ keeps work off the presentation path and how held keys replay.
 5. Index passage fences and parent ids, then capture each widget's descriptor and
    typed authored state from the source DOM.
 6. Publish that document contract once.
-7. Import the modules `x-upgrade` declares for the tags present, and no others.
+7. Import the modules the layer holds (`$modules`) for the tags present, and no others.
 8. Run the dressing passes and wait for the presentation coordinator.
 9. Join the page-interface owners' reconciliation (`PAGE_INTERFACE`), separately
    from this document's own presentation check.

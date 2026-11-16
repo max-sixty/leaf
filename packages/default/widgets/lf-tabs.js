@@ -95,6 +95,7 @@
  * Replaced: a tab's name and summary were its `label` and `summary` attributes, which
  * the strip copied as text. An attribute holds only text, and its words stood outside
  * the elements page check, comment anchoring and the version diff read. */
+import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
   addressableName,
@@ -149,11 +150,6 @@ import {
   pressIsKeyboardActivation,
   signal,
   LeafElement,
-  html,
-  nothing,
-  render,
-  repeat,
-  ref,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
@@ -199,6 +195,7 @@ const summaryOf = (panel) => {
 const tabId = (panel) => `lf-tab-${panel.id}`;
 
 export class TabSet extends LeafElement {
+  static lfPatch = "members";
   // Whether the set is a page's parts (lf-parts.js).
   get parts() {
     return false;

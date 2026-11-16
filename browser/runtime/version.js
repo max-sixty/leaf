@@ -30,8 +30,8 @@
  * patch; changed executable inputs require a fresh document. Prose, styles, and media
  * can change without reloading. Served identity
  * is captured before upgrade: upgraded DOM cannot supply those baselines. The patch
- * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget declaring `x-patch: members` is
- * patched inside its members instead, while the revision keeps its shell.
+ * retains unchanged widgets and recaptures replaced widgets against the arriving source. A widget whose class declares
+ * `static lfPatch = "members"` is patched inside its members instead, while the revision keeps its shell.
  *
  * Composition defers a reload or a patch that would discard an active native editor
  * or change a selected passage/comment's complete authored anchor scope. Runtime
@@ -129,7 +129,7 @@ import {
 } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
-import { registry, tagsDeclaring } from "./registry.js";
+import { registry, tagsDeclaring, upgrades } from "./registry.js";
 import { openingTitle } from "./leading-title.js";
 import { isElementName } from "./registry-contract.js";
 import {
@@ -161,7 +161,6 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { tabStore } from "./tab-store.js";
-import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
 import { reveal } from "./widget-elements.js";
 import { addressableWord } from "./addressable-names.js";
@@ -600,11 +599,11 @@ const diffBlockSel = () =>
 const diffOpaqueSel = () =>
   [
     ...tagsDeclaring(
-      (e) => e["x-upgrade"] && !e["x-verbatim"] && e["x-content"] === "data",
+      (e, tag) => upgrades(tag) && !e["x-verbatim"] && e["x-content"] === "data",
     ),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e) => e["x-upgrade"] && e["x-data"]),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && e["x-data"]),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
@@ -1862,8 +1861,7 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (/** @type {Element} */ element) =>
-    Boolean(registry[element.localName]?.["x-upgrade"]);
+  const upgraded = (/** @type {Element} */ element) => upgrades(element.localName);
 
   // Every element under a root in document order, including inert template contents.
   /** @param {Element} root @returns {Generator<Element>} */
@@ -1919,12 +1917,17 @@ export function createVersionController({
     };
     return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
   }
-  // An x-patch container retains authored markup while the inputs its renderer
+  // A widget's module says how a revision reaches it, as its class's static `lfPatch`
+  // (module-authoring.md, "Revisions"). The module of every widget standing in the
+  // page has run by the time a patch asks: startup awaits each import before the state
+  // feed starts, and an activation awaits the arriving revision's (`prepareActivation`).
+  // A `members` container retains authored markup while the inputs its renderer
   // consumes stay the same. A structured member list, or a declared x-views list,
   // consumes its direct members' identities and attributes. A markup container
   // without views consumes only its own attributes: the patch owns its evidence,
-  // including native attributes. A generated authored body likewise separates that
-  // evidence from the renderer's inputs.
+  // including native attributes. A widget that draws its content itself
+  // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
+  // revision that changes it replaces it whatever its class declares.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
     if (members)
@@ -1937,10 +1940,14 @@ export function createVersionController({
     /** @type {string | null} */ arrivingRoot,
   ) => {
     const entry = registry[before.localName];
-    if (entry?.["x-patch"] !== "members") return false;
-    const members =
-      !authoredBody(sourcePairs.require(before)) &&
-      (entry["x-content"] === "members" || entry["x-views"] !== undefined);
+    const content = entry?.["x-content"];
+    if (
+      !entry ||
+      customElements.get(before.localName)?.lfPatch !== "members" ||
+      (content !== "members" && content !== "markup")
+    )
+      return false;
+    const members = content === "members" || entry["x-views"] !== undefined;
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1962,7 +1969,6 @@ export function createVersionController({
       contains: (node, owner) =>
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
-      body: authoredBody,
       // `main` holds nearly all of a page's content, so a page module that moves or
       // replaces one of its children is patched around, as it was when `main` was the
       // patch root, rather than rebuilding the page beneath the user.

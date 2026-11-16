@@ -41,7 +41,7 @@ def said_by_marks(scope):
     adds nothing now (null), as a caption with no words, is no mark."""
     scope.evaluate(
         """async (scope) => {
-          const {render} = await window.__lfWidgetApi();
+          const {render} = await window.__lfVendorImport('lit.js');
           for (const mark of scope.querySelectorAll('*')) {
             if (typeof mark.lfPreview !== 'function') continue;
             const said = mark.lfPreview();

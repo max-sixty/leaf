@@ -1971,9 +1971,9 @@ _TEXT = {
         f"{v['todo']!r} is the user's to answer, not a to-do; "
         + (
             "once they answer it elsewhere or it no longer applies, resolve its thread"
-            f" with `leaf thread resolve <page> {v['todo'].partition(':')[2]}`, after a"
-            " reply saying how if the thread should record it"
-            if v["in_thread"]
+            f" with `leaf thread resolve <page> {v['message']}`, after a reply saying"
+            " how if the thread should record it"
+            if v["message"]
             else "record their answer in the widget's state, or withdraw the widget, in"
             " a revision"
         )

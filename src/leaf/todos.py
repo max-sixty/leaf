@@ -310,7 +310,7 @@ def todo_error(
         if item is not None:
             return Finding(
                 "obligation-end",
-                values={**named, "in_thread": item["thread"] is not None},
+                values={**named, "message": item["message"]},
             )
         if ended := log.ends.get(identity):
             return Finding("ended-todo", values={**named, "state": ended["state"]})

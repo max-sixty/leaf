@@ -1195,14 +1195,11 @@ def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_d
         )
     )
     asked = f"message:{question['id']}"
-    for identity, in_thread in ((item["id"], False), (asked, True)):
+    for identity, message in ((item["id"], None), (asked, question["id"])):
         [refused] = command_findings(
             "task", "end", page_dir, identity, "done", "--text", "In chat"
         )
-        assert (refused.code, refused.values["in_thread"]) == (
-            "obligation-end",
-            in_thread,
-        )
+        assert (refused.code, refused.values["message"]) == ("obligation-end", message)
     assert kinds(state_json(page_dir)["queues"]["on_user"]) == [
         ("widget", item["id"]),
         ("message", asked),

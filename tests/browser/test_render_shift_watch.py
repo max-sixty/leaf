@@ -5151,21 +5151,20 @@ def test_cancelled_native_translation_credits_its_return_to_layout(
 
 @pytest.mark.parametrize("ending", ["cancel", "finish"])
 def test_ending_an_animation_after_its_target_detaches(browser, ending):
-    """A removed surface has no presentation for the motion watch to sample."""
+    """A removed surface has no presentation for the motion watch to sample. The
+    page's own script seeks the animation as the document parses, so the words first
+    paint where it holds them."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote(
-            '<!doctype html><section id="surface"><div id="words">Words</div></section>'
-        )
+        + quote("""<!doctype html><section id="surface"><div id="words">Words</div>
+</section><script>
+  window.motion = words.animate(
+    [{translate: "20px 0px"}, {translate: "0px 0px"}], {duration: 1000});
+  motion.pause();
+  motion.currentTime = 500;
+</script>""")
     )
-    paint(page)
-    page.evaluate("""() => {
-      window.motion = words.animate(
-        [{translate: '20px 0px'}, {translate: '0px 0px'}], {duration: 1000});
-      motion.pause();
-      motion.currentTime = 500;
-    }""")
     paint(page)
     page.evaluate(
         """ending => {

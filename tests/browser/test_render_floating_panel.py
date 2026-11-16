@@ -4861,10 +4861,11 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Which week suits?",
+        "<p>Which week suits?</p>"
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+        html=True,
     )
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
@@ -4905,10 +4906,11 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Which week suits?",
+        "<p>Which week suits?</p>"
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+        html=True,
     )
     told(page)
     expect(on_me.locator(".lf-fp-num")).to_have_text("1")

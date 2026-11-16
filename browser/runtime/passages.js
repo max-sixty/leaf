@@ -3475,13 +3475,14 @@ export function findQuote(text, quote, anchor, within) {
 //
 // A style read inside content the browser skips makes Chromium style everything the
 // skipping box holds to answer it. So a word in a `content-visibility: auto` box that
-// is skipping what it holds, off screen, is asked of that box, after the `hidden`
-// attributes between them. A long text document's rows stand in such runs
-// (lf-text-document.js, `run`), and each run's forced style also recounted the line
-// numbers of every run styled before it: over the 616 runs of an 80,000-line document,
-// from 6 ms a run to 32, 11.6 s in all. CSS that hides a word inside an `auto` box
-// goes unread until the box draws; Leaf's own `auto` boxes are those runs, whose rows
-// hold only text. A word in a fold (a closed tab's `hidden="until-found"` panel, a
+// is skipping what it holds, off screen, is asked of that box where the box is
+// `visibility: visible`, after the `hidden` attributes over the word. A long text
+// document's rows stand in such runs (lf-text-document.js, `run`), and each run's
+// forced style also recounted the line numbers of every run styled before it: over the
+// 616 runs of an 80,000-line document, from 6 ms a run to 32, 11.6 s in all. CSS
+// inside an off-screen `auto` box goes unread until the box draws, in either
+// direction: a word it hides counts, and a word it shows under a `hidden` element
+// doesn't. Leaf's own `auto` boxes are those runs, whose rows hold only text. A word in a fold (a closed tab's `hidden="until-found"` panel, a
 // shut details) is still asked of its own element, though the fold is styled whole the
 // first time a search reads inside it, since widgets hide words there by CSS: asking
 // the fold instead added 56 matches to a search for "the" on the corpus (2,651 against
@@ -3523,35 +3524,30 @@ function searchableWords() {
       );
     return value;
   };
-  // The off-screen `auto` box over an element the browser doesn't draw, and whether a
-  // `hidden` element stands between them; null where nothing such skips it. Asked of
-  // the drawn box, so nothing in what it skips is styled (shadow-tree.js, `drawn`).
-  /** @type {Map<Element, {box: Element, hidden: boolean} | null>} */
-  const autoSkippers = new Map();
-  /** @param {Element} el @returns {{box: Element, hidden: boolean} | null} */
-  const autoSkipper = (el) => {
-    let value = autoSkippers.get(el);
-    if (value !== undefined) return value;
-    value = null;
-    if (!drawn(el)) {
-      const hidden =
-        el.hasAttribute("hidden") && el.getAttribute("hidden") !== "until-found";
-      const up = renderedParent(el);
-      if (up && !drawn(up)) {
-        const over = autoSkipper(up);
-        if (over) value = { box: over.box, hidden: over.hidden || hidden };
-      } else if (up && skips(up)) value = { box: up, hidden };
+  // The element a word under `parent` is asked of: the off-screen `auto` box that skips
+  // it (`skipper`), where that box is `visibility: visible` and no `hidden` element
+  // stands over the word, which leaves nothing to ask (null); else `parent` itself.
+  /** @type {Map<Element, Element | null>} */
+  const askedFor = new Map();
+  /** @param {Element} parent */
+  const asking = (parent) => {
+    let asked = askedFor.get(parent);
+    if (asked === undefined) {
+      const box = skipper(parent);
+      asked =
+        box && skips(box) && style(box).visibility === "visible"
+          ? closestAcross(parent, '[hidden]:not([hidden="until-found"])')
+            ? null
+            : box
+          : parent;
+      askedFor.set(parent, asked);
     }
-    autoSkippers.set(el, value);
-    return value;
+    return asked;
   };
   return (/** @type {Segment} */ { node }) => {
     const parent = renderedParent(node);
-    if (!parent) return false;
-    const skipped = autoSkipper(parent);
-    if (skipped?.hidden) return false;
-    const asked = skipped?.box ?? parent;
-    return style(asked).visibility === "visible" && canReveal(asked);
+    const asked = parent && asking(parent);
+    return !!asked && style(asked).visibility === "visible" && canReveal(asked);
   };
 }
 

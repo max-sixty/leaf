@@ -1410,7 +1410,7 @@ def write_draft_elsewhere(page, ctx: str, text: str) -> str:
         f"{origin.scheme}://{origin.netloc}/api/draft",
         data={
             "context": ctx,
-            "expect": current["attempt"] if current else None,
+            "expect": [current["attempt"]] if current else [],
             "record": {"attempt": attempt, "text": text},
         },
     )

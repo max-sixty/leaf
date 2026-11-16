@@ -233,8 +233,9 @@ function adopt(ctx, record, version) {
 
 // The newest drafts version this document has taken, from a reading or from a write
 // that was the only change since one; whether a look heard the store go back; and the
-// reading out.
-let heardVersion = -1;
+// reading out. A store holds no drafts until its first write moves it past 0, so a
+// document served without them reads them only once the news names one.
+let heardVersion = 0;
 let restoring = false;
 // Counts the times the store went back, so an answer to a write sent before one says
 // nothing of the store the server holds now.

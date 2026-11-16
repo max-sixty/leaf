@@ -35,7 +35,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
-from .drafts import read_drafts, write_draft
+from .drafts import write_draft
 from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
@@ -639,17 +639,9 @@ class PageEndpoint:
             {
                 "reading": self.source.news(),
                 "pages": pages_reading(self.source.other_pages()),
-                "drafts": self._drafts()["version"],
+                "drafts": self.source.drafts()["version"],
             }
         )
-
-    def _drafts(self) -> dict:
-        """The user's drafts on the page (`drafts.py`), which only its live page holds:
-        a capture, such as a render check's, is no reading of what the user is
-        writing."""
-        if not self.source.writable:
-            return {"version": 0, "drafts": {}}
-        return read_drafts(self.page_dir)
 
     @property
     def key_cookie(self) -> str:
@@ -1113,7 +1105,7 @@ class PageEndpoint:
         drafts = runtime_element(
             "script",
             {"type": "application/json", "id": "lf-drafts"},
-            json_script(self._drafts()),
+            json_script(self.source.drafts()),
         )
         return replace(
             delivery,
@@ -1227,7 +1219,7 @@ class PageEndpoint:
         if path == "/api/pages":
             return self._json_body(self.source.other_pages())
         if path == "/api/drafts":
-            return self._json_body(self._drafts())
+            return self._json_body(self.source.drafts())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.

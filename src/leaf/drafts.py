@@ -106,8 +106,13 @@ _WRITE = {
 }
 
 
+def no_drafts() -> dict:
+    """The store before its first write: version 0 holds no drafts."""
+    return {"version": 0, "drafts": {}}
+
+
 def _stored(page_dir: Path) -> dict:
-    return DRAFTS.read(page_dir / DRAFTS_FILE) or {"version": 0, "drafts": {}}
+    return DRAFTS.read(page_dir / DRAFTS_FILE) or no_drafts()
 
 
 def read_drafts(page_dir: Path) -> dict:

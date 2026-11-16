@@ -183,10 +183,10 @@
   --lf-ok: light-dark(#3f7d4e, #7fb98c);
   --lf-warn: light-dark(#b4741a, #d8a95c);
   --lf-danger: light-dark(#b4402f, #d98b7a);
-  /* A count on the folded leaf is a fill/ink pair: a link's accent may be too pale
-     under its digits. Themes choose the pair together rather than deriving its
-     contrast. */
-  --lf-badge-fill: light-dark(#2f5480, #4d74a8);
+  /* The count of what is On me, on the folded leaf, is a fill/ink pair in the user's
+     turn (--lf-turn, below): the turn's mark may be too pale under its digits. Themes
+     choose the pair together rather than deriving its contrast. */
+  --lf-badge-fill: light-dark(#2f6b40, #3f7d4e);
   --lf-badge-ink: #fff;
   /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
      Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
@@ -275,8 +275,8 @@
      them otherwise (layouts.css). */
   --lf-note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
-     720px at 17px, at the card's 14px face. A thread whose lines are shorter takes only
-     their width, down to the minimum. The minimum chooses whether the card and the
+     720px at 17px, at the card's 14px face. Beside its words a card stands at the
+     minimum until `size-width` widens it (placement-rules.json). The minimum chooses whether the card and the
      comment box before it fit beside their words. Clearing the margin cluster requires
      the full preferred measure, so its controls never cost message width
      (comment-placement.js). */
@@ -464,10 +464,10 @@
      ladder, so it is declared with the other derived tokens (below). */
   --lf-tip-bg: var(--lf-ink);
   --lf-tip-ink: var(--lf-paper);
-  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's green
-     drawn halfway to the tooltip's ink, which holds it clear of that ground in
-     either scheme, where the paper's green would sink into it. */
-  --lf-tip-turn-ink: color-mix(in oklab, var(--lf-turn-ink), var(--lf-tip-ink));
+  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's colour
+     drawn halfway to the tooltip's ink, which holds it clear of that ground at 4.8:1 or
+     more in either scheme, where the paper's turn ink would sink into it. */
+  --lf-tip-turn-ink: color-mix(in srgb, var(--lf-turn) 50%, var(--lf-tip-ink));
   --lf-tip-pad: 4px 7px;
   --lf-tip-r: var(--lf-r-s);
   /* Inline code's ground is a step from the paper it sits on, not the white code
@@ -714,10 +714,44 @@
   );
   --lf-ok-wash: color-mix(in srgb, var(--lf-ok-tint) 52%, var(--lf-paper));
   --lf-ok-ink: light-dark(#2f6b40, #97cca3);
-  /* Green identifies the user's turn. Unread and agent progress keep the blue
-     accent, so neither can be mistaken for a request to the user. */
-  --lf-turn-wash: var(--lf-ok-wash);
+  /* What the colour of each of Leaf's own marks tells the user, one token for each
+     thing a mark says, so each meaning's colour is chosen here once, and the margin,
+     the contents, the panel and a widget's settled state read the meaning rather than
+     a hue. A theme restates a meaning here. The words and ground a meaning needs beside
+     its mark (`-ink`, `-wash`, `-tint`) stand with it.
+     - --lf-turn: the user's move, such as a thread in their turn, what is On me, and the
+       agent waiting for them.
+     - --lf-thread: a conversation, on a thread's marker.
+     - --lf-work: the agent at work, on the leaf, the bar beside a block and a plan's
+       progress.
+     - --lf-news: what the user hasn't read, the unread dot.
+     - --lf-change: what changed since the version compared, the bar beside a block and
+       its stretch of the contents.
+     - --lf-settled: what the user chose or finished, such as a chosen option, a pressed
+       answer and a done step.
+     Where the user is (focus, the location ring, the contents' current section) wears
+     the accent, and trouble --lf-warn and --lf-danger.
+
+     Colour carries one distinction on a mark: whether it asks something of the user.
+     Green asks; blue shows where the user is and what is going on; ink records what
+     changed or is settled. What changed takes the muted ink, so a long changed stretch
+     of the contents stays quieter than the marks that ask. A mark is too small to carry
+     more. Held to the chart palette's floors (--lf-series-1, below) scaled to a mark's
+     size by Stone, Szafir and Setlur's model (CIC 2014), every reader tells apart at
+     most four colours at a 7px dot, and those four are a neon magenta, a near-black
+     navy, a bright green and a brick red. So a mark's other meanings are carried by its
+     shape, place and motion, and changed and settled marks no longer wear the turn's
+     green. */
+  --lf-turn: var(--lf-ok);
   --lf-turn-ink: var(--lf-ok-ink);
+  --lf-turn-wash: var(--lf-ok-wash);
+  --lf-thread: var(--lf-accent);
+  --lf-work: var(--lf-accent);
+  --lf-news: var(--lf-accent);
+  --lf-change: var(--lf-muted);
+  --lf-settled: var(--lf-ink-2);
+  --lf-settled-ink: var(--lf-ink);
+  --lf-settled-tint: var(--lf-chip);
   --lf-warn-tint: color-mix(
     in oklab,
     var(--lf-paper) 70%,

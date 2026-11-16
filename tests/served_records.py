@@ -229,8 +229,9 @@ def build() -> dict:
                         "agent": "Agent",
                         "parent": "e1",
                         "responds": "e1",
-                        "text": "Here is the board. Which card goes first?",
-                        "markup": model_layer()["lf-board"]["x-example"],
+                        "html": True,
+                        "text": "Here is the board. Which card goes first?\n\n"
+                        + model_layer()["lf-board"]["x-example"],
                         "obligation": True,
                     },
                     {

@@ -269,7 +269,11 @@ function advance(entry, signal, admitted = null) {
  *   descriptors: ReadonlyMap<string, WidgetDescriptor>;
  *   messageBodies?: ReadonlyMap<
  *     string,
- *     { text: string; markup: string; document?: { thread: string; message: string } }
+ *     {
+ *       text: string;
+ *       heldElsewhere?: string;
+ *       document?: { thread: string; message: string };
+ *     }
  *   >;
  * }} SemanticDocument
  */

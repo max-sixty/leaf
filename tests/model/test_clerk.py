@@ -2,7 +2,6 @@
 what Leaf writes from that answer and tells the agent at its next step."""
 
 import json
-import re
 
 import pytest
 from interact_support import DRAFTED, PAGE, append_carried_log_record, edit
@@ -34,17 +33,17 @@ def asked() -> dict:
     return question
 
 
-def reply(page, *titles: str, passage: str = "", again: str = "", options=()) -> str:
+def reply(page, *titles: str, passage: str = "", again: str = "", choice="") -> str:
     return json.dumps(
         {
             "asks": [
                 {
                     "page": str(page),
                     "title": title,
-                    "text": f"{title}: which would you like?",
+                    "text": f"{title}: which would you like?"
+                    + (f"\n\n{choice}" if choice else ""),
                     "passage": passage,
                     "again": again,
-                    **({"options": list(options)} if options else {}),
                     "quote": title,
                 }
                 for title in titles
@@ -54,16 +53,17 @@ def reply(page, *titles: str, passage: str = "", again: str = "", options=()) ->
     )
 
 
-# Two answers the agent's reply offered, the first one it advised, in the inline
-# Markdown a message is written in.
-CACHES = (
-    {
-        "title": "Use the LRU cache",
-        "detail": "81% hits <under 1.9 GB>",
-        "recommended": True,
-    },
-    {"title": "Use the `ttl` cache", "detail": "", "recommended": False},
-)
+def caches(group: str = "cache") -> str:
+    """A choice of the two answers the agent's reply offered, the first one it
+    advised, as `threads.md` ("Ask for a pick") writes one, under ids new to the
+    page."""
+    return (
+        f'<lf-options id="{group}" choose>\n'
+        f'<lf-option id="{group}-lru"><small class="tag ok">recommended</small> '
+        "<strong>Use the LRU cache</strong> 81% hits</lf-option>\n"
+        f'<lf-option id="{group}-ttl"><strong>Use the TTL cache</strong></lf-option>\n'
+        "</lf-options>"
+    )
 
 
 def test_the_clerk_asks_what_the_reply_left_and_the_next_step_hears_it(claimed, capsys):
@@ -237,29 +237,24 @@ def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys
 
 
 def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, capsys):
-    """Where the fork lists the answers the agent's reply offered, the thread's
-    opening message asks with a choice of them, as `threads.md` has the agent ask
-    ("Ask for a pick"), rather than in words: the choice waits on the user On Me until
-    they pick, a reply in words doesn't answer it, the advised answer is tagged, and
-    the fork's words read as the message's Markdown does, HTML in them as text. The
-    agent hears the choice it now owns, the next fork sees it On Me, and an ask under
-    its title isn't asked again."""
+    """Where the fork's message holds a choice of the answers the agent's reply
+    offered, as `threads.md` has the agent ask ("Ask for a pick"), Leaf posts it as
+    the agent's command would, so the choice draws and asks in place of an
+    obligation: it waits on the user On Me until they pick, and a reply in words
+    doesn't answer it. The agent hears the choice it now owns, the next fork sees it
+    On Me, and an ask under its title isn't asked again."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     basis = asked()["basis"]
     [record] = clerk_model.take_answer(
-        "s1", reply(page, "LRU or TTL", options=CACHES), basis
+        "s1", reply(page, "LRU or TTL", choice=caches()), basis
     )["wrote"]
-    assert (record["kind"], record["title"]) == ("comment", "LRU or TTL")
+    assert (record["kind"], record["title"], record["html"]) == (
+        "comment",
+        "LRU or TTL",
+        True,
+    )
     assert "obligation" not in record
-    group = re.search(r'<lf-options id="([\w-]+)" choose>', record["markup"])
-    assert group is not None
-    assert (
-        f'<lf-option id="{group[1]}-1"><small class="tag ok">recommended</small> '
-        "<strong>Use the LRU cache</strong> 81% hits &lt;under 1.9 GB&gt;</lf-option>"
-        f'<lf-option id="{group[1]}-2"><strong>Use the <code>ttl</code> cache</strong>'
-        "</lf-option>"
-    ) in record["markup"]
 
     def choice() -> dict:
         [obligation] = [
@@ -270,7 +265,10 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
         return obligation
 
     asking = choice()
-    assert (asking["source"]["kind"], asking["next_actor"]) == ("widget", "user")
+    assert (asking["source"], asking["next_actor"]) == (
+        {"kind": "widget", "id": "cache", "tag": "lf-options"},
+        "user",
+    )
     assert [row["id"] for row in cmd_page_state(claimed)["queues"]["on_user"]] == [
         asking["id"]
     ]
@@ -278,13 +276,13 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
     context = hook(capsys, "PostToolBatch")
     assert (
         f'Leaf asked the user "LRU or TTL" On Me, in a new thread on {page} as a '
-        f"whole, opened by your message {record['id']}, with this choice in its "
-        "markup:\n> LRU or TTL: which would you like?\n" + record["markup"]
+        f"whole, opened by your message {record['id']}:\n> LRU or TTL: which would "
+        'you like?\n> \n> <lf-options id="cache" choose>\n'
     ) in context
-    assert "the user's pick reaches you as any answer does" in context
+    assert "the user's answer in its widget reaches you as any answer does" in context
     assert (
         '\n- decision in the agent\'s message in "LRU or TTL": LRU or TTL: which '
-        "would you like?\n" in asked()["prompt"]
+        'would you like? <lf-options id="cache" choose>' in asked()["prompt"]
     )
     assert (
         clerk_model.take_answer("s1", reply(page, "LRU or TTL"), basis)["wrote"] == []
@@ -300,6 +298,29 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
         },
     )
     assert choice()["status"] == "open"
+
+
+def test_a_choice_leaf_refuses_is_asked_in_words(claimed, capsys):
+    """A choice whose HTML Leaf refuses, here for an id the page's first choice
+    already took, asks in words with an obligation instead, showing the HTML as
+    text, so the ask isn't lost, and the agent hears why."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    basis = asked()["basis"]
+    clerk_model.take_answer("s1", reply(page, "LRU or TTL", choice=caches()), basis)
+    hook(capsys, "PostToolBatch")
+    [record] = clerk_model.take_answer(
+        "s1", reply(page, "The cache's size", choice=caches()), basis
+    )["wrote"]
+    assert (record["title"], record["obligation"], "html" in record) == (
+        "The cache's size",
+        True,
+        False,
+    )
+    assert '<lf-options id="cache" choose>' in record["text"]
+    context = hook(capsys, "PostToolBatch")
+    assert "Leaf refused the HTML in it, so the message shows it as words" in context
+    assert "cache" in context.split("Leaf refused the HTML in it")[1]
 
 
 def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
@@ -342,11 +363,15 @@ def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
     question = f"message:{first['id']}"
     [again] = clerk_model.take_answer(
         "s1",
-        reply(page, "LRU or TTL", again=question, options=CACHES),
+        reply(page, "LRU or TTL", again=question, choice=caches()),
         asked()["basis"],
     )["wrote"]
-    assert (again["kind"], again["parent"]) == ("reply", first["id"])
-    assert "obligation" not in again and "<lf-options" in again["markup"]
+    assert (again["kind"], again["parent"], again["html"]) == (
+        "reply",
+        first["id"],
+        True,
+    )
+    assert "obligation" not in again
     state = cmd_page_state(claimed)
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
     records = {o["message"]: o for o in state["obligations"]}
@@ -357,23 +382,21 @@ def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
     )
     assert (
         f"On Me again, with your message {again['id']} in the thread of {question} "
-        f"on {page}, which reopens the thread if it was closed, with this choice"
+        f"on {page}, which reopens the thread if it was closed:"
     ) in hook(capsys, "PostToolBatch")
 
 
-@pytest.mark.parametrize("options", [CACHES, ()], ids=["choice", "words"])
-def test_a_choice_the_user_closed_is_asked_again_in_its_thread(
-    claimed, capsys, options
-):
+@pytest.mark.parametrize("words", [False, True], ids=["choice", "words"])
+def test_a_choice_the_user_closed_is_asked_again_in_its_thread(claimed, capsys, words):
     """The user closed a choice's thread without picking, and the agent asks it
     again in chat. The next fork sees the choice with the id that names it, and an ask
     naming that id asks it again in its thread, reopening it, rather than a title
-    check dropping it: as a choice where the fork lists the answers, and otherwise in
-    words, as a new question."""
+    check dropping it: as a choice where the fork writes one, and otherwise in words,
+    as a new question."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     [first] = clerk_model.take_answer(
-        "s1", reply(page, "LRU or TTL", options=CACHES), asked()["basis"]
+        "s1", reply(page, "LRU or TTL", choice=caches()), asked()["basis"]
     )["wrote"]
     append_carried_log_record(
         claimed, {"kind": "resolve", "author": "user", "parent": first["id"]}
@@ -383,16 +406,17 @@ def test_a_choice_the_user_closed_is_asked_again_in_its_thread(
     question = f"message:{first['id']}"
     assert (
         f'- {question}, in "LRU or TTL", closed by the user: LRU or TTL: which would '
-        "you like?\n" in basis["prompt"]
+        "you like?" in basis["prompt"]
     )
+    choice = "" if words else caches("cache-again")
     [again] = clerk_model.take_answer(
         "s1",
-        reply(page, "LRU or TTL", again=question, options=options),
+        reply(page, "LRU or TTL", again=question, choice=choice),
         basis["basis"],
     )["wrote"]
     assert (again["kind"], again["parent"]) == ("reply", first["id"])
-    assert ("markup" in again, again.get("obligation")) == (
-        (True, None) if options else (False, True)
+    assert (again.get("html"), again.get("obligation")) == (
+        (None, True) if words else (True, None)
     )
     state = cmd_page_state(claimed)
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
@@ -401,19 +425,19 @@ def test_a_choice_the_user_closed_is_asked_again_in_its_thread(
     # The agent hears the id the question now stands under: the reply's own where it
     # asks the choice's question anew in words.
     assert (
-        f"On Me again, with your message {again['id']} in the thread of {question} "
-        if options
-        else f"On Me again, as {record['id']}, with your message {again['id']} in its "
+        f"On Me again, as {record['id']}, with your message {again['id']} in its "
+        if words
+        else f"On Me again, with your message {again['id']} in the thread of {question} "
     ) in hook(capsys, "PostToolBatch")
-    assert options or record["id"] == f"message:{again['id']}"
+    assert not words or record["id"] == f"message:{again['id']}"
 
 
 def test_an_ask_again_naming_a_message_that_asks_nothing_opens_its_own_thread(
     claimed, capsys
 ):
     """An ask naming, as the question it asks again, the agent's answer in a thread
-    the user opened, which asks nothing, can't be asked there, whether it lists
-    answers or not, so it opens a thread of its own rather than joining that one."""
+    the user opened, which asks nothing, can't be asked there, whether it holds a
+    choice or not, so it opens a thread of its own rather than joining that one."""
     page = claimed.resolve()
     activate_source(claimed)
     hook(capsys, "UserPromptSubmit")
@@ -434,10 +458,10 @@ def test_an_ask_again_naming_a_message_that_asks_nothing_opens_its_own_thread(
     )
     hook(capsys, "PostToolBatch")
     basis = asked()["basis"]
-    for title, options in (("LRU or TTL", CACHES), ("The cache's size", ())):
+    for title, choice in (("LRU or TTL", caches()), ("The cache's size", "")):
         [record] = clerk_model.take_answer(
             "s1",
-            reply(page, title, again=f"message:{answer['id']}", options=options),
+            reply(page, title, again=f"message:{answer['id']}", choice=choice),
             basis,
         )["wrote"]
         assert (record["kind"], record["title"]) == ("comment", title)
@@ -458,10 +482,11 @@ def test_a_widget_in_a_message_reads_as_its_own_question(claimed, capsys):
             "session": "s1",
             "revision": 1,
             "title": "Next steps",
-            "text": "The benchmark is complete. Please answer below.",
-            "markup": '<lf-ask id="ask-cache"><h3>Which cache should we use?</h3>'
+            "text": "The benchmark is complete. Please answer below.\n\n"
+            '<lf-ask id="ask-cache">\n<h3>Which cache should we use?</h3>\n'
             '<lf-options id="cache" choose><lf-option id="lru">LRU</lf-option>'
-            '<lf-option id="ttl">TTL</lf-option></lf-options></lf-ask>',
+            '<lf-option id="ttl">TTL</lf-option></lf-options>\n</lf-ask>',
+            "html": True,
         },
     )
     assert (

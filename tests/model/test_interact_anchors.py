@@ -455,10 +455,8 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
-            "--markup",
-            frozen,
             "--text",
-            "Which?",
+            f"Which?\n\n{frozen}",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1707,8 +1705,8 @@ def test_a_closed_thread_stops_asking(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which mitigations?",
-            "markup": '<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
+            "html": True,
+            "text": 'Which mitigations?\n\n<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
@@ -1742,8 +1740,9 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "kind": "comment",
                     "author": "agent",
                     "revision": 1,
-                    "text": f"Choose {suffix}",
-                    "markup": (
+                    "html": True,
+                    "text": (
+                        f"Choose {suffix}\n\n"
                         f'<lf-ask id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}" choose>'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
@@ -1791,7 +1790,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
     ]
 
 
-def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
+def test_native_message_html_shares_admission_and_id_ownership(page_dir):
     """Native evidence posts through every agent writer and reserves its ids."""
     published(page_dir)
     table = (
@@ -1799,13 +1798,13 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
         '<tr><th scope="col">Check</th><th scope="col">Result</th></tr>'
         "<tr><td>Smoke test</td><td>Passed</td></tr></table>"
     )
-    opened = comment(page_dir, "--text", "Results:", "--markup", table)
+    opened = comment(page_dir, "--text", f"Results:\n\n{table}")
     assert opened.exit_code == 0, opened.output
     root = events_model.read_events(page_dir)[-1]["id"]
     log = '<details id="deploy-log"><summary>Deploy log</summary><pre>Ready\nDone</pre></details>'
     proactive = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", str(page_dir), root, "--text", "Log:", "--markup", log],
+        ["thread", "reply", str(page_dir), root, "--text", f"Log:\n\n{log}"],
     )
     assert proactive.exit_code == 0, proactive.output
     append_command(
@@ -1821,22 +1820,21 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
             "--done",
             response_reference(page_dir, user),
             "--text",
-            "Ready.",
-            "--markup",
-            '<p id="deploy-status">All checks passed.</p>',
+            'Ready.\n\n<p id="deploy-status">All checks passed.</p>',
         ],
     )
     assert answered.exit_code == 0, answered.output
-    assert [
-        e["markup"] for e in events_model.read_events(page_dir) if "markup" in e
-    ] == [table, log, '<p id="deploy-status">All checks passed.</p>']
+    held = [e for e in events_model.read_events(page_dir) if e.get("html")]
+    assert [e["text"] for e in held] == [
+        f"Results:\n\n{table}",
+        f"Log:\n\n{log}",
+        'Ready.\n\n<p id="deploy-status">All checks passed.</p>',
+    ]
     for identifier in ("run-results", "deploy-log", "deploy-status", "plan"):
         refused = comment(
             page_dir,
             "--text",
-            "Again:",
-            "--markup",
-            f'<p id="{identifier}">Duplicate</p>',
+            f'Again:\n\n<p id="{identifier}">Duplicate</p>',
         )
         assert refused.exit_code != 0, refused.output
         assert "already taken" in refused.output, refused.output
@@ -1852,7 +1850,7 @@ def test_native_message_markup_shares_admission_and_id_ownership(page_dir):
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, native):
+def test_message_html_may_not_dress_the_document_it_is_put_into(page_dir, native):
     """A fragment has no page of its own, so it gets no stylesheet of its own.
 
     The runtime parses an agent's markup into a template and moves those nodes into the
@@ -1873,22 +1871,18 @@ def test_message_markup_may_not_dress_the_document_it_is_put_into(page_dir, nati
     sheet = comment(
         page_dir,
         "--text",
-        "look:",
-        "--markup",
-        "<style>main h1 { color: red }</style>" + widget,
+        "look:\n\n<style>main h1 { color: red }</style>\n\n" + widget,
     )
     assert sheet.exit_code != 0 and "<style>" in sheet.output
 
     linked = comment(
         page_dir,
         "--text",
-        "look:",
-        "--markup",
-        '<link rel="stylesheet" href="/theme.css">' + widget,
+        'look:\n\n<link rel="stylesheet" href="/theme.css">\n\n' + widget,
     )
     assert linked.exit_code != 0 and "stylesheet" in linked.output
 
-    assert comment(page_dir, "--text", "look:", "--markup", widget).exit_code == 0
+    assert comment(page_dir, "--text", f"look:\n\n{widget}").exit_code == 0
 
 
 def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
@@ -1907,9 +1901,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
         comment(
             page_dir,
             "--text",
-            "Pick one:",
-            "--markup",
-            '<lf-ask id="ps-decision"><h3>Which store?</h3>'
+            'Pick one:\n\n<lf-ask id="ps-decision"><h3>Which store?</h3>'
             '<lf-options id="ps-q" choose>'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
@@ -1938,7 +1930,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
 
 
 @pytest.mark.parametrize("native", [False, True])
-def test_message_markup_may_not_declare_the_document(page_dir, native):
+def test_message_html_may_not_declare_the_document(page_dir, native):
     """A message renders in every revision of its page, so a base, header, or import
     map in one would redirect, navigate, or break that page for good. Handlers are the
     author's to write, as in the page itself."""
@@ -1954,11 +1946,11 @@ def test_message_markup_may_not_declare_the_document(page_dir, native):
         '<meta http-equiv="refresh" content="0;url=https://outside.example/">',
         '<script type="importmap">{"imports": {}}</script>',
     ):
-        refused = comment(page_dir, "--text", "look:", "--markup", declaration + widget)
+        refused = comment(page_dir, "--text", f"look:\n\n{declaration}\n\n{widget}")
         assert refused.exit_code != 0, declaration
         assert "document-declaration" in refused.output, refused.output
-    handled = '<p onclick="this.hidden = true">Hide me</p>' + widget
-    assert comment(page_dir, "--text", "look:", "--markup", handled).exit_code == 0
+    handled = '<p onclick="this.hidden = true">Hide me</p>\n\n' + widget
+    assert comment(page_dir, "--text", f"look:\n\n{handled}").exit_code == 0
 
 
 def test_data_widget_prose_members_are_quotable_without_admitting_source():

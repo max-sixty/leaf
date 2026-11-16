@@ -30,7 +30,8 @@ each, give:
 - `title`: a few words naming its thread's subject ("Merging the two mark styles",
   "Reloading the plugin").
 - `text`: the message that asks it, written as that guidance says the agent writes
-  one. For a step the user takes, such as running a command or trying a build, say
+  one, a choice included, which Leaf posts as the agent's `leaf thread` command
+  would. For a step the user takes, such as running a command or trying a build, say
   what to do. Ask for a reply only for what the user alone can report, such as what
   the build showed them, or where the agent's next step waits on it, such as a merge
   waiting on the user's approval, since the reply is what tells the agent to go on.
@@ -44,12 +45,6 @@ each, give:
   question's id from the page state below. Leaf asks it again in its thread, under
   its id, and reopens the thread if it was closed, so the user meets it with what
   came before. Otherwise empty, and Leaf opens a new thread for it.
-- `options`: where that guidance asks with a choice, the answers the agent offered,
-  in its order, each with a `title` saying what choosing it does, a `detail` line on
-  what it leads to or costs, or empty, and `recommended` true on the one the agent
-  advised. Leaf puts them in the message as the choice, so `text` asks the question
-  and gives the reasons they share. Otherwise an empty list, and the message asks in
-  words, as for a step the user takes.
 - `quote`: the agent's words that leave it to the user.
 
 ## Findings for the agent

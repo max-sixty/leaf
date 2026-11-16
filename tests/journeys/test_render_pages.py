@@ -37,7 +37,7 @@ from leaf import events as thread_model
 from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
 from leaf.hosting import TemporaryPageServer
-from leaf.passages import enclosing_ids, page_passages
+from leaf.passages import enclosing_ids, message_markup, page_passages
 from leaf.registry import storage as registry_storage
 from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
@@ -369,9 +369,9 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         registry = registry_storage.load_registry(serve.page_dir)
         carried_ids = set()
         carried_threads = set()
-        for carried in [e for e in events if e.get("markup")]:
+        for carried in [e for e in events if e.get("html")]:
             for wid, rec in structure_model.SourceDocument(
-                carried["markup"]
+                message_markup(carried["text"])
             ).by_id.items():
                 drawn.append(wid)
                 carried_ids.add(wid)

@@ -236,14 +236,16 @@ REPLAYED = {
                     "page": "{page}",
                     "title": "When to rebuild production",
                     "text": "Both regions pass the preflight. When should I run the "
-                    "production rebuild?",
+                    "production rebuild?\n\n"
+                    '<lf-options id="rebuild-when" choose>\n'
+                    '<lf-option id="rebuild-tonight"><small class="tag ok">'
+                    "recommended</small> <strong>Rebuild tonight</strong></lf-option>\n"
+                    '<lf-option id="rebuild-now"><strong>Rebuild now</strong> p95 up '
+                    "30%</lf-option>\n"
+                    '<lf-option id="rebuild-saturday"><strong>Rebuild on Saturday'
+                    "</strong></lf-option>\n</lf-options>",
                     "passage": "",
                     "again": "",
-                    "options": [
-                        {"title": "Rebuild tonight", "recommended": True},
-                        {"title": "Rebuild now", "detail": "p95 up 30%"},
-                        {"title": "Rebuild on Saturday"},
-                    ],
                     "quote": "I'd go tonight.",
                 }
             ],

@@ -319,9 +319,10 @@ def test_message_markup_uses_the_current_layer(page_dir, in_sample):
     markup = '<lf-local-thread id="local">Choose locally.</lf-local-thread>'
     if in_sample:
         markup = f'<template id="practice" data-sample>{markup}</template>'
-    result = comment(page_dir, "--text", "Try it:", "--markup", markup)
+    result = comment(page_dir, "--text", f"Try it:\n\n{markup}")
     assert result.exit_code == 0, result.output
-    assert events_model.read_events(page_dir)[-1]["markup"] == markup
+    event = events_model.read_events(page_dir)[-1]
+    assert event["html"] is True and markup in event["text"]
 
 
 def test_revendoring_can_change_frozen_thread_widget_vocabulary(
@@ -341,7 +342,10 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         "</lf-options></lf-ask>"
     )
     thread_model.post_reply(
-        page_dir, {"parent": "c1", "responds": "c1"}, "Pick one:", markup
+        page_dir,
+        {"parent": "c1", "responds": "c1"},
+        f"Pick one:\n\n{markup}",
+        html=True,
     )
 
     registry = vocabulary(page_dir)

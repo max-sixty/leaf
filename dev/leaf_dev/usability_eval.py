@@ -218,8 +218,8 @@ def build_remaining_review(run: Run, page: Path) -> None:
     )  # fmt: skip
     run.leaf(
         "thread", "create", str(page), "--section", "remaining-next",
-        "--title", "#59: next extraction scope", "--text", "My recommended next scope is #59.",
-        "--markup", seed["question"], check=True,
+        "--title", "#59: next extraction scope",
+        "--text", f"My recommended next scope is #59.\n\n{seed['question']}", check=True,
     )  # fmt: skip
     state = read_page_state(run.payload, run.state, page)
     assert [item["id"] for item in state["queues"]["on_user"]] == ["widget:next-touch"]

@@ -123,7 +123,7 @@ import {
   inUi,
   overIn,
   refuseShadowRoot,
-  pageShadowRoots,
+  queryAllUnder,
   shadowHost,
   shadowRootsIn,
   uiInside,
@@ -309,8 +309,8 @@ export function settledAway(el) {
   );
 }
 export const GENERATED = ".lf-ui, [data-lf-gen]";
-// A message's body: the markup its writer sent, and the text the runtime renders from
-// their words beside that markup.
+// A message's body: what the runtime renders from its writer's Markdown, any HTML an
+// agent wrote in it included.
 const MESSAGE_BODY = ".lf-msg-body";
 // Every heading, which names the part of the page under it.
 export const HEADING = "h1, h2, h3, h4, h5, h6";
@@ -469,8 +469,8 @@ export function refuseBareText() {
 // almost the same thing and is wrong in one case that matters: a reading can start
 // *inside* generated chrome, and everything generated over it would read as authored.
 //
-// A message is the other frame. Its body, the markup its writer sent and the text the
-// runtime renders from their words, is a document of its own (`authoredScope`) standing
+// A message is the other frame. Its body, what the runtime renders from its writer's
+// words, is a document of its own (`authoredScope`) standing
 // inside the chrome that draws the message, so the body frames a reading there as a
 // widget does, and the words read as their writer's: a heading in a reply names what
 // follows it there. The version diff once read every block on the live page, a
@@ -1054,11 +1054,7 @@ export const elementFromPointAcross = (x, y) => {
 // does not model, and answering it here would be inventing that contract in a sweep.
 /** @template {Element} [E=Element] @param {string} selector @returns {E[]} */
 export const pageQueryAll = (selector) =>
-  [document, ...pageShadowRoots()].flatMap((root) => {
-    /** @type {NodeListOf<E>} */
-    const elements = root.querySelectorAll(selector);
-    return [...elements];
-  });
+  /** @type {E[]} */ (queryAllUnder(document, selector));
 
 // A native Range compares one DOM tree. Its light-DOM endpoints can sit inside a declared
 // root's slots, where retargeting every shadow word to its host also selects the host's
@@ -2122,8 +2118,7 @@ function hear(records) {
   const idsUnder = (node) => {
     if (!isElement(node)) return;
     if (node.id) ids.add(node.id);
-    for (const scope of [node, ...shadowRootsIn(node)])
-      for (const named of scope.querySelectorAll("[id]")) ids.add(named.id);
+    for (const named of queryAllUnder(node, "[id]")) ids.add(named.id);
   };
   for (const record of records) {
     const { target } = record;

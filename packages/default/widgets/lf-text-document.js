@@ -795,8 +795,10 @@ class TextDocument extends LeafElement {
   rendering = 0;
   // The language the text is coloured in (`codeLanguage`), read at setup while the
   // written `<pre>` that may name it stands: the first draw replaces the `<pre>`, and a
-  // revision that names another language brings a new element.
-  /** @type {string | undefined} */
+  // revision that names another language brings a new element. Only a document naming
+  // none takes its preview's: one naming a language Leaf can't colour stays uncoloured,
+  // as `page check` tells its author.
+  /** @type {string | null | undefined} */
   language;
   /** @type {(() => void) | null} */
   finishFrame = null;
@@ -1009,7 +1011,7 @@ class TextDocument extends LeafElement {
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
-      const language = this.language ?? preview;
+      const language = this.language === undefined ? preview : this.language;
       if (language) await ensureSyntaxLanguage(language);
       if (preview === "markdown") {
         let failure;

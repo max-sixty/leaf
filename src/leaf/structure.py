@@ -316,9 +316,10 @@ def splice(source, edits):
 
 def pre_body(element) -> str | None:
     """The text of `element`'s first `<pre>` child, as the browser reads a data body
-    (widget-upgrade.js, `dataBody`): all of it, a `<code>` naming its language
-    included. The body a Markdown-bodied element renders, a written Markdown file
-    first paints and a `body` state record reads, or None where it has none."""
+    (widget-upgrade.js, `dataBody`): its `textContent`, so a `<code>` naming its
+    language is read through. The body a Markdown-bodied element renders, a written
+    Markdown file first paints and a `body` state record reads, or None where it has
+    none."""
     pre = next(
         (
             child
@@ -327,7 +328,20 @@ def pre_body(element) -> str | None:
         ),
         None,
     )
-    return None if pre is None else pre.text
+    return None if pre is None else _text_content(pre)
+
+
+def _text_content(node) -> str:
+    """`node`'s text as the DOM's `textContent` reads it: every text node under it,
+    comments left out, and a `<template>`'s contents too, since the browser holds them
+    in a fragment of their own rather than among the template's children, where the
+    parser here keeps them."""
+    return "".join(
+        child.data if isinstance(child, turbohtml.Text) else _text_content(child)
+        for child in node.children
+        if isinstance(child, turbohtml.Text)
+        or (isinstance(child, turbohtml.Element) and child.tag != "template")
+    )
 
 
 class SourceDocument:
@@ -790,7 +804,7 @@ class Authoring:
         self.code_languages += [
             (tag, line, name.removeprefix("language-"))
             for name in (attrs.get("class") or "").split()
-            if name.startswith("language-")
+            if name.startswith("language-") and name != "language-"
         ]
         references = [
             (name, value[start:end])

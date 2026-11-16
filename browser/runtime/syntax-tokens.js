@@ -12,20 +12,23 @@ import { syntaxLanguageNames, syntaxLanguages } from "./syntax-languages.js";
 // whose body is data reads the `<code>` in its `<pre>`, and the class on the widget
 // itself where it has none, as a document bound to a source has no `<pre>`. A grammar
 // answers to its name and to each alias Shiki gives it (`syntaxLanguageNames`), and the
-// grammar's name is returned. Any other name colours nothing, and the block stays the
-// colour of its ink, as it would on a page that colours nothing; `page check` names
-// such a class (`validation/markup.py`, `language_advice`).
-const LANGUAGE_CLASS = /(?:^|\s)language-([\w+.#-]+)(?=\s|$)/;
-/** @param {Element | null} element */
+// grammar's name is returned. Any other name is null: it colours nothing, and the
+// block stays the colour of its ink, as it would on a page that colours nothing, where
+// a block naming no language (undefined) may take a default, such as a Markdown
+// preview's source; `page check` names such a class (`validation/markup.py`,
+// `language_advice`).
+const LANGUAGE_CLASS = /(?:^|\s)language-(\S+)/;
+/** @param {Element | null} element @returns {string | null | undefined} */
 const classLanguage = (element) => {
   const name = element?.getAttribute("class")?.match(LANGUAGE_CLASS)?.[1];
-  return name && Object.hasOwn(syntaxLanguageNames, name)
-    ? syntaxLanguageNames[name]
-    : undefined;
+  if (!name) return undefined;
+  return Object.hasOwn(syntaxLanguageNames, name) ? syntaxLanguageNames[name] : null;
 };
 /** @param {Element} block a `<code>`, or a widget whose body is a `<pre>` */
-export const codeLanguage = (block) =>
-  classLanguage(block.querySelector(":scope > pre > code")) ?? classLanguage(block);
+export const codeLanguage = (block) => {
+  const named = classLanguage(block.querySelector(":scope > pre > code"));
+  return named === undefined ? classLanguage(block) : named;
+};
 
 // Ordinary code and Pierre's diffs share one Shiki engine and theme. Colors
 // follow the page's scheme; generated spans never enter the authored source.

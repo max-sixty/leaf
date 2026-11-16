@@ -542,7 +542,7 @@ export function misplacedBoxes() {
   }
   // Authored furniture may occupy room outside its parent, as an absolutely
   // positioned label does. Report a wide exhibit that crosses that occupied room.
-  // Notes and sidebars in the document's native flow already own their boxes;
+  // Sidebars in the document's native flow already own their boxes;
   // this reading covers only furniture `marginReading` finds outside the column.
   for (const el of wides) {
     if (!el.checkVisibility()) continue;

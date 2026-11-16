@@ -341,9 +341,8 @@
    * a page's `--lf-col` or `--lf-col-pad` stated in `ch` or `em`, in the column's font.
    * `--lf-room-length` is the column's slot for that length: the shell less the
    * column's gutters for a centred column, and the room the row leaves a body beside a
-   * sidebar (below), of which `--lf-room-before` stands before the prose.
-   * `--lf-room-note` is the note's share of it where a note column stands beside the
-   * prose. The column states each side's room from them in `--lf-free-*`,
+   * sidebar (below), of which `--lf-room-before` stands before the prose. The column
+   * states each side's room from them in `--lf-free-*`,
    * registered `*`, as an expression of lengths and a percentage that each reader
    * resolves against its own containing block. Registered `<length-percentage>`, a
    * room mixing a length with a percentage counted as changed on every restyle of the
@@ -362,11 +361,6 @@
     initial-value: 0px;
   }
   @property --lf-room-before {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-  }
-  @property --lf-room-note {
     syntax: "<length>";
     inherits: false;
     initial-value: 0px;
@@ -419,38 +413,8 @@
   ).layout-column {
     --lf-shell-width: 100cqi;
     --lf-room-length: calc(var(--lf-shell-width) - 2 * var(--lf-col-pad));
-    --lf-free-start: max(0px, (var(--lf-room-length) - var(--lf-room-note) - 100%) / 2);
+    --lf-free-start: max(0px, (var(--lf-room-length) - 100%) / 2);
     --lf-free-end: var(--lf-free-start);
-    /* An authored note column centers the prose and note together when both fit.
-     * Narrower columns keep centered prose and wrap the note. The author chooses
-     * this axis on its owner; notes inside another column never choose it. */
-    &.layout-notes {
-      margin-inline: max(
-          0px,
-          (
-              100% - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note) *
-                clamp(
-                  0,
-                  sign(
-                      100cqi - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note)
-                    ) +
-                    1,
-                  1
-                )
-            ) /
-            2
-        )
-        auto;
-      --lf-room-note: calc(
-        var(--lf-note) *
-          clamp(
-            0,
-            sign(100cqi - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note)) + 1,
-            1
-          )
-      );
-      --lf-free-end: max(0px, var(--lf-room-length) - 100% - var(--lf-free-start));
-    }
   }
   .layout-flow {
     --lf-views-flow: page;
@@ -495,9 +459,8 @@
    * measure, as a question does, gives it up once one of them asks for more room, in a
    * column or in a sidebar page's wider body. */
   :is(.layout-flow, [data-lf-flow]):has(
-    > :is([data-lf-space], .layout-note, .layout-sidebar),
-    :is(.layout-flow, [data-lf-flow])
-      > :is([data-lf-space], .layout-note, .layout-sidebar)
+    > :is([data-lf-space], .layout-sidebar),
+    :is(.layout-flow, [data-lf-flow]) > :is([data-lf-space], .layout-sidebar)
   ) {
     max-inline-size: none;
   }
@@ -590,24 +553,16 @@
       /* A flow's box grows into the room on each side as far as the blocks in it break
      * out, so its focus ring and every mark drawn round it enclose them. Padding grows
      * the box and an equal negative margin keeps the content box at the prose, so the
-     * blocks in it resolve their room as before. A note row and a wide block each
-     * reach a width from the prose's start edge, and the flow takes the larger, within
-     * the room. A table's reach is its whole room, since its columns set its width. A
-     * block breaks out only where it stands directly in a flow, so a flow counts its
-     * own children and those of the flows in it, and not a block a plain wrapper keeps
-     * in the column. */
+     * blocks in it resolve their room as before. A wide block reaches a width from the
+     * prose's start edge, within the room. A table's reach is its whole room, since its
+     * columns set its width. A block breaks out only where it stands directly in a
+     * flow, so a flow counts its own children and those of the flows in it, and not a
+     * block a plain wrapper keeps in the column. */
       :is(.layout-column, .layout-flow, [data-lf-flow])
         > :is(.layout-flow, [data-lf-flow]) {
-        --lf-note-reach: 0px;
         --lf-wide-reach: 0px;
         --lf-reach-start: 0px;
-        --lf-reach-end: min(
-          max(var(--lf-note-reach), var(--lf-wide-reach)) - 100%,
-          var(--lf-free-end)
-        );
-        &:has(> .layout-note, :is(.layout-flow, [data-lf-flow]) > .layout-note) {
-          --lf-note-reach: calc(var(--lf-col) + var(--lf-note));
-        }
+        --lf-reach-end: min(var(--lf-wide-reach) - 100%, var(--lf-free-end));
         &:has(
           > [data-lf-space="wide"],
           :is(.layout-flow, [data-lf-flow]) > [data-lf-space="wide"]
@@ -623,9 +578,8 @@
           --lf-reach-end: var(--lf-free-end);
         }
         &:has(
-          > :is([data-lf-space], .layout-note, .layout-sidebar),
-          :is(.layout-flow, [data-lf-flow])
-            > :is([data-lf-space], .layout-note, .layout-sidebar)
+          > :is([data-lf-space], .layout-sidebar),
+          :is(.layout-flow, [data-lf-flow]) > :is([data-lf-space], .layout-sidebar)
         ) {
           margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
             calc(-1 * max(0px, var(--lf-reach-end)));
@@ -648,33 +602,6 @@
       translate: none;
       --lf-breakout: 0;
     }
-    /* A note and the passage it accompanies form one row, as wide as the room after
-     * the prose allows. */
-    > .layout-note {
-      inline-size: min(var(--lf-col) + var(--lf-note), 100% + var(--lf-free-end));
-    }
-  }
-  /* Native wrapping puts the note after its passage when there is no room; the next
-   * exhibit follows both. */
-  .layout-note {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: start;
-    gap: var(--lf-sp-2) var(--lf-sp-4);
-    max-inline-size: calc(var(--lf-col) + var(--lf-note));
-    margin-block-end: var(--lf-sp-4);
-  }
-  .layout-note > * {
-    margin-block: 0;
-    max-inline-size: var(--lf-col);
-  }
-  .layout-note > :not(aside) {
-    flex: 1000000 1 var(--lf-col);
-    min-inline-size: min(100%, var(--lf-col));
-  }
-  .layout-note > aside {
-    flex: 1 1 calc(var(--lf-note) - var(--lf-sp-4));
-    min-inline-size: 0;
   }
   /* A sidebar and its body are authored siblings. Their inner track is authored
    * too, so startup, revisions and exports use the browser's same containing block

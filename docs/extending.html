@@ -441,9 +441,8 @@
               </li>
               <li id="src-idioms">
                 <strong>Theme classes.</strong> The theme supplies classes for common
-                presentation patterns, including <code>.lede</code>,
-                <code>.callout</code>, and <code>aside.note</code> in a
-                <code>layout-note</code> row for a margin note.
+                presentation patterns, including <code>.lede</code> and
+                <code>.callout</code>.
               </li>
               <li id="src-widgets">
                 <strong>Widgets.</strong> A widget is a complete page feature, authored
@@ -1199,7 +1198,7 @@ flowchart TD
               </li>
               <li id="width-available">
                 <code>available</code> uses the window's width after subtracting the
-                outer page margins and space for margin notes and controls.
+                outer page margins and space for Leaf's margin controls.
               </li>
             </ul>
             <p id="column-widths-declared">
@@ -1274,15 +1273,15 @@ flowchart TD
                 body scrolls when both fit beside each other.
               </li>
               <li id="margin-sidenotes">
-                <strong>Sidenotes</strong>, each an <code>aside.note</code> paired with
-                its passage in a <code>layout-note</code> row, on the right when the row
-                has enough room.
+                <strong>Sidenotes</strong>, which the page floats into the right margin
+                with its own CSS. The rail's markers don't avoid them, so a page of
+                sidenotes gives the margin to them with <code>data-rail="none"</code> on
+                <code>body</code>.
               </li>
             </ul>
             <p id="margins-narrow">
               The browser places these compositions as soon as the HTML arrives. In a
-              narrow window, the sidebar stacks in source order and each note follows
-              its passage. Notes never shift the reading column.
+              narrow window, the sidebar stacks in source order.
             </p>
           </section>
           <section id="sidebar-page" class="layout-flow">

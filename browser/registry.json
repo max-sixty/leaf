@@ -238,9 +238,5 @@
   "pre > code[class*=\"language-\"]": {
     "description": "A literal the user can select and quote, such as a command, a config file or a snippet of output. To color it, add `class=\"language-NAME\"` with a name from `$languages`; leave the class off where the body isn't source. For a walkthrough with numbered lines, highlighted ranges or remarks at a line, use `lf-code` instead.",
     "x-example": "<pre><code class=\"language-bash\">leaf page check ~/.local/state/leaf/pages/auth-diagnosis --render</code></pre>"
-  },
-  "aside.note": {
-    "description": "A short qualification or source the reader can skip. Group it after its passage in a layout-note row: it stands beside the passage when the row has room, then follows it when narrow. The next exhibit follows the whole row. Put longer material in the main document.",
-    "x-example": "<div class=\"layout-note\"><p>Logout must revoke immediately.</p><aside class=\"note\" id=\"logout-frequency\">Support revokes all devices during account-takeover response.</aside></div>"
   }
 }

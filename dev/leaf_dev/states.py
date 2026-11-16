@@ -2704,6 +2704,14 @@ def live_sample_embedded(page: Page) -> None:
     ).to_be_visible()
 
 
+def gallery_comparison(page: Page) -> None:
+    """A section comparing alternatives: its guide, a row of tiles and a table."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-neutral-comparison").scroll_into_view_if_needed()
+
+
 def interactive_sample(page: Page) -> None:
     """An interactive sample, whose widgets use this page's state, under its note."""
     page.locator("#bg-inline-sample").scroll_into_view_if_needed()
@@ -2774,6 +2782,12 @@ STATES = (
         "lost-update",
         authored_timeline_step,
         region="#race",
+    ),
+    State(
+        "gallery-comparison",
+        "feature-gallery",
+        gallery_comparison,
+        region="#bg-neutral-comparison",
     ),
     State(
         "native-code",

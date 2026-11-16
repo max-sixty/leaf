@@ -937,8 +937,7 @@ ROOM_GEOMETRY = (
     + SHELL_BOX
     + """,
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
-             widePatch: box('wide-patch'),
-             note: box('note'), later: box('later') };
+             widePatch: box('wide-patch') };
 }"""
 )
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
@@ -1214,41 +1213,6 @@ OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
     "<main class=\"layout-column\">\n<div id='own-rail' style='position: absolute; left: 100%;"
     " margin-left: 22px; top: 0; width: 160px; height: 600px'>Mine.</div>",
 )
-# The two things on this page that want a margin, on one page and level with each other.
-# The note is written immediately before the board so they share a band of the page rather
-# than stacking, which is the only arrangement in which either can be over the other.
-NOTE_AND_WIDE_PAGE = leaf_page(
-    "room and margin",
-    """
-<h1 id="t">Feeders</h1>
-<div class="layout-note"><p id="prose">The board is as wide as its columns are; this sentence is not.</p>
-<aside class="note" id="note">Counts are the warden's own, taken at dawn from the
-south hide, and the perch numbers are the ones she disputes.</aside></div>
-<lf-board id="sprint">
-  <lf-column id="col-todo" label="Todo">
-    <lf-card id="card-heater"><strong>Heated perch</strong> Wire the south feeder.</lf-card>
-  </lf-column>
-  <lf-column id="col-doing" label="Doing">
-    <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
-  </lf-column>
-  <lf-column id="col-review" label="Review"></lf-column>
-  <lf-column id="col-done" label="Done"></lf-column>
-</lf-board>
-<p id="gap" style="margin-block: 600px">Prose far enough below the note that nothing of
-it reaches this part of the page.</p>
-<lf-board id="later">
-  <lf-column id="late-todo" label="Todo">
-    <lf-card id="card-seed"><strong>Seed mix</strong> Switch to sunflower hearts.</lf-card>
-  </lf-column>
-  <lf-column id="late-done" label="Done"></lf-column>
-</lf-board>
-""",
-).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
-
-# Wide enough for a note to hang in the margin with the column centred, the room
-# either side of it holding the note's 384px, with an exhibit growing past prose into
-# that same margin.
-NOTE_BAND = 1600
 
 
 SCROLLED = "() => document.scrollingElement.scrollTop > 0"

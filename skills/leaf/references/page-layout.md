@@ -105,6 +105,31 @@ without a frame. Each panel is either another `layout-flow` or its own Layout.
 Omit the class for a framed tab set inside a section or another panel; its panels
 stay ordinary boxes too. Placement alone never chooses a set's visual flow.
 
+To hang a short note in the margin beside the passage it qualifies, float it there
+with the page's own CSS, as Tufte CSS sets sidenotes, and write it just before that
+passage so their tops line up. Below the window width at which the margin holds it,
+the column's width plus twice the note's room, it stands in the column instead:
+
+```css
+.sidenote {
+  float: inline-end;
+  clear: inline-end;
+  inline-size: 12rem;
+  margin-inline-end: -14rem;
+}
+@media (width < 75rem) {
+  .sidenote {
+    float: none;
+    inline-size: auto;
+    margin-inline-end: 0;
+  }
+}
+```
+
+Leaf's comment markers stand in the same margin and don't avoid a note. Where notes
+fill it, give the margin to them with `data-rail="none"` on `body`, so each marker
+stands on its passage instead.
+
 ## A sidebar page
 
 Use `<main class="layout-sidebar">` when the reader works through one region while
@@ -145,23 +170,6 @@ Beside the body, `layout-track` sticks within its sidebar and scrolls within the
 window when tall. Stacked, it flows whole with the page. The authored wrapper is the
 same node from the first paint through revisions: Leaf inserts no body around it.
 Style its blocks by their classes or ids, or as `.layout-track > p`.
-
-Add `layout-notes` to the `layout-column` that should leave room beside its
-prose for notes, such as `<main class="layout-column layout-notes">`. This is an
-optional arrangement: an unmarked column stays centered, and its notes wrap
-within the room it has. An independent nested column chooses its own arrangement.
-
-Group a short note with the passage it accompanies in `layout-note`:
-
-```html
-<div class="layout-note">
-  <p>…</p>
-  <aside class="note" id="qualification">…</aside>
-</div>
-```
-
-The note stands beside the passage when the row has room, then follows it when
-narrow. The next exhibit follows the whole row, so it cannot cover the note.
 
 ## A workspace
 

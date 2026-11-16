@@ -16,6 +16,7 @@ from render_harness import (
     clocked,
     consume_browser_errors,
     dwelt,
+    holding,
     leaf_page,
     long_press,
     names,
@@ -433,7 +434,12 @@ def test_a_chart_keeps_its_stated_height_beside_a_taller_one(browser, serve):
     """A row of tiles stretches each cell to the row's tallest, and once a chart is drawn
     its box is the drawing's, so a short chart's box stands as tall as its neighbour.
     Drawn again for a new width, it keeps the height it states. Drawn to the stretched
-    box, it took the neighbour's height, and each width change after kept it there."""
+    box, it took the neighbour's height, and each width change after kept it there.
+
+    Plot loads here before the charts' module does, so their room is delivered after
+    the bundle is in, the order a CPU-starved machine gave them. The first drawing ran
+    inside that ResizeObserver delivery then, and the browser reported a ResizeObserver
+    loop."""
     body = """{
   ariaLabel: "Merged by team: backend 12, frontend 19",
   marks: [Plot.barY([{team: "backend", n: 12}, {team: "frontend", n: 19}],
@@ -450,7 +456,15 @@ def test_a_chart_keeps_its_stated_height_beside_a_taller_one(browser, serve):
         "tiled charts",
         f'<h1 id="t">Merged</h1><div class="layout-tiles">{tiles}</div>',
     )
-    page = open_page(browser, serve(source))
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held = []
+    page.route("**/widgets/lf-chart.js", lambda route: held.append(route))
+    page.goto(serve(source), wait_until="commit")
+    holding(page, held, 1, "the chart module")
+    page.evaluate("() => import('/vendor/plot.esm.js').then(() => true)")
+    held.pop().continue_()
+    page.unroute("**/widgets/lf-chart.js")
+    render_checks_model.wait_until_ready(page)
     heights = """() => Object.fromEntries(['c-short', 'c-tall'].map(id => [id,
         Number(document.querySelector(`#${id} svg[role=img]`).getAttribute('height'))]))"""
     drawn_for_room = """() => ['c-short', 'c-tall'].every(id => {
@@ -528,8 +542,8 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
             "author": "agent",
             "parent": "c-chart",
             "revision": 1,
-            "text": "Like this:",
-            "markup": chart_markup("msg-chart", MESSAGE_CHART),
+            "text": "Like this:\n\n" + chart_markup("msg-chart", MESSAGE_CHART),
+            "html": True,
         },
     )
     page = open_page(browser, url)

@@ -19,8 +19,10 @@ have to picture from a description, and put that thing on the page in its own fo
   values the argument cites, and put exact values in a table below it when readers
   need them.
 - Wording the user judges, such as code, a command or a message, is shown as the text
-  itself. When the point is what code does, such as what it draws or which rule wins,
-  show that effect in one of the forms above, with the code beside it.
+  itself, and so is a source a claim rests on, such as a rule in a doc. Quote that
+  passage whole, conditions included, so the reader can check the claim on the page.
+  When the point is what code does, such as what it draws or which rule wins, show
+  that effect in one of the forms above, with the code beside it.
 
 A table or list whose rows say where things sit, how large they are or what connects
 to what should be a drawing. A drawing or chart makes its point through its geometry:
@@ -287,6 +289,13 @@ styled `display: block` or a newline `white-space` keeps doesn't end the line. A
 as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
 Format filenames and paths as inline code.
+
+Write a formula in LaTeX in a `<code class="language-math">`, escaping `&`, `<` and `>`
+as in any HTML text: inside a sentence it reads as an inline formula, and as the code
+of its own `<pre>`, which takes an id like any block a reader points at, as a display
+formula. Leaf typesets the LaTeX in the surrounding text's size and colour,
+`page check --render` reports a formula it can't read, and a comment quotes a formula
+by its LaTeX.
 
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
 put the same block inside `lf-code` for a line-numbered walkthrough. Name the actual

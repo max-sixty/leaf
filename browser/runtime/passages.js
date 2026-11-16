@@ -123,7 +123,7 @@ import {
   inUi,
   overIn,
   refuseShadowRoot,
-  pageShadowRoots,
+  queryAllUnder,
   shadowHost,
   shadowRootsIn,
   uiInside,
@@ -133,6 +133,7 @@ import {
 import {
   alongClimb,
   composedParentNode,
+  drawn,
   eachRenderedElement,
   isElement,
   isShadowRoot,
@@ -309,8 +310,8 @@ export function settledAway(el) {
   );
 }
 export const GENERATED = ".lf-ui, [data-lf-gen]";
-// A message's body: the markup its writer sent, and the text the runtime renders from
-// their words beside that markup.
+// A message's body: what the runtime renders from its writer's Markdown, any HTML an
+// agent wrote in it included.
 const MESSAGE_BODY = ".lf-msg-body";
 // Every heading, which names the part of the page under it.
 export const HEADING = "h1, h2, h3, h4, h5, h6";
@@ -469,8 +470,8 @@ export function refuseBareText() {
 // almost the same thing and is wrong in one case that matters: a reading can start
 // *inside* generated chrome, and everything generated over it would read as authored.
 //
-// A message is the other frame. Its body, the markup its writer sent and the text the
-// runtime renders from their words, is a document of its own (`authoredScope`) standing
+// A message is the other frame. Its body, what the runtime renders from its writer's
+// words, is a document of its own (`authoredScope`) standing
 // inside the chrome that draws the message, so the body frames a reading there as a
 // widget does, and the words read as their writer's: a heading in a reply names what
 // follows it there. The version diff once read every block on the live page, a
@@ -1054,11 +1055,7 @@ export const elementFromPointAcross = (x, y) => {
 // does not model, and answering it here would be inventing that contract in a sweep.
 /** @template {Element} [E=Element] @param {string} selector @returns {E[]} */
 export const pageQueryAll = (selector) =>
-  [document, ...pageShadowRoots()].flatMap((root) => {
-    /** @type {NodeListOf<E>} */
-    const elements = root.querySelectorAll(selector);
-    return [...elements];
-  });
+  /** @type {E[]} */ (queryAllUnder(document, selector));
 
 // A native Range compares one DOM tree. Its light-DOM endpoints can sit inside a declared
 // root's slots, where retargeting every shadow word to its host also selects the host's
@@ -1440,9 +1437,26 @@ export function rangeOf(segments) {
   if (!first || !last)
     throw new RangeError("A passage range needs at least one segment");
   const range = document.createRange();
-  range.setStart(first.node, first.start);
-  range.setEnd(last.node, last.end);
+  const [startNode, startOffset] = segmentBounds(first);
+  const [, , endNode, endOffset] = segmentBounds(last);
+  range.setStart(startNode, startOffset);
+  range.setEnd(endNode, endOffset);
   return range;
+}
+// Where a segment's range starts and ends: around its characters in their text node,
+// unless what draws them is another tree. A host whose shadow root no entry declares is
+// read by its light children (`walk`), and its tree may draw words it slots nowhere as
+// something else, as a typeset formula draws its LaTeX as MathML (formulas.js); words
+// drawn so have no box of their own, so their range stands at the host's edges, and
+// holds the drawing that shows them.
+/** @param {Segment} segment @returns {[Node, number, Node, number]} */
+export function segmentBounds({ node, start, end }) {
+  const host = node.parentElement;
+  const parent = host?.parentNode;
+  if (!host?.shadowRoot || !parent || node.assignedSlot || declaredRoot(host))
+    return [node, start, node, end];
+  const at = Array.prototype.indexOf.call(parent.childNodes, host);
+  return [parent, at, parent, at + 1];
 }
 // A passage's pieces in order: each segment, the block holding its words
 // (`segmentBlock`) and the lines it is drawn in, wherever it stands, in the page's tree
@@ -2105,8 +2119,7 @@ function hear(records) {
   const idsUnder = (node) => {
     if (!isElement(node)) return;
     if (node.id) ids.add(node.id);
-    for (const scope of [node, ...shadowRootsIn(node)])
-      for (const named of scope.querySelectorAll("[id]")) ids.add(named.id);
+    for (const named of queryAllUnder(node, "[id]")) ids.add(named.id);
   };
   for (const record of records) {
     const { target } = record;
@@ -3454,6 +3467,21 @@ export function findQuote(text, quote, anchor, within) {
 // the shared reading: stored quote resolution and file comparisons do not read styles.
 // display: contents has no box of its own yet still speaks through its children, and
 // visibility may be restored by a descendant, so neither is an ancestor veto.
+//
+// A style read inside content the browser skips makes Chromium style everything the
+// skipping box holds to answer it. So a word in a `content-visibility: auto` box that
+// is skipping what it holds, off screen, is asked of that box where the box is
+// `visibility: visible`, after the `hidden` attributes over the word. A long text
+// document's rows stand in such runs (lf-text-document.js, `run`), and each run's
+// forced style also recounted the line numbers of every run styled before it: over the
+// 616 runs of an 80,000-line document, from 6 ms a run to 32, 11.6 s in all. CSS
+// inside an off-screen `auto` box goes unread until the box draws, in either
+// direction: a word it hides counts, and a word it shows under a `hidden` element
+// doesn't. Leaf's own `auto` boxes are those runs, whose rows hold only text. A word in a fold (a closed tab's `hidden="until-found"` panel, a
+// shut details) is still asked of its own element, though the fold is styled whole the
+// first time a search reads inside it, since widgets hide words there by CSS: asking
+// the fold instead added 56 matches to a search for "the" on the corpus (2,651 against
+// 2,595), from widgets such as lf-visual-review, lf-playground and lf-chart.
 function searchableWords() {
   const styles = new Map();
   const reachable = new Map();
@@ -3477,9 +3505,44 @@ function searchableWords() {
     reachable.set(el, result);
     return result;
   };
+  // Whether an `auto` box is skipping what it holds: none of its children is drawn.
+  /** @type {Map<Element, boolean>} */
+  const skipping = new Map();
+  /** @param {Element} box */
+  const skips = (box) => {
+    let value = skipping.get(box);
+    if (value === undefined)
+      skipping.set(
+        box,
+        (value =
+          style(box).contentVisibility === "auto" && ![...box.children].some(drawn)),
+      );
+    return value;
+  };
+  // The element a word under `parent` is asked of: the off-screen `auto` box that skips
+  // it (`skipper`), where that box is `visibility: visible` and no `hidden` element
+  // stands over the word, which leaves nothing to ask (null); else `parent` itself.
+  /** @type {Map<Element, Element | null>} */
+  const askedFor = new Map();
+  /** @param {Element} parent */
+  const asking = (parent) => {
+    let asked = askedFor.get(parent);
+    if (asked === undefined) {
+      const box = skipper(parent);
+      asked =
+        box && skips(box) && style(box).visibility === "visible"
+          ? closestAcross(parent, '[hidden]:not([hidden="until-found"])')
+            ? null
+            : box
+          : parent;
+      askedFor.set(parent, asked);
+    }
+    return asked;
+  };
   return (/** @type {Segment} */ { node }) => {
     const parent = renderedParent(node);
-    return parent && style(parent).visibility === "visible" && canReveal(parent);
+    const asked = parent && asking(parent);
+    return !!asked && style(asked).visibility === "visible" && canReveal(asked);
   };
 }
 

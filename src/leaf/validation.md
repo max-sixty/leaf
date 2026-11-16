@@ -7,8 +7,9 @@ directly:
   ([events.md, "Admission"](events.md#admission));
 - a page's authored source at `check_source` (`validation/source.py`), which `page
 check`, activation, `page stamp` and `page init` all run ("Static validation");
-- message markup an agent hands in at `admission.check_markup`, which applies the same
-  structure and vocabulary checks to an HTML fragment;
+- the HTML in an agent's message at `admission.check_markup`, which applies the same
+  structure and vocabulary checks to the markup the message draws
+  (`passages.message_markup`);
 - a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
   `page init`, `page check`, serving and export, but not reading the page
   ([layer-registry.md](layer-registry.md));

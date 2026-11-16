@@ -68,9 +68,10 @@ as its `producer` (`registry.storage.served_layer`), which the panel's menu (Cop
 version) shows.
 
 A served page's bootstrap (`runtime/bootstrap.js`) reloads the tab when the server
-incarnation (`Leaf-Server`), the layer generation or the website release changes. A
-rejected or unchanged `page init` keeps the server and the generation, so open tabs
-don't reload.
+incarnation (`Leaf-Server`), the layer generation or the website release changes, and
+once, marked, when a page that could not start for lack of something it needs finds
+its own server answering. A rejected or unchanged `page init` keeps the server and
+the generation, so open tabs don't reload.
 
 ## Page protocol
 
@@ -105,7 +106,11 @@ names the older protocol it speaks, so a newer Leaf reads it as no watch and adm
 nudges the session (`leases.wait_is_live`).
 
 Bump the number when a Leaf at it would misread an event another Leaf at it wrote into
-the log, or a record another wrote outside it. A Leaf's readings skip an event kind it
+the log, or a record another wrote outside it. The log keeps an agent's message holding
+HTML as its Markdown, and every reader takes its elements from that text, so a change
+to that reading, its parsers' versions included, that places an element differently
+bumps it (`passages.markdown_dialect`, with markdown.js's `makeMarkdown` held to it by
+`tests/message_html_cases.json`). A Leaf's readings skip an event kind it
 doesn't know, and its deliveries hand such an event over as logged, with no handling
 clause. So a new kind declares `skippable` where that leaves an older Leaf's reading
 right, and bumps otherwise. A change to the bundled widgets, their

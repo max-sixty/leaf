@@ -15,6 +15,7 @@ from render_harness import (
     open_page,
     open_threads,
     panel_settled,
+    put_preview_away,
     resized,
     select_words,
     selection_field,
@@ -144,6 +145,9 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
     words = page.locator("#words")
     words.hover()
     expect(words).to_have_css("cursor", "pointer")
+    # The words preview their thread after a dwell, and that preview can stand over the
+    # buttons below, so put it away before aiming at them.
+    put_preview_away(page)
 
     # Armed, a press is the aim's, and a button keeps its own cursor whether or not a
     # thread marks it: the same as its unmarked twin's.
@@ -365,9 +369,10 @@ def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
                 "author": "agent",
                 "parent": "tv-decisioned",
                 "revision": 1,
-                "text": "Depends what you want to keep:",
-                "markup": '<lf-options id="tv-decision">'
+                "text": "Depends what you want to keep:\n\n"
+                '<lf-options id="tv-decision">'
                 '<lf-option id="tv-redis">Redis</lf-option></lf-options>',
+                "html": True,
             },
             {
                 "kind": "comment",

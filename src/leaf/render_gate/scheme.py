@@ -17,6 +17,7 @@ from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
+    asked_again,
     close_render_page,
     evaluate_probe,
     install_window_errors,
@@ -289,7 +290,7 @@ def _render_page(
     install_window_errors(page, window_error)
     try:
         observe_output_documents(page)
-        page.goto(url)
+        page.goto(asked_again(url))
         wait_for_probe(page, "runtimeStarted", fixed_server=True)
     except PageNotReady as error:
         return never_ready(error, "no-runtime")

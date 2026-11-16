@@ -5,8 +5,9 @@
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
 // which layout coordinates remove, except where it carries the control a gesture was
 // made on (Scrolls a gesture makes); sticky positioning, through its scroller's travel;
-// CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
-// driven included, through sampled translation or reflow from size changes.
+// CSS anchor positioning, through its anchor's scroll; and native animation that a
+// scroll drives or an input began (Each trusted gesture), through sampled translation
+// or reflow from size changes.
 // Beside those, it credits only what that rule itself declares:
 // a gesture's rendering, the document while it parses, the page before it
 // presents or as it returns from a hidden tab, runtime regions declared with
@@ -109,8 +110,10 @@
 // tick reads it. The runtime holds news that arrives while the gesture is unresolved
 // until that frame paints (state-application.js), so its delivery carries no news.
 // A native size animation also credits a later box when its size change travels
-// through the layout path to that box and matches its movement. Its continued
-// lifetime never owns unrelated page movement. A script re-times motion by cancelling
+// through the layout path to that box and matches its movement, and a node inside its
+// own box, such as the label a growing button centres, by an amount between the moves
+// of that box's two edges (`innerReflow`). Its continued lifetime never owns unrelated
+// page movement. A script re-times motion by cancelling
 // an effect and beginning another in its place in the same task. The new effect
 // continues that motion where it has the cancelled effect's target and moving
 // properties, ends at the same values in its last keyframe, and starts within a pixel
@@ -3272,6 +3275,25 @@
       if (next === after) return true;
     return false;
   };
+  // Why `element` doesn't move with `box`, its ancestor, as `{reason, node}`, or null
+  // where it does. An in-flow box moves with its parent, and an absolutely positioned
+  // one with its containing block: its nearest positioned ancestor or a box nearer
+  // still, such as a transformed one. So an absolute box moves with `box` only where a
+  // positioned box at or below `box` holds it, as a diff line holds its comment button.
+  const unplacedBy = (element, box, at) => {
+    let placed = true;
+    for (let inner = element; inner !== box; inner = paintAt(inner, at).parent) {
+      const style = paintAt(inner, at);
+      if (style.display === "contents") continue;
+      if (style.position === "fixed" || style.float !== "none")
+        return { reason: "receiver-out-of-flow", node: inner };
+      if (style.position === "absolute") placed = false;
+      else if (!placed && style.position !== "static") placed = true;
+    }
+    return placed || paintAt(box, at).position !== "static"
+      ? null
+      : { reason: "uncontained-absolute-receiver", node: box };
+  };
   const sizeReaches = (target, element, from, to, axis, change, proof) => {
     const reject = (reason, node, readings = {}) => {
       if (proof) proof.rejection = { reason, node, ...readings };
@@ -3297,23 +3319,11 @@
     const flow = boxParent(branch, from);
     if (!inFlow(branch, from)) return reject("source-out-of-flow", branch);
     if (!flow) return reject("missing-flow", branch);
-    // An in-flow box moves with its parent, and an absolutely positioned one with its
-    // containing block: its nearest positioned ancestor or a box nearer still, such as
-    // a transformed one. So an absolute box is carried only where a positioned box
-    // between it and the follower holds it, as a diff line holds its comment button.
     const reach = path.indexOf(flow);
     if (reach < 1) return reject("receiver-outside-flow", flow);
     const follower = path[reach - 1];
-    let placed = true;
-    for (const box of path.slice(0, reach - 1)) {
-      const style = paintAt(box, to);
-      if (style.position === "fixed" || style.float !== "none")
-        return reject("receiver-out-of-flow", box);
-      if (style.position === "absolute") placed = false;
-      else if (!placed && style.position !== "static") placed = true;
-    }
-    if (!placed && paintAt(follower, to).position === "static")
-      return reject("uncontained-absolute-receiver", follower);
+    const unplaced = unplacedBy(element, follower, to);
+    if (unplaced) return reject(unplaced.reason, unplaced.node);
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
@@ -3329,6 +3339,91 @@
     if (!followsAt(branch, follower, from))
       return reject("receiver-not-following", follower);
     return true;
+  };
+  // A box places its content between its edges, as a flex box or a button centres its
+  // label. So while a native animation changes the box's size, a node inside it moves
+  // by an amount between the moves of the box's two edges. Those moves are counted
+  // beyond the box's own credits and must grow or shrink it, at one edge or at both
+  // apart; a box carried whole credits nothing here. The node's move is counted beyond
+  // its other credits, and the node must move with the box (`unplacedBy`). The box's
+  // alignment, which would say where in that span the node belongs, is not readable (a
+  // button centres its label by no property), so another move within the span is
+  // credited too, as `sticky_inset` credits one within its span. `boxes` keeps each
+  // box's own credits for the comparison, which every node it holds, and every box
+  // inside it, asks for.
+  const innerReflow = (motion, node, element, from, to, animations, boxes) => {
+    const resizing = [...new Set(animations.map(continued))].filter((animation) =>
+      effectProperties(animation).some((property) => SIZE_GEOMETRY.has(property)),
+    );
+    if (!resizing.length) return;
+    const held = ancestryAt(element, from),
+      holding = ancestryAt(element, to);
+    const holders = resizing.filter(
+      ({ effect: { target } }) =>
+        target !== node &&
+        held.includes(target) &&
+        holding.includes(target) &&
+        paintAt(target, from)?.display !== "contents" &&
+        paintAt(target, to)?.display !== "contents",
+    );
+    if (!holders.length) return;
+    const first = layoutAt(node, from),
+      last = layoutAt(node, to);
+    if (!first || !last) return;
+    const between = (value, a, b) =>
+      value >= Math.min(a, b) - 1 && value <= Math.max(a, b) + 1;
+    for (const [axis, end] of [
+      ["left", "right"],
+      ["top", "bottom"],
+    ]) {
+      const moved = last[axis] - first[axis] - motion[axis];
+      if (Math.abs(moved) < 1) continue;
+      for (const animation of holders) {
+        const target = animation.effect.target;
+        const inline =
+          (paintAt(target, to)?.writingMode === "horizontal-tb") === (axis === "left");
+        const sizes = [
+          axis === "left" ? "width" : "height",
+          inline ? "inlineSize" : "blockSize",
+        ];
+        const properties = effectProperties(animation);
+        if (!properties.some((property) => sizes.includes(property))) continue;
+        const before = layoutAt(target, from),
+          after = layoutAt(target, to);
+        if (!before || !after) continue;
+        const proof = { target, axis, inner: true, before, after, first, last };
+        motion.sizePropagation.push(proof);
+        const change = after[end] - after[axis] - (before[end] - before[axis]);
+        if (Math.abs(change) < 1) {
+          proof.rejection = { reason: "source-size-unchanged" };
+          continue;
+        }
+        if (!boxes.has(target))
+          boxes.set(target, animationMotion(target, from, to, animations, boxes));
+        // Where the box's head edge went beyond its own credits; its foot went
+        // `change` farther.
+        const own = boxes.get(target)[axis];
+        const head = after[axis] - before[axis] - own;
+        const rejection = !between(head, 0, -change)
+          ? { reason: "source-carried" }
+          : !between(moved, head, head + change)
+            ? { reason: "receiver-movement-mismatch" }
+            : unplacedBy(element, target, to);
+        if (rejection) {
+          proof.rejection = { ...rejection, own };
+          continue;
+        }
+        credit(motion, "animation_inner_reflow", target, axis, moved, {
+          before,
+          after,
+          first,
+          last,
+          own,
+          properties,
+        });
+        break;
+      }
+    }
   };
   // A sticky box's inset is the line it sticks at, not an offset. While the box stands
   // at that line, a change of the inset moves it by that change within its containing
@@ -3385,7 +3480,7 @@
         block,
       });
   };
-  const animationMotion = (node, from, to, animations) => {
+  const animationMotion = (node, from, to, animations, boxes = new Map()) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [], sizePropagation: [] };
     if (!element) return motion;
@@ -3561,6 +3656,7 @@
       }
       seen.set(target, properties);
     }
+    innerReflow(motion, node, element, from, to, animations, boxes);
     return motion;
   };
   // The credit owners retain their accepted terms. A failing comparison keeps

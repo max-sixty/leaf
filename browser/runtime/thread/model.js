@@ -545,7 +545,7 @@ export function threadRecordReader() {
     /** @param {Message} message @param {boolean} unread @param {string} thread */
     const readMessage = (message, unread, thread) => {
       const {
-        markup,
+        html,
         plainText,
         attention,
         session,
@@ -557,12 +557,12 @@ export function threadRecordReader() {
       } = message;
       const units = unitsByMessage.get(message.id) ?? [];
       const authored = document.messageBodies?.get(message.id);
-      if (markup && !authored)
+      if (html && !authored)
         throw new Error(`Authored message ${message.id} has no captured body`);
       /** @type {({kind: "authored", units: typeof units} & CapturedBody)
        * | {kind: "reaction" | "suggestion" | "prose", text: string}} */
       const body =
-        markup && authored
+        html && authored
           ? { kind: "authored", ...authored, units }
           : {
               kind: message.token

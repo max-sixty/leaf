@@ -313,6 +313,7 @@ dl.lf-facts dd {
     /* A pre and an hr take the room a draft edited in place gives a fence's and a
        rule's source lines (`.lf-msg-body hr` below says why). */
     pre {
+      color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
       background: var(--lf-pre-bg);
       border: 1px solid var(--lf-code-border);
       border-radius: var(--lf-r);
@@ -759,17 +760,6 @@ leaf-text.lf-fab-input,
 .lf-msg-body :is(p, ul, ol, pre, blockquote, table, hr) {
   margin: 6px 0;
 }
-/* A message's authored markup (messages.js) follows its words and pictures, and stands
-   under them at least as far as the blocks above stand apart, so a question of bare
-   words never reads as the words' last line or touches the picture above it. The gap
-   is the words' or pictures' own end, so it collapses with whatever top the markup sets
-   and a message of markup alone starts at its head. */
-.lf-msg-body
-  > :is(.lf-msg-text:not(:empty), .lf-msg-media):has(
-    + :not(.lf-msg-media, .lf-drawing-reference)
-  ) {
-  margin-block-end: 6px;
-}
 /* A message keeps its source's spaces and line breaks, wrapped as its draft's editor
    wraps them (composing/text-field.js), a space at a line's end hanging past it. */
 .lf-msg-text > p {
@@ -822,8 +812,8 @@ leaf-text.lf-fab-input,
 /* A message written in Markdown stands its blocks as the draft it was typed in showed
    them: a line apart for each blank line the source left before one, and touching
    where it left none, as a list typed under its first line or an item under the
-   last. The renderer counts those lines (markdown.js, `data-lf-gap`); an agent's
-   authored markup carries none, and keeps the spacing above. A fence's count stands
+   last. The renderer counts those lines (markdown.js, `data-lf-gap`); HTML an agent
+   wrote carries none (below). A fence's count stands
    on its code. A line is the message's, computed where the text starts, since code
    sets a shorter one of its own. */
 @property --lf-msg-line {
@@ -848,6 +838,12 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-text :is([data-lf-gap="3"], pre:has(> [data-lf-gap="3"])) {
   margin-block-start: calc(3 * var(--lf-msg-line));
+}
+/* A block of HTML an agent wrote stands a line below what it follows, as the blank line
+   it is written after would stand a Markdown block, so a table between two paragraphs
+   stands as far from each. */
+.lf-msg-text > :not([data-lf-gap], pre:has(> [data-lf-gap]), :first-child) {
+  margin-block-start: var(--lf-msg-line);
 }
 
 /* Non-verbatim data widgets start as readable source. The registry's existing

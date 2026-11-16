@@ -73,9 +73,8 @@ export function focusedThreadTarget() {
 
 // The thread the user is in, wherever it is drawn — the Threads list, the margin card, a
 // seat on the page — with a control inside one standing in it too. Climbing from the
-// inner focus reaches a seat a widget stages in its shadow tree. The box's way out climbs
-// further, to a seat holding no thread yet (landing.js, `heldThreadOrSeat`). A walk asks
-// the same of the node its origin was read from (`threadIn`).
+// inner focus reaches a seat a widget stages in its shadow tree. A walk asks the same of
+// the node its origin was read from (`threadIn`).
 /** @param {Node | null | undefined} node */
 export const threadIn = (node) => closestAcross(node ?? null, THREAD);
 export const heldThread = () => threadIn(focused());

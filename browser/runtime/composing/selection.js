@@ -179,6 +179,7 @@ fabBar.prepend(composer);
  * @property {ReturnType<typeof import("../thread/destination.js").createThreadDestinations>["openPageThread"]} openPageThread
  * @property {(anchor: Anchor | null) => Element | Range | null} anchorTravelAt
  * @property {() => Anchor | null} fabAnchorAt
+ * @property {() => string | null} fabHoldAt
  * @property {() => Element | null} fabPointAt
  * @property {() => ComposerFrame} fabFrameAt
  * @property {() => Promise<boolean>} fabPositioned
@@ -228,6 +229,7 @@ export function createSelectionComposer({
   openPageThread,
   anchorTravelAt,
   fabAnchorAt,
+  fabHoldAt,
   fabPointAt,
   fabFrameAt,
   fabPositioned,
@@ -753,8 +755,13 @@ export function createSelectionComposer({
         undoStroke: () => drawingEdits.undoStroke(pendingAnchor),
         remove: () => drawingEdits.remove(pendingAnchor),
       },
-      send: async (_text, raw, owns, visible) => {
+      // The second send an outlet's hold offers (`fabHoldAt`), whose comment holds the
+      // widget it is about while its thread is open. A suggestion and a drawing's
+      // comment hold nothing (`$events`, comment).
+      altLabel: () => (suggestionMode || pendingDrawing ? null : fabHoldAt()),
+      send: async (_text, raw, owns, _typed, alternate) => {
         const anchor = structuredClone(pendingAnchor);
+        const holds = alternate ? anchor?.section : null;
         const revision = pendingRevision;
         const ctx = composerCtx(anchor);
         const suggestion = suggestionMode;
@@ -797,6 +804,7 @@ export function createSelectionComposer({
                 ...(anchor && { anchor }),
                 ...(suggestion && { suggestion: true }),
                 ...(about && { about }),
+                ...(holds && { holds }),
               }));
             },
           );
@@ -804,6 +812,10 @@ export function createSelectionComposer({
           sending = null;
         }
         if (!sent) return landElsewhere();
+        // The thread the send starts is its acknowledgement. The hold says what its
+        // press did beyond sending, and names the send too, since it is the later write
+        // to the live region and would otherwise be all a listener heard.
+        if (holds) notice("Replied — goal paused");
         // A refusal withdraws the thread the send drew and hands the words back to this
         // passage's draft. While the user has done nothing since Send, the box comes back
         // with them, as the page comment card's does. Withdrawing the thread the send

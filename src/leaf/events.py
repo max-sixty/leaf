@@ -746,11 +746,11 @@ def seat_root(thread: dict) -> str | None:
     """The widget whose thread seat this thread's root stands in.
 
     An element anchor naming that widget and carrying nothing else, which is the
-    runtime's `seatRoot` and the anchor `renderSeats` collects into the seat's
-    own view. Narrower than any anchor naming the widget, deliberately: a quote
-    anchor points into the widget's words rather than standing in the box it offers,
-    and the user can see the difference — one is a note on a phrase, the other is
-    the cell."""
+    runtime's `seatRoot` and the thread a widget is offered an outlet of its own
+    for (`threadOutlets`). Narrower than any anchor naming the widget, deliberately:
+    a quote anchor points into the widget's words rather than standing in the place
+    it offers, and the user can see the difference — one is a note on a phrase, the
+    other is the cell."""
     root = thread["root"]
     anchor = thread["anchor"]
     if root.get("about") or not anchor or len(anchor) != 1:

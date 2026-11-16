@@ -20,17 +20,13 @@
 import { setChildren } from "../dom-children.js";
 import { generatedElement } from "../widget-elements.js";
 import { html, render } from "/runtime/framework.js";
-import { seatRoot, threadKey } from "./model.js";
+import { threadKey } from "./model.js";
 import { ThreadView, threadReading } from "./thread-card.js";
 import { holdFocus, focused, focusDestination, currentLocationIn } from "../focus.js";
-import { registry } from "../registry.js";
-import { loadDraft, seatContext } from "../drafts.js";
 import { HeldNews } from "./held-news.js";
 import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../user-intent.js";
 import { foldBlock } from "../motion.js";
-import { closestAcross } from "../passages.js";
-import { drawnThreadsWithId } from "./selectors.js";
 
 /** @typedef {import("./thread-card.js").ThreadCommands} ThreadCommands */
 /** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
@@ -139,8 +135,7 @@ class ThreadSeat {
           ]
         : [];
     this.#model = model;
-    // A reading with no surface, a first-message box drawn before its seat's threads,
-    // is no baseline for news.
+    // The reading that empties a seat names no surface, and is no baseline for news.
     if (model.surface)
       this.#held ??= new HeldNews(
         this.node,
@@ -400,34 +395,6 @@ export const claimSeatReplies = (host) => seats.get(host)?.claim();
 /** @param {Element} host */
 export function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);
-}
-
-/** @param {HTMLElement} host @param {HTMLElement} editor */
-export function mountFirstMessage(host, editor) {
-  setChildren(host, [editor]);
-}
-
-// The card a page-owned seat (`renderSeats`) draws for the thread `id`, open or in its
-// Resolved disclosure, or null.
-/** @param {string} id @returns {Element | null} */
-export const pageSeatThread = (id) =>
-  [...drawnThreadsWithId(document, id)].find((thread) =>
-    closestAcross(thread, ".lf-thread-seat[data-lf-thread-seat]"),
-  ) ?? null;
-
-/** @param {readonly ThreadRecord[]} threads @param {ThreadCommands} commands */
-export function renderSeats(threads, commands) {
-  /** @type {NodeListOf<HTMLElement & {lfThreadSeatOwner: Element}>} */
-  const hosts = document.querySelectorAll(".lf-thread-seat[data-lf-thread-seat]");
-  for (const host of hosts) {
-    const owner = host.lfThreadSeatOwner;
-    const owned = threads.filter((thread) => seatRoot(thread) === owner.id);
-    const hold = registry[owner.localName]?.["x-thread-seat"]?.hold;
-    const response = !owned.length || hold || loadDraft(seatContext(owner.id)) !== null;
-    seatFor(host, commands, () => host.lfFirstMessage ?? null).present(
-      seatReading(owned, "page", commands, response),
-    );
-  }
 }
 
 /** @param {HTMLElement} host @param {ThreadRecord} thread @param {ThreadCommands} commands

@@ -76,8 +76,8 @@ def _render_version_attempt(
     """Everything wrong with a served version that only a browser can see: a
     console error (a widget failing soft is one, since the page reports it),
     a page error, a request that 404s,
-    an upgrade module that never defines its declared element, an x-thread-seat whose module
-    placed no matching page host, a widget upgraded into a box of no usable size,
+    an upgrade module that never defines its declared element,
+    a widget upgraded into a box of no usable size,
     an element showing words with no box for a mark to hang on, so a comment anchored
     there would outline nothing and the On Me walk would travel to the top of the page,
     words the user can read and can't select — each in both color schemes at the

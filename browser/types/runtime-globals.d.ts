@@ -124,11 +124,6 @@ interface HTMLElement {
   lfSample?: LeafSampleBridge;
 }
 
-interface HTMLElement {
-  /** A thread seat's box: the row of its first message (`thread/box.js`). */
-  lfFirstMessage?: HTMLElement;
-}
-
 interface Element {
   readonly updateComplete?: Promise<unknown>;
   cloneNode(deep?: boolean): Element;
@@ -320,6 +315,10 @@ interface Element {
   threadOutlets?(
     ...args: Parameters<import("../runtime/thread/surfaces.js").ThreadOutletSelector>
   ): ReturnType<import("../runtime/thread/surfaces.js").ThreadOutletSelector>;
+  /** On an outlet a widget returns for itself: the words of the second send the comment
+   * box offers there, whose comment holds the widget while its thread is open
+   * (`composing/surface.js`). */
+  lfHold?: string;
 }
 
 interface Element {

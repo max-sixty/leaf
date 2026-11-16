@@ -715,6 +715,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
 | When a message was said, naming its day unless that is today                                          | `presence.js` `saidAt`                                                             |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                           |
+| The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                            |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |

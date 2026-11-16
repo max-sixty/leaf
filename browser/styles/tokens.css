@@ -721,19 +721,21 @@
 
      Colour carries one distinction on a mark: whether it asks something of the user.
      Green asks; blue shows where the user is and what is going on; ink records what
-     changed or is settled. A mark is too small to carry more. Held to the chart
-     palette's floors (--lf-series-1, below) scaled to a mark's size by Stone, Szafir and
-     Setlur's model (CIC 2014), every reader tells apart at most four colours at a 7px
-     dot, and those four are a neon magenta, a near-black navy, a bright green and a
-     brick red. So a mark's other meanings are carried by its shape, place and motion,
-     and changed and settled marks no longer wear the turn's green. */
+     changed or is settled. What changed takes the muted ink, so a long changed stretch
+     of the contents stays quieter than the marks that ask. A mark is too small to carry
+     more. Held to the chart palette's floors (--lf-series-1, below) scaled to a mark's
+     size by Stone, Szafir and Setlur's model (CIC 2014), every reader tells apart at
+     most four colours at a 7px dot, and those four are a neon magenta, a near-black
+     navy, a bright green and a brick red. So a mark's other meanings are carried by its
+     shape, place and motion, and changed and settled marks no longer wear the turn's
+     green. */
   --lf-turn: var(--lf-ok);
   --lf-turn-ink: var(--lf-ok-ink);
   --lf-turn-wash: var(--lf-ok-wash);
   --lf-thread: var(--lf-accent);
   --lf-work: var(--lf-accent);
   --lf-news: var(--lf-accent);
-  --lf-change: var(--lf-ink-2);
+  --lf-change: var(--lf-muted);
   --lf-settled: var(--lf-ink-2);
   --lf-settled-ink: var(--lf-ink);
   --lf-settled-tint: var(--lf-chip);

@@ -93,24 +93,6 @@ def _rendered_words(markup: str, *, image_alt=False) -> str:
     return "".join(parts)
 
 
-# A name of more characters than this is wider than a third of the reading column in
-# the reading face's code, 240px at 7.56px a character, which is the least width that
-# face gives a longer name (reading.css). The two agree at the theme's own sizes; where
-# a page changes them, a name near the line is drawn a little wide or breaks a little
-# early. markdown.js holds the same count (tests/markdown_body_cases.json).
-NAME_THIRD = 31
-
-
-def name_mark(name: str) -> str | None:
-    """What a table cell holding `name` alone says of it (`data-lf-name`): nothing more
-    for a name the reading face keeps whole, `long` for one past a third of the column,
-    and None for what is no name, since a command or a snippet has spaces to wrap at."""
-    name = name.strip()
-    if not name or any(map(str.isspace, name)):
-        return None
-    return "long" if len(name) > NAME_THIRD else ""
-
-
 @lru_cache(maxsize=2)
 def markdown_dialect(message: bool):
     """The browser's safe Markdown dialect for one of its two readings, with its
@@ -186,27 +168,6 @@ def markdown_dialect(message: bool):
         )
 
     parser.add_render_rule("link_close", safe_link_close)
-
-    def name_cells(state) -> None:
-        """A cell whose whole text is one code span says so, as delivery has the page's
-        own cells say (`revision_delivery.name_alone`; markdown.js, `name_cells`). A
-        message's cells say nothing: a thread card is too narrow to keep names whole
-        (reading.css)."""
-        for at, cell in enumerate(state.tokens):
-            if cell.type not in ("td_open", "th_open"):
-                continue
-            children = state.tokens[at + 1].children or []
-            names = [child for child in children if child.type == "code_inline"]
-            if len(names) != 1 or any(
-                child.content.strip() for child in children if child is not names[0]
-            ):
-                continue
-            mark = name_mark(names[0].content)
-            if mark is not None:
-                cell.attrSet("data-lf-name", mark)
-
-    if not message:
-        parser.core.ruler.push("name_cells", name_cells)
     return parser
 
 

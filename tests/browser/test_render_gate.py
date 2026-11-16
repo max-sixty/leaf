@@ -4647,41 +4647,42 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
-def test_a_cell_that_holds_a_name_alone_keeps_it_on_one_line(engine, request, serve):
-    """The other side of the rule above: an option table, two columns of short names
-    beside a column of sentences. With every name breakable anywhere, the table's
-    automatic layout gave a name column almost nothing past one character, so
-    `--output-dir` stood as `--output-` over `dir` on the full measure and every name
-    took two or three lines in a 420px window. A cell that holds a name alone keeps it
-    whole, in whichever column it stands, and the table still fits. A path wider than
-    the third a long name is sure of takes its whole width beside a column of figures,
-    where the table has room for it, and beside a sentence it leaves the sentence more
-    than half the table. It holds in every engine: the rule once used a feature Firefox
-    lacks, and the names stayed broken there."""
+def test_a_row_headings_name_stays_on_one_line(engine, request, serve):
+    """The other side of the rule above: an option table, a column of short names beside
+    a column of sentences. With every name breakable anywhere, the table's automatic
+    layout gave the name column almost nothing past one character, so `--output-dir`
+    stood as `--output-` over `dir` on the full measure and every name took two or
+    three lines in a 420px window. A row heading keeps its name whole, and the table
+    still fits. A name wider than a third of the column breaks inside a box that third
+    wide, and the sentence beside it keeps the rest. A name in another column is the
+    table's to break until the page keeps its cells on one line, which it can. It holds
+    in every engine: the rule once used a feature Firefox lacks, and the names stayed
+    broken there."""
     rows = (
         ("--plugin", "lf-options", "Loads the named plugin before the run starts, so"),
         ("--dry-run", "lf-ask", "Reports what the run would change without writing,"),
         ("--output-dir", "lf-options", "Writes every generated file under this folder"),
     )
     body = "".join(
-        f"<tr><td><code>{name}</code></td><td><code>{by}</code></td>"
+        f'<tr><th scope="row"><code>{name}</code></th><td><code>{by}</code></td>'
         f"<td>{does} {does.lower()} {does.lower()}</td></tr>"
         for name, by, does in rows
+    )
+    head = (
+        "<thead><tr><th>Option</th><th>Read by</th><th>What it does</th></tr></thead>"
     )
     page = open_page(
         request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "Options",
-                '<h1>Options</h1><table id="options"><thead><tr><th>Option</th>'
-                f"<th>Read by</th><th>What it does</th></tr></thead><tbody>{body}"
-                '</tbody></table><table id="files"><thead><tr><th>File</th>'
-                "<th>Lines</th></tr></thead><tbody><tr>"
-                "<td><code>browser/styles/components/reading.css</code></td>"
-                '<td>812</td></tr></tbody></table><table id="tests"><tbody><tr>'
-                "<td><code>test_a_long_name_beside_a_sentence_keeps_a_third</code></td>"
+                f'<h1>Options</h1><table id="options">{head}<tbody>{body}</tbody></table>'
+                f'<table id="kept">{head}<tbody>{body}</tbody></table>'
+                '<table id="tests"><tbody><tr><th scope="row">'
+                "<code>test_a_long_name_beside_a_sentence_keeps_a_third</code></th>"
                 f"<td>{rows[0][2]} {rows[1][2].lower()} {rows[2][2].lower()}</td>"
                 "</tr></tbody></table>",
+                head="<style>#kept td:nth-child(2) { white-space: nowrap; }</style>",
             )
         ),
     )
@@ -4689,25 +4690,46 @@ def test_a_cell_that_holds_a_name_alone_keeps_it_on_one_line(engine, request, se
         range.selectNodeContents(c.firstChild);
         return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
     }"""
-    assert page.locator("#files code").evaluate(lines) == 1
-    share = page.locator("#tests td").first.evaluate(
-        "(c) => c.offsetWidth / c.closest('table').clientWidth"
+    long_name = page.locator("#tests code")
+    third = (
+        page.evaluate(
+            "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-col'))"
+        )
+        / 3
     )
-    assert share < 0.5, share
+    assert long_name.evaluate(lines) > 1
+    assert long_name.evaluate("(c) => c.getBoundingClientRect().width") <= third + 1
+    assert (
+        page.locator("#options td code").first.evaluate(
+            "(c) => getComputedStyle(c).display"
+        )
+        == "inline"
+    )
     for width in (1600, 800, 420):
         resized(page, width, 900)
-        measured = page.locator("#options").evaluate(
-            """(t) => {
-            const range = document.createRange();
-            return { scrolls: t.scrollWidth - t.clientWidth,
-                     lines: [...t.querySelectorAll('td code')].map((c) => {
-                         range.selectNodeContents(c.firstChild);
-                         return new Set([...range.getClientRects()]
-                             .map((r) => Math.round(r.top))).size;
-                     }) };
-        }"""
-        )
-        assert measured == {"scrolls": 0, "lines": [1] * 6}, (width, measured)
+        for table, cells in (
+            ("#options", "th[scope=row]"),
+            ("#kept", "th[scope=row], td"),
+        ):
+            measured = page.locator(table).evaluate(
+                """(t, cells) => {
+                const range = document.createRange();
+                return { scrolls: t.scrollWidth - t.clientWidth,
+                         lines: [...t.querySelectorAll(cells)].flatMap((cell) =>
+                             [...cell.querySelectorAll(':scope > code')].map((c) => {
+                                 range.selectNodeContents(c.firstChild);
+                                 return new Set([...range.getClientRects()]
+                                     .map((r) => Math.round(r.top))).size;
+                             })) };
+            }""",
+                cells,
+            )
+            names = 3 if table == "#options" else 6
+            assert measured == {"scrolls": 0, "lines": [1] * names}, (
+                width,
+                table,
+                measured,
+            )
 
 
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):

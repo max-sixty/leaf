@@ -79,8 +79,6 @@ export const PAGE_PAINT_ATTRIBUTE = Object.freeze({
   // (revision_delivery.py, `mark_declared`).
   mediaWidth: "data-lf-media-width",
   mediaHeight: "data-lf-media-height",
-  // Delivery's too: a table cell whose whole text is one code name (`name_alone`).
-  name: "data-lf-name",
   // A module's, not a runtime writer's: the quiet word it declares on a part, which the
   // runtime writes there (declared-words.js, `watchQuietWords`). Paint even on an
   // authored element, a suggestion's slot, since the word follows the slot's state.

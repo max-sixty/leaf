@@ -86,16 +86,9 @@ test("Markdown body readings share file dialect, safe destinations and native st
   const cases = JSON.parse(
     readFileSync(new URL("../markdown_body_cases.json", import.meta.url)),
   );
-  for (const { source, words, blocks, links, names = [] } of cases) {
+  for (const { source, words, blocks, links } of cases) {
     const body = document.createElement("div");
     body.innerHTML = renderMarkdown(source, false);
-    assert.deepEqual(
-      [...body.querySelectorAll("[data-lf-name]")].map((cell) =>
-        cell.getAttribute("data-lf-name"),
-      ),
-      names,
-      source,
-    );
     assert.deepEqual(
       [...body.children].map((block) => block.localName),
       blocks,

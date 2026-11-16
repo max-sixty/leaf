@@ -349,39 +349,44 @@ dl.lf-facts dd {
       background: none;
       font-size: 0.9em;
     }
-    /* A cell that holds a name alone keeps it whole, as an option table in a man page
+    /* A row's heading keeps the name it holds whole, as an option table in a man page
      * keeps `--output-dir`. `anywhere` (above) gives a name a one-character minimum, and
      * a table's automatic layout sets every column the same share of the way from its
      * minimum to its widest, so a column of names beside a column of sentences got
      * almost none: at 720px `--output-dir` stood as `--output-` over `dir`, and
      * `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box of
-     * its own width, which the column can't go under. A name wider than a third of the
-     * reading column keeps that third as its least and breaks inside its box rather
-     * than hold the column open, and takes its whole width where the table has room.
-     * In a narrow window the third is the nearest size container's (the body, unless a
-     * box nearer declares one).
+     * its own width, which the column can't go under, up to a third of the reading
+     * column, or of the nearest size container where that is narrower (the body, unless
+     * a box nearer declares one). A longer name breaks inside its box rather than hold
+     * the column open.
      *
-     * Delivery says which cells those are (`data-lf-name`, revision_delivery.py): the
-     * ones whose whole text is one `<code>` or `<samp>` with no space in it, `long`
-     * where the name is wider than the third. A selector sees no text, so it can't tell
-     * such a cell from a sentence that mentions a name, where a box stands a long
-     * identifier in the middle of its sentence as a block, and it can't tell a long
-     * name from a short one. Until November 2026 the rule took every code in a row's
-     * first cell, sentences included, and left a name in any other column to break. It
-     * set the name's minimum with `calc-size(max-content, min(size, 20ch))`, which
-     * Firefox lacks, so every name stayed breakable there. A table drawn from Markdown
-     * says the same of its cells (markdown.js and passages.py, `name_cells`), except in
-     * a message: a thread card is 320px at its narrowest, where two columns of names
-     * kept whole left the sentence beside them a word to the line. */
-    :is(th, td)[data-lf-name] :is(code, samp) {
+     * The rule takes a `<th scope="row">` whose only element is the code, because that
+     * is where the page's author says which cell names the row: in pages written since
+     * page-authoring.md asked for the heading (#4091), 659 of the 663 rows that open on
+     * a code name are written so. A name in any other column is the author's to keep
+     * whole, with `white-space: nowrap` on its cells. A stylesheet can't find it there: a
+     * selector reads no text, and a name, a command and the one code in a sentence are
+     * each a `<code>` in a `<td>`.
+     *
+     * Rejected, each measured in Firefox on 381 tables from real pages:
+     * - Delivery and both Markdown renderers marking every cell whose whole text is one
+     *   code name. That kept the names in other columns whole too, 8 names broken on
+     *   the 213 tables with row headings against this rule's 68, at the price of
+     *   reading each cell's text in three places to learn what the row heading says.
+     * - `td > code:only-child`, a guess from structure. It makes a box of a command
+     *   and of the one code in a sentence, and the box holds its column open: 6 tables
+     *   newly scrolled sideways and 9 grew by 15% or more.
+     * - `calc-size(max-content, min(size, 20ch))` as the box's minimum, which caps only
+     *   the least, so a long name takes its whole width where its table has room. It
+     *   was the rule until November 2026, on every code in a row's first cell, and
+     *   Firefox lacks calc-size(), so every name stayed breakable there. The width
+     *   below is one every engine computes, and it is the box's least and its most: a
+     *   name past the third breaks there even in a table with room for it. */
+    th[scope="row"] > :is(code, samp):only-child,
+    th[scope="row"] > :only-child > :is(code, samp):only-child {
       display: inline-block;
       inline-size: max-content;
-      max-inline-size: 33cqi;
-    }
-    :is(th, td)[data-lf-name="long"] :is(code, samp) {
-      inline-size: auto;
-      max-inline-size: none;
-      min-inline-size: min(var(--lf-col) / 3, 33cqi);
+      max-inline-size: min(var(--lf-col) / 3, 33cqi);
     }
     /* A caption says what its table covers, such as which case each of several tables
        shows, so it is the table's title rather than apparatus: it takes the table's
@@ -775,6 +780,13 @@ leaf-text.lf-fab-input,
      "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
 .lf-msg-body :is(th, td) {
   overflow-wrap: normal;
+}
+/* A row heading's name takes a third of the narrowest thread card here. No rule can
+   read how wide the card or panel holding a message is, and at the reading column's
+   third a long name in a 320px card stood whole and pushed 135px of its table out of
+   sight. */
+.lf-msg-body th[scope="row"] :is(code, samp) {
+  max-inline-size: calc(var(--lf-thread-card-min) / 3);
 }
 .lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
   margin: 8px 0 4px;

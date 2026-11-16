@@ -27,7 +27,6 @@ const EMITS = {
   blank_lines: [],
   fence_words: ["fence"],
   safe_links: [],
-  name_cells: [],
   // block
   code: ["code_block"],
   fence: ["fence"],

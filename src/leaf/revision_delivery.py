@@ -24,10 +24,10 @@ document's import map sends to where its revision's resources answer
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
 server and the static live shell, and a standalone export. A
 host states what it adds as a `Delivery` value, and the composer writes every document
-the same way. It also paints what each element's registry entry declares, the size
-of the page media it names, and which table cells hold a name alone, for the stylesheet
-to read (`mark_declared`), so the first paint lays out what a script would otherwise
-only mark once the registry loads or an image once it decodes.
+the same way. It also paints what each element's registry entry declares, and the size
+of the page media it names, for the stylesheet to read (`mark_declared`), so the first
+paint lays out what a script would otherwise only mark once the registry loads or an
+image once it decodes.
 """
 
 import html
@@ -42,7 +42,7 @@ from urllib.parse import quote, unquote, urlsplit
 import turbohtml
 
 from .layer import DOCUMENT_LAYER_ORDER
-from .passages import markdown_markup, name_mark
+from .passages import markdown_markup
 from .registry.contract import exhibits, is_element_name
 from .registry.kernel import authored_inert, kernel_marks
 from .revision_artifact import (
@@ -386,36 +386,20 @@ def media_size(data: bytes) -> tuple[int, int] | None:
     return None
 
 
-def name_alone(cell) -> str | None:
-    """What a table cell says of the name it holds alone (`passages.name_mark`), or
-    None: its whole text is one `<code>` or `<samp>`, such as an option or a path. A
-    sentence that mentions a name is no name."""
-    names = cell.select("code, samp")
-    if len(names) != 1 or names[0].closest("pre") is not None:
-        return None
-    name = names[0].text
-    return name_mark(name) if cell.text.strip() == name.strip() else None
-
-
 def mark_declared(
     source: str,
     registry: Mapping,
     resources: Mapping[str, Resource],
 ) -> str:
     """Paint each element's declared marks (`registry.kernel.kernel_marks`) onto its
-    start tag, the rest byte-for-byte, the size of the page media it names, and
-    `data-lf-name` on a table cell that holds a name alone, `long` for a name past a
-    third of the column.
+    start tag, the rest byte-for-byte, and the size of the page media it names.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
     has no size until it decodes, so an element naming page media in its attributes is
     painted with the box that holds any of them, the largest width and the largest
     height (`data-lf-media-width`, `data-lf-media-height`), for the stylesheet to lay
-    out a frame that the images arrive in. A stylesheet can't tell a cell whose whole
-    text is one name from a sentence with code in it, since a selector sees no text, so
-    the cell says so (`name_alone`), and the reading face keeps that name on one
-    line (reading.css). What a template holds is inert until a
+    out a frame that the images arrive in. What a template holds is inert until a
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
 
@@ -475,8 +459,6 @@ def mark_declared(
         if sizes:
             marks["data-lf-media-width"] = str(max(width for width, _ in sizes))
             marks["data-lf-media-height"] = str(max(height for _, height in sizes))
-        if element.tag in ("th", "td") and (name := name_alone(element)) is not None:
-            marks["data-lf-name"] = name
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names

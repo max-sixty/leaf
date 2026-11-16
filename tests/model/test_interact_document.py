@@ -4456,9 +4456,6 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     assert [
         {"text": link.text, "href": link.attrs["href"]} for link in rendered.select("a")
     ] == case["links"]
-    assert [
-        cell.attrs["data-lf-name"] for cell in rendered.select("[data-lf-name]")
-    ] == case.get("names", [])
 
 
 @pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])

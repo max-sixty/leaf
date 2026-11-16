@@ -244,6 +244,10 @@ interface Window {
 
 interface CustomElementConstructor {
   answerWords?: (value: unknown, element: Element) => unknown;
+  /** How a revision reaches the widget while it stands in the page: `"members"` has
+   * Leaf edit inside its direct authored children in place (`version.js`,
+   * `reachesMembers`). A class field's literal is typed `string`, so this is too. */
+  lfPatch?: string;
 }
 
 interface ShadowRootEventMap {

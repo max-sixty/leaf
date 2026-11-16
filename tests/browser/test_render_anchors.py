@@ -2448,7 +2448,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # stage's children reads the stage as the host's section.
     result = page.evaluate(
         """async () => {
-          const {html, render, shadowStage} = await window.__lfWidgetApi();
+          const {shadowStage} = await window.__lfWidgetApi();
+          const {html, render} = await window.__lfVendorImport('lit.js');
           const host = document.querySelector('lf-diff');
           const container = document.createElement('div');
           const input = document.createElement('input');
@@ -3751,7 +3752,6 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-example": '<lf-decoration id="decoration"></lf-decoration>',
             }
         },
@@ -5005,7 +5005,6 @@ LATE_STAGE = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "markup",
-    "x-upgrade": True,
     "x-shadow": True,
     "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
@@ -6115,7 +6114,6 @@ def test_page_search_reads_a_said_label_apart_from_its_elements_words(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": False,
                 "x-says": {"label": "before"},
                 "x-example": '<lf-said-label id="example" label="Head">Words.'
                 "</lf-said-label>",

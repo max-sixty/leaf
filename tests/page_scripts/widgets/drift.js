@@ -1,7 +1,8 @@
 /* A moving widget for readiness and covered-word checks.
  * Its offset is authoritative; deep stages animated words in a shadow root, and
  * bare deliberately omits their element so the page must refuse presentation. */
-import { LeafElement, motion, nothing, shadowStage } from "/runtime/widget-api.js";
+import { nothing } from "/vendor/lit.js";
+import { LeafElement, motion, shadowStage } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-drift",

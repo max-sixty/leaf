@@ -119,7 +119,8 @@ def test_render_check_reports_delayed_page_layout_shifts(browser, serve, reserve
         document.getElementById('box').innerHTML = 'line<br>'.repeat(n);
       }, 1500);
     }""")
-    found = readings.passive_layout_shift_advice(page)
+    with readings.passive_layout_shift_advice(page) as found:
+        pass
     assert bool(found) is not reserved
     if not reserved:
         assert any(f.at == "<p id=below>" for f in found)
@@ -127,4 +128,4 @@ def test_render_check_reports_delayed_page_layout_shifts(browser, serve, reserve
             f.code == "passive-layout-shift" and f.severity == "advice" for f in found
         )
         assert any(f.values["before"]["y"] != f.values["after"]["y"] for f in found)
-        assert "3000ms" in str(found[0])
+        assert found[0].values["observed_ms"] >= readings.PASSIVE_OBSERVATION_MS

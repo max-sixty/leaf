@@ -94,9 +94,10 @@ def _render_version_attempt(
     geometry between them), as advice a drawing whose height differs from the box it
     showed before drawing, and an SVG paint token that does not resolve to valid paint
     in that scheme. Once per version, on the settled desktop page in the light scheme,
-    it reads native layout shifts as advice during a three-second passive observation
-    after presentation; and then, resizing that loaded page through every width from
-    360px to 1920px (`readings.sweep`), the geometry that moves with the window: the
+    it reads native layout shifts as advice during a passive observation of at least
+    three seconds after presentation, while it reads the other three pages; and then,
+    resizing that loaded page through every width from 360px to 1920px
+    (`readings.sweep`), the geometry that moves with the window: the
     page scrolling sideways, content set past the column and out into the margin, a
     horizontal scrollbar with no room below what it scrolls, a control clipped out of
     reach, a box cutting off its own content where no scroll reaches it, words drawn on
@@ -148,7 +149,10 @@ def _render_version_attempt(
     def desktop_sweep(page, registry):
         # Read the desktop viewport before the sweep changes it.
         advice.extend(drawn_height_advice(page, _viewport_label(desktop)))
-        advice.extend(passive_layout_shift_advice(page))
+        # Nothing acts on this page while the other pages are read.
+        with passive_layout_shift_advice(page) as shifts:
+            render_others()
+        advice.extend(shifts)
         sample(page, registry)
         widths = sweep(page, steps, open_widgets(registry))
         samples.extend(widths)
@@ -182,15 +186,24 @@ def _render_version_attempt(
         notices.extend((notice, viewport_label) for notice in found_notices)
         completed.append(complete)
 
+    others = [
+        (desktop, "dark", sample),
+        (phone, "light", phone_sweep),
+        (phone, "dark", sample),
+    ]
+
+    def render_others():
+        while others:
+            render(*others.pop(0))
+
     try:
         # The first page is also the page-code reading's, where one is asked for, and
-        # a page whose code fails is read no further.
+        # a page whose code fails is read no further. It reads the others during its
+        # passive observation, or after it where it ended before that.
         render(desktop, "light", desktop_sweep, page_code)
         if page_code:
             return RenderReading([], []), [], True
-        render(desktop, "dark", sample)
-        render(phone, "light", phone_sweep)
-        render(phone, "dark", sample)
+        render_others()
     except PlaywrightError:
         for page in opened_pages:
             if not page.is_closed():

@@ -415,7 +415,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 /* Where nothing has news, the On Me mark and the folded leaf wear it grey for a draft
    the user put away (floating-panel.js, `keptDrafts`). */
 .lf-unread-dot[data-lf-drafts] {
-  background: var(--muted);
+  background: var(--lf-muted);
 }
 /* An unread reply wears the unread dot beside its time, and says New only to a screen reader, which reads it with the
    head. It stands with the time rather than among the head's annotations, so where a

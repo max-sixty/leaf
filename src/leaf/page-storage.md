@@ -71,8 +71,8 @@ record whose pages are gone is removed whichever Leaf wrote it (`state.retire_if
   and activation also ignore.
 
 - `drafts.json` — the user's unsent message drafts, each draft's latest generation by
-  its context (`drafts.py`), which every tab and device showing the page reads and
-  writes. A tab hears it through its own version in `/api/news`, so no reading of the
+  its context, and the last generation it settled of each (`drafts.py`), which every
+  tab and device showing the page reads and writes. A tab hears it through its own version in `/api/news`, so no reading of the
   page, activation or watcher counts it, and the agent never reads it. It outlives the
   process serving it, as the log does.
 

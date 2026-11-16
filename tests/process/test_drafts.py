@@ -153,3 +153,37 @@ def test_the_log_settles_every_generation_it_admitted(tmp_path):
     reading = drafts_model.read_drafts(tmp_path)
     assert reading == {"version": sending["version"] + 1, "drafts": {}}
     assert _write(tmp_path, [], "a3", "A new thought")["written"]
+
+
+def _post(page_dir, expect, record, **write):
+    return drafts_model.write_draft(
+        page_dir, {"context": "general", "expect": expect, "record": record, **write}
+    )
+
+
+def test_a_write_landing_after_its_words_were_put_away_leaves_them_away(tmp_path):
+    """A Cancel was undone by a write of the same words landing after it, as a closing
+    tab's resend can, since the store kept nothing of a draft it settled. It now
+    remembers the last generation it settled of each draft, so that write settles it
+    again, while words typed over it still start the draft again."""
+    assert _write(tmp_path, [], "a1")["written"]
+    assert _post(tmp_path, ["a1"], {"attempt": "a1", "settled": True})["written"]
+    assert _write(tmp_path, ["a1"], "a1")["record"] is None
+    assert drafts_model.read_drafts(tmp_path)["drafts"] == {}
+    assert _write(tmp_path, ["a1"], "a2", "Typed over them")["written"]
+
+
+def test_a_replay_of_words_replaced_before_their_settling_is_turned_away(tmp_path):
+    """A page's next load replays the writes a closing tab queued while the server was
+    out of reach, maybe long after. Words another device replaced and then sent or put
+    away meanwhile stay away; words queued after the settling stand."""
+    assert _write(tmp_path, [], "g")["written"]
+    queued = drafts_model.read_drafts(tmp_path)["version"]
+    assert _write(tmp_path, ["g"], "h", "Edited elsewhere")["written"]
+    assert _post(tmp_path, ["h"], {"attempt": "h", "settled": True})["written"]
+    replay = _post(tmp_path, ["g"], {"attempt": "g", "text": "Words"}, since=queued)
+    assert not replay["written"]
+    assert drafts_model.read_drafts(tmp_path)["drafts"] == {}
+    later = drafts_model.read_drafts(tmp_path)["version"]
+    fresh = {"attempt": "k", "text": "Queued after"}
+    assert _post(tmp_path, [], fresh, since=later)["written"]

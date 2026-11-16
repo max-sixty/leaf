@@ -112,7 +112,7 @@ import { signal } from "./framework.js";
  * @typedef {import("../types/contract.js").ServedDraft} ServedDraft
  * @typedef {import("../types/contract.js").ServedDraftsAnswer} DraftsReading
  * @typedef {import("../types/contract.js").ServedDraftWriteAnswer} DraftWriteAnswer
- * @typedef {{record: DraftRecord, stored: string | null, version: number, durable: boolean, ours: ReadonlySet<string>}} DraftCopy
+ * @typedef {{record: DraftRecord, stored: string | null, version: number, durable: boolean, ours: ReadonlySet<string>, since?: number}} DraftCopy
  * @typedef {{ctx: string, value: string | null, payload?: DraftPayload}} DraftNews
  * @typedef {import('./composing/text-field.js').LeafTextElement | HTMLTextAreaElement} DraftField
  * @typedef {import('./composing/input.js').InputSync} InputSync
@@ -168,9 +168,10 @@ class ListingMap extends Map {
 // This document's copy of each draft: the generation it shows (`record`); the one it
 // last knew the server held (`stored`), or null where it holds none, as once a send or
 // Cancel settled it; the server's version when this document last heard of the draft
-// (`version`); whether the server holds `record` itself (`durable`); and the attempts
+// (`version`); whether the server holds `record` itself (`durable`); the attempts
 // of this document's writes the server hasn't answered, whose arrival in a reading is
-// this document's own words (`ours`).
+// this document's own words (`ours`); and, for words an earlier page here queued, the
+// store's version they were queued at (`since`, `QUEUED`).
 /** @type {ListingMap<DraftCopy>} */
 const draftCache = new ListingMap();
 /** @param {string} ctx @param {string | null} value @param {DraftPayload} [payload] */
@@ -317,8 +318,9 @@ function hearDrafts(version) {
 /** @type {Map<string, DraftRecord>} */
 const writing = new Map();
 /** @param {string} context @param {(string | null)[]} expect the generations the write
- * may replace, null for none @param {DraftRecord} record @param {boolean} [keepalive] */
-async function postDraft(context, expect, record, keepalive = false) {
+ * may replace, null for none @param {DraftRecord} record @param {number | undefined} since
+ * @param {boolean} [keepalive] */
+async function postDraft(context, expect, record, since, keepalive = false) {
   const response = await fetch(pageUrl("api/draft"), {
     method: "POST",
     // The runtime it names keeps a tab from before an update from writing a shape a
@@ -328,6 +330,7 @@ async function postDraft(context, expect, record, keepalive = false) {
       context,
       expect: expect.filter((attempt) => attempt !== null),
       record,
+      since,
     }),
     keepalive,
   });
@@ -344,7 +347,7 @@ function writeDraft(ctx) {
   const epoch = restores;
   writing.set(ctx, sent);
   draftCache.set(ctx, { ...copy, ours: new Set([...copy.ours, sent.attempt]) });
-  void postDraft(ctx, [copy.stored], sent).then(
+  void postDraft(ctx, [copy.stored], sent, copy.since).then(
     (answer) => {
       writing.delete(ctx);
       if (epoch === restores) heardWrite(ctx, sent, answer);
@@ -364,18 +367,16 @@ const writeWaiting = () => {
 // (`ours`) beside the one it knew the server held: whichever the server holds, the
 // newest words replace it.
 //
-// A server out of reach takes none of them, so the page also queues in this browser
-// (`writingStore`) each draft whose last write failed, and its next load here takes
-// the queue back as its own waiting words, sent on like any; that load empties it. The
-// server's answer decides as for every write, so the queue holds writes, never a copy
-// of the drafts. A draft with a write still out is left to the resend: the server may
-// take that write, and since the store keeps no record of a generation it settled,
-// replaying it after another tab sent or put the words away would bring them back. A
-// failed write the server took before failing, as when it stops before answering, is
-// replayed all the same, and of several closing tabs whose writes of one draft
-// failed, the last one's words are queued.
+// A server out of reach takes none of them, so the page also queues them in this
+// browser (`writingStore`), and its next load here takes the queue back as its own
+// waiting words, sent on like any; that load empties it. The server's answer decides
+// as for every write, so the queue holds writes, never a copy of the drafts. Each
+// carries the store's version this page had heard (`since`), and the store, which
+// remembers the last generation it settled of each draft, turns away a replay of words
+// sent, put away or replaced since (`drafts.py`). Of several closing tabs holding
+// unsaved words of one draft, the last one's are queued.
 const QUEUED = "lf-drafts-queued";
-/** @returns {Record<string, {record: DraftRecord, stored: string | null, ours: string[]}>} */
+/** @returns {Record<string, {record: DraftRecord, stored: string | null, ours: string[], since: number}>} */
 const queuedWrites = () => JSON.parse(writingStore.get(QUEUED) ?? "{}");
 addEventListener("pagehide", () => {
   if (offlineInteractive) return;
@@ -384,9 +385,11 @@ addEventListener("pagehide", () => {
     if (copy.durable) continue;
     const ours = new Set([...copy.ours, copy.record.attempt]);
     draftCache.set(ctx, { ...copy, ours });
-    if (!writing.has(ctx))
-      queued[ctx] = { record: copy.record, stored: copy.stored, ours: [...ours] };
-    void postDraft(ctx, [copy.stored, ...ours], copy.record, true).catch(() => {});
+    const since = copy.since ?? Math.max(heardVersion, copy.version);
+    queued[ctx] = { record: copy.record, stored: copy.stored, ours: [...ours], since };
+    void postDraft(ctx, [copy.stored, ...ours], copy.record, copy.since, true).catch(
+      () => {},
+    );
   }
   writingStore.set(QUEUED, Object.keys(queued).length ? JSON.stringify(queued) : null);
 });
@@ -424,11 +427,11 @@ function heardWrite(ctx, sent, { written, version, record }) {
   // A write that was the only change since the reading this document took leaves it
   // holding the next one, which a look need not read again.
   if (written && version === heardVersion + 1) heardVersion = version;
-  // Words the log already took, whose write reached the server after their event, are
-  // settled there (`drafts.py`, `sent`), and here too unless typed over since.
+  // Words the log already took, or the store already settled, whose write reached the
+  // server after that are settled there (`drafts.py`), and here too unless typed over
+  // since. Words an earlier page queued are this page's once answered (`since`).
   const spoken = written && !held && !sent.settled && copy.record === sent;
   draftCache.set(ctx, {
-    ...copy,
     record: spoken ? { attempt: sent.attempt, settled: true } : copy.record,
     stored: held && !held.settled ? held.attempt : null,
     version: Math.max(copy.version, version),
@@ -1307,13 +1310,14 @@ export function mirrorDraft(
 // over only where they replace what the server holds (`hearReading`); every later
 // change reaches the list through the maps. A document served without them, as a
 // release's or an export's, hears them at its first look, or has none.
-for (const [ctx, { record, stored, ours }] of Object.entries(queuedWrites()))
+for (const [ctx, { record, stored, ours, since }] of Object.entries(queuedWrites()))
   draftCache.set(ctx, {
     record,
     stored,
     version: 0,
     durable: false,
     ours: new Set(ours),
+    since,
   });
 writingStore.set(QUEUED, null);
 const served = document.getElementById("lf-drafts")?.textContent;

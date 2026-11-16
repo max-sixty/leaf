@@ -20,6 +20,15 @@ remove), so the store holds only what the user is writing; words a tab types ove
 generation settled elsewhere start the draft again, since they are the user's newer
 words.
 
+The store remembers the last generation it settled of each draft (`settled`), since a
+write can reach it long after it was made: a closing tab's resend, or a write a tab
+queued in its browser while the server was out of reach, which the page's next load
+there replays (`browser/runtime/drafts.js`, `QUEUED`). A write of that generation
+settles it again rather than bringing back words the user sent or put away, and a
+replay, which names the store's version it was queued at (`since`), is refused where
+the settlement came later and the replay doesn't name it: its words were replaced
+before they were settled.
+
 Only the log records which generations were sent, and the store asks it
 (`admitted_attempts`): a generation whose attempt the log admitted is settled. The
 first reading or write after a send drops that generation and moves the store's
@@ -67,6 +76,7 @@ _SETTLED = object_schema(
 )
 _VERSION = {"type": "integer", "minimum": 0}
 _STORED = {**_ACTIVE, "properties": {**_ACTIVE["properties"], "version": _VERSION}}
+_GONE = object_schema({"attempt": _ATTEMPT, "version": _VERSION})
 DRAFTS = Record(
     "drafts",
     described(
@@ -85,6 +95,13 @@ DRAFTS = Record(
                     {"type": "object", "additionalProperties": _STORED},
                 ),
             },
+            {
+                "settled": described(
+                    "The last generation the store settled of each draft no longer "
+                    "in `drafts`, with the store's version at its settling.",
+                    {"type": "object", "additionalProperties": _GONE},
+                ),
+            },
         ),
     ),
     since=46,
@@ -94,6 +111,7 @@ _WRITE = {
     "properties": {
         "context": {"type": "string", "minLength": 1},
         "expect": {"type": "array", "items": _ATTEMPT},
+        "since": _VERSION,
         "record": {
             "anyOf": [
                 {**_ACTIVE, "additionalProperties": False},
@@ -115,6 +133,15 @@ def _stored(page_dir: Path) -> dict:
     return DRAFTS.read(page_dir / DRAFTS_FILE) or no_drafts()
 
 
+def _settle(stored: dict, context: str, attempt: str) -> None:
+    """Remove the draft at `context`, remembering `attempt` as the generation settled."""
+    stored["drafts"].pop(context, None)
+    stored.setdefault("settled", {})[context] = {
+        "attempt": attempt,
+        "version": stored["version"],
+    }
+
+
 def _settle_sent(page_dir: Path, stored: dict, *, check: bool = False) -> bool:
     """Drop from `stored` each generation the log admitted, moving its version so
     every tab hears the words were sent, and say whether any went; with `check`, only
@@ -127,9 +154,9 @@ def _settle_sent(page_dir: Path, stored: dict, *, check: bool = False) -> bool:
         context for context, record in drafts.items() if record["attempt"] in admitted
     ]
     if sent and not check:
-        for context in sent:
-            del drafts[context]
         stored["version"] += 1
+        for context in sent:
+            _settle(stored, context, drafts[context]["attempt"])
     return bool(sent)
 
 
@@ -152,21 +179,32 @@ def write_draft(page_dir: Path, payload: dict) -> dict:
     if error := schema_error(_WRITE, payload):
         raise ValueError(f"invalid draft: {error}")
     context, expect, record = payload["context"], payload["expect"], payload["record"]
+    attempt = record["attempt"]
     with flocked(page_dir / DRAFTS_LOCK):
         stored = _stored(page_dir)
         changed = _settle_sent(page_dir, stored)
-        if not record.get("settled") and admitted_attempts(
-            page_dir, [record["attempt"]]
-        ):
-            record = {"attempt": record["attempt"], "settled": True}
         current = stored["drafts"].get(context)
-        written = current is None or current["attempt"] in expect
+        gone = stored.get("settled", {}).get(context)
+        if not record.get("settled") and (
+            (gone and gone["attempt"] == attempt)
+            or admitted_attempts(page_dir, [attempt])
+        ):
+            record = {"attempt": attempt, "settled": True}
+        if current is not None:
+            written = current["attempt"] in expect
+        else:
+            written = not (
+                gone
+                and payload.get("since", gone["version"]) < gone["version"]
+                and gone["attempt"] not in expect
+            )
         if written:
             stored["version"] += 1
             if record.get("settled"):
-                stored["drafts"].pop(context, None)
+                _settle(stored, context, attempt)
                 current = None
             else:
+                stored.get("settled", {}).pop(context, None)
                 current = stored["drafts"][context] = {
                     **record,
                     "version": stored["version"],

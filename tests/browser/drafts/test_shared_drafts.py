@@ -793,10 +793,10 @@ def test_words_typed_while_the_server_is_out_of_reach_outlive_the_tab(
 def test_words_put_away_elsewhere_stay_away_after_their_tab_closed_mid_write(
     browser, serve, one_user
 ):
-    """A tab that closes with a write still out leaves that write to the server, which
-    may take it, so it is not queued for the next load: a replay after another device
-    put the words away would bring them back, since the store keeps nothing of a
-    draft it settled."""
+    """A tab that closes with a write still out queues it for the next load, and the
+    server may take that write too. A replay after another device put the words away
+    brought them back while the store kept nothing of a draft it settled; it now
+    settles them again."""
     url = serve(LONG_PAGE)
     page = open_page(browser, url, context=one_user)
     box = page_comment(page)

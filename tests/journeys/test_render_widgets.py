@@ -60,7 +60,7 @@ def expect_accept_all(page, words):
 
 
 MOTION_SAMPLE_CONTENT = """
-<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<lf-code id="card-code"><pre><code class="language-python">print("retained")</code></pre></lf-code>
 <pre id="card-tree">root/
 └── retained.txt</pre>
 <lf-sample id="card-sample">

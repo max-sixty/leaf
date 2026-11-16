@@ -1645,9 +1645,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
-    One pass serves both shapes a page has for code, lf-code's `language` and a plain
-    <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread create`
+    One pass serves both shapes a page has for code, a plain <pre><code class="language-*">
+    and the same block inside lf-code, and neither guesses: a lf-code with no
+    `language-*` class stays the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -1813,7 +1813,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             f"""
 <h1 id="t">Shell commands</h1>
 <pre id="shell-plain"><code class="language-bash">{escape(source)}</code></pre>
-<lf-code id="shell-widget" language="bash"><pre>{escape(source)}</pre></lf-code>
+<lf-code id="shell-widget"><pre><code class="language-bash">{escape(source)}</code></pre></lf-code>
 <lf-diff id="shell-diff"><pre>diff --git a/check.sh b/check.sh
 --- a/check.sh
 +++ b/check.sh
@@ -2166,7 +2166,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # `\\ No newline at end of file` is diff metadata, not selectable source.
     assert not any("No newline at end of file" in line["text"] for line in py)
 
-    # No extension the table names: plain, the way a lf-code with no `language` is.
+    # No extension the table names: plain, the way a lf-code naming no language is.
     assert all(line["colors"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]

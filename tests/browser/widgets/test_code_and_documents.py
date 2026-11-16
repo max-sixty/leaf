@@ -56,19 +56,19 @@ def test_a_widget_that_draws_its_data_keeps_the_name_it_opens_with(browser, serv
             leaf_page(
                 "Named data",
                 '<h1 id="t">Named data</h1>'
-                '<lf-code id="and-code" language="python"><strong>main.py</strong>'
-                "<pre>print(1)</pre></lf-code>"
-                '<lf-draft id="and-draft"><strong>Release note</strong>'
+                '<lf-code id="named-code"><strong>main.py</strong>'
+                '<pre><code class="language-python">print(1)</code></pre></lf-code>'
+                '<lf-draft id="named-draft"><strong>Release note</strong>'
                 "<pre>Adds --dry-run.</pre></lf-draft>"
-                '<lf-diff id="and-diff"><strong>x.py change</strong><pre>\n'
+                '<lf-diff id="named-diff"><strong>x.py change</strong><pre>\n'
                 "diff --git a/x.py b/x.py\n--- a/x.py\n+++ b/x.py\n@@ -1 +1 @@\n-a\n+b\n"
                 "</pre></lf-diff>",
             )
         ),
     )
     for widget, name, body in (
-        ("and-code", "main.py", "pre"),
-        ("and-draft", "Release note", ".lf-draft-body"),
+        ("named-code", "main.py", "pre"),
+        ("named-draft", "Release note", ".lf-draft-body"),
     ):
         title = page.locator(f"#{widget} > strong")
         expect(title).to_have_text(name)
@@ -78,9 +78,9 @@ def test_a_widget_that_draws_its_data_keeps_the_name_it_opens_with(browser, serv
             " <= drawn.getBoundingClientRect().top + 1",
             title.element_handle(),
         ), f"{widget}'s name does not stand over what it draws"
-    expect(page.locator("#and-diff .lf-diff-file")).to_have_count(1)
-    expect(page.locator("#and-diff > strong")).to_have_text("x.py change")
-    expect(page.locator("#and-diff > strong")).to_be_visible()
+    expect(page.locator("#named-diff .lf-diff-file")).to_have_count(1)
+    expect(page.locator("#named-diff > strong")).to_have_text("x.py change")
+    expect(page.locator("#named-diff > strong")).to_be_visible()
 
 
 def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
@@ -551,7 +551,7 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
     lines = [f"line {at}" for at in range(300)]
     tabs = "".join(
         f'<lf-tab id="tab-{at}"><strong>Doc {at}</strong><lf-text-document id="doc-{at}" '
-        f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
+        f'source="text-{at}" class="language-python"></lf-text-document></lf-tab>'
         for at in range(3)
     )
     url = serve(
@@ -598,7 +598,7 @@ def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engin
             '<lf-tabs id="docs" list="side">'
             '<lf-tab id="tab-open"><strong>Open</strong><p>The open tab.</p></lf-tab>'
             '<lf-tab id="tab-long"><strong>Long</strong><lf-text-document id="log" '
-            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            'source="log-text" class="language-python"></lf-text-document></lf-tab>'
             "</lf-tabs>",
         )
     )
@@ -640,7 +640,7 @@ def test_a_closed_tab_gives_up_its_document_s_colour_and_wears_it_as_it_opens(
     lines into runs of their own: Firefox showed them uncoloured for a frame or two."""
     tabs = "".join(
         f'<lf-tab id="tab-{at}"><strong>Doc {at}</strong><lf-text-document id="doc-{at}" '
-        f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
+        f'source="text-{at}" class="language-python"></lf-text-document></lf-tab>'
         for at in range(2)
     )
     url = serve(
@@ -731,7 +731,7 @@ def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
             '<lf-tabs id="docs" list="side">'
             '<lf-tab id="tab-open"><strong>Open</strong><p>The open tab.</p></lf-tab>'
             '<lf-tab id="tab-long"><strong>Long</strong><lf-text-document id="log" '
-            'source="log-text" language="python"></lf-text-document></lf-tab>'
+            'source="log-text" class="language-python"></lf-text-document></lf-tab>'
             "</lf-tabs>",
         )
     )
@@ -1163,7 +1163,7 @@ def test_a_text_document_refresh_keeps_selection_in_unchanged_text(browser, serv
     plain document and in one whose tokens split the text into coloured spans."""
     tags = (
         '<lf-text-document id="plain-document" source="plain-text"></lf-text-document>'
-        '<lf-text-document id="python-document" source="python-text" language="python">'
+        '<lf-text-document id="python-document" source="python-text" class="language-python">'
         "</lf-text-document>"
     )
     source = LONG_LINE_DIFF_PAGE.replace(
@@ -1402,7 +1402,7 @@ def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
     url = serve(
         leaf_page(
             "Split colour",
-            '<lf-text-document id="log" source="log-text" language="python">'
+            '<lf-text-document id="log" source="log-text" class="language-python">'
             "</lf-text-document>",
         )
     )
@@ -1518,14 +1518,14 @@ def test_an_excerpt_shows_and_answers_to_its_source_line_numbers(browser, serve)
             """
 <h1 id="t">Runs</h1>
 <p id="lede">The loop that finds each run.</p>
-<lf-code id="walk" language="rust" lines="1505-1507,1550-1552" hi="1550"><pre>
+<lf-code id="walk" lines="1505-1507,1550-1552" hi="1550"><pre><code class="language-rust">
 fn merge_sort()
 {
     let len = v.len();
     while end &gt; 0 {
         let mut start = end - 1;
         start -= 1;
-</pre>
+</code></pre>
 <lf-note at="1551">One run per pass.</lf-note>
 <lf-note id="gap" at="1520">Setup, left out.</lf-note>
 </lf-code>
@@ -1658,11 +1658,11 @@ def test_a_code_line_longer_than_its_block_wraps_under_its_own_indent(browser, s
             "wrap",
             f"""
 <h1 id="t">Wrap</h1>
-<lf-code id="walk" language="python"><pre>
+<lf-code id="walk"><pre><code class="language-python">
 def ceiling(limit):
 {call}
 {digest}
-</pre></lf-code>
+</code></pre></lf-code>
 """,
         )
     )
@@ -1753,17 +1753,17 @@ def test_a_reader_hides_a_blocks_notes_to_read_its_code_whole(browser, serve):
             "notes",
             """
 <h1 id="t">Brackets</h1>
-<lf-code id="walk" language="python"><pre>
+<lf-code id="walk"><pre><code class="language-python">
 def bracket(temp):
     if temp &lt; 0:
         return "steel"
     return "cedar"
-</pre>
+</code></pre>
 <lf-note id="freeze" at="2">Freezing is the only threshold that matters.</lf-note>
 </lf-code>
-<lf-code id="plain" language="python"><pre>
+<lf-code id="plain"><pre><code class="language-python">
 print("no notes")
-</pre></lf-code>
+</code></pre></lf-code>
 """,
         ),
     )

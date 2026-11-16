@@ -66,6 +66,7 @@ from .structure import (
     delivered_elements,
     element_attrs,
     page_layout,
+    pre_body,
     rel_tokens,
     rewrite_attribute_references,
     script_kind,
@@ -468,12 +469,9 @@ def mark_declared(
         prepaint = declaration.get("x-prepaint")
         file = bool(prepaint) and attrs.get(prepaint) == "markdown"
         pre = element.select_one(":scope > pre") if words or file else None
-        if pre is not None and (pre_location := pre.source_location) is not None:
-            text = "".join(
-                child.data
-                for child in pre.children
-                if isinstance(child, turbohtml.Text)
-            )
+        pre_location = pre.source_location if pre is not None else None
+        text = pre_body(element) if pre_location is not None else None
+        if pre_location is not None and text is not None:
             source_words = (
                 f' data-lf-source-words="{html.escape(text, quote=True)}"'
                 if words

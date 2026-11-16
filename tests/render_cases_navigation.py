@@ -507,12 +507,12 @@ CODE_PAGE = leaf_page(
 <h1 id="t">Code</h1>
 <section id="walk">
 <p id="lede">The key changes shape:</p>
-<lf-code id="walk-code" language="python" hi="2"><pre>
+<lf-code id="walk-code" hi="2"><pre><code class="language-python">
 def bucket_key(request):
     if request.token:
         return f"tok:{request.token.id}"
     return "anon"
-</pre>
+</code></pre>
 <lf-note at="2">A token id shaped like an address would collide.</lf-note>
 </lf-code>
 <pre><code class="language-bash"># apply the migration, then run the marked suite

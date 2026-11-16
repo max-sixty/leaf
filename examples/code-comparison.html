@@ -283,8 +283,8 @@
                       >
                         <h3 class="code-candidate-title">compact · scroll</h3>
                         <p class="code-measurement" aria-live="polite">Measuring…</p>
-                        <lf-code id="compact-built-code" language="javascript" hi="2-4">
-                          <pre>
+                        <lf-code id="compact-built-code" hi="2-4">
+                          <pre><code class="language-javascript">
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -295,7 +295,7 @@ export function releaseLabels(releases) {
   return releases
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
-}</pre>
+}</code></pre>
                         </lf-code>
                       </section>
                     </lf-playground-choice>
@@ -308,8 +308,8 @@ export function releaseLabels(releases) {
                       >
                         <h3 class="code-candidate-title">comfortable · wrap</h3>
                         <p class="code-measurement" aria-live="polite">Measuring…</p>
-                        <lf-code id="wrapped-built-code" language="javascript" hi="2-4">
-                          <pre>
+                        <lf-code id="wrapped-built-code" hi="2-4">
+                          <pre><code class="language-javascript">
 export function releaseLabel(service, checks) {
   const detail = `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;
   const state = checks.failed > 0 ? "blocked" : checks.pending > 0 ? "rolling" : "ready";
@@ -320,7 +320,7 @@ export function releaseLabels(releases) {
   return releases
     .filter((release) => release.checks.total > 0)
     .map((release) => releaseLabel(release.service, release.checks));
-}</pre>
+}</code></pre>
                         </lf-code>
                       </section>
                     </lf-playground-choice>
@@ -358,10 +358,10 @@ export function releaseLabels(releases) {
                 <h3 id="target-reader-heading" class="reader-treatment-title">
                   Reader sample
                 </h3>
-                <lf-code id="target-built-code" language="javascript" hi="2">
-                  <pre>
+                <lf-code id="target-built-code" hi="2">
+                  <pre><code class="language-javascript">
 export const summarize = checks =>
-  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</pre>
+  `${checks.passed} passed · ${checks.pending} pending · ${checks.failed} failed`;</code></pre>
                 </lf-code>
               </section>
             </section>

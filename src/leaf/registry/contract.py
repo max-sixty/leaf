@@ -619,12 +619,12 @@ def stamp_states(registry: dict) -> dict:
 
 # A word a widget takes that its layer has to know, as two things: the attribute that
 # carries it, the same on every widget (the registry's `$attributes`), and the
-# layer-wide fact listing the words the layer has. A misspelt language colors nothing
-# and a misspelt tone paints nothing, and each renders as a page that otherwise looks
-# perfectly well, so the attribute's schema has to refuse any other word. The list is
-# the layer's ($languages, $tones) rather than any widget's, so a new tag that takes a
-# tone needs only to declare `tone`. A third such word is a row here.
-DECLARED_WORDS = (("language", "$languages"), ("tone", "$tones"))
+# layer-wide fact listing the words the layer has. A misspelt tone paints nothing, and
+# renders as a page that otherwise looks perfectly well, so the attribute's schema has
+# to refuse any other word. The list is the layer's ($tones) rather than any widget's,
+# so a new tag that takes a tone needs only to declare `tone`. A second such word is a
+# row here.
+DECLARED_WORDS = (("tone", "$tones"),)
 
 
 def stamp_words(registry: dict) -> dict:

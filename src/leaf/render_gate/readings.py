@@ -23,7 +23,7 @@ from leaf.projection import (
     retirement_holders,
     retirement_outcomes,
 )
-from leaf.registry.contract import is_element_name, retirement_slots
+from leaf.registry.contract import MODULES, is_element_name, retirement_slots
 from leaf.render_checks import (
     evaluate_probe,
     observe_probe,
@@ -179,7 +179,12 @@ def _expected_verbatim(markup, events, registry, here):
 
 
 def _verbatim_findings(context: _SchemeContext) -> list[Finding]:
-    shown = evaluate_probe(context.page, "shownVerbatim", context.declarations)
+    shown = evaluate_probe(
+        context.page,
+        "shownVerbatim",
+        context.declarations,
+        sorted(context.registry[MODULES]),
+    )
     if not shown:
         return []
     expected = _expected_verbatim(
@@ -289,7 +294,9 @@ def _widget_findings(context: _SchemeContext) -> list[Finding]:
     declarations = context.declarations
     replayed = context.replayed
     invalid_paints = evaluate_probe(page, "invalidPaints")
-    missing_upgrades = evaluate_probe(page, "missingUpgrades", declarations)
+    missing_upgrades = evaluate_probe(
+        page, "missingUpgrades", sorted(context.registry[MODULES])
+    )
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")

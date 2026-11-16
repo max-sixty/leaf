@@ -3177,7 +3177,7 @@ def test_nothing_passing_interrupts_the_user_writing(browser, serve):
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
-    say = "async (text) => (await window.__lfWidgetApi()).notice(text)"
+    say = "async (text) => (await window.__lfCheckApi()).notice(text)"
     peek = page.locator(".lf-fp-peek")
     page.evaluate(say, "Saved for later")
     expect(field(page)).to_have_attribute(

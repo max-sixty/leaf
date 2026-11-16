@@ -780,8 +780,8 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     the user where keys act (thread/focus.js, `openingPart`), and the panel shows a
     passage's thread only where the page draws it nowhere.
 
-    Where the card stands belongs to the placement tests beside this one; how a send
-    is delivered belongs to the `margin` case of `test_render_thread_snapshots.py`."""
+    Where the card stands belongs to the placement tests beside this one; what a send
+    leaves in the card belongs to `test_card_reply.py`."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[PARAGRAPH_ON_OBLIGATION]))
     resized(page, 1440, 900)
     marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')

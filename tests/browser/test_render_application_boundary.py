@@ -51,7 +51,8 @@ from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 THREAD_READER = r"""
-import {LeafElement, html, readThreads, threadSummary, threadTurns} from '/runtime/widget-api.js';
+import { html } from '/vendor/lit.js';
+import { LeafElement, readThreads, threadSummary, threadTurns } from '/runtime/widget-api.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
     const collection = readThreads();
@@ -72,12 +73,12 @@ THREAD_READER_DECLARATION = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "empty",
-    "x-upgrade": True,
     "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
 
 THREAD_FILTER = r"""
-import {LeafElement, html, repeat, signal, threadActions, readThreads, threadSummary} from '/runtime/widget-api.js';
+import { html, repeat } from '/vendor/lit.js';
+import { LeafElement, signal, threadActions, readThreads, threadSummary } from '/runtime/widget-api.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
   query = signal('');
   setup() { this.query.value = this.getAttribute('filter') ?? ''; }
@@ -106,7 +107,6 @@ THREAD_FILTER_DECLARATION = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "empty",
-    "x-upgrade": True,
     "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
@@ -836,7 +836,6 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
                 "required": ["id"],
                 "additionalProperties": False,
                 "x-content": "markup",
-                "x-upgrade": True,
                 "x-shadow": True,
                 "x-example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
             },
@@ -1209,7 +1208,8 @@ def arrived(page, thread_id):
 
 
 THREAD_ACTIONS = r"""
-import {LeafElement, noChange, keeps, readThreads, threadActions} from '/runtime/widget-api.js';
+import { noChange } from '/vendor/lit.js';
+import { LeafElement, keeps, readThreads, threadActions } from '/runtime/widget-api.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
   setup() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
@@ -1243,7 +1243,6 @@ THREAD_ACTIONS_DECLARATION = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "empty",
-    "x-upgrade": True,
     "x-example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
 }
 
@@ -1569,7 +1568,6 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                 "additionalProperties": False,
                 "x-content": "empty",
                 "x-shadow": True,
-                "x-upgrade": True,
             }
         },
         layer_widgets={
@@ -1942,7 +1940,6 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         "additionalProperties": False,
         "x-content": "empty",
         "x-shadow": True,
-        "x-upgrade": True,
     }
     module = (companion / "widgets/lf-conversation-workspace.js").read_text()
     module = module.replace(

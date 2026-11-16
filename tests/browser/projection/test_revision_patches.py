@@ -892,7 +892,7 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     browser, serve
 ):
     """A tab set's module builds its strip beside the panels and reads only their labels
-    (`x-patch: members`), so a revision that rewrites a sentence in one tab edits that
+    (`lfPatch`), so a revision that rewrites a sentence in one tab edits that
     sentence: the tab set, the tab the user has open and the question in the other tab
     are the elements they were. A revision that adds a tab changes what the strip was
     built from, and the set is rebuilt with a tab for it."""
@@ -941,6 +941,55 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     expect(page.get_by_role("tab")).to_have_count(3)
     page.get_by_role("tab", name="Notes").click()
     expect(page.locator("#tp-notes")).to_be_visible()
+
+
+DRAWN_DATA = """customElements.define('lf-drawn-data', class extends HTMLElement {
+ static lfPatch = 'members';
+ connectedCallback() {
+  if (this.querySelector('output')) return;
+  const drawn = document.createElement('output');
+  drawn.textContent = this.querySelector('pre').textContent;
+  this.append(drawn);
+ }
+});"""
+
+
+def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serve):
+    """A widget that draws its content itself (`x-content: data`) reads the text a
+    revision edits, so the revision replaces it and the replacement draws the new text,
+    whatever its class declares as `lfPatch`. Edited in place, its `<pre>` held the new
+    text beside a drawing of the old."""
+
+    def source(text):
+        return leaf_page(
+            "Drawn data",
+            f'<h1>Drawn data</h1><lf-drawn-data id="dd"><pre>{text}</pre></lf-drawn-data>',
+        )
+
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source("one"),
+                layer_registry={
+                    "lf-drawn-data": {
+                        "description": "Text its module draws once, at upgrade.",
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                        "additionalProperties": False,
+                        "x-content": "data",
+                    }
+                },
+                layer_widgets={"lf-drawn-data.js": DRAWN_DATA},
+            )
+        ),
+    )
+    expect(page.locator("#dd output")).to_have_text("one")
+
+    stamp_page(serve.page_dir, source("two"), "new data")
+    wait_for_revision(page, 2)
+    expect(page.locator("#dd output")).to_have_text("two")
 
 
 @pytest.mark.parametrize("departure", ["focused", "link", "selection"])

@@ -115,8 +115,8 @@ Shared CSS selects widgets by what their registry entries declare, which deliver
 writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
 `[data-lf-exhibit]` and similar attributes, rather than by tag. An element that names
 page media also arrives with `data-lf-media-width` and `data-lf-media-height`, the
-largest width and height among its images, so a theme can give the frame their shape
-before they load, as `lf-shot` does with `aspect-ratio`.
+largest width and height among its images, so a widget can size its frame before they
+decode, as `lf-shot` does.
 
 The page decides how wide it is and how its blocks are arranged (`page-layout.md`,
 "Layouts"). A package's element fills its box. One that needs more room than the
@@ -228,7 +228,7 @@ since Leaf already scopes it.
 ```
 
 The comment box and threads a widget seats in an outlet of its own
-(`x-thread-surface`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
+(`threadOutlets`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
 and take the widget's look rather than the theme's `chrome.css`. The part names are
 the chrome's public interface. Its classes are private and change between Leaf
 versions, so a rule naming one can stop applying after an update. A page that restyles

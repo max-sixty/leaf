@@ -687,7 +687,6 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
 
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-unfinished"]["x-upgrade"] = True
     registry["lf-unfinished"]["x-verbatim"] = True
     registry_path.write_text(json.dumps(registry))
 

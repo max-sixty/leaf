@@ -1,12 +1,12 @@
 /* Atlas task rows keep their authored hierarchy and report identity. A row marked
  * `talk` shows the conversations about it at its foot, where its Comment control opens
  * the box that starts one. */
+import { nothing } from "/vendor/lit.js";
 import {
   keeps,
   keepsHidden,
   keepsText,
   LeafElement,
-  nothing,
   offer,
   offerAction,
   threadSurface,

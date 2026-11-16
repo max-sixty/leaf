@@ -32,7 +32,7 @@ export function updateSurface(registration) {
   });
 }
 
-// The registered surface of a widget declaring `x-thread-surface`, as the widget reads
+// The registered surface of a widget that has `threadOutlets`, as the widget reads
 // it: before the runtime has registered it, or after it left, there is nothing to update
 // and nothing it can open.
 /** @param {Element} owner */

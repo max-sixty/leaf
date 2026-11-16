@@ -25,7 +25,8 @@ def test_package_render_check_refuses_a_failed_async_paint(tmp_path, browser):
     )
     assert made.exit_code == 0, made.output
     (package / "widgets/lf-async-panel.js").write_text("""\
-import { LeafElement, html } from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-async-panel", class extends LeafElement {
   render() { return html`Instrument`; }
   async getUpdateComplete() {

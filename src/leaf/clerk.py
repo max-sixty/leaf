@@ -292,7 +292,7 @@ _WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
 # Each kind of finding, as the agent's line names it: the one list of kinds, which
 # the answer's schema and form read.
 FOUND = {
-    "stale": "the page saying what has since changed",
+    "stale": "the page holding what no longer fits the work",
     "settled": "an On Me item already settled",
     "unshown": "work no page shows",
     "overtaken": "a thread of yours the user would misread",

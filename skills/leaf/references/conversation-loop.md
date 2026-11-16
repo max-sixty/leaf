@@ -195,7 +195,7 @@ thread under its id, which reopens the thread if the user closed it. It tells yo
 your next step what it wrote. Where a few of a page's words have gone stale, it swaps
 in new ones and tells you the old and new words; change them back or rewrite them if
 they're wrong, and carry the change into any file you build the page from. It also tells you what else it found, such as a
-page that still says what has since changed, an On Me item the user settled
+page holding what no longer fits the work, an On Me item the user settled
 elsewhere, or work you set running that no page shows, for you to act on where it
 still holds; `turn-end-check.md` is what it asks. That catches what slips; it doesn't
 ask for you, so keep asking by the routes below. What it writes is yours like

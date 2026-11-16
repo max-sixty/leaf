@@ -273,8 +273,8 @@ def test_a_finding_reaches_the_agent_whatever_turn_opened_since(claimed, capsys)
     assert (claimed / "index.html").read_text() == source
     context = hook(capsys, "PostToolBatch")
     assert (
-        "read a turn before the user's latest message and found the page saying what "
-        "has since changed on "
+        "read a turn before the user's latest message and found the page holding what "
+        "no longer fits the work on "
         f"{page}: The lede still gives the old cutoff of 30 days." in context
     )
     assert "(session s1):\n> Let's make the cutoff 14 days." in context

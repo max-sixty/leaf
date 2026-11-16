@@ -3877,6 +3877,7 @@
               fragment: i,
               previousRect,
               currentRect,
+              stepAt: step.at,
               stepRect: readingAt(node, step.at)?.fragments[i] ?? previousRect,
               before: around[before].at,
               after: around[after].at,
@@ -4183,9 +4184,8 @@
         pendingMotion.splice(i, 1);
     const needed = Math.min(
       through,
-      run?.from.at ?? Infinity,
       ...waiting.map((entry) => entry.startTime),
-      ...pendingMotion.map((move) => move.before),
+      ...pendingMotion.map((move) => move.stepAt),
       ...renderings
         .filter(
           (rendering) =>
@@ -4203,8 +4203,12 @@
     // Native frame starts associate painted shifts; poses are sampled later in the
     // callback's synchronous turn. Retaining that frame cannot retire an earlier
     // input pose its readers still need. All coordinate histories keep the same
-    // earliest required reading.
-    retainedFrom = Math.min(needed, frames[0]?.at ?? -Infinity);
+    // earliest required reading, back to the frame a run is judged from.
+    retainedFrom = Math.min(
+      needed,
+      run?.from.at ?? Infinity,
+      frames[0]?.at ?? -Infinity,
+    );
     for (let i = renderings.length - 1; i >= 0; i--) {
       const rendering = renderings[i];
       if (

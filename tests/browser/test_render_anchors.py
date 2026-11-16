@@ -3958,9 +3958,9 @@ def test_the_menu_compares_with_any_version_older_than_this_one(browser, serve):
     """A page that ships a version whenever the work moves leaves its user behind by
     more than one, and "what changed since the previous version" is then the wrong
     question: what they want marked is everything since they last looked. A base that
-    is a control's own label can only be the previous version — one button can name
-    one version — so the menu is where it stops being one, and every row
-    older than this one offers itself.
+    is a control's own label can only be the one version it names — one button can
+    name one version — so the base is chosen in the menu, where every row older than
+    this one offers itself.
 
     The rest is what the user can tell afterwards: reopening says which comparison
     stands, and its Compare pressed again is the way off."""

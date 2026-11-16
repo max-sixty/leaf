@@ -564,9 +564,9 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
 
 def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve):
     """A choosing lf-options that is the decision itself, with no lf-ask round it,
-    gives its location ring up to the row as one inside an ask does. Kept, a Tab in
-    would draw the decision's ring at the region's gap and the row's inside the frame,
-    two accent lines a few pixels apart for one fact."""
+    gives its location ring up to the row as one inside an ask does. If the decision
+    kept its ring, a Tab in would draw the decision's ring at the region's gap and the
+    row's inside the frame, two accent lines a few pixels apart for one fact."""
     page = open_page(
         browser,
         serve(

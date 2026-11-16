@@ -212,8 +212,8 @@ def test_a_durable_answer_retires_the_placeholder_its_attempt_reserved(
 
     A provisional reply retired only by the response address it was sent to would let
     an answer that named only the attempt it was reserved under stand beside its own
-    placeholder, and the draft would be what got drawn: one agent bubble with no words
-    in it. A logged event naming either identity retires the draft.
+    placeholder, and the draft would be what got drawn: its stale words in place of the
+    answer. A logged event naming either identity retires the draft.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Answer me here", {"section": "h-how"})
@@ -957,10 +957,11 @@ def test_a_harness_failure_receipt_does_not_read_as_an_answer(browser, serve):
 
     Nothing else in the message says it: a harness receipt is a reply event, written
     under the thread's own agent name, in the same bubble as a real answer, and its
-    prose is the only other difference. So a user skimming a thread reads an
-    apology from the agent rather than a notice that their message went nowhere, and
-    the page's own record of the failure — `failure` — goes unread. The mark belongs
-    in the head because that is the part of a message a user takes on trust.
+    prose is the only other difference. Without the mark, a user skimming a thread
+    would read an apology from the agent rather than a notice that their message went
+    nowhere, and the page's own record of the failure — `failure` — would go unread.
+    The mark belongs in the head because that is the part of a message a user takes on
+    trust.
     """
     url = serve(THREAD_DIFF_PAGE)
     answered, unanswered = (

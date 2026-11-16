@@ -151,9 +151,9 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
 def test_a_board_says_which_column_each_card_is_in(browser, serve):
     """Which column a card sits in is the one fact about it that isn't in its own
     text, and columns are three boxes side by side — geometry, which the
-    accessibility tree doesn't carry. Flat, this board would be six text runs and two
-    Move buttons in a row: no boundary between the columns, and no button saying
-    where its card was.
+    accessibility tree doesn't carry. Flat, this board would be its text runs and its
+    Move buttons in a row: no boundary between the columns, and no button saying where
+    its card was.
 
     Both halves are asserted from the tree itself rather than from the attributes
     behind it, because that is where they can be wrong: the column heading is CSS

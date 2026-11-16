@@ -488,12 +488,13 @@ def test_of_two_panes_the_same_size_on_screen_the_one_with_more_to_scroll_takes_
 def test_a_step_up_goes_to_a_log_only_where_the_window_holds_main(
     browser, serve, shape
 ):
-    """A log that follows its newest entry stands at its end. On a long page, `k` at the
-    top moves it with no region named, and the log stops following; the page keeps that
-    step, as it keeps every step it can take, and so does a short `main` that a site
-    header pushes past the window's foot. The window holds all of a workspace's `main`,
-    so there `k` moves the log back from its newest entry, even with a site footer after
-    `main`, which gives the page a little scroll and could leave `k` moving nothing."""
+    """A log that follows its newest entry stands at its end. On a long page, a `k` at
+    the top that moved the log with no region named would stop it following; the page
+    keeps that step, as it keeps every step it can take, and so does a short `main` that
+    a site header pushes past the window's foot. The window holds all of a workspace's
+    `main`, so there `k` moves the log back from its newest entry, even with a site
+    footer after `main`, which gives the page a little scroll and could leave `k` moving
+    nothing."""
     entries = "".join(f"<p>Entry {n}: a line of the deploy.</p>" for n in range(60))
     log_markup = f'<div id="log" data-bound="end">{entries}</div>'
     workspace = shape.startswith("workspace")

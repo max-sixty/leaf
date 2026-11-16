@@ -1954,9 +1954,9 @@ STILL = """async box => {
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_arrow_keys_step_onto_a_drawn_rule(engine, request, serve, subtests):
     """Up and Down step onto a rule's line, which then shows its source on that line,
-    and nothing moves. A rule's line a stroke's height while the caret was away would
-    grow to a line's height as its source showed, growing the field and moving every
-    line below it."""
+    and nothing moves. A rule's line that was a stroke's height while the caret was away
+    would grow to a line's height as its source showed, growing the field and moving
+    every line below it."""
     page = open_page(
         request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
     )

@@ -304,7 +304,7 @@ def cmd_comment(
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there. The text is the agent's
     own, read with any HTML in it (`drawn_markup`)."""
-    body = checked_text(page_dir, text)
+    body = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(body, True):
         from leaf.render_gate.command import message_check
 
@@ -523,7 +523,7 @@ def post_reply(
     the user's message gets the agent's first words and its Working line from one
     write. A `Receipt`'s progress takes nothing in hand.
     """
-    text = checked_text(page_dir, text)
+    text = checked_text(page_dir, text, html=html)
     if markup := drawn_markup(text, html):
         from leaf.render_gate.command import message_check
 

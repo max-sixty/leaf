@@ -180,7 +180,9 @@ def initial_sample_events(
                     event["anchor"], AdmissionReadings(view, events, registry)
                 )
             if "text" in event and (
-                errors := text_media_errors(event["text"], page_dir)
+                errors := text_media_errors(
+                    event["text"], page_dir, html=bool(event.get("html"))
+                )
             ):
                 raise _refused(
                     "fixture-media",

@@ -11,7 +11,6 @@ from interact_support import PAGE, package_path, page_packages
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
 from leaf.files import revision_path
-from leaf.http import scope_page_urls
 from leaf.revision_artifact import (
     ArtifactError,
     Resource,
@@ -504,8 +503,8 @@ def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     """Media is the page's and shared across revisions, so every host serves it at the
     page root, and the runtime resolves a message's or a widget's media there too. A
     captured document addresses it there in every form capture reads: a resource
-    attribute, any attribute naming it whole, a stylesheet, a declarative shadow root,
-    and the HTML of a message in a state reading. Prose naming it stays as written."""
+    attribute, any attribute naming it whole, a stylesheet and a declarative shadow
+    root. Prose naming it stays as written."""
     media = "/media/0123456789abcdef.png"
     (tmp_path / "media").mkdir()
     (tmp_path / "media" / "0123456789abcdef.png").write_bytes(b"\x89PNG")
@@ -525,10 +524,6 @@ def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     delivered = rebase_document(source, ADDRESS)
     assert delivered.replace(PAGE_ROOT + media, "").count(media) == 1  # the prose
     assert delivered.count(PAGE_ROOT + media) == 7
-    message = scope_page_urls(
-        {"html": True, "text": f'<p><img src="{media}" alt="Shot"></p>'}, PAGE_ROOT
-    )
-    assert message["text"] == f'<p><img src="{PAGE_ROOT}{media}" alt="Shot"></p>'
 
 
 def test_captured_document_entries_resolve_at_every_public_address(tmp_path):

@@ -115,14 +115,14 @@ def _html_block(state, start: int, end: int, silent: bool) -> bool:
         return html_block(state, start, end, silent)
     if silent:
         return True
-    closing = f"</{opening[1].lower()}>"
+    closing = re.compile(f"</{opening[1]}>", re.IGNORECASE)
     line = start
     while line < end:
         if line > start and state.sCount[line] < state.blkIndent:
             break
         text = state.src[state.bMarks[line] + state.tShift[line] : state.eMarks[line]]
         line += 1
-        if closing in text.lower():
+        if closing.search(text):
             break
     state.line = line
     token = state.push("html_block", "", 0)
@@ -136,6 +136,21 @@ CODE_OPENING = re.compile(
     r"""<code(?:\s+[^\s"'>/=]+(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*>""",
     re.IGNORECASE,
 )
+CODE_CLOSING = re.compile("</code>", re.IGNORECASE)
+
+
+def _fence_words(state) -> None:
+    """A message's fence shows the words on its opening line as its code's first line,
+    unless one word names the language of the code below (markdown.js,
+    `fence_words`)."""
+    for token in state.tokens:
+        words = token.info.strip()
+        if token.type != "fence" or not words:
+            continue
+        if token.content and not re.search(r"\s", words):
+            continue
+        token.content = f"{words}\n{token.content}"
+        token.info = ""
 
 
 def _code_element(state, silent: bool) -> bool:
@@ -143,14 +158,12 @@ def _code_element(state, silent: bool) -> bool:
     Markdown code span does, so a formula's LaTeX keeps each backslash and asterisk
     Markdown would read as an escape or emphasis (markdown.js, `codeElement`)."""
     opening = CODE_OPENING.match(state.src, state.pos)
-    if opening is None:
-        return False
-    close = state.src.lower().find("</code>", opening.end())
-    if close < 0:
+    closing = opening and CODE_CLOSING.search(state.src, opening.end())
+    if not closing:
         return False
     if not silent:
-        state.push("html_inline", "", 0).content = state.src[state.pos : close + 7]
-    state.pos = close + 7
+        state.push("html_inline", "", 0).content = state.src[state.pos : closing.end()]
+    state.pos = closing.end()
     return True
 
 
@@ -175,6 +188,7 @@ def markdown_dialect(message: bool, html: bool = False):
     )
     if message:
         parser.disable(["lheading", "code"])
+        parser.core.ruler.after("block", "fence_words", _fence_words)
     if html:
         parser.block.ruler.at(
             "html_block", _html_block, {"alt": ["paragraph", "reference", "blockquote"]}

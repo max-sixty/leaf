@@ -262,7 +262,9 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     return errors + authored_allocation_errors(parser)
 
 
-def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
+def text_media_errors(
+    text: str, page_dir: Path, *, html: bool = False
+) -> list[Finding]:
     """The same reference in a message's Markdown, which is the other way one arrives.
 
     Markup names a picture in an attribute or a stylesheet, where the parsed reading
@@ -276,7 +278,7 @@ def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
     and unused definitions as text, so neither asks for a file the page will not load."""
     refs = {
         url
-        for token in markdown_dialect(True).parse(text)
+        for token in markdown_dialect(True, html=html).parse(text)
         for child in token.children or ()
         if child.type in {"link_open", "image"}
         if (url := child.attrGet("href" if child.type == "link_open" else "src"))

@@ -730,10 +730,10 @@ function elementBlock(state, start, end, silent) {
   const opening = ELEMENT_OPENING.exec(words(start));
   if (!opening) return false;
   if (silent) return true;
-  const closing = `</${parserItem(opening, 1).toLowerCase()}>`;
+  const closing = new RegExp(`</${parserItem(opening, 1)}>`, "i");
   let line = start;
   while (line < end && (line === start || indent(line) >= 0))
-    if (words(line++).toLowerCase().includes(closing)) break;
+    if (closing.test(words(line++))) break;
   state.line = line;
   const token = state.push("html_block", "", 0);
   token.map = [start, line];
@@ -751,19 +751,18 @@ const CODE_OPENING =
 function codeElement(state, silent) {
   const opening = CODE_OPENING.exec(state.src.slice(state.pos));
   if (!opening) return false;
-  const close = state.src
-    .toLowerCase()
-    .indexOf("</code>", state.pos + opening[0].length);
+  const from = state.pos + opening[0].length;
+  const close = state.src.slice(from).search(/<\/code>/i);
   if (close < 0) return false;
+  const end = from + close + "</code>".length;
   if (!silent)
-    state.push("html_inline", "", 0).content = state.src.slice(state.pos, close + 7);
-  state.pos = close + 7;
+    state.push("html_inline", "", 0).content = state.src.slice(state.pos, end);
+  state.pos = end;
   return true;
 }
 
-// The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`). passages.py
-// reads the same dialects, short of `fence_words`, since it reads no fence in a
-// message.
+// The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`), which
+// passages.py reads the same (`markdown_dialect`).
 /** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message
  * @param {boolean} [html] */
 export function makeMarkdown(module, message, html = false) {

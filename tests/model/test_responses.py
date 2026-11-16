@@ -1072,7 +1072,7 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
     )
     options = {
         "source": {},
-        "html": {"html": True},
+        "html": {},
         "title": {"title": ""},
     }[invalid]
     before = events_model.read_events(page_dir)
@@ -1082,6 +1082,7 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
             'Invalid\n\n<lf-unknown id="bad"></lf-unknown>'
             if invalid == "html"
             else "Invalid",
+            html=invalid == "html",
             identity=identity,
             **options,
         )

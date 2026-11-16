@@ -134,7 +134,7 @@ def test_the_reply_door_reads_a_message_stylesheet_as_the_capture_does(
 def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):
     """A message names its picture in Markdown, where the markup reading cannot see it.
 
-    `check_markup` runs only when `--markup` is given, and the reference it asks about
+    `check_markup` runs only on a message holding HTML, and the reference it asks about
     lives in an attribute. An agent sending a screenshot writes it in the words instead,
     so the shape `media_errors` was written for — here is what it looks like now — came
     through the one door that never asked, and the log is append-only: a picture the

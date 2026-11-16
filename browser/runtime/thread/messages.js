@@ -50,8 +50,13 @@ import {
   releaseMessageEdit,
   watchRewrite,
 } from "./message-edit.js";
-import { tokenEntry } from "../registry.js";
-import { readAttachedMedia, writeAttachedMedia } from "../media.js";
+import { declarationFor, tokenEntry } from "../registry.js";
+import {
+  isCanonicalMediaUrl,
+  readAttachedMedia,
+  scopedMediaUrl,
+  writeAttachedMedia,
+} from "../media.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
@@ -374,15 +379,19 @@ const authoredMessages = new Map();
 /** @type {Map<string, {element: Element, document: {thread: string, message: string}}>} */
 const keptElements = new Map();
 // The markup a drawing that doesn't hold an authored message draws in its place
-// (`authoredHolders`): the message less what a second copy would duplicate, each
-// custom element, which a module upgrades once, and each id.
-/** @param {string} markup */
-function heldElsewhere(markup) {
+// (`authoredHolders`): the message less what a second copy would duplicate, each id
+// and each custom element, which a module upgrades once. A widget set among words
+// (`x-inline`) leaves its words, and any other goes whole, as a choice the drawing
+// asks in its own controls does.
+/** @param {DocumentFragment} message */
+function heldElsewhere(message) {
   const copy = document.createElement("template");
-  copy.innerHTML = markup;
+  copy.content.append(message.cloneNode(true));
   for (const element of copy.content.querySelectorAll("*"))
-    if (element.localName.includes("-")) element.remove();
-    else element.removeAttribute("id");
+    if (!element.localName.includes("-")) element.removeAttribute("id");
+    else if (declarationFor(element, "x-inline"))
+      element.replaceWith(...element.childNodes);
+    else element.remove();
   return copy.innerHTML;
 }
 
@@ -401,6 +410,13 @@ export function prepareAuthoredMessage(message, thread) {
     const markup = renderAuthoredMarkdown(message.text ?? "");
     const template = document.createElement("template");
     template.innerHTML = markup;
+    // A page's media at the address the page answers at, as the message's Markdown
+    // images take it (markdown.js, `scopedMediaUrl`): any attribute naming it.
+    for (const element of template.content.querySelectorAll("*"))
+      for (const { name, value } of element.attributes)
+        if (isCanonicalMediaUrl(value))
+          element.setAttribute(name, scopedMediaUrl(value));
+    const elsewhere = heldElsewhere(template.content);
     markDeclared(template.content);
     rememberAuthoredParents(template.content);
     const descriptors = stageWidgetDescriptors(template.content, {
@@ -416,7 +432,7 @@ export function prepareAuthoredMessage(message, thread) {
       body: {
         // An image counts as the thread names it, its alt text (`renderedWords`).
         text: renderedWords(markup, true),
-        heldElsewhere: heldElsewhere(markup),
+        heldElsewhere: elsewhere,
         document: { thread, message: message.id },
       },
       authored,

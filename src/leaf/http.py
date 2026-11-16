@@ -67,7 +67,6 @@ from .revision_delivery import (
     delivered_resource,
     json_script,
     layer_import_map,
-    rebase_document,
     runtime_element,
     runtime_settings,
 )
@@ -155,14 +154,13 @@ def _query_int(raw, name: str, minimum: int) -> int:
 
 
 def scope_page_urls(value, page_root: str):
-    """Address a state response's documents and the HTML in its messages at a page
-    root.
+    """Address a state response's documents at a page root.
 
-    A response carries version addresses and the HTML an agent's message holds in
-    their canonical, root-relative form; beneath a prefix both answer at the page
-    root, as the live page's media does. A message's Markdown destinations are the
-    browser's to address as it renders them (markdown.js, `scopedMediaUrl`); its
-    HTML's references are rebased in the text, whose words stay as written.
+    A response carries version addresses in their canonical, root-relative form;
+    beneath a prefix they answer at the page root, as the live page's media does. A
+    message's media is the browser's to address as it renders the message
+    (`scopedMediaUrl` in markdown.js and thread/messages.js), since only its rendering
+    tells a reference from words that spell one.
     """
     if not page_root:
         return value
@@ -178,8 +176,6 @@ def scope_page_urls(value, page_root: str):
             and item.startswith(("/versions/", "/revisions/"))
         ):
             scoped[key] = page_root.rstrip("/") + item
-        elif key == "text" and value.get("html") is True and isinstance(item, str):
-            scoped[key] = rebase_document(item, DeliveryAddress(page_root, page_root))
         else:
             scoped[key] = scope_page_urls(item, page_root)
     return scoped
@@ -559,9 +555,8 @@ class PageEndpoint:
         (`served_state.tail`). Without this every gesture's answer would carry back
         every record and past event the tab already holds. The answer goes out as
         it stands (`_json_body`), since addressing it again would address its
-        messages' HTML twice. The log travels apart from the reading, as only the
-        events after the held reading's, so only the events sent are addressed,
-        rather than every message the session has logged.
+        versions twice. The log travels apart from the reading, and its events hold
+        no address.
 
         A whole answer to a tab that names, in `Leaf-Data-Version`, the data version
         it still holds leaves out its sources for the tab to restore (`completeState`
@@ -587,7 +582,7 @@ class PageEndpoint:
             self.headers.get("Leaf-Data-Version") == answer["data"]["version"]
         ):
             answer = {**answer, "data": {"version": answer["data"]["version"]}}
-        return {**answer, "events": scope_page_urls(answer["events"], self.page_root)}
+        return answer
 
     def page_comparison(
         self, revision: int, through_seq: int, shown: int | None

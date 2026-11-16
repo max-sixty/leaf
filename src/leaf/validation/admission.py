@@ -35,7 +35,9 @@ from .markup import (
 )
 
 
-def checked_text(page_dir: Path, text: str | None, *, allow_empty: bool = False) -> str:
+def checked_text(
+    page_dir: Path, text: str | None, *, allow_empty: bool = False, html: bool = False
+) -> str:
     """Every body an agent writes, checked at the one place they all come through.
     None, where the agent gave none, is refused, and so is an empty body unless
     `allow_empty`.
@@ -44,10 +46,12 @@ def checked_text(page_dir: Path, text: str | None, *, allow_empty: bool = False)
     broken image in an append-only log for as long as the page exists. `check_markup`
     asks that of a message's HTML and runs only where the message holds some; this
     asks it of the link and image destinations, which is where the runtime resolves
-    one — a path quoted in a sentence stays the author's words."""
+    one — a path quoted in a sentence stays the author's words. `html` reads the text
+    as a message drawing its HTML does (`thread.drawn_markup`), where Markdown inside
+    a `<code>` is words."""
     if text is None or not (text or allow_empty):
         raise Refused(f"empty text ({NO_BODY})")
-    if errs := text_media_errors(text, page_dir):
+    if errs := text_media_errors(text, page_dir, html=html):
         raise Rejected(errs, "text names media the page won't show")
     return text
 

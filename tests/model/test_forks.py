@@ -2363,9 +2363,9 @@ def test_a_hold_ending_while_the_reply_goes_in_leaves_the_thread_to_the_session(
     asked = said(claimed, "Is the fence inside the append?")
     checked = thread_model.checked_text
 
-    def bound_passes(page_dir, text):
+    def bound_passes(page_dir, text, **options):
         forks_model.look("s1", claimed, now=float("inf"))
-        return checked(page_dir, text)
+        return checked(page_dir, text, **options)
 
     monkeypatch.setattr(thread_model, "checked_text", bound_passes)
     assert forks_model.route(

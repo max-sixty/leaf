@@ -3503,9 +3503,10 @@ def test_the_panel_folds_to_the_leaf_and_stays_folded(browser, serve):
 
 
 def test_folding_from_the_menu_draws_the_panel_folded_at_once(browser, serve):
-    """The menu's Fold row folds as `.` does, drawing the folded panel without first
-    drawing it open: open with an empty field, the field would say an error about
-    nothing and take the leaf's dot away, only for the fold to put it back. The
+    """The menu's Fold row folds as `.` does, and the leaf's dot is written once: the
+    menu's put-away stands the empty field in the row, which says an error about
+    nothing in the dot's place, and the fold then gives the dot back, so a press that
+    drew the row's posture at each step would take the dot away and put it back. The
     browser fixture fails the test on that restated write (write_watch.js)."""
     page = floating(browser, serve(LONG_PAGE))
     page.evaluate(

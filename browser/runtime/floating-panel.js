@@ -643,7 +643,15 @@ export function createFloatingPanel({
   host.setAttribute("role", "region");
   host.setAttribute("aria-label", "Leaf");
   let expanded = false;
-  // Whether a row's press is running its command (`putAwayThen`).
+  // While a row's press runs its command (`putAwayThen`), the row's posture keeps what
+  // it shows, and the press draws it once it has finished. The posture is what stands
+  // around the field's occupant and follows it, which no command reads or focuses:
+  // `paintNow` writes it through `posture` and `panelTemplate` draws it through `marks`.
+  // Which editor or search stands in the field stays live, since the command may open
+  // and focus it. Of the posture, `data-lf-offers` decides whether the field or a
+  // seated comment box stands in the row (floating-panel.css), so a command that put
+  // the caret in the page's field before returning would find the field hidden there;
+  // none does today.
   let rowPress = false;
   // One template owns the panel's shell, views and editor placement. Its detached first
   // drawing establishes the retained nodes that setup wires below. The peek must follow
@@ -652,10 +660,8 @@ export function createFloatingPanel({
   // stance's way out. Its count keeps its room even when empty; a count arriving moves
   // nothing beside it. The corner mark presses the fold command's row, as the menu
   // does, so its press is announced and logged like the key's.
-  // The leaf's dots and count, and the quick seat, follow the field and the view standing
-  // over the row. While a row's press runs they keep what they show, and the press draws
-  // them once it has finished (`putAwayThen`).
   function panelTemplate(initial = false) {
+    // The row's posture, which a row's press holds (`rowPress`).
     /** @param {unknown} drawn */
     const marks = (drawn) => (rowPress ? noChange : drawn);
     const top = initial ? null : (trail.value.at(-1) ?? null);
@@ -682,9 +688,8 @@ export function createFloatingPanel({
     // it keeps its room, so the search press beside it stays under the pointer.
     const closeAtFoot = Boolean(top && viewOf(top).controls);
     // Page search's way out is its stance's, which the repaint frame reads after the
-    // paint that opens it (touch-controls.js). Until then the seat keeps what it shows
-    // rather than stepping aside, which, opened from the menu, would hide it again in
-    // the task that put the menu away and showed it.
+    // paint that opens it (touch-controls.js). Until then the seat keeps what it shows,
+    // rather than stepping aside for that paint and coming back with the way out.
     const quickHidden =
       initial || (Boolean(top) && !exit) || (!exit && (writing || drafted));
     // Drafts are marked only where nothing has news, so the dot stays news's mark, and
@@ -1937,11 +1942,12 @@ export function createFloatingPanel({
   // `openLayer`), folding leaves the user on the leaf it folds to, and a command that
   // places the user elsewhere still does. The command runs on the panel the put-away
   // drew, and may then open a view or fold the panel, as `z` showing a thread does. The
-  // leaf's dots and the quick seat (`panelTemplate`) wait for the command, so they change
-  // once, from where the press found the panel to where it leaves it, rather than
-  // showing the empty row's On Me mark in between. Rejected: drawing the put-away only
-  // with the command's own change, which ran the command with the view still drawn,
-  // and Align from the menu then left the page where it was.
+  // row's posture (`rowPress`) waits for the command to return, so it is written once,
+  // from where the press found the panel to where the command leaves it, rather than for
+  // the empty row in between as well; a view the command opens after an `await` changes
+  // it again. Rejected: drawing the put-away only with the command's own change, which
+  // ran the command with the view still drawn, and Align from the menu then left the
+  // page where it was.
   /** @param {() => unknown} run */
   function putAwayThen(run) {
     const inside = currentLocationIn(host);
@@ -4939,30 +4945,35 @@ export function createFloatingPanel({
     if (searchSurface.hidden !== !search) postureMoved = true;
     const input = fieldInput();
     if (input) syncInput(input);
+    // The row's posture, which a row's press holds (`rowPress`).
+    /** @param {string} name @param {string | null} value */
+    const posture = (name, value) => {
+      if (!rowPress) keeps(host, name, value);
+    };
     // The caret this paint puts in the page's field starts the writing posture in the
     // same paint, so the row draws it once rather than stepping out of it and back
     // when the field takes focus (`onCurrentLocation`).
     const caretLands = caretToField && !replying && !search;
     if (caretLands) writing = true;
-    keeps(host, "data-lf-writing", writing ? "" : null);
+    posture("data-lf-writing", writing ? "" : null);
     // A draft's Send takes the corner and the quick mark steps aside, unless a way
     // out holds that seat (`quickHidden`).
     const words = Boolean(draftOf(input));
     if (postureMoved || !words) drafted = words;
     postureMoved = false;
-    keeps(host, "data-lf-drafted", drafted ? "" : null);
+    posture("data-lf-drafted", drafted ? "" : null);
     if (!words) expanded = false;
     markRoom();
     keeps(host, "data-lf-expanded", expanded ? "" : null);
     const reading = fieldReading(top?.thread ?? null, input);
     // Only the page field competes with the seated annotation composer. An open
     // view already keeps that seat out, regardless of what its reply field says.
-    keeps(host, "data-lf-offers", !top && !search && reading.offers ? "" : null);
+    posture("data-lf-offers", !top && !search && reading.offers ? "" : null);
     // A press standing at the field's end at rest keeps the row's notice aside, as the
     // user's words do, so a notice coming or going on news never moves it from under
     // the user's aim (floating-panel.css).
     const presses = !search && Boolean(reading.offer) && input !== focused() && !words;
-    keeps(host, "data-lf-presses", presses ? "" : null);
+    posture("data-lf-presses", presses ? "" : null);
     keeps(host, "data-lf-tone", status().tone || null);
     keeps(host, "data-lf-asks", status().asks ? "" : null);
     // Each moment the leaf answers has a beat of its own (notifications.js), so it plays

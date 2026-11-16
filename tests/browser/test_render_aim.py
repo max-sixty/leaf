@@ -1339,30 +1339,45 @@ def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
 
 
 def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, serve):
-    """A listener places a margin row by how far down the page it is and tells rows
-    apart by their names. A pointed row stands two-thirds of the way down the section, and
-    it is named by the line it stands by, not only by the section the target's own row
-    names."""
+    """A listener places the margin row they land on by how far down the page it is and
+    tells rows apart by their names. A pointed row stands two-thirds of the way down the
+    section, and it is named by the line it stands by, not only by the section the
+    target's own row names."""
     page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
     expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "Why this line?")
-    spoken = page.evaluate(
-        """() => {
+    row_for = page.evaluate(
+        """() => [...document.querySelectorAll('[data-lf-margin-for]')]
+          .find((host) => host.lfTarget?.id === 'whole').dataset.lfMarginFor"""
+    )
+    marker = page.locator(f'[data-lf-margin-for="{row_for}"] > .lf-margin-marker')
+    marker.focus()
+    expect(marker).to_have_attribute("aria-label", re.compile("percent down"))
+    spoken = marker.evaluate(
+        """(marker) => {
           const main = document.querySelector('main');
           const row = document.querySelectorAll('#whole p')[50].getBoundingClientRect();
-          const host = [...document.querySelectorAll('[data-lf-margin-for]')]
-            .find((host) => host.lfTarget?.id === 'whole');
           return {
             at: Math.round((row.top - main.getBoundingClientRect().top)
                            / main.scrollHeight * 100),
-            name: host.querySelector('.lf-margin-marker').getAttribute('aria-label'),
+            name: marker.getAttribute('aria-label'),
           };
         }"""
     )
     said = re.search(r"(\d+) percent down", spoken["name"])
     assert said and abs(int(said[1]) - spoken["at"]) <= 3, spoken
     assert "Row 50: compute(50);" in spoken["name"], spoken
+    # The page growing below the row leaves it less far down, as its name says while
+    # focus stays on it.
+    page.evaluate(
+        """() => document.querySelector('main').append(
+          Object.assign(document.createElement('div'), {style: 'height: 4000px'}))"""
+    )
+    rendered(page)
+    expect(marker).to_be_focused()
+    grown = re.search(r"(\d+) percent down", marker.get_attribute("aria-label") or "")
+    assert grown and int(grown[1]) < int(said[1]), (said[0], grown)
 
 
 POINTED_WITHIN = {

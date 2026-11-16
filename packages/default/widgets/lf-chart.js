@@ -414,7 +414,7 @@ customElements.define(
             this.#legend = legend;
             this.paint(width).catch(source.failed);
           }
-          nextRender(settled);
+          nextRender(() => settled());
         }));
         watch.observe(drawn.built);
       });

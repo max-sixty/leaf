@@ -308,8 +308,8 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     # hgroup after its eyebrow, a subheading, or context before the heading all
     # name the obligation. A frame whose leading title is not a heading is refused.
     for titled in (
-        f'<lf-ask id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
-        f'<lf-ask id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</lf-ask>',
+        f'<lf-ask id="d"><hgroup><p>#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
+        f'<lf-ask id="d"><p>#5</p><h2>Choose</h2>{first}</lf-ask>',
         f'<lf-ask id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></lf-ask>',
     ):
         assert fragment_errors(titled, registry) == []
@@ -538,7 +538,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     }
     assert apparatus
     eyebrows = re.findall(
-        r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
+        r'<p class="bg-feature-elements">(.*?)</p>',
         authored,
         flags=re.DOTALL,
     )

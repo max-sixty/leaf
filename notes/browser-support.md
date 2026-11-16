@@ -396,33 +396,6 @@ interpolation is not near ("Intrinsic block retirement motion" has the bugs,
 checked 2026-10-25). Recheck both capabilities and keyboard access when
 changing this enhancement.
 
-### A short name in a table's first column
-
-`browser/styles/components/reading.css` keeps code in a row's first cell on one
-line up to 20ch or a quarter of its container, with `calc-size()` behind
-`@supports`. Engines without `calc-size()` keep the name breakable anywhere, so
-in a column of short option names beside a column of sentences, `--output-dir`
-reads as `--output-` over `dir`. The table still fits and every name stays
-readable, so this is an accepted visual difference. No fallback caps the
-minimum the same way, since `min()` takes no `max-content`.
-
-On 2026-11-06, Playwright 1.64.1's Firefox 157.0 (build 1555) and WebKit
-(Safari 27.2, build 2370) on Linux reported no `calc-size()` support. On the
-three-row table in the test below, the names `--plugin`, `--dry-run` and
-`--output-dir` took 1, 2 and 3 lines in Firefox at 1600 and 800px and 2, 2
-and 3 at 420px, and 2, 2 and 3 lines in WebKit at all three widths. The Chromium
-headless shell 156.0.8078.4 (build 1248) kept each on one line. Firefox tracks
-`calc-size()` in
-[bug 1896734](https://bugzilla.mozilla.org/show_bug.cgi?id=1896734)
-("Intrinsic block retirement motion" has its status), and WebKit in
-[bug 274177](https://bugs.webkit.org/show_bug.cgi?id=274177).
-
-Recheck by running
-`test_a_short_name_in_a_rows_first_cell_stays_on_one_line` in
-`tests/browser/test_render_gate.py` with `firefox_browser` or `webkit_browser`
-in place of `browser`; it fails while the gap holds. When both engines pass,
-parametrize the test over them.
-
 ### Browser dictation in comment boxes
 
 `browser/runtime/composing/dictation.js` offers dictation when
@@ -1164,8 +1137,8 @@ element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the rea
 theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
-taken out. The first is Firefox's to change; rewriting the rules is
-open (#5194).
+taken out. The first is Firefox's to change. The theme's eyebrow rules now end at an
+`hgroup` or a heading's place in it, and rewriting the others is open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
 `content-visibility: auto`, each row numbered by a `::before` counter, let it paint,

@@ -1339,13 +1339,13 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
     assert frame.evaluate("frame => frame.contentDocument === null")
     result = child.evaluate(
         """async () => {
-          const {tabStore, draftStore, userStore} = await window.__lfCheckApi();
+          const {tabStore, writingStore, userStore} = await window.__lfCheckApi();
           const {uploadMedia} = await window.__lfClientApi();
           const {scopedMediaUrl} = await window.__lfWidgetApi();
           const denied = ['localStorage', 'sessionStorage'].every(name => {
             try { window[name]; return false; } catch { return true; }
           });
-          const retained = [tabStore, draftStore, userStore].every((store, index) => {
+          const retained = [tabStore, writingStore, userStore].every((store, index) => {
             const value = `child-${index}`;
             return store.set('isolation-test', value)
               && store.get('isolation-test') === value
@@ -1371,8 +1371,8 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
     sample.evaluate("async sample => { await sample.ready; }")
     assert child.evaluate(
         """async () => {
-          const {tabStore, draftStore, userStore} = await window.__lfCheckApi();
-          return [tabStore, draftStore, userStore].every(store => store.get('isolation-test') === null);
+          const {tabStore, writingStore, userStore} = await window.__lfCheckApi();
+          return [tabStore, writingStore, userStore].every(store => store.get('isolation-test') === null);
         }"""
     )
 
@@ -1777,9 +1777,9 @@ def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
         storage = contained_document.evaluate(
             """async () => {
                 const {readApplication} = await window.__lfCheckApi();
-                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
+                const {PAGE_SCOPE, tabStore, writingStore, userStore} =
                     await window.__lfCheckApi();
-                for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
+                for (const [name, store] of Object.entries({tabStore, writingStore, userStore})) {
                     if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
                         throw new Error(`${name} did not retain sample working state`);
                     if (!store.keys().includes('isolation-test'))

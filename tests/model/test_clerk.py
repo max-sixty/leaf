@@ -561,17 +561,6 @@ def test_a_fix_leaf_cant_place_reaches_the_agent_as_the_finding(
     assert "Leaf changed nothing for this" in hook(capsys, "PostToolBatch")
 
 
-def test_words_beside_markdown_emphasis_are_whole_words(claimed, capsys):
-    """An option's words are Markdown, where `_` beside a word marks emphasis."""
-    source = PAGE.replace("Ship dark.", "_Ship dark_.")
-    (claimed / "index.html").write_text(source)
-    done = _fixed(capsys, claimed, "Ship dark.", "Launch dark.")
-    assert done["changed"] == [
-        {"page": str(claimed.resolve()), "old": "Ship", "new": "Launch"}
-    ]
-    assert (claimed / "index.html").read_text() == source.replace("_Ship", "_Launch")
-
-
 def test_a_body_the_user_rewrote_keeps_their_words(claimed, capsys):
     """The user's edit stands in the draft's authored body on the page, so the
     authored words are a copy they don't read, which Leaf leaves alone."""

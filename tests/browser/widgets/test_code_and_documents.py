@@ -1798,6 +1798,13 @@ print("no notes")
 
     page.keyboard.press("n")
     expect(note).to_be_hidden()
+    # Copy, the toolbar's last mark, copies the code without the note's words.
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.locator("#walk pre").hover()
+    bar.get_by_role("button", name="Copy").click()
+    assert page.evaluate("navigator.clipboard.readText()") == (
+        'def bracket(temp):\n    if temp < 0:\n        return "steel"\n    return "cedar"'
+    )
     page.reload()
     wait_until_ready(page)
     expect(page.locator("#walk .lf-code-notes-toggle")).to_have_attribute(

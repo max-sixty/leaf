@@ -83,7 +83,7 @@ export {
   live,
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
-export { whereDraft, storedDraft, captureDraftEditing } from "./drafts.js";
+export { captureDraftEditing, draftsWaiting } from "./drafts.js";
 export {
   onCurrentLocation,
   releaseFocus,
@@ -118,7 +118,7 @@ export {
   annotationMarkSheets,
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
-export { draftStore, userStore, PAGE_SCOPE } from "./storage.js";
+export { writingStore, userStore, PAGE_SCOPE } from "./storage.js";
 export { tabStore } from "./tab-store.js";
 export {
   frameVisibility,

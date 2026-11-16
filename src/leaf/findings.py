@@ -594,11 +594,6 @@ _TEXT = {
     ),
     # The suite's health sensors (`tests/*_watch.js`), each placing a node by its
     # steps (`placed`).
-    "startup-layout-shift": lambda at, v: (
-        f"startup CLS {v['cls']:.4f} before first settled presentation; "
-        "inspect the movement and whether it interrupts reading: "
-        + json.dumps(v["entries"], ensure_ascii=False)
-    ),
     "moved-without-input": lambda at, v: (
         f"{placed(v['node'])} moved without input{_by(v)}{_shift_evidence(v)}"
     ),

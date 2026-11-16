@@ -866,6 +866,8 @@ def served_state_error(value, against: str | tuple[str, ...] = "Reading") -> str
 ROUTE_ANSWERS = {
     r"/api/news": ("NewsAnswer",),
     r"/api/pages": ("PagesAnswer",),
+    r"/api/drafts": ("DraftsAnswer",),
+    r"/api/draft": ("DraftWriteAnswer", "Refusal", "LayerAnswer"),
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),

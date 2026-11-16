@@ -427,8 +427,8 @@ def test_a_pick_names_only_options_its_group_holds():
     "option_title",
     [
         "<strong>Fast path</strong>",
-        '<hgroup><p class="eyebrow">Quick delivery</p><h2>Fast path</h2></hgroup>',
-        '<header><hgroup><p class="eyebrow">Quick delivery</p><h2>Fast path</h2></hgroup></header>',
+        "<hgroup><p>Quick delivery</p><h2>Fast path</h2></hgroup>",
+        "<header><hgroup><p>Quick delivery</p><h2>Fast path</h2></hgroup></header>",
     ],
     ids=["strong", "hgroup", "header-hgroup"],
 )

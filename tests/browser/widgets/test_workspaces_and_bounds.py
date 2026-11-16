@@ -368,8 +368,10 @@ PANE_BAND_PAGE = leaf_page(
     <lf-pane id="band-detail" aria-label="Detail">
       <div id="band-body">
         <section id="band-ticket">
-          <p class="eyebrow" id="band-eyebrow">ESC-1 · sev 1</p>
-          <h2>The ticket's title</h2>
+          <hgroup>
+            <p id="band-eyebrow">ESC-1 · sev 1</p>
+            <h2>The ticket's title</h2>
+          </hgroup>
           <p>What happened.</p>
         </section>
         <section><h2>Another ticket</h2><p>Its account.</p></section>
@@ -384,8 +386,8 @@ PANE_BAND_PAGE = leaf_page(
 
 def test_a_pane_opens_on_its_first_words_through_a_bare_wrapper(browser, serve):
     """A pane's body trims the margin at its top edge, and a declared section wrapping its
-    content passes its first child's margin to that edge. The eyebrow above a heading
-    carries the heading's 48px, which stood as an empty band at the top of the pane;
+    content passes its first child's margin to that edge. A title group with an eyebrow
+    carries its heading's 48px, which stood as an empty band at the top of the pane;
     the body's own padding is all that stands above the first words."""
     page = open_page(browser, serve(PANE_BAND_PAGE))
     resized(page, 1440, 900)

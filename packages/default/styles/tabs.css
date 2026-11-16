@@ -184,9 +184,9 @@ lf-tabs[data-lf-views] > lf-tab {
   /* A strip along a row shows only each panel's name, so the panel keeps the <strong>
    * or <header> naming it as the eyebrow over its first heading: its name, then what
    * follows the name, on one line, in the reading theme's eyebrow face
-   * (packages/reading/defaults.css, `.eyebrow`: the small medium-weight sans of
-   * `--lf-font-status`, tracked and in capitals), so it reads as one with a section's
-   * own eyebrow under it. A heading naming a panel stays a heading. A list down beside
+   * (packages/reading/defaults.css, `hgroup > p:first-child`: the small medium-weight
+   * sans of `--lf-font-status`, tracked and in capitals), so it reads as one with a
+   * section's own eyebrow under it. A heading naming a panel stays a heading. A list down beside
    * the panels shows the name and the summary, so there the panel hides its name,
    * whatever its kind, as a page's parts do (below). On paper the strip is gone and
    * each panel opens with its name as written. */

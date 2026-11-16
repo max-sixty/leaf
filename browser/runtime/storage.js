@@ -21,17 +21,19 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 // Which store is the part worth reading at a call site, and naming them is what puts it
 // there. `tabStore` is what only this window keeps, and it dies with the tab — the reading
 // position, which panel of a widget stands open, whether design mode is on — because each
-// of those is about the window rather than about the page. `draftStore` is what the user
-// typed or drew into a composition the log settles (a comment, a reply, an `lf-draft`)
-// and hasn't sent. The agent reads none of it, because sending is when the user says it.
-// It outlives the tab, because closing one is the ordinary end of a tab here, and
-// every tab shows one live copy of it (see the draft section below). An edit to a bound
-// file is not one: the file on disk is what tabs share, so its buffer stays in its tab.
-// `userStore` is this user's lasting preference across pages, which is the chrome
-// they arrange and expect to find arranged. The stores reach this tab or this browser.
-// What another browser or the agent must read is none of the three: it goes in the log,
-// which every tab already follows, such as a playground's settings before the user
-// submits them. The skill's `module-state.md`, "Where a widget keeps its state", tells
+// of those is about the window rather than about the page. `writingStore` is where in
+// this page this browser was last writing, which Resume writing returns to, and it
+// outlives the tab, because closing one is the ordinary end of a tab here. The words
+// themselves, what the user typed or drew into a composition the log settles (a
+// comment, a reply, an `lf-draft`) and hasn't sent, are every tab's and every device's,
+// so the page's server keeps them (drafts.js), and the agent reads none of them, because
+// sending is when the user says them. An edit to a bound file is not one: the file on
+// disk is what tabs share, so its buffer stays in its tab. `userStore` is this user's
+// lasting preference across pages, which is the chrome they arrange and expect to find
+// arranged. The stores reach this tab or this browser. What another browser or the agent
+// must read is none of the three: it goes in the log, which every tab already follows,
+// such as a playground's settings before the user submits them, or for unsent words, the
+// page's drafts. The skill's `module-state.md`, "Where a widget keeps its state", tells
 // package authors which kind of state goes where.
 //
 // Values are the store's own vocabulary, strings and null, so nothing here has an
@@ -39,7 +41,7 @@ export const PAGE_SCOPE = document.documentElement.dataset.lfPageScope;
 const { stored } = window.lfStorage;
 // Two of the three are scoped to the page (PAGE_SCOPE), and the odd one out is the reason
 // there are three backings: what the user arranges is theirs wherever they are reading,
-// while what they typed here belongs to this page. tabStore is the only one on the helper
+// while where they were writing here belongs to this page. tabStore is the only one on the helper
 // surface, because only widgets keep state in the tab (lf-tabs' open panel, lf-options'
 // collapsed group) — a module reaches its drafts through saveDraft/watchDraft, the chrome
 // the user arranges is the runtime's own, and an export nothing imports is a promise
@@ -76,7 +78,7 @@ export function keepView(holder, member, leaving = null) {
   markViews(holder);
   return window.lfViews.keep(holder, member, leaving);
 }
-export const draftStore = stored(() => localStorage, "local", PAGE_SCOPE);
+export const writingStore = stored(() => localStorage, "local", PAGE_SCOPE);
 // The delivery declares a child page's private user scope. Bootstrap reads the
 // same fact before this module loads; neither derives it from the viewed revision.
 export const userStore = window.lfStorage.userStore;

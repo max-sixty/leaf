@@ -1627,6 +1627,14 @@ def screenshot_options(page: Page) -> None:
     shot.scroll_into_view_if_needed()
 
 
+def screenshot_startup(page: Page) -> None:
+    """The section holding a shot, at the top of the window, before the shot's module
+    draws it."""
+    page.locator("#rn-console-section").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+
+
 def image_in_page(page: Page) -> None:
     """An authored image in the reading flow, before its viewer opens."""
     page.get_by_role("tab", name="Threads", exact=True).click()
@@ -3020,6 +3028,13 @@ STATES = (
         "feature-gallery",
         screenshot_view_hover,
         region="#bg-shot .lf-shot-toolbar",
+    ),
+    State(
+        "screenshot-startup",
+        "release-notes",
+        screenshot_startup,
+        activated=False,
+        region="#rn-console-section",
     ),
     State("dial-keyboard", "detail", dial_keyboard, region="lf-dial"),
     State("dial-press", "detail", dial_press, region="lf-dial"),

@@ -1283,24 +1283,26 @@ def fetch_whole_state(route, **fetch):
     return response, response.json()
 
 
-# A tab a test holds stale is stale only while nothing reaches it: every state
-# application reconciles the draft store against shared storage before it settles
-# anything (settleAcceptedDrafts), so a stale view the assertions take their time
-# reaching is a race a loaded runner loses. Refusing the state reads states it — but
+# A tab a test holds stale is stale only while nothing reaches it: a state read brings
+# it the log, and a drafts read the server's drafts (runtime/drafts.js, `lookForDrafts`),
+# so a stale view the assertions take their time reaching is a race a loaded runner
+# loses. Refusing both reads states it — but
 # only from before the page exists. `page.route` reaches no request already in the
 # wire, and a read reconciles when its response lands rather than when its request
 # went out, so a refusal registered on a live page leaves whatever is outstanding free
-# to arrive later, against storage the test has moved in the meantime. Registered
+# to arrive later, against drafts the test has moved in the meantime. Registered
 # through `primed`, the route is on the page before it navigates and no read is ever
 # unrouted. Freshness is not a state read and is not refused; failed state reads retry
-# on the two-second clock for as long as the route stands.
+# on the two-second clock for as long as the route stands. A drafts read needs none let
+# through, since a served document arrives with its drafts.
 #
-# The first is let through because `open_page` waits for the page's readiness facts,
+# The first state read is let through because `open_page` waits for the page's readiness facts,
 # including `lf-applied`, which rides on it — and that same wait is what leaves nothing
 # outstanding when the page is handed over. Where the tab has to hear the log again,
 # the test lifts the refusal itself.
 class CutOff:
-    """A page's state reads, stopped from outside it until the test says it can hear again."""
+    """A page's state and drafts reads, stopped from outside it until the test says it
+    can hear again."""
 
     def __init__(self, lets_through=0):
         self._lets_through = lets_through
@@ -1315,6 +1317,10 @@ class CutOff:
                 if self._live or next(seen) < self._lets_through
                 else refuse(route)
             ),
+        )
+        page.route(
+            "**/api/drafts",
+            lambda route: route.continue_() if self._live else refuse(route),
         )
         return self
 
@@ -1352,47 +1358,76 @@ def displayed(page):
         ) from error
 
 
-def draft_key(page, ctx: str) -> str:
-    """The `localStorage` key the page's own draft store keeps the draft at `ctx`
-    under, page scope included (`whereDraft`, runtime/drafts.js)."""
-    return page.evaluate(
-        """async ctx => (await window.__lfCheckApi())
-          .whereDraft(ctx).key""",
-        ctx,
+def stored_drafts(page) -> dict:
+    """The drafts the page's server holds, by context, once this tab has sent it every
+    word it holds (`draftsWaiting`, runtime/drafts.js): what another tab, another
+    device or a reload finds, whatever this tab shows. Asked through the context's
+    request API, as `told` asks, so page routes and the traffic watcher don't see it."""
+    waiting = page.evaluate_handle(
+        "async () => (await window.__lfCheckApi()).draftsWaiting"
     )
+    page.wait_for_function("waiting => waiting() === 0", arg=waiting)
+    origin = urlsplit(page.url)
+    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/drafts")
+    assert answer.ok, f"the server would not say what drafts it holds: {answer.status}"
+    return answer.json()["drafts"]
 
 
-def stored_draft(page):
-    """The page's own reader of stored drafts (`storedDraft`, runtime/drafts.js)."""
-    return page.evaluate_handle(
-        """async () => (await window.__lfCheckApi())
-          .storedDraft"""
-    )
+def stored_draft(page, ctx: str) -> dict | None:
+    """The record the page's server holds for the draft at `ctx` (`stored_drafts`), or
+    None once it is settled or absent."""
+    return stored_drafts(page).get(ctx)
 
 
 def stored_draft_text(page, ctx: str) -> str | None:
-    """The words storage holds for the draft at `ctx`, or None once it is settled or
-    absent: what another tab or a reload would find, whatever this tab shows."""
-    return page.evaluate(
-        """([read, ctx]) => {
-          const record = read(ctx);
-          return record && !record.settled ? record.text : null;
-        }""",
-        [stored_draft(page), ctx],
+    """The words the page's server holds for the draft at `ctx` (`stored_drafts`), or
+    None once it is settled or absent."""
+    record = stored_draft(page, ctx)
+    return record["text"] if record else None
+
+
+def heard_draft(page, ctx: str, text: str | None) -> None:
+    """Wait until this tab holds `text` as the words of the draft at `ctx`, None for
+    none: until it has heard another tab's write or send there (`loadDraft`)."""
+    load = page.evaluate_handle("async () => (await window.__lfWidgetApi()).loadDraft")
+    page.wait_for_function(
+        "([load, ctx, text]) => (load(ctx)?.text ?? null) === text",
+        arg=[load, ctx, text],
     )
 
 
-_STORED_DRAFT_SETTLED = "([read, ctx]) => read(ctx)?.settled === true"
+def write_draft_elsewhere(page, ctx: str, text: str) -> str:
+    """Write a new generation of the draft at `ctx` to the page's server, as another
+    tab or device would, over the one the server holds; return its attempt."""
+    current = stored_draft(page, ctx)
+    attempt = os.urandom(16).hex()
+    origin = urlsplit(page.url)
+    answer = page.request.post(
+        f"{origin.scheme}://{origin.netloc}/api/draft",
+        data={
+            "context": ctx,
+            "expect": current["attempt"] if current else None,
+            "record": {"attempt": attempt, "text": text},
+        },
+    )
+    assert answer.ok and answer.json()["written"], answer.text()
+    return attempt
 
 
 def stored_draft_settled(page, ctx: str) -> bool:
-    """Whether storage holds the draft at `ctx` as settled (its tombstone)."""
-    return page.evaluate(_STORED_DRAFT_SETTLED, [stored_draft(page), ctx])
+    """Whether the page's server holds no words for the draft at `ctx`: sent, put
+    away or never written."""
+    return stored_draft(page, ctx) is None
 
 
 def until_draft_settled(page, ctx: str) -> None:
-    """Wait until storage holds the draft at `ctx` as settled."""
-    page.wait_for_function(_STORED_DRAFT_SETTLED, arg=[stored_draft(page), ctx])
+    """Wait until the page's server holds no words for the draft at `ctx`, as once a
+    send another tab made is admitted."""
+    wait_for(
+        lambda: stored_draft(page, ctx),
+        lambda record: record is None,
+        failure=lambda: f"the server still holds the draft {ctx}",
+    )
 
 
 _BROWSER_PROBLEM_LISTS = None

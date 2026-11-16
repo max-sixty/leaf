@@ -323,8 +323,8 @@ come back the same leave the preview as it is. It returns:
   lists presses the register can't see, each as the steps its chips draw, as a control's
   own activation keys a drag grip names. `detail` is lines under the name, each words or
   an `html` template; a falsy line is left out. `at` is where the preview stands, the
-  declaring element by default: another element, as a message's age stands its preview
-  by its `<time>`, or a box in client coordinates (`{left, top, right, bottom}`, such as
+  declaring element by default: another element, as a message stands its preview by
+  the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above and takes no pointer, so the pointer goes on reading the element
   beneath it. `about` is the element the preview is about, which Leaf leaves

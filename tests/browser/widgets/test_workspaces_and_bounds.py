@@ -301,6 +301,43 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     )
 
 
+def test_a_link_to_a_held_workspaces_region_leaves_the_page_where_it_stands(
+    browser, serve
+):
+    """A region reaching the window's foot keeps room there for the floating panel,
+    which holds none of its content, so the region shows whole where it stands. A link
+    to it leaves the page still, though something after `main`, such as a browser
+    extension's element, gives the page room to scroll its header away."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "held regions",
+                """
+  <header><h1>Review queue</h1><p><a id="to-detail" href="#detail">Detail</a></p></header>
+  <div id="review-regions">
+    <lf-pane id="queue" label="Items"><div><p>Queue start</p></div></lf-pane>
+    <lf-pane id="detail" label="Selected item">
+      <div><p>Detail start</p><div style="height: 1100px"></div></div>
+    </lf-pane>
+  </div>
+""",
+                head=regions_side_by_side("review-regions"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1200, 900)
+    page.evaluate(
+        """() => document.body.append(
+          Object.assign(document.createElement("div"), {style: "height: 300px"}))"""
+    )
+    page.locator("#to-detail").click()
+    expect(page).to_have_url(re.compile("#detail$"))
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == 0
+
+
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
     """On a phone the workspace flows and the page scrolls, and its header sticks at the
     window's top, so a tally's Next On Me stays under the pointer that pressed it. The

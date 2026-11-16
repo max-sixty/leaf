@@ -92,6 +92,7 @@ import {
   clippedPlace,
   fixedInWindow,
   landingBand,
+  landingInsets,
   placeBox,
   placeHolder,
   scrollContainer,
@@ -175,8 +176,25 @@ function shownFor(where) {
   const room = roomAround(ring, where);
   return box.height <= room.height && box.width <= room.width ? ring : where;
 }
+// The part of `where` a landing has to show: its box, less the window's foot band
+// where it is a region keeping room at its end for the floating panel (`--lf-end-room`,
+// layouts.css), since it lays its content out to clear that band. Measured whole,
+// every region of a held workspace was taller than its room by the panel's band, so a
+// link to one, or a file opened in an editor filling one, scrolled the page to put the
+// region's opening at the band's top, wherever something after `main` gave the page
+// room to scroll its header away.
 /** @param {Destination} where */
-const destinationBox = (where) => placeBox(shownFor(where));
+const destinationBox = (where) => {
+  const shown = shownFor(where);
+  const box = placeBox(shown);
+  if (
+    !(shown instanceof Element) ||
+    !(Number.parseFloat(getComputedStyle(shown).getPropertyValue("--lf-end-room")) > 0)
+  )
+    return box;
+  const foot = landingInsets(document.documentElement).bottom;
+  return new DOMRect(box.x, box.y, box.width, Math.max(0, box.height - foot));
+};
 /** @param {Destination} where */
 const holderOf = (where) => placeHolder(shownFor(where));
 

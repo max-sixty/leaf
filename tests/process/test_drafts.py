@@ -127,3 +127,14 @@ def test_a_draft_of_the_wrong_shape_is_refused(server, page_dir):  # noqa: F811
     )
     assert status == 400
     assert "invalid draft" in json.loads(body)["error"]
+
+
+def test_a_write_that_reaches_the_store_after_its_send_settles_it(tmp_path):
+    """A tab's write of words it then sent can land after the send is admitted, and
+    the tab may close before settling them; the store settles them itself."""
+    assert _write(tmp_path, None, "a1", "Words")["written"]
+    drafts_model.settle_sent(tmp_path, "a2")
+    late = _write(tmp_path, "a1", "a2", "Words, sent")
+    assert late["written"]
+    assert late["record"] is None
+    assert drafts_model.read_drafts(tmp_path)["drafts"] == {}

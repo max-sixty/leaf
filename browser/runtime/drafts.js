@@ -220,6 +220,7 @@ function adopt(ctx, record, version) {
     record ??
     (shown && !shown.settled ? { attempt: shown.attempt, settled: true } : shown);
   if (next === null) return;
+  moving.delete(ctx);
   draftCache.set(ctx, {
     record: /** @type {DraftRecord} */ (next),
     stored: next.settled ? null : next.attempt,
@@ -235,6 +236,9 @@ function adopt(ctx, record, version) {
 // reading out.
 let heardVersion = -1;
 let restoring = false;
+// Counts the times the store went back, so an answer to a write sent before one says
+// nothing of the store the server holds now.
+let restores = 0;
 /** @type {Promise<void> | null} */
 let reading = null;
 // Take a reading of the server's drafts. A draft this document heard of at the
@@ -249,6 +253,7 @@ function hearReading({ version, drafts }, restored) {
     // The server went back to an older store, as one restarting from a saved copy of
     // its page does (`lookForDrafts`): the words this document holds that it lost, and
     // the settlements it lost, go back to it over what it now holds.
+    restores += 1;
     for (const [ctx, copy] of draftCache)
       draftCache.set(ctx, {
         ...copy,
@@ -274,11 +279,6 @@ function hearReading({ version, drafts }, restored) {
     }
     adopt(ctx, recordOf(incoming), incoming?.version ?? version);
   }
-  // A generation the log took whose own write reached the server after its event, from
-  // a tab that closed before settling it, is settled by whichever tab hears of it.
-  for (const [ctx, { record, durable }] of draftCache)
-    if (durable && !record.settled && attemptAccepted(record.attempt))
-      settleDraft(ctx, record.attempt);
   writeWaiting();
 }
 // A look at the server, taken from the version this document had heard as it set out,
@@ -338,12 +338,13 @@ function writeDraft(ctx) {
   const copy = draftCache.get(ctx);
   if (!copy || copy.durable || writing.has(ctx) || offlineInteractive) return;
   const sent = copy.record;
+  const epoch = restores;
   writing.set(ctx, sent);
   draftCache.set(ctx, { ...copy, ours: new Set([...copy.ours, sent.attempt]) });
   void postDraft(ctx, copy.stored, sent).then(
     (answer) => {
       writing.delete(ctx);
-      heardWrite(ctx, sent, answer);
+      if (epoch === restores) heardWrite(ctx, sent, answer);
       writeDraft(ctx);
     },
     () => writing.delete(ctx),
@@ -352,19 +353,21 @@ function writeDraft(ctx) {
 const writeWaiting = () => {
   for (const ctx of draftCache.keys()) writeDraft(ctx);
 };
-// A page going away sends the words still waiting in requests the browser finishes
-// after it (`keepalive`, which carries a small body), so a write the server would have
-// taken a moment later isn't lost with the tab.
+// A page going away sends the words still waiting again, in requests the browser
+// finishes after it (`keepalive`, which carries only a small body), since leaving may
+// cancel a write already out. Each names the generation the server most likely holds:
+// the one out, if that write is older than the words, else the one before it.
 addEventListener("pagehide", () => {
   if (offlineInteractive) return;
   for (const [ctx, copy] of draftCache) {
+    if (copy.durable) continue;
     const out = writing.get(ctx);
-    if (copy.durable || out === copy.record) continue;
+    const expect = out && out !== copy.record ? out.attempt : copy.stored;
     draftCache.set(ctx, {
       ...copy,
       ours: new Set([...copy.ours, copy.record.attempt]),
     });
-    void postDraft(ctx, out?.attempt ?? copy.stored, copy.record, true).catch(() => {});
+    void postDraft(ctx, expect, copy.record, true).catch(() => {});
   }
 });
 // How many drafts hold words the server hasn't taken yet, for a check that reads what
@@ -372,9 +375,11 @@ addEventListener("pagehide", () => {
 export const draftsWaiting = () =>
   [...draftCache.values()].filter(({ durable }) => !durable).length;
 // Words whose box is gone move into the page's draft (`transferDraft`), and leave the
-// draft they came from once the server holds them there: words another tab or device
-// wrote there meanwhile turn them away, and they stay where they were.
-/** @type {Map<string, {from: string, attempt: string}>} */
+// draft they came from once the server holds them there: once it takes the generation
+// carrying them, or a later one this document wrote over it (`carrying`). Words
+// another tab or device wrote there meanwhile turn them away, and they stay where they
+// were.
+/** @type {Map<string, {from: string, attempt: string, carrying: WeakSet<DraftRecord>}>} */
 const moving = new Map();
 // The server's answer to a write: the draft as it now holds it. One of this document's
 // own generations leaves its words standing; any other is later words of another tab's
@@ -387,9 +392,9 @@ function heardWrite(ctx, sent, { written, version, record }) {
   const held = recordOf(record);
   const own = written || Boolean(held && copy.ours.has(held.attempt));
   const move = moving.get(ctx);
-  if (move && (written || !own)) {
+  if (move && written && move.carrying.has(sent)) {
     moving.delete(ctx);
-    const settled = written && settleDraft(move.from, move.attempt);
+    const settled = settleDraft(move.from, move.attempt);
     if (settled) projectDraftRecord(move.from, settled);
   }
   if (!own) {
@@ -399,13 +404,18 @@ function heardWrite(ctx, sent, { written, version, record }) {
   // A write that was the only change since the reading this document took leaves it
   // holding the next one, which a look need not read again.
   if (written && version === heardVersion + 1) heardVersion = version;
+  // Words the log already took, whose write reached the server after their event, are
+  // settled there (`drafts.py`, `sent`), and here too unless typed over since.
+  const spoken = written && !held && !sent.settled && copy.record === sent;
   draftCache.set(ctx, {
     ...copy,
+    record: spoken ? { attempt: sent.attempt, settled: true } : copy.record,
     stored: held && !held.settled ? held.attempt : null,
     version: Math.max(copy.version, version),
     durable: copy.durable || (written && copy.record === sent),
     ours: new Set(),
   });
+  if (spoken) projectDraftRecord(ctx, rawDraftRecord(ctx));
 }
 
 // A message draft is kept under what it is written about, and it stays there until it
@@ -487,6 +497,8 @@ export const draftHasContent = (ctx) => Boolean(unsettledDraftRecord(ctx)?.text)
 /** @param {string} ctx @param {DraftRecord} record */
 const keepDraft = (ctx, record) => {
   const copy = draftCache.get(ctx);
+  const move = moving.get(ctx);
+  if (move && copy && move.carrying.has(copy.record)) move.carrying.add(record);
   draftCache.set(ctx, {
     record,
     stored: copy?.stored ?? null,
@@ -572,10 +584,12 @@ function transferDraft(from, to, text) {
     generation: randomId(),
   };
   keepWritingPlace(place);
-  if (offlineInteractive) {
+  const moved = rawDraftRecord(to);
+  if (offlineInteractive || !moved) {
     const settled = settleDraft(from, source.attempt);
     if (settled) projectDraftRecord(from, settled);
-  } else moving.set(to, { from, attempt: source.attempt });
+  } else
+    moving.set(to, { from, attempt: source.attempt, carrying: new WeakSet([moved]) });
   tellDraft(to, activeDraftRecord(to)?.text ?? text);
   return place;
 }

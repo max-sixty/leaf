@@ -17,7 +17,10 @@ removes it (`{attempt, settled}` names the one to remove), so the store holds on
 the user is writing; words a tab types over a generation settled elsewhere start the
 draft again, since they are the user's newer words. Admission settles the generation an
 accepted event was sent from (`settle_sent`), so a send in flight never leaves its words
-standing as a draft, and words typed after it, a new generation, stand.
+standing as a draft, and words typed after it, a new generation, stand. It also keeps
+the attempts it admitted most recently (`sent`), and a write of one of them, which
+reached the store after its event, settles that generation rather than standing it up
+again, whether or not the tab that sent it lives to settle it.
 
 Every record carries the store's `version` when it was written, so a tab ordering a
 reading against a write's answer keeps the later of the two.
@@ -55,6 +58,9 @@ _SETTLED = object_schema(
     {"attempt": _ATTEMPT, "settled": described("Sent or put away.", {"const": True})}
 )
 _VERSION = {"type": "integer", "minimum": 0}
+# How many admitted attempts the store remembers: far more than can be sent while one
+# tab's write is on its way.
+SENT_KEPT = 64
 _STORED = {**_ACTIVE, "properties": {**_ACTIVE["properties"], "version": _VERSION}}
 DRAFTS = Record(
     "drafts",
@@ -72,7 +78,13 @@ DRAFTS = Record(
                     "Each draft's latest generation, by its context.",
                     {"type": "object", "additionalProperties": _STORED},
                 ),
-            }
+            },
+            {
+                "sent": described(
+                    "The attempts admission settled most recently, oldest first.",
+                    {"type": "array", "items": _ATTEMPT},
+                )
+            },
         ),
     ),
     since=44,
@@ -100,7 +112,8 @@ def _stored(page_dir: Path) -> dict:
 
 def read_drafts(page_dir: Path) -> dict:
     """The drafts the user is writing, by context, with the store's version."""
-    return _stored(page_dir)
+    stored = _stored(page_dir)
+    return {"version": stored["version"], "drafts": stored["drafts"]}
 
 
 def write_draft(page_dir: Path, payload: dict) -> dict:
@@ -112,6 +125,8 @@ def write_draft(page_dir: Path, payload: dict) -> dict:
     context, expect, record = payload["context"], payload["expect"], payload["record"]
     with flocked(page_dir / DRAFTS_LOCK):
         stored = _stored(page_dir)
+        if record["attempt"] in stored.get("sent", []):
+            record = {"attempt": record["attempt"], "settled": True}
         current = stored["drafts"].get(context)
         written = current is None or current["attempt"] == expect
         if written:
@@ -129,21 +144,21 @@ def write_draft(page_dir: Path, payload: dict) -> dict:
 
 
 def settle_sent(page_dir: Path, attempt: str) -> None:
-    """Settle the generation an accepted event was sent from, wherever it stands. A
-    generation whose write reaches the store after its event does is the sending tab's
-    to settle, as it settles every generation it sends."""
-    if not (page_dir / DRAFTS_FILE).exists():
-        return
+    """Settle the generation an accepted event was sent from, wherever it stands, and
+    remember its attempt for a write of it still on its way (`sent`)."""
     with flocked(page_dir / DRAFTS_LOCK):
         stored = _stored(page_dir)
-        sent = [
+        kept = stored.get("sent", [])
+        if attempt in kept:
+            return
+        stored["sent"] = [*kept, attempt][-SENT_KEPT:]
+        settled = [
             context
             for context, record in stored["drafts"].items()
             if record["attempt"] == attempt
         ]
-        if not sent:
-            return
-        stored["version"] += 1
-        for context in sent:
+        if settled:
+            stored["version"] += 1
+        for context in settled:
             del stored["drafts"][context]
         DRAFTS.write(page_dir / DRAFTS_FILE, stored)

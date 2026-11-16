@@ -249,12 +249,15 @@
     value === words || Boolean(value?.includes(JSON.stringify(words)));
   // Leaf's drafts, read off what passes between this document and the page's server:
   // the words this document last wrote of each draft, the attempts it wrote them as,
-  // the words of each write still out, and what the server said it holds of each since
-  // this document last wrote it, null for none.
+  // the words of each write still out, by the write's place among the draft's writes,
+  // and what the server said it holds of each in an answer asked for after this
+  // document's last write of it, null for none.
   /** @type {Map<string, string | null>} */
   const draftsWritten = new Map();
   const attemptsWritten = new Set();
-  /** @type {Map<string, string | null>} */
+  /** @type {Map<string, number>} */
+  const writesOf = new Map();
+  /** @type {Map<string, Map<number, string | null>>} */
   const draftsOut = new Map();
   /** @type {Map<string, {attempt: string, text: string} | null>} */
   const draftsHeld = new Map();
@@ -278,35 +281,47 @@
     const kind = draftPath(input);
     // Any other request passes through untouched, its promise the page's own.
     if (!kind) return send.apply(this, arguments);
+    // Each draft's writes so far as this request sets out: an answer speaks of a draft
+    // only where no later write of it went out meanwhile.
+    const asked = new Map(writesOf);
     let context = null;
+    let place = 0;
     if (kind === "write")
       try {
         const written = JSON.parse(init.body);
         ({ context } = written);
+        place = (writesOf.get(context) ?? 0) + 1;
+        writesOf.set(context, place);
+        asked.set(context, place);
         attemptsWritten.add(written.record.attempt);
         draftsWritten.set(context, written.record.text ?? null);
-        draftsOut.set(context, written.record.text ?? null);
-        // Only what the server says after this write is news of the draft since.
+        draftsOut.set(
+          context,
+          new Map(draftsOut.get(context)).set(place, written.record.text ?? null),
+        );
         draftsHeld.delete(context);
       } catch {
         // A body the watch can't read credits nothing.
       }
     const settle = () => {
-      if (context !== null) draftsOut.delete(context);
+      if (context !== null) draftsOut.get(context)?.delete(place);
     };
+    /** @param {string} key */
+    const current = (key) => (writesOf.get(key) ?? 0) === (asked.get(key) ?? 0);
     return send.apply(this, arguments).then(
       async (response) => {
         settle();
         if (response.ok)
           try {
             const answer = await response.clone().json();
-            if (kind === "reading")
+            if (kind === "reading") {
               for (const key of new Set([
                 ...draftsHeld.keys(),
                 ...Object.keys(answer.drafts),
               ]))
-                draftsHeld.set(key, answer.drafts[key] ?? null);
-            else if (context !== null) draftsHeld.set(context, answer.record);
+                if (current(key)) draftsHeld.set(key, answer.drafts[key] ?? null);
+            } else if (context !== null && current(context))
+              draftsHeld.set(context, answer.record);
           } catch {
             // An answer the watch can't read credits nothing.
           }
@@ -322,7 +337,8 @@
   // write it failed or turned away keeps nothing.
   const stored = (words) => {
     if ([...draftsHeld.values()].some((held) => held?.text === words)) return true;
-    if ([...draftsOut.values()].includes(words)) return true;
+    if ([...draftsOut.values()].some((out) => [...out.values()].includes(words)))
+      return true;
     try {
       for (let i = 0; i < localStorage.length; i++)
         if (holds(localStorage.getItem(localStorage.key(i)), words)) return true;

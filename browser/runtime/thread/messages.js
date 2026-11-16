@@ -68,7 +68,7 @@ import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { dressCode } from "../code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../presence.js";
-import { elementById } from "../passages.js";
+import { elementById, says } from "../passages.js";
 import { designName } from "../design-readings.js";
 import { addressableWord, sectionLabel } from "../addressable-names.js";
 import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
@@ -392,7 +392,14 @@ export function prepareAuthoredMessage(message, thread) {
     });
     const authored = stageAuthoredStates(template.content);
     rememberPassageParts(template.content, ["event", message.id]);
-    const text = template.content.textContent;
+    // The message's words as the page reading says them (`says`), each block apart
+    // from the next, so a thread its opening message names reads a choice's options as
+    // "Open it now Hold it". `says` reads from an element, as a drawn message's body
+    // is, so it reads a copy of the fragment inside a <div> of the fragment's inert
+    // document, where no widget upgrades.
+    const body = template.content.ownerDocument.createElement("div");
+    body.append(template.content.cloneNode(true));
+    const text = says(body);
     const nodes = Object.freeze([...template.content.childNodes]);
     prepared = {
       message: message.id,

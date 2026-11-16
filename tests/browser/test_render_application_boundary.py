@@ -23,6 +23,7 @@ from render_harness import (
     holding,
     http_error_console,
     is_problem,
+    latest_press,
     leaf_page,
     open_page,
     open_threads,
@@ -2169,11 +2170,9 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
         "Replace the reader owner while retaining its conversations",
     )
     told(page)
-    # The panel's row notice for the newer version, pressed without taking the
-    # editor's focus first, as a press on it does.
-    page.locator(".lf-fp-row-notice-press").filter(has_text="Latest").dispatch_event(
-        "click"
-    )
+    # The panel's Open latest, pressed without taking the editor's focus first, as a press
+    # on it does.
+    latest_press(page).dispatch_event("click")
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin === originalDocument")
     assert page.evaluate("!originalWorkspace.isConnected")

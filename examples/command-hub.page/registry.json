@@ -155,7 +155,8 @@
         "format": "date-time"
       },
       "talk": {
-        "type": "boolean"
+        "type": "boolean",
+        "description": "The row takes comments: it shows the conversations about it at its foot, under a Comment control that starts one. The comment box there offers a second send, Send & pause, whose comment holds the goal until its conversation is resolved."
       },
       "overruled": {
         "type": "boolean"

@@ -5025,6 +5025,18 @@ def test_a_hold_comment_can_only_hold_the_widget_it_is_about(server, page_dir):
         assert status == 400
         assert refused_on(body).code == "hold-target"
 
+    # The door reads no declaration, so a comment on a widget whose entry says nothing
+    # of threads or holds may hold it.
+    undeclared = {
+        **event,
+        "anchor": {"section": "work"},
+        "holds": "work",
+        "attempt": "hold_comment_undeclared",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(undeclared).encode())
+    assert status == 200, body
+    assert event_model.read_events(page_dir)[-1]["holds"] == "work"
+
 
 def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
     server, page_dir

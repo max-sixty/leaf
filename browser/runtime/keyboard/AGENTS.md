@@ -136,6 +136,13 @@ words. Suggest and reactions share an anchored Other responses picker, reached b
 contextual reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
 
+A comment box that offers a second send, as one standing in a widget's outlet whose
+`lfHold` names it does (`composing/surface.js`, `fabHoldAt`), leaves Tab its native
+order and opens no picker by it. The second send is a press of its own beside the
+primary action, and Tab is its keyboard route: from the field it reaches the primary
+action, then the ⋯ while the field is empty, then the second send. The ⋯ still opens
+the picker there.
+
 A command that should leave the user where they are declares `retainCurrentLocation`: the
 row's press restores the focus, caret and selection the floating panel saved as the
 user stepped into it, then runs the command.

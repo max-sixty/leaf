@@ -1,7 +1,7 @@
 /* Synchronous thread seats outside the panel. Each seat owns its host's children: its
    retained open thread cards in order, its Resolved disclosure, then its response row.
-   Descriptors contain values; native first-message and response editors remain
-   explicit capabilities.
+   Descriptors contain values; the native editor of a seat's response row remains an
+   explicit capability.
 
    A seat in the page's flow gathers its resolved threads under one Resolved
    disclosure after its open ones, closed until the reader opens it, so however many

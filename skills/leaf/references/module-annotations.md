@@ -252,6 +252,10 @@ Return `null` for data that is filtered out, collapsed or not loaded, and its th
 stays in the margin; a widget that seats only its data returns `null` for itself too.
 Call `threadSurface(this).update()` after a change that only shows or hides data.
 
+A thread names its widget by `id`, so a widget that shows threads needs an `id` on
+each instance and should require it in its schema: Leaf reports an instance without
+one as a failure of that widget and registers no surface for it.
+
 The widget creates, lays out and removes its outlets, and Leaf fills them. An outlet you
 stop returning may still hold the comment box the user is typing in, so remove outlets
 only in `onCommit`, which runs once this pass's placement takes effect, and keep

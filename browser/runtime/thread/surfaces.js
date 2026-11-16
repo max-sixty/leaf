@@ -30,6 +30,7 @@
    owner's region. */
 import { aborted } from "../abort.js";
 import { reportPageError } from "../layer-client.js";
+import { reportFailure as reportWidgetFailure } from "../widget-upgrade.js";
 import { offlineInteractive } from "../context.js";
 import { aimTargetAt, datumAimTarget } from "../anchor-resolution.js";
 import { sameAnchor } from "../anchor-coordinate.js";
@@ -103,6 +104,19 @@ export function watchThreadSurfaces(commands) {
         throw new TypeError(
           `<${owner.localName}> declares x-thread-surface without threadOutlets`,
         );
+      // A thread names its widget by id (`widgetTarget`), so an instance without one
+      // can seat no thread and open no comment box. It registers nothing, which leaves
+      // its opener null, and reports that as the widget's own failure, which the
+      // page's error report and the render check carry without a press.
+      if (!owner.id) {
+        reportWidgetFailure(
+          owner,
+          new TypeError(
+            "a widget that shows threads needs an id on each instance, and this one has none",
+          ),
+        );
+        return;
+      }
       register(
         owner,
         (targets, context) => {

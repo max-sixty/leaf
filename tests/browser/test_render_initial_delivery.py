@@ -16,7 +16,7 @@ from render_harness import (
 )
 
 from leaf import cli
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import asked_again, wait_until_ready
 
 
 def _source():
@@ -89,7 +89,7 @@ def test_a_required_startup_failure_releases_every_authored_tab(
             "</lf-tabs></main>",
         )
         with page.expect_request("**/" + failed_file):
-            page.goto(serve(source), wait_until="commit")
+            page.goto(asked_again(serve(source)), wait_until="commit")
         expect(page.locator("main")).to_be_visible()
         assert held, "the required widget must still be waiting"
         held.pop().abort()

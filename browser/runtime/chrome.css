@@ -552,10 +552,12 @@ html[data-lf-draw-mode] {
     display: grid;
     grid-template-columns: auto auto minmax(0, 1fr);
     align-items: baseline;
-    column-gap: 8px;
+    column-gap: var(--lf-choice-gap);
     row-gap: 2px;
     /* A choice (controls.css) pads its ring room; the margins take that padding
-       back, so the checkbox stands on the search field's edge. */
+       back, so the checkbox stands on the search field's edge. Its own grid places
+       the checkbox, so the start padding holds no mark. */
+    padding-inline-start: var(--lf-choice-pad);
     margin: calc(4px - var(--lf-choice-pad)) 0 calc(12px - var(--lf-choice-pad))
       calc(-1 * var(--lf-choice-pad));
     flex: none;

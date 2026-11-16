@@ -93,11 +93,10 @@ to its parts.
 
 ### Markdown
 
-A widget whose entry declares `x-text-format: inline-markdown` has its direct authored
-text formatted as inline Markdown. With `markdown`, its data body arrives rendered as
-block Markdown while the recorded body stays the source. It reads as a Markdown file,
-as `renderMarkdown(text, false)` does (below). Adopt the rendered `.lf-markdown-body`
-and repaint changing prose with `paintMarkdown(body, source)`.
+A widget whose entry declares `x-text-format: markdown` has its data body arrive
+rendered as block Markdown while the recorded body stays the source. It reads as a
+Markdown file, as `renderMarkdown(text, false)` does (below). Adopt the rendered
+`.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
@@ -125,10 +124,15 @@ changing prose repaints then.
 line ends in. `synNodes(tokens)` turns the tokens into nodes, and `tokenLines(tokens)`
 splits them by line. To colour a long text a part at a time, pass each part the state
 the part before it ended in, `syntax(part, lang, state)`, and it is coloured as it would
-be in the whole text. `lang` is a registry `$languages` name; `langForPath(path)` derives
-one from a file name, and `ensureSyntaxLanguage(lang)` loads one ahead of time.
-`highlightBlocks(root)` colours each `pre > code` in `root` whose `language-…` class
-names a language and that wears the reading face
+be in the whole text. `lang` is a registry `$languages` name; `codeLanguage(element)`
+reads one off the `language-…` class a block of code names it by, on a `<code>`, on the
+`<code>` in a widget's `<pre>` body, or else on the widget itself; it is null for a
+language Leaf doesn't colour, and undefined where no class names one, so only the
+latter takes a default; `langForPath(path)` derives one from a file name, and
+`ensureSyntaxLanguage(lang)` loads one ahead of time. `dressCode(root)` colours
+each `pre > code` in `root` whose `language-…` class names a language and that wears
+the reading face, and typesets each formula, a `<code class="language-math">`
+(`page-authoring.md`, "Markup"), leaving a widget's data body to its module
 (`package-themes.md`, "Personal themes"); a block in a shadow tree wears it where the
 widget sets `--lf-reading-face: 1` on a box around it. Inline annotations keep their
 elements and text while tokens are added inside them; use literal newlines rather than
@@ -262,6 +266,10 @@ arrives. Each `source.kind` adds its own facts:
 returns the widgets' obligations, not withdrawn, inside `region`; `lf-tabs` and
 `lf-tally` count with it, so a module marking obligations per card or section should
 too, passing `readObligations().user` for those waiting on the user.
+`obligationsByRegion(regions, obligations)` answers the same for many regions in one
+pass, as a `Map` from each region to its obligations; a module that marks every card
+or section in one render reads it, since asking `obligationsIn` once per region costs
+the regions times the obligations.
 `tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
 open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
 does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.

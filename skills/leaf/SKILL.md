@@ -95,13 +95,18 @@ user messages, `references/threads.md`. Answer every event as they say. Say what
 you are doing before you do it (`references/conversation-loop.md`, "When to write").
 Continue the existing page; it needs no new initialization or handoff.
 
-Whenever the user returns, the page should be the one you would write today from
-what you now know. When work lands, a decision is acted on or your understanding
-changes, reread the whole page and bring all of it up to date in that revision,
-rather than amending the sentences that mention the change: open work and open
-questions fill the column, decisions you have acted on become settled records,
-finished work shrinks to its outcome out of the way, and superseded material goes
-(`references/authoring-revisions.md`, "Keep the current page current"). Stamp
+Whenever the user returns, the page should be the one you would write today for the
+work as it now stands. Each time the work moves on, as when the user redirects it,
+work lands, a decision is acted on or your understanding changes, reread the whole
+page and bring all of it up to date in that revision, rather than amending the
+sentences that mention the change: the title and lede name the work as it now
+stands, open work and open questions fill the column, decisions you have acted on
+become settled records, and finished work shrinks to its outcome out of the way.
+Keep open only the material a reader arriving now needs for the work as it now
+stands, however true the rest remains, and show each result on something that still
+exists. Material about something since removed goes, and earlier context the current
+work still rests on is collapsed (`references/authoring-revisions.md`, "Keep the
+current page current"). Stamp
 checkpoints and end the page as `references/page-checkpoints.md` says.
 
 ## Stay responsive

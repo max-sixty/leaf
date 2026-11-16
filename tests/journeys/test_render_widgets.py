@@ -60,7 +60,7 @@ def expect_accept_all(page, words):
 
 
 MOTION_SAMPLE_CONTENT = """
-<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<lf-code id="card-code"><pre><code class="language-python">print("retained")</code></pre></lf-code>
 <pre id="card-tree">root/
 └── retained.txt</pre>
 <lf-sample id="card-sample" label="Current sample">
@@ -556,12 +556,12 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     assert markers[0]["content"] == '""'
     assert [marker["width"] for marker in markers] == [
         "9px",
-        "6px",
+        "7px",
         "3px",
         "3px",
-        "6px",
-        "6px",
-        "6px",
+        "7px",
+        "7px",
+        "7px",
     ]
     assert all(marker["height"] == marker["width"] for marker in markers)
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"

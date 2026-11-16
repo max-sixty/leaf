@@ -530,11 +530,9 @@ custom property changes on `html`.
   tokens. The kernel's rules name no class a page coins for itself either, so a page's
   own `.button` or `.choice` keeps its author's look: a page takes a Leaf control's
   face by writing that control's name (`lf-btn`, `lf-choice`), which a kernel idiom
-  declares and `page check` therefore lets it write. Where a Leaf control looks like an
-  attribute idiom, `data-room`, it wears the idiom's `lf-` twin (`data-lf-room`), and
-  one theme rule selects both. The kernel's other classes for authors are the Layouts'
-  (`layout-column`, `density-working`), and a theme's idioms, such as the reading
-  theme's `.tag`, come with the theme a page takes. A library's names on an element
+  declares and `page check` therefore lets it write. The kernel's other classes for
+  authors are the Layouts' (`layout-column`, `density-working`), and a theme's idioms,
+  such as the reading theme's `.tag`, come with the theme a page takes. A library's names on an element
   Leaf draws for that library, such as Pierre's row attributes, stay the library's.
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
   `test_the_kernel_styles_no_class_a_page_coins`.
@@ -601,6 +599,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | threads, workflow, attention, obligations, to-dos, activity, unread                                            | the server's state, which the browser selects without folding again (obligations: `obligations/model.js`); the browser adds only its own unresolved sends and the versions it is marking read                                                                                                                                                                                       |
 | what waits on the user and on the agent                                                                        | the server's `served_state.queues`, which `page state` prints; the publisher adds this tab's sends (`localQueues`)                                                                                                                                                                                                                                                                  |
 | the machine's other live pages                                                                                 | the server's `/api/pages` answer, read again only when a news look names another pages reading than the one last asked for (`live-leaves.js`, `hearPages`); it keeps no consistency with the page's own reading, and nothing this page reads waits for it                                                                                                                           |
+| the user's unsent drafts                                                                                       | the page server's drafts (`src/leaf/drafts.py`), read again when a news look names another drafts version than the tab holds (`drafts.js`, `lookForDrafts`); the tab's own copy holds only words the server hasn't taken yet                                                                                                                                                        |
 | what the DOM shows                                                                                             | the presentation coordinator's renderer tickets and preparation regions                                                                                                                                                                                                                                                                                                             |
 | when a document-wide renderer paints                                                                           | the DOM dependencies `PRESENTATION_DOM` in `runtime/semantic-state.js` declares                                                                                                                                                                                                                                                                                                     |
 | where each thread's passage is                                                                                 | `anchor-placement.js`, resolving its anchor in this version                                                                                                                                                                                                                                                                                                                         |
@@ -671,7 +670,6 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Where an element or Range destination is, and how much of it survives clipping                        | `geometry.js` `placeBox`, `clippedPlace`                                           |
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
-| Which headers the page itself holds over the document, at the window's top                            | `root-headers.js` `pageHeads`                                                      |
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
 | The box an input scrolls, along the chain native scrolling follows                                    | `scroll-containers.js` `inputScroller`, `scrollChainOf`                            |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |

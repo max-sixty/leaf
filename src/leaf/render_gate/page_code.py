@@ -12,7 +12,7 @@ would pass the check and reach the user, and its author would hear about it only
 the watcher's `error` event. The check therefore runs the exact candidate once,
 wherever the page carries any of these: through upgrade, authoritative presentation,
 and one rendering frame after it, in the light scheme, at the render viewport, or with
-`--render` on the render check's first page, at its desktop window (`PageCode`).
+`--render` on the render check's page, at its desktop window (`PageCode`).
 
 A thread message's markup is run the same way before it posts (`message_page`,
 `command.message_check`), wherever it places one of those widgets. Nothing else draws
@@ -43,6 +43,7 @@ from leaf.findings import Finding
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     PageNotReady,
+    asked_again,
     rendered,
     start_near_work,
     wait_for_probe,
@@ -115,9 +116,8 @@ def message_page(markup: str) -> SourceDocument:
 class PageCode:
     """The page-code reading of one browser page, from before its navigation: every
     error the runtime reports, and the requests that failed while it ran. A page opened
-    for it alone (`run_page_code`) or the render check's first page
-    (`scheme._render_scheme`) takes it, so `page check --render` loads the page once
-    for both."""
+    for it alone (`run_page_code`) or the render check's page (`scheme._render_page`)
+    takes it, so `page check --render` loads the page once for both."""
 
     def __init__(self, page):
         self.reports = []
@@ -161,6 +161,11 @@ def _failed_requests(page) -> list[Finding]:
     def cdp_frame(params):
         frame = params["frame"]
         frame_urls[frame["id"]] = frame.get("url", "")
+
+    def cdp_same_document(params):
+        # The address the frame shows, which the bootstrap rewrites before any request
+        # it makes, taking off its marks (`asked_again`) and the host key.
+        frame_urls[params["frameId"]] = params["url"]
 
     def cdp_started(params):
         request = params["request"]
@@ -215,6 +220,7 @@ def _failed_requests(page) -> list[Finding]:
             )
 
     cdp.on("Page.frameNavigated", cdp_frame)
+    cdp.on("Page.navigatedWithinDocument", cdp_same_document)
     cdp.on("Network.requestWillBeSent", cdp_started)
     cdp.on("Network.loadingFinished", cdp_finished)
     cdp.on("Network.loadingFailed", cdp_failed)
@@ -233,7 +239,7 @@ def run_page_code(browser, url: str) -> list[Finding]:
     page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
     code = PageCode(page)
     try:
-        page.goto(url)
+        page.goto(asked_again(url))
         unready = None
         try:
             state = served(page, url, "/api/state").json()

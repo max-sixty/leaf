@@ -679,14 +679,31 @@ summary,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
  * face out by that padding, `--lf-choice-pad`. A page's own label wears `lf-choice`
- * too. */
+ * too.
+ *
+ * Everything in the label after its mark is one run of words, laid out as a
+ * paragraph is, however the page marks it up ("Use <code>--fast</code> here"), and
+ * the mark hangs beside its first line: floated into the label's start padding,
+ * centred on the line, and taking none of the words' room, so a wrapped line starts
+ * under the first. The words give the choice its baseline, so a choice stands on the
+ * line of the words beside it, a legend's, a sentence's or another choice's,
+ * whichever mark is checked. A page or package changes the room around the mark
+ * through `--lf-choice-pad` and `--lf-choice-gap` (tokens.css), since the start
+ * padding also holds the mark. In a taller target, as under a finger, the label centres its
+ * content. Rejected: a flex row of mark and words (21 October to 15 November 2026),
+ * which took the mark's baseline for the choice's, so its words stood about 4px
+ * above those beside them and a choice dropped 1px as it was checked; then a grid
+ * of the label's children, which made each run of words and each element in them
+ * a cell of its own, so a label holding markup wrapped each part apart, and which
+ * fought a package's own grid of a choice's parts. */
 .lf-choice {
   --lf-choice-pad: max(var(--lf-sp-1), var(--lf-focus-ring-room));
-  display: inline-flex;
-  align-items: center;
+  --lf-choice-hang: calc(var(--wa-form-control-toggle-size) + var(--lf-choice-gap));
+  display: inline-block;
+  align-content: center;
   justify-self: start;
-  gap: var(--lf-sp-1);
   padding: var(--lf-choice-pad);
+  padding-inline-start: calc(var(--lf-choice-pad) + var(--lf-choice-hang));
   min-block-size: var(--lf-aim-floor);
   min-inline-size: var(--lf-aim-floor);
   box-sizing: border-box;
@@ -698,7 +715,7 @@ summary,
  * generated onto the face's input into vendor/webawesome-native.css, so a choice
  * looks like the library's wa-radio and wa-checkbox and follows Leaf's mapping of its
  * tokens (webawesome.css). The mark is 1.25em of the label's own type, as the library
- * sizes it beside its value text, and the label's gap spaces it. Its outline is the
+ * sizes it beside its value text, and `--lf-choice-gap` spaces it from its words. Its outline is the
  * library's default control border, since Leaf's field border, which the token takes
  * elsewhere, left an unchosen mark under 1.5:1 against a card. A disabled choice
  * fades as a whole, as the library's own label does. In forced colours the platform
@@ -716,9 +733,12 @@ summary,
   cursor: not-allowed;
 }
 .lf-choice > input {
-  flex: none;
-  margin: 0;
+  float: inline-start;
+  margin-block: calc((1lh - var(--wa-form-control-toggle-size)) / 2)
+    calc((var(--wa-form-control-toggle-size) - 1lh) / 2);
+  margin-inline: calc(-1 * var(--lf-choice-hang)) var(--lf-choice-gap);
   font-size: inherit;
+  line-height: inherit;
   &:disabled {
     opacity: 1;
   }
@@ -738,37 +758,33 @@ summary,
 }
 
 /* A label whose words change holds one room for all of them, so a count or a result
- * changing moves nothing beside it. `data-room` lists representative strings that set
- * its width, one per line, on an element whose one child holds the words; the page
- * writes `data-room`, and Leaf and its packages write `data-lf-room`, so the page's own
- * CSS for the one leaves the other alone. Both hold the room before startup. Its ::before lays the
- * room out as an invisible block of no height, so the element is as wide as the
- * widest line in its own face, with no script. The words take no part in that width:
- * they fill the room and are cut past it with an ellipsis, so the control never widens
- * when its words change. Rejected: the room as a least width, which let a long label
- * widen its control and shift the controls beside it, too often and in too many places
- * to oversee (the user's decision, 2026-10-14). Cut words stay whole in the element's
- * text and accessible name; generated content is in neither. The room wraps at its
- * spaces, so it never holds the element wider than its container. The words' line is
- * the element's baseline. The element's own rules outrank this one. */
-:where([data-room], [data-lf-room]) {
+ * changing moves nothing beside it. Leaf and its packages write `data-lf-room`, which
+ * lists representative strings that set its width, one per line, on an element whose
+ * one child holds the words. Its ::before lays the room out as an invisible block of no
+ * height, so the element is as wide as the widest line in its own face, with no
+ * script. The words take no part in that width: they fill the room and are cut past it
+ * with an ellipsis, so the control never widens when its words change. Rejected: the
+ * room as a least width, which let a long label widen its control and shift the
+ * controls beside it, too often and in too many places to oversee (the user's
+ * decision, 2026-10-14). Rejected too: a page-facing `data-room` twin, which no page
+ * used; a page holds room for changing text with a grid stack (`page-layout.md`,
+ * "Space for changing text"). Cut words stay whole in the element's text and
+ * accessible name; generated content is in neither. The room wraps at its spaces, so
+ * it never holds the element wider than its container. The words' line is the
+ * element's baseline. The element's own rules outrank this one. */
+:where([data-lf-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
-[data-room]::before {
-  content: attr(data-room);
-}
 [data-lf-room]::before {
   content: attr(data-lf-room);
-}
-:is([data-room], [data-lf-room])::before {
   display: block;
   block-size: 0;
   overflow: hidden;
   visibility: hidden;
   white-space: pre-line;
 }
-:is([data-room], [data-lf-room]) > * {
+[data-lf-room] > * {
   display: block;
   inline-size: 0;
   min-inline-size: 100%;

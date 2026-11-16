@@ -65,7 +65,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     source = leaf_page(
         "Code reading",
         '<h1 id="title">Code reading</h1><p id="note">Original review.</p>'
-        f'<lf-code id="code" language="python" hi="2"><pre>{escape(code)}</pre></lf-code>',
+        f'<lf-code id="code" hi="2"><pre><code class="language-python">{escape(code)}</code></pre></lf-code>',
     )
     url = live_url(serve(source))
     context = browser.new_context(

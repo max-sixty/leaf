@@ -70,7 +70,7 @@ element's completion waits for work its update starts:
 ```js
 updated(changed) {
   super.updated(changed);
-  this.highlighting = highlightBlocks(this);
+  this.highlighting = dressCode(this);
 }
 async getUpdateComplete() {
   const result = await super.getUpdateComplete();

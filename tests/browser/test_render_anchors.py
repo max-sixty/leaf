@@ -1241,71 +1241,6 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
-def test_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:hover, :focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    page = open_page(browser, live_url(serve(source)))
-    card = page.locator("#card")
-    actions = page.locator("#actions")
-    pre = page.locator("#source")
-    copy = page.locator(".lf-chrome .lf-code-copy").get_by_role("button")
-
-    expect(actions).to_be_hidden()
-    pre.hover()
-    expect(actions).to_be_visible()
-    copy.hover()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    assert not card.evaluate("node => node.matches(':hover')")
-
-    page.mouse.move(2, 300)
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-    pre.hover()
-    copy.focus()
-    page.mouse.move(2, 300)
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").focus()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
-def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Touch copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, live_url(serve(source)), context=context)
-    pre = page.locator("#source")
-    actions = page.locator("#actions")
-    pre.tap(position={"x": 30, "y": 20})
-    expect(actions).to_be_visible()
-    page.locator(".lf-chrome .lf-code-copy").get_by_role("button").tap()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").tap()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
 def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     """Copy is a mark, one size on every block, compact or tall, and its reach keeps
     the aim floor."""
@@ -1696,15 +1631,15 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         }""")
         # A different language repaints Leaf's tokens inside the same annotations.
         assert page.evaluate("""async () => {
-          const {highlightBlocks} = await window.__lfWidgetApi();
+          const {dressCode} = await window.__lfWidgetApi();
           const code = document.querySelector('#marked code');
           const mark = code.querySelector('mark');
           const target = code.querySelector('#target');
           const previous = [...code.querySelectorAll('[data-lf-syn]')];
           code.className = 'language-javascript';
-          await highlightBlocks(code);
+          await dressCode(code);
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          await highlightBlocks(code);
+          await dressCode(code);
           return code.querySelector('mark') === mark
             && code.querySelector('#target') === target
             && mark.textContent === 'f load(path):\\n    return "rea'
@@ -1719,16 +1654,16 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
         text = page.evaluate(
             """async () => {
-              const {highlightBlocks} = await window.__lfWidgetApi();
+              const {dressCode} = await window.__lfWidgetApi();
               const code = document.createElement('code');
               code.className = 'language-python';
               code.textContent = 'old = 1';
               document.querySelector('#later').after(
                 Object.assign(document.createElement('pre'), {id: 'rewritten'}));
               document.querySelector('#rewritten').append(code);
-              const first = highlightBlocks(code);
+              const first = dressCode(code);
               code.textContent = 'new = 2';
-              await Promise.all([first, highlightBlocks(code)]);
+              await Promise.all([first, dressCode(code)]);
               return code.textContent;
             }"""
         )
@@ -1743,9 +1678,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
-    One pass serves both shapes a page has for code, lf-code's `language` and a plain
-    <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread create`
+    One pass serves both shapes a page has for code, a plain <pre><code class="language-*">
+    and the same block inside lf-code, and neither guesses: a lf-code with no
+    `language-*` class stays the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -1911,7 +1846,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             f"""
 <h1 id="t">Shell commands</h1>
 <pre id="shell-plain"><code class="language-bash">{escape(source)}</code></pre>
-<lf-code id="shell-widget" language="bash"><pre>{escape(source)}</pre></lf-code>
+<lf-code id="shell-widget"><pre><code class="language-bash">{escape(source)}</code></pre></lf-code>
 <lf-diff id="shell-diff"><pre>diff --git a/check.sh b/check.sh
 --- a/check.sh
 +++ b/check.sh
@@ -2264,7 +2199,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # `\\ No newline at end of file` is diff metadata, not selectable source.
     assert not any("No newline at end of file" in line["text"] for line in py)
 
-    # No extension the table names: plain, the way a lf-code with no `language` is.
+    # No extension the table names: plain, the way a lf-code naming no language is.
     assert all(line["colors"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]

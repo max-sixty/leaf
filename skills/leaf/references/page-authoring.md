@@ -19,8 +19,10 @@ have to picture from a description, and put that thing on the page in its own fo
   values the argument cites, and put exact values in a table below it when readers
   need them.
 - Wording the user judges, such as code, a command or a message, is shown as the text
-  itself. When the point is what code does, such as what it draws or which rule wins,
-  show that effect in one of the forms above, with the code beside it.
+  itself, and so is a source a claim rests on, such as a rule in a doc. Quote that
+  passage whole, conditions included, so the reader can check the claim on the page.
+  When the point is what code does, such as what it draws or which rule wins, show
+  that effect in one of the forms above, with the code beside it.
 
 A table or list whose rows say where things sit, how large they are or what connects
 to what should be a drawing. A drawing or chart makes its point through its geometry:
@@ -214,13 +216,6 @@ surface; cards and playground previews set this property for their contents.
 `page-layout.md`, "Page CSS and Leaf's controls", says how page CSS meets Leaf's own
 controls.
 
-When page CSS reveals controls while a container is hovered or focused, include
-`:has([data-lf-control-active])` in the condition if it contains a code block.
-Leaf marks that block while its floating Copy control is hovered or focused, since
-Copy lives outside the block's tree. For example,
-`.card:is(:hover, :focus-within, :has([data-lf-control-active])) .actions`
-keeps a card's actions visible when the pointer or focus moves onto Copy.
-
 `page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
 for inspecting how much CSS a page adds and where it comes from.
 
@@ -242,14 +237,14 @@ rely on, in full:
 ```bash
 leaf page vocabulary <page> | jq 'with_entries(select(.key | startswith("$") | not))
     | map_values(.description)'
-leaf page vocabulary <page> | jq '.["lf-options"], .[".eyebrow"], .["$series"]'
+leaf page vocabulary <page> | jq '.["lf-options"], .[".lede"], .["$series"]'
 ```
 
 Before writing markup, read the author instructions for the entries you will use,
 including any example you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
+leaf page instructions <page> --use lf-options --use .lede | jq -r '.author // empty'
 ```
 
 The output is a JSON map from audience to text. When you or an agent you assign takes
@@ -295,10 +290,17 @@ as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>
 
 Format filenames and paths as inline code.
 
-Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
-`lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
-language from `$languages.names`. Native `code` classes also accept the bundled
-grammar's aliases, such as `language-js` and `language-sh`. Leaf colours a native
+Write a formula in LaTeX in a `<code class="language-math">`, escaping `&`, `<` and `>`
+as in any HTML text: inside a sentence it reads as an inline formula, and as the code
+of its own `<pre>`, which takes an id like any block a reader points at, as a display
+formula. Leaf typesets the LaTeX in the surrounding text's size and colour,
+`page check --render` reports a formula it can't read, and a comment quotes a formula
+by its LaTeX.
+
+Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
+put the same block inside `lf-code` for a line-numbered walkthrough. Name the actual
+language from `$languages.names` or a bundled grammar's alias, such as `language-js`
+and `language-sh`. Leaf colours a native
 block only where the reading face reaches it: the `reading` theme turns it on, and a
 page with no theme sets `--lf-reading-face: 1` on a box around the `<pre>`
 (`package-themes.md`, "Personal themes"). Format example code with
@@ -323,7 +325,7 @@ scroll in the box needs `max-width: none`. For a box that scrolls vertically, se
 Leaf fits an image or SVG to its container on every page. On a page that wears the
 reading face, as a themed page does (`package-themes.md`, "Personal themes"), Leaf
 also scrolls a `<pre>` wider than its container, and a table's columns size to their
-content, so leave its cells' widths and wrapping to Leaf too. A `<pre>` asks its
+content. A `<pre>` asks its
 container for no width, so a box that takes its width from its content can leave it
 too narrow to read, which `page check --render` reports. A table scrolls inside a box
 that sets its own width, such as the column, a panel or any
@@ -335,7 +337,8 @@ that can outgrow a narrow window in a box of its own that scrolls sideways, as a
 one line, holds its column at its full length, and once the table scrolls sideways,
 prose in the other columns wraps a word per line. Under the face, put identifiers in
 `<code>`, which can break inside a cell, and write each row's name as its first cell,
-a `<th scope="row">`, so the names stay in view while the other columns scroll. Keep
+a `<th scope="row">`: a `<code>` name that is all the heading holds stays whole, up to
+a third of the column, and the names stay in view while the other columns scroll. Keep
 the columns to what fits at the narrowest width the page's readers use.
 
 ## Stable anchors

@@ -659,21 +659,6 @@ const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
 /** @param {Element} root @param {string} [opaque] */
 const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
 
-// Formatting may render authored words while keeping their source on the formatted
-// island. The keys compare that source; the change's card reads the formatted words
-// (`diffWordsOf`), which are what the user sees.
-/** @param {Element} block @param {string} opaque */
-function diffWords(block, opaque) {
-  const words = (/** @type {Element} */ root) => comparisonWords(root, opaque);
-  if (!block.querySelector("[data-lf-source-words]")) return words(block);
-  const source = block.ownerDocument.importNode(block, true);
-  for (const island of source.querySelectorAll("[data-lf-source-words]")) {
-    const text = new Text();
-    text.textContent = island.getAttribute("data-lf-source-words");
-    island.replaceWith(text);
-  }
-  return words(source);
-}
 // The blocks of a painted source (`paintedSource`), each keyed by its authored text
 // (`wrote`), which leaves out what formatting generated, such as Markdown's media button.
 /** @param {Element} root @returns {[Element, string][]} */
@@ -695,7 +680,7 @@ function diffBlocks(root) {
     if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
     if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
       continue; // leaf blocks only, excluding opaque children on both sides
-    let key = diffWords(b, opaque);
+    let key = comparisonWords(b, opaque);
     // An x-says value is the page's words at the element's edge (renderSaid), so it
     // belongs to what this block says: folded into the key at its declared edge, a
     // version that moves a metric's number or an event's time marks though no prose
@@ -792,8 +777,8 @@ function paintBodies(doc, widgets) {
 }
 // A child an action in force created (`creates`) stood on the page that version
 // showed, so its painted source holds it too, as passages.py adds it to the file's
-// reading: at its owner's end, marked `data-lf-added`, its words formatted as its entry
-// says. Without it, an option the user added before the base reads as changed since.
+// reading: at its owner's end, marked `data-lf-added`, its words the user's inline
+// Markdown. Without it, an option the user added before the base reads as changed since.
 /** @param {Document} doc @param {ReturnType<typeof readApplication>["effective"]["widgets"]} widgets */
 function placeCreated(doc, widgets) {
   for (const [id, { state, specs }] of widgets)
@@ -803,7 +788,6 @@ function placeCreated(doc, widgets) {
       const owner = doc.getElementById(id);
       if (!owner) continue;
       const { child, words } = creates;
-      const markdown = registry[child]?.["x-text-format"] === "inline-markdown";
       for (const [unit, { detail }] of Object.entries(value.units)) {
         if (doc.getElementById(unit)) continue;
         const created = doc.createElement(child);
@@ -812,9 +796,7 @@ function placeCreated(doc, widgets) {
         const text = detail[words];
         if (typeof text !== "string")
           throw new Error("A created child requires its declared words");
-        created.append(
-          markdown ? doc.importNode(inlineMarkdownFragment(text), true) : text,
-        );
+        created.append(doc.importNode(inlineMarkdownFragment(text), true));
         owner.append(created);
       }
     }
@@ -824,7 +806,10 @@ function placeCreated(doc, widgets) {
 // actions created placed. `sourceOf` maps each copied element to the source element it
 // copies, read before formatting replaces a Markdown body's <pre>; what the painting
 // made has none. Formatting is synchronous: the renderer is loaded wherever a source
-// declares Markdown, for the live page at its upgrade and for a base before this.
+// declares Markdown, for the live page at its upgrade and for a base before this. A
+// created child's words read as their source until the renderer loads, which the page
+// asks for once it has presented (text-field.js); both sources a comparison reads are
+// painted in one task, so they agree either way.
 /** @param {Element} source @param {ReturnType<typeof readApplication>["effective"]["widgets"]} widgets */
 function paintedSource(source, widgets) {
   const doc = document.implementation.createHTMLDocument("");

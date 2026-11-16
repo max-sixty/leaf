@@ -336,13 +336,16 @@ jobs:
 
       # A step that overruns fails the job before the six-hour job deadline, which
       # would cancel the run and never summon tend. An explicit `bash` adds
-      # `pipefail`, so pytest's status survives `tee`.
+      # `pipefail`, so pytest's status survives `tee`. Four workers on the runner's
+      # three cores starve every test of CPU, which makes this the run that checks the
+      # suite's results don't depend on speed (tests/AGENTS.md, "Waits"); the suite
+      # took as long at four workers as at two.
       - name: 🧪 Python tests
         timeout-minutes: 300
         shell: bash
         run: |
           mkdir -p .tmp/test-results
-          uv run pytest tests -n 2 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
+          uv run pytest tests -n 4 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
             2>&1 | tee .tmp/test-results/output.log
 
       - name: Upload pytest results

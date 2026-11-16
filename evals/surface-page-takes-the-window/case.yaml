@@ -6,9 +6,13 @@
 # head 9/9, each a workspace whose first page tab is the playground's lf-ask.
 # Those historical scores used an exact workspace/tab structure. The current rubric
 # judges the leading usable playground and access to supporting reading.
+# The case now authors the page and names nothing to read: at 0e538e29d each of 4
+# Claude Code authors read the playground's instructions through `leaf page
+# instructions` and passed, as 4 of 4 probes told to read them did.
 description: surface-page-takes-the-window
 metadata:
   purpose: "Arranging a page: the proposed panel leads as a usable playground, with its supporting review easy to reach."
+  authoring: true
   tags:
     - layout
     - playground
@@ -21,16 +25,14 @@ vars:
     - A playground sketching the proposed panel at desktop size, where the user
       switches it between its three sizes (folded, row, expanded), tunes its surface
       (paper, lifted, ink), corner radius and width, and submits the look to build.
-    - What is wrong with today's panel: five problems, each with its screenshot
-      (`/media/today-1.png` to `/media/today-5.png`) and a sentence.
+    - What is wrong with today's panel: five problems, each a sentence with room
+      for its screenshot, which the user will add.
     - What three comparable products do, a short paragraph each.
     - The proposal's reasoning: eight bullet points on the sizes, the status line,
       the menu and the motion.
 
-    Read references/page-authoring.md and ../../packages/playground/instructions/author.md
-    relative to the leaf skill's base directory. The page directory is not reachable from
-    here, so reply with the complete `index.html`, with a placeholder element for the
-    sketch inside the playground's preview, rather than writing a file.
+    A placeholder element can stand for the panel sketch inside the playground's
+    preview.
 assert:
   - type: llm-rubric
     metric: main-surface-and-reading

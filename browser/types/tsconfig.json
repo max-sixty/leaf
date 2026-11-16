@@ -34,6 +34,7 @@
     "../widgets/*.js",
     "../../packages/*/widgets/**/*.js",
     "../../src/leaf/render-checks/*.js",
+    "../../src/leaf/static-export.js",
     "../../build/entries/**/*.mjs"
   ]
 }

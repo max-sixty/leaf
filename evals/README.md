@@ -496,8 +496,11 @@ screenshot tree; the assertion
 supplies authored HTML to identify the references, without the author's trace.
 
 Use authoring cases for media preparation, widget markup and checking or repairing
-rendering. Keep source and reading probes for decisions that need no writable
-artifact. Use complete tasks for revisions, user feedback and delivery rounds.
+rendering. An author reads a widget's or package's instructions through `leaf page
+instructions`, which a probe can't run: it has no page, and in Claude Code no shell.
+Keep source and reading
+probes for decisions that need no writable artifact and whose rules the skill's
+references hold. Use complete tasks for revisions, user feedback and delivery rounds.
 Authoring adds page initialization, tool turns and a render check to each sample;
 `setup_seconds`, native trace accounting and Promptfoo's `latencyMs` expose those
 costs separately. Each sample has its own temp directory. Native tool permissions

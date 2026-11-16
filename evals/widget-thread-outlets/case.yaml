@@ -13,7 +13,7 @@ vars:
     has beginThreadSurface(), endThreadSurface(), and outletFor(target), which returns
     the row's outlet or null when no seat is available.
 
-    Read the public package references and show the supported code that seats them.
+    Show the supported code that seats them.
     Leaf should retain its normal conversations, drafts, and fallback for comments
     whose rows aren't visible. Return the JavaScript and required registry declaration.
 assert:

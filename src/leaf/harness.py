@@ -790,9 +790,10 @@ class CodexHarness(EnvironmentHarness):
         reach Stop without running another tool. Stop offers only where no adapter
         will start a turn of its own for the input over App Server
         (`later_turn_takes_input`), and the turn would continue for it
-        (`hook_transport.stop_continues`). The tool hook offers only input the
-        cursor has not passed, and Stop also an update the session holds no usable
-        reference for (`delivery.deliverable`). The tool hook also carries the
+        (`hook_transport.stop_continues`). The tool hook offers input the cursor
+        has not passed, and input the cursor passed that no pickup names, which a
+        Codex session's receipts never leave, and Stop also an update the session
+        holds no usable reference for (`delivery.deliverable`). The tool hook also carries the
         reminder of a status line left standing (`hook_transport.status_reminders`).
         """
         if event not in {"PostToolUse", "Stop"} or not payload.get("turn_id"):

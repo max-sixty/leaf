@@ -91,12 +91,16 @@ import {
 } from "../geometry.js";
 import {
   composedParentNode,
-  renderedChildren,
   renderedParent,
   renderedUnder,
   upFrom,
 } from "../shadow.js";
-import { isText, skipped } from "../shadow-tree.js";
+import {
+  eachRenderedChild,
+  eachRenderedElement,
+  isText,
+  skipped,
+} from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
 import { pageScroller } from "../scrolling.js";
@@ -1004,17 +1008,24 @@ function controlsIn(host) {
   /** @type {Element[]} */
   const found = [];
   /** @param {Element} el */
-  const visit = (el) => {
-    for (const node of renderedChildren(el)) {
-      if (!(node instanceof Element)) continue;
+  const visit = (el) =>
+    eachRenderedElement(el, (node) => {
       if (node.matches(CONTROL)) found.push(node);
       visit(node);
-    }
-  };
+    });
   visit(host);
   return found;
 }
 
+// The nodes `node` draws as its children (`eachRenderedChild`), which `childIndex` reads
+// once a pass for each parent a seat's walk comes down through.
+/** @param {Node} node @returns {Node[]} */
+function drawnChildren(node) {
+  /** @type {Node[]} */
+  const children = [];
+  eachRenderedChild(node, (child) => void children.push(child));
+  return children;
+}
 // What a seat's walk reads of each parent's children, once per layout pass for every pin
 // (`coverIn`): each run of words' line boxes, and each element's box, leaving out the
 // chrome and skipped content. Pins seat one after another with no write between, so the
@@ -1217,18 +1228,13 @@ function coverIn(root, band, target, bands, stop, standing, children, heads, sub
       }
       visit(
         node,
-        () => renderedChildren(node),
+        () => drawnChildren(node),
         at,
         (leads && node !== subject) || wrapper,
       );
     }
   };
-  visit(
-    root,
-    () => renderedChildren(root),
-    { x: 0, y: 0 },
-    renderedUnder(subject, root),
-  );
+  visit(root, () => drawnChildren(root), { x: 0, y: 0 }, renderedUnder(subject, root));
   for (const box of standing)
     if (box.width && meets(box)) {
       cover.push(box);
@@ -1862,7 +1868,7 @@ function seatingMove(seating, resized, byBox, holders, reading) {
   /** @param {Element} parent @returns {boolean} */
   const newcomer = (parent) =>
     reading
-      .children(parent, () => renderedChildren(parent), drawn)
+      .children(parent, () => drawnChildren(parent), drawn)
       .some((child) => {
         if (child.lines) return true;
         const { node, box } = child;
@@ -1875,6 +1881,12 @@ function seatingMove(seating, resized, byBox, holders, reading) {
   return move;
 }
 
+// A pass reads only the rows whose records a change dropped (`seatings`), but it still
+// seats every row, a kept one from its record: `pinSeating` and `seatEntry` run over
+// all of them, and each row's seat is set again. That is about 8 ms a pass on the
+// 1,024-section page `leaf-dev bench` generates. Not yet built: seat only the rows
+// whose records were dropped and the rows their new seats push, and leave every other
+// row as it stands.
 /** @param {Layer} layer */
 function layoutMountedRows(layer) {
   pass += 1;

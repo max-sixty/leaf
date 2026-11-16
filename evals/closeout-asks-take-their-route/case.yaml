@@ -33,8 +33,7 @@ vars:
     - Your Leaf plugin changed during the turn, so the user must run
       `/reload-plugins` in this Claude session before their comments reach you.
 
-    The page has nothing on the user's On Me list yet. Read whatever instructions you
-    need. Only Skill and Read run here, so write out, in order, each command you would
+    The page has nothing on the user's On Me list yet. Only Skill and Read run here, so write out, in order, each command you would
     run on the page to put what you need from the user in front of them, then your
     closing reply.
 assert:

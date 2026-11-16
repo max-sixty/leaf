@@ -835,21 +835,40 @@ def open_agent_turns(session_id: str) -> dict[str, dict]:
     }
 
 
-def agent_turn_stamps(claim: dict) -> dict[str, dict]:
+def agent_turn_stamps(claim: dict, events: list[dict]) -> dict[str, dict]:
     """The agent turns of the session `claim` names, opened in the claim's
-    generation: by turn id, the agent's id in its harness, null until the harness
-    starts it, by which the main thread reaches the agent (`holding.holder`), and
-    when the turn was last renewed and when it closed, or null while it is open,
-    which `activity.running_agent_turns` reads. The page's served reading carries
-    them for every reader of its claim (`presence`)."""
-    return {
+    generation, that a page whose log is `events` needs: each still open and not yet
+    lapsed, which may take any of its threads, and each the log names, whose holder
+    `leaf page state` names (`holding.holder`). By turn id: the agent's id in its
+    harness, null until the harness starts it, by which the main thread reaches the
+    agent, and when the turn opened, was last renewed and closed, or null while it is
+    open, which `activity.running_agent_turns` reads. The page's served reading
+    carries them for every reader of its claim (`presence`), so what it carries grows
+    with the page rather than with how long its session has run: a turn that lapsed
+    with its agent lost, which nothing closes, leaves every page that never named
+    it."""
+    named = {event["turn"] for event in events if event.get("turn")}
+    stamps = {
         turn: {
             "agent": entry["agent"],
+            "opened": entry["opened"],
             "renewed": entry["renewed"],
             "closed": entry["closed"],
         }
         for turn, entry in agent_turns(claim["id"]).items()
         if entry["generation"] == claim["generation"]
+        and (entry["closed"] is None or turn in named)
+    }
+    lapsing = [turn for turn, stamp in stamps.items() if turn not in named]
+    if not lapsing:
+        return stamps
+    from .activity import agent_turn_end
+
+    now = datetime.now().astimezone()
+    return {
+        turn: stamp
+        for turn, stamp in stamps.items()
+        if turn in named or now < agent_turn_end(stamp)
     }
 
 
@@ -884,7 +903,9 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
     named once the harness has started it (`name_agent_turn`), and until then no
     agent's `leaf` command can act in it or as the main thread
     (`hooks.agent_command`). Each opening mints a new id, so a closed turn never
-    reopens."""
+    reopens. The turns of the session's earlier generations go as it opens one,
+    since their agents ended with them and no reading of its pages asks for them
+    (`agent_turn_stamps`)."""
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if not session_live(record):
@@ -894,7 +915,11 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
         _write_agent_turns(
             session_id,
             {
-                **agent_turns(session_id),
+                **{
+                    id: entry
+                    for id, entry in agent_turns(session_id).items()
+                    if entry["generation"] == record["generation"]
+                },
                 turn: {
                     "agent": agent,
                     "generation": record["generation"],
@@ -908,13 +933,16 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
 
 
 def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
-    """Record that the agent its harness names `agent` runs the open turn `turn`,
-    which no agent runs yet; whether the turn was still open to name. A turn's agent
-    never changes once named."""
+    """Record that the agent its harness names `agent` runs the open turn `turn`, as
+    the harness confirms a spawn, which named no agent yet, or a resume, which named
+    it as it opened: and renew it, which confirms its start, so the turn is believed
+    for the working grace (`activity.agent_turn_end`); whether the turn was still open
+    to name. A turn's agent never changes once named."""
+    now = now_iso()
     return _update_agent_turns(
         session_id,
         lambda id, entry: (
-            {**entry, "agent": agent}
+            {**entry, "agent": agent, "renewed": now}
             if id == turn and entry["agent"] in (None, agent)
             else None
         ),
@@ -936,13 +964,18 @@ def renew_agent_turn(session_id: str, agent: str) -> str | None:
     """Renew the open turn of `agent`, as its tool boundary does, and return its id;
     None where the agent runs no open turn. A renewal within `AGENT_RENEWAL` of the
     last writes nothing, since each write moves every reading of the session's pages
-    (`served_state.reading.outside_inputs`)."""
+    (`served_state.reading.outside_inputs`), except the first, which confirms a
+    resumed agent's start where its harness's word went missing
+    (`name_agent_turn`)."""
     with flocked(session_lock_path(session_id)):
         turn = agent_turn_of(session_id, agent)
         if turn is not None:
             turns = agent_turns(session_id)
             renewed = datetime.fromisoformat(turns[turn]["renewed"])
-            if datetime.now().astimezone() - renewed >= AGENT_RENEWAL:
+            if (
+                turns[turn]["renewed"] == turns[turn]["opened"]
+                or datetime.now().astimezone() - renewed >= AGENT_RENEWAL
+            ):
                 turns[turn] = {**turns[turn], "renewed": now_iso()}
                 _write_agent_turns(session_id, turns)
         return turn

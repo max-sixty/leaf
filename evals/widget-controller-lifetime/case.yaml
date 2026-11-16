@@ -21,7 +21,7 @@ vars:
     page's history. Those readings must catch up when it returns with whatever
     changed while it was absent.
 
-    Read the public references and use Leaf's supported semantic widget API. The
+    Use Leaf's supported semantic widget API. The
     widget also registers a native window resize listener to measure its local
     inspector; keep that listener active only while the element is connected.
     The external source contains a list of {id, label} build records. Show each label

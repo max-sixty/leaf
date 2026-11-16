@@ -41,7 +41,7 @@ vars:
     > its progress, list it as an open item, or park enrichment for it. The launch
     > closes out this task, however unfinished the dispatched work is.
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page in this turn, and the brief you
     would hand the dispatched session.
 assert:

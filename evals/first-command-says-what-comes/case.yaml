@@ -31,7 +31,7 @@ vars:
     `$events` → `answering` → `reply` in `../../browser/runtime/kernel-registry.json` relative to the Leaf skill's
     base directory; read it as part of the delivery.
 
-    Read whatever Leaf instructions you need. Only Skill and Read run here, so write
+    Only Skill and Read run here, so write
     out, in order, each command you would run from now until you have answered the
     comment, including any that read files or the page. Then end your answer.
 assert:

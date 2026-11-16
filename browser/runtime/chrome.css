@@ -97,30 +97,18 @@
 body:is([data-lf-aiming], [data-lf-design-mode]) [data-lf-over-item] {
   cursor: pointer;
 }
-/* Region capture and draw mode take presses on the whole plane. Region capture's
-   crosshair is important over whatever cursor the page states; draw mode's, which
-   spares Leaf's surfaces, is shared with shadow trees (integration.css). */
-html[data-lf-region-capture],
-html[data-lf-region-capture] body,
-html[data-lf-draw-mode],
-html[data-lf-draw-mode] body {
-  cursor: crosshair;
-}
 /* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user
    moves about the page, so two fingers still pan and zoom it there; a second finger
-   landing takes back the stroke the first began (drawing.js, `begin`). */
-html[data-lf-region-capture],
-html[data-lf-region-capture] body {
+   landing takes back the stroke the first began (drawing.js, `begin`). Each mode
+   states it on the root alone: a rule for `body` beneath the root's attribute made
+   Firefox visit every element each time the mode changed. Firefox still updates every
+   box of the page as the root's touch-action changes (notes/browser-support.md, "A
+   root's touch-action in Firefox"). */
+html[data-lf-region-capture] {
   touch-action: none;
 }
-html[data-lf-draw-mode],
-html[data-lf-draw-mode] body {
+html[data-lf-draw-mode] {
   touch-action: pinch-zoom;
-}
-html[data-lf-region-capture]
-  body
-  :not(.lf-chrome, .lf-chrome *, [data-lf-runtime], [data-lf-runtime] *) {
-  cursor: crosshair !important;
 }
 /* A change's mark is an annotation, so hiding annotations (`o`) hides its bar
    (margin-bars.js) too. */

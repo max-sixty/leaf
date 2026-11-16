@@ -123,7 +123,7 @@ import {
   inUi,
   overIn,
   refuseShadowRoot,
-  pageShadowRoots,
+  queryAllUnder,
   shadowHost,
   shadowRootsIn,
   uiInside,
@@ -1054,11 +1054,7 @@ export const elementFromPointAcross = (x, y) => {
 // does not model, and answering it here would be inventing that contract in a sweep.
 /** @template {Element} [E=Element] @param {string} selector @returns {E[]} */
 export const pageQueryAll = (selector) =>
-  [document, ...pageShadowRoots()].flatMap((root) => {
-    /** @type {NodeListOf<E>} */
-    const elements = root.querySelectorAll(selector);
-    return [...elements];
-  });
+  /** @type {E[]} */ (queryAllUnder(document, selector));
 
 // A native Range compares one DOM tree. Its light-DOM endpoints can sit inside a declared
 // root's slots, where retargeting every shadow word to its host also selects the host's
@@ -2122,8 +2118,7 @@ function hear(records) {
   const idsUnder = (node) => {
     if (!isElement(node)) return;
     if (node.id) ids.add(node.id);
-    for (const scope of [node, ...shadowRootsIn(node)])
-      for (const named of scope.querySelectorAll("[id]")) ids.add(named.id);
+    for (const named of queryAllUnder(node, "[id]")) ids.add(named.id);
   };
   for (const record of records) {
     const { target } = record;

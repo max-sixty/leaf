@@ -11,6 +11,37 @@ lf-shot {
   container: lf-shot / inline-size;
   --lf-shot-gap: var(--lf-sp-2);
   --lf-shot-label-height: var(--lf-line);
+  --lf-shot-toolbar-pad: max(var(--lf-sp-1), var(--lf-reach-room));
+  /* The toolbar's height: the row the view chooser sets, inside its padding, and a
+     second row in a narrow shot (below). */
+  --lf-shot-toolbar: calc(var(--lf-chooser) + 2 * var(--lf-shot-toolbar-pad));
+  /* Keep the shared image frame's shadow inside the stage's scrollport. */
+  --lf-shot-frame-room: calc(var(--lf-raise-1-drop) + var(--lf-raise-1-blur));
+}
+/* Until its module draws, a shot holds the room its first drawing takes, so nothing
+   below it moves when the drawing lands: the toolbar, and the stage's padding and
+   gutter around the frame Slider fits (`fitShotGeometry`, shot-view.js). Delivery
+   paints the captures' size on the element (`data-lf-media-width`,
+   `data-lf-media-height`), and a frame takes the stage's width at the captures'
+   ratio, but never enlarges them nor stands taller than the screen below the toolbar.
+   A page whose runtime won't run draws no shot, so holds no room, and a browser
+   without typed `attr()` holds only the toolbar and padding. */
+@scope (html[data-lf-interactive]) {
+  lf-shot:not(:defined)::before {
+    content: "";
+    display: block;
+    margin-block-start: var(--lf-shot-toolbar);
+    box-sizing: content-box;
+    padding: calc(var(--lf-shot-frame-room) + 1px);
+    overflow: hidden;
+    scrollbar-gutter: stable both-edges;
+    aspect-ratio: attr(data-lf-media-width type(<number>)) /
+      attr(data-lf-media-height type(<number>));
+    max-block-size: min(
+      attr(data-lf-media-height px),
+      100svh - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) - 2px
+    );
+  }
 }
 .lf-shot-toolbar {
   display: grid;
@@ -18,7 +49,7 @@ lf-shot {
   grid-template-areas: "before actions after";
   align-items: center;
   gap: var(--lf-sp-1);
-  padding-block: max(var(--lf-sp-1), var(--lf-reach-room));
+  padding-block: var(--lf-shot-toolbar-pad);
   flex: none;
   /* As wide as the frames it names, and centred over them as they are, however much
      spare room a capture narrower than its box leaves; its tools hold the axis as a
@@ -140,6 +171,12 @@ lf-shot {
        toolbar row or moving the image viewport beneath the reader's pointer. */
     grid-template-rows: auto var(--lf-shot-label-height);
   }
+  lf-shot::before {
+    --lf-shot-toolbar: calc(
+      var(--lf-chooser) + 2 * var(--lf-shot-toolbar-pad) + var(--lf-sp-1) +
+        var(--lf-shot-label-height)
+    );
+  }
   .lf-shot-actions {
     justify-content: space-between;
   }
@@ -170,8 +207,6 @@ lf-shot {
   box-sizing: border-box;
 }
 .lf-shotstage {
-  /* Keep the shared image frame's shadow inside the scrollport. */
-  --lf-shot-frame-room: calc(var(--lf-raise-1-drop) + var(--lf-raise-1-blur));
   padding: var(--lf-shot-frame-room);
   /* Bounded hosts fill their allocation; flow pairs take their fitted height. */
   flex: 1 1 auto;

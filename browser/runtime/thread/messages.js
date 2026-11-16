@@ -392,11 +392,9 @@ export function prepareAuthoredMessage(message, thread) {
     });
     const authored = stageAuthoredStates(template.content);
     rememberPassageParts(template.content, ["event", message.id]);
-    // The message's words as the page reading says them (`says`), each block apart
-    // from the next, so a thread its opening message names reads a choice's options as
-    // "Open it now Hold it". `says` reads from an element, as a drawn message's body
-    // is, so it reads a copy of the fragment inside a <div> of the fragment's inert
-    // document, where no widget upgrades.
+    // The message's words as the page reading says them (`says`). `says` refuses text
+    // with no element over it, and a message may open with bare text, so it reads a
+    // copy inside a <div> of the template's inert document, where nothing upgrades.
     const body = template.content.ownerDocument.createElement("div");
     body.append(template.content.cloneNode(true));
     const text = says(body);

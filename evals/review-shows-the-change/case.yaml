@@ -1,4 +1,4 @@
-# Its contexts score decisions, not executed artifacts. The drag case is synthetic
+# This case's contexts score decisions, not executed artifacts. The drag case is synthetic
 # generalization coverage, not a reconstruction of a live rectangle-tool failure.
 # Native fixed-output grader controls reject an archived open/focus plan and accept
 # active-row inspection and a pointer-based equivalent.

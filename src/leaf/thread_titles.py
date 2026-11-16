@@ -33,12 +33,12 @@ Starting on demand takes a little longer than keeping a server and thread warm, 
 keeps no idle App Server for a page that is merely open.
 
 On a ChatGPT login, gpt-6-luna limits bursts more tightly than gpt-6.1-sol: titles asked
-back to back can fail with a 429 within seconds where gpt-6.1-sol answered the same
-burst, and a title every 20 s after a burst didn't fail. The backend's refusal
-(`turn_rate_limit_exceeded`) names a `Retry-After` that counts down to a free slot,
-which looks like a limit of ten titles a minute (codex-cli 0.160). Codex retries none of
-these, and its App Server passes on only the status, `responseTooManyFailedAttempts`
-with `httpStatusCode` 429, so Leaf cannot read the delay the refusal names.
+back to back can fail with a 429 within seconds where gpt-6.1-sol answers the same
+burst. The backend's refusal (`turn_rate_limit_exceeded`) names a `Retry-After` that
+counts down to a free slot, which looks like a limit of ten titles a minute (codex-cli
+0.160). Codex retries none of these, and its App Server passes on only the status,
+`responseTooManyFailedAttempts` with `httpStatusCode` 429, so Leaf cannot read the delay
+the refusal names.
 
 So a title refused for rate limits (`RateLimited`) is asked again, every
 `RETRY_INTERVAL` (5 s) until `RETRY_FOR` (120 s) after its first ask, each time on a

@@ -2,8 +2,7 @@
 each render check leaves behind.
 
 `page check --render` blocks the agent for the whole browser pass, so an agent making a
-quick edit can hand the page over without it, and agents that got its findings after
-handover mostly fixed the page in the same wake. So the server reads the version itself,
+quick edit can hand the page over without it. So the server reads the version itself,
 and the agent hears what it found at its next delivery.
 
 **What starts a reading.** A live claimant has handed the page over, no file its version
@@ -11,8 +10,7 @@ is built from has been written for `QUIET_S` (`version_written`), and its live v
 is not the one the latest reading read. A handover is the turn's end, as the activity
 fold reads it (`presence.claimant_reading`), or the agent declaring the page open for
 feedback (`leaf page open`) after its last save, whichever its harness records first: a
-turn record can close only as the session ends, if at all, and in eval handovers the
-declaration nearly always came after the last save. The declaration keeps its time to
+turn record can close only as the session ends, if at all. The declaration keeps its time to
 the millisecond, so one made in the millisecond of the save counts as after it. Saves
 inside a turn coalesce into the one reading at its handover, and `QUIET_S` coalesces
 saves that keep landing after it, such as a build the agent left running. The server

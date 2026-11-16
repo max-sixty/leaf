@@ -11,7 +11,7 @@ On a real page the session's answer to a thread message takes tens of seconds, l
 when it is busy, and the thread shows nothing from the agent after a message until the
 session's first model call ends (`notes/fork-replies.md`, "Forks on real pages").
 `$.model.fork` resends the session's last request with one more message, at any moment,
-mid-command too, and there a fork decided in seconds. The user had the fork post only
+mid-command too, and a fork decides in seconds. The user had the fork post only
 the agent's working line and always hand over, rather than answer or hand over: a line
 fork can't call tools (`$.model.fork` denies every one), and answering is left to a fork
 that can act. The line fork also judges whether a working fork could do the work beside

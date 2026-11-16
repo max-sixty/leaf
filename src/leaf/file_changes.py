@@ -38,9 +38,8 @@ steps, and a shorter step buys speed with idle wakes in every process. It also f
 watcher's directories when the watcher starts, so a subscription needing a new directory
 would restart the process's watcher over every subscription and wake them all. Calling
 inotify and FSEvents through ctypes would avoid the thread per directory and the repairs
-to watchdog, but Leaf would own the foreign-function code and its hazards: a prototype
-ran to half again this module's length, and crashed at exit until it stopped its
-FSEvents streams first.
+to watchdog, but Leaf would own the foreign-function code and its hazards, such as
+having to stop its FSEvents streams before the process exits.
 
 A subscription hears what changes a file's content, metadata, name or presence.
 Opening and closing a file change none of those. watchdog also reports a directory

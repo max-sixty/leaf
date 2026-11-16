@@ -871,8 +871,8 @@ def test_a_side_comment_s_words_and_send_keep_to_its_edges_as_lines_come_and_go(
 
 
 def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
-    """A comment box opens at the full measure and grows only downward, so a key that
-    takes it a new line stands it at its new height in the frame the key lands, as a
+    """A comment box keeps its width as it takes its first lines and grows downward, so
+    a key that takes it a new line stands it at its new height in the frame the key lands, as a
     textarea sized to its words does (box-motion.js, "Whose change it is"). Each key
     used to start a tween that trailed the caret, and the field's cut hid what was
     just typed until the tween caught up. A line taken at the window's foot is
@@ -887,7 +887,8 @@ def test_a_key_that_takes_a_line_draws_the_comment_box_at_once(browser, serve):
         ),
     )
     page.emulate_media(reduced_motion="no-preference")
-    resized(page, 1000, 800)
+    # Wide enough for the box to stand right of the passage, at the card's least width.
+    resized(page, 1728, 800)
     page.locator("#passage").click(modifiers=["Alt"])
     open_compact_comment(page, "The first line")
     rendered(page)
@@ -1339,30 +1340,45 @@ def test_comments_pointed_at_one_row_stand_as_one_margin_row(browser, serve):
 
 
 def test_a_pointed_row_is_announced_where_it_stands_and_by_its_words(browser, serve):
-    """A listener places a margin row by how far down the page it is and tells rows
-    apart by their names. A pointed row stands two-thirds of the way down the section, and
-    it is named by the line it stands by, not only by the section the target's own row
-    names."""
+    """A listener places the margin row they land on by how far down the page it is and
+    tells rows apart by their names. A pointed row stands two-thirds of the way down the
+    section, and it is named by the line it stands by, not only by the section the
+    target's own row names."""
     page = open_page(browser, serve(TALL_ROWS_PAGE))
     resized(page, 1440, 900)
     expect(page.locator("#whole p")).to_have_count(80)
     point_a_comment(page, "Why this line?")
-    spoken = page.evaluate(
-        """() => {
+    row_for = page.evaluate(
+        """() => [...document.querySelectorAll('[data-lf-margin-for]')]
+          .find((host) => host.lfTarget?.id === 'whole').dataset.lfMarginFor"""
+    )
+    marker = page.locator(f'[data-lf-margin-for="{row_for}"] > .lf-margin-marker')
+    marker.focus()
+    expect(marker).to_have_attribute("aria-label", re.compile("percent down"))
+    spoken = marker.evaluate(
+        """(marker) => {
           const main = document.querySelector('main');
           const row = document.querySelectorAll('#whole p')[50].getBoundingClientRect();
-          const host = [...document.querySelectorAll('[data-lf-margin-for]')]
-            .find((host) => host.lfTarget?.id === 'whole');
           return {
             at: Math.round((row.top - main.getBoundingClientRect().top)
                            / main.scrollHeight * 100),
-            name: host.querySelector('.lf-margin-marker').getAttribute('aria-label'),
+            name: marker.getAttribute('aria-label'),
           };
         }"""
     )
     said = re.search(r"(\d+) percent down", spoken["name"])
     assert said and abs(int(said[1]) - spoken["at"]) <= 3, spoken
     assert "Row 50: compute(50);" in spoken["name"], spoken
+    # The page growing below the row leaves it less far down, as its name says while
+    # focus stays on it.
+    page.evaluate(
+        """() => document.querySelector('main').append(
+          Object.assign(document.createElement('div'), {style: 'height: 4000px'}))"""
+    )
+    rendered(page)
+    expect(marker).to_be_focused()
+    grown = re.search(r"(\d+) percent down", marker.get_attribute("aria-label") or "")
+    assert grown and int(grown[1]) < int(said[1]), (said[0], grown)
 
 
 POINTED_WITHIN = {

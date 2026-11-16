@@ -853,6 +853,21 @@ summary {
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* A message's time, its day and then its clock (`saidTime`, thread/messages.js),
+     gives up its clock whole before its day: the clock wraps onto a second line, which
+     the time's one line clips, so a head beside a card's controls says "15 Aug" where
+     a cut said "15 Aug, …". */
+  & > time {
+    display: inline-flex;
+    flex-wrap: wrap;
+    column-gap: 0.25em;
+    max-block-size: 1lh;
+    & > * {
+      min-width: 0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+  }
 }
 /* The words stand at the head's start, and what follows them at its end. */
 .lf-msg-head > .lf-msg-meta {

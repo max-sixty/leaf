@@ -1904,7 +1904,6 @@ function layoutMountedRows(layer) {
   const present = [];
   const main = marginColumn();
   const columnRect = proseRect(main);
-  const columnHeight = main.scrollHeight;
   const shell = shellRight();
   const stands = railStands(main);
   const rootStyle = getComputedStyle(document.documentElement);
@@ -2572,11 +2571,5 @@ function layoutMountedRows(layer) {
     setStyle(row, "margin-top", layoutPx(top + windowY));
   }
 
-  // With the column's box and height as the pass read them, so a listener measuring
-  // against the column need not read it again.
-  document.dispatchEvent(
-    new CustomEvent("lf-margin-layout", {
-      detail: { column: columnRect, height: columnHeight },
-    }),
-  );
+  document.dispatchEvent(new CustomEvent("lf-margin-layout"));
 }

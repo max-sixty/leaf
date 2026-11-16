@@ -113,3 +113,141 @@ variants:
       purpose:
         "A continuation of a prose research report makes proposed visible behavior
         inspectable while preserving what is measured, proposed and still untested."
+  registry-key-readers:
+    description: Registry key inventory
+    # From session efb4fc0c, which surveyed Leaf's 32 x- registry keys for the user
+    # and drew its finding as seven bordered cards, one per reader, each a heading and
+    # a count over the reader's key names separated by commas. The user: "this seems
+    # like a bad way to show information ... a table seems like it would be much
+    # better?" The notes below are the session's inventory as it held it when it
+    # wrote the page, grouped by reader as its own reply grouped them.
+    metadata:
+      conditions: [leaf, html]
+      purpose:
+        "An inventory whose reader judges each member shows each member's facts beside
+        it, aligned for scanning, rather than its names grouped in boxes."
+    vars:
+      prompt: |
+        Earlier the user asked:
+
+        "for the x-name issue: look at the recent discussion and reversion. I think we
+        made the wrong call there, and it helps me understand what these `x-` tags are
+        there for. So am I understanding correctly that the `x-` values are when widgets
+        need to supply data to other widgets? and that's how we ended up with some
+        proliferation, because we've been adding them for any cross-widget interaction?
+        is there any other need for them?"
+
+        You have read the registry and the code. Your verified notes:
+
+        A widget's module runs only in the browser. Everything else that must know a
+        fact about a widget reads it from the registry, and root AGENTS.md's "Keep the
+        layer open" forbids core code from naming a tag instead, so each time core
+        treated one kind of widget specially, that became a key. There are 32 `x-` keys
+        over 71 element declarations. 11 of them have exactly one declaring widget.
+        Only two carry data from one widget to another; #5981, a draft, already removes
+        `x-output` by passing values as a property and a `change` event. `x-word` is the
+        only key nothing outside the browser reads, and a module can already answer it
+        itself with `lfWord()`.
+
+        By the reader that needs each key (declaring widgets, and the number of source
+        files that read the key):
+
+        The server, for what an action means and what waits on the user (8):
+        - x-state: each verb of a stateful widget, the unit of state it changes and who
+          writes it. 6: lf-board, lf-draft, lf-options, lf-playground, lf-suggestion,
+          lf-visual-review. 20 files.
+        - x-awaits: when the widget asks the user for input, putting it on their On Me
+          list. 5: lf-draft, lf-options, lf-playground, lf-suggestion,
+          lf-visual-review. 17 files.
+        - x-retired-when: the owner's decision that removes a member, as accepting a
+          suggestion removes its lf-old. 2: lf-new, lf-old. 6 files.
+        - x-encloses: frames the questions of widgets inside it and asks nothing itself.
+          1: lf-ask. 4 files.
+        - x-exhibit: shows widgets rather than asking, so nothing inside goes On Me. 1:
+          lf-sample. 8 files.
+        - x-shows: a view of another widget's answer. 1: lf-card. 6 files.
+        - x-work: the agent may open a to-do on it. 1: lf-card. 4 files.
+        - x-history: the module draws the page's history, so the server sends it. 1:
+          lf-activity. 4 files.
+
+        `page check`, for which markup is valid (6):
+        - x-content: what the element may hold: markup, members, data or nothing. 33
+          widgets. 14 files.
+        - x-owners: which elements may own it directly. 21 widgets. 13 files.
+        - x-refers: attributes naming another element, and what the target must be. 8
+          widgets. 4 files.
+        - x-unique: attributes that must differ between members of one owner. 4:
+          lf-option, lf-playground-choice, lf-playground-control,
+          lf-playground-setting. 5 files.
+        - x-within: regions a member may sit inside at any depth. 2:
+          lf-playground-control, lf-playground-value. 3 files.
+        - x-reading-role: a reading pane that scrolls on its own. 1: lf-pane. 3 files.
+
+        The page's words, read without a browser by the server and the render check (7):
+        - x-says: attributes shown as selectable text. 3: lf-column, lf-gloss,
+          lf-sample. 8 files.
+        - x-verbatim: the module keeps the authored words, so they can be quoted. 3:
+          lf-draft, lf-gloss, lf-pane. 7 files.
+        - x-shadow: words drawn in a shadow root that comments reach into. 6: lf-diff,
+          lf-file-editor, lf-file-tree, lf-tally, lf-worktree, lf-worktree-diffs. 5
+          files.
+        - x-inline: sits among the words, so it needs no width of its own. 7: lf-gloss,
+          lf-new, lf-num, lf-old, lf-playground-value, lf-suggestion, lf-tally. 6 files.
+        - x-visual: a picture, and how comments target its parts. 5: lf-chart,
+          lf-diagram, lf-shot, lf-timeline, lf-trace. 7 files.
+        - x-text-format: the data body is Markdown. 1: lf-draft. 6 files.
+        - x-prepaint: the notation of its written <pre>, drawn before the module. 1:
+          lf-text-document. 3 files.
+
+        First paint, before the widget's module runs (6):
+        - x-views: children shown one at a time. 4: lf-deck, lf-parts, lf-tabs,
+          lf-trace-compare. 7 files.
+        - x-space: width past the reading measure. 7: lf-board, lf-diagram, lf-diff,
+          lf-trace, lf-trace-compare, lf-visual-review, lf-worktree-diffs. 2 files.
+        - x-height: height reserved before the module draws. 7: lf-call-diff, lf-chart,
+          lf-diagram, lf-diff, lf-file-editor, lf-file-tree, lf-visual-review. 2 files.
+        - x-bound: scrolls inside its own height. 2: lf-activity, lf-text-document. 2
+          files.
+        - x-spine: can rest as a narrow spine. 1: lf-toc. 1 file.
+        - x-flow: draws no box around its blocks. 1: lf-ask. 2 files.
+
+        The agent writing a page (2):
+        - x-example: markup exhibiting the widget. 52 declarations. 5 files.
+        - x-instructions: instructions for an author using it. 47 widgets. 2 files.
+
+        Another widget (2):
+        - x-data: typed data inputs. 7: lf-call-diff, lf-diff, lf-file-tree, lf-num,
+          lf-text-document, lf-trace, lf-visual-review. 14 files.
+        - x-output: typed outputs for other widgets' inputs. 1: lf-diff. 4 files.
+
+        Only the browser (1):
+        - x-word: the widget's word for its kind, as lf-ask says "question". 5: lf-ask,
+          lf-playground-choice, lf-playground-control, lf-playground-preset,
+          lf-visual-review. 2 files.
+
+        You will add a section on separating how a widget is named from how its name is
+        drawn after you prototype it. For now, write the page's answer to these
+        questions as a Leaf page.
+    assert:
+      - type: llm-rubric
+        metric: inventory-lines-up
+        value: |
+          The page's evidence is an inventory: 32 keys, each with the reader that needs
+          it, the fact it states and the widgets that declare it. The user weighs each
+          key's need, so pass only if any one key can be found and read in one line or
+          row together with what it states and who reads it, and the keys line up so a
+          reader can scan and compare them, as in a table with a row per key grouped or
+          sorted by reader. A chart or diagram may sit beside that inventory. Fail if the
+          keys appear only as bare names, such as comma-separated lists, chips or cards
+          holding a group's names and a count, so the reader has to look elsewhere for
+          what a key states, or if the page leaves keys out.
+      - type: llm-rubric
+        metric: figures-carry-something
+        value: |
+          Find every figure that presents the keys or their readers: an inline `<svg>`,
+          `lf-diagram`, `lf-chart`, image, or a grid of boxes, cards or chips. Pass if
+          there is none, or if each shows something the inventory and prose don't
+          already say, such as how the registry and its readers connect, or a measured
+          shape the argument cites. Fail if any one only restates the inventory: key
+          names sorted into boxes, cards or chips by reader, one mark or square per key,
+          or a bar or segment per reader sized by its count of keys.

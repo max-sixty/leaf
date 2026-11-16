@@ -682,6 +682,9 @@ export function createFloatingPanel({
     // the task that put the menu away and showed it.
     const quickHidden =
       initial || (Boolean(top) && !exit) || (!exit && (writing || drafted));
+    // Drafts are marked only where nothing has news, so the dot stays news's mark, and
+    // only while the mark or the folded leaf shows, so writing never reads them.
+    const kept = news || !(folded || (!quickHidden && !exit)) ? 0 : keptDrafts();
     const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
@@ -692,7 +695,11 @@ export function createFloatingPanel({
       : selection
         ? "Selection"
         : nothing;
-    const newsName = news ? `${counted(news, "thread")} with news` : "";
+    const newsName = news
+      ? `${counted(news, "thread")} with news`
+      : kept
+        ? `${counted(kept, "draft")} unsent`
+        : "";
     const onUserName = [onUser ? `On Me: ${onUser}` : "On Me", newsName]
       .filter(Boolean)
       .join(", ");
@@ -715,7 +722,11 @@ export function createFloatingPanel({
         exit
           ? nothing
           : html`<span class="lf-fp-num">${onUser || ""}</span
-              ><span class="lf-fp-news lf-unread-dot" ?hidden=${!news}></span>`
+              ><span
+                class="lf-fp-news lf-unread-dot"
+                ?hidden=${!news && !kept}
+                ?data-lf-drafts=${!news}
+              ></span>`
       }
     </button>`;
     const viewClose = html`<button
@@ -808,7 +819,8 @@ export function createFloatingPanel({
               <span
                 class="lf-fp-news-dot lf-unread-dot"
                 aria-hidden="true"
-                ?data-lf-shown=${news > 0}
+                ?data-lf-shown=${news > 0 || kept > 0}
+                ?data-lf-drafts=${!news}
               ></span>
             </button>
             <div class="lf-fp-field">
@@ -1537,6 +1549,13 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
+  // The drafts Threads lists (`draftRows`): every message draft but the page's own,
+  // which the field holds.
+  const listedDrafts = () => messageDrafts().filter((draft) => draft.part !== "page");
+  // Where nothing has news, the On Me mark and the folded leaf wear the unread dot
+  // grey for these, and the mark opens Threads on them. The user asked for it on 15
+  // November 2026, so a draft put away stays in sight without opening Threads.
+  const keptDrafts = () => listedDrafts().length;
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   // Ordinary open state is implicit, and news is the row's mark (`data-lf-unread`),
   // which says New to assistive tech alone. Only an open thread is news (`isNews`), as
@@ -3058,8 +3077,7 @@ export function createFloatingPanel({
   // the other filters, which a second row of tabs would have had to hold.
   function draftRows() {
     const words = query.trim().toLowerCase();
-    const rows = messageDrafts().flatMap((draft) => {
-      if (draft.part === "page") return [];
+    const rows = listedDrafts().map((draft) => {
       const inThread = draft.part === "reply" || draft.part === "rewrite";
       const thread = inThread ? threadByKey(draft.name) : null;
       const composed =
@@ -3491,10 +3509,11 @@ export function createFloatingPanel({
     else open({ view: "queue" });
   }
   // The mark opens On Me, or Threads where nothing waits on the user but a reply they
-  // have not read, as the Threads mark it replaced opened on its Unread filter. It
-  // stands only while no view does, so it never closes one; the seat's ✕ does that.
+  // have not read or a draft they put away, as the Threads mark it replaced opened on
+  // its Unread filter. It stands only while no view does, so it never closes one; the
+  // seat's ✕ does that.
   function pressMark() {
-    if (!onUserCount() && newCount()) {
+    if (!onUserCount() && (newCount() || keptDrafts())) {
       query = "";
       refit();
       open({ view: "threads" });

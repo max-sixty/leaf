@@ -86,6 +86,7 @@ from .schema import (
 from .served_state.service import LivePage, PageSource, PageStateService
 from .served_state.tail import answer as tail_answer
 from .server import page_origin, preview_metadata, running_server
+from .state import page_key
 from .structure import FRAME_ANCESTORS_CSP
 from .user_views import observe_user_view
 
@@ -1011,7 +1012,7 @@ class PageEndpoint:
 
     def _delivery(self, artifact: RevisionArtifact, revision: int) -> Delivery:
         """How this transport delivers a document; a transport adds its own marks."""
-        return page_delivery(
+        delivery = page_delivery(
             artifact.resources,
             server_id=self.server.server_id,
             layer_id=artifact.registry["$layer"]["generation"],
@@ -1036,6 +1037,15 @@ class PageEndpoint:
                 else None
             ),
         )
+        if self.release is not None:
+            return delivery
+        # Which page the document is, as the prefix of what the browser keeps for it
+        # (prepaint.js). A release's path names its page under its host. The local
+        # server serves its one page at the root of a port that another page's server
+        # takes once this one stops, so the page directory names it: by the address
+        # alone, Threads listed a draft typed on another page a month before.
+        scope = f"{page_key(self.page_dir)[:16]}{self.page_root}/"
+        return replace(delivery, html_attributes={"data-lf-page-scope": scope})
 
     def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
@@ -1519,9 +1529,11 @@ class SampleEndpoint(PageEndpoint):
         # chrome stands after the body. Whether the child lays out as a block or a
         # window is its frame's to say (sample.js), which its bootstrap asks before it
         # paints.
+        delivery = super()._delivery(artifact, revision)
         return replace(
-            super()._delivery(artifact, revision),
+            delivery,
             html_attributes={
+                **delivery.html_attributes,
                 "data-lf-user-scope": self.page_root + "/",
                 "data-lf-sample": "",
                 "inert": "",

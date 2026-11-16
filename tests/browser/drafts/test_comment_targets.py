@@ -421,6 +421,29 @@ def test_a_draft_stays_with_its_subject_where_threads_lists_it(browser, serve):
     )
 
 
+def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
+    """Where no thread has news, a draft the user put away dots the On Me mark grey,
+    and a press on the mark opens Threads, where Drafts lists it."""
+    page = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+    mark = page.locator(".lf-fp-on-user")
+    dot = mark.locator(".lf-fp-news")
+    expect(dot).to_be_hidden()
+    choose_comment_target(page, "#p9")
+    write(field, "About the ninth paragraph.")
+    page.keyboard.press("Escape")
+    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect(dot).to_be_visible()
+    expect(dot).to_have_attribute("data-lf-drafts", "")
+    expect(mark).to_have_accessible_name(re.compile("1 draft unsent"))
+
+    mark.click()
+    expect(page.locator(".lf-floating-panel")).to_have_attribute(
+        "data-lf-open", "threads"
+    )
+    expect(page.locator(".lf-fp-draft")).to_have_count(1)
+
+
 def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     """Returning editor focus cannot overwrite a real gesture made before that handoff."""
     page = open_page(

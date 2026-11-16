@@ -305,6 +305,18 @@ def test_a_staged_write_does_not_move_the_page_reading(page_dir):
     assert served_reading.page_reading(page_dir) == reading
 
 
+def test_a_served_page_keeps_browser_state_under_its_directory(server, page_dir):
+    """Web storage is the origin's, and a local server's port passes to another page's
+    server once it stops. The document names its page by its directory, so the drafts
+    typed on one page never stand among the next page's at the same address."""
+    _, document = fetch(f"{server}/")
+    root = structure_model.SourceDocument(document.decode()).tree.find("html")
+    assert root is not None
+    assert (
+        root.attrs["data-lf-page-scope"] == cleanup_model.page_key(page_dir)[:16] + "/"
+    )
+
+
 @pytest.mark.parametrize("generated", [False, True])
 def test_samples_use_captured_resources_and_independent_event_logs(
     server, page_dir, monkeypatch, generated

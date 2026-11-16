@@ -384,6 +384,12 @@ there. Size says little: a two-line selector can reach every page.
   constant, selector, style rule or inline check answers, not for its name. A copy is a
   second home even when a comment names its source. Where the change couldn't reach
   the owner, export, move or generate the owner rather than copy it.
+- **What it puts between the author and HTML**: be hesitant to add anything there,
+  such as a tag, class, attribute or key for what an HTML element, attribute or CSS
+  property already says, a rule that reads meaning out of the author's markup, or a
+  pass that rewrites it. Authors and agents already write HTML well, and each such
+  layer is one more thing every author learns and every later change keeps working.
+  Add one only for what HTML can't say.
 - **What it buys**: a behavior a user sees, a request the maintainer made, or a
   measured cost. A green test buys what the test protects, so name that.
 - **Where its cost lands**: read the change's reach rather than its claim, such as a

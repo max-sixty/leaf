@@ -51,11 +51,7 @@
    The shared presentation coordinator owns the proof that guards report callbacks.
    Raw report and history readings remain direct semantic selections. */
 import { currentProjection } from "./projection/state.js";
-import {
-  applicationRegionsPresented,
-  projectionRegionsPresented,
-  readPart,
-} from "./semantic-state.js";
+import { applicationRegionsPresented, readPart } from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
 
 /** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */
@@ -124,13 +120,6 @@ export const readHistory = readPart((root) => ({
   events: root.authoritative?.browser.history ?? [],
 }));
 
-// A report can speak only once the renderer of its widget and coordinate chrome
-// have committed. Required asynchronous preparation is the same coordinator region
-// used by startup and pending release, not a second coordinate/event-id commit map.
-/** @param {Element | ReportTarget | null} [target] */
-export const reportsPresented = (target = null) =>
-  projectionRegionsPresented([...reportWidgets(target)]);
-
 /** @param {Element | ReportTarget | null} target */
 const reportWidgets = (target) => {
   const key = targetKey(reportTarget(target));
@@ -143,10 +132,12 @@ const reportWidgets = (target) => {
   return widgets;
 };
 
-// The same proof for a widget that narrates its reports in the update that draws its
-// state (a `LeafElement`, leaf-element.js): that update is its render, so only its
-// preparation, the coordinate chrome, and any other widget the reports name must have
-// committed. Read in a render, the answer is followed as the time a render shows is.
+// A report can speak only once the renderer of its widget and coordinate chrome have
+// committed, and any required asynchronous preparation, the same coordinator region
+// startup and pending release use. A widget that narrates its reports in the update
+// that draws its state (a `LeafElement`, leaf-element.js) is its own render, so only
+// its preparation, the coordinate chrome, and any other widget the reports name must
+// have committed. Read in a render, the answer is followed as the time a render shows is.
 /** @param {import("./leaf-element.js").LeafElement} target */
 export const reportsReady = (target) =>
   target.whenReady(() =>

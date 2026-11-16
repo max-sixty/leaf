@@ -23,6 +23,7 @@ from interact_support import (
     refused_on,
     served_state_error,
     wait_for,
+    with_modules,
 )
 
 from leaf import event_contracts as event_contracts_model
@@ -103,7 +104,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
             },
         }
     }
-    registry["lf-review"] = entry
+    with_modules(registry, "lf-review")["lf-review"] = entry
     validate_registry(registry, "review package")
     stamp_composition(registry)
     assert "lf-review" not in registry["$decisions"]
@@ -139,7 +140,7 @@ def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposa
     entry["x-state"]["review"] = {
         key: value
         for key, value in entry["x-state"]["decide"].items()
-        if key != "decides"
+        if key not in {"decides", "withdraws"}
     }
     entry["x-awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
     validate_registry(registry, "review package")
@@ -184,7 +185,7 @@ def instance_input_registry():
             },
         }
     }
-    registry["lf-input-box"] = entry
+    with_modules(registry, "lf-input-box")["lf-input-box"] = entry
     for name, maximum in (("small", 2), ("large", 9)):
         registry["$data"]["contracts"][name] = {
             "description": f"A count no larger than {maximum}.",

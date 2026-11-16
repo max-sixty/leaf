@@ -846,7 +846,10 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
         page.route(
             "**/api/news*",
             lambda route: route.fulfill(
-                body=stale["reading"] if crossed else "crossed-state-reading"
+                json={
+                    "reading": stale["reading"] if crossed else "crossed-state-reading",
+                    "pages": None,
+                }
             ),
         )
     ticked(page)

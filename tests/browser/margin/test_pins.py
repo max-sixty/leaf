@@ -909,11 +909,14 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
 ):
     """A change to the margin's rows alone runs a pass that reads only the rows it
     changes and seats the rest from what an earlier pass read (margin-layout.js,
-    `seatings`). Through any run of such changes every row stands where a pass over the
-    whole margin would stand it: after a hold that moved a row ends, after a face grows
-    in the task that draws it, after a row leaves, after a pane beside a pin scrolls,
-    after a transition beside a pin ends, after a scroll and a sent comment, and after a
-    resolve."""
+    `seatings`), and a box changing size reads again only the rows whose band of the
+    page it reaches or whose neighbours it moved. Through any run of such changes every
+    row stands where a pass over the whole margin would stand it: after a hold that
+    moved a row ends, after a face grows in the task that draws it, after a row leaves,
+    after a pane beside a pin scrolls, after a transition beside a pin ends, after a
+    scroll and a sent comment, after a resolve, after words above the rows grow, after
+    words come into a pin's seat and leave it, and after words above a pin in one column
+    grow and carry it level with a button the other column holds where it was."""
     lines = "".join(f'<p id="line-{n}" style="margin:0">Line {n}.</p>' for n in (1, 2))
     options = "".join(
         f'<lf-option id="o-{i}"><strong>Option {i}</strong> a short description.'
@@ -949,6 +952,17 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
         " reads around as it seats its rows.</p>"
         f'{lines}<p id="after">Words after the lines, long enough for another'
         " paragraph.</p>"
+        # A box floated over the right end of a line whose pin stands there, with no
+        # words in it yet.
+        '<div id="float" style="float:right;width:240px">\u200b</div>'
+        '<p id="below" style="margin:0">Words under it.</p>'
+        # A paragraph in one column, and in the other column a button the test places
+        # where that paragraph's pin will stand once words above it grow.
+        '<div style="display:grid;grid-template-columns:1fr 1fr;align-items:start">'
+        '<div><p id="grow">Short.</p><div style="height:200px"></div>'
+        '<p id="gridded">Words in the column.</p></div>'
+        '<div id="right"><button id="neighbour" style="position:relative">A button'
+        "</button></div></div>"
         '<section><h2 id="heading">A question</h2><p id="words">Some words about it.</p>'
         '<lf-ask id="q"><h3 id="question">Which one?</h3>'
         f'<lf-options id="o" choose multiple>{options}</lf-options></lf-ask></section>'
@@ -997,7 +1011,8 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
     def rows(keys, entries=1, immediate=False):
         page.evaluate(ROWS, {"keys": keys, "entries": entries, "immediate": immediate})
 
-    rows(["line-1", "line-2", "heading", "words", "question"])
+    rows(["line-1", "line-2", "heading", "words", "question", "below"])
+    rows(["gridded"], entries=2)
     rows(["t", "v"], entries=2)
     settled()
     margins_laid_out(page)
@@ -1057,4 +1072,45 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
     resolve.click()
     rendered(page)
     compare("a resolve")
+
+    # Words rewritten in place, which the page's observers hear only as the boxes the
+    # margin watches changing size: the rows past them move, and those whose band of the
+    # page they reach are read again.
+    def rewrite(key, words):
+        page.evaluate(
+            "([key, words]) => { document.getElementById(key).firstChild.data = words; }",
+            [key, words],
+        )
+
+    more = " And many more words, long enough to wrap the paragraph onto more lines."
+    rewrite("intro", "Words before the lines." + more * 4)
+    compare("a paragraph above the rows grows")
+    rewrite("float", "Words floated beside the line." + more)
+    compare("words come into a pin's seat")
+    rewrite("float", "\u200b")
+    compare("they leave it")
+    # Where the column's pin stands once the words above it grow, and only there, the
+    # other column holds a button, so that pin seats clear of it there; then the words
+    # shrink and grow again, carrying the pin back down to the button's level.
+    grown = "Words that wrap the column's line. " * 12
+    rewrite("grow", grown)
+    settled()
+    page.evaluate(
+        """() => {
+          const pin = document.querySelector('[data-lf-margin-for="gridded"]');
+          const right = document.getElementById('right');
+          const column = right.getBoundingClientRect();
+          const at = pin.getBoundingClientRect();
+          right.style.marginTop = `${at.top - column.top - 4}px`;
+          Object.assign(document.getElementById('neighbour').style, {
+            left: `${at.left - column.left - 12}px`,
+            width: `${at.width + 24}px`, height: `${at.height + 8}px`,
+          });
+        }"""
+    )
+    compare("a button comes beside a column's pin")
+    rewrite("grow", "Short.")
+    compare("the words above the column's pin shrink")
+    rewrite("grow", grown)
+    compare("they grow, carrying the pin to the other column's button")
     assert differ == {}, differ

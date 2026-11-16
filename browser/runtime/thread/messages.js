@@ -75,6 +75,7 @@ import { datumLabel, visualPartLabel } from "../anchor-resolution.js";
 import { importWidgets, rememberPassageParts } from "../widget-loader.js";
 import { ReactionStripView } from "./reaction-strips.js";
 import { keeps } from "../keeps.js";
+import { loadDraft } from "../drafts.js";
 import { showsContents } from "../geometry.js";
 import { flashDuration, motion } from "../motion.js";
 import { agentName, pageClaimed } from "../semantic-state.js";
@@ -313,6 +314,43 @@ export function threadPreview(threads, said = null) {
       ),
       more: (count) =>
         voiced(leafSays(`and ${counted(count, "more thread", "more threads")}`)),
+    },
+  };
+}
+
+// A listed draft in words, on one line, as it now stands (drafts.js, the drafts list):
+// what its message would say, Drawing for ink alone.
+/** @param {import("../drafts.js").ListedDraft} draft */
+export const draftWords = (draft) => {
+  const payload = /** @type {{suggest?: unknown, drawing?: unknown} | undefined} */ (
+    draft.payload
+  );
+  return messageWords({
+    attempt: `draft:${draft.context}`,
+    text: loadDraft(draft.context)?.text ?? "",
+    suggestion: Boolean(payload?.suggest),
+    drawing: payload?.drawing,
+  });
+};
+// What drafts say when pointed at, on a row of Threads and on a margin entry: each
+// one's words, a line of them, under what it is about where the place pointed at
+// doesn't already say it. What Send makes of it stands beside it on both.
+/** @param {readonly import("../drafts.js").ListedDraft[]} drafts
+ * @param {import("../voice.js").Words | null} [about]
+ * @returns {import("../preview.js").Preview | null} */
+export function draftPreview(drafts, about = null) {
+  /** @param {import("../drafts.js").ListedDraft} draft */
+  const said = (draft) => excerptWords(draftWords(draft), PREVIEWED_LINE);
+  const [only] = drafts;
+  if (!only) return null;
+  if (drafts.length === 1)
+    return { name: about ? voiced(about) : "Draft", detail: [said(only)] };
+  return {
+    name: counted(drafts.length, "draft"),
+    list: {
+      items: drafts.map(said),
+      more: (count) =>
+        voiced(leafSays(`and ${counted(count, "more draft", "more drafts")}`)),
     },
   };
 }

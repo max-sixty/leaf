@@ -796,11 +796,11 @@ def test_codex_retires_a_receipt_on_a_page_its_leaf_cannot_write(codex_claimed_p
     (event,) = events_model.read_events(page)[-1:]
     with service_model.PageTransaction(page) as transaction:
         batch = delivery_model.batch_data(page, transaction, [event])
-    delivery_model.freeze_delivery([batch], delivery_id="bbbbbbbb")
+    delivery_model.freeze_delivery([batch], delivery_id="bbbbbbbbbbbbbbbb")
     directory = codex_state_model.delivery_dir("codex-thread")
     directory.mkdir(parents=True)
     cleanup_model.write_json(
-        directory / "bbbbbbbb.json",
+        directory / "bbbbbbbbbbbbbbbb.json",
         {
             "format": codex_model.RECORD.format,
             "state": "queued",
@@ -858,12 +858,16 @@ def test_codex_recovers_page_receipts_in_sequence_order(codex_claimed_page):
     # Filename order is deliberately opposite to event order. The cursor is
     # monotonic, so taking receipt for the second batch first would hide the
     # first batch before its pickup record is written.
-    for identity, event in (("ffffffff", first), ("aaaaaaaa", second)):
+    for identity, event in (("ffffffffffffffff", first), ("aaaaaaaaaaaaaaaa", second)):
         with service_model.PageTransaction(page) as transaction:
             batch = delivery_model.batch_data(page, transaction, [event])
         delivery_model.freeze_delivery([batch], delivery_id=identity)
-    cleanup_model.write_json(directory / "ffffffff.json", epoch(first, created_at=1))
-    cleanup_model.write_json(directory / "aaaaaaaa.json", epoch(second, created_at=2))
+    cleanup_model.write_json(
+        directory / "ffffffffffffffff.json", epoch(first, created_at=1)
+    )
+    cleanup_model.write_json(
+        directory / "aaaaaaaaaaaaaaaa.json", epoch(second, created_at=2)
+    )
 
     acknowledge_through(page, second["seq"])
     assert codex_model.recover_codex_receipt("codex-thread")

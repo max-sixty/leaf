@@ -84,7 +84,7 @@ import { raiseError } from "./errors.js";
  * arriveAtQueueItem: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["arriveAtItem"],
  * nextObligationWithin: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["nextWithin"],
  * state: Pick<Parameters<typeof createStateApplication>[0], "prepareActivation" | "acceptData" | "notifyDataSubscribers">,
- * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation">,
+ * annotationCommands: Pick<ReturnType<typeof import("./page-map-dialog.js").createPageMapDialog>, "leavePageMap" | "openPageMap" | "pageMapDialogContains" | "renderPageMapDialog"> & Pick<ReturnType<typeof import("./obligations/view.js").createObligationView>, "goToObligation"> & Pick<Parameters<typeof import("./annotation-overlay/margin-projection.js").createMarginProjection>[0], "designModeActive" | "pointerModeActive" | "scrollThreadIntoView" | "openInPanel" | "currentLocationObligation"> & {resumeDraft: (context: string) => Promise<void>},
  * createMarginProjection?: typeof import("./annotation-overlay/margin-projection.js").createMarginProjection | undefined,
  * }} ApplicationDependencies */
 
@@ -341,6 +341,7 @@ function createApplication(dependencies) {
     placedAt: dependencies.anchorPlacement.placedAt,
     openThread: openPageThread,
     goToObligation: dependencies.annotationCommands.goToObligation,
+    resumeDraft: dependencies.annotationCommands.resumeDraft,
     scrollToElement: dependencies.anchorTravel.scrollToElement,
   });
   const inlineContributions = createInlineContributions(annotations);

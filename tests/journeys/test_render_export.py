@@ -23,7 +23,7 @@ from leaf import exporting as exporting_model
 from leaf import server as server_model
 from leaf import state as cleanup_model
 from leaf.render_checks import wait_until_ready
-from leaf.served_state.service import PageStateService
+from leaf.served_state.service import LivePage
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -34,8 +34,7 @@ def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
     serve(leaf_page("Exported record", "<h1>Exported record</h1>"), packages=())
     neighbor = cleanup_model.state_home() / "pages" / "private-neighbor"
     url = neighbour_page(neighbor, title="Private neighboring page")
-    live = PageStateService(serve.page_dir).page_state(1)
-    assert any(row["url"] == url for row in live["others"])
+    assert any(row["url"] == url for row in LivePage(serve.page_dir).other_pages())
 
     output = tmp_path / "offline.html"
     result = CliRunner().invoke(
@@ -46,10 +45,7 @@ def test_export_omits_neighboring_pages_and_their_access_key(serve, tmp_path):
     exported = output.read_text(encoding="utf-8")
     assert server_model.host_key() not in exported
     assert "Private neighboring page" not in exported
-    assert any(
-        row["url"] == url
-        for row in PageStateService(serve.page_dir).page_state(1)["others"]
-    )
+    assert any(row["url"] == url for row in LivePage(serve.page_dir).other_pages())
 
 
 def _reachable(url: str) -> bool:

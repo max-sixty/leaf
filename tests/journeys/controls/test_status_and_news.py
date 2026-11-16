@@ -6,10 +6,10 @@ from interact_support import declare, declare_work, end_work
 from playwright.sync_api import expect
 from render_harness import (
     LONG_PAGE,
+    all_pages_offered,
     expect_preview_words,
     open_page,
     panel_settled,
-    told,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -24,14 +24,13 @@ def test_a_panel_row_follows_its_pages_status_live(
     whole."""
     _, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE))
-    told(page, until=lambda state: bool(state["others"]))
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
     row = page.locator(f"{LEAVES} a.lf-fp-page")
     expect(row).to_contain_text("running the suite")
     declare_work(other_dir, "recording the demo")
-    told(page)
     expect(row).to_contain_text("recording the demo")
     # A neighbour waiting on its own user says so in this seat's shorter words, and
     # in the same term its own status uses: All pages is where a user picks which
@@ -40,7 +39,6 @@ def test_a_panel_row_follows_its_pages_status_live(
     # tooltip the browser would show in its place.
     end_work(other_dir)
     declare(other_dir, "waiting")
-    told(page)
     expect(row).to_contain_text("Ready")
     expect_preview_words(row, f"The other leaf\n{tmp_path / 'other-work'}\nReady")
     assert row.locator("[title]").count() == 0, (
@@ -58,7 +56,7 @@ def test_a_closed_leaf_clears_itself_off_all_pages(browser, serve, other_leaf):
     on it still says where the user is."""
     _, other_dir = other_leaf
     page = open_page(browser, serve(LONG_PAGE))
-    told(page, until=lambda state: bool(state["others"]))
+    all_pages_offered(page)
     page.keyboard.press("g")
     page.keyboard.press("Shift+l")
     panel_settled(page, view="leaves")
@@ -67,7 +65,6 @@ def test_a_closed_leaf_clears_itself_off_all_pages(browser, serve, other_leaf):
     expect(rows).to_have_count(1)
     rows.first.focus()
     declare(other_dir, "idle")
-    told(page)
     expect(rows).to_have_count(0)
     expect(view.locator(".lf-fp-page")).to_contain_text("long")
     assert view.evaluate("view => view.contains(document.activeElement)"), (

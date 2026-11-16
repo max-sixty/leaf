@@ -528,7 +528,7 @@ export function createAnnotationInventory({
             ...(threadDrafts.get(thread.id) ?? []),
             draftItem(draft),
           ]);
-      } else if (draft.part !== "page") placedDrafts.push(draft);
+      } else placedDrafts.push(draft);
     }
     // A draft's place is resolved once for each reading of the page, since a quote's is
     // a search of the page's words, which a collection made on every reading would

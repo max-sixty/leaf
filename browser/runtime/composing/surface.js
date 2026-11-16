@@ -36,8 +36,8 @@
 
    `showFab` places the bar; `openComposer` (composing/selection.js) binds its field to
    the durable draft and takes the focus decision. Every explicit item and visual route
-   passes its resolved anchor to `commentOnTarget`, which focuses the field and carries an
-   unsent draft to the new target. Automatic passage selection opens that passage's own
+   passes its resolved anchor to `commentOnTarget`, which focuses the field on the
+   target's own draft; an earlier draft stays with its passage. Automatic passage selection opens that passage's own
    durable draft without moving focus. Submitted words still in flight remain owned by
    their original anchor, while a later target starts clean and keeps focus.
 

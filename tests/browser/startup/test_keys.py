@@ -177,8 +177,8 @@ def test_package_reading_keys_work_while_history_waits_and_after_offline_fallbac
     source = leaf_page(
         "Reading before history",
         '<h1>Reading before history</h1><lf-tabs id="reading-views">'
-        '<lf-tab id="first" label="First">First view</lf-tab>'
-        '<lf-tab id="second" label="Second">Second view</lf-tab></lf-tabs>',
+        '<lf-tab id="first"><strong>First</strong>First view</lf-tab>'
+        '<lf-tab id="second"><strong>Second</strong>Second view</lf-tab></lf-tabs>',
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)

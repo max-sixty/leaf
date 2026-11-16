@@ -11,16 +11,16 @@ const lanes = (list) =>
   list
     .map(
       ([label, events]) =>
-        `<lf-lane label="${label}">${events
+        `<lf-lane><strong>${label}</strong>${events
           .map(
             ([id, at, end]) =>
-              `<lf-event id="${id}" label="${id}" at="${at}"${end === undefined ? "" : ` end="${end}"`}></lf-event>`,
+              `<lf-event id="${id}" at="${at}"${end === undefined ? "" : ` end="${end}"`}><strong>${id}</strong></lf-event>`,
           )
           .join("")}</lf-lane>`,
     )
     .join("");
 
-const run = (label, list) => `<lf-run label="${label}">${lanes(list)}</lf-run>`;
+const run = (label, list) => `<lf-run><strong>${label}</strong>${lanes(list)}</lf-run>`;
 
 const timeline = (markup) => {
   const host = document.createElement("lf-timeline");

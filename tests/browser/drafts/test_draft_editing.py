@@ -159,7 +159,7 @@ def test_opening_a_visible_line_in_a_long_draft_preserves_the_reading_position(
     draft = f'<lf-draft id="long-draft"><pre>{text}</pre></lf-draft>'
     body = (
         "<header><h1>Release notes</h1></header>"
-        f'<lf-pane id="reading" label="Notes">{draft}</lf-pane>'
+        f'<lf-pane id="reading" aria-label="Notes">{draft}</lf-pane>'
         if in_pane
         else f"<h1>Release notes</h1>{draft}<p>Following words.</p>"
     )

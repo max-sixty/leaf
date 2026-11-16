@@ -255,8 +255,8 @@ def test_a_tone_the_layer_cannot_paint_is_refused_where_the_author_can_still_fix
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "</section>",
-            '<lf-board id="board"><lf-column id="blocked" label="Blocked"'
-            ' tone="dangre"></lf-column></lf-board></section>',
+            '<lf-board id="board"><lf-column id="blocked"'
+            ' tone="dangre"><strong>Blocked</strong></lf-column></lf-board></section>',
         )
     )
     status, findings = check_findings(page_dir)
@@ -288,7 +288,7 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<lf-options>",
-            '<lf-board id="labels"><lf-column id="labels-column" label="Ideas">'
+            '<lf-board id="labels"><lf-column id="labels-column"><strong>Ideas</strong>'
             '<lf-card id="labels-card"><lf-label>cheap</lf-label>A</lf-card>'
             "</lf-column></lf-board><lf-options>",
         ).replace(
@@ -397,7 +397,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
         path.write_text(
             path.read_text().replace(
                 "</section>",
-                '<lf-board id="rollout"><lf-column id="now" label="Now">'
+                '<lf-board id="rollout"><lf-column id="now"><strong>Now</strong>'
                 '<lf-card id="rollout-card"><strong>Ship</strong></lf-card>'
                 "</lf-column></lf-board></section>",
             )

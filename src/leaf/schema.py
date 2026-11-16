@@ -382,9 +382,10 @@ EXTENSION_SCHEMA = {
         "x-refers": REFERENCE_SCHEMA,
         "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
-            "type": "object",
-            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-            "additionalProperties": {"enum": ["before", "after"]},
+            "type": "array",
+            "items": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+            "minItems": 1,
+            "uniqueItems": True,
         },
         "x-shadow": {"type": "boolean"},
         # A view of another widget's answer (`shown_answers.py`): `attr` names that

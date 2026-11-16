@@ -109,9 +109,6 @@
     "type": "object",
     "properties": {
       "id": { "type": "string" },
-      "label": {
-        "type": "string"
-      },
       "phase": {
         "type": "string"
       },

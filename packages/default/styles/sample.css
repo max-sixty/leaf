@@ -1,4 +1,4 @@
-/* lf-sample: labeled content with a provenance gutter. `interactive` keeps inline
+/* lf-sample: named content with a provenance gutter. `interactive` keeps inline
  * widgets in the parent page's state, with no child document or sample controls; they
  * still ask nothing of the user (x-exhibit).
  * Without that flag, it is quoted material — a widget or section the page exhibits rather
@@ -13,7 +13,7 @@
  * already renders.
  *
  * The gutter runs beside the exhibit and nothing else. The note naming it — this
- * theme's "quoted ·" over the author's label — is a word *about* the quoted
+ * theme's "quoted ·" over the author's name — is a word *about* the quoted
  * region rather than a word in it, and it opened the gutter from inside: the marking
  * took in a line the quoted page never said, and the exhibit read as though it came
  * with a heading of its own. Every other reading had it right — the quote search, the
@@ -31,7 +31,7 @@
  * table box's border, in flow, so it reserves its own room and wraps like any other
  * run of words — where lifting the note out with absolute positioning would hang the
  * room above the gutter on a number read out of a browser once, and land the note on
- * the paragraph above it the day a label wraps. The exhibit keeps the layout it had:
+ * the paragraph above it the day a name wraps. The exhibit keeps the layout it had:
  * consecutive non-table children are wrapped in one anonymous cell, so what is
  * inside is a block flow whose margins collapse between its blocks exactly as they do
  * out on the page, which is the fidelity an exhibit is for. What a cell cannot do is
@@ -70,10 +70,11 @@
  * what separates a sample from the prose around it is its own 18px, stated once.
  *
  * The trim that declaration buys is the layer's (base.css), and the reach is the direct
- * children, which is what a selector has. Nothing about the note is stated here, though
- * it is a child on a live page (`x-says` writes it `before`) and a pseudo-element on one
- * carrying no script: the trim asks for the first child the page itself put there, so
- * both arrangements come out the same and the exhibit's first block is what it lands on.
+ * children, which is what a selector has. The note is the one child it must step over:
+ * an authored name, the <strong> the sample opens with, stands as the table's caption,
+ * outside the cell the exhibit flows in, so the exhibit's first block is the edge the
+ * trim lands on, below. The "quoted" a nameless sample wears is a pseudo-element, which
+ * the trim never counts.
  *
  * A child that generates no box hands its own margins to the flow and the trim lands on
  * nothing. The one such widget shipped is the suggestion, and it is why the block slot
@@ -111,10 +112,10 @@ lf-sample {
 lf-sample > * {
   --lf-box-cap: 100%;
 }
-/* The sample's note takes the label font (base.css, `.lf-label`), stated here since a
- * generated note can't wear the class. */
+/* The sample's note takes the label font (base.css, `.lf-label`), stated here since
+ * the author's name and a generated note can't wear the class. */
 lf-sample::before,
-lf-sample > [data-lf-said="label"] {
+lf-sample > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   display: table-caption;
   margin-bottom: var(--lf-sp-1);
   font: var(--lf-font-label);
@@ -122,9 +123,9 @@ lf-sample > [data-lf-said="label"] {
   text-transform: uppercase;
   color: var(--lf-muted);
 }
-/* The note is the sample's own label: from the attribute, or from an authored label
- * child, which takes any prefix itself. A quoted sample's opens with "quoted", which
- * says it takes no input. A sample that works, interactive or live, wears its label
+/* The note is the sample's own name, the <strong> it opens with, which takes any
+ * prefix itself. A quoted sample's opens with "quoted", which
+ * says it takes no input. A sample that works, interactive or live, wears its name
  * alone, and none without one, since its gutter or frame already marks it a sample. On
  * 2026-10-26 the user chose that over opening with "interactive sample" or "live
  * sample", a word whose one distinction, this page's log or the sample's own, the
@@ -140,14 +141,22 @@ lf-sample:is([interactive], :has(> template[data-sample])) {
 lf-sample::before {
   content: var(--lf-sample-word);
 }
-lf-sample[label]::before {
-  content: var(--lf-sample-prefix) attr(label);
-}
-lf-sample:has(> [data-lf-said="label"])::before {
+lf-sample:has(
+    > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+  )::before {
   content: none;
 }
-lf-sample > [data-lf-said="label"]::before {
+lf-sample
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)::before {
   content: var(--lf-sample-prefix);
+}
+/* The caption stands outside the cell, so the exhibit's first block is the frame's
+ * edge, which the trim follows down from (base.css). */
+lf-sample
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+  + * {
+  margin-block-start: 0;
+  --lf-frame-start: 1;
 }
 /* Like the label, host controls describe the exhibit; they stand outside its gutter.
  * A table lays out only its first caption in Firefox, so the controls cannot be a

@@ -1,6 +1,8 @@
 /* lf-text-document: captured text with the provenance needed to identify the immutable
-   selection. The frame is one evidence object; its caption uses the apparatus face
-   without becoming runtime chrome, because the label is captured page data too. */
+   selection. The frame is one evidence object; its caption uses the apparatus face.
+   A named document's caption is its name, the <strong> it opens with, standing where the
+   page wrote it at the frame's head (below); a nameless one's is the source it reads,
+   the figure's own caption. */
 lf-text-document {
   display: block;
   margin: 14px 0;
@@ -19,13 +21,62 @@ lf-text-document > .lf-text-document-view {
   background: var(--lf-pre-bg);
   --lf-block-frame: 1;
 }
+/* A named document is framed whole, its name and the figure under it: the host draws
+   the frame the figure draws alone, and the name heads it as the caption bar, as it does
+   before the document draws (below). */
+lf-text-document:has(
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+    + .lf-text-document-view
+) {
+  border: 1px solid var(--lf-code-border);
+  border-radius: var(--lf-r);
+  overflow: clip;
+  /* The caption bar stands on the figure's ground: code's, or the page's under a
+     preview's tabs (below). */
+  background: var(--lf-pre-bg);
+  &[preview] {
+    background: var(--lf-paper);
+  }
+  & > .lf-text-document-view {
+    border: 0;
+    border-radius: 0;
+  }
+  & figcaption:empty {
+    display: none;
+  }
+}
 /* The caption is the frame's header bar, not a line of reading, so it spans the frame:
    under the reading measure its rule stopped 53px short of a 795px frame. Before the
    document draws, the host stands in for its frame and caption (below). */
 lf-text-document figcaption,
+lf-text-document
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup):has(
+    + .lf-text-document-view
+  ),
 html[data-lf-interactive]
-  lf-text-document:not(:has(> :not(pre, [data-lf-prepaint])))::before {
+  lf-text-document:not(
+    :has(
+      > :not(
+        :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+        pre,
+        [data-lf-prepaint]
+      )
+    )
+  )
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+html[data-lf-interactive]
+  lf-text-document:not(
+    :has(
+      > :not(
+        :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+        pre,
+        [data-lf-prepaint]
+      )
+    )
+  )::before {
+  display: block;
   max-inline-size: none;
+  margin-block: 0;
   padding: 7px 11px;
   border-bottom: 1px solid var(--lf-rule);
   color: var(--lf-muted);
@@ -195,16 +246,26 @@ lf-text-document .lf-text-document-run:only-child {
     --lf-bound-box: .lf-text-document-listing > pre;
   }
   html[data-lf-interactive]
-    lf-text-document:not(:has(> :not(pre, [data-lf-prepaint]))) {
+    lf-text-document:not(
+      :has(
+        > :not(
+          :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+          pre,
+          [data-lf-prepaint]
+        )
+      )
+    ) {
     border: 1px solid var(--lf-code-border);
     border-radius: var(--lf-r);
     background: var(--lf-pre-bg);
-    &::before {
-      content: attr(label);
+    & > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
       display: block;
     }
-    &:not([label])::before {
+    &:not(
+        :has(> :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup))
+      )::before {
       content: attr(source);
+      display: block;
     }
     & > pre {
       display: none;

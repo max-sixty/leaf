@@ -32,16 +32,20 @@
  * placed among columns the answer decides (`shown_answers.py`), so the door refuses
  * a move of it and the arrows only change its column.
  *
- * The board also says what it is non-visually: columns are labeled lists and
+ * The board also says what it is non-visually: columns are named lists and
  * cards their items (#structure), and each grip is named for the column its
  * card now sits in (#names). Both are attributes on authored elements — the
  * light DOM stays verbatim, which is what the anchor pass and the version diff
- * walk. The theme's column heading is CSS generated content with empty alt
- * text, so the label reaches the tree once, as the list's name, rather than
- * twice. */
+ * walk. A column's heading is the <strong> it opens with, which the theme sets as
+ * the column's head; the list carries its words as its name and the heading is
+ * hidden from the tree, so the name reaches it once rather than twice. Where a
+ * place takes only text, such as a move button or an announcement, the name is its
+ * words (`addressableName`). */
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
+  addressableName,
+  openingTitle,
   setScroll,
   elementById,
   LeafElement,
@@ -125,7 +129,7 @@ customElements.define(
       });
     }
 
-    // What a board is, said in roles: each column a labeled list, each card an
+    // What a board is, said in roles: each column a named list, each card an
     // item in it. What says so visually is three boxes side by side — geometry,
     // which the accessibility tree doesn't carry — so without this a board is
     // one flat run of cards and Move buttons, and which column a card is in,
@@ -133,40 +137,27 @@ customElements.define(
     // describe rather than afford, so this holds for a quoted board too: an
     // exhibit is read like anything else, it just takes no input.
     //
-    // The heading is written here too, rather than declared x-says and left to
-    // the runtime's pass, because it is two things at once: the words a user
-    // selects to comment on the column, and the list's accessible name. The pass
-    // renders one run of words at an edge and knows nothing about names, so it
-    // would put these into the tree a second time under a list already carrying
-    // them. Same marker (the theme styles [data-lf-said]) and same contract
-    // (generated, so the diff looks away; not .lf-ui, so the anchor pass doesn't)
-    // — a widget with a module of its own does the part only it can, which is
-    // the line the layer's AGENTS.md draws and a widget's authored labels are the
-    // other case of.
+    // The column's heading is its authored name, the <strong> it opens with, so the
+    // user selects and comments on the words where the page says them. The list
+    // already carries those words as its accessible name, so the heading is the
+    // visible half only: the tree hears them once.
     #structure() {
       for (const col of this.#columns()) {
         col.setAttribute("role", "list");
-        keeps(col, "aria-label", col.getAttribute("label"));
+        keeps(col, "aria-label", addressableName(col) || null);
         for (const card of this.#cards(col)) card.setAttribute("role", "listitem");
-        if (col.querySelector(':scope > [data-lf-said="label"]')) continue;
-        const heading = document.createElement("span");
-        heading.dataset.lfSaid = "label";
-        generatedElement(heading, { says: true });
-        // The column already carries these words as its name, so the heading is
-        // the visible half only: the tree hears them once, the user can still
-        // select them, and the theme's generated copy is left to the no-script case.
-        heading.setAttribute("aria-hidden", "true");
-        heading.textContent = col.getAttribute("label");
+        const title = openingTitle(col)?.title;
+        if (title) keeps(title, "aria-hidden", "true");
+        if (col.querySelector(":scope > .lf-column-count")) continue;
         // How many cards stand in the column, beside its heading rather than in it, so
-        // the heading's words stay the column's name. Generated like the heading, and
-        // quotable like it: a figure the user can see is one they can point at. The
-        // list already tells a screen reader its length, so it is the visible half only.
+        // the heading's words stay the column's name. The list already tells a screen
+        // reader its length, so it is the visible half only.
         const count = document.createElement("span");
         count.className = "lf-column-count";
         generatedElement(count, { says: false });
         count.setAttribute("aria-hidden", "true");
-        col.prepend(heading);
-        heading.after(count);
+        if (title?.parentElement === col) title.after(count);
+        else col.prepend(count);
       }
       this.#counts();
     }
@@ -185,7 +176,7 @@ customElements.define(
     #names() {
       this.#counts();
       for (const col of this.#columns()) {
-        const where = col.getAttribute("label");
+        const where = addressableName(col);
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
           const grip = card.querySelector(":scope > .lf-grip");
@@ -446,12 +437,12 @@ customElements.define(
         const button = offerAction(
           "word",
           "lf-board-destination",
-          column.getAttribute("label") ?? undefined,
+          addressableName(column) || undefined,
         );
         button.dataset.lfBoardTarget = column.id;
         button.setAttribute(
           "aria-label",
-          `Move ${this.#title(card)} to ${column.getAttribute("label")}`,
+          `Move ${this.#title(card)} to ${addressableName(column)}`,
         );
         button.addEventListener("click", () => {
           if (!this.#movable(card)) return;
@@ -484,7 +475,7 @@ customElements.define(
       // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
       announce(
-        `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
+        `${this.#title(card)} grabbed — ${addressableName(from)}, position ${
           index + 1
         } of ${cards.length} — ${saying(rows)}`,
       );
@@ -529,7 +520,7 @@ customElements.define(
       const now = card.parentElement;
       const cards = this.#cards(now);
       announce(
-        `${this.#title(card)} — ${now.getAttribute("label")}, position ${
+        `${this.#title(card)} — ${addressableName(now)}, position ${
           cards.indexOf(card) + 1
         } of ${cards.length}`,
       );
@@ -631,7 +622,7 @@ customElements.define(
         if (to !== from)
           shown.answer(
             this.#holds(to, card),
-            `Moved “${this.#title(card)}” to ${to.getAttribute("label")}`,
+            `Moved “${this.#title(card)}” to ${addressableName(to)}`,
           );
         this.#finishGesture();
         return;
@@ -651,7 +642,7 @@ customElements.define(
             card.id,
           ),
         },
-        says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
+        says: `${to === from ? "Reordered in" : "Moved to"} ${addressableName(to)}`,
       });
       // A gesture can outlive the reading that enabled it. If admission has already
       // closed by commit time, resuming the deferred controller repaints the moved

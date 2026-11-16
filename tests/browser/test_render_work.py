@@ -33,11 +33,13 @@ def reading(page, scope):
 def test_public_work_roles_preserve_scope_remit_and_reports(browser, serve):
     source = leaf_page(
         "independent work",
-        """<lf-test-plan id="outer" label="Outer work">
+        """<lf-test-plan id="outer">
+          <strong>Outer work</strong>
           <lf-test-task id="area" status="active"><strong>Area</strong>
             <lf-test-task id="leaf" status="active"><strong>Leaf work</strong></lf-test-task>
             <lf-test-worker id="worker" state="working" on="leaf"><strong>Worker</strong></lf-test-worker>
-            <lf-test-plan id="inner" label="Inner work">
+            <lf-test-plan id="inner">
+              <strong>Inner work</strong>
               <lf-test-task id="private" status="done"><strong>Private work</strong></lf-test-task>
             </lf-test-plan>
           </lf-test-task>

@@ -568,9 +568,9 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
 EDGE_CONTROLS = {
     "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
     "playground": (
-        '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone" kind="choice"'
-        ' value="quiet"><lf-playground-choice id="tone-quiet" value="quiet" label="Quiet">'
-        '</lf-playground-choice><lf-playground-choice id="tone-bold" value="bold" label="Bold">'
+        '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" kind="choice"'
+        ' value="quiet"><strong>Tone</strong><lf-playground-choice id="tone-quiet" value="quiet"><strong>Quiet</strong>'
+        '</lf-playground-choice><lf-playground-choice id="tone-bold" value="bold"><strong>Bold</strong>'
         "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
         "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
         ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
@@ -620,7 +620,7 @@ GROUPED_SIDE_LIST = leaf_page(
     "a grouped queue",
     '<header><h1>Queue</h1></header><lf-tabs id="queue" list="side">'
     + "".join(
-        f'<lf-tab id="t-{n}" label="Ticket {n}" group="Group {n // 10}">'
+        f'<lf-tab id="t-{n}" group="Group {n // 10}"><strong>Ticket {n}</strong>'
         f"<p>Ticket {n}.</p></lf-tab>"
         for n in range(30)
     )

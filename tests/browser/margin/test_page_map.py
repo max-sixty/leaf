@@ -54,7 +54,7 @@ DUPLICATE_REGION_PAGE = leaf_page(
     "duplicate Page Map subjects",
     """
   <div id="duplicate-map-split">
-    <lf-pane id="current-pane" label="Current">
+    <lf-pane id="current-pane" aria-label="Current">
       <div>
         <h2 id="current-deployment">Deployment</h2>
         <p>The current release remains available to users.</p>
@@ -62,7 +62,7 @@ DUPLICATE_REGION_PAGE = leaf_page(
         <p>The current result has one unique subject.</p>
       </div>
     </lf-pane>
-    <lf-pane id="proposed-pane" label="Proposed">
+    <lf-pane id="proposed-pane" aria-label="Proposed">
       <div>
         <h2 id="proposed-deployment">Deployment</h2>
         <p>The proposed release remains available to users.</p>

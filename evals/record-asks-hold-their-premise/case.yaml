@@ -29,7 +29,7 @@ vars:
       thread proposed. Include it verbatim as
       `<figure id="seat-figure"><svg class="drawing" viewBox="0 0 680 272"></svg></figure>`.
     - You also built a live demo the user can operate: two numbered steps, then
-      `<lf-sample id="seat-sample" label="practice plan"><template data-sample><!-- demo page --></template></lf-sample>`,
+      `<lf-sample id="seat-sample"><strong>practice plan</strong><template data-sample><!-- demo page --></template></lf-sample>`,
       which renders about 700px tall at desktop width.
 
     The page directory is not reachable from here, so reply with the section's HTML

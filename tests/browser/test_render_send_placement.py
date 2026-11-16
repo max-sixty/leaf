@@ -783,7 +783,7 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
             "Attachment through both scrolling ancestors",
             '<h1 id="title">Comments follow the passage</h1>'
             '<div style="height:650px"></div>'
-            '<lf-pane id="paint-pane" label="Findings"><div>'
+            '<lf-pane id="paint-pane" aria-label="Findings"><div>'
             '<div style="height:100px"></div>'
             + passage
             + '<div style="height:1800px"></div></div></lf-pane>'
@@ -828,11 +828,11 @@ def test_a_wheel_return_attaches_the_comment_box_in_the_first_visible_frame(
         source = leaf_page(
             "Compositor attachment in a pane",
             '<header><h1 id="title">Comments follow the passage</h1></header>'
-            '<div id="paint-split"><lf-pane id="paint-pane" label="Findings"><div>'
+            '<div id="paint-split"><lf-pane id="paint-pane" aria-label="Findings"><div>'
             '<div style="height:180px"></div>'
             + passage
             + '<div style="height:1600px"></div></div></lf-pane>'
-            '<lf-pane id="other-pane" label="Notes"><div><p>Notes.</p></div></lf-pane></div>',
+            '<lf-pane id="other-pane" aria-label="Notes"><div><p>Notes.</p></div></lf-pane></div>',
             head=marker_style + regions_side_by_side("paint-split"),
             layout="workspace",
         )
@@ -1320,7 +1320,7 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
             serve(
                 leaf_page(
                     "Notes in flow",
-                    '<lf-pane id="notes" label="Notes"><div>'
+                    '<lf-pane id="notes" aria-label="Notes"><div>'
                     '<p id="note">The export keeps each tenant in an archive.</p>'
                     + "<p>More notes on the export.</p>" * 4
                     + "</div></lf-pane>",
@@ -1367,9 +1367,9 @@ def test_a_row_pointed_in_a_scrolling_pane_keeps_its_card_in_the_pane(browser, s
         serve(
             leaf_page(
                 "Stacked panes",
-                '<div id="stack"><lf-pane id="summary" label="Summary"><div>'
+                '<div id="stack"><lf-pane id="summary" aria-label="Summary"><div>'
                 + "<p>What the reader should take from the findings.</p>" * 12
-                + '</div></lf-pane><lf-pane id="findings" label="Findings"><div>'
+                + '</div></lf-pane><lf-pane id="findings" aria-label="Findings"><div>'
                 + findings
                 + "</div></lf-pane></div>",
                 head="<style>#stack{display:grid;grid-template-rows:360px 1fr}</style>",
@@ -1409,9 +1409,9 @@ def test_a_card_stays_in_a_pane_whose_rows_all_show(browser, serve):
         serve(
             leaf_page(
                 "Short pane",
-                '<div id="split"><lf-pane id="findings" label="Findings"><div>'
+                '<div id="split"><lf-pane id="findings" aria-label="Findings"><div>'
                 + findings
-                + '</div></lf-pane><lf-pane id="notes" label="Notes"><div>'
+                + '</div></lf-pane><lf-pane id="notes" aria-label="Notes"><div>'
                 '<p>Notes open the pane.</p><p id="note">The export keeps each tenant '
                 "in an archive of its own.</p></div></lf-pane></div>",
                 head=regions_side_by_side("split"),
@@ -1531,11 +1531,11 @@ def test_a_sent_card_grows_inside_its_reading_region(browser, serve):
         serve(
             leaf_page(
                 "Growth in a pane",
-                '<div id="grow-split"><lf-pane id="grow-pane" label="Findings"><div>'
+                '<div id="grow-split"><lf-pane id="grow-pane" aria-label="Findings"><div>'
                 '<div style="height:180px"></div>'
                 '<p id="grow-target">The export keeps each tenant in an archive.</p>'
                 '<div style="height:1600px"></div></div></lf-pane>'
-                '<lf-pane id="grow-notes" label="Notes"><div><p>Notes.</p></div>'
+                '<lf-pane id="grow-notes" aria-label="Notes"><div><p>Notes.</p></div>'
                 "</lf-pane></div>",
                 head=regions_side_by_side("grow-split"),
                 layout="workspace",

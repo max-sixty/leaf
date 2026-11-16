@@ -403,7 +403,8 @@ def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
         """
 <h1 id="sample-title">Live sample revision</h1>
 <p id="sample-before">This paragraph comes first.</p>
-<lf-sample id="sample-held" label="Live draft" window>
+<lf-sample id="sample-held" window>
+  <strong>Live draft</strong>
   <template id="sample-source" data-sample>
     <h1>Practice draft</h1>
     <lf-draft id="sample-draft"><pre>Authored sample words.</pre></lf-draft>
@@ -546,7 +547,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
         '<p id="nm-kept">A <lf-gloss tip="the cutover of the store">cutover</lf-gloss>'
         " the user is asking about.</p>\n"
         '<p id="nm-edited">The store has not moved.</p>\n'
-        '<lf-sample id="qt-spec" label="an inert pick">\n'
+        '<lf-sample id="qt-spec">\n<strong>an inert pick</strong>\n'
         '  <lf-options id="qt-opts" choose>\n'
         '    <lf-option id="qt-a">Alpha</lf-option>\n'
         '    <lf-option id="qt-b">Beta</lf-option>\n'
@@ -889,16 +890,17 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
 def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     browser, serve
 ):
-    """A tab set's module builds its strip beside the panels and reads only their labels
-    (`lfPatch`), so a revision that rewrites a sentence in one tab edits that
-    sentence: the tab set, the tab the user has open and the question in the other tab
-    are the elements they were. A revision that adds a tab changes what the strip was
-    built from, and the set is rebuilt with a tab for it."""
+    """A tab set's module builds its strip beside the panels and reads only the names
+    they open with (`lfPatch`), so a revision that rewrites a sentence in one tab edits
+    that sentence: the tab set, the tab the user has open and the question in the other
+    tab are the elements they were. A revision that adds a tab, or renames one, changes
+    what the strip was built from, and the set is rebuilt with the strip it now says."""
 
-    def tabs(lede, extra=""):
+    def tabs(lede, extra="", plan="Plan"):
         return f"""<lf-tabs id="tp-views">
-  <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
-  <lf-tab id="tp-ask-tab" label="Ask">
+  <lf-tab id="tp-plan"><strong>{plan}</strong><p id="tp-lede">{lede}</p></lf-tab>
+  <lf-tab id="tp-ask-tab">
+    <strong>Ask</strong>
     <lf-ask id="tp-store-ask"><h2>Which store?</h2>
     <lf-options id="tp-store" choose>
       <lf-option id="tp-keep">Keep the store</lf-option>
@@ -913,7 +915,7 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
         "Tabs third",
         tabs(
             "Ship on Tuesday.",
-            '\n  <lf-tab id="tp-notes" label="Notes"><p>Later.</p></lf-tab>',
+            '\n  <lf-tab id="tp-notes"><strong>Notes</strong><p>Later.</p></lf-tab>',
         ),
     )
     page = open_page(browser, live_url(serve(first)))
@@ -939,6 +941,22 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     expect(page.get_by_role("tab")).to_have_count(3)
     page.get_by_role("tab", name="Notes").click()
     expect(page.locator("#tp-notes")).to_be_visible()
+
+    fourth = leaf_page(
+        "Tabs fourth",
+        tabs(
+            "Ship on Tuesday.",
+            '\n  <lf-tab id="tp-notes"><strong>Notes</strong><p>Later.</p></lf-tab>',
+            plan="Schedule",
+        ),
+    )
+    stamp_page(serve.page_dir, fourth, "rename the plan tab")
+    wait_for_revision(page, 4)
+    expect(page.get_by_role("tab", name="Schedule", exact=True)).to_be_visible()
+    expect(page.get_by_role("tab", name="Plan", exact=True)).to_have_count(0)
+    expect(page.locator('[aria-controls="tp-plan"] .lf-tab-name')).to_have_text(
+        "Schedule"
+    )
 
 
 DRAWN_DATA = """customElements.define('lf-drawn-data', class extends HTMLElement {

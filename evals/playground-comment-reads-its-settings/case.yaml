@@ -18,12 +18,13 @@ vars:
     over and open in the user's browser:
 
       <lf-playground id="notify" submit-label="Build this notification">
-        <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="calm">
-          <lf-playground-choice id="tone-calm" value="calm" label="Calm"></lf-playground-choice>
-          <lf-playground-choice id="tone-urgent" value="urgent" label="Urgent"></lf-playground-choice>
+        <lf-playground-control id="tone" name="tone" kind="choice" value="calm">
+          <strong>Tone</strong>
+          <lf-playground-choice id="tone-calm" value="calm"><strong>Calm</strong></lf-playground-choice>
+          <lf-playground-choice id="tone-urgent" value="urgent"><strong>Urgent</strong></lf-playground-choice>
         </lf-playground-control>
-        <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-          value="8" min="0" max="20" unit="px"></lf-playground-control>
+        <lf-playground-control id="radius" name="radius" kind="range"
+          value="8" min="0" max="20" unit="px"><strong>Corner radius</strong></lf-playground-control>
         <lf-playground-preview id="notify-preview">
           <p class="notify-card">Checkout deployed.</p>
         </lf-playground-preview>

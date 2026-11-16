@@ -54,7 +54,7 @@ def test_a_widget_seats_the_thread_about_itself_and_none_inside_it(browser, serv
     url = serve(
         leaf_page(
             "seats",
-            '<h1 id="h">Three jobs</h1><lf-test-plan id="hub" label="Before the frost">'
+            '<h1 id="h">Three jobs</h1><lf-test-plan id="hub"><strong>Before the frost</strong>'
             '<lf-test-task id="jobs" status="active" talk><strong>Which jobs are '
             "worth starting?</strong> The mounts came down in January.</lf-test-task>"
             '<lf-test-task id="quiet" status="active"><strong>Stain the fence</strong>'

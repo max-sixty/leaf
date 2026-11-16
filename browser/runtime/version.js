@@ -130,6 +130,8 @@ import {
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { registry, tagsDeclaring, upgrades } from "./registry.js";
+import { openingTitle } from "./leading-title.js";
+import { isElementName } from "./registry-contract.js";
 import {
   inlineMarkdownFragment,
   paintMarkdown,
@@ -564,6 +566,20 @@ registerPageControl({
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its declaration: a compound member whose content
 // model is prose is a block of the page's prose the same way a paragraph is.
+// The name a holder of other blocks opens with (`openingTitle`),
+// is a block of its own: a view, whose panel holds the page's blocks, or a widget
+// holding members. So a renamed tab or column marks, and a tab emptied of all but its
+// name holds the gap its last paragraph left, after its name. A titled member whose
+// words are one block, such as a card, keeps its title in its own block's words.
+const namedTags = () =>
+  [
+    ...tagsDeclaring((e) => e["x-content"] === "members"),
+    ...tagsDeclaring((e) => Boolean(e["x-views"])).map(
+      (tag) => registry[tag]?.["x-views"]?.members,
+    ),
+  ]
+    .filter((tag) => typeof tag === "string" && isElementName(tag))
+    .join(", ");
 const diffBlockSel = () =>
   [
     TEXT_BLOCK,
@@ -675,20 +691,36 @@ function diffBlocks(root) {
     if (owner.closest(opaque)) continue;
     pairs.push([owner, `markdown:${body.dataset.lfSourceWords}`]);
   }
-  for (const b of root.querySelectorAll(blocks)) {
+  const tags = namedTags();
+  const names = new Set(
+    tags
+      ? [...root.querySelectorAll(tags)].flatMap((named) => {
+          const title = openingTitle(named)?.title;
+          return title && !title.closest(opaque) ? [title] : [];
+        })
+      : [],
+  );
+  // Each element holding a name, so a block around one is no leaf block.
+  /** @type {Set<Element>} */
+  const holdsName = new Set();
+  for (const name of names)
+    for (let up = name.parentElement; up && !holdsName.has(up); up = up.parentElement)
+      holdsName.add(up);
+  for (const b of new Set([...root.querySelectorAll(blocks), ...names])) {
     if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
-    if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
+    if (
+      holdsName.has(b) ||
+      [...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque))
+    )
       continue; // leaf blocks only, excluding opaque children on both sides
     let key = comparisonWords(b, opaque);
-    // An x-says value is the page's words at the element's edge (renderSaid), so it
-    // belongs to what this block says: folded into the key at its declared edge, a
-    // version that moves a metric's number or an event's time marks though no prose
-    // changed. Both sources hold the attribute, so the key reads it on both sides.
-    for (const [attr, edge] of Object.entries(
-      registry[b.localName]?.["x-says"] ?? {},
-    )) {
+    // An x-says value is the page's words after the element's own (renderSaid), so
+    // it belongs to what this block says: folded into the key, a version that changes
+    // only the value marks though no prose changed. Both sources hold the attribute, so
+    // the key reads it on both sides.
+    for (const attr of registry[b.localName]?.["x-says"] ?? []) {
       const said = b.getAttribute(attr);
-      if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
+      if (said) key = `${key} ${said}`;
     }
     if (key) pairs.push([b, key]);
   }
@@ -1880,11 +1912,23 @@ export function createVersionController({
   // without views consumes only its own attributes: the patch owns its evidence,
   // including native attributes. A widget that draws its content itself
   // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
-  // revision that changes it replaces it whatever its class declares.
+  // revision that changes it replaces it whatever its class declares. A widget's
+  // module also draws the name the widget opens with, and each member's, as a tab
+  // strip shows each panel's and a pane names its region by its header
+  // (`openingTitle`), so the shell holds each of those names whole: a revision that
+  // renames one replaces the widget, as one that changes an attribute does.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
-    if (members)
-      for (const child of element.childNodes) copy.append(child.cloneNode(false));
+    const own = openingTitle(element)?.holder;
+    for (const child of element.childNodes) {
+      if (child === own) copy.append(child.cloneNode(true));
+      else if (members) {
+        const member = child.cloneNode(false);
+        const name = child instanceof Element ? openingTitle(child)?.holder : null;
+        if (name) member.appendChild(name.cloneNode(true));
+        copy.append(member);
+      }
+    }
     return copy;
   };
   const reachesMembers = (

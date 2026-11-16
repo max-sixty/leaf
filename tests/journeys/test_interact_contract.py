@@ -222,9 +222,9 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     assert result.exit_code == 0, result.output
 
     board = (
-        '<lf-board id="board"><lf-column id="todo" label="To do" tint="plain">'
+        '<lf-board id="board"><lf-column id="todo" tint="plain"><strong>To do</strong>'
         '<lf-card id="card" flag="no">Card</lf-card></lf-column>'
-        '<lf-column id="done" label="Done" tint="plain"></lf-column></lf-board>'
+        '<lf-column id="done" tint="plain"><strong>Done</strong></lf-column></lf-board>'
     )
     html = re.sub(r"<main>.*?</main>", f"<main>{board}</main>", PAGE, flags=re.DOTALL)
     (page_dir / "index.html").write_text(html)

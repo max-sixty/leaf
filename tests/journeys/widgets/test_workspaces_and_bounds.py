@@ -76,7 +76,7 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
         "a workspace grid of panes",
         f"""<div id="cells">
   {LONG_PANE}
-  <lf-pane id="second-pane" label="Second"><div><p>Second</p></div></lf-pane>
+  <lf-pane id="second-pane" aria-label="Second"><div><p>Second</p></div></lf-pane>
 </div>""",
         head="<style>#cells { display: grid; grid-template-columns: 1fr 1fr; }</style>",
         layout="workspace",

@@ -84,8 +84,8 @@ def test_a_required_startup_failure_releases_every_authored_tab(
         source = _source().replace(
             "</main>",
             '<lf-tabs id="fallback-views">'
-            '<lf-tab id="first-panel" label="First"><p>First authored panel.</p></lf-tab>'
-            '<lf-tab id="second-panel" label="Second"><p>Second authored panel.</p></lf-tab>'
+            '<lf-tab id="first-panel"><strong>First</strong><p>First authored panel.</p></lf-tab>'
+            '<lf-tab id="second-panel"><strong>Second</strong><p>Second authored panel.</p></lf-tab>'
             "</lf-tabs></main>",
         )
         with page.expect_request("**/" + failed_file):

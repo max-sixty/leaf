@@ -249,6 +249,13 @@ lf-playground-control {
   min-width: 0;
   font-weight: 600;
 }
+/* The playground draws a copy of each name where it shows it (playground-view.js), so
+   the <strong> a control, choice or preset opens with stands hidden once it has. */
+lf-playground.lf-rendered
+  :is(lf-playground-control, lf-playground-choice, lf-playground-preset)
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+  display: none;
+}
 
 /* Native fields have their full platform geometry before any component upgrade. */
 lf-playground-control > .lf-playground-input {

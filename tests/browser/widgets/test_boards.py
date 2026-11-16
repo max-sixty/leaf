@@ -33,7 +33,8 @@ TALL_BOARD_PAGE = leaf_page(
     """
 <h1 id="t">Sprint</h1>
 <lf-board id="crowd">
-  <lf-column id="sq-col-0" label="Lane 0">
+  <lf-column id="sq-col-0">
+<strong>Lane 0</strong>
 """
     + "".join(
         f"""    <lf-card id="sq-card-{i}"><strong>Perch {i}</strong>
@@ -605,17 +606,19 @@ GRIPPED_CARD_PAGE = leaf_page(
     """
 <h1 id="t">Release triage</h1>
 <lf-board id="gripped">
-  <lf-column id="col-a" label="Fix in 2.4.1">
+  <lf-column id="col-a">
+    <strong>Fix in 2.4.1</strong>
     <lf-card id="card-a"><strong>Webhook retries ignore the Retry-After header</strong>
       Three partners rate limit us during their own deploys, and we back off on a fixed
       schedule that ignores what they asked for.</lf-card>
   </lf-column>
-  <lf-column id="col-b" label="Defer">
+  <lf-column id="col-b">
+    <strong>Defer</strong>
     <lf-card id="plain"><strong>Plain</strong> The importer is wired.</lf-card>
     <lf-card id="element"><strong>Element</strong> The <em>importer</em> is wired.</lf-card>
     <lf-card id="paragraph"><strong>Paragraph</strong><p>The importer is wired.</p></lf-card>
   </lf-column>
-  <lf-column id="col-c" label="Repro"></lf-column>
+  <lf-column id="col-c"><strong>Repro</strong></lf-column>
 </lf-board>
 """,
     # Justified, so each full line ends where the card lets it rather than at a word.
@@ -689,7 +692,8 @@ GRIPPED_BLOCK_CARD_PAGE = leaf_page(
     """
 <h1 id="t">Release triage</h1>
 <lf-board id="gripped">
-  <lf-column id="col-a" label="Fix in 2.4.1">
+  <lf-column id="col-a">
+    <strong>Fix in 2.4.1</strong>
     <lf-card id="card-a"><strong>Retries ignore Retry-After</strong>
       <pre id="card-a-code">retry(after=fixed(30))</pre>
       <p id="card-a-note">Three partners rate limit us during their own deploys.</p>
@@ -811,9 +815,10 @@ ANSWERS_BOARD_PAGE = leaf_page(
   </lf-options>
 </section>
 <lf-board id="plan">
-  <lf-column id="col-open" label="Undecided"></lf-column>
-  <lf-column id="col-next" label="Next" value="next"></lf-column>
-  <lf-column id="col-later" label="Later" value="later">
+  <lf-column id="col-open"><strong>Undecided</strong></lf-column>
+  <lf-column id="col-next" value="next"><strong>Next</strong></lf-column>
+  <lf-column id="col-later" value="later">
+    <strong>Later</strong>
     <lf-card id="card-rail" shows="rail"><strong>Keep the rail</strong></lf-card>
   </lf-column>
 </lf-board>

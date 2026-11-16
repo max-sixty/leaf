@@ -909,6 +909,13 @@ lf-trace-compare > *,
 lf-trace-compare lf-trace {
   margin-block: 0;
 }
+/* A compared recording's name is its chooser's words (lf-trace-compare.js), so the
+   <strong> it opens with stands hidden over its viewer. */
+lf-trace-compare
+  lf-trace
+  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
+  display: none;
+}
 
 /* The chooser has fixed apparatus geometry; its native slot holds that room
  * while the module loads. View selection remains the shared view owner's job. */

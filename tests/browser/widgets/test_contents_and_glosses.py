@@ -145,7 +145,8 @@ def test_contents_in_a_view_lists_its_topic_and_reveals_closed_details(
         """
 <h1>Field guide</h1>
 <lf-tabs id="topics">
-  <lf-tab id="prepare-topic" label="Prepare">
+  <lf-tab id="prepare-topic">
+    <strong>Prepare</strong>
     <lf-toc id="prepare-contents"></lf-toc>
     <h2 id="inventory">Take inventory</h2>
     <details id="preparation-details">
@@ -153,14 +154,17 @@ def test_contents_in_a_view_lists_its_topic_and_reveals_closed_details(
       <h3 id="snapshot">Save a snapshot</h3>
     </details>
   </lf-tab>
-  <lf-tab id="operate-topic" label="Operate">
+  <lf-tab id="operate-topic">
+    <strong>Operate</strong>
     <h2 id="operation">Run the operation</h2>
     <lf-tabs id="operation-views">
-      <lf-tab id="monitor-view" label="Monitor">
+      <lf-tab id="monitor-view">
+        <strong>Monitor</strong>
         <lf-toc id="monitor-contents"></lf-toc>
         <h3 id="watch">Watch the readers</h3>
       </lf-tab>
-      <lf-tab id="finish-view" label="Finish">
+      <lf-tab id="finish-view">
+        <strong>Finish</strong>
         <h3 id="verify">Verify the result</h3>
       </lf-tab>
     </lf-tabs>
@@ -1211,11 +1215,13 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
 <style>#first-route, #second-route { height: 1100px; overflow: hidden; }</style>
 
 <lf-tabs id="routes">
-  <lf-tab id="first-route" label="First route">
+  <lf-tab id="first-route">
+    <strong>First route</strong>
     <h2 id="first-heading">Prepare the readers before opening the window</h2>
     <div style="height: 900px"></div>
   </lf-tab>
-  <lf-tab id="second-route" label="Second route">
+  <lf-tab id="second-route">
+    <strong>Second route</strong>
     <div style="height: 420px"></div>
     <h2 id="second-heading">Verify the readers after closing the window</h2>
     <div style="height: 480px"></div>

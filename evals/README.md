@@ -217,7 +217,8 @@ keep these, leaving out one only where the campaign has nothing for it:
 <h1 id="title">Keyboard judgment follows each control</h1>
 
 <lf-tabs id="review-views">
-  <lf-tab id="report-introduction" label="Introduction">
+  <lf-tab id="report-introduction">
+    <strong>Introduction</strong>
     <section id="latest-run">
       <h2>Latest validation</h2>
       <p>What changed in Leaf, what this journey establishes and what it cannot.</p>
@@ -260,7 +261,8 @@ flowchart TD
     </section>
   </lf-tab>
 
-  <lf-tab id="cases" label="Cases">
+  <lf-tab id="cases">
+    <strong>Cases</strong>
     <section id="case-navigation">
       <h2>Patch navigation</h2>
       <p>The task given to the authors.</p>
@@ -277,7 +279,8 @@ flowchart TD
     </section>
   </lf-tab>
 
-  <lf-tab id="changes-tested" label="Changes to Leaf">
+  <lf-tab id="changes-tested">
+    <strong>Changes to Leaf</strong>
     <section id="experiments-retained">
       <h2>Retained changes</h2>
       <section id="experiment-keyboard">

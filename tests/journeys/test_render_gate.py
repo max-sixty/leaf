@@ -979,44 +979,20 @@ def test_the_render_gate_renders_each_scheme_and_viewport(browser, serve):
     ]
 
 
-def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
+def test_the_render_gate_requires_a_defined_element(
     browser, serve, tmp_path, monkeypatch
 ):
-    """A thread declaration whose module omits its host fails visibly, beside the same
-    declaration whose module places it and passes. Both are project widgets; only the
-    second's starter module leaves out the threadBox placement. A third declares an
-    upgrade whose module is valid JavaScript and defines no element, which the gate
-    names."""
+    """A project widget declares an upgrade whose module is valid JavaScript and defines
+    no element, which the gate names."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
-    for tag in ("lf-callout", "lf-unseated", "lf-undefined"):
+    for tag in ("lf-callout", "lf-undefined"):
         add_test_widget(package, tag, upgrade=True)
     (package / "widgets" / "lf-undefined.js").write_text(
         "// Valid JavaScript, but no custom-element definition.\n"
     )
-    registry_path = package / "registry.json"
-    registry = json.loads(registry_path.read_text())
-    registry["lf-callout"]["x-thread-seat"] = {"when": {"id": ["custom-note"]}}
-    registry["lf-unseated"]["x-thread-seat"] = {"when": {"id": ["unseated-note"]}}
-    registry_path.write_text(json.dumps(registry, indent=2))
-    module = package / "widgets" / "lf-callout.js"
-    source = module.read_text()
-    runtime_import = 'import { LeafElement } from "/runtime/widget-api.js";'
-    starter = "class extends LeafElement {},"
-    assert source.count(runtime_import) == 1 and source.count(starter) == 1
-    module.write_text(
-        source.replace(
-            runtime_import,
-            'import { LeafElement, threadBox } from "/runtime/widget-api.js";',
-        ).replace(
-            starter,
-            'class extends LeafElement { setup() { this.append(threadBox(this, "Question")); } },',
-        )
-    )
     page = CUSTOM_WIDGET_PAGE.replace(
         "</main>",
-        '<lf-unseated id="unseated-note"><strong>Heads up</strong> No seat.'
-        "</lf-unseated>\n"
         '<lf-undefined id="undefined-note"><strong>Heads up</strong> Never defined.'
         "</lf-undefined>\n</main>",
     )
@@ -1025,14 +1001,6 @@ def test_the_render_gate_requires_a_declared_threads_host_and_a_defined_element(
         browser, serve(page, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     ).failures
 
-    seats = [f for f in failures if f.code == "missing-thread-seat"]
-    assert [(f.at, f.scheme, f.values["hosts"]) for f in seats] == [
-        ("<lf-unseated id=unseated-note>", "light", 0)
-    ], failures
-    assert str(seats[0]) == (
-        "[light] <lf-unseated id=unseated-note> declares x-thread-seat but rendered 0 "
-        "matching hosts; its module must place exactly one threadBox"
-    )
     assert not [f for f in failures if "custom-note" in f.at], failures
     assert any(
         f.code == "missing-upgrades" and f.values["tags"] == ["lf-undefined"]

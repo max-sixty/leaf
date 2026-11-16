@@ -153,7 +153,8 @@
         "format": "date-time"
       },
       "talk": {
-        "type": "boolean"
+        "type": "boolean",
+        "description": "The row takes comments: it shows the conversations about it at its foot, above a Comment control that starts one. The comment box there offers a second send, Send & pause, whose comment holds the goal until its conversation is resolved."
       },
       "overruled": {
         "type": "boolean"
@@ -162,12 +163,6 @@
     "required": ["id", "status"],
     "additionalProperties": false,
     "x-owners": ["lf-atlas-plan", "lf-atlas-task"],
-    "x-thread-seat": {
-      "when": {
-        "talk": [true]
-      },
-      "hold": "Send & pause"
-    },
     "x-state": {
       "status": {
         "writer": "agent",

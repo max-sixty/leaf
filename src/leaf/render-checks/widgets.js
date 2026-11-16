@@ -1,4 +1,4 @@
-import { inChrome, matchesWhen, quoted } from "/runtime/widget-api.js";
+import { inChrome, quoted } from "/runtime/widget-api.js";
 import {
   ADDRESSABLE,
   textNodesUnder,
@@ -114,25 +114,6 @@ export const invalidVisualProviders = (declarations) =>
       })),
     )
     .filter((instance) => instance.problems.length);
-/** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
-export const missingThreads = (declarations) =>
-  Object.entries(declarations)
-    .flatMap(([tag, entry]) => {
-      const seat = entry["x-thread-seat"];
-      if (!seat) return [];
-      return [...document.querySelectorAll(tag)]
-        .filter((el) => !inChrome(el) && !quoted(el) && matchesWhen(el, seat.when))
-        .map((el) => ({
-          code: "missing-thread-seat",
-          at: locate(el),
-          hosts: [
-            .../** @type {NodeListOf<HTMLElement>} */ (
-              el.querySelectorAll(".lf-thread-seat")
-            ),
-          ].filter((host) => host.dataset.lfThreadSeat === el.id).length,
-        }));
-    })
-    .filter((instance) => instance.hosts !== 1);
 
 // Attributes on a widget that its entry never declared. The schema is the
 // whole of the author's namespace — `additionalProperties: false` on every tag — and

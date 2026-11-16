@@ -341,15 +341,6 @@ EXTENSION_SCHEMA = {
     "type": "object",
     "properties": {
         "x-awaits": AWAITS_SCHEMA,
-        "x-thread-seat": {
-            "type": "object",
-            "properties": {
-                "when": AWAITING_CONDITION,
-                "hold": {"type": "string", "minLength": 1},
-            },
-            "required": ["when"],
-            "additionalProperties": False,
-        },
         "x-content": {"enum": ["markup", "members", "data", "empty"]},
         "x-text-format": {"enum": ["inline-markdown", "markdown"]},
         "x-data": DATA_INPUTS_SCHEMA,

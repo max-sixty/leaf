@@ -729,7 +729,6 @@ def require_module(tag: str, entry: dict, registry: dict, path) -> None:
             "x-state",
             "x-verbatim",
             "x-shadow",
-            "x-thread-seat",
             "x-history",
         )
         if entry.get(key)

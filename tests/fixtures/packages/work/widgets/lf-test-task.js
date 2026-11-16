@@ -1,13 +1,14 @@
 /* A local consumer exercises declaration-driven reports without shipping a task UI. */
 import { nothing } from "/vendor/lit.js";
 import {
-  declarationFor,
-  matchesWhen,
-  threadBox,
   keeps,
+  keepsHidden,
   keepsText,
   LeafElement,
+  offer,
+  offerAction,
   readWork,
+  threadSurface,
   workAncestor,
 } from "/runtime/widget-api.js";
 customElements.define(
@@ -29,11 +30,25 @@ customElements.define(
       this.progress.className = "work-progress";
       this.progress.dataset.lfGen = "1";
       this.append(this.progress);
-      const seat = declarationFor(this, "x-thread-seat");
-      if (seat && matchesWhen(this, seat.when)) {
-        const thread = threadBox(this, "Say something here");
-        if (thread) this.append(thread);
-      }
+      if (!this.hasAttribute("talk")) return;
+      // A task marked `talk` seats the threads about it, and the comment box that
+      // starts one, whose second send holds the task.
+      this.threads = offer("div", "lf-test-threads");
+      this.threads.lfHold = "Send & pause";
+      this.comment = offerAction("symbol", "lf-test-comment", undefined, {
+        action: "comment",
+      });
+      this.comment.addEventListener("click", () => threadSurface(this).open?.(this));
+      this.append(this.threads, this.comment);
+    }
+    threadOutlets(targets, { onCommit }) {
+      if (!this.threads) return targets.map(() => null);
+      const writing = targets.some(({ thread }) => !thread);
+      onCommit(() => {
+        this.writing = writing;
+        this.requestUpdate();
+      });
+      return targets.map(() => this.threads);
     }
     render() {
       keeps(this, "status", this.state.status.value);
@@ -42,6 +57,7 @@ customElements.define(
         workAncestor(this, "scope") ?? this.parentElement,
       ).goals.find((row) => row.element === this);
       keepsText(this.progress, `${row.finished}/${row.leaves.length} done`);
+      keepsHidden(this.comment, this.writing || !threadSurface(this).open);
       return nothing;
     }
   },

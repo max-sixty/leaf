@@ -662,11 +662,21 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     """A block a user points at whole needs an id, or the aim falls through to
     the enclosing section — the failure addressable-element anchoring's own page shipped. Advice
     on a passing run, not a gate, and quiet where a tight wrapper (a figure around
-    a table) already gives the aim something to hold."""
+    a table) already gives the aim something to hold. One id around several such
+    blocks holds none of them: a comment aimed at one screenshot in a table of
+    them lands on the table."""
+    drawing = '<svg viewBox="0 0 8 8" role="img" aria-label="{}"><rect width="8" height="8" /></svg>'
     blocks = (
         "<pre><code>uv run backfill --check</code></pre>"
         '<aside class="note">The retry path is deliberately separate.</aside>'
         '<figure id="fig"><table><tr><td>1</td></tr></table></figure>'
+        '<table id="shots"><tr>'
+        f"<td>{drawing.format('Before')}</td>"
+        f"<td><figure>{drawing.format('After')}<figcaption>After</figcaption></figure></td>"
+        '<td><figure><div id="named">A widget with an id</div></figure></td>'
+        '<td><svg viewBox="0 0 8 8" aria-hidden="true"><rect width="8" height="8" /></svg>'
+        '<img alt="" /></td>'
+        "</tr></table>"
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("<main>", "<main><h1>Report</h1><p>The standalone summary.</p>")
@@ -676,7 +686,9 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     status, findings = check_findings(page_dir)
     assert status == 0
     # One finding for each reason, listing its blocks in document order. The
-    # figure's id is aim enough for its <table>.
+    # figure's id is aim enough for its <table>. Two drawings in #shots share its aim.
+    # A figure is left to what it holds, a drawing to name or something with an id,
+    # and an icon or an image with an empty alt is no block a reader points at.
     assert sorted(
         (f.code, [(e["tag"], e.get("enclosing")) for e in f.values["elements"]])
         for f in findings
@@ -684,7 +696,10 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     ) == [
         ("unpointable", [("h1", None), ("p", None), ("p", None)]),
         ("unpointable-section", [("section", None)]),
-        ("unpointable-wide", [("pre", "plan"), ("aside", "plan")]),
+        (
+            "unpointable-wide",
+            [("pre", "plan"), ("aside", "plan"), ("svg", "shots"), ("svg", "shots")],
+        ),
     ]
 
     # Prose inside an identified section needs no id of its own. Standalone

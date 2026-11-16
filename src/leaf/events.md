@@ -389,7 +389,9 @@ to-do is made from an obligation.
   the browser and transcript then hide it.
 - An agent `reply` may move its thread with an `anchor` captured against its revision,
   or detach it with a null anchor, in the same append as the message explaining it. A
-  thread whose opening comment `holds` a command goal cannot move or detach.
+  thread whose opening comment `holds` a widget cannot move or detach. Such a comment
+  names in `holds` the widget its anchor names and nothing inside it, and the widget
+  is held while the thread is open.
 - A body is Markdown, stored as typed and rendered by the serving Leaf's runtime, so
   the renderer and the panel's styles version together; raw HTML shows as text. A
   widget rides the `markup` field, which only `leaf thread create` and the reply commands

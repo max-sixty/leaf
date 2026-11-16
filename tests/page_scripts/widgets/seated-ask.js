@@ -2,9 +2,11 @@
 import { nothing } from "/vendor/lit.js";
 import {
   keeps,
+  keepsHidden,
   keepsText,
-  threadBox,
   offer,
+  offerAction,
+  threadSurface,
   LeafElement,
 } from "/runtime/widget-api.js";
 
@@ -22,9 +24,23 @@ export function defineSeatedObligation() {
             detail: { answer: "yes" },
           });
         };
-        this.append(this.press);
-        const seat = threadBox(this, "Say something about this");
-        if (seat) this.append(seat);
+        // The threads about the verdict, and the comment box that starts one, stand
+        // under its press.
+        this.threads = offer("div", "lf-test-threads");
+        this.comment = offerAction("symbol", "lf-test-comment", undefined, {
+          action: "comment",
+        });
+        this.comment.addEventListener("click", () => threadSurface(this).open?.(this));
+        this.append(this.press, this.threads, this.comment);
+      }
+
+      threadOutlets(targets, { onCommit }) {
+        const writing = targets.some(({ thread }) => !thread);
+        onCommit(() => {
+          this.writing = writing;
+          this.requestUpdate();
+        });
+        return targets.map(() => this.threads);
       }
 
       settled() {
@@ -38,6 +54,7 @@ export function defineSeatedObligation() {
           keepsText(this.press, "Accept");
           keeps(this.press, "aria-pressed", false);
         }
+        keepsHidden(this.comment, this.writing || !threadSurface(this).open);
         return nothing;
       }
     },

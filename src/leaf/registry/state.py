@@ -72,7 +72,6 @@ def validate_widget_state_relations(
                 "x-awaits",
                 "x-work",
                 "x-history",
-                "x-thread-seat",
                 "x-data",
             )
             owned = [key for key in owner_keys if child.get(key)]

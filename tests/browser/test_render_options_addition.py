@@ -223,7 +223,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     mark = page.locator("#storage-evict .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#storage-options .lf-page-thread")).to_have_count(0)
 
     # Enter is not navigation from a checkbox. It neither chooses the option nor enters
     # the add field; the field is an ordinary later stop in the Tab order.
@@ -450,7 +450,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
         },
     )
     told(page)
-    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#jobs .lf-page-thread")).to_have_count(0)
     expect(first).to_be_visible()
     expect(first).to_have_js_property("value", draft)
 
@@ -568,7 +568,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     page = open_page(browser, url)
     d = serve.page_dir
 
-    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#jobs .lf-page-thread")).to_have_count(0)
     added = page.locator("#jobs > .lf-another")
     assert added.count() == 1, (
         f"the add-option cell was not rendered: {shown(page.lf_errors)}; "

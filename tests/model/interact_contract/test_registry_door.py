@@ -172,7 +172,6 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
     [
         ("x-awaits", []),
         ("x-awaits", {"when": {"required": True}}),
-        ("x-thread-seat", False),
         ("x-content", "words"),
         ("x-owners", []),
         # Each of these names attributes, so an empty one declares nothing while
@@ -487,7 +486,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     ("tag", "key", "fallback"),
     [
         ("lf-options", "x-state", None),
-        ("lf-note", "x-thread-seat", {"when": {"id": ["note"]}}),
+        ("lf-note", "x-shadow", True),
     ],
 )
 def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
@@ -612,10 +611,10 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
         ),
         (
             "lf-options",
-            "x-thread-seat",
+            "x-exhibit",
             {"when": {"pick": [True]}},
             "predicate-attribute",
-            {"key": "x-thread-seat", "attr": "pick"},
+            {"key": "x-exhibit", "attr": "pick"},
         ),
         (
             "lf-options",
@@ -640,10 +639,10 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
         ),
         (
             "lf-options",
-            "x-thread-seat",
+            "x-exhibit",
             {"when": {"id": ["NOT-VALID"]}},
             "predicate-schema",
-            {"key": "x-thread-seat", "attr": "id", "value": "NOT-VALID"},
+            {"key": "x-exhibit", "attr": "id", "value": "NOT-VALID"},
         ),
         (
             "lf-options",

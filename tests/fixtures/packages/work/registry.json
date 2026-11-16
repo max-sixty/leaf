@@ -198,12 +198,6 @@
     "required": ["id", "status"],
     "additionalProperties": false,
     "x-owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
-    "x-thread-seat": {
-      "when": {
-        "talk": [true]
-      },
-      "hold": "Send & pause"
-    },
     "x-state": {
       "status": {
         "writer": "agent",

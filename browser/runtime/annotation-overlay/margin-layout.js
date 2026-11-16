@@ -100,6 +100,7 @@ import {
   eachRenderedElement,
   isText,
   skipped,
+  skipper,
 } from "../shadow-tree.js";
 import { scrollerFor } from "../reading-regions.js";
 import { boundedBlockOf } from "../bounds.js";
@@ -1559,6 +1560,29 @@ function scheduleRowLayout() {
   if (pending) return;
   pending = nextRender(layoutMarginRows);
 }
+// Whether `target` stands in content the browser skips (`skipped`), whose row is
+// withheld until a pass after it is drawn. Revealing a panel or opening a disclosure
+// resizes what holds it, which brings that pass. A box that skips what it holds while
+// it is out of view (`content-visibility: auto`), as a run of a long text document's
+// lines, keeps its size as it draws them (notes/browser-support.md, "A skipped
+// `content-visibility: auto` box keeps its drawn height"), and a scroll that brings it
+// into view is read before it draws, so the box is heard saying it drew. A withheld row
+// keeps no record (`seatings`), so a pass for the rows reads it again.
+/** @param {Element} target */
+function skippedUntilDrawn(target) {
+  const skipping = skipper(target);
+  skipping?.addEventListener("contentvisibilityautostatechange", drawnAgain);
+  return Boolean(skipping);
+}
+/** @param {Event} event */
+function drawnAgain(event) {
+  if (/** @type {ContentVisibilityAutoStateChangeEvent} */ (event).skipped) return;
+  event.currentTarget?.removeEventListener(
+    "contentvisibilityautostatechange",
+    drawnAgain,
+  );
+  scheduleRowLayout();
+}
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
 // (`point`, pointed-place.js), and its place among the others in the layer (`order`).
@@ -1720,6 +1744,8 @@ function scheduleStirReading() {
       const options = rows.get(row);
       const target = options?.anchor();
       if (!options || !target?.isConnected) continue;
+      const withheld = row.classList.contains("lf-withheld");
+      if (withheld && skippedUntilDrawn(target)) continue;
       const words = quotedBoxes(options);
       const start = words.length ? wordsStart(options) : null;
       // A box inside the target that scrolls a passage's words moves them too.
@@ -1732,7 +1758,6 @@ function scheduleStirReading() {
           return false;
         });
       if (!moving) continue;
-      const withheld = row.classList.contains("lf-withheld");
       if (!withheld && documentOnly) continue;
       // A transform that moved the row's subject brings the pass, which stands the row
       // by it again.
@@ -1993,13 +2018,13 @@ function layoutMountedRows(layer) {
       reads.push({ row, options, lane: layer.root, shown: false });
       continue;
     }
-    // A target in skipped content — a tab not chosen, a closed disclosure — has nowhere
-    // to stand, and every reading below would force that content's style and layout to
-    // say so (`skipped`). Withheld like a target that has gone, it is anchored by the
-    // pass that runs once it is drawn, and keeps the lane it stands in meanwhile, so a
-    // tab switch does not move the rows of a reading region's hidden panels between
-    // lanes.
-    if (skipped(target)) {
+    // A target in skipped content — a tab not chosen, a closed disclosure, lines out of
+    // view — has nowhere to stand, and every reading below would force that content's
+    // style and layout to say so. Withheld like a target that has gone, it is anchored
+    // by the pass that runs once it is drawn (`skippedUntilDrawn`), and keeps the lane
+    // it stands in meanwhile, so a tab switch does not move the rows of a reading
+    // region's hidden panels between lanes.
+    if (skippedUntilDrawn(target)) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
       const container = isCarrier(home) ? home.parentElement : home;

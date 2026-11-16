@@ -217,8 +217,8 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
 def test_a_thread_seated_in_a_widget_is_not_a_change_to_the_document(browser, serve):
     """What a user and an agent said to each other is not something the page changed.
 
-    A widget declaring x-thread-seat grows a seat on the page, and the layer fills it
-    from the log — messages the runtime built, wearing `.lf-ui` and `data-lf-gen`, and
+    A widget that seats its threads returns an outlet of its own, and the layer fills
+    it from the log — messages the runtime built, wearing `.lf-ui` and `data-lf-gen`, and
     standing inside the widget out in `<main>`. The version diff walks every block the
     page holds and keys each by `wrote`, which is exactly the reading that leaves
     generated words out, so those blocks key to nothing and are skipped.

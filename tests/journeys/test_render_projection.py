@@ -997,7 +997,6 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect(page.locator("#tq-one-decision")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
-    expect(one.locator(".lf-say")).to_have_count(0)
     reply = panel_field(page)
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()

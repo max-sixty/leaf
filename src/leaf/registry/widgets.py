@@ -200,9 +200,8 @@ def _validate_widget_structure(
                 "measured-run", path, tag, input=input_name, attr=run_attr
             )
     said = set(entry.get("x-says", {}))
-    for role in ("x-awaits", "x-thread-seat"):
-        if entry.get(role) is not None and not _typed(properties, "id", "string"):
-            raise registry_error("addressable-id", path, tag, key=role)
+    if entry.get("x-awaits") is not None and not _typed(properties, "id", "string"):
+        raise registry_error("addressable-id", path, tag, key="x-awaits")
     for key in ATTRIBUTE_KEYS:
         declared = entry.get(key) or ()
         named = {declared} if isinstance(declared, str) else set(declared)
@@ -280,7 +279,6 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             ("x-awaits", condition.get("when", {}))
             for condition in awaits.get("answered", {}).values()
         ),
-        ("x-thread-seat", entry.get("x-thread-seat", {}).get("when", {})),
         (
             "x-exhibit",
             entry["x-exhibit"]["when"]
@@ -308,14 +306,11 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
                         **tested,
                         **schema_reading(errors[0]),
                     )
-    thread = entry.get("x-thread-seat", {})
     mutable_values = {
         spec["record"]["attr"]
         for _verb, spec in state_specs(entry)
         if (spec.get("record") or {}).get("kind") == "value"
     }
-    if dynamic := sorted(set(thread.get("when", {})) & mutable_values):
-        raise registry_error("seat-written", path, tag, attrs=dynamic)
     data_bindings = {
         spec[key]
         for spec in entry.get("x-data", {}).values()

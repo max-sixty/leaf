@@ -251,23 +251,15 @@ def _scheme_findings(context: _SchemeContext) -> list[Finding]:
     """Every finding read from one settled scheme, without the scheme it was read in."""
     page = context.page
     unmarkable = evaluate_probe(page, "unmarkableElements")
-    missing_threads = []
     retired = []
-    if context.light:
-        # x-thread-seat promises one page view per matching instance. A widget in
-        # thread chrome already has the thread's reply surface and threadBox
-        # deliberately returns none there. Everywhere else, ask the merged registry
-        # for the instances and the module's own marker for the host it placed.
-        missing_threads = evaluate_probe(page, "missingThreads", context.declarations)
-        # Behind the caught-up wait: the settlement mark is replay's own write, so a
-        # reading taken earlier asks after paint the page has not been asked to make
-        # yet. Before the widget readings, whose replay is the last.
-        if context.replayed and (holders := _retired_holders(context)):
-            retired = evaluate_probe(page, "retiredSlots", holders)
+    # Behind the caught-up wait: the settlement mark is replay's own write, so a
+    # reading taken earlier asks after paint the page has not been asked to make
+    # yet. Before the widget readings, whose replay is the last.
+    if context.light and context.replayed and (holders := _retired_holders(context)):
+        retired = evaluate_probe(page, "retiredSlots", holders)
     found = [*context.errors, *_widget_findings(context)]
     found += map(Finding.read, unmarkable)
     found += context.devtools.findings()
-    found += map(Finding.read, missing_threads)
     found += map(Finding.read, retired)
     found += context.unsettled
     if context.light:

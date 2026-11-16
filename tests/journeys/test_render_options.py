@@ -307,14 +307,18 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             "el => el.querySelector(':scope > .lf-sample-view > .lf-sample-exhibit')"
             " ? `#${el.id} .lf-sample-exhibit` : `#${el.id}`"
         )
+        # Computed style can write the bar's colour in oklab, so it is painted on a
+        # canvas to read its sRGB channels.
         ink = tuple(
-            int(n)
-            for n in re.findall(
-                r"\d+",
-                page.locator(painter).evaluate(
-                    "el => getComputedStyle(el).borderLeftColor"
-                ),
-            )[:3]
+            page.locator(painter).evaluate(
+                """el => {
+                    const context = document.createElement('canvas')
+                        .getContext('2d', {willReadFrequently: true});
+                    context.fillStyle = getComputedStyle(el).borderLeftColor;
+                    context.fillRect(0, 0, 1, 1);
+                    return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+                }"""
+            )
         )
         found = {}
         for edge in ("top", "bottom"):

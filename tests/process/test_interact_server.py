@@ -44,7 +44,6 @@ from interact_support import (
     activity_reading,
     append_carried_log_record,
     append_command,
-    check,
     declare,
     declare_data_input,
     declare_on_page,
@@ -4971,26 +4970,11 @@ def test_a_bare_ipv6_address_is_bracketed_in_the_url():
     )
 
 
-def test_a_thread_predicate_cannot_follow_replayed_value_state(page_dir):
-    """Thread seats are installed from authored predicates once. Refuse a
-    declaration that would make replay and the POST hold gate disagree about one."""
-    declare_on_page(
-        page_dir,
-        lambda registry: registry["lf-test-task"]["x-thread-seat"].update(
-            when={"status": ["blocked"]}
-        ),
-    )
-
-    result = check(page_dir)
-
-    assert result.exit_code == 1
-    assert "x-thread-seat predicate attributes are authored and static" in result.output
-
-
-def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_dir):
+def test_a_hold_comment_can_only_hold_the_widget_it_is_about(server, page_dir):
     """The stronger send is one comment, not a comment followed by a pause action.
-    Its target is therefore checked at the comment door against the same declaration
-    that rendered the control, or a forged field could pause any id on the page."""
+    Its target is therefore checked at the comment door: the widget the comment is
+    anchored to and nothing inside it, or a forged field could pause another id on
+    the page. Which widgets offer the send is their modules' to say."""
     version = page_dir / "index.html"
     version.write_text(
         PAGE.replace(
@@ -5024,15 +5008,34 @@ def test_a_hold_comment_can_only_hold_its_declared_exact_section(server, page_di
     assert status == 400
     assert refused_on(body).code == "hold-target"
 
-    for target in ("plain-goal", "plan"):
+    # Another widget than the one the comment is on, and an element that is no widget,
+    # held from a comment on the goal or on itself.
+    for target, anchor in (
+        ("plain-goal", "goal"),
+        ("plan", "goal"),
+        ("plan", "plan"),
+    ):
         bad = {
             **event,
+            "anchor": {"section": anchor},
             "holds": target,
-            "attempt": f"hold_comment_bad_{target.replace('-', '_')}",
+            "attempt": f"hold_comment_bad_{target.replace('-', '_')}_{anchor}",
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(bad).encode())
         assert status == 400
         assert refused_on(body).code == "hold-target"
+
+    # The door reads no declaration, so a comment on a widget whose entry says nothing
+    # of threads or holds may hold it.
+    undeclared = {
+        **event,
+        "anchor": {"section": "work"},
+        "holds": "work",
+        "attempt": "hold_comment_undeclared",
+    }
+    status, body = fetch(f"{server}/api/event", data=json.dumps(undeclared).encode())
+    assert status == 200, body
+    assert event_model.read_events(page_dir)[-1]["holds"] == "work"
 
 
 def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(

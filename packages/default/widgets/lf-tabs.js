@@ -71,7 +71,7 @@
  * comments on it, else "Open", as in a resolved thread. Once every one is answered it shows a
  * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
- * open mark back. Which obligations a panel holds is `obligationsIn` (obligations/place.js), read from the
+ * open mark back. Which obligations a panel holds is `obligationsByRegion` (obligations/place.js), read from the
  * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
  * authors an obligation keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
@@ -87,7 +87,6 @@ import {
   agentName,
   PRESS,
   obligationsByRegion,
-  obligationsIn,
   answerWords,
   under,
   backgroundFlash,
@@ -423,7 +422,7 @@ export class TabSet extends LeafElement {
     return active ? this.#buttons.get(active) : undefined;
   }
 
-  /** @param {Element} panel @param {(panel: Element) => ReturnType<typeof obligationsIn>} held */
+  /** @param {Element} panel @param {(panel: Element) => NonNullable<ReturnType<ReturnType<typeof obligationsByRegion>["get"]>>} held */
   #tab(panel, held) {
     const changed = comparisonChanges(panel).length;
     const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;

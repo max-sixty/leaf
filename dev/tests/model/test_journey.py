@@ -1072,7 +1072,7 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path):
         reading = journey.run_journey(journey.HttpEnd(url, page, pause), version)
         step = post(url, "ending")
     assert reading["change"] == {
-        "marker": "abcd1234",
+        "marker": "abcd123",
         "revision": 2,
         "reply": "Recorded.",
     }

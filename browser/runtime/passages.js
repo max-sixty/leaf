@@ -133,6 +133,7 @@ import {
 import {
   alongClimb,
   composedParentNode,
+  drawn,
   eachRenderedElement,
   isElement,
   isShadowRoot,
@@ -3471,6 +3472,20 @@ export function findQuote(text, quote, anchor, within) {
 // the shared reading: stored quote resolution and file comparisons do not read styles.
 // display: contents has no box of its own yet still speaks through its children, and
 // visibility may be restored by a descendant, so neither is an ancestor veto.
+//
+// A style read inside content the browser skips makes Chromium style everything the
+// skipping box holds to answer it. So a word in a `content-visibility: auto` box that
+// is skipping what it holds, off screen, is asked of that box, after the `hidden`
+// attributes between them. A long text document's rows stand in such runs
+// (lf-text-document.js, `run`), and each run's forced style also recounted the line
+// numbers of every run styled before it: over the 616 runs of an 80,000-line document,
+// from 6 ms a run to 32, 11.6 s in all. CSS that hides a word inside an `auto` box
+// goes unread until the box draws; Leaf's own `auto` boxes are those runs, whose rows
+// hold only text. A word in a fold (a closed tab's `hidden="until-found"` panel, a
+// shut details) is still asked of its own element, though the fold is styled whole the
+// first time a search reads inside it, since widgets hide words there by CSS: asking
+// the fold instead added 56 matches to a search for "the" on the corpus (2,651 against
+// 2,595), from widgets such as lf-visual-review, lf-playground and lf-chart.
 function searchableWords() {
   const styles = new Map();
   const reachable = new Map();
@@ -3494,9 +3509,49 @@ function searchableWords() {
     reachable.set(el, result);
     return result;
   };
+  // Whether an `auto` box is skipping what it holds: none of its children is drawn.
+  /** @type {Map<Element, boolean>} */
+  const skipping = new Map();
+  /** @param {Element} box */
+  const skips = (box) => {
+    let value = skipping.get(box);
+    if (value === undefined)
+      skipping.set(
+        box,
+        (value =
+          style(box).contentVisibility === "auto" && ![...box.children].some(drawn)),
+      );
+    return value;
+  };
+  // The off-screen `auto` box over an element the browser doesn't draw, and whether a
+  // `hidden` element stands between them; null where nothing such skips it. Asked of
+  // the drawn box, so nothing in what it skips is styled (shadow-tree.js, `drawn`).
+  /** @type {Map<Element, {box: Element, hidden: boolean} | null>} */
+  const autoSkippers = new Map();
+  /** @param {Element} el @returns {{box: Element, hidden: boolean} | null} */
+  const autoSkipper = (el) => {
+    let value = autoSkippers.get(el);
+    if (value !== undefined) return value;
+    value = null;
+    if (!drawn(el)) {
+      const hidden =
+        el.hasAttribute("hidden") && el.getAttribute("hidden") !== "until-found";
+      const up = renderedParent(el);
+      if (up && !drawn(up)) {
+        const over = autoSkipper(up);
+        if (over) value = { box: over.box, hidden: over.hidden || hidden };
+      } else if (up && skips(up)) value = { box: up, hidden };
+    }
+    autoSkippers.set(el, value);
+    return value;
+  };
   return (/** @type {Segment} */ { node }) => {
     const parent = renderedParent(node);
-    return parent && style(parent).visibility === "visible" && canReveal(parent);
+    if (!parent) return false;
+    const skipped = autoSkipper(parent);
+    if (skipped?.hidden) return false;
+    const asked = skipped?.box ?? parent;
+    return style(asked).visibility === "visible" && canReveal(asked);
   };
 }
 

@@ -1593,3 +1593,32 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
     expect(page.locator("#details")).to_have_attribute("open", "")
     search.fill("copper copper")
     expect(status).to_have_text("1 of 1")
+
+
+def test_page_search_counts_the_words_an_off_screen_box_skips(browser, serve):
+    """A word the browser skips in an off-screen `content-visibility: auto` box, as a
+    long text document's runs are, counts by that box (passages.js,
+    `searchableWords`): every line of the document, and the author's far box's words,
+    less those under a `hidden` element in it. `leaf-dev bench document --input
+    matches` reads what the count costs."""
+    lines = "\n".join(f"needle on line {i}" for i in range(4000))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Skipped runs",
+                f'<h1>Search</h1><lf-text-document id="doc" label="lines.txt"><pre>{lines}'
+                '</pre></lf-text-document><div id="far" style="margin-top: 4000px;'
+                ' content-visibility: auto; contain-intrinsic-size: auto 600px">'
+                "<p>needle far</p><p hidden>needle hidden far</p></div>",
+            )
+        ),
+    )
+    expect(page.locator("#doc .lf-text-document-run")).to_have_count(32)
+    page.keyboard.press("/")
+    search = page.get_by_role("searchbox", name="Search page text")
+    status = page.locator(".lf-page-search-status")
+    search.fill("needle")
+    expect(status).to_have_text("1 of 4001")
+    search.fill("needle far")
+    expect(status).to_have_text("1 of 1")

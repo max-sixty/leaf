@@ -1,7 +1,6 @@
 """Named browser probes, and the waits built on them, shared by the render gate and the
 test suite."""
 
-from contextlib import contextmanager
 from pathlib import Path
 from urllib.parse import urljoin
 
@@ -212,25 +211,6 @@ def evaluate_probe(page, name: str, *args):
     return page.evaluate(_PROBE, {"name": name, "args": list(args)})
 
 
-@contextmanager
-def observe_probe(page, name: str, *args):
-    """Own a probe's native finish closure; fill its records when the scope ends.
-
-    JSON evaluation cannot carry a browser function. Its JSHandle keeps the
-    observation in this document and disconnects it even if the caller's work fails.
-    """
-    _load_probes(page, _timeout(page, None))
-    handle = page.evaluate_handle(_PROBE, {"name": name, "args": list(args)})
-    records = []
-    try:
-        yield records
-    finally:
-        try:
-            records.extend(handle.evaluate("finish => finish()"))
-        finally:
-            handle.dispose()
-
-
 def wait_for_probe(
     page,
     name: str,
@@ -360,6 +340,14 @@ class PageNotReady(TimeoutError):
         self.stage = stage
 
 
+def asked_again(url: str) -> str:
+    """`url` as the document startup recovery asks the server for once more
+    (`_leaf-recovered`, bootstrap.js). A page opened there that cannot start waits for
+    another server rather than reloading itself from this one, so a reader that judges
+    the document it opened, such as a check against a fixed server, opens it here."""
+    return f"{url}{'&' if '?' in url else '?'}_leaf-recovered"
+
+
 def wait_until_ready(
     page,
     state: dict | None = None,
@@ -384,7 +372,9 @@ def wait_until_ready(
     A caller whose server nothing replaces while it waits, such as a check reading a
     preview of one candidate, passes `fixed_server`: a page that declares it cannot
     start is then refused at once, as stage `refused` with the page's own reason,
-    rather than at the deadline, since the reload it waits for never comes.
+    rather than at the deadline, since the reload it waits for never comes. Such a
+    caller opens the page at `asked_again`, or the page's one reload from the same
+    server replaces the document the caller is still reading.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 

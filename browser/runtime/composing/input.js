@@ -80,7 +80,7 @@ import { followBoxGrowth, readBoxPlace } from "../thread/reply-landing.js";
 import { focusDestination, focused, focusRevision } from "../focus.js";
 import { whileConnected } from "../arrivals.js";
 import { applicationState } from "../semantic-state.js";
-import { errorsReading, passErrorsAt, raiseError } from "../errors.js";
+import { errorOver, passErrorsAt, raiseError } from "../errors.js";
 import { sizeObserver } from "../rendering.js";
 import { scrollIntoView } from "../landing-scroll.js";
 import { retainUserIntent } from "../user-intent.js";
@@ -271,14 +271,10 @@ export const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
 // name reads has changed and the caller holds the field rather than its wiring.
 /** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
-// The newest error about a box the user has not come back to, which covers its words.
-/** @param {Element} ta */
-const errorOver = (ta) =>
-  errorsReading().find((error) => error.subject === ta && !error.passed) ?? null;
 // Whether an error stands at a box, which says it there; the panel's dot marks only
 // those that stand nowhere. A box that stops showing the words passes its errors, so a
 // standing one is always on screen.
-/** @param {ReturnType<typeof errorsReading>[number]} error */
+/** @param {import("../errors.js").RaisedError} error */
 export const standsAtItsBox = (error) => {
   /** @type {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} */
   const subject = error.subject;

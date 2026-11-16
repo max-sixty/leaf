@@ -37,7 +37,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
             '<lf-source-stage id="stage"><p id="stage-face">Stage words.</p>'
             '<lf-source-view id="nested"><pre>source data</pre></lf-source-view>'
             "</lf-source-stage>"
-            '<lf-code id="code" language="python"><pre>print(1)</pre></lf-code>'
+            '<lf-code id="code"><pre><code class="language-python">print(1)</code></pre></lf-code>'
             '<lf-diagram id="diagram"><pre>flowchart LR\nA --> B</pre></lf-diagram>'
             '<lf-diff id="diff"><pre>diff --git a/a.py b/a.py\n--- a/a.py\n+++ b/a.py\n'
             "@@ -1 +1 @@\n-old\n+new\n</pre></lf-diff>",

@@ -616,8 +616,11 @@ def test_render_reads_widget_chrome_where_it_stands(
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SAMPLE_TEXT,
-            "markup": SAMPLE_MARKUP + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
+            "text": SAMPLE_TEXT
+            + "\n\n"
+            + SAMPLE_MARKUP
+            + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
+            "html": True,
         },
     )
     page = open_page(primed(browser, stage_reach_cases), url)
@@ -689,10 +692,13 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
 
     def post(executable):
         return subprocess.run(
-            [*LEAF_COMMAND, "thread", "create", str(d), "--text", "See this."]
-            + [
-                "--markup",
-                '<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+            [
+                *LEAF_COMMAND,
+                "thread",
+                "create",
+                str(d),
+                "--text",
+                'See this.\n\n<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
             ],
             capture_output=True,
             text=True,
@@ -703,7 +709,7 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
     refused = post(headless_shell)
     assert refused.returncode != 0, refused.stdout + refused.stderr
     refusal = json.loads(refused.stdout)["error"]
-    assert refusal.startswith("comment markup doesn't draw:"), refusal
+    assert refusal.startswith("the HTML in the comment doesn't draw:"), refusal
     assert '<lf-chart id="t-bad"> failed: ' in refusal
     assert not [e for e in events_model.read_events(d) if e["kind"] == "comment"]
 
@@ -931,7 +937,7 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     assert any(
         report["kind"] == "Script"
         and report["error"] == "net::ERR_FAILED"
-        and report["frame"] == url
+        and report["frame"] == url.split("?")[0]
         and report["url"].endswith("/page/helper.js")
         for report in by_code["request-failed"]
     ), failed

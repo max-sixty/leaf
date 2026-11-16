@@ -453,8 +453,9 @@ def test_recordless_requests_wake_without_user_obligations(
             "kind": "comment",
             "author": "agent",
             "revision": latest_revision(page_dir),
-            "text": "An optional command:",
-            "markup": '<lf-archive id="thread-row">Archive this</lf-archive>',
+            "html": True,
+            "text": "An optional command:\n\n"
+            + '<lf-archive id="thread-row">Archive this</lf-archive>',
         },
     )
     frozen = action("archive", "thread-row")
@@ -682,8 +683,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "And which region first?",
-            "markup": '<lf-options id="rg" choose>'
+            "html": True,
+            "text": "And which region first?\n\n" + '<lf-options id="rg" choose>'
             '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
             "</lf-options>",
         },
@@ -694,8 +695,9 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which mitigations should I carry into the patch?",
-            "markup": '<lf-options id="gm" choose>'
+            "html": True,
+            "text": "Which mitigations should I carry into the patch?\n\n"
+            + '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><small class="tag">recommended</small>'
             "<strong>Cap retries</strong> Bound retry load.</lf-option>"
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
@@ -720,8 +722,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert [e["id"] for e in shown] == [chose["id"]]
     [thread] = header["threads"]
     assert thread["id"] == asked["id"]
-    # The markup, because `m-cap` is a word only the question spells out.
-    assert 'id="m-cap"' in thread["messages"][0]["markup"]
+    # The HTML, because `m-cap` is a word only the question spells out.
+    assert 'id="m-cap"' in thread["messages"][0]["text"]
     # And the pick in words, read from that frozen message: the group is left
     # out because it only encloses the option chosen in it.
     assert shown[0]["says"] == {"m-cap": "recommended Cap retries Bound retry load."}
@@ -891,8 +893,9 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Here is the proposed answer.",
-            "markup": '<lf-suggestion id="thread-answer" resolves="c-target">'
+            "html": True,
+            "text": "Here is the proposed answer.\n\n"
+            + '<lf-suggestion id="thread-answer" resolves="c-target">'
             "<lf-old><p>Old words.</p></lf-old>"
             "<lf-new><p>New words.</p></lf-new>"
             "</lf-suggestion>",
@@ -973,8 +976,10 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             "text": f"Recovery context {index}.",
         }
         if index == 2:
-            message["markup"] = (
-                '<lf-options id="thread-commands" choose>'
+            message["html"] = True
+            message["revision"] = 1
+            message["text"] += (
+                '\n\n<lf-options id="thread-commands" choose>'
                 '<lf-option id="restart"><strong>Restart</strong></lf-option>'
                 '<lf-option id="park"><strong>Park</strong></lf-option>'
                 "</lf-options>"
@@ -1007,7 +1012,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
         for message in thread["messages"]
         if message["id"] == asking_message["id"]
     )
-    assert 'id="thread-commands"' in carried["markup"]
+    assert 'id="thread-commands"' in carried["text"]
 
 
 @pytest.mark.parametrize("rewritten", [True, False])
@@ -1110,8 +1115,8 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "kind": "reply",
             "author": "agent",
             "parent": root["id"],
-            "text": "Which mitigations?",
-            "markup": '<lf-options id="gm" choose multiple>'
+            "html": True,
+            "text": "Which mitigations?\n\n" + '<lf-options id="gm" choose multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             "</lf-options>",
         },
@@ -1152,9 +1157,9 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     assert thread["elided"]["messages"] > 0, "the bound did not engage"
     assert [a["widget"] for a in thread["actions"]] == ["gm"]
     # The question survives the elision that took its neighbours.
-    carrying = [m for m in thread["messages"] if m.get("markup")]
+    carrying = [m for m in thread["messages"] if "<lf-options" in m["text"]]
     assert [m["id"] for m in carrying] == [asked["id"]], json.dumps(thread["messages"])
-    assert 'id="m-cap"' in carrying[0]["markup"]
+    assert 'id="m-cap"' in carrying[0]["text"]
     assert chose["id"] == thread["actions"][0]["id"]
 
 
@@ -1164,9 +1169,7 @@ def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
     serving(page_dir, 1)
     publish(page_dir)
     session_model.cmd_waiting(page_dir)
-    question = thread_model.cmd_comment(
-        page_dir, "", "", "", "Forty?", "", obligation=True
-    )
+    question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
     quiet = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
@@ -1416,8 +1419,8 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
             **agent,
             "kind": "comment",
             "revision": 1,
-            "text": "Try this one.",
-            "markup": playground("sent", "sent-card"),
+            "html": True,
+            "text": "Try this one.\n\n" + playground("sent", "sent-card"),
         },
     )
     sent = tune("sent", 2)

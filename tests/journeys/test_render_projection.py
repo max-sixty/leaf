@@ -558,12 +558,10 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     } == {("choose", "choose"), ("answer", "answer"), ("add", "add")}
     failures = render_gate_model.render_version(browser, url).failures
     assert [
-        (f.scheme, f.at, f.values["changed"])
-        for f in failures
-        if f.code == "relative-render"
+        (f.at, f.values["changed"]) for f in failures if f.code == "relative-render"
     ] == [
-        ("light", "<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
-        ("light", "<lf-tally id=tally-seen>", ["body text"]),
+        ("<lf-tally id=tally-fitted>", ["tally-fitted", "body text"]),
+        ("<lf-tally id=tally-seen>", ["body text"]),
     ], failures
     # The relative widget's appended caption is its own fault in other readings too;
     # the current vocabulary beside it leaves the gate nothing to say.
@@ -1182,11 +1180,9 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
 
     # A fresh document cannot claim native retention and still waits for composition.
     (serve.page_dir / "index.html").write_text(executable_revision(third, "reload"))
-    # The page has heard of it once the row, beside the open thread, says it shows an
-    # older version and offers the latest. A state read after that asks again whether
-    # the page may follow, and the composition still says no.
+    # Once the page has heard of it, a state read after that asks again whether the
+    # page may follow, and the composition still says no.
     told(page)
-    expect(page.locator(".lf-fp-row-notice button")).to_be_enabled()
     nudge(serve.page_dir)
     told(page)
     assert editor.evaluate("node => node === window.heldReply")

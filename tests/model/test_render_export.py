@@ -218,8 +218,9 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         {
             "kind": "reply",
             **said,
-            "text": "REPLYWORD",
-            "markup": '<lf-options id="frozen"><lf-option id="yes">FROZENWORD'
+            "html": True,
+            "text": "REPLYWORD\n\n"
+            + '<lf-options id="frozen"><lf-option id="yes">FROZENWORD'
             '</lf-option><lf-option id="PICKWORD">No</lf-option></lf-options>'
             '<lf-text-document id="in-thread" source="thread-notes" label="notes.md">'
             "</lf-text-document>",

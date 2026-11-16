@@ -66,6 +66,7 @@ import {
   LeafElement,
   motion,
   obligationActions,
+  obligationsByRegion,
   obligationsIn,
   offer,
   offerAction,
@@ -206,7 +207,8 @@ customElements.define(
     #readings() {
       const items = readObligations();
       if (items.phase !== "ready") return null;
-      return (/** @type {HTMLElement} */ card) => obligationsIn(card, items.all);
+      const held = obligationsByRegion(this.#cards, items.all);
+      return (/** @type {HTMLElement} */ card) => held.get(card) ?? [];
     }
 
     // Show one card, or none once the pass is over, without motion.

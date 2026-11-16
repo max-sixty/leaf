@@ -146,8 +146,8 @@ def _sample_containment_page():
    {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
     "text":"Checking the nested reading region."},
    {"kind":"reply","author":"agent","parent":"question",
-    "text":"The destination is inside the nested reading region.",
-    "markup":"<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
+    "html":true, "revision":1,
+    "text":"The destination is inside the nested reading region.\n\n<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
 </script>
 <script type="module">
   const sample = document.querySelector('#practice');
@@ -300,7 +300,12 @@ RING_CASES = (
                 (".lf-grip", FLOOR_RING),
                 (".lf-fp-leaf", FLOOR_RING),
                 (".lf-fp-on-user", FLOOR_RING),
-                (".lf-fp-field leaf-text", ".lf-fp-field .lf-compose-field"),
+                # The field's slot wears the ring, so Send in the editor's corner
+                # stays put (floating-panel.css).
+                (
+                    ".lf-fp-field leaf-text",
+                    "[data-lf-control-focus-visible] > .lf-fp-field",
+                ),
             ),
             "feature-gallery": (
                 (".lf-tab-btn", ".lf-tab-btn"),
@@ -314,11 +319,17 @@ RING_CASES = (
             # A picture's response proxy, which a screen reader reaches from the
             # picture, rings the picture (details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
-            # Working density, where a choice's gap is narrowest beside the next face.
+            # The rail's working density, where a choice's gap is narrowest beside the
+            # next face; a candidate card is the choice, so the card wears its radio's
+            # ring (playground/defaults.css).
             "notification-playground": (
                 (
-                    "lf-playground input[type=radio]",
+                    "#tone input[type=radio]",
                     ".lf-choice[data-lf-control-focus-visible]",
+                ),
+                (
+                    "#format input[type=radio]",
+                    "> lf-playground-choice[data-lf-control-focus-visible]",
                 ),
             ),
             "pr-walkthrough": (

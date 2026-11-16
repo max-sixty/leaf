@@ -195,7 +195,6 @@ interface WindowEventMap {
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
     reason: string;
-    incomplete: boolean;
     page: boolean;
   }>;
 }

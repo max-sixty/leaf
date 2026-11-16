@@ -19,7 +19,7 @@ import {
 import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, shadowHost, under, upFrom } from "./shadow.js";
+import { inUi, queryAllUnder, shadowHost, under, upFrom } from "./shadow.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,
@@ -493,7 +493,7 @@ const controlIdentity = (control) =>
   (control instanceof HTMLLabelElement ? control.control : null) ?? control;
 /** @param {Element} owner @param {string} name */
 const namedParts = (owner, name) =>
-  [...new Set(pageQueryAll(WORKS).map(controlIdentity))].filter(
+  [...new Set(queryAllUnder(owner, WORKS).map(controlIdentity))].filter(
     (control) =>
       control !== owner &&
       under(control, owner) &&
@@ -547,10 +547,7 @@ function controlContext(control, contexts, part) {
 /** @param {Element} face @param {Element} control */
 function controlPassages(face, control) {
   const words = textNodesUnder(face);
-  const barriers =
-    face === control
-      ? pageQueryAll(WORKS).filter((other) => other !== control && under(other, face))
-      : [control];
+  const barriers = face === control ? queryAllUnder(face, WORKS) : [control];
   /** @type {import("./passages.js").Segment[][]} */
   const passages = [];
   /** @type {import("./passages.js").Segment[]} */
@@ -671,8 +668,9 @@ function designTargetAt(
   // A picture's name describes a face; it is not a quotation of its pixels.
   if (partElement.matches(genericVisualSelector) && !claimsVisualGesture(partElement))
     return named;
-  // Inventory reads names and faces only. Capture the chosen control's passage once,
-  // when direct aim or a picker choice actually needs its durable coordinate.
+  // Inventory reads names and faces only, which is all the box and name a hovering
+  // pointer paints need. The control's passage is captured once, when a press or a
+  // picker choice commits the target and needs its durable coordinate (`captured`).
   return {
     ...named,
     capture() {
@@ -728,12 +726,11 @@ function designTargetAt(
 
 // The returned element is the coordinate's durable owner. A named control part also
 // supplies its own hint seat, so several controls in one owner keep separate identities.
+// A Design mode target is its inventory reading, as `aimTargets` gives the picker: a
+// control part's quoted passage waits for whoever commits it (`captured`).
 /** @param {Node | null} node @param {AimOptions} [options] @returns {AimTarget | null} */
 export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
-  if (design) {
-    const target = designTargetAt(node, marginTargetAt);
-    return target?.capture ? target.capture() : target;
-  }
+  if (design) return designTargetAt(node, marginTargetAt);
   const visual = visualAt(node, { unclaimed: false });
   if (visual?.part)
     return {
@@ -747,6 +744,16 @@ export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
   const addressable = addressableAt(node);
   return addressable ? addressableAimTarget(addressable) : null;
 }
+
+// A target as a comment takes it: a Design mode control part with its passage
+// captured (`designTargetAt`), and any other target as it is. What a caller added to
+// the target, such as the point a press landed on (pointed-place.js), stays with it.
+/** @template {AimTarget | null | undefined} T @param {T} target @returns {T} */
+export const captured = (target) => {
+  if (!target?.capture) return target;
+  const { capture, ...added } = target;
+  return /** @type {T} */ ({ ...added, ...capture() });
+};
 
 /** @param {AimOptions} [options] @returns {AimTarget[]} */
 export function aimTargets(options = {}) {

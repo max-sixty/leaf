@@ -38,17 +38,14 @@
  *   empty for the ✕, which left a gap at the row's end; Threads became the On view's
  *   tab, since On Me already lists a thread message that waits on the user. Rejected:
  *   the ✕ standing before both marks, which kept them still but stood it between the
- *   field and the marks. Beside the seat stands at most one small notice for a state
- *   the user should not miss, such as reading an older version, tinted by its tone and
- *   with at most one press (`olderVersion`); the field gives it room, so the seat keeps
- *   its place, but only while it holds no words, which a narrower field would rewrap
- *   under the reader; the notice waits while words stand there, or a press at the
- *   field's end, which a notice coming or going on news would move. The empty field says
- *   what the agent is doing or wants, in the status's words
- *   (`statusReading`), or what a passing notice says, where a placeholder would say
- *   "Comment", and the field's end says the one press that matters most at that
- *   moment: Comment and c at rest; while it passes, the press a notice of the user's
- *   own gesture offers, as a Resolve's Next thread and t (`noticePress`,
+ *   field and the marks. Nothing else stands in the row, so the field's width follows
+ *   only the user's own moves, and what its end says never slides. The empty field says
+ *   what the agent is doing or wants, in the status's words (`statusReading`), after
+ *   where the user stands on the page, such as an older version (`standing`), or what
+ *   a passing notice says, where a placeholder would say "Comment", and the field's end
+ *   says the one press that matters most at that moment: Comment and c at rest, or
+ *   Open latest on an older version (`latestPress`); while it passes, the press a notice of
+ *   the user's own gesture offers, as a Resolve's Next thread and t (`noticePress`,
  *   thread/folding.js); once the server reads a gesture as answering something On Me
  *   lists, a pick, a settling reaction or a reply sent from a card, while more stands
  *   there, Next On Me and m (application.js, `offerNextOnMe`), which a reply or comment
@@ -268,7 +265,7 @@ import {
   workflowStep,
   workflowWord,
 } from "./thread/workflow.js";
-import { agentSays, leafSays, voiceOf, voiced, wordsText } from "./voice.js";
+import { agentSays, leafSays, saidBy, voiceOf, voiced, wordsText } from "./voice.js";
 import {
   anchorLabel,
   draftPreview,
@@ -321,7 +318,7 @@ import { obligationPlace } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
-import { versionsReading } from "./version.js";
+import { comparisonBase, comparisonChanges, versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
 import {
   gestureReading,
@@ -436,9 +433,9 @@ const groupOf = (entry) =>
 function passing() {
   const notice = noticeReading();
   if (notice.visible)
-    return { message: notice.message, visible: true, press: notice.press };
+    return { message: notice.message, visible: true, press: notice.press, news: true };
   const message = navigationWords();
-  return { message, visible: Boolean(message), press: null };
+  return { message, visible: Boolean(message), press: null, news: false };
 }
 function navigationWords() {
   const { goTo, walk } = statusContextReading();
@@ -695,7 +692,6 @@ export function createFloatingPanel({
     // Drafts are marked only where nothing has news, so the dot stays news's mark, and
     // only while the mark or the folded leaf shows, so writing never reads them.
     const kept = news || !(folded || (!quickHidden && !exit)) ? 0 : keptDrafts();
-    const notice = initial || search ? null : olderVersion();
     const peek = initial ? null : peekPresentation();
     const mode = search
       ? html`<span class="lf-fp-mode-word">Search </span>${iconTemplate(
@@ -871,7 +867,11 @@ export function createFloatingPanel({
                 ?hidden=${mode === nothing}
                 aria-label=${search ? searchLabel : nothing}
                 .lfPreview=${() => {
-                  const words = search ? searchLabel : selection ? reading.words : null;
+                  const words = search
+                    ? searchLabel
+                    : selection
+                      ? wordsText(reading.words)
+                      : null;
                   return words ? { name: words } : null;
                 }}
                 >${mode}</span
@@ -881,9 +881,6 @@ export function createFloatingPanel({
               </div>
             </div>
             <div class="lf-fp-response"></div>
-            <div class="lf-fp-row-notice" ?hidden=${!notice}>
-              ${notice ? rowNoticeTemplate(notice) : nothing}
-            </div>
             ${marks(html`<div class="lf-fp-quick" ?hidden=${quickHidden}>${quick}</div>`)}
           </div>
         </div>
@@ -947,7 +944,7 @@ export function createFloatingPanel({
     readCorner();
     // A press offered while the pointer stood on the panel stands once it leaves
     // (`pagePress`).
-    if (shownOffer !== offeredPress()) paint();
+    if (shownOffer !== pageOffer()) paint();
   });
   const leaf = shell("leaf");
   const field = shell("field");
@@ -1148,10 +1145,8 @@ export function createFloatingPanel({
   // else on the page what the agent is doing or wants, in
   // the status's words, and in a thread whose turn it is. On the page, the stance the
   // user is in, such as Draw mode, heads a passing notice and takes the status's
-  // place (keyboard/status-context.js); the leaf keeps the status's colour. While the
-  // user has hidden the annotation layer (`o`, annotation-layer.js), which a reload
-  // keeps, the status or stance says so, or a page whose marks are hidden would read
-  // as one with none.
+  // place (keyboard/status-context.js); the leaf keeps the status's colour. The status
+  // or stance first says where else the user stands (`standing`).
   //
   // In an open thread the field is the reply box, so it says the reply, with the key
   // that enters it, but for a notice or the Go-to word for their moment; whose turn it
@@ -1192,7 +1187,41 @@ export function createFloatingPanel({
   // page, which the user chose on 6 November 2026 to end in Comment… and c, as the field
   // does at rest, over c alone right after the quote.
   const SAYS_ELSE = new Set(["status", "notice", "selection"]);
-  const hiddenLead = () => (annotationsHidden() ? [leafSays(`${HIDDEN} · `)] : []);
+  // Where the user stands on the page, which the page field's words say before the
+  // status or the words selected on the page, and in a stance in the status's place,
+  // each for as long as the user's own choice stands: the stance's name, the version
+  // the page shows where it is older than the latest (version.js, `shownBehind`), how
+  // many changes the page marks since the version it compares with (`v`, version.js),
+  // whose bars say only that a block changed, and that the user hid the annotation
+  // layer (`o`, annotation-layer.js), which a reload keeps, or a page whose marks are
+  // hidden would read as one with none. They stand in
+  // the field's words, so the field's width never follows them, and the status
+  // changing after them leaves them where they stand. Each part but the last carries
+  // its separator in its own speaker's face, so words all Leaf's keep the native
+  // placeholder (`saying`). The version stood in a tinted notice beside the On Me mark
+  // until #5642, which narrowed the field as it came and went and slid the press at
+  // the field's end from under the user's aim.
+  /** @param {string | null} stance @param {boolean} [more] whether words follow */
+  function standing(stance, more = false) {
+    const { shown } = versionsReading().latest;
+    const base = comparisonBase();
+    const compared = base
+      ? leafSays(`${counted(comparisonChanges().length, "change")} since ${base.name}`)
+      : null;
+    const parts = [
+      stance,
+      shown,
+      compared,
+      annotationsHidden() ? leafSays(HIDDEN) : null,
+    ].filter((part) => part !== null);
+    return parts.map((part, at) =>
+      !more && at === parts.length - 1
+        ? part
+        : typeof part === "string"
+          ? `${part} · `
+          : saidBy(part.voice, `${part.text} · `),
+    );
+  }
   // `drawn` is the thread as its view draws it, which the reply box's words read
   // (`replyOptionsFor`).
   /** @param {string | null} key @param {Element | null} input
@@ -1211,31 +1240,38 @@ export function createFloatingPanel({
     if (thread && !noticeReading().visible && !statusContextReading().goTo)
       return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
     const stance = key ? null : statusContextReading().stance;
-    // Keep the current navigation context alongside the selection's comment offer.
-    // The field's own name says what a press does (`pageEditor`); on a narrow phone
-    // its ellipsis shortens the quote after the mode and position, not instead of them.
+    // Keep where the user stands and the current navigation context alongside the
+    // selection's comment offer. The field's own name says what a press does
+    // (`pageEditor`); on a narrow phone its ellipsis shortens the quote after them, not
+    // instead of them.
     if (!key && selectedWords)
       return {
         says: "selection",
         offers: true,
-        words: [stance, navigationWords(), `“${excerptWords(selectedWords.quote, 60)}”`]
-          .filter(Boolean)
-          .join(" · "),
+        words: [
+          ...standing(stance, true),
+          [navigationWords(), `“${excerptWords(selectedWords.quote, 60)}”`]
+            .filter(Boolean)
+            .join(" · "),
+        ],
       };
     // A notice says its words in the empty field's, and the press it offers, such as
     // a Resolve's Next thread, is the one the field's end offers while it passes, said
     // as Comment and its key are (`noticePress`, composing/input.js `enters`); one
     // offering none leaves the page's own there (`pagePress`), as the walk a Next On
     // Me makes says its place beside the press that takes it on.
+    // A notice of news says its words after the stance alone, since news often
+    // announces a change to where the user stands ("Annotations hidden — o shows
+    // them"), and holds the line for a moment; a walk's position or the Go-to word, which
+    // stand as long as the user does, say the rest of where they stand first.
     if (notice.visible) {
       const own = notice.press ? noticePress(notice.press) : null;
       const close = own || !stance ? null : stanceClose();
+      const lead =
+        notice.news || key ? (stance ? [`${stance} · `] : []) : standing(stance, true);
       return {
         says: "notice",
-        words: [
-          ...(stance ? [`${stance} · `] : []),
-          ...[noticeWords(notice.message)].flat(),
-        ],
+        words: [...lead, ...[noticeWords(notice.message)].flat()],
         offer: own ?? close ?? (key ? null : pagePress()),
         exits: Boolean(close),
       };
@@ -1244,7 +1280,7 @@ export function createFloatingPanel({
       const close = stanceClose();
       return {
         says: "stance",
-        words: annotationsHidden() ? [`${stance} · `, leafSays(HIDDEN)] : stance,
+        words: standing(stance),
         offer: close,
         exits: Boolean(close),
       };
@@ -1252,26 +1288,30 @@ export function createFloatingPanel({
     if (!key)
       return {
         says: "status",
-        words: [...hiddenLead(), ...status().summaryParts],
+        words: [...standing(null, true), ...status().summaryParts],
         offer: pagePress(),
       };
     return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
   }
   // The press offered alone on the page, as Next On Me after an answer
-  // (notifications.js, `offerPress`), or null. It comes and goes with the server's
+  // (notifications.js, `offerPress`), else Open latest while the page shows an older
+  // version (`latestPress`), or null (`pageOffer`). It comes and goes with the server's
   // reading rather than with the user's input, so while the pointer rests on the panel
   // the field's end keeps what it showed, and takes the change at the user's next input
   // or once the pointer leaves: a press arriving there would stand where the user was
   // about to press Comment (browser/AGENTS.md, "The page holds still under the user's
   // aim").
-  /** @type {import("./notifications.js").NoticePress | null} */
+  /** @returns {import("./notifications.js").NoticePress | "latest" | null} */
+  const pageOffer = () => offeredPress() ?? (latestPress() ? "latest" : null);
+  /** @type {ReturnType<typeof pageOffer>} */
   let shownOffer = null;
   let offerShownAt = -1;
   function pagePress() {
     if (pointer === null || inputCount() !== offerShownAt) {
-      shownOffer = offeredPress();
+      shownOffer = pageOffer();
       offerShownAt = inputCount();
     }
+    if (shownOffer === "latest") return latestPress();
     return shownOffer ? noticePress(shownOffer) : null;
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
@@ -4968,11 +5008,6 @@ export function createFloatingPanel({
     // Only the page field competes with the seated annotation composer. An open
     // view already keeps that seat out, regardless of what its reply field says.
     posture("data-lf-offers", !top && !search && reading.offers ? "" : null);
-    // A press standing at the field's end at rest keeps the row's notice aside, as the
-    // user's words do, so a notice coming or going on news never moves it from under
-    // the user's aim (floating-panel.css).
-    const presses = !search && Boolean(reading.offer) && input !== focused() && !words;
-    posture("data-lf-presses", presses ? "" : null);
     keeps(host, "data-lf-tone", status().tone || null);
     keeps(host, "data-lf-asks", status().asks ? "" : null);
     // Each moment the leaf answers has a beat of its own (notifications.js), so it plays
@@ -5021,13 +5056,7 @@ export function createFloatingPanel({
     }
   }
 
-  // ---------- the row's notice ----------
-  // One small notice beside the seat, for a state the user should not miss while they
-  // read: a few words (`says`), a `tone` that tints it, and at most one `press`: the
-  // older version's, whose Latest has no key. A passing notice of the user's own
-  // gesture says its words and its press in the field instead (`fieldReading`).
-  /** @typedef {{says: string, tone: string | null, press: {label: string,
-   * run: () => unknown, title?: string | null, disabled?: boolean} | null}} RowNotice */
+  // ---------- the field's presses ----------
   // A notice's press, or one offered alone (notifications.js, `offerPress`), as the
   // field's end offers it (composing/input.js, `BoxPress`): its word, the keys of the
   // page command that makes it, as the command reference spells them, and what it does.
@@ -5082,44 +5111,18 @@ export function createFloatingPanel({
       run: () => exit.press?.(null),
     };
   }
-  // The page shows an older version than the latest: the menu's row that opens the
-  // latest says so too, but only once the menu is open, while the count beside it
-  // follows the version shown with no word of why.
-  function olderVersion() {
+  // Open latest, which the field's end offers while the page shows an older version
+  // than the latest, as its words say first (`standing`), when no other press is
+  // offered there (`pagePress`), with no key, since none opens the latest. Its verb says
+  // it acts: "Latest" alone, in the dim face every word at the field's end wears, read
+  // as a status. The menu's row that opens the latest offers it too.
+  /** @returns {import("./composing/input.js").BoxPress | null} */
+  function latestPress() {
     const { latest } = versionsReading();
-    if (latest.shown === null) return null;
-    return {
-      says: latest.shown,
-      tone: "warn",
-      press: {
-        label: "Latest",
-        title: latest.keyTitle,
-        disabled: latest.disabled,
-        // The notice stands in the row, beside whatever view is open, so its press
-        // puts nothing away: a revision installed under an open thread hands back
-        // the reply being written there (version.js, `restoreEditingContinuity`).
-        run: () => versionPicker.latest(),
-      },
-    };
-  }
-  /** @param {RowNotice} notice */
-  function rowNoticeTemplate({ says, tone, press = null }) {
-    return html`<span class="lf-fp-row-notice-face" data-lf-tone=${tone ?? nothing}
-      ><span class="lf-fp-row-notice-says">${says}</span>${
-        press
-          ? html` <span class="lf-fp-row-notice-sep" aria-hidden="true">·</span>
-              <button
-                type="button"
-                ${offeredAction("inline", "lf-fp-row-notice-press")}
-                .lfPreview=${() => (press.title ? { detail: [press.title] } : null)}
-                ?disabled=${press.disabled}
-                @click=${press.run}
-              >
-                ${press.label}
-              </button>`
-          : nothing
-      }</span
-    >`;
+    if (latest.shown === null || latest.disabled) return null;
+    // The press puts nothing away: a revision installed under an open thread hands
+    // back the reply being written there (version.js, `restoreEditingContinuity`).
+    return { word: "Open latest", keys: [], run: () => versionPicker.latest() };
   }
 
   // ---------- gestures ----------

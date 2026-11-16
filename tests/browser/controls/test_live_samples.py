@@ -57,9 +57,7 @@ def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
             "--done",
             response_reference(serve.page_dir, question),
             "--text",
-            "Try it here:",
-            "--markup",
-            REPLY_SAMPLE,
+            "Try it here:" + "\n\n" + (REPLY_SAMPLE),
         ],
     )
     assert replied.exit_code == 0, replied.output

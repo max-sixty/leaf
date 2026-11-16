@@ -566,11 +566,11 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         page_dir,
         {
             "kind": "reply",
-            "author": "user",
+            "author": "agent",
             "parent": "aabb0011",
             "revision": 1,
-            "text": "Seeded reply",
-            "markup": '<lf-code id="seed-code" language="python"><pre>print("seed")</pre></lf-code>',
+            "text": 'Seeded reply\n\n<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
+            "html": True,
         },
     )
     before = event_model.read_events(page_dir)
@@ -584,7 +584,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         assert status == 200, raw
         assert [event["text"] for event in json.loads(raw)["events"]] == [
             "Selected thread",
-            "Seeded reply",
+            'Seeded reply\n\n<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
         ]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
@@ -593,7 +593,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert fetch(children[0] + "/api/state", token=None)[0] == 200
 
 
-def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
+def test_a_message_sample_starts_from_its_message_html(server, page_dir):
     """A template in a message's frozen markup allocates like a page's, addressed by
     its message: a fixture script in that markup seeds one child, and a selection of
     the page's threads seeds another."""
@@ -626,9 +626,7 @@ def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
             "--done",
             response_reference(page_dir, "aabb0011"),
             "--text",
-            "Try it:",
-            "--markup",
-            markup,
+            f"Try it:\n\n{markup}",
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -651,7 +649,7 @@ def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
     status, body = allocate({"template": "fixture-practice"})
     assert status == 400 and "unknown sample template" in body["error"]
     status, body = allocate({"template": "fixture-practice", "message": "aabb0011"})
-    assert status == 400 and "carries markup" in body["error"]
+    assert status == 400 and "holds HTML" in body["error"]
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -2688,9 +2686,8 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "Pick one:",
-            "--markup",
             (
+                "Pick one:\n\n"
                 '<lf-ask id="thread-pick-decision"><h3>Which option?</h3>'
                 '<lf-options id="thread-pick" choose>'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
@@ -3790,7 +3787,6 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
                 "",
                 "",
                 "Arrived during the check",
-                "",
             )
             updating.result(STATED_TIMEOUT)
             assert not checking.done()
@@ -5061,8 +5057,8 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
-            "text": "A sample answer",
-            "markup": '<lf-code id="answer-code" language="python"><pre>1</pre></lf-code>',
+            "text": 'A sample answer\n\n<lf-code id="answer-code"><pre><code class="language-python">1</code></pre></lf-code>',
+            "html": True,
         },
         {
             "kind": "action",
@@ -5117,7 +5113,8 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
     second = allocate("second")
     initial = events(first)
     assert initial[0]["text"] == "Review the room"
-    assert initial[1]["markup"].startswith('<lf-code id="answer-code"')
+    assert initial[1]["html"] is True
+    assert '<lf-code id="answer-code"' in initial[1]["text"]
     assert initial[2]["revision"] == 1
     assert initial[2]["meaning"]["scope"] == "page"
     assert events(second) == initial

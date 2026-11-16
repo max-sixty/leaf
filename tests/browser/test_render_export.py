@@ -629,8 +629,8 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
             "Reachable modules",
             '<h1>Reachable</h1><lf-chart id="c"><pre>'
             '{ariaLabel: "one bar of 3", marks: [Plot.barY([3])]}'
-            '</pre></lf-chart><lf-code id="m" language="python" hi="1">'
-            "<pre>ship()</pre></lf-code>",
+            '</pre></lf-chart><lf-code id="m" hi="1">'
+            '<pre><code class="language-python">ship()</code></pre></lf-code>',
         )
     )
     root = append_carried_log_record(
@@ -644,9 +644,10 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
             "author": "agent",
             "parent": root["id"],
             "revision": 1,
-            "text": "Here:",
-            "markup": '<lf-diagram id="sketch"><pre>flowchart LR\n  A --> B\n'
+            "text": "Here:\n\n"
+            '<lf-diagram id="sketch"><pre>flowchart LR\n  A --> B\n'
             "</pre></lf-diagram>",
+            "html": True,
         },
     )
     out = tmp_path / "reachable.html"

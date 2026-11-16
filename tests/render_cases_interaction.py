@@ -1313,8 +1313,9 @@ THREAD_OBLIGATIONS = [
         "id": "c-which",
         "author": "agent",
         "revision": 1,
-        "text": "Which store?",
-        "markup": '<lf-ask id="tq-one-decision"><h3>Which store?</h3>'
+        "html": True,
+        "text": "Which store?\n\n"
+        + '<lf-ask id="tq-one-decision"><h3>Which store?</h3>'
         '<lf-options id="tq-one" choose>'
         '<lf-option id="tq-redis">Redis</lf-option>'
         '<lf-option id="tq-cookie">Signed cookie</lf-option>'
@@ -1325,8 +1326,9 @@ THREAD_OBLIGATIONS = [
         "id": "c-any",
         "author": "agent",
         "revision": 1,
-        "text": "Pick any that apply.",
-        "markup": '<lf-ask id="tq-set-decision"><h3>Which extras apply?</h3>'
+        "html": True,
+        "text": "Pick any that apply.\n\n"
+        + '<lf-ask id="tq-set-decision"><h3>Which extras apply?</h3>'
         '<lf-options id="tq-set" choose multiple>'
         '<lf-option id="tq-logs">Logs</lf-option>'
         '<lf-option id="tq-metrics">Metrics</lf-option>'
@@ -1536,8 +1538,9 @@ def package_workspace(serve, *, before_reader="", primary=True):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which channel?",
-            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+            "html": True,
+            "text": "Which channel?\n\n"
+            + '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
         },
         {
             "id": "opening",

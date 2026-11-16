@@ -892,8 +892,11 @@ flowchart TD
                     the words it rests on.
                   </td>
                   <td>
-                    In Claude Code, at the next prompt or tool call after a turn ends
-                    (<a href="#turn-end-fork">Turn-end check in Claude Code</a>).
+                    In Claude Code, at the next prompt or tool call after a turn ends; a
+                    finding Leaf changed nothing for wakes an idle session (<a
+                      href="#turn-end-fork"
+                      >Turn-end check in Claude Code</a
+                    >).
                   </td>
                 </tr>
                 <tr>
@@ -1207,7 +1210,7 @@ flowchart TD
               <p id="fork-purpose">
                 Late in a long session, the page can drift from the conversation: the
                 agent leaves something to the user only in its chat reply, so On Me
-                misses it, or a page goes on saying what the work has since changed. In
+                misses it, or a page goes on holding what no longer fits the work. In
                 Claude Code, when the agent finishes a reply in a session holding a
                 page, Leaf's hooks module forks the conversation. The fork is a copy of
                 the conversation that answers one question without calling tools, and
@@ -1228,8 +1231,9 @@ flowchart TD
                   trying a build
                 </li>
                 <li>
-                  what a page still says that the work or the conversation has since
-                  changed, such as a result or a section the user dropped in chat
+                  anything on a page that no longer fits the work as it now stands, such
+                  as a result the work has since changed, finished work told as news, or
+                  a section the user dropped in chat
                 </li>
                 <li>
                   an On Me item the user answered elsewhere, or the work made moot
@@ -1280,7 +1284,9 @@ flowchart TD
                 original message even after a compaction. At its next prompt or tool
                 call, the agent reads these and each record and change Leaf made, and
                 withdraws a question it disagrees with by resolving its thread, as it
-                would its own.
+                would its own. A finding Leaf changed nothing for is work the agent owes
+                before the user reads the page again, so when the session has gone idle
+                Leaf wakes it for one rather than waiting for the user's next message.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the
@@ -1881,8 +1887,8 @@ flowchart TD
               This is everything <code>lf-options</code> tells Leaf about its three
               verbs and when its obligation counts as answered.
             </p>
-            <lf-code id="options-verbs" language="json" data-width="wide">
-              <pre>
+            <lf-code id="options-verbs" data-width="wide">
+              <pre><code class="language-json">
 "x-state": {
   "choose": {
     "unit": "widget",
@@ -1905,7 +1911,7 @@ flowchart TD
     "answer": {"when": {"multiple": [true]}}
   }
 }
-</pre>
+</code></pre>
               <lf-note at="2"
                 >The verb's name, which the widget sends as the event's
                 <code>action</code>.</lf-note
@@ -2027,8 +2033,8 @@ flowchart TD
              these commands through the append door and fails, printing the records
              to paste here, when the door would store anything different:
              tests/model/test_product_page.py::test_the_event_log_page_shows_the_records_the_door_writes -->
-            <lf-code id="captured-log" language="json" data-width="wide">
-              <pre>
+            <lf-code id="captured-log" data-width="wide">
+              <pre><code class="language-json">
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
@@ -2095,7 +2101,7 @@ flowchart TD
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
 {"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
-</pre>
+</code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
                 <code>widget</code>, <code>action</code>, <code>detail</code>, and
@@ -2865,7 +2871,7 @@ flowchart TD
                 <strong><code>leaf page stamp --text "…"</code></strong> Names a version
                 and its note in Versions. The live page updates and the panel says
                 <em>Updated to v4</em>. A tab on an earlier version stays there; its
-                version notice offers <em>Latest</em>.
+                panel says <em>v3 of 4</em> and offers <em>Open latest</em>.
               </li>
             </ul>
             <p id="updates-written-report">
@@ -3273,11 +3279,11 @@ EOF</code></pre>
             <h2>Widgets in messages</h2>
             <p id="message-widgets-markup">
               An agent's reply can carry a small widget, typically a question with
-              options (<code>--markup</code> on <code>leaf thread reply</code>). Leaf
-              validates the markup when it is posted and stores it in the log with the
-              reply, so the thread shows the same widget in every version of the page. A
-              later <code>leaf page init</code> refuses a vocabulary that could no
-              longer render it.
+              options, written as HTML in the reply's Markdown. Leaf validates that HTML
+              when the reply is posted and stores it in the log with the reply, so the
+              thread shows the same widget in every version of the page. A later
+              <code>leaf page init</code> refuses a vocabulary that could no longer
+              render it.
             </p>
             <p id="message-widgets-state">
               A widget on the page takes its state from the version being viewed: that
@@ -4225,8 +4231,8 @@ flowchart LR
             <p id="browser-revisions-wait">
               Installation waits during comment or reply writing, passage selection,
               card dragging, a pending update’s server response, or an open version
-              menu. <em>Latest</em> in the version notice installs the waiting revision
-              immediately.
+              menu. <em>Open latest</em> in the panel, or the leaf's menu's row for the
+              newer page, installs the waiting revision immediately.
             </p>
           </section>
           <section id="lifetime" class="layout-flow">

@@ -226,14 +226,14 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
         {"kind": "comment", "author": "user", "revision": 1, "text": "Tighten it."},
     )
     reference = response_reference(page_dir, comment["id"])
-    for flags in (
-        [],
-        ["--done", "--todo", "Tighten"],
-        ["--ephemeral", "--done"],
-        # Markup with no question in it asks nothing back, so it declares nothing.
-        ["--markup", '<figure id="sketch"><p>A sketch.</p></figure>'],
+    for text, flags in (
+        ("On it.", []),
+        ("On it.", ["--done", "--todo", "Tighten"]),
+        ("On it.", ["--ephemeral", "--done"]),
+        # HTML with no question in it asks nothing back, so it declares nothing.
+        ('On it.\n\n<figure id="sketch"><p>A sketch.</p></figure>', []),
     ):
-        result = leaf("thread", "reply", reference, "--text", "On it.", *flags)
+        result = leaf("thread", "reply", reference, "--text", text, *flags)
         assert result.exit_code != 0, (flags, result.output)
     assert kinds(state_json(page_dir)["queues"]["on_agent"]) == [
         ("update", f"update:{comment['id']}")
@@ -1459,8 +1459,7 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
             "reply",
             response_reference(page_dir, asked["id"]),
             "--text",
-            "Which store should own sessions?",
-            "--markup",
+            "Which store should own sessions?\n\n"
             '<lf-options id="store" choose>'
             '<lf-option id="store-account"><strong>Account store</strong></lf-option>'
             '<lf-option id="store-own"><strong>Their own store</strong></lf-option>'
@@ -1472,9 +1471,9 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
         {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Account."},
     )
     [delivered_words] = freeze_events(page_dir, [said])["batches"][0]["events"]
-    assert delivered_words["waiting"] == [
-        {"id": "widget:store", "text": "Which store should own sessions?"}
-    ]
+    [waiting] = delivered_words["waiting"]
+    assert waiting["id"] == "widget:store"
+    assert waiting["text"].startswith("Which store should own sessions?")
     written(
         leaf(
             "thread",
@@ -1974,7 +1973,7 @@ def test_the_input_a_reply_answers_moves_to_its_lists_done():
 
 
 @pytest.mark.parametrize("route", ["open", "proactive", "addressed"])
-def test_explicit_message_obligations_need_no_markup(page_dir, route):
+def test_explicit_message_obligations_need_no_html(page_dir, route):
     """Every author route atomically sends the question and registers On Me."""
     publish(page_dir)
     if route == "open":
@@ -2007,7 +2006,7 @@ def test_explicit_message_obligations_need_no_markup(page_dir, route):
         {"text": "Which environment?", "target": None},
     )
     assert ("message", identity) in kinds(state["queues"]["on_user"])
-    assert "markup" not in message
+    assert "html" not in message
     answer = append_carried_log_record(
         page_dir,
         {

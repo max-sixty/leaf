@@ -11,7 +11,6 @@ from interact_support import PAGE, package_path, page_packages
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
 from leaf.files import revision_path
-from leaf.http import scope_page_urls
 from leaf.revision_artifact import (
     ArtifactError,
     Resource,
@@ -504,8 +503,8 @@ def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     """Media is the page's and shared across revisions, so every host serves it at the
     page root, and the runtime resolves a message's or a widget's media there too. A
     captured document addresses it there in every form capture reads: a resource
-    attribute, any attribute naming it whole, a stylesheet, a declarative shadow root,
-    and frozen message markup in a state reading. Prose naming it stays as written."""
+    attribute, any attribute naming it whole, a stylesheet and a declarative shadow
+    root. Prose naming it stays as written."""
     media = "/media/0123456789abcdef.png"
     (tmp_path / "media").mkdir()
     (tmp_path / "media" / "0123456789abcdef.png").write_bytes(b"\x89PNG")
@@ -525,10 +524,6 @@ def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     delivered = rebase_document(source, ADDRESS)
     assert delivered.replace(PAGE_ROOT + media, "").count(media) == 1  # the prose
     assert delivered.count(PAGE_ROOT + media) == 7
-    markup = scope_page_urls(
-        {"markup": f'<p><img src="{media}" alt="Shot"></p>'}, PAGE_ROOT
-    )
-    assert markup["markup"] == f'<p><img src="{PAGE_ROOT}{media}" alt="Shot"></p>'
 
 
 def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
@@ -836,6 +831,31 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
     assert select_one_result_7 is not None
     assert select_one_result_7.text == "bold"
     assert not body.find_all("div")
+
+
+@pytest.mark.parametrize(
+    ("body", "painted"),
+    [
+        # The `<code>` naming the text's language, as on any code block.
+        ('<code class="language-markdown">**Fixed** a crash</code>', "Fixed a crash"),
+        # A template's contents, which the browser keeps out of `textContent`.
+        ("**Fixed**<template>**inert**</template> a crash", "Fixed a crash"),
+    ],
+)
+def test_a_written_markdown_file_first_paints_the_text_its_module_reads(body, painted):
+    """The first paint of a written Markdown file reads its `<pre>` as the module
+    will, the browser's `textContent`, so the page doesn't change words or size as the
+    module draws over it."""
+    delivered = mark_declared(
+        '<lf-text-document id="notes" label="NOTES.md" preview="markdown">'
+        f"<pre>{body}</pre></lf-text-document>",
+        {"lf-text-document": {"x-prepaint": "preview"}},
+        {},
+    )
+    rendering = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    assert rendering is not None
+    assert rendering.text.strip() == painted
+    assert [strong.text for strong in rendering.find_all("strong")] == ["Fixed"]
 
 
 def test_source_fallback_marks_derive_from_open_registry_content_declarations():

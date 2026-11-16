@@ -49,13 +49,14 @@ with a live sample can't be exported (`serving-pages.md`, "Exported files").
 To give the sample a page-wide setting such as `data-annotations="page"`, put it on the
 template.
 
-A thread message's `--markup` can carry a live sample too. It uses the layer of the
+A thread message can carry a live sample too. It uses the layer of the
 version showing the message and can load only that version's saved files, so keep its
 code inline in the template. Its `data-sample-threads` can't name the thread the
 message is in.
 
 To start the sample with made-up conversations or decisions, write an inline JSON
-script in the same markup as the template and name its id in `data-sample-events`:
+script beside the template, in the same page or message, and name its id in
+`data-sample-events`:
 
 ```html
 <script id="service-history" type="application/json">

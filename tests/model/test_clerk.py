@@ -8,7 +8,9 @@ from interact_support import DRAFTED, PAGE, append_carried_log_record, edit
 
 from leaf import clerk as clerk_model
 from leaf import event_log as events_model
+from leaf import harness as harness_model
 from leaf import hooks as hooks_model
+from leaf import state as state_model
 from leaf import todos as todos_model
 from leaf.agent_state import cmd_page_state
 from leaf.files import require_revision
@@ -282,6 +284,43 @@ def test_a_finding_reaches_the_agent_whatever_turn_opened_since(claimed, capsys)
     assert "Pick one?" not in context
 
 
+def test_a_finding_only_the_agent_can_act_on_wakes_the_idle_session(
+    claimed, interactive, capsys, monkeypatch
+):
+    """A finding Leaf changed nothing for is work the agent owes before the user
+    reads the page again, so its line wakes the session once the turn that left it
+    has closed, and a session no watch follows is nudged for it, once Leaf has queued
+    the line. An ask Leaf wrote itself only tells, so its line waits for the agent's
+    next step; once a hook has printed the lines, nothing wakes."""
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page: nudged.append(clerk_model.waking("s1")) or True,
+    )
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    question = asked()
+    state_model.close_session_turn("s1")
+    answer = json.loads(reply(page, "Pick one?"))
+    answer["findings"] = [
+        {
+            "kind": "stale",
+            "page": str(page),
+            "summary": "The page still opens on the merged cutoff change.",
+            "quote": "Next, look at the slow queries.",
+            "edit": None,
+        }
+    ]
+    done = clerk_model.take_answer("s1", json.dumps(answer), question["basis"])
+    [owed] = [line for line in done["told"] if "merged cutoff change" in line]
+    assert clerk_model.waking("s1") == [owed]
+    assert len(clerk_model.queued("s1")) == 2
+    assert nudged == [[owed]]
+    hook(capsys, "UserPromptSubmit", "p2")
+    assert clerk_model.queued("s1") == []
+
+
 def _stale(page, words: str, replacement: str) -> str:
     return json.dumps(
         {
@@ -357,6 +396,7 @@ def test_the_fork_fixes_a_few_stale_words_and_tells_the_agent(
     )
     assert done["changed"] == [{"page": str(page), "old": old, "new": new}]
     assert done["wrote"] == []
+    assert clerk_model.waking("s1") == []
     assert shown in _reads(claimed)
     assert (
         f'Leaf changed "{old}" to "{new}" in {page}/index.html and published it.'

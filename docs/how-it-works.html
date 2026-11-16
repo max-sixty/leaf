@@ -892,8 +892,11 @@ flowchart TD
                     the words it rests on.
                   </td>
                   <td>
-                    In Claude Code, at the next prompt or tool call after a turn ends
-                    (<a href="#turn-end-fork">Turn-end check in Claude Code</a>).
+                    In Claude Code, at the next prompt or tool call after a turn ends; a
+                    finding Leaf changed nothing for wakes an idle session (<a
+                      href="#turn-end-fork"
+                      >Turn-end check in Claude Code</a
+                    >).
                   </td>
                 </tr>
                 <tr>
@@ -1281,7 +1284,9 @@ flowchart TD
                 original message even after a compaction. At its next prompt or tool
                 call, the agent reads these and each record and change Leaf made, and
                 withdraws a question it disagrees with by resolving its thread, as it
-                would its own.
+                would its own. A finding Leaf changed nothing for is work the agent owes
+                before the user reads the page again, so when the session has gone idle
+                Leaf wakes it for one rather than waiting for the user's next message.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the

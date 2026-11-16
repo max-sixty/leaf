@@ -13,6 +13,7 @@ from leaf.events import (
     event_coordinate,
     progress_completions,
     retractions,
+    summary_range,
     taken_back,
 )
 from leaf.passages import enclosing_ids
@@ -497,15 +498,18 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         summaries = summaries_for[t]
         digest["summaries"] = summaries
         covered = {identity for summary in summaries for identity in summary["covers"]}
-        # Keep the newest exchange verbatim. The suggested range is one exact,
-        # contiguous uncovered run before it, so following the hint can never hide
-        # a new message or create a summary on top of one already in force.
-        # Completed progress is not drawn, so a run folds it; pending
-        # progress is still being said, so a run stops at it. The earliest run that
-        # qualifies is suggested, so a summary never leaves older discussion in
-        # full above it when an older run would do.
+        # Keep the newest exchange verbatim. The hint starts from the earliest run
+        # of uncovered messages before it that is long enough to suggest. Completed
+        # progress is not drawn, so a run folds it; pending progress is still being
+        # said, so a run stops at it. The hint is the range admission takes for that
+        # run (`events.summary_range`): widened over any message it would leave in
+        # full above a summary, replacing the summaries in force in between. So
+        # following it is never refused, and a short stretch a retired summary left
+        # above a later one doesn't stop every later hint.
         prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
         completed = progress_completions(threads[t])
+        ids = [message["id"] for message in threads[t]["msgs"]]
+        at = {identity: index for index, identity in enumerate(ids)}
         runs = []
         run = []
         for message in threads[t]["msgs"]:
@@ -532,11 +536,11 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
             [],
         )
         if candidate:
+            start, end = candidate[0]["id"], candidate[-1]["id"]
+            folded = {"covers": ids[at[start] : at[end] + 1]}
+            start, end = summary_range(threads[t], [*summaries, folded], start, end)
             # The range only: what the agent does with it is a `handling` clause.
-            digest["summary_hint"] = {
-                "from": candidate[0]["id"],
-                "through": candidate[-1]["id"],
-            }
+            digest["summary_hint"] = {"from": start, "through": end}
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted
         carried.append(digest)

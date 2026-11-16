@@ -77,8 +77,8 @@ import { tick } from "../version-signal.js";
 /** @typedef {ReturnType<typeof import("../composing/input.js").createCompositionInputs>["wireInput"]} WireInput */
 /** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
  * wireInput: WireInput,
- * landSent: ReturnType<typeof import("./landing.js").createThreadLanding>["landSent"],
- * landInThread: ReturnType<typeof import("./landing.js").createThreadLanding>["landInThread"]}} ReplyCommands */
+ * landSent: typeof import("./landing.js").returnToThread,
+ * landInThread: typeof import("./landing.js").landInThread}} ReplyCommands */
 /** @typedef {Partial<Pick<import("../composing/input.js").InputOptions,
  * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy">> & {
  * onChange?: () => void,

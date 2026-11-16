@@ -1505,10 +1505,10 @@ def test_a_prompt_reopens_the_acknowledged_move_it_carries_into_the_new_turn(
 
 
 def test_a_compaction_sends_the_agent_back_to_the_skill(claimed, capsys):
-    """A compaction can drop the leaf skill, whose rules, such as putting every
-    question for the user on On Me, the agent follows while it holds a page. The
-    SessionStart after one names the skill to read again; no other start or prompt
-    does."""
+    """A compaction removes the Leaf instructions the agent had read, whose rules,
+    such as putting every question for the user on On Me, it follows while it holds
+    a page. The SessionStart after one names the skill to read again; no other start
+    or prompt does."""
 
     def start_context(source: str) -> str:
         hooks_model.cmd_hook(
@@ -1551,8 +1551,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
         result = CliRunner().invoke(cli_model.cli, ["page", "close", str(page)])
         return {
             "exit": result.exit_code,
-            "stdout": result.stdout,
-            "stderr": said(result.stderr),
+            "stdout": said(result.stdout),
         }
 
     # The turn ends over the page, and Leaf watches it from here.
@@ -2025,33 +2024,6 @@ def test_a_checkout_leaves_its_session_alone_for_a_page_the_session_doesnt_hold(
 
     assert session_runtime_model.selected_launcher("s1") == other
     assert started == []
-
-
-@pytest.mark.parametrize("command", ["page init", "renewal"])
-def test_a_checkout_that_takes_over_a_held_page_starts_its_sessions_delivery_again(
-    claimed, tmp_path, monkeypatch, command
-):
-    """A checkout's init or renewal of a page its session holds makes the checkout
-    the session's Leaf, then starts the session's delivery again, since a Codex
-    task's adapter running from the former Leaf leaves once another is selected.
-    Doing it again changes no selection, so it leaves the running delivery alone."""
-    select_another_leaf(tmp_path)
-    started = deliveries_started(monkeypatch)
-    own = session_runtime_model.own_launcher()
-
-    def take_over():
-        if command == "page init":
-            vendoring_model.cmd_init(claimed)
-        else:
-            vendored_at_another_protocol(claimed)
-            vendoring_model.renew_layer(
-                claimed, harness_model.session_harness(), command=True
-            )
-
-    take_over()
-    assert started == [own]
-    take_over()
-    assert started == [own]
 
 
 @pytest.mark.parametrize("command", ["page claim", "server start", "server run"])

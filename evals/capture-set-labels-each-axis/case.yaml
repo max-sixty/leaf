@@ -4,7 +4,9 @@
 # was said only in the prose above, and which image was which case only in captions.
 # Cold, base 29c077de6 kept the four captures apart and labeled where they stand in 1 of
 # 3 runs (one joined them with vstack); the table of captures in "Source files and
-# media" did in 3 of 3.
+# media" did in 3 of 3. Without the prompt's pointer to that section, 4 of 4 Claude
+# Code runs at 0e538e29d read authoring-evidence.md themselves and passed, as 4 of 4
+# pointed runs did.
 description: capture-set-labels-each-axis
 metadata:
   purpose:
@@ -15,8 +17,7 @@ metadata:
 vars:
   prompt: |
     You are writing a Leaf page that demonstrates a bug in Leaf's floating thread
-    card. Write the section for this finding, after reading "Source files and media"
-    in `references/authoring-evidence.md` under the skill's base directory.
+    card. Write the section for this finding.
 
     Finding. When the agent posts a new progress step, the open card widens. With a
     reply being drafted, the reply field holds still, so the card's top (with its ✓

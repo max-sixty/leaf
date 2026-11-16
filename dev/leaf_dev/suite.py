@@ -42,9 +42,10 @@ class Outcome:
     message: str = ""
 
 
-def pytest(root: Path, *args: str, out: Path) -> int:
+def pytest(root: Path, *args: str, out: Path, under: tuple[str, ...] = ()) -> int:
     """Run the pytest of the checkout `root` there, its terminal output to `out`, and
-    return its exit status."""
+    return its exit status. `under` is a command that runs it, such as `taskpolicy -b`,
+    which must exec it in place to keep it in this command's process group."""
     # The caller's own `uv run` names its environment, which is not a scratch
     # checkout's; uv would warn about it on every run and use the checkout's anyway.
     # `FORCE_COLOR` would color the report's tracebacks despite `--color=no`.
@@ -52,7 +53,7 @@ def pytest(root: Path, *args: str, out: Path) -> int:
     env = {k: v for k, v in os.environ.items() if k not in drop}
     with out.open("w") as stream:
         proc = subprocess.Popen(
-            ["uv", "run", "--frozen", "pytest", "--color=no", *args],
+            [*under, "uv", "run", "--frozen", "pytest", "--color=no", *args],
             cwd=root,
             env=env,
             stdin=subprocess.DEVNULL,
@@ -134,13 +135,24 @@ def collect(root: Path, selection: tuple[str, ...], out: Path) -> list[str]:
 
 
 def run(
-    root: Path, selection: tuple[str, ...], items: list[str], out: Path, *args: str
+    root: Path,
+    selection: tuple[str, ...],
+    items: list[str],
+    out: Path,
+    *args: str,
+    under: tuple[str, ...] = (),
 ) -> dict[str, Outcome]:
     """Run `selection` in `root` and return each of `items`' outcome. `out` names the
-    run: its terminal output is `out.log` and its report `out.xml`."""
+    run: its terminal output is `out.log` and its report `out.xml`. `under` is as
+    `pytest` takes it."""
     report = out.with_suffix(".xml")
     status = pytest(
-        root, f"--junitxml={report}", *args, *selection, out=out.with_suffix(".log")
+        root,
+        f"--junitxml={report}",
+        *args,
+        *selection,
+        out=out.with_suffix(".log"),
+        under=under,
     )
     outcomes = read_junit(report) if report.exists() else {}
     # No path in the message, so `suite flake`'s copies that ended alike group as one.

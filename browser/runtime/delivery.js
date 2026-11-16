@@ -79,7 +79,7 @@ export function createDelivery({
       const held = heldReading();
       const sent = await Promise.race([
         postEvent(event, held).then(
-          (response) => ({ response }),
+          (answered) => ({ answered }),
           (error) => ({ error }),
         ),
         entry.read.then((accepted) => ({ accepted })),
@@ -95,30 +95,19 @@ export function createDelivery({
         );
         continue;
       }
-      if (!sent.response) return { accepted: null };
+      if (!sent.answered) return { accepted: null };
+      const { response, decoded } = sent.answered;
       // `503` is the server saying it cannot take this yet, which the website's edge
       // sends for the minutes a container image takes to reach a user's allocation.
       // The loop already retries; what it reported without this was the failed decode
       // of a plain-text body rather than what the server said.
-      if (sent.response.status === 503) {
-        await retry("Not through yet — trying again…");
-        continue;
-      }
-      const decoded = await Promise.race([
-        sent.response.json().then(
-          (answer) => ({ answer }),
-          (error) => ({ error }),
-        ),
-        entry.read.then((accepted) => ({ accepted })),
-      ]);
-      if ("accepted" in decoded) return { accepted: decoded.accepted };
-      if ("error" in decoded) {
+      if (response.status === 503 || "error" in decoded) {
         await retry("Not through yet — trying again…");
         continue;
       }
       /** @type {EventAnswer} */
       const answer = decoded.answer;
-      if (acceptedAnswer(sent.response, answer)) {
+      if (acceptedAnswer(response, answer)) {
         // An accepted answer settles this gesture only once its state holds the receipt:
         // the logged event that carries its attempt.
         const state = completeState(answer.state, held);
@@ -208,20 +197,17 @@ export function createDelivery({
 /** @param {import("../types/contract.js").BrowserCommand} event @param {ApplyState} applyState */
 export async function deliverBookkeeping(event, applyState) {
   const held = heldReading();
-  let response;
+  let answered;
   try {
-    response = await postEvent(event, held);
+    answered = await postEvent(event, held);
   } catch {
     return "unreached";
   }
-  if (!response || response.status === 503) return "unreached";
+  if (!answered || answered.response.status === 503 || "error" in answered.decoded)
+    return "unreached";
+  const { response } = answered;
   /** @type {EventAnswer} */
-  let answer;
-  try {
-    answer = await response.json();
-  } catch {
-    return "unreached";
-  }
+  const answer = answered.decoded.answer;
   if (answer && answer.state)
     await applyAnswerState(applyState, completeState(answer.state, held));
   return acceptedAnswer(response, answer)

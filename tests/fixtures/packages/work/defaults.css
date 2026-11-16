@@ -10,7 +10,7 @@
 }
 .work-state {
   display: block;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 
 .work-progress {

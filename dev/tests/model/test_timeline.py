@@ -1,5 +1,5 @@
 """`leaf-dev logs timeline` answers who did what to a message: which fork's turn answered
-it, what Leaf refused or denied that fork, why no fork lane took a message, and
+it, what Leaf refused that fork, why no fork lane took a message, and
 where each of the session's agent turns stands now."""
 
 from datetime import datetime, timedelta
@@ -109,7 +109,6 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
                 "ts": at(1, 1),
                 "type": "fork_outcome",
                 "outcome": "take",
-                "agent": "leaf-c1",
                 "turn": running,
             },
             {
@@ -118,18 +117,8 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
                 "type": "fork_outcome",
                 "step": "start",
                 "outcome": "start",
-                "agent": "leaf-c1",
-                "agentId": "agent-1",
-                "turn": running,
-            },
-            {
-                "ts": at(1, 5),
-                "source": "cli",
-                "type": "command_denied",
-                "session": "s1",
                 "agent": "agent-1",
-                "command": "cd /tmp && leaf thread reply ref --text 3.12",
-                "reason": "Run each `leaf` command as a Bash call of its own",
+                "turn": running,
             },
             {
                 "ts": at(1, 10),
@@ -139,7 +128,7 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
                 "started": at(1, 9),
                 "durationMs": 300.0,
                 "session": "s1",
-                "agent": "agent-1",
+                "turn": running,
                 "refused": "this agent's turn no longer holds c1",
             },
             follower(1, forks=False, current=True),
@@ -156,10 +145,12 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     )
     assert result.exit_code == 0, result.output
     out = result.output
-    # Which fork's turn answered, and what Leaf refused or denied it.
-    assert f"answer to c1 in leaf-c1's turn {running[:8]}" in out
-    assert "leaf thread reply (300 ms) by leaf-c1 refused: this agent's turn" in out
-    assert "denied leaf-c1's `cd /tmp && leaf thread reply ref --text 3.12`" in out
+    # Which fork's turn answered, and which fork's command Leaf refused.
+    assert f"answer to c1 in agent agent-1's turn {running[:8]}" in out
+    assert (
+        f"leaf thread reply (300 ms) in agent agent-1's turn {running[:8]} refused: "
+        "this agent's"
+    ) in out
     # Why admission found no fork lane, each cause told apart.
     assert "c0 not kept back: no fork lane: no pages follower noted" in out
     assert "c2 not kept back: no fork lane: the hooks module has forks off" in out

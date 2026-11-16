@@ -311,7 +311,7 @@ def read_plans(session_id: str) -> list[PagePlan]:
                 if claim is None or claim["id"] != session_id:
                     continue
                 assert lifecycle is not None
-                pending = deliverable(page, work.obligations)
+                pending = deliverable(page, work)
                 watched = harness.watcher_live(listening=state["listening"])
                 # An owed update this owner holds no usable reference for, as when
                 # another session received it before the page changed hands, is
@@ -447,8 +447,8 @@ def pick_up_acknowledged(session_id: str, plans: list[PagePlan]) -> None:
     A later receipt revalidates captured identities independently. This pickup
     likewise checks generation and turn after reacquiring the page transaction.
     A page this Leaf may not write records none; `remedies` tells the turn why.
-    Debt an agent's running turn holds is that turn's, so the pickup leaves it out
-    (`holding.pickable`).
+    Debt the main thread doesn't owe, which a running fork or the line fork holds,
+    is theirs, so the pickup leaves it out (`holding.pickable`).
     """
     from .activity import acknowledged_obligations
     from .served_state.context import read_page
@@ -765,6 +765,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
     Nothing else of the main thread's, its input, debt, reminders or the clerk's
     lines, reaches an agent."""
     from .delivery import current_responses
+    from .forks import page_holding
     from .holding import to_carry
     from .state import agent_turns, renew_agent_turn
 
@@ -782,7 +783,7 @@ def carry_agent_turn(harness: Harness, sid: str, agent: str, *, started: float) 
                     continue
                 if inputs := [
                     event
-                    for event in to_carry(page, turn)
+                    for event in to_carry(page_holding(page), turn)
                     if event["seq"] > through.get(str(page_dir), 0)
                 ]:
                     batches.append(

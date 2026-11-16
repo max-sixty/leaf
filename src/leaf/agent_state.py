@@ -8,10 +8,11 @@ updates handed back to them among them; On <agent>
 inventory (`obligations`) also retains finished records, whatever their `status`.
 `activity.obligations` names each answer the agent owes: its update's record `id` and,
 as `answer`, the operation that answers it with the reference its delivery gave, so an
-agent recovers what it owes without the delivery. Each obligation record's `holder`
-names who on the agent's side owes it now, a running fork or the main thread, null for
-a record the agent doesn't owe, and each thread's `holder` the turn that last took the
-thread (`holding.holder`). `source` states whether a document
+agent recovers what it owes without the delivery. Each thread's `holder` names who
+holds it (`holding.py`): the main thread, a fork with whether its turn runs, closed or
+lapsed, or the line fork while Leaf keeps its messages back; and each obligation
+record's `holder` who on the agent's side owes it now (`holding.owed_by`), null for a
+record the agent doesn't owe. `source` states whether a document
 is live and whether an invalid source save leaves the last valid version active. Its
 `digest` identifies the current index.html and complete page/ tree, even when invalid,
 for `page stamp --replace`. Before the first valid revision, an invalid candidate
@@ -441,7 +442,7 @@ def page_state(
         for thread in state["threads"]:
             thread["unread"] = list(served_threads[thread["id"]]["unread"])
             thread["attention"] = served_threads[thread["id"]]["attention"]
-            thread["holder"] = folded["thread_holders"][thread["id"]]
+            thread["holder"] = context.work.holding.hold(thread["id"]).holder
         owing = {item["obligation"]: item["holder"] for item in folded["obligations"]}
         state["obligations"] = [
             {**record, "holder": owing.get(record["id"])}

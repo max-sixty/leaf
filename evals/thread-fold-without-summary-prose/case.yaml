@@ -24,8 +24,7 @@ vars:
     progress messages". Do not add retrospective summary prose. Keep both originals
     retrievable and leave the user's request and final answer visible.
 
-    Nothing here can execute writes. Read the relevant Leaf instructions, then
-    reply with the exact one-line CLI command you would run.
+    Nothing here can execute writes, so reply with the exact one-line CLI command you would run.
 assert:
   - type: llm-rubric
     metric: folds-original-messages-without-prose

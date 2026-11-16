@@ -50,10 +50,10 @@ lf-code :is(.lf-code-line, .lf-code-elided)::before {
   margin-right: var(--lf-code-gap);
   padding-right: 10px;
   box-sizing: border-box;
-  border-right: 1px solid var(--code-border);
-  background: var(--code-chrome);
+  border-right: 1px solid var(--lf-code-border);
+  background: var(--lf-code-chrome);
   text-align: right;
-  color: var(--code-muted);
+  color: var(--lf-code-muted);
   font-variant-numeric: tabular-nums;
 }
 lf-code .lf-code-line::before {
@@ -71,7 +71,7 @@ lf-code .lf-code-elided {
   display: flex;
   align-items: baseline;
   padding: 0 var(--lf-code-inset-inline) 0 0;
-  color: var(--code-muted);
+  color: var(--lf-code-muted);
   user-select: none;
 }
 lf-code .lf-code-elided::before {
@@ -86,7 +86,7 @@ lf-code .lf-code-elided::after {
 }
 lf-code .lf-code-elided::after,
 lf-code .lf-code-elided > lf-note {
-  font: var(--font-small);
+  font: var(--lf-font-small);
   font-style: italic;
 }
 lf-code .lf-code-elided > lf-note {
@@ -100,10 +100,10 @@ lf-code .lf-code-elided > lf-note::before {
   content: "— ";
 }
 lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi] {
-  background: var(--hi-tint);
+  background: var(--lf-hi-tint);
 }
 lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi]::before {
-  border-right-color: var(--warn);
+  border-right-color: var(--lf-warn);
 }
 /* A note is prose about a source line, not another source line. It follows the
    code-review convention: a sans-serif row spanning the source frame, with its text
@@ -120,10 +120,10 @@ lf-code > pre > lf-note {
   margin: 0;
   padding: 12px var(--lf-code-inset-inline) 14px
     calc(var(--lf-code-gutter) + var(--lf-code-gap));
-  background: var(--pre-bg);
-  border-block: 1px solid var(--code-border);
-  color: var(--code-ink);
-  font: var(--font-widget);
+  background: var(--lf-pre-bg);
+  border-block: 1px solid var(--lf-code-border);
+  color: var(--lf-code-ink);
+  font: var(--lf-font-widget);
   white-space: normal;
   --lf-block-frame: 1;
 }
@@ -135,9 +135,9 @@ lf-code > pre > lf-note {
 @scope (html[data-lf-interactive] lf-code) {
   :scope:is(lf-code):not(.lf-rendered) {
     & > pre {
-      background: var(--pre-bg);
-      border: 1px solid var(--code-border);
-      border-radius: var(--r);
+      background: var(--lf-pre-bg);
+      border: 1px solid var(--lf-code-border);
+      border-radius: var(--lf-r);
       padding: var(--lf-code-inset-block) var(--lf-code-inset-inline)
         var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));
       white-space: pre-wrap;

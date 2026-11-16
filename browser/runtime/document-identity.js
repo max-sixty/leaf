@@ -10,9 +10,12 @@
 import { applicationState } from "./semantic-state.js";
 import { LIVE_ROOT } from "./context.js";
 
-const servedRevision = /** @type {HTMLMetaElement | null} */ (
+const servedRevisionText = /** @type {HTMLMetaElement | null} */ (
   document.querySelector('meta[name="lf-revision"][data-lf-runtime]')
 )?.content;
+export const servedRevision = servedRevisionText
+  ? parseInt(servedRevisionText, 10)
+  : null;
 const servedStampMarker = /** @type {HTMLMetaElement | null} */ (
   document.querySelector('meta[name="lf-version"][data-lf-runtime]')
 );
@@ -23,7 +26,7 @@ export const servedExecutable = /** @type {HTMLMetaElement | null} */ (
 
 export function initializeServedDocument() {
   applicationState.identify(
-    servedRevision ? parseInt(servedRevision, 10) : null,
+    servedRevision,
     servedStampMarker ? parseInt(servedStampMarker.content, 10) : null,
     LIVE_ROOT,
   );

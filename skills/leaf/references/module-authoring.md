@@ -180,8 +180,11 @@ it takes to be the element's own attributes. A module that also draws from which
 children it has, or from their attributes, as a tab strip shows each tab's `label`,
 declares `x-content: members` or `x-views`. Leaf then also replaces the widget when a
 direct child is added, removed, reordered or given other attributes. Without either
-declaration the module keeps its first drawing of a child the revision changed. A
-widget that draws its own content (`x-content` `data` or `empty`) is always replaced.
+declaration the module keeps its first drawing of a child the revision changed. Leaf
+compares only each direct child's tag and attributes, so a module that draws from what
+its children hold, or can declare neither, reads them again when they change, as
+`lf-pane` observes its children. A widget that draws its own content (`x-content` `data`
+or `empty`) is always replaced.
 
 ## Startup and presentation
 

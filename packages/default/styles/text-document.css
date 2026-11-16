@@ -7,10 +7,9 @@ lf-text-document {
   min-height: 2px;
 }
 /* The frame, caption and listing are code, in the code's scheme (tokens.css, at
-   --lf-pre-bg). A document that previews its text stands on the page's paper instead
-   (below), since the preview is prose, so only its listing, the Source tab, is code. */
-lf-text-document:not([preview]),
-lf-text-document .lf-text-document-listing {
+   --lf-pre-bg). A document that previews its text stands on the page's paper instead,
+   since the preview is prose, so only its Source tab is code (below). */
+lf-text-document:not([preview]) {
   color-scheme: var(--lf-code-scheme);
 }
 /* The frame clips its rounded corners with `clip`, which makes no scroll container
@@ -279,6 +278,15 @@ lf-text-document[preview] .lf-text-document-view > lf-tabs {
 lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab {
   margin: 0;
   padding: 0;
+}
+/* The Source tab is code to its foot, in the code's scheme: it takes the preview's
+   height (below), which a short listing doesn't fill. */
+lf-text-document[preview]
+  .lf-text-document-view
+  > lf-tabs
+  > lf-tab:has(> .lf-text-document-listing) {
+  color-scheme: var(--lf-code-scheme);
+  background: var(--lf-pre-bg);
 }
 /* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face
    (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does, the

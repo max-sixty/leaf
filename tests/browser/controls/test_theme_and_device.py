@@ -540,6 +540,10 @@ CODE_SURFACES = leaf_page(
 -limit = 1
 +limit = 2
 </pre></lf-text-document>
+<lf-text-document id="notes" label="notes.md" preview="markdown"><pre># Rollout
+
+The canary runs for a day.
+</pre></lf-text-document>
 <lf-diff id="patch" view="patch"><pre>diff --git a/x.py b/x.py
 --- a/x.py
 +++ b/x.py
@@ -551,7 +555,7 @@ CODE_SURFACES = leaf_page(
 
 # The WCAG contrast of each number, sign, note, caption and status ink on the page's
 # code surfaces against the ground under it, each colour composited as the browser paints
-# it, and the lightness of a code block's canvas.
+# it, and the lightness of each code surface's canvas.
 CODE_CONTRAST = """() => {
     const cx = document.createElement('canvas').getContext('2d', {willReadFrequently: true});
     const paint = (layers) => {
@@ -564,10 +568,15 @@ CODE_CONTRAST = """() => {
     const luminance = (rgb) => rgb
         .map((c) => (c /= 255) <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4)
         .reduce((sum, c, i) => sum + c * [0.2126, 0.7152, 0.0722][i], 0);
-    const contrast = (element, {pseudo = null, card = null, ink = null} = {}) => {
+    // The backgrounds under an element, its own included, outermost first.
+    const grounds = (element) => {
         const ground = [];
         for (let at = element; at; at = at.parentElement ?? at.getRootNode().host)
             ground.unshift(getComputedStyle(at).backgroundColor);
+        return ground;
+    };
+    const contrast = (element, {pseudo = null, card = null, ink = null} = {}) => {
+        const ground = grounds(element);
         if (card) ground.push(getComputedStyle(element, card).backgroundColor);
         const [a, b] = [paint([...ground, ink ?? getComputedStyle(element, pseudo).color]),
             paint(ground)].map(luminance);
@@ -600,12 +609,25 @@ CODE_CONTRAST = """() => {
             (count) => [count.className, contrast(count)]),
         ['the diff note', contrast(diff.querySelector('lf-diff-note'), {card: '::after'})],
     ];
-    const canvas = getComputedStyle(document.querySelector('#plain')).backgroundColor;
-    // The Copy the plain block's hover shows, which stands in chrome, out of the block.
-    const copy = document.querySelector('.lf-block-controls .lf-code-copy');
+    // Each surface's canvas: a plain block, lf-code's, a document's listing, a
+    // previewed document's Source tab, which the preview's height sets, and a diff's rows.
+    const canvases = Object.fromEntries([
+        ['plain', document.querySelector('#plain')],
+        ['lf-code', document.querySelector('#code pre')],
+        ['listing', document.querySelector('#doc .lf-text-document-listing > pre')],
+        ['source tab', document.querySelector('#notes lf-tab:has(> .lf-text-document-listing)')],
+        ['diff rows', diff.querySelector('.lf-diff-file > details')],
+    ].map(([name, element]) =>
+        [name, luminance(paint([getComputedStyle(element).backgroundColor]))]));
+    // Each block's Copy: the plain block's, which its hover shows in chrome, out of the
+    // block, and the one on lf-code's toolbar, beside its source.
+    const copies = Object.fromEntries([
+        ['plain', document.querySelector('.lf-block-controls .lf-code-copy')],
+        ['lf-code', document.querySelector('#code > .lf-code-bar .lf-code-copy')],
+    ].map(([name, element]) => [name, luminance(paint(grounds(element)))]));
     return {
-        canvas: luminance(paint([canvas])),
-        copy: luminance(paint([getComputedStyle(copy).backgroundColor])),
+        canvases,
+        copies,
         read: readings.length,
         unread: readings.filter(([, ratio]) => ratio < 4.5),
     };
@@ -628,16 +650,23 @@ def test_a_theme_draws_its_code_in_the_scheme_it_names(request, serve, engine):
     light = page.evaluate(CODE_CONTRAST)
     # A surface that drew no numbers, signs or counts leaves the readings short.
     assert light["read"] >= 15, f"only {light['read']} readings: the page drew less"
-    assert light["canvas"] > 0.9, "the code took a scheme the page doesn't have"
+    light_canvases = {
+        name: lum for name, lum in light["canvases"].items() if lum <= 0.9
+    }
+    assert not light_canvases, (
+        f"code took a scheme the page doesn't have: {light_canvases}"
+    )
     assert light["unread"] == [], light["unread"]
     page.evaluate(
         "() => document.documentElement.style.setProperty('--lf-code-scheme', 'dark')"
     )
     rendered(page)
     dark = page.evaluate(CODE_CONTRAST)
-    assert dark["canvas"] < 0.05, "the code scheme never reached the code"
+    lit = {name: lum for name, lum in dark["canvases"].items() if lum >= 0.05}
+    assert not lit, f"the code scheme never reached these canvases: {lit}"
     assert dark["unread"] == [], dark["unread"]
-    assert dark["copy"] < 0.1, "a code block's Copy stayed a light control on dark code"
+    light_copies = {name: lum for name, lum in dark["copies"].items() if lum >= 0.1}
+    assert not light_copies, f"Copy stayed a light control on dark code: {light_copies}"
     assert evaluate_probe(page, "unreadSyntax") == []
 
 

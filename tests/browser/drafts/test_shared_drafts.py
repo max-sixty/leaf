@@ -14,9 +14,11 @@ from render_harness import (
     draft_control,
     draft_key,
     expect_panel_says,
+    expect_preview_words,
     held_stale,
     holding,
     open_page,
+    open_threads,
     page_comment,
     refuse,
     resized,
@@ -30,6 +32,7 @@ from render_harness import (
 
 from browser.drafts import (
     cancel_draft,
+    choose_comment_target,
 )
 from leaf import event_log as events_model
 from leaf.findings import Finding
@@ -50,6 +53,34 @@ DEAF_TO_DRAFT_NEWS = """addEventListener('storage', event => {
 def name_the_draft(page, ctx):
     """Point this page's storage fault at the draft at `ctx`, by the store's key."""
     page.evaluate("key => { window.lfDraftKey = key; }", draft_key(page, ctx))
+
+
+def test_a_draft_another_tab_writes_waits_behind_threads_notice(
+    browser, serve, one_user
+):
+    """While Threads stands open, a draft another tab writes joins Drafts behind the
+    notice that holds new threads, so the rows the user reads stay where they are, and
+    the notice's press draws it."""
+    url = serve(LONG_PAGE)
+    first = open_page(browser, url, context=one_user)
+    second = open_page(browser, url, context=one_user)
+    choose_comment_target(first, "#p9")
+    write(first.locator(".lf-fab-input"), "About the ninth paragraph.")
+    first.keyboard.press("Escape")
+    open_threads(first)
+    rows = first.locator(".lf-fp-draft")
+    expect(rows).to_have_count(1)
+
+    choose_comment_target(second, "#p3")
+    write(second.locator(".lf-fab-input"), "About the third.")
+    second.keyboard.press("Escape")
+    notice = first.locator(".lf-fp-joined .lf-thread-news")
+    expect_preview_words(notice, "1 new draft")
+    expect(rows).to_have_count(1)
+
+    notice.click()
+    expect(rows).to_have_count(2)
+    expect(notice).to_have_count(0)
 
 
 def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, one_user):

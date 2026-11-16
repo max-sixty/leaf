@@ -53,7 +53,6 @@ export {
    fails closed: declining one ambiguous container gesture is safer than recording a
    choice while the user operates nested evidence. */
 import { pageRange, selectionBackward } from "./native-selection.js";
-import { move } from "./dom-move.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { registry, tagsDeclaring } from "./registry.js";
@@ -377,17 +376,4 @@ export function motionPreview(label) {
   preview.inert = true;
   preview.setAttribute("aria-hidden", "true");
   return preview;
-}
-
-// A widget's generated wrapper holding the children the page authored. Revision
-// member patching edits this body, while the widget keeps the wrapper itself.
-/** @type {WeakMap<Element, HTMLElement>} */
-const authoredBodies = new WeakMap();
-/** @param {Element} host */
-export const authoredBody = (host) => authoredBodies.get(host) ?? null;
-/** @template {HTMLElement} T @param {Element} host @param {T} body @returns {T} */
-export function holdAuthoredBody(host, body) {
-  for (const node of [...host.childNodes]) move(body, node, null);
-  authoredBodies.set(host, body);
-  return body;
 }

@@ -157,7 +157,6 @@ import {
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
 import { tabStore } from "./tab-store.js";
-import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
 import { reveal } from "./widget-elements.js";
 import { addressableWord } from "./addressable-names.js";
@@ -1892,8 +1891,7 @@ export function createVersionController({
   // consumes stay the same. A structured member list, or a declared x-views list,
   // consumes its direct members' identities and attributes. A markup container
   // without views consumes only its own attributes: the patch owns its evidence,
-  // including native attributes. A generated authored body likewise separates that
-  // evidence from the renderer's inputs. A widget that draws its content itself
+  // including native attributes. A widget that draws its content itself
   // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
   // revision that changes it replaces it whatever its class declares.
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
@@ -1915,9 +1913,7 @@ export function createVersionController({
       (content !== "members" && content !== "markup")
     )
       return false;
-    const members =
-      !authoredBody(sourcePairs.require(before)) &&
-      (content === "members" || entry["x-views"] !== undefined);
+    const members = content === "members" || entry["x-views"] !== undefined;
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1939,7 +1935,6 @@ export function createVersionController({
       contains: (node, owner) =>
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
-      body: authoredBody,
       // `main` holds nearly all of a page's content, so a page module that moves or
       // replaces one of its children is patched around, as it was when `main` was the
       // patch root, rather than rebuilding the page beneath the user.

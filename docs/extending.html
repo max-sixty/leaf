@@ -405,9 +405,8 @@
       </header>
 
       <lf-tabs id="extensions" class="layout-flow">
-        <lf-tab id="pages" class="layout-flow"
-          ><strong>Pages</strong>
-          <details class="topic-outline" id="pages-outline">
+        <lf-tab id="pages" label="Pages" class="layout-flow"
+          ><details class="topic-outline" id="pages-outline">
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
               <ul>
@@ -494,8 +493,11 @@
                 choice, then press <strong>Activity changed</strong> in the feed. The
                 rollout audience remains selected.
               </p>
-              <lf-sample id="spec-options-frame" interactive>
-                <strong>Example: release review</strong>
+              <lf-sample
+                id="spec-options-frame"
+                label="Example: release review"
+                interactive
+              >
                 <p>Start with canary clients; expand after the error rate settles.</p>
                 <lf-options id="spec-options" choose>
                   <lf-option id="so-rewrite"
@@ -543,11 +545,9 @@
                 Incoming; press <strong>Activity changed</strong> in the feed to see the
                 move marked undone.
               </p>
-              <lf-sample id="spec-board-frame" interactive>
-                <strong>Practice: board</strong>
+              <lf-sample id="spec-board-frame" label="Practice: board" interactive>
                 <lf-board id="spec-board">
-                  <lf-column id="sb-incoming">
-                    <strong>Incoming</strong>
+                  <lf-column id="sb-incoming" label="Incoming">
                     <lf-card id="sc-flaky"
                       ><strong>Flaky auth test</strong> Fails one run in twenty on CI
                       only.</lf-card
@@ -556,14 +556,12 @@
                       ><strong>Dark-mode contrast pass</strong></lf-card
                     >
                   </lf-column>
-                  <lf-column id="sb-sprint">
-                    <strong>This week</strong>
+                  <lf-column id="sb-sprint" label="This week">
                     <lf-card id="sc-ratelimit"
                       ><strong>Rate-limit the export</strong></lf-card
                     >
                   </lf-column>
-                  <lf-column id="sb-done">
-                    <strong>Done</strong>
+                  <lf-column id="sb-done" label="Done">
                     <lf-card id="sc-tokens"
                       ><strong>Tokenize the palette</strong></lf-card
                     >
@@ -717,9 +715,8 @@ flowchart TD
               <a href="#styles-contract">the CSS tab's contract</a>.
             </p>
           </section></lf-tab
-        ><lf-tab id="layout" class="layout-flow"
-          ><strong>Layout</strong>
-          <details class="topic-outline" id="layout-outline">
+        ><lf-tab id="layout" label="Layout" class="layout-flow"
+          ><details class="topic-outline" id="layout-outline">
             <summary>In this topic</summary>
             <nav aria-label="Layout sections">
               <ul>
@@ -1720,9 +1717,8 @@ flowchart TD
               </figcaption>
             </figure>
           </section></lf-tab
-        ><lf-tab id="contracts" class="layout-flow"
-          ><strong>Contracts</strong>
-          <details class="topic-outline" id="contracts-outline">
+        ><lf-tab id="contracts" label="Contracts" class="layout-flow"
+          ><details class="topic-outline" id="contracts-outline">
             <summary>In this topic</summary>
             <nav aria-label="Contracts sections">
               <ul>
@@ -1963,9 +1959,8 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="build-package" class="layout-flow"
-          ><strong>Build a package</strong>
-          <details class="topic-outline" id="build-outline">
+        <lf-tab id="build-package" label="Build a package" class="layout-flow"
+          ><details class="topic-outline" id="build-outline">
             <summary>In this topic</summary>
             <nav aria-label="Build a package sections">
               <ul>
@@ -2147,9 +2142,8 @@ $ leaf page check PAGE --render</code></pre>
             </dl>
           </section></lf-tab
         >
-        <lf-tab id="css" class="layout-flow"
-          ><strong>CSS</strong>
-          <details class="topic-outline" id="css-outline">
+        <lf-tab id="css" label="CSS" class="layout-flow"
+          ><details class="topic-outline" id="css-outline">
             <summary>In this topic</summary>
             <nav aria-label="CSS sections">
               <ul>
@@ -2400,9 +2394,8 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="packages" class="layout-flow"
-          ><strong>Packages</strong>
-          <section id="bundled" class="layout-flow">
+        <lf-tab id="packages" label="Packages" class="layout-flow"
+          ><section id="bundled" class="layout-flow">
             <h2>Choose a bundled package</h2>
             <p>
               The <a href="/examples/feature-gallery/">core product gallery</a> shows
@@ -2609,9 +2602,8 @@ flowchart TD
             </div>
           </section></lf-tab
         >
-        <lf-tab id="registry-keys" class="layout-flow"
-          ><strong>Registry keys</strong>
-          <section id="keys" class="layout-flow">
+        <lf-tab id="registry-keys" label="Registry keys" class="layout-flow"
+          ><section id="keys" class="layout-flow">
             <h2>Registry keys</h2>
             <p id="keys-lede">
               An element declaration begins as JSON Schema. Its <code>x-*</code> keys

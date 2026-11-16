@@ -62,18 +62,17 @@
         only the page budget in the rail. This copy shows the preview and the
         instruction it sent; the settings it quotes are no longer live.
       </p>
-      <lf-sample id="quoted-alerts-sample">
-        <strong>alert settings playground</strong>
+      <lf-sample id="quoted-alerts-sample" label="alert settings playground">
         <lf-playground id="quoted-alerts" submit-label="Apply these settings">
           <lf-playground-control
             id="budget"
             name="budget"
+            label="On-call page budget, per 30 days"
             kind="range"
             value="10"
             min="0"
             max="30"
-            ><strong>On-call page budget, per 30 days</strong></lf-playground-control
-          >
+          ></lf-playground-control>
           <lf-playground-preview id="quoted-alerts-preview">
             <div class="quoted-alert" id="quoted-rate">
               <article class="quoted-alert-evidence" id="quoted-rate-evidence">
@@ -92,16 +91,20 @@
                 <lf-playground-control
                   id="quoted-rate-threshold"
                   name="rate-threshold"
+                  label="Threshold"
                   kind="choice"
                   value="1%"
                 >
-                  <strong>Threshold</strong>
-                  <lf-playground-choice id="quoted-rate-threshold-1" value="1%"
-                    ><strong>over 1%</strong></lf-playground-choice
-                  >
-                  <lf-playground-choice id="quoted-rate-threshold-2" value="2%"
-                    ><strong>over 2%</strong></lf-playground-choice
-                  >
+                  <lf-playground-choice
+                    id="quoted-rate-threshold-1"
+                    value="1%"
+                    label="over 1%"
+                  ></lf-playground-choice>
+                  <lf-playground-choice
+                    id="quoted-rate-threshold-2"
+                    value="2%"
+                    label="over 2%"
+                  ></lf-playground-choice>
                 </lf-playground-control>
               </section>
             </div>
@@ -122,38 +125,40 @@
                   <lf-playground-control
                     id="quoted-latency-threshold"
                     name="latency-threshold"
+                    label="Threshold"
                     kind="choice"
                     value="800ms"
                   >
-                    <strong>Threshold</strong>
                     <lf-playground-choice
                       id="quoted-latency-threshold-800ms"
                       value="800ms"
-                      ><strong>over 800 ms</strong></lf-playground-choice
-                    >
+                      label="over 800 ms"
+                    ></lf-playground-choice>
                     <lf-playground-choice
                       id="quoted-latency-threshold-1200ms"
                       value="1200ms"
-                      ><strong>over 1,200 ms</strong></lf-playground-choice
-                    >
+                      label="over 1,200 ms"
+                    ></lf-playground-choice>
                   </lf-playground-control>
                 </div>
                 <div class="quoted-field">
                   <lf-playground-control
                     id="quoted-latency-route"
                     name="latency-route"
+                    label="Route"
                     kind="choice"
                     value="page"
                   >
-                    <strong>Route</strong>
-                    <lf-playground-choice id="quoted-latency-route-page" value="page"
-                      ><strong>Page</strong></lf-playground-choice
-                    >
+                    <lf-playground-choice
+                      id="quoted-latency-route-page"
+                      value="page"
+                      label="Page"
+                    ></lf-playground-choice>
                     <lf-playground-choice
                       id="quoted-latency-route-ticket"
                       value="ticket"
-                      ><strong>Ticket</strong></lf-playground-choice
-                    >
+                      label="Ticket"
+                    ></lf-playground-choice>
                   </lf-playground-control>
                 </div>
               </section>

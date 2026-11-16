@@ -569,18 +569,15 @@ variants:
         at ~/.local/state/leaf/pages/refactor-map. Its Refactoring tab now holds:
 
         <lf-board id="refactor-board">
-          <lf-column id="col-clear">
-            <strong>Clear: do it</strong>
+          <lf-column id="col-clear" label="Clear: do it">
             <lf-card id="card-zindex"><strong>Delete z-index from top-layer menus</strong> Landed as #2799.</lf-card>
             <lf-card id="card-grid-stack"><strong>Replace reserve() with the grid stack</strong> All ten call sites in one change: about 107 lines out and 60 in. I recommend it.</lf-card>
             <lf-card id="card-detector"><strong>One change detector per page</strong> The polled token and the watched files from one list of page inputs. I recommend it.</lf-card>
           </lf-column>
-          <lf-column id="col-measure">
-            <strong>Measure first</strong>
+          <lf-column id="col-measure" label="Measure first">
             <lf-card id="card-transport"><strong>Price the polling</strong> Measured: about 1% of a core per visible tab; push is not worth it.</lf-card>
           </lf-column>
-          <lf-column id="col-decide">
-            <strong>Needs your decision</strong>
+          <lf-column id="col-decide" label="Needs your decision">
             <lf-card id="card-cover"><strong>May a page paint over Leaf's panels?</strong> Saying no lets main become a stacking context; a page could still rise above Leaf through a dialog or popover.</lf-card>
             <lf-card id="card-restyle"><strong>How a page restyles Leaf's interface</strong> A stylesheet the page declares, custom properties only, or named ::parts.</lf-card>
             <lf-card id="card-kernel"><strong>Deliver the compiled kernel to installs</strong> CI commits it to main after each runtime merge, or an npm package per commit.</lf-card>

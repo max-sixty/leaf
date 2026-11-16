@@ -628,7 +628,7 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
     "an Ask in a pane's footer",
     """
   <div id="ask-split">
-    <lf-pane id="ask-pane" aria-label="Summary">
+    <lf-pane id="ask-pane" label="Summary">
       <div id="ask-body">
         <p>The change, summarised in a paragraph long enough to read as one.</p>
         <div style="height: 1200px"></div>
@@ -651,7 +651,7 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
         </lf-ask>
       </footer>
     </lf-pane>
-    <lf-pane id="ask-other" aria-label="Notes"><div><p>Notes.</p></div></lf-pane>
+    <lf-pane id="ask-other" label="Notes"><div><p>Notes.</p></div></lf-pane>
   </div>
 """,
     head=regions_side_by_side("ask-split"),

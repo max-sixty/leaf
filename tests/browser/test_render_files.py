@@ -391,8 +391,7 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
                 """
 <h1>Containing page</h1><button id="owner">Containing owner</button>
 <div style="height:1400px"></div>
-<lf-sample id="practice" window>
-  <strong>File practice</strong>
+<lf-sample id="practice" label="File practice" window>
   <template id="practice-source" data-sample>
     <style>
       html { overflow-x:scroll !important; }

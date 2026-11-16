@@ -227,7 +227,7 @@ def long_seated_thread(serve):
         leaf_page(
             "a seated thread",
             f'<h1 id="title">Bracket order</h1>{LEAD}'
-            '<lf-test-plan id="cd-command"><strong>Bracket extras</strong>'
+            '<lf-test-plan id="cd-command" label="Bracket extras">'
             '<lf-test-task id="cd-q" status="active" talk>'
             "<strong>Which extras go in?</strong>"
             "<p>Choose between a seed tray and a second pole.</p>"

@@ -148,15 +148,15 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
     code = "".join(f"const result_{i} = await compute({i});\n" for i in range(100))
     if reading == "markdown":
         content = (
-            '<lf-text-document id="document" source="draft" preview="markdown">'
-            "<strong>Draft</strong></lf-text-document>"
+            '<lf-text-document id="document" source="draft" preview="markdown" '
+            'label="Draft"></lf-text-document>'
         )
         ident = "document--preview"
     else:
         content = (
-            '<lf-tabs id="readings"><lf-tab id="log" data-bound="start"><strong>Log</strong>'
+            '<lf-tabs id="readings"><lf-tab id="log" label="Log" data-bound="start">'
             f"<pre>{code}</pre></lf-tab>"
-            '<lf-tab id="notes"><strong>Notes</strong><p>Notes.</p></lf-tab></lf-tabs>'
+            '<lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
         )
         if reading == "page-tab":
             content = content.replace(
@@ -204,7 +204,7 @@ def test_a_side_lists_open_panel_rings_its_whole_cell(browser, serve):
     the panel's last line. The closed panels in that cell stay flat, so the open
     panel's words still take the pointer."""
     tabs = "".join(
-        f'<lf-tab id="item-{i}"><strong>Item {i}</strong><p id="words-{i}">Item {i}.</p></lf-tab>'
+        f'<lf-tab id="item-{i}" label="Item {i}"><p id="words-{i}">Item {i}.</p></lf-tab>'
         for i in range(6)
     )
     url = serve(
@@ -248,9 +248,9 @@ def test_an_open_part_wears_a_tab_panels_ring_on_its_own_edge(browser, serve):
         leaf_page(
             "Parts",
             '<h1>Parts</h1><lf-parts id="parts">'
-            f'<lf-part id="first"><header><strong>First</strong></header><article class="layout-column">{para}'
+            f'<lf-part id="first" label="First"><article class="layout-column">{para}'
             "</article></lf-part>"
-            '<lf-part id="second"><header><strong>Second</strong></header><article class="layout-column">'
+            '<lf-part id="second" label="Second"><article class="layout-column">'
             "<p>Second.</p></article></lf-part></lf-parts>",
             layout=None,
         )

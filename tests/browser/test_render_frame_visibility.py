@@ -25,8 +25,7 @@ def test_a_window_sample_scrolled_past_its_first_screen_stays_visible(browser, s
                 "Scrolling sample",
                 """
 <h1>Containing page</h1>
-<lf-sample id="practice" window>
-  <strong>Practice</strong>
+<lf-sample id="practice" label="Practice" window>
   <template id="practice-source" data-sample>
     <style>html { transform: scale(1); }</style>
     <h1>Practice page</h1><div style="height: 4000px"></div>

@@ -10,9 +10,6 @@
 # only id, severity and age; the change wrote problem-first summaries without the
 # group in 2 of 3 and put the problem in the label in the third. Reading those samples
 # as rows, base passes 2 of 3 and the change 3 of 3.
-# When a tab's name and summary moved from attributes into the <header> it opens with
-# (#5595), the case began authoring the page, so `page check` reads the markup each arm
-# wrote, and the row rubric stopped naming either form.
 description: queue-is-a-side-list
 metadata:
   purpose:
@@ -20,7 +17,6 @@ metadata:
     the queue, each item a tab, and the page writes no script to select, hide or mark an item.
     Items the user takes by kind carry that kind as their tab''s `group`, and each row
     says what its item is about without its summary repeating the group.'
-  authoring: true
   tags:
     - layout
 vars:
@@ -38,6 +34,9 @@ vars:
     7 h: exports over 2 GB stall; suggested escalate. ESC-4108 Hale & Sons, severity 3,
     8 h: charged twice, one charge already refunded; suggested close. ESC-4112 Kettle &
     Co, severity 3, 5 h: a webhook retries forever; suggested fix.
+
+    The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
 assert:
   - type: llm-rubric
     metric: judgment
@@ -53,9 +52,8 @@ assert:
   - type: llm-rubric
     metric: row
     value: |
-      Read each `lf-tab`'s name and summary together as its row in the queue, as the
-      side list shows them. Pass only if every row says, in a few words, what its ticket
-      is about, such as the problem the customer reports; where the name does not say
-      it, the summary says it first, before attributes such as severity and age; and no
-      summary repeats its tab's `group`. Fail if a row names only the ticket and such
-      attributes.
+      Read each `lf-tab`'s `label` and `summary` together as its row in the queue. Pass
+      only if every row says, in a few words, what its ticket is about, such as the
+      problem the customer reports; where the label does not say it, the summary says it
+      first, before attributes such as severity and age; and no `summary` repeats its
+      tab's `group`. Fail if a row names only the ticket and such attributes.

@@ -858,7 +858,7 @@ _PARAGRAPH = (
 SEATED_PANE_PAGE = leaf_page(
     "an Ask seated in a pane",
     '<header><h1 id="t">Pane pins</h1></header><div id="seat-panes">'
-    '<lf-pane id="seat-pane" aria-label="Left"><div>'
+    '<lf-pane id="seat-pane" label="Left"><div>'
     + _PARAGRAPH
     * 2
     + '<lf-ask id="seat-ask"><h3>Should the nightly export keep writing one file per'
@@ -867,7 +867,7 @@ SEATED_PANE_PAGE = leaf_page(
     '<lf-option id="sa"><strong>One file per tenant</strong></lf-option>'
     '<lf-option id="sb"><strong>One archive</strong></lf-option>'
     "</lf-options></lf-ask>" + _PARAGRAPH * 8 + "</div></lf-pane>"
-    '<lf-pane id="seat-beside" aria-label="Right"><div><p>A short pane beside it.</p></div>'
+    '<lf-pane id="seat-beside" label="Right"><div><p>A short pane beside it.</p></div>'
     "</lf-pane></div>",
     head="<style>#seat-panes { display: grid; grid-template-columns: 1fr 1fr;"
     " gap: var(--lf-sp-4); } lf-ask h3 { text-align: justify; }</style>",
@@ -1192,8 +1192,8 @@ TAB_PIN_PAGE = leaf_page(
     """
 <h1 id="t">Views</h1>
 <lf-tabs id="views">
-  <lf-tab id="first-view"><strong>First</strong><p id="shown-para">Shown first.</p></lf-tab>
-  <lf-tab id="second-view"><strong>Second</strong><p id="behind">Behind the second tab.</p></lf-tab>
+  <lf-tab id="first-view" label="First"><p id="shown-para">Shown first.</p></lf-tab>
+  <lf-tab id="second-view" label="Second"><p id="behind">Behind the second tab.</p></lf-tab>
 </lf-tabs>
 """,
 )
@@ -1356,13 +1356,12 @@ STRIP_PIN_PAGE = leaf_page(
     "a pin under a stuck tab strip",
     f"""
 <lf-tabs id="views">
-  <lf-tab id="first-view">
-    <strong>First</strong>
+  <lf-tab id="first-view" label="First">
     {STRIP_FILL[:600]}<p id="under-strip">A finding the strip will stand over.</p>
     <pre id="under-code"><code>let answer = 42;
 let question = unknown;</code></pre>{STRIP_FILL}
   </lf-tab>
-  <lf-tab id="second-view"><strong>Second</strong><p>Second.</p></lf-tab>
+  <lf-tab id="second-view" label="Second"><p>Second.</p></lf-tab>
 </lf-tabs>
 """,
     layout=None,

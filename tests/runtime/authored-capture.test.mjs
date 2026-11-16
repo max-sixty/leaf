@@ -204,14 +204,14 @@ test("generated words declare whether they are said, echoed or apparatus", () =>
 
 test("worktree presentation keeps native disclosure and authored evidence while totals change", () => {
   document.body.innerHTML =
-    '<main><lf-worktree-diffs id="set"><lf-worktree id="tree"><strong id="name">Changes</strong><p id="evidence">Kept evidence</p></lf-worktree></lf-worktree-diffs></main>';
+    '<main><lf-worktree-diffs id="set"><lf-worktree id="tree"><p id="evidence">Kept evidence</p></lf-worktree></lf-worktree-diffs></main>';
   const collection = document.getElementById("set");
   const host = document.getElementById("tree");
-  const name = document.getElementById("name");
   const evidence = document.getElementById("evidence");
   const root = adoptShadowStage(host.attachShadow({ mode: "open" }));
   const overview = adoptShadowStage(collection.attachShadow({ mode: "open" }));
   const attributes = {
+    label: "Changes",
     path: "/repo",
     status: "changed",
     files: "1",
@@ -236,13 +236,8 @@ test("worktree presentation keeps native disclosure and authored evidence while 
   assert.equal(root.querySelector("details"), disclosure);
   assert.equal(disclosure.open, true);
   assert.equal(root.activeElement, summary);
-  // The name the host opens with stands in the row; the rest is the body.
-  assert.deepEqual([...host.children], [name, evidence]);
-  assert.equal(root.querySelector(".lf-worktree-label slot").assignedNodes()[0], name);
-  assert.equal(
-    root.querySelector(".lf-worktree-body slot").assignedNodes()[0],
-    evidence,
-  );
+  assert.equal(host.firstElementChild, evidence);
+  assert.equal(root.querySelector("slot").assignedNodes()[0], evidence);
   assert.match(root.querySelector(".lf-worktree-stats").textContent, /2 files/);
   assert.match(overview.querySelector(".lf-worktree-stats").textContent, /\+7/);
   assert.equal(root.querySelectorAll("style").length, 1);

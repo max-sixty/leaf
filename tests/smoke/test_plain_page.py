@@ -98,9 +98,9 @@ PORTABLE = [
         "lf-timeline",
         "timeline",
         '<lf-timeline id="lf-timeline" aria-label="Deploy order">'
-        '<lf-lane><strong>Build</strong><lf-event id="compile" at="0" end="4000">'
-        '<strong>Compile</strong></lf-event><lf-event id="artifact" at="4000">'
-        "<strong>Artifact ready</strong></lf-event></lf-lane></lf-timeline>",
+        '<lf-lane label="Build"><lf-event id="compile" at="0" end="4000" '
+        'label="Compile"></lf-event><lf-event id="artifact" at="4000" '
+        'label="Artifact ready"></lf-event></lf-lane></lf-timeline>',
         # Its transport, its symbols drawn, and a row per step.
         ".lf-timeline-view:has(.lf-timeline-next > svg[data-lf-icon])"
         ":has(.lf-timeline-steps > li:nth-child(2))",

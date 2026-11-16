@@ -144,6 +144,12 @@ def _validate_widget_structure(
         required = set(entry.get("required", []))
         if "id" not in required or not _typed(properties, "id", "string"):
             raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
+        if layout == "pane" and (
+            "label" not in required or not _typed(properties, "label", "string")
+        ):
+            raise registry_error(
+                "reading-role-attr", path, tag, role="pane", attr="label"
+            )
     for input_name, spec in entry.get("x-data", {}).items():
         contract = spec["contract"]
         source_attr = spec.get("source")
@@ -193,7 +199,7 @@ def _validate_widget_structure(
             raise registry_error(
                 "measured-run", path, tag, input=input_name, attr=run_attr
             )
-    said = set(entry.get("x-says", ()))
+    said = set(entry.get("x-says", {}))
     if entry.get("x-awaits") is not None and not _typed(properties, "id", "string"):
         raise registry_error("addressable-id", path, tag, key="x-awaits")
     for key in ATTRIBUTE_KEYS:

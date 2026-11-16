@@ -13,23 +13,19 @@
         </p>
       </header>
       <lf-board id="rt-board">
-        <lf-column id="col-blocking" tone="danger">
-          <strong>Blocking release</strong>
+        <lf-column id="col-blocking" label="Blocking release" tone="danger">
           <lf-card id="card-migration">Migration reruns on every deploy</lf-card>
         </lf-column>
-        <lf-column id="col-next">
-          <strong>Fix in 2.4.1</strong>
+        <lf-column id="col-next" label="Fix in 2.4.1">
           <lf-card id="card-tz">Digest email uses server timezone</lf-card>
           <lf-card id="card-export">CSV export quotes numerics</lf-card>
           <lf-card id="card-retry">Webhook retries ignore Retry-After</lf-card>
         </lf-column>
-        <lf-column id="col-defer">
-          <strong>Defer from 2.4</strong>
+        <lf-column id="col-defer" label="Defer from 2.4">
           <lf-card id="card-logout">Logout fails with an expired session</lf-card>
           <lf-card id="card-avatar">Avatar upload rejects HEIC</lf-card>
         </lf-column>
-        <lf-column id="col-repro" tone="warn">
-          <strong>Needs a repro</strong>
+        <lf-column id="col-repro" label="Needs a repro" tone="warn">
           <lf-card id="card-search">Search misses renamed projects</lf-card>
         </lf-column>
       </lf-board>

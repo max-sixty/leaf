@@ -77,13 +77,6 @@ lf-draft > pre {
   lf-draft > :is(.lf-draft-body, .lf-markdown-body, .lf-draft-edit) {
     grid-area: 1 / 1;
   }
-  /* A name the draft opens with stands over the reading and its editor (lf-draft.js). */
-  lf-draft:has(
-      > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
-    )
-    > :is(.lf-draft-body, .lf-markdown-body, .lf-draft-edit) {
-    grid-area: 2 / 1;
-  }
   lf-draft:has(.lf-draft-edit) {
     border-color: var(--lf-muted);
   }

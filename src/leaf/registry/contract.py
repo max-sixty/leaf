@@ -625,6 +625,10 @@ def stamp_states(registry: dict) -> dict:
 # so a new tag that takes a tone needs only to declare `tone`. A second such word is a
 # row here.
 DECLARED_WORDS = (("tone", "$tones"),)
+# The attribute that holds an element's title on every widget that takes it
+# (`$attributes`), which names the element away from itself
+# (`gesture_words.element_name`, the browser's `addressableName`).
+NAME_ATTRIBUTE = "label"
 
 
 def stamp_words(registry: dict) -> dict:

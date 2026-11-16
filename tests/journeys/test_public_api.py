@@ -20,8 +20,7 @@ def test_render_check_keeps_departed_samples_invalid_outputs(
             "Sample output",
             "<h1>Example producers</h1>"
             + "".join(
-                f"""<lf-sample id="example-{n}">
-  <strong>producer example {n}</strong>
+                f"""<lf-sample id="example-{n}" label="producer example {n}">
   <template id="example-page-{n}" data-sample>
     <lf-output-proof id="proof">Output example.</lf-output-proof>
   </template>

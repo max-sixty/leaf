@@ -523,12 +523,12 @@ customElements.define('lf-derived', class extends LeafElement {
 def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     """A document's source reads null until the page's first state answer brings its
     text, as it does for a source with nothing to read. Drawn then, it showed a one-row
-    "no data" listing whose gutter widened when the text arrived, so no listing appears
-    before the text does, and no caption says "No data" under the document's name."""
+    "no data" listing whose gutter widened when the text arrived, so no caption or
+    listing appears before the text does."""
     source_page = leaf_page(
         "waiting document",
         """
-<lf-text-document id="full" source="full-text" class="language-toml"><strong>full.toml</strong></lf-text-document>
+<lf-text-document id="full" source="full-text" label="full.toml" class="language-toml"></lf-text-document>
 """,
     )
     url = live_url(serve(source_page))
@@ -542,7 +542,6 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
           const view = document.querySelector('#full figure');
           if (view)
             window.documentDraws.push({
-              name: document.querySelector('#full > strong')?.textContent ?? '',
               caption: view.querySelector('figcaption').textContent,
               text: view.querySelector('code')?.textContent ?? '',
             });
@@ -554,15 +553,13 @@ def test_a_text_document_is_never_drawn_before_its_text_arrives(browser, serve):
     draws = page.evaluate("window.documentDraws")
     assert draws, "the document was never observed drawn"
     assert all(
-        draw["name"] == "full.toml"
-        and draw["caption"] == ""
-        and "line_20 = 20" in draw["text"]
+        draw["caption"] == "full.toml" and "line_20 = 20" in draw["text"]
         for draw in draws
-    ), draws
+    )
 
 
 def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
-    """A captured file reads under its authored name and follows its source. A
+    """A captured file reads under its authored label and follows its source. A
     revision that binds a source id nothing rewrites keeps the reviewed words through
     later writes to the first source."""
     long_label = "a-very-long-unbroken-source-label-" * 8 + "SKILL.md"
@@ -570,7 +567,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         "captured source",
         f"""
 <h1 id="title">Leaf skill</h1>
-<lf-text-document id="skill-source" source="leaf-skill" class="language-markdown"><strong>{long_label}</strong></lf-text-document>
+<lf-text-document id="skill-source" source="leaf-skill" label="{long_label}" class="language-markdown"></lf-text-document>
 <p id="latency-line">Import latency: <lf-num source="import-latency" run="a41f103e236c985b">10 ms</lf-num>.</p>
 """,
     )
@@ -579,7 +576,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     data_model.cmd_data_set(serve.page_dir, "leaf-skill", skill_text)
 
     page = open_page(browser, url)
-    expect(page.locator("lf-text-document > strong")).to_have_text(long_label)
+    expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
     origin = {
         "input": "document",
         "source": "leaf-skill",
@@ -592,7 +589,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
         "# Leaf\n\nOriginal instructions.\n"
     )
     page.set_viewport_size({"width": 320, "height": 720})
-    assert page.locator("lf-text-document > strong").evaluate(
+    assert page.locator("lf-text-document figcaption").evaluate(
         "node => node.scrollWidth <= node.clientWidth"
     )
     page.set_viewport_size({"width": 1280, "height": 720})
@@ -616,7 +613,7 @@ def test_a_captured_source_stays_pointable_and_pinned(browser, serve):
     )
     wait_for_revision(page, 2)
     data_model.cmd_data_set(serve.page_dir, "leaf-skill-reviewed", skill_text)
-    expect(page.locator("lf-text-document > strong")).to_have_text(long_label)
+    expect(page.locator("lf-text-document figcaption")).to_have_text(long_label)
     expect(page.locator("lf-text-document code")).to_have_text(
         "# Leaf\n\nOriginal instructions.\n"
     )

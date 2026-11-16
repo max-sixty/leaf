@@ -215,7 +215,7 @@ def queue_board_registry(registry: dict) -> dict:
     registry["lf-board"]["x-awaits"] = {
         "value": "move",
         "answered": {
-            "move": {"empty": {"within": "lf-column", "when": {"id": ["queue"]}}}
+            "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
         },
     }
     return registry
@@ -1192,8 +1192,8 @@ def _board(todo, done):
 
     return (
         '<lf-board id="b1">'
-        f'<lf-column id="c-todo"><strong>Todo</strong>{"".join(map(card, todo))}</lf-column>'
-        f'<lf-column id="c-done"><strong>Done</strong>{"".join(map(card, done))}</lf-column>'
+        f'<lf-column id="c-todo" label="Todo">{"".join(map(card, todo))}</lf-column>'
+        f'<lf-column id="c-done" label="Done">{"".join(map(card, done))}</lf-column>'
         "</lf-board>"
     )
 
@@ -1402,7 +1402,7 @@ def _report_undeclared_attr(registry):
 def _report_says_attr(registry):
     task = registry["lf-test-task"]
     task["required"].append("owner")
-    task["x-says"] = ["owner"]
+    task["x-says"] = {"owner": "before"}
     task["x-state"]["status"] = {
         "writer": "agent",
         "unit": "widget",
@@ -2535,7 +2535,7 @@ def declared_reading_package(tmp_path, monkeypatch):
     registry = json.loads(registry_path.read_text())
     reading = registry["lf-reading"]
     reading["properties"].update({"label": {"type": "string"}})
-    reading["x-says"] = ["label"]
+    reading["x-says"] = {"label": "before"}
     registry_path.write_text(json.dumps(registry))
     return "./.leaf"
 

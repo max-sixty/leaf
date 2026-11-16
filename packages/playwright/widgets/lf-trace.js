@@ -85,7 +85,6 @@ import {
   repeat,
 } from "/vendor/lit.js";
 import {
-  addressableName,
   alreadyShown,
   generatedElement,
   dragging,
@@ -726,7 +725,7 @@ export class Trace extends LeafElement {
         return {
           index,
           target,
-          label: addressableName(member),
+          label: member.getAttribute("label"),
           key: member.getAttribute("key"),
         };
       },

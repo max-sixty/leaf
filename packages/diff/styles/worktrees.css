@@ -116,11 +116,6 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
-/* The name is the <strong> the page wrote, slotted here (worktree-view.js), so it takes
-   the row's weight rather than its own. */
-.lf-worktree-label > slot::slotted(*) {
-  font-weight: inherit;
-}
 
 .lf-worktree-ref {
   font: var(--lf-font-code);
@@ -294,34 +289,6 @@ html[data-lf-interactive] lf-worktree[open]:not(:defined)::before {
 }
 html[data-lf-interactive] lf-worktree:not([open]):not(:defined) > * {
   display: none;
-}
-/* The name stands where the row will draw it from the first paint: in the row's room,
-   past the marker's column, centred with the reference line the module writes under it
-   where the worktree has a branch or head. */
-html[data-lf-interactive] lf-worktree:not(:defined) {
-  position: relative;
-}
-html[data-lf-interactive]
-  lf-worktree:not(:defined)
-  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
-  position: absolute;
-  inset-block-start: 0;
-  inset-inline: calc(2 * var(--lf-sp-3) + 1rem) var(--lf-sp-3);
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 2px;
-  block-size: max(4rem, var(--lf-aim-floor));
-  margin: 0;
-  font-weight: 600;
-  overflow-wrap: anywhere;
-}
-html[data-lf-interactive]
-  lf-worktree:is([branch], [head]):not(:defined)
-  > :first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)::after {
-  content: "";
-  font: var(--lf-font-code);
-  block-size: 1lh;
 }
 html[data-lf-interactive] lf-worktree-diffs:not(:defined)::before {
   content: "";

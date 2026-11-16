@@ -71,7 +71,6 @@
 import { html, render, nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
-  openingTitle,
   addressableWord,
   commandScope,
   motion,
@@ -183,14 +182,8 @@ customElements.define(
     #stopPressAway = null;
 
     setup() {
-      // The name the draft opens with stays over its body (`openingTitle`).
-      const name = openingTitle(this)?.holder;
-      const kept = name ? [name, this.#body] : [this.#body];
-      if (
-        this.childNodes.length !== kept.length ||
-        kept.some((node, at) => this.childNodes[at] !== node)
-      )
-        this.replaceChildren(...kept);
+      if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
+        this.replaceChildren(this.#body);
       this.#body.className = "lf-draft-body lf-markdown-body"; // NOT .lf-ui: anchoring and Δ must see this
 
       // A quoted draft is an exhibit: the same formatted text, none of the doors —

@@ -46,9 +46,8 @@ from leaf_dev.commands.generate.corpus import sources as corpus_sources
 OPEN_CARD = "() => document.querySelector('.lf-margin-preview:not([hidden])')"
 
 
-def printed(page: Page) -> None:
-    """The page on paper: a breakout exhibit within the paper's prose track, or a queue
-    whose list is gone, each item under its name."""
+def printed_exhibit(page: Page) -> None:
+    """A breakout exhibit within the paper's prose track."""
     page.emulate_media(media="print")
 
 
@@ -1860,7 +1859,7 @@ def option_add_hover(page: Page) -> None:
 
 def options_in_pane(page: Page) -> None:
     """An option list in a workspace pane, under the paragraphs it answers."""
-    page.get_by_role("tab", name="Checkout p99 latency").click()
+    page.get_by_text("Checkout p99 latency", exact=True).click()
     page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 
@@ -2691,18 +2690,6 @@ def film_inspector(page: Page) -> None:
     )
 
 
-def parts_list(page: Page) -> None:
-    """A page of parts in its sample window, its list down the left: each row a copy
-    of the header its part opens with, one name in code type over a coloured
-    diffstat."""
-    page.get_by_role("tab", name="Page & layout", exact=True).click()
-    sample = page.locator("#bg-parts-sample")
-    # Its page starts as the reader brings it near (lf-sample.js).
-    sample.scroll_into_view_if_needed()
-    sample.evaluate("sample => sample.ready")
-    expect(sample.frame_locator("iframe").get_by_role("tablist")).to_be_visible()
-
-
 def live_sample_embedded(page: Page) -> None:
     """The arrived practice page at its embedded content height."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
@@ -2781,8 +2768,7 @@ STATES = (
         dynamic_request_preview,
         region="#leaf-request-document",
     ),
-    State("printed-exhibit", "lost-update", printed, region="main"),
-    State("printed-queue", "alert-review", printed, region="#ar-queue"),
+    State("printed-exhibit", "lost-update", printed_exhibit, region="main"),
     State("failed-widget", "review-a-plan", failed_widget, window=Window((1600, 900))),
     State("page-about", "review-a-plan", page_about, region=".lf-inspection-dialog"),
     State(
@@ -2926,7 +2912,6 @@ STATES = (
         live_sample_embedded,
         region="#bg-live-sample",
     ),
-    State("parts-list", "feature-gallery", parts_list, region="#bg-parts-sample"),
     State(
         "live-sample-full-view",
         "feature-gallery",

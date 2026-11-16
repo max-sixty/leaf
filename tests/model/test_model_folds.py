@@ -17,8 +17,7 @@ from interact_support import page_packages, served_obligations
 HUB = model.leaf_page(
     "command hub",
     """<h1 id="h">Atlas</h1>
-<lf-test-plan id="atlas">
-  <strong>Replace the parser</strong>
+<lf-test-plan id="atlas" label="Replace the parser">
   <lf-test-task id="goal-parser" status="active" talk><strong>Replace the XML parser</strong></lf-test-task>
 </lf-test-plan>""",
 )

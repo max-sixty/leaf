@@ -27,11 +27,6 @@ export { rankAt } from "./projection/model.js";
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
-// An element's name is its markup, as a section's is its heading: `openingTitle(element)`
-// (portable-api.js) finds it, `addressableName(element)` its words for
-// a place that takes only text, and `echoCopy(node, after)` a copy of a node's markup
-// to draw the name elsewhere.
-export { addressableName, echoCopy } from "./addressable-names.js";
 // `titledElement(heading)`: the element a heading titles, the outermost one that opens
 // with it, which a count per heading counts under that heading.
 export { titledElement } from "./addressable-names.js";

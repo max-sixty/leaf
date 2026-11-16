@@ -683,12 +683,6 @@ _TEXT = {
     "silent-word": lambda at, v: (
         f'{at} declares {v["attr"]} as x-says and never says "{v["value"]}"'
     ),
-    "dropped-name": lambda at, v: (
-        f'{at} opens with the name "{v["name"]}", which its module drew over, so the'
-        " page never shows it — name the widget where the page shows it, such as a"
-        " heading before it, or have the module keep the name it opens with"
-        " (`openingTitle`)"
-    ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
         " declare it as a verb's record form (x-state) if a version is meant to carry"
@@ -996,17 +990,6 @@ _TEXT = {
     ),
     "loose-text": lambda at, v: (
         f"{_line(at, v)}: loose text between its members isn't allowed"
-    ),
-    "unnamed-view": lambda at, v: (
-        f"{_line(at, v)}: a view is listed by its name — make its first element the"
-        " <strong> that names it, or a <header> holding that <strong> and a summary"
-        " after it"
-    ),
-    "interactive-name": lambda at, v: (
-        f"{_line(at, v)}: its header holds "
-        + ", ".join(f"<{tag}>" for tag in v["found"])
-        + "; its tab, a control, draws a copy of the header, so the header holds words"
-        " and phrasing markup only"
     ),
     "parts-in-layout": lambda at, v: (
         f"{_line(at, v)}: stands in a <main> that carries {v['layout']}; a page of"

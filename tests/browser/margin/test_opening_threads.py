@@ -334,9 +334,8 @@ HIDDEN_TAB_PAGE = leaf_page(
     "a thread in a closed tab",
     """
   <lf-tabs id="views">
-    <lf-tab id="view-open"><strong>Open</strong><p>The tab the page opens on.</p></lf-tab>
-    <lf-tab id="view-closed">
-      <strong>Closed</strong>
+    <lf-tab id="view-open" label="Open"><p>The tab the page opens on.</p></lf-tab>
+    <lf-tab id="view-closed" label="Closed">
       <p id="closed-words">Words in the tab the page does not open on.</p>
     </lf-tab>
   </lf-tabs>""",
@@ -378,13 +377,13 @@ LONG_STRIP_PAGE = leaf_page(
     "a thread in the closed tab of a long strip",
     """
   <lf-tabs id="views">
-    <lf-tab id="view-open"><strong>The open tab</strong><p id="open-words">Words.</p></lf-tab>"""
+    <lf-tab id="view-open" label="The open tab"><p id="open-words">Words.</p></lf-tab>"""
     + "".join(
-        f'<lf-tab id="view-{n}"><strong>Another long tab name {n}</strong><p>Tab {n}.</p></lf-tab>'
+        f'<lf-tab id="view-{n}" label="Another long tab name {n}"><p>Tab {n}.</p></lf-tab>'
         for n in range(8)
     )
     + """
-    <lf-tab id="view-last"><strong>The last tab</strong><p id="last-words">Words.</p></lf-tab>
+    <lf-tab id="view-last" label="The last tab"><p id="last-words">Words.</p></lf-tab>
   </lf-tabs>
   <p id="hidden-words" hidden>Words the page hides.</p>
   <p id="unseen-words" style="visibility: hidden">Words the page leaves unseen.</p>""",
@@ -478,8 +477,8 @@ MOVED_PASSAGE_PAGE = leaf_page(
     "a passage a revision moves into a closed tab",
     """
   <lf-tabs id="views">
-    <lf-tab id="view-open"><strong>Open</strong><p id="moved-words">Words a revision moves.</p></lf-tab>
-    <lf-tab id="view-closed"><strong>Closed</strong><p id="other-words">Other words.</p></lf-tab>
+    <lf-tab id="view-open" label="Open"><p id="moved-words">Words a revision moves.</p></lf-tab>
+    <lf-tab id="view-closed" label="Closed"><p id="other-words">Other words.</p></lf-tab>
   </lf-tabs>""",
 )
 

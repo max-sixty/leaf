@@ -440,7 +440,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
 
     def item(key, label):
         return (
-            f'<lf-tab id="t-{key}"><strong>{label}</strong><lf-ask id="{key}-decision">'
+            f'<lf-tab id="t-{key}" label="{label}"><lf-ask id="{key}-decision">'
             f'<h2>Pick the {key}</h2><lf-options id="{key}" choose>'
             f'<lf-option id="{key}-a">Alpha</lf-option>'
             f'<lf-option id="{key}-b">Beta</lf-option></lf-options></lf-ask></lf-tab>'

@@ -184,9 +184,9 @@ def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
 
 PLAYGROUND_SETTINGS = (
     '<lf-playground id="pg"><lf-playground-control id="budget" name="budget"'
-    ' kind="range" value="10" min="0" max="30"><strong>Page budget</strong>'
+    ' label="Page budget" kind="range" value="10" min="0" max="30">'
     '</lf-playground-control><lf-playground-control id="finance" name="finance"'
-    ' kind="toggle" value="false"><strong>Count finance pages</strong>'
+    ' label="Count finance pages" kind="toggle" value="false">'
     "</lf-playground-control><lf-playground-preview><p>The budget.</p>"
     "</lf-playground-preview><lf-playground-output>Budget"
     ' <lf-playground-value for="budget"></lf-playground-value></lf-playground-output>'
@@ -1744,10 +1744,10 @@ WIDGET_WORDS = (
     '<lf-suggestion id="sug"><lf-old><p id="old">Refill every feeder each morning.'
     "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"
     "</lf-new></lf-suggestion>"
-    '<lf-playground id="pg"><lf-playground-control id="tone" name="tone"'
-    ' kind="choice" value="quiet"><strong>Tone</strong><lf-playground-choice id="tone-quiet" value="quiet"'
-    '><strong>Quiet</strong></lf-playground-choice><lf-playground-choice id="tone-bold"'
-    ' value="bold"><strong>Bold</strong></lf-playground-choice></lf-playground-control>'
+    '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone"'
+    ' kind="choice" value="quiet"><lf-playground-choice id="tone-quiet" value="quiet"'
+    ' label="Quiet"></lf-playground-choice><lf-playground-choice id="tone-bold"'
+    ' value="bold" label="Bold"></lf-playground-choice></lf-playground-control>'
     '<lf-playground-preview><p id="pg-words">The candidate banner reads well.</p>'
     "</lf-playground-preview><lf-playground-output>Use"
     ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'

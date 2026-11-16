@@ -35,16 +35,16 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
             leaf_page(
                 "Worktree columns",
                 '<h1>Worktree columns</h1><lf-worktree-diffs id="trees">'
-                '<lf-worktree id="short" path="/work/short" '
-                'status="changed" files="1" additions="1" deletions="1"><strong>Small change</strong>'
+                '<lf-worktree id="short" label="Small change" path="/work/short" '
+                'status="changed" files="1" additions="1" deletions="1">'
                 '<p id="evidence">Evidence can use the complete worktree width.</p>'
-                '</lf-worktree><lf-worktree id="long" '
+                '</lf-worktree><lf-worktree id="long" label="A longer change" '
                 'path="/work/long" status="changed" files="123" additions="12345" '
-                'deletions="1234" binary-files="2"><strong>A longer change</strong><p>More evidence.</p></lf-worktree>'
-                '<lf-worktree id="unknown" path="/work/missing" '
-                'status="unavailable"><strong>Missing checkout</strong><p>No snapshot.</p></lf-worktree>'
-                '<lf-worktree id="clean" path="/work/clean" '
-                'status="clean" files="0" additions="0" deletions="0"><strong>Clean checkout</strong>'
+                'deletions="1234" binary-files="2"><p>More evidence.</p></lf-worktree>'
+                '<lf-worktree id="unknown" label="Missing checkout" path="/work/missing" '
+                'status="unavailable"><p>No snapshot.</p></lf-worktree>'
+                '<lf-worktree id="clean" label="Clean checkout" path="/work/clean" '
+                'status="clean" files="0" additions="0" deletions="0">'
                 "<p>Nothing changed.</p></lf-worktree>"
                 "</lf-worktree-diffs>",
             ),
@@ -117,18 +117,18 @@ def test_worktree_summaries_share_columns_without_cramping_their_evidence(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_page_search_reads_a_worktrees_name_and_branch_apart(request, serve, engine):
-    """A worktree's summary draws its name, the <strong> the page wrote, and its branch
-    on two rows, and page search finds each without running them together."""
+def test_page_search_reads_a_worktrees_label_and_branch_apart(request, serve, engine):
+    """A worktree's summary draws its label and its branch on two rows, and page search
+    finds them with a space between them."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "Worktree identity",
                 '<h1>Worktree identity</h1><lf-worktree-diffs id="trees">'
-                '<lf-worktree id="drafts" '
+                '<lf-worktree id="drafts" label="retain-drafts" '
                 'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
-                'status="changed" files="2" additions="2" deletions="2"><strong>retain-drafts</strong>'
+                'status="changed" files="2" additions="2" deletions="2">'
                 "<p>Keep reply drafts keyed by thread.</p></lf-worktree>"
                 "</lf-worktree-diffs>",
             ),
@@ -137,13 +137,10 @@ def test_page_search_reads_a_worktrees_name_and_branch_apart(request, serve, eng
     )
     expect(page.locator("#drafts .lf-worktree-ref")).to_have_text("codex/retain-drafts")
     page.keyboard.press("/")
-    search = page.get_by_role("searchbox", name="Search page text")
-    status = page.locator(".lf-page-search-status")
-    # The name, the branch's last segment and the path's tail.
-    search.fill("retain-drafts")
-    expect(status).to_have_text("1 of 3")
-    search.fill("retain-draftscodex")
-    expect(status).to_have_text("0 of 0")
+    page.get_by_role("searchbox", name="Search page text").fill(
+        "retain-drafts codex/retain-drafts"
+    )
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):

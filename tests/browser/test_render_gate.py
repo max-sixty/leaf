@@ -116,8 +116,8 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
     """
   <header><h1>Queue</h1></header>
   <div id="gate-split">
-    <lf-pane id="gate-list" aria-label="Items"><div><p>First</p><div style="height:900px"></div><p>Last</p></div></lf-pane>
-    <lf-pane id="gate-detail" aria-label="Detail"><div><p>Subject</p><div style="height:900px"></div><button>Finish</button></div></lf-pane>
+    <lf-pane id="gate-list" label="Items"><div><p>First</p><div style="height:900px"></div><p>Last</p></div></lf-pane>
+    <lf-pane id="gate-detail" label="Detail"><div><p>Subject</p><div style="height:900px"></div><button>Finish</button></div></lf-pane>
   </div>
   <footer>End of queue</footer>
 """,
@@ -565,10 +565,10 @@ RECURSIVE_ROWS_PAGE = leaf_page(
     "recursive rows",
     """
   <div id="rows">
-    <lf-pane id="upper" aria-label="Upper"><div><p>Upper body</p><div style="height:600px"></div></div><footer style="height:120px">Tall actions</footer></lf-pane>
+    <lf-pane id="upper" label="Upper"><div><p>Upper body</p><div style="height:600px"></div></div><footer style="height:120px">Tall actions</footer></lf-pane>
     <div id="lower">
-      <lf-pane id="lower-left" aria-label="Lower left"><div><p>Left body</p></div></lf-pane>
-      <lf-pane id="lower-right" aria-label="Lower right"><div><p>Right body</p></div></lf-pane>
+      <lf-pane id="lower-left" label="Lower left"><div><p>Left body</p></div></lf-pane>
+      <lf-pane id="lower-right" label="Lower right"><div><p>Right body</p></div></lf-pane>
     </div>
   </div>
 """,
@@ -1269,9 +1269,9 @@ def test_a_pane_compares_its_words_without_its_opaque_children_rendered_data(
 ):
     source = leaf_page(
         "Patch reading",
-        '<lf-pane id="files" aria-label="Files"><header>Changed files</header>'
+        '<lf-pane id="files" label="Files"><header>Changed files</header>'
         '<lf-file-tree id="tree" for="patch"></lf-file-tree></lf-pane>'
-        '<lf-pane id="code" aria-label="Code"><header>Patch</header>'
+        '<lf-pane id="code" label="Code"><header>Patch</header>'
         '<div><svg id="drawing" viewBox="0 0 240 40"><text x="0" y="24">'
         "UNCHANGED DRAWING</text></svg>"
         '<lf-diff id="patch" view="file"><pre>'

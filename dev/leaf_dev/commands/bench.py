@@ -423,7 +423,7 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
 
     def column(b: int, name: str, count: int) -> str:
         return (
-            f'<lf-column id="b{b}-{name}"><strong>{name.title()}</strong>'
+            f'<lf-column id="b{b}-{name}" label="{name.title()}">'
             + "".join(
                 f'<lf-card id="b{b}-{name}{j}"><strong>Card {j}</strong> of board {b}.'
                 "</lf-card>"
@@ -480,7 +480,7 @@ def document_lines(n: int) -> str:
         "</lf-options></lf-ask>"
     )
     document = (
-        '<lf-text-document id="listing"><strong>steps.py</strong>'
+        '<lf-text-document id="listing" label="steps.py">'
         f'<pre><code class="language-python">{steps(n * 32)}</code></pre>'
         "</lf-text-document>"
     )
@@ -504,8 +504,8 @@ def side_documents(n: int) -> str:
     syntax colour paints most words, as the colour a tab keeps is what `browse`
     reads."""
     tabs = "".join(
-        f'<lf-tab id="t{d}"><strong>Document {d}</strong><lf-text-document id="d{d}" '
-        f'source="s{d}" class="language-python"><strong>document_{d}.py</strong></lf-text-document>'
+        f'<lf-tab id="t{d}" label="Document {d}"><lf-text-document id="d{d}" '
+        f'source="s{d}" label="document_{d}.py" class="language-python"></lf-text-document>'
         "</lf-tab>"
         for d in range(documents(n))
     )
@@ -518,8 +518,7 @@ def side_asks(n: int) -> str:
     mark, so the CPU of that click reads what counting each panel's obligations costs
     (#5722)."""
     tabs = "".join(
-        f'<lf-tab id="t{g}"><strong>Tab {g}</strong>{ask(g)}</lf-tab>'
-        for g in range(1, n + 1)
+        f'<lf-tab id="t{g}" label="Tab {g}">{ask(g)}</lf-tab>' for g in range(1, n + 1)
     )
     return page("Asks", f'<lf-tabs id="tabs" list="side">{tabs}</lf-tabs>')
 

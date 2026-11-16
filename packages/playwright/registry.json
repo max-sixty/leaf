@@ -404,7 +404,11 @@
     "type": "object",
     "properties": {
       "id": { "type": "string" },
-      "source": { "type": "string" }
+      "source": { "type": "string" },
+      "label": {
+        "type": "string",
+        "minLength": 1
+      }
     },
     "required": ["id", "source"],
     "additionalProperties": false,
@@ -423,10 +427,14 @@
     "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"></lf-trace>"
   },
   "lf-trace-bookmark": {
-    "description": "A named link to one captured image or action phase in its trace, holding only the `<strong>` that names it.",
-    "x-instructions": "Set `target` to a capture in the trace: `trace-ARCHIVE_SHA256-image-IMAGE_ID` or `trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE`, where PHASE is before, action, after, start or end. Read the ids from the imported source. A target the recording lacks shows as unavailable. In an `lf-trace-compare`, give the bookmarks for the same result in each recording the same `key`; Leaf never pairs them by time or name.",
+    "description": "A labeled link to one captured image or action phase in its trace.",
+    "x-instructions": "Set `target` to a capture in the trace: `trace-ARCHIVE_SHA256-image-IMAGE_ID` or `trace-ARCHIVE_SHA256-phase-ACTION_ID-PHASE`, where PHASE is before, action, after, start or end. Read the ids from the imported source. A target the recording lacks shows as unavailable. In an `lf-trace-compare`, give the bookmarks for the same result in each recording the same `key`; Leaf never pairs them by time or label.",
     "type": "object",
     "properties": {
+      "label": {
+        "type": "string",
+        "minLength": 1
+      },
       "target": {
         "type": "string",
         "pattern": "^trace-[a-f0-9]{64}-(image|phase)-[a-z0-9-]+$"
@@ -436,15 +444,15 @@
         "pattern": "^[a-z][a-z0-9-]*$"
       }
     },
-    "required": ["target"],
+    "required": ["label", "target"],
     "additionalProperties": false,
-    "x-content": "members",
+    "x-content": "empty",
     "x-owners": ["lf-trace"],
-    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"><strong>Popup closes</strong></lf-trace-bookmark></lf-trace>"
+    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark label=\"Popup closes\" target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"></lf-trace-bookmark></lf-trace>"
   },
   "lf-trace-compare": {
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
-    "x-instructions": "Each direct child is one recording view: an `lf-trace` opening with the `<strong>` that names it, or any wrapper holding one with its caption. Put shared introductory text outside the comparison.",
+    "x-instructions": "Each direct child is one recording view: a labeled `lf-trace`, or any wrapper holding one with its caption. Put shared introductory text outside the comparison.",
     "type": "object",
     "properties": {
       "id": { "type": "string" }
@@ -453,6 +461,6 @@
     "additionalProperties": false,
     "x-views": { "members": ":not(script, style, template)" },
     "x-space": "available",
-    "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" source=\"before-recording\"><strong>Before</strong></lf-trace><lf-trace id=\"after\" source=\"after-recording\"><strong>After</strong></lf-trace></lf-trace-compare>"
+    "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" label=\"Before\" source=\"before-recording\"></lf-trace><lf-trace id=\"after\" label=\"After\" source=\"after-recording\"></lf-trace></lf-trace-compare>"
   }
 }

@@ -484,7 +484,7 @@ def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
         serve(
             leaf_page(
                 "A sample",
-                '<h1>A sample</h1><lf-sample id="practice" window><strong>Practice</strong>'
+                '<h1>A sample</h1><lf-sample id="practice" label="Practice" window>'
                 '<template id="practice-page" data-sample><h1>Practice</h1>'
                 '<lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" choose>'
                 '<lf-option id="left">Take the left route</lf-option>'
@@ -814,8 +814,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-ask>
-<lf-test-plan id="hub">
-  <strong>The rail</strong>
+<lf-test-plan id="hub" label="The rail">
   <lf-test-task id="fitting" status="active" talk><strong>Who fits the rail?</strong>
   Either crew can take it, and neither has said which week.</lf-test-task>
 </lf-test-plan>
@@ -1062,7 +1061,7 @@ def test_c_enters_a_seated_reply_without_revealing_the_thread_heading(
         leaf_page(
             "Reply without travel",
             '<div style="height:1000px"></div>'
-            '<lf-test-plan id="hub"><strong>A task</strong>'
+            '<lf-test-plan id="hub" label="A task">'
             '<lf-test-task id="fitting" status="active" talk>A task to discuss.</lf-test-task>'
             '</lf-test-plan><div style="height:1400px"></div>',
         )

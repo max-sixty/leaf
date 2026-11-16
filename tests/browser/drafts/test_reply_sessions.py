@@ -38,7 +38,7 @@ def test_typing_in_a_visible_inline_reply_keeps_the_reading_position(
     """Keeping a reply's controls visible does not reveal its already-scrolled-past turns."""
     content = """
 <div style="height:900px"></div>
-<lf-test-plan id="hub"><strong>Tasks</strong><lf-test-task id="jobs" status="active" talk>
+<lf-test-plan id="hub" label="Tasks"><lf-test-task id="jobs" status="active" talk>
 What should we do next?</lf-test-task></lf-test-plan>
 <div style="height:900px"></div>
 """

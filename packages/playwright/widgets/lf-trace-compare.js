@@ -10,7 +10,6 @@
  * measured height clears focus and navigation inside those views. */
 import {
   actionClass,
-  addressableName,
   cancelRender,
   el,
   generatedElement,
@@ -81,7 +80,7 @@ customElements.define(
         const choice = offer(
           "wa-radio",
           actionClass("word", "lf-trace-source"),
-          addressableName(recording) || recording.getAttribute("source"),
+          recording.getAttribute("label") ?? recording.getAttribute("source"),
           undefined,
           true,
         );
@@ -133,7 +132,7 @@ customElements.define(
       for (const member of this.#members) {
         const { recording } = member;
         if (member !== this.#selected) recording.pause();
-        keeps(recording, "aria-label", addressableName(recording) || null);
+        keeps(recording, "aria-label", recording.getAttribute("label"));
       }
       layoutChanged(this);
     }

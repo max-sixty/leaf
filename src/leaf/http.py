@@ -35,6 +35,7 @@ from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
 from starlette.responses import FileResponse, Response
 
+from .drafts import write_draft
 from .event_endpoint import accept_event, event_fault, event_rejection, with_state
 from .file_bindings import FileBindingError, StaleFileError, read_file, save_file
 from .files import (
@@ -64,8 +65,10 @@ from .revision_delivery import (
     compose_document,
     deliver_resource,
     delivered_resource,
+    json_script,
     layer_import_map,
     rebase_document,
+    runtime_element,
     runtime_settings,
 )
 from .runtime_selection import (
@@ -636,6 +639,7 @@ class PageEndpoint:
             {
                 "reading": self.source.news(),
                 "pages": pages_reading(self.source.other_pages()),
+                "drafts": self.source.drafts()["version"],
             }
         )
 
@@ -1095,7 +1099,19 @@ class PageEndpoint:
         # takes once this one stops, so the page directory names it: by the address
         # alone, Threads listed a draft typed on another page a month before.
         scope = f"{page_key(self.page_dir)[:16]}{self.page_root}/"
-        return replace(delivery, html_attributes={"data-lf-page-scope": scope})
+        # The drafts the user is writing arrive with the document, so a box opens on
+        # its words before any look (`runtime/drafts.js`). A release's document may be
+        # the edge's, which its visitors share, so there they arrive with the first look.
+        drafts = runtime_element(
+            "script",
+            {"type": "application/json", "id": "lf-drafts"},
+            json_script(self.source.drafts()),
+        )
+        return replace(
+            delivery,
+            head=delivery.head + drafts,
+            html_attributes={"data-lf-page-scope": scope},
+        )
 
     def _serve_artifact_resource(self) -> Response | None:
         match = re.fullmatch(
@@ -1202,6 +1218,8 @@ class PageEndpoint:
             return self._news()
         if path == "/api/pages":
             return self._json_body(self.source.other_pages())
+        if path == "/api/drafts":
+            return self._json_body(self.source.drafts())
         if path == "/api/state":
             # Versions pass through the endpoint's own view, so a preview state
             # agrees with the version it serves.
@@ -1390,6 +1408,12 @@ class PageEndpoint:
         except (FileBindingError, UnicodeEncodeError) as error:
             return self._refuse(str(error))
 
+    def _write_draft(self) -> Response:
+        try:
+            return self._json_body(write_draft(self.page_dir, self.posted))
+        except ValueError as error:
+            return self._refuse(str(error))
+
     def _observe_user_view(self) -> Response:
         # Captured render previews are instruments, not the user's reading.
         if not self.source.writable:
@@ -1511,6 +1535,9 @@ class PageEndpoint:
             (_runtime_gate, _live_files_gate, _same_origin_gate, _body_gate),
         ),
         "/api/user-view": PostRoute(_observe_user_view, (_runtime_gate, _body_gate)),
+        "/api/draft": PostRoute(
+            _write_draft, (_writable_gate, _runtime_gate, _body_gate)
+        ),
         "/api/interaction": PostRoute(_record_interactions, (_body_gate,)),
         "/api/samples": PostRoute(
             _create_sample, (_runtime_gate, _layer_gate, _body_gate)

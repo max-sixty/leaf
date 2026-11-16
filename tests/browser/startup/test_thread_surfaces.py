@@ -1305,7 +1305,7 @@ customElements.define('lf-test-seat',class extends LeafElement{
         page.route(
             "**/api/news*",
             lambda route: route.fulfill(
-                json={"reading": state_readings[0], "pages": None}
+                json={"reading": state_readings[0], "pages": None, "drafts": 0}
             ),
         )
 

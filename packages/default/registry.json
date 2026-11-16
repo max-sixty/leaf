@@ -291,7 +291,7 @@
   },
   "lf-option": {
     "description": "One alternative in a decision: a compact label, or a card showing what choosing it gives the user.",
-    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. Use a direct `<strong>` child for a card's title. Follow it with any consequence the title or labels leave unstated, and put pictures in block HTML, such as `svg.drawing`. Mark the option you advise with `<small class=\"tag ok\">recommended</small>`. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. Direct text takes inline Markdown. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (read the `lf-board` instructions for the composition).",
+    "x-instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. Use a direct `<strong>` child for a card's title. Follow it with any consequence the title or labels leave unstated, and put pictures in block HTML, such as `svg.drawing`. Mark the option you advise with `<small class=\"tag ok\">recommended</small>`. Give your reason for the recommendation in prose beside the group, such as the `lf-ask`'s paragraph, so each card states only what choosing it does. `chosen` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the group's answer, such as a board column (read the `lf-board` instructions for the composition).",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
@@ -313,7 +313,6 @@
     "x-unique": {
       "value": "lf-options"
     },
-    "x-text-format": "inline-markdown",
     "x-refers": {
       "for": {}
     }

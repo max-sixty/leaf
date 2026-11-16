@@ -228,5 +228,19 @@
     "words": "Edit setup.py and notes.md, then run install.sh.",
     "blocks": ["p"],
     "links": []
+  },
+  {
+    "source": "| Key | Note |\n| --- | --- |\n| `x-awaits` | Reads `x-state` once. |\n| [`reading.css`](https://example.com/r) | **`browser/styles/components/reading.css`** |\n| `git commit -m` | plain |",
+    "words": "Key Note x-awaits Reads x-state once. reading.css browser/styles/components/reading.css git commit -m plain",
+    "blocks": ["table"],
+    "links": [{ "text": "reading.css", "href": "https://example.com/r" }],
+    "names": ["", "", "long"]
+  },
+  {
+    "source": "| At the third | Past it |\n| --- | --- |\n| `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` | `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa` |",
+    "words": "At the third Past it aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "blocks": ["table"],
+    "links": [],
+    "names": ["", "long"]
   }
 ]

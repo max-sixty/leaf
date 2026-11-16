@@ -817,16 +817,21 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
 
 def test_a_cell_that_holds_a_name_alone_says_so():
     """A stylesheet sees no text, so it can't tell a cell whose whole text is one name
-    from a sentence that mentions one. Delivery marks the first, for the reading face to
-    keep on one line: a name in any column, linked or not, and never a sentence, a name
-    with words beside it, two names, or a block of code."""
+    from a sentence that mentions one, or a long name from a short one. Delivery marks a
+    name alone in its cell, in any column and linked or not, for the reading face to
+    keep on one line, and says when it is wider than the third that face gives it. It
+    marks no sentence, no name with words beside it, no pair of names, no command with
+    spaces to wrap at and no block of code."""
+    path = "browser/styles/components/reading.css"
     cells = {
         "name": "<td><code>x-awaits</code></td>",
         "head": '<th scope="row"> <samp>--dry-run</samp>\n</th>',
         "linked": '<td><a href="#x"><code>reading.css</code></a></td>',
+        "path": f"<td><code>{path}</code></td>",
         "sentence": "<td>Reads <code>x-state</code> once.</td>",
         "tagged": "<td><code>x-awaits</code> <small>new</small></td>",
         "pair": "<td><code>a</code><code>b</code></td>",
+        "command": "<td><code>git commit --amend</code></td>",
         "block": "<td><pre><code>go()</code></pre></td>",
         "words": "<td>plain</td>",
     }
@@ -834,8 +839,11 @@ def test_a_cell_that_holds_a_name_alone_says_so():
         cell.replace(">", f' id="{name}">', 1) for name, cell in cells.items()
     )
     tree = SourceDocument(mark_declared(source + "</tr></table>", {}, {})).tree
-    marked = {cell.attrs["id"] for cell in tree.select("[data-lf-name]")}
-    assert marked == {"name", "head", "linked"}
+    marked = {
+        cell.attrs["id"]: cell.attrs["data-lf-name"]
+        for cell in tree.select("[data-lf-name]")
+    }
+    assert marked == {"name": "", "head": "", "linked": "", "path": "long"}
 
 
 def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():

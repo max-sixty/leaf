@@ -42,7 +42,7 @@ from urllib.parse import quote, unquote, urlsplit
 import turbohtml
 
 from .layer import DOCUMENT_LAYER_ORDER
-from .passages import markdown_markup
+from .passages import markdown_markup, name_mark
 from .registry.contract import exhibits, is_element_name
 from .registry.kernel import authored_inert, kernel_marks
 from .revision_artifact import (
@@ -386,16 +386,15 @@ def media_size(data: bytes) -> tuple[int, int] | None:
     return None
 
 
-def holds_a_name_alone(cell) -> bool:
-    """Whether a table cell's whole text is one `<code>` or `<samp>`: a name, such as an
-    option or a path, and not a sentence that mentions one."""
+def name_alone(cell) -> str | None:
+    """What a table cell says of the name it holds alone (`passages.name_mark`), or
+    None: its whole text is one `<code>` or `<samp>`, such as an option or a path. A
+    sentence that mentions a name is no name."""
     names = cell.select("code, samp")
-    return (
-        len(names) == 1
-        and names[0].closest("pre") is None
-        and (name := names[0].text.strip()) != ""
-        and cell.text.strip() == name
-    )
+    if len(names) != 1 or names[0].closest("pre") is not None:
+        return None
+    name = names[0].text
+    return name_mark(name) if cell.text.strip() == name.strip() else None
 
 
 def mark_declared(
@@ -405,7 +404,8 @@ def mark_declared(
 ) -> str:
     """Paint each element's declared marks (`registry.kernel.kernel_marks`) onto its
     start tag, the rest byte-for-byte, the size of the page media it names, and
-    `data-lf-name` on a table cell that holds a name alone.
+    `data-lf-name` on a table cell that holds a name alone, `long` for a name past a
+    third of the column.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
@@ -414,7 +414,7 @@ def mark_declared(
     height (`data-lf-media-width`, `data-lf-media-height`), for the stylesheet to lay
     out a frame that the images arrive in. A stylesheet can't tell a cell whose whole
     text is one name from a sentence with code in it, since a selector sees no text, so
-    the cell says so (`holds_a_name_alone`), and the reading face keeps that name on one
+    the cell says so (`name_alone`), and the reading face keeps that name on one
     line (reading.css). What a template holds is inert until a
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
@@ -475,8 +475,8 @@ def mark_declared(
         if sizes:
             marks["data-lf-media-width"] = str(max(width for width, _ in sizes))
             marks["data-lf-media-height"] = str(max(height for _, height in sizes))
-        if element.tag in ("th", "td") and holds_a_name_alone(element):
-            marks["data-lf-name"] = ""
+        if element.tag in ("th", "td") and (name := name_alone(element)) is not None:
+            marks["data-lf-name"] = name
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names

@@ -713,6 +713,25 @@ function sourcePositions(markdown) {
 // The blocks the parser emits whole, with no opening and closing pair.
 const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
 
+// A name of more characters than this is wider than a third of the reading column in
+// the reading face's code (passages.py, `NAME_THIRD`, which holds the same count).
+const NAME_THIRD = 31;
+// What a table cell holding only `children` says of the name it holds alone
+// (`data-lf-name`), or null: its whole text is one code span with no space in it.
+/** @param {NativeToken[]} children @returns {"" | "long" | null} */
+function nameMark(children) {
+  const [name, ...others] = children.filter((child) => child.type === "code_inline");
+  if (
+    !name ||
+    others.length ||
+    children.some((child) => child !== name && child.content.trim())
+  )
+    return null;
+  const said = name.content.trim();
+  if (!said || /\s/.test(said)) return null;
+  return [...said].length > NAME_THIRD ? "long" : "";
+}
+
 // The parser for a reading (`renderMarkdown`). passages.py reads the same two dialects,
 // short of `fence_words`, since it reads no fence in a message.
 /** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message */
@@ -758,6 +777,16 @@ export function makeMarkdown(module, message) {
       }
       token.attrSet("data-lf-gap", String(gap));
     }
+  });
+  // A cell whose whole text is one code span says so, for the reading face to keep the
+  // name whole (reading.css), as delivery has the page's own cells say
+  // (revision_delivery.py, `name_alone`) and passages.py this dialect's.
+  markdown.core.ruler.push("name_cells", (state) => {
+    state.tokens.forEach((cell, at) => {
+      if (cell.type !== "td_open" && cell.type !== "th_open") return;
+      const mark = nameMark(state.tokens[at + 1]?.children ?? []);
+      if (mark !== null) cell.attrSet("data-lf-name", mark);
+    });
   });
   // Message paragraphs preserve typed spaces. A break has one visible carrier:
   // MarkdownIt's formatting newline after <br> would become a second line there.

@@ -4653,9 +4653,11 @@ def test_a_cell_that_holds_a_name_alone_keeps_it_on_one_line(engine, request, se
     automatic layout gave a name column almost nothing past one character, so
     `--output-dir` stood as `--output-` over `dir` on the full measure and every name
     took two or three lines in a 420px window. A cell that holds a name alone keeps it
-    whole, in whichever column it stands, and the table still fits. It holds in every
-    engine: the rule once used a feature Firefox lacks, and the names stayed broken
-    there."""
+    whole, in whichever column it stands, and the table still fits. A path wider than
+    the third a long name is sure of takes its whole width beside a column of figures,
+    where the table has room for it, and beside a sentence it leaves the sentence more
+    than half the table. It holds in every engine: the rule once used a feature Firefox
+    lacks, and the names stayed broken there."""
     rows = (
         ("--plugin", "lf-options", "Loads the named plugin before the run starts, so"),
         ("--dry-run", "lf-ask", "Reports what the run would change without writing,"),
@@ -4673,10 +4675,25 @@ def test_a_cell_that_holds_a_name_alone_keeps_it_on_one_line(engine, request, se
                 "Options",
                 '<h1>Options</h1><table id="options"><thead><tr><th>Option</th>'
                 f"<th>Read by</th><th>What it does</th></tr></thead><tbody>{body}"
-                "</tbody></table>",
+                '</tbody></table><table id="files"><thead><tr><th>File</th>'
+                "<th>Lines</th></tr></thead><tbody><tr>"
+                "<td><code>browser/styles/components/reading.css</code></td>"
+                '<td>812</td></tr></tbody></table><table id="tests"><tbody><tr>'
+                "<td><code>test_a_long_name_beside_a_sentence_keeps_a_third</code></td>"
+                f"<td>{rows[0][2]} {rows[1][2].lower()} {rows[2][2].lower()}</td>"
+                "</tr></tbody></table>",
             )
         ),
     )
+    lines = """(c) => { const range = document.createRange();
+        range.selectNodeContents(c.firstChild);
+        return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+    }"""
+    assert page.locator("#files code").evaluate(lines) == 1
+    share = page.locator("#tests td").first.evaluate(
+        "(c) => c.offsetWidth / c.closest('table').clientWidth"
+    )
+    assert share < 0.5, share
     for width in (1600, 800, 420):
         resized(page, width, 900)
         measured = page.locator("#options").evaluate(

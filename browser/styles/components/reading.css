@@ -355,28 +355,31 @@ dl.lf-facts dd {
      * minimum to its widest, so a column of names beside a column of sentences got
      * almost none: at 720px `--output-dir` stood as `--output-` over `dir`, and
      * `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box of
-     * its own width, which the column can't go under, up to a third of the reading
-     * column, or of the nearest size container where that is narrower (the body, unless
-     * a box nearer declares one). A longer name breaks inside its box rather than hold
-     * the column open.
+     * its own width, which the column can't go under. A name wider than a third of the
+     * reading column keeps that third as its least and breaks inside its box rather
+     * than hold the column open, and takes its whole width where the table has room.
+     * In a narrow window the third is the nearest size container's (the body, unless a
+     * box nearer declares one).
      *
      * Delivery says which cells those are (`data-lf-name`, revision_delivery.py): the
-     * ones whose whole text is one `<code>` or `<samp>`. A selector sees no text, so it
-     * can't tell such a cell from a sentence that mentions a name, and a box there
-     * stands a long identifier in the middle of its sentence as a block. Until November
-     * 2026 the rule took every code in a row's first cell, sentences included, and left
-     * a name in any other column to break. A message's table carries no mark, since the
-     * browser draws it, and keeps its names breakable.
-     *
-     * The box's width is its least and its most, so a name past the third breaks there
-     * even in a table with room for it. `calc-size(max-content, min(size, 20ch))` as
-     * the box's minimum capped only the least, and was the rule before, but Firefox
-     * lacks calc-size() and kept every name breakable there. This width is one every
-     * engine computes. */
+     * ones whose whole text is one `<code>` or `<samp>` with no space in it, `long`
+     * where the name is wider than the third. A selector sees no text, so it can't tell
+     * such a cell from a sentence that mentions a name, where a box stands a long
+     * identifier in the middle of its sentence as a block, and it can't tell a long
+     * name from a short one. Until November 2026 the rule took every code in a row's
+     * first cell, sentences included, and left a name in any other column to break. It
+     * set the name's minimum with `calc-size(max-content, min(size, 20ch))`, which
+     * Firefox lacks, so every name stayed breakable there. A table drawn from Markdown
+     * says the same of its cells (markdown.js and passages.py, `name_cells`). */
     :is(th, td)[data-lf-name] :is(code, samp) {
       display: inline-block;
       inline-size: max-content;
-      max-inline-size: min(var(--lf-col) / 3, 33cqi);
+      max-inline-size: 33cqi;
+    }
+    :is(th, td)[data-lf-name="long"] :is(code, samp) {
+      inline-size: auto;
+      max-inline-size: none;
+      min-inline-size: min(var(--lf-col) / 3, 33cqi);
     }
     /* A caption says what its table covers, such as which case each of several tables
        shows, so it is the table's title rather than apparatus: it takes the table's
@@ -770,6 +773,16 @@ leaf-text.lf-fab-input,
      "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
 .lf-msg-body :is(th, td) {
   overflow-wrap: normal;
+}
+/* A name alone in its cell takes a quarter of the narrowest thread card here, however
+   long it is. No rule can read how wide the card or panel holding a message is, and at
+   the reading column's third a three-column table in a 320px card drew its names whole
+   and scrolled its other columns out of sight. A third of the card still scrolled that
+   table 14px, since the card's gutters are a larger share of it than the column's. */
+.lf-msg-body :is(th, td)[data-lf-name] :is(code, samp) {
+  inline-size: max-content;
+  min-inline-size: auto;
+  max-inline-size: calc(var(--lf-thread-card-min) / 4);
 }
 .lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
   margin: 8px 0 4px;

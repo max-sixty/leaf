@@ -311,8 +311,8 @@ Each treatment draws the eye, so each marks hierarchy or state, and a difference
 reader sees always means something (`../SOUL.md`, "Let the user work as directly as in a terminal").
 
 - **Contours are solid.** A dotted or dashed line marks a distinct state, such as a
-  draft or a drag placeholder. One contour shows one control state, and a segmented group
-  shares one-pixel seams. A box edged on one side is never rounded: mark a state with a
+  drag placeholder. One contour shows one control state, and a segmented group shares
+  one-pixel seams. A box edged on one side is never rounded: mark a state with a
   whole contour, or a stripe on a square box. Avoid reflexive cards, tints, gradients and
   soft shadows. Check: `test_no_rule_rounds_a_box_edged_on_one_side`.
 - **One role, one face.** Two controls of one kind look the same, and a face used twice

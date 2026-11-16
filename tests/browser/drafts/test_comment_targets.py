@@ -445,8 +445,9 @@ def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
 
 
 def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
-    """A comment draft stands as a dashed margin entry at its passage, and a reply
-    draft beside its thread's entry; a press on one resumes it in its own box."""
+    """A comment draft stands as a margin entry at its passage, and a reply draft
+    beside its thread's entry, each in an ink apart from a thread's; a press on one
+    resumes it in its own box."""
     page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
     field = page.locator(".lf-fab-input")
     drafts = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
@@ -455,7 +456,6 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     write(field, ninth)
     page.keyboard.press("Escape")
     expect(drafts).to_have_count(1)
-    expect(drafts).to_have_css("border-top-style", "dashed")
     expect(drafts).to_have_accessible_name(re.compile("^Draft.*Paragraph 9"))
     page.evaluate("() => document.activeElement?.blur()")
     page.keyboard.press("t")
@@ -468,6 +468,8 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     expect(drafts).to_have_count(2)
     thread = page.locator('.lf-margin-face[data-lf-kinds~="comment"]')
     expect(thread).to_have_attribute("data-lf-kinds", "comment draft")
+    ink = "n => getComputedStyle(n.querySelector('.lf-margin-entry-icon')).color"
+    assert thread.evaluate(ink) not in drafts.evaluate_all(f"ns => ns.map({ink})")
 
     drafts.first.click()
     expect(field).to_be_focused()

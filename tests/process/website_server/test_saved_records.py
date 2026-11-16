@@ -21,6 +21,7 @@ from interact_support import (
 )
 
 import leaf_website as website_server
+from leaf import drafts as drafts_model
 from leaf import media as media_model
 from leaf.event_log import read_events
 from leaf.files import latest_revision, revision_path
@@ -368,3 +369,52 @@ def test_a_session_that_swaps_an_image_goes_on_saving(page_dir, tmp_path, monkey
         stored["blobs"][digest] for digest in publication["responses"][""]["chunks"]
     )
     assert {shot["path"].lstrip("/") for shot in shots} <= set(publication["responses"])
+
+
+def test_a_stopping_container_saves_the_drafts_typed_since_the_last_commit(
+    page_dir, tmp_path, monkeypatch
+):
+    """Drafts move no page reading, so a commit saves them only beside a change of its
+    own. A container that stops saves those typed since, so the next container restores
+    them and a tab opened while the session sleeps shows them."""
+    from leaf_website.storage import PUBLISHER, restore, save_drafts
+
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    words = "Words typed after the last send"
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+
+        def commit():
+            with PageTransaction(private):
+                pass
+
+        # Playwright's session fixture may already own this thread's event loop.
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            executor.submit(commit).result()
+            drafts_model.write_draft(
+                private,
+                {
+                    "context": "general",
+                    "expect": [],
+                    "record": {"attempt": "a1", "text": words},
+                },
+            )
+            executor.submit(commit).result()
+            assert len(stored["publications"]) == 1
+            executor.submit(save_drafts).result()
+            executor.submit(save_drafts).result()
+        assert len(stored["publications"]) == 2
+        saved = stored["publications"][-1]["responses"]["api/drafts"]["chunks"]
+        assert words in b"".join(stored["blobs"][digest] for digest in saved).decode()
+
+        shutil.rmtree(private)
+        shutil.copytree(page_dir, private)
+        assert restore(site)
+    assert drafts_model.read_drafts(private)["drafts"]["general"]["text"] == words

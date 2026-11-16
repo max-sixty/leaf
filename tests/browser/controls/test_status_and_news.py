@@ -170,14 +170,14 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     `Threads: 10` — a comment posted from the terminal while the user reads — slid
     the version picker 6px left, and the Accept all a second tab's decision put away
     took the New-version chip with it; a new version now says itself in the field's
-    words and offers Latest at its end, so the marks keep their seats.
+    words and offers Open latest at its end, so the marks keep their seats.
 
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the
     press sweep above can make is one the user made, and none of these are."""
     # Three pending suggestions, so On Me's count has somewhere to go before they run
     # out; nine comments already, so the tenth crosses a digit; and pinned, so a v2
-    # landing leaves the page where it is and offers Latest rather than following it.
+    # landing leaves the page where it is and offers Open latest rather than following it.
     html = SUGGESTION_PAGE
     url = serve(html, comments=9)
     d = serve.page_dir
@@ -227,7 +227,7 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
             "a new version is published",
             publish_v2,
             "() => [...document.querySelectorAll('.lf-fp-field .lf-compose-press')]"
-            ".some((press) => press.textContent.includes('Latest'))",
+            ".some((press) => press.textContent.includes('Open latest'))",
         ),
         (
             "another tab decides two of the three pending suggestions",

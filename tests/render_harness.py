@@ -1960,9 +1960,9 @@ def field_press(page):
 
 
 def latest_press(page):
-    """Latest, which the panel field's end offers while the page shows an older version
+    """Open latest, which the panel field's end offers while the page shows an older version
     than the latest and no other press stands there (floating-panel.js, `latestPress`)."""
-    return field_press(page).filter(has_text="Latest")
+    return field_press(page).filter(has_text="Open latest")
 
 
 def open_latest_by_keys(page):

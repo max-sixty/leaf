@@ -38,7 +38,7 @@ def editing_revision_source(mode, body=None):
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
-// Native prototype activation route: activate the Latest the panel's field offers
+// Native prototype activation route: activate the Open latest the panel's field offers
 // at its end, without transferring the editor's focus to the panel before the
 // carry is captured. It listens in capture, since a key typed into a Leaf field never
 // bubbles to the page (field-keys.js).
@@ -46,7 +46,7 @@ addEventListener('keydown',event=>{
   if(event.code==='KeyR' && event.ctrlKey && event.altKey){
     event.preventDefault();
     [...document.querySelectorAll('.lf-floating-panel .lf-fp-field .lf-compose-press')]
-      .find(press => press.textContent.includes('Latest'))?.click();
+      .find(press => press.textContent.includes('Open latest'))?.click();
   }
 },true);
 </script>""".replace("MODE", mode)

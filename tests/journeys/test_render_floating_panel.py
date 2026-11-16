@@ -451,11 +451,11 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     browser, serve
 ):
     """While the page shows a version older than the latest, the field's words say which
-    before the status, and its end offers Latest in Comment's place, so nothing in the
-    row moves and the On Me mark keeps its seat; Latest opens the latest, and the words
-    and the press go with it: in place on a tab the agent has since revised, and from a
-    version the user travelled back to, where the leaf's menu offers the keyboard the
-    same press."""
+    before the status, and its end offers Open latest in Comment's place, so nothing in
+    the row moves and the On Me mark keeps its seat; the press opens the latest, and the
+    words and the press go with it: in place on a tab the agent has since revised, and
+    from a version the user travelled back to, where the leaf's menu offers the keyboard
+    the same press."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
     latest = latest_press(page)

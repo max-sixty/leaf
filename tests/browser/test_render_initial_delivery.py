@@ -258,7 +258,7 @@ def test_native_input_survives_progressive_render_revision_and_export(
         stamp_page(serve.page_dir, revised, "Revise widget inputs and defaults")
         told(page)
         latest = latest_press(page)
-        expect(latest).to_contain_text("Latest")
+        expect(latest).to_contain_text("Open latest")
         latest.click()
         expect(page.locator("#proof .proof-control")).to_have_text("revised")
         expect(page.locator("#early-details")).to_have_attribute("open", "")
@@ -275,11 +275,11 @@ def test_native_input_survives_progressive_render_revision_and_export(
         page.locator("#early-draft").evaluate("e => e.setSelectionRange(2,7)")
 
         # A member-only revision keeps the generated control and native editor
-        # nodes, including the caret, after explicit Latest activation.
+        # nodes, including the caret, after explicit Open latest activation.
         revised = revised.replace("Authored evidence.", "Revised evidence.")
         stamp_page(serve.page_dir, revised, "Revise the slotted evidence")
         told(page)
-        expect(latest).to_contain_text("Latest")
+        expect(latest).to_contain_text("Open latest")
         latest.click()
         expect(page.locator("#prose")).to_have_text("Revised evidence.")
         assert page.evaluate(

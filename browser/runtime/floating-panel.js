@@ -44,7 +44,7 @@
  *   where the user stands on the page, such as an older version (`standing`), or what
  *   a passing notice says, where a placeholder would say "Comment", and the field's end
  *   says the one press that matters most at that moment: Comment and c at rest, or
- *   Latest on an older version (`latestPress`); while it passes, the press a notice of
+ *   Open latest on an older version (`latestPress`); while it passes, the press a notice of
  *   the user's own gesture offers, as a Resolve's Next thread and t (`noticePress`,
  *   thread/folding.js); once the server reads a gesture as answering something On Me
  *   lists, a pick, a settling reaction or a reply sent from a card, while more stands
@@ -1206,7 +1206,7 @@ export function createFloatingPanel({
     const { shown } = versionsReading().latest;
     const base = comparisonBase();
     const compared = base
-      ? `${counted(comparisonChanges().length, "change")} since ${base.name}`
+      ? leafSays(`${counted(comparisonChanges().length, "change")} since ${base.name}`)
       : null;
     const parts = [
       stance,
@@ -5106,16 +5106,18 @@ export function createFloatingPanel({
       run: () => exit.press?.(null),
     };
   }
-  // Latest, which the field's end offers while the page shows an older version than the
-  // latest, as its words say first (`standing`), when no other press is offered there
-  // (`pagePress`). The menu's row that opens the latest offers it too.
+  // Open latest, which the field's end offers while the page shows an older version
+  // than the latest, as its words say first (`standing`), when no other press is
+  // offered there (`pagePress`), with no key, since none opens the latest. Its verb says
+  // it acts: "Latest" alone, in the dim face every word at the field's end wears, read
+  // as a status. The menu's row that opens the latest offers it too.
   /** @returns {import("./composing/input.js").BoxPress | null} */
   function latestPress() {
     const { latest } = versionsReading();
     if (latest.shown === null || latest.disabled) return null;
     // The press puts nothing away: a revision installed under an open thread hands
     // back the reply being written there (version.js, `restoreEditingContinuity`).
-    return { word: "Latest", keys: [], run: () => versionPicker.latest() };
+    return { word: "Open latest", keys: [], run: () => versionPicker.latest() };
   }
 
   // ---------- gestures ----------

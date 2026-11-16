@@ -2165,7 +2165,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
         "Replace the reader owner while retaining its conversations",
     )
     told(page)
-    # The panel's Latest, pressed without taking the editor's focus first, as a press
+    # The panel's Open latest, pressed without taking the editor's focus first, as a press
     # on it does.
     latest_press(page).dispatch_event("click")
     wait_for_revision(page, 2)

@@ -715,6 +715,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Where opening a thread puts the user: its reply, or the thread                                        | `thread/focus.js` `openingPart`                                                    |
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                               |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
+| Which message drafts hold words or a drawing, for every view of drafts                                | `drafts.js` `draftsReading`                                                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |

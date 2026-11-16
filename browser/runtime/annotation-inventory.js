@@ -28,13 +28,17 @@ import {
   GENERATED,
   inChrome,
   keptAnswer,
+  keptWithReading,
+  pageDocument,
   quoteFrom,
   textNodesUnder,
 } from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
-import { threadList } from "./thread/state.js";
+import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import { readingOrder, readingPlace, targetSegments } from "./resolved-target.js";
+import { resolveAnchor } from "./anchor-resolution.js";
+import { draftAnchor, draftSends, draftsReading, loadDraft } from "./drafts.js";
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
@@ -68,6 +72,8 @@ import { versionProvenance } from "./change-provenance.js";
 // finds each row's words unchanged by identity rather than by reading them
 // (`captureItem`).
 const WAITING_ON_ME = leafSays("Waiting on me");
+// The owner under which a reading of the page keeps where each draft stands.
+const DRAFT_PLACES = Object.freeze({});
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -114,13 +120,14 @@ export const annotationSelection = (root) => ({
   todos: root.authoritative?.browser.todos ?? null,
 });
 
-/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement}} dependencies */
+/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
   openThread,
   goToObligation,
   scrollToElement,
+  resumeDraft,
 }) {
   /** @param {string | null | undefined} value */
   const humanized = (value) =>
@@ -495,60 +502,145 @@ export function createAnnotationInventory({
       const coordinate = receipt.coordinate;
       receiptByCoordinate.set(JSON.stringify(coordinate), receipt);
     }
+    // Each draft the user wrote and hasn't sent stands as an entry where it is about,
+    // dashed as a draft is (drafts.js, the drafts list): a reply or a rewrite in its
+    // thread's row, and a comment at its passage or element. A press takes the user back
+    // to writing it (`resumeDraft`), and its preview reads its words as they now stand.
+    /** @param {import("./drafts.js").ListedDraft} draft @returns {LiveItem} */
+    const draftItem = (draft) => ({
+      kind: "draft",
+      id: `draft:${draft.context}`,
+      draft: draft.context,
+      text: excerptWords(loadDraft(draft.context)?.text ?? "", 60) || "A drawing",
+      context: leafSays(draftSends(draft)),
+      activate: () => resumeDraft(draft.context),
+    });
+    /** @type {Map<string, LiveItem[]>} */
+    const threadDrafts = new Map();
+    const placedDrafts = [];
+    for (const draft of draftsReading()) {
+      if (draft.part === "reply" || draft.part === "rewrite") {
+        const thread = threadNamed(draft.name);
+        if (thread)
+          threadDrafts.set(thread.id, [
+            ...(threadDrafts.get(thread.id) ?? []),
+            draftItem(draft),
+          ]);
+      } else if (draft.part !== "page") placedDrafts.push(draft);
+    }
+    // A draft's place is resolved once for each reading of the page, since a quote's is
+    // a search of the page's words, which a collection made on every reading would
+    // repeat for each draft (`passageRows` says what that cost a large page).
+    /** @type {Map<string, {anchor: object, resolved: ReturnType<typeof resolveAnchor>}>} */
+    const draftPlaces = keptWithReading(pageDocument(), DRAFT_PLACES, () => new Map());
+    /** @param {import("./drafts.js").ListedDraft} draft @param {object} anchor */
+    const draftPlacement = (draft, anchor) => {
+      let kept = draftPlaces.get(draft.context);
+      if (kept?.anchor !== anchor) {
+        kept = {
+          anchor,
+          resolved: resolveAnchor(
+            /** @type {import("../types/domain.js").Anchor} */ (anchor),
+          ),
+        };
+        draftPlaces.set(draft.context, kept);
+      }
+      return kept.resolved;
+    };
+    // What stands on the page, each where its anchor resolves: a thread with the drafts
+    // written in it, a thread's drafts alone where the thread shows no entry of its own,
+    // as a resolved one doesn't, and a comment's draft. Each takes the row its passage
+    // or pointed row gives it, so a draft about the passage a thread quotes joins that
+    // thread's row, and drafts about two passages of one paragraph stand apart.
+    /** @type {{thread: ThreadRecord | null, drafts: LiveItem[], placement: Placement, target: Element, point: Element | null, passage: readonly [Segment, ...Segment[]] | null, quote: string | undefined}[]} */
     const standing = [];
     /** @type {Map<Element, (readonly [Segment, ...Segment[]])[]>} */
     const quotedIn = new Map();
-    for (const thread of threadList()) {
-      if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
-        continue;
-      const placement = placedAt(thread.id);
+    /** @param {ThreadRecord | null} thread @param {LiveItem[]} drafts
+     * @param {Placement | null | undefined} placement @param {string | undefined} quote */
+    const stand = (thread, drafts, placement, quote) => {
       const target = placement?.place;
-      if (!target) continue;
+      if (!target) return;
       const [first, ...rest] = targetSegments(placement);
       const point = livePoint(target, placement.point);
       /** @type {readonly [Segment, ...Segment[]] | null} */
       const passage = !point && first ? [first, ...rest] : null;
       if (passage) quotedIn.set(target, [...(quotedIn.get(target) ?? []), passage]);
-      standing.push({ thread, placement, target, point, passage });
+      standing.push({ thread, drafts, placement, target, point, passage, quote });
+    };
+    for (const thread of threadList()) {
+      if (!thread.anchor || claimed(thread.id)) continue;
+      const drafts = threadDrafts.get(thread.id) ?? [];
+      const shown = threadHasDiscussion(thread);
+      if (shown || drafts.length)
+        stand(shown ? thread : null, drafts, placedAt(thread.id), thread.anchor.quote);
+    }
+    for (const draft of placedDrafts) {
+      const anchor = draftAnchor(draft);
+      const resolved = anchor && draftPlacement(draft, anchor);
+      if (resolved)
+        stand(
+          null,
+          [draftItem(draft)],
+          /** @type {Placement} */ ({
+            ...resolved,
+            messageTarget: null,
+            point: null,
+            pointRow: null,
+            pointWords: null,
+          }),
+          anchor.quote,
+        );
     }
     /** @type {Map<Element, string[]>} */
     const rows = new Map(
       [...quotedIn].map(([target, quoted]) => [target, passageRows(target, quoted)]),
     );
-    for (const { thread, placement, target, point, passage } of standing) {
-      const id = thread.id;
+    for (const {
+      thread,
+      drafts,
+      placement,
+      target,
+      point,
+      passage,
+      quote,
+    } of standing) {
       const pointed = point
         ? { key: placement.pointRow, element: point, words: placement.pointWords }
         : passage
           ? {
               key: /** @type {string} */ (rows.get(target)?.shift()),
               passage: placement,
-              words: thread.anchor?.quote,
+              words: quote,
             }
           : null;
-      add(
-        groups,
-        target,
-        {
-          kind: "comment",
-          // One row for one thread, across the log answering for it. A thread the
-          // user just opened is known by its attempt until the log names it, and a row
-          // whose identity changed there would be rebuilt — taking with it the reply box
-          // the send had just put them in.
-          id: marginThreadItem(thread),
-          text: threadName(thread),
-          thread,
-          // The Thread record already combines server attention with the local workflow
-          // overlay. Margin and Page Map carry that reading rather than deriving another
-          // answer from raw turn or workflow fields. Work decorates the thread control;
-          // it never replaces the control's comment face or its disclosure action.
-          ...threadMarks(thread, agentName()),
-          activate: () => openThread(id),
-        },
-        pointed,
-      );
+      if (thread) {
+        const id = thread.id;
+        add(
+          groups,
+          target,
+          {
+            kind: "comment",
+            // One row for one thread, across the log answering for it. A thread the
+            // user just opened is known by its attempt until the log names it, and a
+            // row whose identity changed there would be rebuilt — taking with it the
+            // reply box the send had just put them in.
+            id: marginThreadItem(thread),
+            text: threadName(thread),
+            thread,
+            // The Thread record already combines server attention with the local
+            // workflow overlay. Margin and Page Map carry that reading rather than
+            // deriving another answer from raw turn or workflow fields. Work decorates
+            // the thread control; it never replaces the control's comment face or its
+            // disclosure action.
+            ...threadMarks(thread, agentName()),
+            activate: () => openThread(id),
+          },
+          pointed,
+        );
+      }
+      for (const item of drafts) add(groups, target, item, pointed);
     }
-
     // A widget's obligation has a place on the page (obligations/place.js); the rest
     // have no node.
     /** @param {import("./framework/application.js").ObligationRecord} item

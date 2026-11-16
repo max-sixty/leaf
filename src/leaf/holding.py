@@ -19,10 +19,10 @@ message waits as a turn of its own, held as the thread's other messages are.
 The thread is the unit: a turn holds a thread, with all its waiting messages, from
 the moment it takes the thread until another turn does (`Hold`).
 
-- The turn whose opened pickup of one of the thread's waiting messages is newest,
-  whether the main thread's or an agent's, holds it. A turn that picks up a thread's
-  messages, as a fork's take, a fork's tool boundary or the main thread's prompt
-  does, takes the whole thread from whichever turn had it.
+- The turn whose opened or held pickup of one of the thread's waiting messages is
+  newest, whether the main thread's or an agent's, holds it. A turn that picks up a
+  thread's messages, as a fork's take, a fork's tool boundary or the main thread's
+  prompt does, takes the whole thread from whichever turn had it.
 - Where no turn has picked up a waiting message, the turn that last took the
   thread, by a pickup of an earlier message or by an answer, holds it, and its
   waiting messages while that turn is an agent's still running (`Holding.keeper`).
@@ -30,8 +30,8 @@ the moment it takes the thread until another turn does (`Hold`).
   answered, rather than to a second fork or to the main thread; and to the main
   thread once its answer took the thread over.
 - A thread Leaf keeps back while a line fork judges its waiting messages is held by
-  the line turn admission opened for it, by that turn's pickup, and by the working
-  fork the turn passes to on a take (`forks.py`).
+  the line turn admission opened for it, by that turn's `held` pickup, which takes
+  nothing in, and by the working fork the turn passes to on a take (`forks.py`).
 - An answered message is held by the turn that answered it, the one its thread's
   answer names, so an answer takes the thread as a pickup does. A fork may repeat its
   own answer, but not answer again a message the main thread answered over it.
@@ -236,13 +236,14 @@ class Holding(NamedTuple):
     stamps: dict[str, dict]
     running: set[str]
     found: Rounds
-    # The inputs each turn of `session` picked up, in log order.
+    # The inputs each turn of `session` took in by an opened pickup, in log order.
     picked: dict[str, dict[str, None]]
-    # Every input any pickup of the log names, of any session, turn or phase: what
-    # some consumer took in, as a harness's queue does (`codex.finish_codex_batch`).
+    # Every input any pickup of the log took in, of any session, turn or phase but a
+    # line turn's `held`: what some consumer took in, as a harness's queue does
+    # (`codex.finish_codex_batch`).
     taken: set[str]
-    # The threads each turn of `session` took, by a pickup of any of their messages
-    # or an answer.
+    # The threads each turn of `session` took, by an opened or held pickup of any of
+    # their messages or an answer.
     took: dict[str, set[str]]
     threads: dict[str, Hold]
 
@@ -309,23 +310,26 @@ def reading(
     """Who holds each thread of a page by its pickups and answers (the module header),
     from its log `events`, for the claimant's `session`, whose agent turns are
     `stamps` and `running`, and which is `live`, as `Holding` holds them, where
-    `found` is the log's `rounds`. Every reading goes through `reading_of`."""
+    `found` is the log's `rounds`. A line turn's `held` pickup holds a thread as an
+    opened one does, but takes nothing in (`delivery.record_pickup`). Every reading
+    goes through `reading_of`."""
     newest: dict[str, tuple[int, str]] = {}
     picked: dict[str, dict[str, None]] = {}
     took: dict[str, set[str]] = {}
     taken: set[str] = set()
     for event in events:
-        if event["kind"] == "pickup":
+        if event["kind"] == "pickup" and event["phase"] != "held":
             taken.update(event["events"])
         if (
             event["kind"] == "pickup"
-            and event["phase"] == "opened"
+            and event["phase"] in ("opened", "held")
             and event["session"] == session
             and event["turn"]
         ):
             for input_id in event["events"]:
                 newest[input_id] = (event["seq"], event["turn"])
-                picked.setdefault(event["turn"], {})[input_id] = None
+                if event["phase"] == "opened":
+                    picked.setdefault(event["turn"], {})[input_id] = None
                 if (thread := found.names.get(input_id)) is not None:
                     took.setdefault(event["turn"], set()).add(thread)
         elif "responds" in event and event.get("turn") and event["id"] in found.names:

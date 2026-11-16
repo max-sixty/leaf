@@ -152,8 +152,10 @@ turn runs. The newest pickup of a thread's waiting messages holds them, an answe
 takes its thread as a pickup does, and a running agent turn that last took a thread
 holds the messages the user writes in it until another turn picks them up. A thread
 Leaf keeps back while a line fork judges it is its line turn's, by that turn's
-pickup. The main thread doesn't owe a message a running agent turn holds, a line
-turn's included (`holding.owed_by`): its hooks neither
+`held` pickup, which takes nothing in: no reader of delivery counts it, so the
+message reads as sent to the session until a turn opens it. The main thread doesn't
+owe a message a running agent turn holds, a line turn's included
+(`holding.owed_by`): its hooks neither
 hold its turn over it, remind it of it, nor take it in again (`activity.agent_holds`),
 and its deliveries leave it out (`delivery.deliverable`). Once the agent's turn ends or
 lapses, a message still owed is the main thread's input, which its next delivery hands

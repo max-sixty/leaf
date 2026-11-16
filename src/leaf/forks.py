@@ -35,25 +35,27 @@ Each thread message Leaf keeps back opens an agent turn of its own
 (`state.AGENT_TURNS`), the line turn, which admission marks as a line turn as it
 opens it (`state.open_agent_turn`) and whose pickup of the thread's waiting messages
 it records in the transaction that appends the message, so the watch never sees the
-message unheld and admission doesn't nudge for it (`event_endpoint`). Where the line
-fork judges `take`, the same turn passes to the working fork
-(`state.pass_agent_turn`), which marks it the fork's and, for a fork Leaf resumes,
-names its agent id at once; a new fork's is named once the module says which agent
-it spawned (`started`). So the turn's role says which it is, and `holding.holder`
-reports it as `line` or `fork`; no reader infers it from what the turn wrote. Leaf
-records the take as the turn's pickup again, with the delivery's references and its
-receipt. As the fork's run ends the module says so (`ended`), which closes the turn
-and judges each thread by what the turn picked up and wrote. The main session hears
-which fork took a thread once the module says the
-fork runs (`started`): as it says which agent it spawned for a new one, and once it
-has delivered a resumed one's message; and it hears as the fork's run ends
-(`clerk.queue`), since Claude Code tells it nothing of a fork a module made. The user
-chose these lines on 2026-11-11 over the fork's own SendMessage to the main thread,
-which would wake it for every answer (`docs/forks.html`, "How a fork tells the main
-thread"). A line waits for the session's next tool boundary or prompt, and Leaf wakes
-an idle session only for what a fork's end leaves it owing: a thread given back,
-whose answer is owed again, and a to-do the fork opened, whose line wakes it
-(`ended`).
+message unheld and admission doesn't nudge for it (`event_endpoint`). That pickup is
+`held` (`delivery.record_pickup`): it holds the thread as any pickup does, but
+takes nothing in, so no reader of delivery counts it, and the message reads as sent
+to the session until a turn opens it. Where the line fork judges `take`, the same
+turn passes to the working fork (`state.pass_agent_turn`), which marks it the
+fork's and, for a fork Leaf resumes, names its agent id at once; a new fork's is
+named once the module says which agent it spawned (`started`). So the turn's role
+says which it is, and `holding.holder` reports it as `line` or `fork`; no reader
+infers it from what the turn wrote. Leaf records the take as the turn's opened
+pickup, with the delivery's references and its receipt. As the fork's run ends the
+module says so (`ended`), which closes the turn and judges each thread by what the
+turn picked up and wrote. The main session hears which fork took a thread once the
+module says the fork runs (`started`): as it says which agent it spawned for a new
+one, and once it has delivered a resumed one's message; and it hears as the fork's
+run ends (`clerk.queue`), since Claude Code tells it nothing of a fork a module
+made. The user chose these lines on 2026-11-11 over the fork's own SendMessage to
+the main thread, which would wake it for every answer (`docs/forks.html`, "How a
+fork tells the main thread"). A line waits for the session's next tool boundary or
+prompt, and Leaf wakes an idle session only for what a fork's end leaves it owing: a
+thread given back, whose answer is owed again, and a to-do the fork opened, whose
+line wakes it (`ended`).
 
 The fork's task names its turn and tells it to begin each `leaf` command with
 `leaf --turn` and that turn (`work_prompt`, `resume_prompt`), so the command acts in
@@ -138,15 +140,9 @@ The user chose on 2026-11-15 to hold a kept-back message this way, by the line t
 pickup in the log as a working fork holds its thread, over the separate hold Leaf
 kept until then: a line holder the reading gave each thread admitted since the lane
 came up, a record outside the log of the messages each line fork handed over, and a
-30 s bound the follower enforced with a nudge. Five rare paths changed with it, which
+30 s bound the follower enforced with a nudge. Four rare paths changed with it, which
 they accepted, counted on this machine's pages to that day:
 
-- A thread the line fork hands over after the delivery cursor passed its messages,
-  as when the main thread took in later input meanwhile, reaches the main thread at
-  its next prompt, the watch's wake as its turn ends or the user's, rather than at
-  its next tool boundary: the line turn's pickup names the messages, and a tool
-  boundary hands over only passed input no pickup names (`delivery.deliverable`).
-  None of 61 hand-overs met it.
 - A second message while the line fork writes joins the line turn with no line, as
   above, where a line fork was asked again about both before. None of 147 line forks
   met it.
@@ -349,9 +345,13 @@ def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
     if lane and thread is not None and _keeps(holding, thread, event):
         turn = open_agent_turn(claim["id"])
         if turn is not None:
+            # The reading predates the line turn, which `holding.pickable` then reads
+            # as the main thread's: both may take only what no running agent turn
+            # holds, as `_keeps` found of this thread.
             record_pickup(
                 page,
                 holding.found.waiting[thread],
+                phase="held",
                 session=claim["id"],
                 turn=turn,
                 holding=holding,
@@ -749,6 +749,9 @@ def _take(session_id: str, basis: dict, line: str) -> dict:
         with PageTransaction(page_dir) as page:
             holding = page_holding(page)
             if _line_turn(holding.hold(basis["thread"])) != turn:
+                # Another turn took the thread since the line went in, as the main
+                # thread's answer does, so the line turn holds nothing more.
+                close_agent_turns(session_id, turn=turn)
                 return {"outcome": "dropped", **posted}
             data = _thread_data(page, basis["inputs"])
             if data is None:

@@ -919,8 +919,8 @@ def cmd_delivery_ack(delivery_id: str) -> None:
 
 
 def earlier_pickup(payload: dict, session_id: str):
-    """The note saying that an earlier turn of `session_id`'s main thread already
-    picked up the delivery `payload`, or None where none did.
+    """The note saying that an earlier turn of `session_id` already picked up the
+    delivery `payload`, or None where none did.
 
     `codex queue` takes no message id, so a failure after it returns and before
     Leaf records the acceptance queues the same pointer again, and Codex runs a
@@ -928,18 +928,14 @@ def earlier_pickup(payload: dict, session_id: str):
     pickups name the turns that took the delivery, and the note names them with
     the answers its updates still owe, read from the page rather than the
     agent's memory, so the turn acknowledging it again repeats no work and still
-    answers what the earlier turn left owed. An agent's turn that picked the
-    updates up and left them owed, as a line turn does each message it holds,
-    handed them on rather than taking them in twice, so its pickup is no repeat."""
+    answers what the earlier turn left owed."""
     from .activity import answer_command
     from .findings import Finding
     from .served_state.context import read_page
-    from .state import agent_turns
 
     record = session_record(session_id)
     assert record is not None
     turn = acting_agent_turn(session_id) or record["turn"]
-    agents = agent_turns(session_id)
     turns, answers = set(), []
     for batch in payload["batches"]:
         page_dir = Path(batch["page"])
@@ -950,7 +946,6 @@ def earlier_pickup(payload: dict, session_id: str):
                 for receipt in pickup_receipts(page.events, phase="opened")
                 if receipt["session"] == session_id
                 and receipt["turn"] != turn
-                and receipt["turn"] not in agents
                 and inputs.intersection(receipt["events"])
             }
             if not earlier:
@@ -977,7 +972,7 @@ def earlier_pickup(payload: dict, session_id: str):
 def pickup_receipts(
     events: list[dict],
     *,
-    phase: Literal["queued", "opened", "failed"] | None,
+    phase: Literal["queued", "opened", "held", "failed"] | None,
     input_id: str | None = None,
 ) -> list[dict]:
     """Select admitted receipts for an explicit transport reading, in log order.
@@ -1044,9 +1039,13 @@ def record_pickup(
     a queue or a steer waiting behind a running tool, is not opened until it is
     added. ``failed`` means the harness
     gave up on the updates with the named ``failure`` and no answer is coming.
-    Queued and opened are transport evidence, not authored work claims. A queued
-    transition may therefore be followed by an opened transition for the same
-    events, while a retry of the same transition appends nothing.
+    ``held`` means a line turn took the updates while a line fork of the session's
+    conversation judges them (`forks.py`): it holds their thread as an opened
+    pickup does, but hands nothing into a context an answer comes from, so no
+    reader of delivery counts it, and the updates read as sent until a turn opens
+    them. Queued and opened are transport evidence, not authored work claims. A
+    queued transition may therefore be followed by an opened transition for the
+    same events, while a retry of the same transition appends nothing.
 
     ``refs`` are the `answer.ref`s the receipt's envelope batch gave the inputs it
     owes, each with the claim the batch was captured under (`batch_refs`), which
@@ -1055,13 +1054,13 @@ def record_pickup(
     transition that carries no envelope, such as the prompt re-presenting debt an
     earlier receipt recorded, passes none.
 
-    An opened pickup says which turn holds a thread (`holding.Holding`), so this
-    records one only where that turn may take the message (`holding.pickable`): an
-    agent's turn, only what it holds or nobody does, refusing the rest; another
-    turn, nothing an agent's running turn holds. It asks the page's reading, or
-    `holding` where the caller has read it in this transaction since the log last
-    changed, as admission has as it opens a line turn (`forks`), so the page is read
-    once.
+    An opened or held pickup says which turn holds a thread (`holding.Holding`), so
+    this records one only where that turn may take the message
+    (`holding.pickable`): an agent's turn, only what it holds or nobody does,
+    refusing the rest; another turn, nothing an agent's running turn holds. It asks
+    the page's reading, or `holding` where the caller has read it in this
+    transaction since the log last changed, as admission has as it opens a line turn
+    (`forks`), so the page is read once.
     """
     claim = page.claim
     if session is None and claim:
@@ -1100,7 +1099,7 @@ def record_pickup(
             or (event_id in refs and not usable(event_id))
         )
     )
-    if phase == "opened" and session is not None:
+    if phase in ("opened", "held") and session is not None:
         from .forks import page_holding
         from .holding import pickable
 
@@ -1175,9 +1174,9 @@ def deliverable(
     of CPU to import. A tool hook runs after every tool call, so Codex's passes
     `received=False`, as Claude Code's does before it folds its pages
     (`hook_transport.new_input`): what the cursor has not passed, and the waiting
-    messages the main thread owes of input the cursor passed that no pickup names,
+    messages the main thread owes of input the cursor passed that no pickup took in,
     which a holder kept from it. Every receipt's pickup names what it passes, so
-    a page holds such input only where a fork or a line fork held it, settled
+    a page holds such input only where a fork or a line turn held it, settled
     since or not, and only there, or where input is pending in a session with
     forks, does this read who holds each thread; otherwise it reads the log alone,
     without the page's layer.
@@ -1207,8 +1206,9 @@ def deliverable(
         # reads, whether or not the fork that held them is still up: a
         # thread a turn took any of them in from is that turn's, which the fold hands
         # on if it ended with the thread owed. Such a message is input the cursor
-        # passed that no pickup names: one a fork or a line fork held, which stays so
-        # once it settles before any pickup, as when the user resolves its thread.
+        # passed that no pickup took in, a line turn's `held` one aside: one a fork or
+        # a line turn held, which stays so once it settles before any pickup, as when
+        # the user resolves its thread.
         # So a tool boundary builds the page's reading, about 50 ms on a page of
         # 41,000 events, only on a page that has held one, or where input is pending
         # in a session with forks, whose holders keep theirs from it. Telling a
@@ -1218,7 +1218,7 @@ def deliverable(
         taken = {
             input_id
             for event in page.events
-            if event["kind"] == "pickup"
+            if event["kind"] == "pickup" and event["phase"] != "held"
             for input_id in event["events"]
         }
         passed = [

@@ -1588,7 +1588,7 @@
               "minItems": 1,
               "uniqueItems": true
             },
-            "phase": { "enum": ["queued", "opened", "failed"] },
+            "phase": { "enum": ["queued", "opened", "held", "failed"] },
             "session": { "type": ["string", "null"], "minLength": 1 },
             "turn": { "type": ["string", "null"], "minLength": 1 },
             "failure": { "type": "string", "minLength": 1 },

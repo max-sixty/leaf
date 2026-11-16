@@ -824,7 +824,7 @@ def canonical_activity(
     ]
     # An update an agent's running turn holds is in hand for that turn, whatever
     # the main thread's turn does.
-    in_agent_turn = [item for item in opened if owes(item)["kind"] != "main"]
+    in_agent_turn = [item for item in opened if owes(item)["kind"] == "fork"]
     handling = (in_this_turn if turn.running else []) + in_agent_turn
     for item in opened:
         if item in handling:

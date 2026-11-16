@@ -53,7 +53,10 @@ rule draws at once is drawn.
   pressed control only to bring it whole into a scroller that showed part of it, or
   where the gesture says it takes the user somewhere. Without a gesture, as when news
   arrives or a widget finishes loading, a box may grow or shrink into free room, but
-  reading content and controls stay put. No hard-to-undo action arrives under a pointer
+  reading content and controls stay put. The exception is a thread card at its least
+  width, which the user chose to let widen once, from its start, when a long message
+  arrives, carrying its controls (`data-lf-widens`; `annotation-overlay/thread-preview.js`).
+  No hard-to-undo action arrives under a pointer
   that hasn't moved. A reveal on hover, focus or a key never moves its ancestors or
   siblings, and typing may grow a field but never moves it. Check: `tests/shift_watch.js`,
   whose header lists what it credits.
@@ -315,10 +318,13 @@ reader sees always means something (`../SOUL.md`, "Let the user work as directly
 - **One role, one face.** Two controls of one kind look the same, and a face used twice
   is a token or a shared rule ("Layouts, styles and controls", below, says how code
   keeps this).
-- **Green marks the user's turn; other thread controls stay blue.** Every surface paints
-  a thread's `unread` and `attention` from one value, so the On Me mark's dot, Threads,
-  the panel, a margin entry and the Page Map change together, and marking read never
-  moves the user.
+- **A mark's colour says one thing, the same on every surface.** A mark reads the
+  token for what it tells the user (`styles/tokens.css`, at `--lf-turn`), never a hue, so
+  the user's turn, a thread, the agent's work, what is unread, what changed and what
+  is settled each look alike in the margin, the contents and the panel. Every surface
+  paints a thread's `unread` and `attention` from one value, so the On Me mark's dot,
+  Threads, the panel, a margin entry and the Page Map change together, and marking read
+  never moves the user.
 
 ### Motion is brief and keeps the user oriented
 
@@ -707,6 +713,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                   |
 | What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                               |
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
+| When a message was said, naming its day unless that is today                                          | `presence.js` `saidAt`                                                             |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                           |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
@@ -716,6 +723,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Where opening a thread puts the user: its reply, or the thread                                        | `thread/focus.js` `openingPart`                                                    |
 | Whether the user is writing a reply                                                                   | `thread/replies.js` `replyIsEditing`                                               |
 | The draft a thread holds: its reply box or a rewrite                                                  | `drafts.js` `replyContext`, `rewriteContext`, `threadDraft`                        |
+| Which message drafts hold words or a drawing, for every view of drafts                                | `drafts.js` `draftsReading`                                                        |
 | Which obligations a region of the page holds                                                          | `obligations/place.js` `obligationsIn`                                             |
 | What names the part of the page or a message a node stands in, and where a heading's part ends        | `thread/placement.js` `partOver`, `headingAfter`                                   |
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |

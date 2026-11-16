@@ -442,6 +442,7 @@ async function boot() {
       scrollThreadIntoView,
       openInPanel: (id) => floatingPanel?.openThread(id),
       goToObligation: (...args) => items.goToObligation(...args),
+      resumeDraft: (context) => writingResume.resumeDraft(context),
     },
     state: {
       prepareActivation: (state) => version.prepareActivation(state),

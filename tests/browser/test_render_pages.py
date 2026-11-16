@@ -58,7 +58,6 @@ from render_harness import (
     LONG_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
-    asked_again,
     consume_browser_errors,
     expect_open_threads,
     expect_preview_words,
@@ -92,7 +91,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 from leaf_dev.example_data import named_source
 

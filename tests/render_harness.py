@@ -1723,14 +1723,6 @@ def watch_sources(shifts: bool) -> str:
     )
 
 
-def asked_again(url):
-    """`url` as the document startup recovery asks the server for once more
-    (`_leaf-recovered`, bootstrap.js). A page there that cannot start waits for another
-    server rather than asking again, so a test of how a page that cannot start stands
-    reads one document rather than racing its replacement."""
-    return f"{url}{'&' if '?' in url else '?'}_leaf-recovered"
-
-
 @contextmanager
 def restarting(page):
     """Enclose a span in which the test replaces the page's server or executable layer.

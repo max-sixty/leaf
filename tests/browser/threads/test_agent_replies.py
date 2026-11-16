@@ -900,10 +900,11 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             "author": "agent",
             "parent": root,
             "responds": root,
-            "text": "Here is the board.",
-            "markup": '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
+            "text": "Here is the board.\n\n"
+            '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
             '<lf-card id="fb-cache"><strong>Cache</strong></lf-card></lf-column>'
             '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -1088,9 +1089,7 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
             "--done",
             response_reference(serve.page_dir, root),
             "--text",
-            "Here is its log.",
-            "--markup",
-            markup,
+            "Here is its log." + "\n\n" + (markup),
         ],
     )
     assert reply.exit_code == 0, reply.output

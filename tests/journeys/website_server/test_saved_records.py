@@ -98,7 +98,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             pass
         # A draft the visitor is writing is saved with the next commit.
         draft = {"attempt": "saved-draft-0001", "text": "Keep these words"}
-        write_draft(private, {"context": "general", "expect": None, "record": draft})
+        write_draft(private, {"context": "general", "expect": [], "record": draft})
         # One private revision drops a page input and revises the document. Each
         # commit activates the source, so the two edits land before the same one.
         (private / "page" / "obsolete.txt").unlink()

@@ -32,8 +32,9 @@ MESSAGE = {
     "agent": "Claude",
     "session": "control",
     "revision": 1,
-    "text": "Which fix first?",
-    "markup": '<lf-chart id="bad"><pre>{marks: [Plot.lineY([1, 2, 3], {x: nosuchvar})]}</pre></lf-chart>',
+    "text": "Which fix first?\n\n"
+    '<lf-chart id="bad"><pre>{marks: [Plot.lineY([1, 2, 3], {x: nosuchvar})]}</pre></lf-chart>',
+    "html": True,
     "id": "c58f503e",
     "attention": False,
     "ts": "2026-10-24T22:04:00.076-07:00",

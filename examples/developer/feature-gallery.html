@@ -1298,8 +1298,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     "id": "api-question",
                     "kind": "comment",
                     "author": "agent",
-                    "text": "Which channel should the announcement use?",
-                    "markup": "<section id=\"channel-ask\"><h3>Announcement channel</h3><lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options></section>"
+                    "text": "Which channel should the announcement use?\n\n<section id=\"channel-ask\">\n<h3>Announcement channel</h3>\n<lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options>\n</section>",
+                    "html": true
                   },
                   {
                     "id": "api-opening",
@@ -1353,8 +1353,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     "kind": "reply",
                     "author": "agent",
                     "parent": "deploy-question",
-                    "text": "The deploy passed both checks.",
-                    "markup": "<table><caption>Deploy checks</caption><thead><tr><th scope=\"col\">Check</th><th scope=\"col\">Result</th></tr></thead><tbody><tr><td>Build</td><td>Passed</td></tr><tr><td>Smoke test</td><td>Passed</td></tr></tbody></table><details><summary>Deploy log</summary><pre>Build complete&#10;Smoke test passed&#10;Ready</pre></details>"
+                    "html": true,
+                    "text": "The deploy passed both checks.\n\n<table><caption>Deploy checks</caption><thead><tr><th scope=\"col\">Check</th><th scope=\"col\">Result</th></tr></thead><tbody><tr><td>Build</td><td>Passed</td></tr><tr><td>Smoke test</td><td>Passed</td></tr></tbody></table><details><summary>Deploy log</summary><pre>Build complete&#10;Smoke test passed&#10;Ready</pre></details>"
                   }
                 ]
               </script>
@@ -2477,6 +2477,33 @@ gallery/
               <p id="bg-tree-after">
                 The native preformatted block preserves the hierarchy and change counts;
                 scroll horizontally to read long paths.
+              </p>
+            </section>
+
+            <section id="bg-formulas" class="layout-flow">
+              <hgroup>
+                <p class="bg-feature-elements">code · pre</p>
+                <h3>
+                  <strong>Formulas</strong
+                  ><span class="bg-feature-detail"
+                    >: written in LaTeX, typeset in place</span
+                  >
+                </h3>
+              </hgroup>
+              <p id="bg-formula-line">
+                A request with context <code class="language-math">x</code> costs
+                <code class="language-math">c(x) = h x + c_0</code> cached reads, so a
+                run compacted at <code class="language-math">X</code> pays, for each
+                unit of progress,
+              </p>
+              <pre
+                id="bg-formula-cost"
+              ><code class="language-math">J(X) = \frac{g\,F(X) + \int_K^X c(x)\,dx}{\int_K^X \eta(x)\,dx}</code></pre>
+              <p id="bg-formula-guide">
+                Each formula takes the size and ink of the words around it, in either
+                colour scheme, and the display formula stands centred on its own line.
+                Select from “costs” to “reads” and press <kbd>c</kbd>: the comment
+                quotes each formula by its LaTeX.
               </p>
             </section>
 

@@ -62,7 +62,7 @@ an edit, and a thread message with `--obligation` for a conversational answer. A
 widget whose registry entry declares `x-awaits` asks, a package's as well as the
 bundled `lf-options`; a question about content that asks nothing, such as a chart or a
 passage, goes in a thread on it. Put the widget where the question arises: a question a thread raises, such as which way to do
-what the user asked there, goes in your reply's markup (`threads.md`, "Ask for a
+what the user asked there, goes in your reply (`threads.md`, "Ask for a
 pick"), and a decision the page records goes on the page.
 Each widget that asks puts one question on On Me and records its answer. A choice can hold a
 partial answer before the user presses Done, and an empty selection can be a complete

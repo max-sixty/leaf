@@ -129,16 +129,18 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "kind": "comment",
             "id": "thread",
             "author": "agent",
-            "text": "Choose the first route.",
-            "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="root-'),
+            "html": True,
+            "text": "Choose the first route.\n\n"
+            + OPTIONS.format(attrs="choose").replace('id="', 'id="root-'),
         },
         {
             "kind": "reply",
             "id": "later",
             "author": "agent",
             "parent": "thread",
-            "text": "Choose the later route too.",
-            "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="later-'),
+            "html": True,
+            "text": "Choose the later route too.\n\n"
+            + OPTIONS.format(attrs="choose").replace('id="', 'id="later-'),
         },
         {
             "kind": "comment",
@@ -263,8 +265,9 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
             {
                 "kind": "comment",
                 "author": "agent",
-                "text": "Ship it?",
-                "markup": '<lf-value-ask id="typed" active></lf-value-ask>',
+                "html": True,
+                "text": "Ship it?\n\n"
+                + '<lf-value-ask id="typed" active></lf-value-ask>',
             },
             {
                 "kind": "action",
@@ -668,8 +671,9 @@ def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_re
         "id": "obligation",
         "author": "agent",
         "parent": "t",
-        "text": "Which route?",
-        "markup": OPTIONS.format(attrs="choose").replace('id="', 'id="t-'),
+        "html": True,
+        "text": "Which route?\n\n"
+        + OPTIONS.format(attrs="choose").replace('id="', 'id="t-'),
     }
     opened = {"kind": "comment", "id": "t", "author": "user", "text": "Help me pick."}
     later = {"kind": "reply", "id": "r", "author": "user", "parent": "t", "text": "C?"}

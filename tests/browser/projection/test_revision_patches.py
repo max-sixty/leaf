@@ -7,7 +7,9 @@ from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_harness import (
     EXAMPLE_PACKAGES,
     expect_obligations_answered,
+    latest_press,
     leaf_page,
+    open_latest_by_keys,
     open_page,
     panel_menu,
     panel_settled,
@@ -714,7 +716,7 @@ def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(
     told(page)
     expect(page).to_have_title("Kinds first")
     page.evaluate("() => { window.__kdFocus = document.activeElement; }")
-    page.locator("button.lf-fp-row-notice-press").evaluate("el => el.click()")
+    open_latest_by_keys(page)
     expect(page).to_have_title("Kinds second")
 
     expect(page.locator("main h2")).to_have_text("Progress")
@@ -777,7 +779,7 @@ def test_a_paragraph_inserted_above_the_user_does_not_shift_the_ones_below(
     told(page)
     expect(page).to_have_title("Prose order first")
     page.evaluate("() => { window.__poFocus = document.activeElement; }")
-    page.locator("button.lf-fp-row-notice-press").evaluate("el => el.click()")
+    open_latest_by_keys(page)
     expect(page).to_have_title("Prose order second")
 
     kept = page.evaluate(
@@ -1141,7 +1143,7 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
 
     (serve.page_dir / "index.html").write_text(second)
     # The row offers the latest, without a press that would end the hold.
-    expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
+    expect(latest_press(page)).to_be_visible()
     expect(page.locator("#subject p")).to_have_count(1)
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
         "aria-label", "On Me, 1 draft unsent"
@@ -1177,7 +1179,7 @@ def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
 
     third = second.replace('id="note"', 'id="note" placeholder="New instruction"')
     (serve.page_dir / "index.html").write_text(third)
-    expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
+    expect(latest_press(page)).to_be_visible()
     expect(editor).not_to_have_attribute("placeholder", "New instruction")
     expect(editor).to_have_value("Keep my words.")
     editor.press("Tab")

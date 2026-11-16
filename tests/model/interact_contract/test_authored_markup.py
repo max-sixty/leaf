@@ -364,14 +364,19 @@ def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
             str(page_dir),
             "aabb0011",
             "--text",
-            "Try:",
-            "--markup",
-            sample,
+            f"Try:\n\n{sample}",
         )
     else:
         history = [
             {"kind": "comment", "id": "aabb0011", "author": "agent", "text": "Open"},
-            {"kind": "reply", "parent": "aabb0011", "text": "Try:", "markup": sample},
+            {
+                "kind": "reply",
+                "parent": "aabb0011",
+                "author": "agent",
+                "revision": 1,
+                "text": f"Try:\n\n{sample}",
+                "html": True,
+            },
         ]
         findings = sample_holder_findings(
             page_dir,
@@ -396,7 +401,7 @@ def sample_holder_findings(page_dir, holder, source) -> list[Finding]:
         return findings
     published(page_dir)
     return command_findings(
-        "thread", "create", str(page_dir), "--text", "Try it:", "--markup", source
+        "thread", "create", str(page_dir), "--text", f"Try it:\n\n{source}"
     )
 
 
@@ -434,8 +439,8 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
-            "text": "An answer",
-            "markup": '<lf-code id="duplicate"><pre><code class="language-python">1</code></pre></lf-code>',
+            "text": 'An answer\n\n<lf-code id="duplicate"><pre><code class="language-python">1</code></pre></lf-code>',
+            "html": True,
         },
     )
     (page_dir / "index.html").write_text(
@@ -503,7 +508,7 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     else:
         published(page_dir)
         findings = command_findings(
-            "thread", "create", page_dir, "--text", "Look:", "--markup", markup
+            "thread", "create", page_dir, "--text", f"Look:\n\n{markup}"
         )
     [refused] = findings if door == "message" else found(findings, "css-syntax")
     assert refused.code == "css-syntax"
@@ -524,7 +529,7 @@ def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
     if door == "message-sample":
         published(page_dir)
         findings = command_findings(
-            "thread", "create", page_dir, "--text", "Try:", "--markup", sample
+            "thread", "create", page_dir, "--text", f"Try:\n\n{sample}"
         )
     else:
         (page_dir / "index.html").write_text(
@@ -551,7 +556,7 @@ def test_a_dropped_declaration_is_advice(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     published(page_dir)
     refused = command_findings(
-        "thread", "create", page_dir, "--text", "Try:", "--markup", published_markup
+        "thread", "create", page_dir, "--text", f"Try:\n\n{published_markup}"
     )
     assert refused == []
 
@@ -777,7 +782,14 @@ def test_sample_fixture_refusals_reach_page_check(
 )
 def test_sample_fixture_message_markup_uses_the_message_gate(page_dir, markup, code):
     history = json.dumps(
-        [{"kind": "comment", "author": "agent", "text": "Example", "markup": markup}]
+        [
+            {
+                "kind": "comment",
+                "author": "agent",
+                "text": f"Example\n\n{markup}",
+                "html": True,
+            }
+        ]
     )
     source = (
         f'<script id="fixture" type="application/json">{history}</script>'

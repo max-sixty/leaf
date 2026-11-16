@@ -91,7 +91,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 from leaf_dev.example_data import named_source
 
@@ -1215,7 +1215,7 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     )
     page = browser.new_page()
     page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
-    page.goto(url, wait_until="load")
+    page.goto(asked_again(url), wait_until="load")
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
@@ -1241,7 +1241,7 @@ def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
     url = serve(DIAGRAM_AND_RAIL_PAGE)
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
-    page.goto(url, wait_until="load")
+    page.goto(asked_again(url), wait_until="load")
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
@@ -2604,9 +2604,10 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "author": "agent",
             "parent": "c-fix",
             "revision": 1,
-            "text": "Like this:",
-            "markup": '<lf-diagram id="fallback-flow"><pre>\n'
+            "text": "Like this:\n\n"
+            '<lf-diagram id="fallback-flow"><pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2656,12 +2657,13 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "author": "agent",
             "parent": "c-log",
             "revision": 1,
-            "text": "Here it is, with the log:",
-            "markup": '<lf-sample id="rp-quoted" label="the old copy">'
-            '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>'
-            '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>'
-            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>'
+            "text": "Here it is, with the log:\n\n"
+            '<lf-sample id="rp-quoted" label="the old copy">'
+            '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>\n\n'
+            '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>\n\n'
+            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>\n\n'
             '<lf-options id="rp-choice"><lf-option id="rp-keep">Keep</lf-option></lf-options>',
+            "html": True,
         },
     )
     page = open_page(browser, url)

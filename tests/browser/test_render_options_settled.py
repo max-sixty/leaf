@@ -345,18 +345,19 @@ def test_a_settled_obligation_keeps_its_heading_above_the_answer(browser, serve)
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "And settled in here.",
-            "markup": '<section id="th-done-decision"><h3>Where, again?</h3>'
+            "text": "And settled in here.\n\n"
+            '<section id="th-done-decision"><h3>Where, again?</h3>'
             '<lf-options id="th-done" choose settled>'
             '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
             '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
             "</lf-options></section>",
+            "html": True,
         },
     )
     [root] = [
         e["id"]
         for e in events_model.read_events(serve.page_dir)
-        if e["kind"] == "comment" and e["text"] == "And settled in here."
+        if e["kind"] == "comment" and e["text"].startswith("And settled in here.")
     ]
     page = open_page(browser, live_url(url))
     open_panel_thread(page, root)

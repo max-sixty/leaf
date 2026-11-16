@@ -51,13 +51,17 @@ COLOURED_LANGUAGES: dict[str, str] = next(
     .splitlines()
     if line.startswith(_NAMES_LINE)
 )
+# The language a formula's LaTeX is written in, as GitHub's and remark-math's Markdown
+# name it: the browser typesets a `<code>` naming it rather than colouring it
+# (runtime/formulas.js), and leaves a widget naming it uncoloured.
+FORMULA_LANGUAGE = "math"
 
 
 def language_advice(parser) -> list[Finding]:
-    """Each `language-…` class, on any element, naming a language Leaf doesn't colour,
-    so its code stays the colour of its ink. Advice, not a gate: the name may be a
-    misspelling, which nothing else on the page says, or a language Leaf has no
-    grammar for, which the class still names truly to any other reader."""
+    """Each `language-…` class, on any element, naming a language Leaf neither colours
+    nor typesets, so its code stays the colour of its ink. Advice, not a gate: the name
+    may be a misspelling, which nothing else on the page says, or a language Leaf has
+    no grammar for, which the class still names truly to any other reader."""
     return [
         Finding(
             "uncoloured-language",
@@ -71,6 +75,7 @@ def language_advice(parser) -> list[Finding]:
         )
         for tag, line, name in parser.authoring.code_languages
         if name not in COLOURED_LANGUAGES
+        and (name != FORMULA_LANGUAGE or tag != "code")
     ]
 
 
@@ -257,21 +262,23 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     return errors + authored_allocation_errors(parser)
 
 
-def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
+def text_media_errors(
+    text: str, page_dir: Path, *, html: bool = False
+) -> list[Finding]:
     """The same reference in a message's Markdown, which is the other way one arrives.
 
     Markup names a picture in an attribute or a stylesheet, where the parsed reading
     finds it (`revision_artifact.uncaptured_errors`); a message names one as a
     Markdown destination, which that reading cannot see — so an agent sending a
-    screenshot came through the one door that never asked. `check_markup` runs only when `--markup` is
-    given, and text on its own reached the log unread.
+    screenshot came through the one door that never asked. `check_markup` runs only
+    on a message holding HTML, and text without it reached the log unread.
 
     A reference is a rendered link or image destination, never a scan of the words.
     Parsing the Markdown resolves referenced definitions and leaves fenced examples
     and unused definitions as text, so neither asks for a file the page will not load."""
     refs = {
         url
-        for token in markdown_dialect(True).parse(text)
+        for token in markdown_dialect(True, html=html).parse(text)
         for child in token.children or ()
         if child.type in {"link_open", "image"}
         if (url := child.attrGet("href" if child.type == "link_open" else "src"))

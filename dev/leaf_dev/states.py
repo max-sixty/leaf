@@ -1325,20 +1325,18 @@ def on_me_question(page: Page) -> None:
 
 
 def on_me_thread_choice(page: Page) -> None:
-    """On Me opened on the card of a choice the agent asked in a thread with
-    `--markup`, drawn nowhere else, the card focused so its options wear their
-    digits."""
+    """On Me opened on the card of a choice the agent asked in a thread, drawn
+    nowhere else, the card focused so its options wear their digits."""
     as_agent(
         "thread",
         "create",
         "--section",
         "plan-context",
         "--text",
-        "Open the pull request now, or hold it?",
-        "--markup",
-        '<lf-options id="pr-timing" choose>'
-        '<lf-option id="pr-now"><strong>Open it now</strong></lf-option>'
-        '<lf-option id="pr-hold"><strong>Hold it</strong></lf-option>'
+        "Open the pull request now, or hold it?\n\n"
+        '<lf-options id="pr-timing" choose>\n'
+        '<lf-option id="pr-now"><strong>Open it now</strong></lf-option>\n'
+        '<lf-option id="pr-hold"><strong>Hold it</strong></lf-option>\n'
         "</lf-options>",
     )
     page.reload()

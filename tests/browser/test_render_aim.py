@@ -2440,8 +2440,8 @@ def test_repeated_design_control_names_keep_context_without_inventing_identity(
     page.keyboard.press("l")
     page.keyboard.press("s")
     inventory = page.evaluate("""async () => {
-      const {aimTargets, resolveAnchor} = await window.__lfCheckApi();
-      return aimTargets({design: true}).filter(t => t.anchor.section === 'rows' && t.anchor.part).map(t => t.capture ? t.capture() : t).map(t => ({
+      const {aimTargets, captured, resolveAnchor} = await window.__lfCheckApi();
+      return aimTargets({design: true}).filter(t => t.anchor.section === 'rows' && t.anchor.part).map(captured).map(t => ({
         anchor: t.anchor, label: t.label, resolution: (() => { const resolved = resolveAnchor(t.anchor); return {exact: resolved?.exact, status: resolved?.status}; })()
       }));
     }""")
@@ -2696,17 +2696,17 @@ CONTROL_PRESSES = {
 # Each control a shape's selector names: the target a press on it reads, and that same
 # control's entry in the inventory the picker offers, before and after its capture.
 READ_CONTROL_SHAPES = """async (shapes) => {
-  const {aimTargets, aimTargetAt, resolveAnchor} = await window.__lfCheckApi();
+  const {aimTargets, aimTargetAt, captured, resolveAnchor} = await window.__lfCheckApi();
   const {anchorLabel} = await window.__lfWidgetApi();
   const inventory = aimTargets({design: true});
   const identity = (target) => target.controlElement ?? target.element;
   // A control with no target reads as null, for its own case to report.
   const read = (control) => {
-    const target = aimTargetAt(control, {design: true});
+    const target = captured(aimTargetAt(control, {design: true}));
     if (!target) return null;
     const resolved = resolveAnchor(target.anchor);
     const listed = inventory.find((offer) => identity(offer) === identity(target));
-    const chosen = listed?.capture ? listed.capture() : listed;
+    const chosen = captured(listed);
     return {
       anchor: target.anchor,
       label: target.label,
@@ -2853,9 +2853,9 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
     with subtests.test(reading="a label and its input are one control"):
         assert reads["label-input"][0]["label"].startswith("A ·"), reads["label-input"]
         by_input = page.evaluate("""async () => {
-          const {aimTargetAt} = await window.__lfCheckApi();
-          return aimTargetAt(document.querySelector('#label-input input'),
-                             {design: true}).anchor;
+          const {aimTargetAt, captured} = await window.__lfCheckApi();
+          return captured(aimTargetAt(document.querySelector('#label-input input'),
+                                      {design: true})).anchor;
         }""")
         assert by_input == reads["label-input"][0]["anchor"], by_input
 
@@ -3244,9 +3244,9 @@ def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
     expect(page.locator("#doc .lf-text-document-run > div").first).to_be_visible()
     labels = page.evaluate(
         """async () => {
-          const {aimTargetAt} = await window.__lfCheckApi();
+          const {aimTargetAt, captured} = await window.__lfCheckApi();
           const label = (selector) =>
-            aimTargetAt(document.querySelector(selector), {design: true}).label;
+            captured(aimTargetAt(document.querySelector(selector), {design: true})).label;
           return {
             button: label('#prose button'),
             count: label('#checks button'),
@@ -4962,7 +4962,7 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
     control = page.get_by_role("radio", name="Choice B")
     target = page.evaluate("""async () => {
       const A=await window.__lfCheckApi();const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
-      const target=A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true});
+      const target=A.captured(A.aimTargetAt(document.querySelector('[aria-label="Choice B"]'),{design:true}));
       const resolved=A.resolveAnchor(target.anchor);
       return {anchor:target.anchor,label:target.label,exact:resolved.exact};
     }""")
@@ -5045,7 +5045,7 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(browser, 
       const A=await window.__lfCheckApi();
       const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
       return [...document.querySelectorAll('#controls > *')].map(el=>{
-        const t=A.aimTargetAt(el,{design:true});
+        const t=A.captured(A.aimTargetAt(el,{design:true}));
         return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor).exact};
       });
     }""")
@@ -5290,12 +5290,12 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
           const P={...await window.__lfCheckApi(),...await window.__lfWidgetApi()};
           return {
             fields:[...document.querySelectorAll('textarea')].map(el=>{
-              const target=A.aimTargetAt(el,{design:true});
+              const target=A.captured(A.aimTargetAt(el,{design:true}));
               return {anchor:target.anchor,label:target.label,
                 exact:A.resolveAnchor(target.anchor).exact,
                 says:P.textNodesUnder(el).map(s=>s.node.data).join('')};
             }),
-            button:A.aimTargetAt(document.querySelector('#fields button'),{design:true}).anchor,
+            button:A.captured(A.aimTargetAt(document.querySelector('#fields button'),{design:true})).anchor,
             words:P.pageText().raw,
           };
         }""")

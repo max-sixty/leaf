@@ -1,11 +1,11 @@
 /* Mechanical placement of an obligation in the current document, and the one rule for which
    obligations a region of the page holds.
 
-   A widget's source owns its answer. Its context is the part of the page the author
-   assigned to the question: the nearest section or article round it with an id, opened by
-   the heading that words the question (`prompt.target`, `obligations.framed_widgets` in
-   Python), or none for a widget no such element frames. The context is where the
-   obligation stands while it holds no other, so `m` lands on the whole question, its
+   A widget's source owns its answer; the context supplies its prompt. The context is
+   the part of the page the author assigned to the question: the nearest section or
+   article round the widget with an id, opened by the heading that words the question
+   (`prompt.target`, `obligations.framed_widgets` in Python), or else the widget itself.
+   A unique context is also its current node, so `m` lands on the whole question, its
    premise and evidence included, and focus anywhere in it is being at the question.
    When several obligations share that context each stands at its own source, so focus,
    rings, markers and arrival all name the same request. A record unit stands at its
@@ -45,17 +45,12 @@ export function obligationPlace(item, items = readObligations().all) {
   if (item?.source.kind !== "widget") return NOWHERE;
   const owner = elementById(item.source.id);
   const source = item.source.unit ? projectedDatum(owner, item.source.unit) : owner;
-  const context =
-    item.prompt.target === item.source.id ? null : elementById(item.prompt.target);
+  const context = elementById(item.prompt.target);
   const sharing = contextsOf(items).get(item.prompt.target);
   const shared = Boolean(
     sharing && (sharing.size > 1 || (sharing.size === 1 && !sharing.has(item.id))),
   );
-  return {
-    source,
-    context,
-    node: item.source.unit || shared ? source : (context ?? source),
-  };
+  return { source, context, node: item.source.unit || shared ? source : context };
 }
 
 // The ids of the widget obligations each context holds, read once per inventory, so

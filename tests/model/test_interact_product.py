@@ -851,9 +851,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
                 "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
-                "Choose:",
-                "--markup",
-                markup,
+                f"Choose:\n\n{markup}",
             ],
         )
 
@@ -890,9 +888,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
             [
                 *route,
                 "--text",
-                "Pick:",
-                "--markup",
-                markup,
+                f"Pick:\n\n{markup}",
             ],
         )
 
@@ -931,8 +927,8 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         )
     )
     assert selfdup.exit_code != 0 and "duplicate ids" in selfdup.output
-    # Text claims no ids however it quotes a tag — only the `markup` field does, and
-    # a user's message never carries one (the log is append-only; a false claim
+    # A user's text claims no ids however it quotes a tag — only an agent's message
+    # holding HTML does, and a user's message never carries `html` (the log is append-only; a false claim
     # would deadlock every future version).
     follow_up = append_carried_log_record(
         page_dir,
@@ -987,9 +983,8 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "Pick:",
-            "--markup",
             (
+                "Pick:\n\n"
                 '<section id="pick-decision"><h2>Pick?</h2>'
                 '<lf-options id="lf-pick" choose>'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
@@ -1819,10 +1814,10 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     assert events_model.read_events(page_dir)[-1]["text"] == "Revised."
 
 
-def test_markup_enters_only_through_the_cli_gate(server, page_dir):
-    """The browser door refuses the field rather than silently dropping it: everything
-    the log holds under `markup` has been through `check_markup`, which is what lets
-    the thread structure and the panel index it unasked."""
+def test_html_enters_only_through_the_cli_gate(server, page_dir):
+    """The browser door refuses the field rather than silently dropping it: every
+    message the log holds with `html` has been through `check_markup`, which is what
+    lets the thread structure and the panel index it unasked."""
     publish(page_dir)
     before = events_model.read_events(page_dir)
     status, body = fetch(
@@ -1831,13 +1826,13 @@ def test_markup_enters_only_through_the_cli_gate(server, page_dir):
             {
                 "kind": "comment",
                 "revision": 1,
-                "text": "hi",
-                "markup": '<lf-diagram id="m"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+                "text": 'hi\n\n<lf-diagram id="m"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+                "html": True,
             }
         ).encode(),
     )
     assert status == 400
-    assert "markup" in json.loads(body)["error"]
+    assert "html" in json.loads(body)["error"]
     assert events_model.read_events(page_dir) == before
 
 
@@ -1862,9 +1857,7 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
             "--done",
             reference,
             "--text",
-            "See:",
-            "--markup",
-            markup,
+            f"See:\n\n{markup}" if markup else "See:",
         ],
     )
     assert result.exit_code != 0, result.output

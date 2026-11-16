@@ -26,7 +26,7 @@ from browser.startup import (
     _hold_startup,
 )
 from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -309,7 +309,7 @@ def test_a_page_that_cannot_start_lets_its_held_keys_go(browser, serve):
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
     held, _ = _hold_startup(page, "module")
-    page.goto(serve(HELD_KEYS_PAGE), wait_until="commit")
+    page.goto(asked_again(serve(HELD_KEYS_PAGE)), wait_until="commit")
     holding(page, held, 1, "the runtime module")
     expect(page.locator("#said")).to_be_attached()
     page.evaluate(

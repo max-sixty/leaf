@@ -291,6 +291,15 @@ CENTRE = """(selector) => {
   const box = node.getBoundingClientRect();
   return [box.x + box.width / 2, box.y + box.height / 2];
 }"""
+# The centres of the page's first two tab controls, the first brought into view.
+TAB_CENTRES = """() => {
+  const controls = [...document.querySelectorAll("[role=tab]")].slice(0, 2);
+  controls[0].scrollIntoView({ block: "nearest" });
+  return controls.map((control) => {
+    const box = control.getBoundingClientRect();
+    return [box.x + box.width / 2, box.y + box.height / 2];
+  });
+}"""
 # The leaf's menu, its Annotations, and Capture area's row there.
 MENU_ROWS = (
     ".lf-fp-leaf",
@@ -997,14 +1006,17 @@ class Input(NamedTuple):
     for the input's painted goals where it has them, for the POST's answer where they
     include the server's reading of its event (`delivered`), and then `after` ms. The
     paint pass times it `count` times, each after `ready`, where it `paints`, and a
-    page reads the input only where it holds `needs`. An `agent` input is an agent's
-    write, which reaches the page only in the server's reading. A `whole` input's
-    result is made of the whole page, as a revision's new document or a search's
-    count of its matches is, so what it costs may grow with the page (`held`)."""
+    page reads the input only where it holds `needs`. `leave` follows each `ready` once
+    the windows after it end, to take back a mode `ready` entered, so the inputs after
+    it meet the page as they would without it. An `agent` input is an agent's write,
+    which reaches the page only in the server's reading. A `whole` input's result is
+    made of the whole page, as a revision's new document or a search's count of its
+    matches is, so what it costs may grow with the page (`held`)."""
 
     act: Callable[[Tab], float | None]
     count: int = 1
     ready: Callable[[Tab], Goals] = lambda _: {}
+    leave: Callable[[Tab], None] = lambda _: None
     each: bool = True
     paints: bool = False
     after: float = 0
@@ -1085,6 +1097,24 @@ def design_key(tab: Tab) -> None:
 def draw_key(tab: Tab) -> None:
     """Enter Draw mode, or leave it."""
     tab.page.keyboard.press("w")
+
+
+def enter_design(tab: Tab) -> Goals:
+    """Leave nothing focused, rest the pointer on the first tab control, in view, with
+    its centre and the second's noted (`TAB_CENTRES`), and enter Design mode."""
+    tab.page.evaluate("() => document.activeElement?.blur()")
+    centres = tab.page.evaluate(TAB_CENTRES)
+    tab.target = {"centres": centres}
+    tab.page.mouse.move(*centres[0])
+    design_key(tab)
+    tab.quiet(600)
+    return {}
+
+
+def inspect_step(tab: Tab) -> None:
+    """Move the pointer onto the other of the two tab controls, each a part Design mode
+    names inside the tabs widget, as #4781's reader moved between its side tabs."""
+    tab.page.mouse.move(*tab.target["centres"][(tab.sample + 1) % 2])
 
 
 def open_annotations(tab: Tab) -> Goals:
@@ -1439,6 +1469,15 @@ INPUTS: dict[str, Input] = {
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
     "hover": Input(hover_step, 32, halfway, each=False, after=50),
     "design": Input(design_key, 2, halfway, each=False, after=400),
+    "inspect": Input(
+        inspect_step,
+        16,
+        enter_design,
+        leave=design_key,
+        each=False,
+        after=50,
+        needs="[role=tab]",
+    ),
     "draw": Input(draw_key, 2, halfway, each=False, after=400),
     "capture": Input(capture_toggle, 2, open_annotations, each=False, after=400),
     "data": Input(
@@ -1479,9 +1518,15 @@ INPUTS: dict[str, Input] = {
         agent_status, ready=name_status, paints=True, after=300, agent=True
     ),
     "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=DOCUMENTS),
-    "search": Input(open_search, ready=aim_at_search, after=400, needs=DOCUMENTS),
+    "search": Input(
+        open_search, ready=aim_at_search, after=400, needs="lf-text-document"
+    ),
     "matches": Input(
-        search_word, ready=empty_search, after=400, needs=DOCUMENTS, whole=True
+        search_word,
+        ready=empty_search,
+        after=400,
+        needs="lf-text-document",
+        whole=True,
     ),
     "browse": Input(run_step, 16, open_tabs, each=False, after=300, needs=DOCUMENTS),
 }
@@ -1760,6 +1805,10 @@ def per_input(tab: Tab, name: str, timed, idle: float) -> dict[str, float]:
         cpu, elapsed = timed(name, partial(run, samples, after))
         spent += cpu - idle * elapsed
         posts += page.evaluate(EVENT_POSTS)[posted:]
+        if each.each:
+            each.leave(tab)
+    if not each.each:
+        each.leave(tab)
     readings = {f"{name} cpu": spent / each.count}
     if posts:
         readings[f"{name} event"] = statistics.median(post["ms"] for post in posts)
@@ -1804,6 +1853,7 @@ def paint_pass(
                 current.sample = sample
                 goals = each.ready(current)
                 windows.append(measure(current, traffic, name, goals, profiles))
+                each.leave(current)
         # Playwright delivers the browser's reports only while it talks to the page.
         page.evaluate("0")
     return windows, missing

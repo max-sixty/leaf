@@ -460,13 +460,13 @@ export function createObligationView({
   // takes in at once and an obligation with nothing that fits keeps the landing this walk
   // always gave it. That bound is what lets the widest candidate go first: a heading a
   // long way up fails to fit, rather than needing a rule about how far up is too far.
-  /** @param {Element} item @param {Element | null} context @param {Element} currentLocation */
-  function arrivalRegion(item, context, currentLocation) {
+  /** @param {Element} item @param {Element | null} frame @param {Element} currentLocation */
+  function arrivalRegion(item, frame, currentLocation) {
     // A frame the obligation stands at alone names the region even when taller than the
     // screen: the reader arrives at its opening and reads down to the answering controls.
     // A shared frame must fit above this source; otherwise use its nearby words. With no
     // frame, infer the words preceding it instead.
-    if (context && context === currentLocation) return context;
+    if (frame && frame === currentLocation) return frame;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a
     // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
@@ -524,7 +524,7 @@ export function createObligationView({
         renderedOrder(block, item) < 0,
     );
     return (
-      [context, partOver(item), closestAcross(item, TEXT_BLOCK) ?? before.at(-1)].find(
+      [frame, partOver(item), closestAcross(item, TEXT_BLOCK) ?? before.at(-1)].find(
         fits,
       ) ?? item
     );
@@ -600,13 +600,19 @@ export function createObligationView({
     // in the panel's own list, whose arrival stays centred in that region and is no
     // navigation step. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
+    // A context other than the widget itself is the section the author framed it in.
+    const inFrame = next.source.id !== next.prompt.target;
     const destination = () => {
       const { node: target, source, context } = obligationPlace(next);
       // A widget is arrived at once its source is drawn.
       if (!target || !source) return null;
       const box = inChrome(target) ? null : scrollerFor(target);
       return box
-        ? { target, box, region: arrivalRegion(source, context, target) }
+        ? {
+            target,
+            box,
+            region: arrivalRegion(source, inFrame ? context : null, target),
+          }
         : { target, box: null, region: null };
     };
     const initial = destination();
@@ -627,10 +633,7 @@ export function createObligationView({
         const { target, box, region } = here;
         return {
           where: target,
-          reveal:
-            next.source.id !== next.prompt.target
-              ? [sourceNode(next)].filter((node) => node !== null)
-              : [],
+          reveal: inFrame ? [sourceNode(next)].filter((node) => node !== null) : [],
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
           // Reveal the obligation through its own inner scrollports before aligning its
           // context, which may stand outside them. A framed obligation requests no motion.

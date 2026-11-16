@@ -615,16 +615,20 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     An options group used to be both the state owner and the navigation target. When
     the heading, premise, and evidence stood immediately above it, `d` centred the
     options and made the user scroll backward before they could answer. The section
-    round the question names that broader unit while the nested x-awaits widget still
-    owns the action and the ring: the walk aligns the section's opening at the window's
-    head and stands the user on the widget, whose picks are the next Tab stops.
+    round the question encodes that broader unit while the nested x-awaits widget still
+    owns the action:
+    the walk rings the region, aligns its opening at the window's head, and stands the
+    user on it.
 
-    The section is a candidate for the arrival only where the run from its opening to
-    the answer fits the window: in a window shorter than the question, the walk starts
-    at the words just before the answer instead, since starting at the heading would
-    leave the user standing on an answer below the window. While an `lf-ask` framed
-    questions, until 16 November 2026, the walk aligned its opening at the head however
-    tall it was and stood the user on the frame.
+    On it, and not on the control that answers it, which was where the walk landed until
+    the scroll and the focus were measured against each other. The scroll puts the
+    region's opening at the top of the window and the answering control is as far down as
+    the context and evidence are long: on the shipped corpus at 1200x900 the heading stood
+    at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the user was
+    told to look at one thing while located on another they could not see, and their next
+    Space would have worked it. The picks are the next Tab stops instead, which is what a
+    stop at `tabindex: -1` on the region buys: it keeps its place in document order and
+    everything inside the decision comes after it.
     """
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
     # Short enough that even the pick in the card's compact header falls under the

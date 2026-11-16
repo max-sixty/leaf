@@ -162,6 +162,18 @@ def question_ids(message: dict) -> list[str]:
     return [f"message:{message['id']}"] if asked is True else asked
 
 
+def questions_in_words(events: list, names: dict, thread: str) -> set[str]:
+    """The questions `thread`'s messages ask in words (`question_ids`), which a
+    message's `obligation` names to ask one again; `names` is `events`'
+    `thread_context.thread_names`."""
+    return {
+        question
+        for event in events
+        if event.get("obligation") and names.get(event["id"]) == thread
+        for question in question_ids(event)
+    }
+
+
 def settle_by_words(record: dict, answer: dict | None) -> None:
     """Settle a message obligation from the user's message that answers it, if any."""
     if answer is not None:

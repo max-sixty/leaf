@@ -1484,10 +1484,11 @@ def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests)
             "agent": "Codex",
             "parent": roots[4],
             "revision": 1,
-            "text": "Choose the follow-up.",
-            "markup": '<section id="reply-ask"><h3>Which follow-up should be ready?</h3>'
+            "text": "Choose the follow-up.\n\n"
+            '<section id="reply-ask"><h3>Which follow-up should be ready?</h3>'
             '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
             '<lf-option id="reply-no">Wait</lf-option></lf-options></section>',
+            "html": True,
         },
     )
     page = open_page(browser, url)

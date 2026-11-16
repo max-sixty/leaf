@@ -104,8 +104,8 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "author": "agent",
             "parent": "c-room",
             "revision": 1,
-            "text": "These, and who is on them:",
-            "markup": ROOM_WIDGETS.format(id="mr-msg"),
+            "text": "These, and who is on them:\n\n" + ROOM_WIDGETS.format(id="mr-msg"),
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -173,14 +173,15 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
             "author": "agent",
             "parent": "c-store",
             "revision": 1,
-            "text": "Depends what you want to keep:",
-            "markup": (
+            "text": (
+                "Depends what you want to keep:\n\n"
                 '<section id="ps-decision-region"><h3>Which store should I write up?</h3>'
                 '<lf-options id="ps-decision" choose>'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
                 "</lf-options></section>"
             ),
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -300,11 +301,6 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
             "revision": 1,
             "text": "The north bracket fit.",
             "anchor": {"section": "cd-q"},
-            "markup": (
-                '<lf-options id="edited-message-choice" choose>'
-                '<lf-option id="edited-message-now">Fit it now</lf-option>'
-                "</lf-options>"
-            ),
         },
     )
     page = open_page(browser, url)
@@ -320,7 +316,6 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
             `#cd-q .lf-msg[data-lf-event="${message}"]`);
           window.__editedPanel = document.querySelector(
             `.lf-fp-view .lf-msg[data-lf-event="${message}"]`);
-          window.__editedWidget = document.querySelector('#edited-message-choice');
         }""",
         [message["id"]],
     )
@@ -357,9 +352,8 @@ def test_an_agent_message_edit_updates_the_panel_and_its_inline_thread(browser, 
         f"""() => window.__editedInline === document.querySelector(
           '#cd-q .lf-msg[data-lf-event="{message["id"]}"]')
           && window.__editedPanel === document.querySelector(
-            '.lf-fp-view .lf-msg[data-lf-event="{message["id"]}"]')
-          && window.__editedWidget === document.querySelector('#edited-message-choice')"""
-    ), "the edit replaced an existing message or its frozen widget"
+            '.lf-fp-view .lf-msg[data-lf-event="{message["id"]}"]')"""
+    ), "the edit replaced an existing message"
     assert (
         next(
             event
@@ -392,14 +386,15 @@ def thread_on_a_sent_widget(serve):
             "author": "agent",
             "parent": "c-sent",
             "revision": 1,
-            "text": "Depends what you want to keep:",
-            "markup": (
+            "text": (
+                "Depends what you want to keep:\n\n"
                 '<section id="ps-decision-region"><h3>Which store should I write up?</h3>'
                 '<lf-options id="ps-decision" choose>'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
                 "</lf-options></section>"
             ),
+            "html": True,
         },
     )
     # The shape design mode writes: an element anchor naming a widget no version holds.

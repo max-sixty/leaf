@@ -77,8 +77,8 @@ def placed(page: Path) -> dict:
     if log.is_file():
         for line in log.read_text().splitlines():
             event = json.loads(line)
-            if event.get("markup"):
-                messages.append(sorted(set(TAG.findall(event["markup"]))))
+            if event.get("html"):
+                messages.append(sorted(set(TAG.findall(event["text"]))))
     return {"page": sorted(set(TAG.findall(html))), "messages": messages}
 
 

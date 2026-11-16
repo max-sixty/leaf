@@ -212,7 +212,7 @@ def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
 
     `/_leaf/agent/fail` is what the Worker calls when it is rate limited or its
     dispatch throws, with whatever event `/api/event` accepted — which can be a
-    gesture on a widget frozen into thread markup. That is answered on the
+    gesture on a widget frozen into a thread message. That is answered on the
     thread holding it, so addressing the receipt at the gesture refuses the
     one write whose whole job is to leave the user something.
 
@@ -229,8 +229,8 @@ def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<lf-options id="region" choose>'
+            "html": True,
+            "text": 'Which region?\n\n<lf-options id="region" choose>'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
@@ -274,7 +274,7 @@ def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
 def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monkeypatch):
     """A receipt is addressed where the gesture is answered, not at the gesture.
 
-    A widget frozen into thread markup is answered on the thread holding it,
+    A widget frozen into a thread message is answered on the thread holding it,
     so the address a reply is written to and the move it settles are two different
     events. Writing the receipt at the gesture refuses instead of settling it. The
     turn below starts, takes the gesture, and then loses its stream, which is the
@@ -287,8 +287,8 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<section id="region-ask"><h3>Which region?</h3>'
+            "html": True,
+            "text": 'Which region?\n\n<section id="region-ask"><h3>Which region?</h3>'
             '<lf-options id="region" choose>'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             '<lf-option id="west"><strong>West</strong></lf-option>'

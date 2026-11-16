@@ -548,7 +548,11 @@ def test_a_resolved_reply_composition_stays_open_until_deliberately_dismissed(
         expect(field).to_be_visible()
         page.locator("#p3").click(position={"x": 10, "y": 10})
         expect(field).not_to_be_visible()
-        expect(page.locator('[data-lf-margin-for="p3"]')).to_have_count(0)
+        # The resolved thread leaves the margin, and its unsent reply stands there as
+        # a draft.
+        margin = page.locator('[data-lf-margin-for="p3"]')
+        expect(margin.locator('[data-lf-kinds~="comment"]')).to_have_count(0)
+        expect(margin.locator('[data-lf-kinds="draft"]')).to_have_count(1)
         assert stored_draft_text(page, f"reply:{root}") == words
 
 

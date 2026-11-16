@@ -55,6 +55,7 @@ from render_harness import (
     show_done,
     show_resolved,
     stamp_page,
+    tab_onto,
     told,
     undo,
     wait_for_revision,
@@ -4289,7 +4290,8 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     the field as the leaf stands at the row's start, and typing moves neither the field
     nor its ✕, since the ✕ keeps its seat while the user writes. Annotations also lists
     Select mode for a mouse, with the `s` that reaches it from the keyboard, since
-    selecting words picks no widget or picture."""
+    selecting words picks no widget or picture. The row previews nothing: it shows its
+    words and key whole, and how the mode works is the command reference's to say."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
     settled(page)
     mark = page.locator(".lf-fp-on-user").bounding_box()
@@ -4299,6 +4301,9 @@ def test_a_mode_entered_from_the_panel_offers_its_way_out_in_the_row(browser, se
     pick = annotations.locator('.lf-fp-item[data-lf-row="command:target.picker.open"]')
     expect(pick).to_contain_text("Select mode")
     expect(pick.locator("kbd")).to_have_text("s")
+    tab_onto(pick)
+    rendered(page)
+    assert not page.locator(PREVIEW).is_visible(), page.locator(PREVIEW).inner_text()
     annotations.locator(".lf-fp-item", has_text="Draw mode").click()
     # The field names the mode in the status's place, and its end the way out.
     expect(field(page)).to_have_attribute("data-lf-says", "stance")

@@ -234,6 +234,11 @@ colours with the page's status.
 
 ## A widget
 
+A registry key declares a widget when it is `lf-` followed by hyphen-separated words of
+lowercase letters and digits, such as `lf-merge-film`. Leaf reads any other key that
+doesn't start with `$` as an idiom's CSS selector, so a widget declared as `merge-film`
+is refused as an idiom holding keys an idiom can't have.
+
 An element declaration is a JSON Schema over the element's attributes, plus `x-` keys
 that say how Leaf treats the tag, such as whether a module upgrades it, its action verbs
 and whether it puts an obligation on On Me. The merged registry's `$keys` entry defines each

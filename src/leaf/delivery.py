@@ -150,6 +150,7 @@ _THREAD_DIGEST = object_schema(
                         "author": STRING,
                     },
                     {
+                        "ts": described("When it was said.", STRING),
                         "agent": described(
                             "The name an agent's message is shown under.", STRING
                         ),

@@ -1463,8 +1463,8 @@
     font-weight: 500;
     font-variant-numeric: tabular-nums;
   }
-  /* A row cuts its words to the panel's width, and a title says them whole on hover. A
-     pointer that can't hover never reads that title, so under one a row says its words
+  /* A row cuts its words to the panel's width, and its hover says them whole. A
+     pointer that can't hover never reads that, so under one a row says its words
      whole at rest: a menu row's, a version's note on the lines under its name, and a
      page's title, what its agent is doing and the rest of its account in All pages. On
      Me's answers keep their two lines, whose whole words Show reaches. */

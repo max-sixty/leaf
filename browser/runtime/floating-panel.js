@@ -2562,7 +2562,6 @@ export function createFloatingPanel({
         disabled: entry.disabled,
         row: entry.key,
         opens: Boolean(route && viewOf(route).over?.includes("menu")),
-        title: entry.title || null,
       },
     );
   }

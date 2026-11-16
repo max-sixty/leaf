@@ -30,8 +30,8 @@ export { rankAt } from "./projection/model.js";
 export { fragmentTarget, projectedDatum } from "./anchor-resolution.js";
 export { fragmentUrl } from "./anchor-coordinate.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
-// An element's name is its markup, as a section's is its heading: `leadingTitle(element)`
-// and `nameHolder(element)` (portable-api.js) find it, `addressableName(element)` its words for
+// An element's name is its markup, as a section's is its heading: `openingTitle(element)`
+// (portable-api.js) finds it, `addressableName(element)` its words for
 // a place that takes only text, and `echoCopy(node, after)` a copy of a node's markup
 // to draw the name elsewhere.
 export { addressableName, echoCopy } from "./addressable-names.js";

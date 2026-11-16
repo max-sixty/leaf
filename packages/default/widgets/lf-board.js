@@ -44,7 +44,7 @@
 import Sortable from "/vendor/sortable.esm.js";
 import {
   addressableName,
-  leadingTitle,
+  openingTitle,
   setScroll,
   elementById,
   LeafElement,
@@ -146,7 +146,7 @@ customElements.define(
         col.setAttribute("role", "list");
         keeps(col, "aria-label", addressableName(col) || null);
         for (const card of this.#cards(col)) card.setAttribute("role", "listitem");
-        const title = leadingTitle(col);
+        const title = openingTitle(col);
         if (title) keeps(title, "aria-hidden", "true");
         if (col.querySelector(":scope > .lf-column-count")) continue;
         // How many cards stand in the column, beside its heading rather than in it, so

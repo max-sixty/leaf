@@ -1060,7 +1060,7 @@ def _element(content: list, id: str) -> dict | None:
 def test_an_element_is_named_as_the_browser_names_it(case):
     """An obligation's prompt is its element's name, read off the document by the rule
     the browser's `addressableName` reads off the live page, and the element its name
-    opens it with is the one the browser's `nameHolder` finds."""
+    opens it with is the one holding the browser's `openingTitle`."""
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.authoring.content, "it")
     assert node is not None

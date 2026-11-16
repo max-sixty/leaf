@@ -39,14 +39,13 @@ an empty label, and `addressableWord(element)` gives the word for its kind inste
 An element's name is markup it opens with: a section's heading, a disclosure's
 `<summary>`, or a `<strong>`, looked for inside a leading `<header>` or `<hgroup>` too.
 A widget is named that way, as a column by its leading `<strong>`, so give your widget's
-authors the same instruction rather than a name attribute. `leadingTitle(element)` is
-the element holding the name, or null; `addressableName(element)` is its words, for a
-place that takes only text, such as an `aria-label`, a native `<option>` or an
-announcement. A section's heading may follow an eyebrow, and an option's title its
-chips, but a widget that draws, moves or hides its name takes it only where it opens
-the widget: `nameHolder(element)` is the title, or the `<header>` or `<hgroup>` holding
-it, where that is the element's first element, else null, and the theme's selector for
-it is `:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)`.
+authors the same instruction rather than a name attribute. `openingTitle(element)` is
+the title naming the element, where it or the `<header>` or `<hgroup>` holding it is the
+element's first element, else null; the element's child holding it is the name to
+draw, move or hide, and the theme's selector for that child is
+`:first-child:is(summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)`.
+`addressableName(element)` is the name's words, for a place that takes only text, such
+as an `aria-label`, a native `<option>` or an announcement.
 
 To show the name away from its element, as a tab strip shows each panel's, draw
 `echoCopy(title)`, a copy of its markup without ids or generated words.

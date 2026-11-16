@@ -128,7 +128,7 @@ import {
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { registry, tagsDeclaring } from "./registry.js";
-import { leadingTitle, nameHolder } from "./leading-title.js";
+import { openingTitle } from "./leading-title.js";
 import { isElementName } from "./registry-contract.js";
 import {
   inlineMarkdownFragment,
@@ -565,7 +565,7 @@ registerPageControl({
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its declaration: a compound member whose content
 // model is prose is a block of the page's prose the same way a paragraph is.
-// The name a holder of other blocks opens with, its leading title (`nameHolder`),
+// The name a holder of other blocks opens with (`openingTitle`),
 // is a block of its own: a view, whose panel holds the page's blocks, or a widget
 // holding members. So a renamed tab or column marks, and a tab emptied of all but its
 // name holds the gap its last paragraph left, after its name. A titled member whose
@@ -709,7 +709,7 @@ function diffBlocks(root) {
   const names = new Set(
     tags
       ? [...root.querySelectorAll(tags)].flatMap((named) => {
-          const title = nameHolder(named) && leadingTitle(named);
+          const title = openingTitle(named);
           return title && !title.closest(opaque) ? [title] : [];
         })
       : [],

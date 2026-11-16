@@ -90,7 +90,7 @@ export function addressableSays(addressable) {
 // element draws a copy of its markup (`echoCopy`). An element the contract gives no name
 // answers "".
 // A copy of an element's markup, for a surface that shows a name away from the element
-// it names, as a tab strip shows each panel's title (`echoCopy(leadingTitle(panel))`):
+// it names, as a tab strip shows each panel's title (`echoCopy(openingTitle(panel))`):
 // the element's child nodes cloned, leaving out what a widget generated in them, so the
 // copy is the markup the author wrote, and without ids, so the page keeps one of each.
 // The caller draws it in a box marked as a copy (`generated({ says: "echo" })`), so a

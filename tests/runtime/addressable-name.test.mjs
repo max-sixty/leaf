@@ -24,7 +24,7 @@ import {
   echoCopy,
   titledElement,
 } from "/runtime/addressable-names.js";
-import { leadingTitle, nameHolder } from "/runtime/leading-title.js";
+import { openingTitle } from "/runtime/leading-title.js";
 import { renderSaid } from "/runtime/declared-words.js";
 import { registry } from "/runtime/registry.js";
 
@@ -51,8 +51,12 @@ for (const { id, registry: vocabulary, markup, name, opens } of CASES)
   test(`name: ${id}`, () => {
     declare(vocabulary);
     assert.equal(named(markup), name);
-    if (opens !== undefined)
-      assert.equal(nameHolder(element(markup))?.localName ?? null, opens);
+    if (opens !== undefined) {
+      const it = element(markup);
+      const title = openingTitle(it);
+      const holder = title && [...it.children].find((child) => child.contains(title));
+      assert.equal(holder?.localName ?? null, opens);
+    }
     declare();
   });
 
@@ -63,7 +67,7 @@ test("a name drawn elsewhere is a copy of the markup the author wrote", () => {
     <p><span class="added">+120</span> <span class="removed">−45</span> lines</p>
     </header><article><p>Body.</p></article></lf-part></main>`;
   const part = /** @type {Element} */ (document.getElementById("it"));
-  const title = /** @type {Element} */ (leadingTitle(part));
+  const title = /** @type {Element} */ (openingTitle(part));
   assert.equal(title.id, "title");
   const copy = echoCopy(title);
   const shown = document.createElement("span");

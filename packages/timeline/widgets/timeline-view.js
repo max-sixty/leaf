@@ -2,7 +2,7 @@
  * actual ruler column; stepping changes states and the playhead, never geometry.
  *
  * A run, a lane and an event are each named by the <strong> they open with
- * (`leadingTitle`), and the chart sets each name as text: a label's room is its words
+ * (`openingTitle`), and the chart sets each name as text: a label's room is its words
  * measured in the chart's font (`textWidth`), which markup in it would make wrong. */
 import { html, nothing, repeat } from "/vendor/lit.js";
 import {
@@ -10,7 +10,7 @@ import {
   offeredAction,
   selectableOffered,
   generated,
-  leadingTitle,
+  openingTitle,
   assignRows,
   axisTicks,
   seconds,
@@ -45,7 +45,7 @@ export function timelineModel(host) {
   // An element's name as the chart sets it: its words, run onto one line.
   /** @param {Element} element */
   const named = (element) =>
-    leadingTitle(element)?.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    openingTitle(element)?.textContent?.replace(/\s+/g, " ").trim() ?? "";
   /** @type {TimelineRun[]} */
   const runs = [];
   /** @type {TimelineLane[]} */

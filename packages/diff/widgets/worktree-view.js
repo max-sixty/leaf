@@ -8,11 +8,12 @@
  * tab strip copies its panels' names. A tab's name still stands in its panel; hidden
  * here, the name stood nowhere search or a comment could reach. */
 import { html, nothing } from "/vendor/lit.js";
-import { keeps, nameHolder } from "/runtime/widget-api.js";
+import { keeps, openingTitle } from "/runtime/widget-api.js";
 
 /** @param {HTMLElement} host */
 export function render(host) {
-  const name = nameHolder(host);
+  const title = openingTitle(host);
+  const name = title && [...host.children].find((child) => child.contains(title));
   if (name) keeps(name, "slot", "lf-worktree-name");
   const branch = host.getAttribute("branch");
   const head = host.getAttribute("head");

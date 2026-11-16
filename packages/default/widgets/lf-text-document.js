@@ -36,8 +36,7 @@
 import {
   addressableName,
   html,
-  leadingTitle,
-  nameHolder,
+  openingTitle,
   render,
   failSoft,
   ensureSyntaxLanguage,
@@ -1044,8 +1043,8 @@ class TextDocument extends LeafElement {
           : null;
       }
       const view = (this.view ??= this.build(preview));
-      const name = nameHolder(this);
-      const title = name && leadingTitle(this);
+      const title = openingTitle(this);
+      const name = title && [...this.children].find((child) => child.contains(title));
       const origin = this.getAttribute("source") ?? this.getAttribute("for");
       render(
         html`${title ? nothing : origin}${

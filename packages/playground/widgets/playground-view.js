@@ -25,8 +25,7 @@ import {
   echoCopy,
   generated,
   generatedElement,
-  leadingTitle,
-  nameHolder,
+  openingTitle,
   offerElement,
   offeredAction,
 } from "/runtime/widget-api.js";
@@ -156,8 +155,9 @@ export function createPlayground(host) {
   /** @type {Map<Element, {node: Element | null, copy: Node[], words: string}>} */
   const names = new Map();
   for (const root of [...controls, ...choicesByName.values()].flat().concat(presets)) {
-    const node = nameHolder(root);
-    const title = node && leadingTitle(root);
+    const title = openingTitle(root);
+    const node =
+      (title && [...root.children].find((child) => child.contains(title))) ?? null;
     const nested =
       title?.querySelector(NESTED) ??
       [...(title?.querySelectorAll("*") ?? [])].find((el) =>

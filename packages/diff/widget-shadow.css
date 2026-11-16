@@ -447,7 +447,10 @@ span.lf-diff-line-number {
   outline: none;
   background: none;
 }
+/* Where a row's code starts, past its numbers and its sign, for the notes docked among
+   the rows to stand at (styles/notes.css). */
 .lf-diff-rows {
+  --lf-diff-code-at: calc(var(--lf-diff-gutter) + 2ch);
   width: max-content;
   min-width: 100%;
 }

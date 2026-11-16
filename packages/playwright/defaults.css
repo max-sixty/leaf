@@ -140,6 +140,8 @@ lf-trace[hidden="until-found"] {
   --lf-trace-capture-h: 14px;
   --lf-trace-mark: color-mix(in srgb, var(--lf-ink) 55%, var(--lf-paper));
   --lf-trace-input: var(--lf-accent);
+  /* The overview, beside the scroller, follows its pan. */
+  timeline-scope: --lf-trace-pan;
   position: relative;
   display: grid;
   /* A fixed name column: a font arriving cannot move the time scale. */
@@ -191,6 +193,7 @@ lf-trace[hidden="until-found"] {
 }
 .lf-trace-scroller {
   --lf-drawing: 1;
+  scroll-timeline: --lf-trace-pan x;
   overflow-x: auto;
   overflow-y: hidden;
   min-inline-size: 0;
@@ -414,13 +417,22 @@ lf-trace[hidden="until-found"] {
   background: var(--lf-ground);
   touch-action: none;
 }
+/* The window is the share of the zoomed track the scroller shows, standing as far
+   along the overview as the scroller is panned. */
 .lf-trace-overview-window {
   position: absolute;
   inset-block: 1px;
-  left: calc(var(--lf-trace-window-start, 0) * 100%);
-  inline-size: calc(var(--lf-trace-window-size, 1) * 100%);
+  left: 0;
+  inline-size: calc(100% / var(--lf-trace-zoom, 1));
+  animation: lf-trace-pan linear both;
+  animation-timeline: --lf-trace-pan;
   border-radius: var(--lf-r-s);
   background: color-mix(in srgb, var(--lf-accent) 22%, transparent);
+}
+@keyframes lf-trace-pan {
+  to {
+    left: calc(100% - 100% / var(--lf-trace-zoom, 1));
+  }
 }
 .lf-trace-overview[data-lf-zoomed] {
   cursor: grab;
@@ -803,12 +815,21 @@ lf-trace-bookmark {
   }
 }
 
-/* A playback frame stands exactly where lf-trace.js places it, over the committed
-   capture, rather than stretched to the canvas as its source image is. */
+/* The committed capture, at the place and scale the reader pans and zooms it to, is
+   what a playback frame covers and the recorded input's point stands on. A capture
+   still preparing out of sight names none. */
+.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas > img {
+  anchor-name: --lf-trace-capture;
+}
+/* A playback frame stands exactly over the committed capture, rather than stretched
+   to the canvas as its source image is. */
 .lf-trace-canvas > .lf-trace-playback-image {
   position: absolute;
+  position-anchor: --lf-trace-capture;
   z-index: 1;
-  inset: auto;
+  inset: anchor(top) auto auto anchor(left);
+  inline-size: anchor-size(width);
+  block-size: anchor-size(height);
   max-inline-size: none;
   pointer-events: none;
 }
@@ -830,8 +851,14 @@ lf-trace-bookmark {
   font: var(--lf-font-heading);
   pointer-events: none;
 }
+/* The input's point in the capture's viewport, as fractions of the viewport's width
+   (lf-trace.js, `#drawInput`): a capture scales the viewport by its width, and a
+   screencast frame may crop its foot, so the capture's height is no scale. */
 .lf-trace-input-point {
   position: absolute;
+  position-anchor: --lf-trace-capture;
+  left: calc(anchor(left) + anchor-size(width) * attr(data-lf-x type(<number>)));
+  top: calc(anchor(top) + anchor-size(width) * attr(data-lf-y type(<number>)));
   z-index: 2;
   inline-size: 18px;
   block-size: 18px;

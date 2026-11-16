@@ -114,6 +114,7 @@ const browserGlobals = Object.fromEntries(
     "SVGSVGElement",
     "SVGTextElement",
     "SVGUseElement",
+    "ScrollTimeline",
     "ShadowRoot",
     "StaticRange",
     "Text",

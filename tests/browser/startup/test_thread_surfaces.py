@@ -832,7 +832,8 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
             leaf_page(
                 "Page margin",
                 """
-      <h1 id="title">Review</h1><p id="subject">The nightly export keeps one file per tenant.</p>
+      <h1 id="title">Review</h1>
+      <p id="subject" style="text-align: end">The nightly export keeps one file per tenant.</p>
       <lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" choose>
         <lf-option id="route-a">Route A</lf-option><lf-option id="route-b">Route B</lf-option>
       </lf-options></lf-ask>
@@ -888,6 +889,22 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
         [False, False, False],
     ]
     expect_preview_words(passage, "1 unread")
+    # The dot stands on its symbol's upper corner, also in a press as wide as a finger's,
+    # where the symbol stands further in.
+    assert margin.locator(".xm-mark[data-unread]").evaluate("""(mark) => {
+      const press = mark.querySelector('.xm-press');
+      const onCorner = () => {
+        const dot = mark.querySelector('.xm-dot').getBoundingClientRect();
+        const icon = press.querySelector('svg').getBoundingClientRect();
+        return Math.abs(dot.left + dot.width / 2 - icon.right) <= 2 &&
+          Math.abs(dot.top + dot.height / 2 - icon.top) <= 2;
+      };
+      const narrow = onCorner();
+      press.style.inlineSize = '44px';
+      const wide = onCorner();
+      press.style.removeProperty('inline-size');
+      return [narrow, wide];
+    }""") == [True, True]
     # Tab reads the margin down the page.
     page.locator("#title").click()
     reached = []
@@ -910,15 +927,23 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
     reply = card.get_by_role("textbox", name="Reply", exact=True)
     expect(reply).to_be_focused()
     # With no room beside the column the card stands under its words, at the width
-    # that says a message's line whole.
+    # that says a message's line whole. These words end at the column's edge, where a
+    # card starting with them would run under the pins: it ends short of them, so a
+    # press where each stands still reaches it.
     assert margin.locator(".xm-card").evaluate(
         """(card) => {
           const words = [...CSS.highlights.get('lf-x-margin-passage')][0];
           const box = card.getBoundingClientRect();
-          return [box.top >= words.getClientRects()[0].bottom, box.right <= innerWidth,
-            Math.round(box.width / parseFloat(getComputedStyle(document.documentElement).fontSize))];
+          const pins = [...document.querySelectorAll('lf-x-margin .xm-mark button')];
+          return [box.top >= words.getClientRects()[0].bottom,
+            Math.round(box.width / parseFloat(getComputedStyle(document.documentElement).fontSize)),
+            pins.map((pin) => {
+              const at = pin.getBoundingClientRect();
+              return pin.contains(document.elementFromPoint(
+                at.left + at.width / 2, at.top + at.height / 2));
+            })];
         }"""
-    ) == [True, True, 26]
+    ) == [True, 26, [True] * 5]
     page.keyboard.press("Escape")
     expect(card).to_be_focused()
     page.keyboard.press("Escape")

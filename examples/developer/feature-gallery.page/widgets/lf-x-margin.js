@@ -10,10 +10,13 @@
    It takes no room in the page: every box it draws is fixed and anchored to the words
    it stands by, so the browser carries it with them through each scroll. Where the
    window has room right of the reading column the marks stand there with their words,
-   covering nothing, and a card stands beside them. Where it has none, each mark is a
-   pin at the window's edge, its symbol alone, and a card stands under its passage, as
-   far into what room the margin has as it goes. While the user hides annotations (`o`)
-   the pins, tints and cards go, and marks standing clear of the column stay.
+   covering nothing. Where it has none, each mark is a pin at the window's edge, its
+   symbol alone. A card is as wide as Leaf's thread needs to say its first message's
+   line whole. It stands right of the marks where the margin has that much room, and
+   otherwise under its words, starting where they start as Leaf's own comment box does,
+   and ending short of the marks, so a press still reaches each of them. While the user
+   hides annotations (`o`) the pins, tints and cards go, and marks standing clear of
+   the column stay.
 
    Commented words are tinted and nothing more: pointing at them reads no preview and a
    press on them opens no thread, both of which Leaf's own margin does from an index of
@@ -56,9 +59,15 @@ const WORDS = "data-lf-marked-words";
 const GAP = 12; // between the reading column and the marks
 const RAIL = 184; // the room a mark with its words takes right of the column
 const STACK = 4; // between two marks beside one line
-const CARD_GAP = 40; // a card stands right of the marks
-const CARD_MIN = 256; // the least width a card beside the column reads at
+const CARD_GAP = 40; // a card beside the column stands right of the marks' symbols
 const EDGE = 8; // a card keeps this far from the window's edge and Leaf's panel
+// Widths in rem. A thread's first message keeps room in its head for the thread's
+// action, its own controls and a notice of news, and beside them says its author, time
+// and line: 22.5rem for "Queued for Claude". A card narrower than that cuts the line,
+// so a card is never drawn narrower where the window can give it this.
+const CARD = 26;
+const BOX = 20; // the comment box, as wide as Leaf's own
+const BOX_MIN = 16; // the least the comment box stands beside the column at
 
 const STYLE = `
 @layer lf-base {
@@ -75,42 +84,47 @@ const STYLE = `
      or the agent at work. Its dot says the thread holds something unread. A pin keeps
      both, where it has no room for its words. */
   lf-x-margin .xm-press { color: var(--lf-thread); }
-  lf-x-margin .xm-mark[data-progress="working"] > .xm-press { color: var(--lf-work); }
-  lf-x-margin .xm-mark[data-turn] > .xm-press { color: var(--lf-turn-ink); }
+  lf-x-margin .xm-mark[data-progress="working"] .xm-press { color: var(--lf-work); }
+  lf-x-margin .xm-mark[data-turn] .xm-press { color: var(--lf-turn-ink); }
+  /* The dot stands on the symbol's upper corner. The symbol is centred in its press,
+     which is wider under a finger, so the dot is placed from the press's centre. */
+  lf-x-margin .xm-face { position: relative; display: flex; }
   lf-x-margin .xm-dot {
-    position: absolute; inset-block-start: 2px; inset-inline-start: 19px;
+    position: absolute;
+    inset-inline-start: calc(50% + 3px); inset-block-start: calc(50% - 11px);
     inline-size: 7px; block-size: 7px; border-radius: 50%;
     background: var(--lf-news); pointer-events: none;
   }
-  lf-x-margin .xm-mark:not([data-unread]) > .xm-dot { display: none; }
+  lf-x-margin .xm-mark:not([data-unread]) .xm-dot { display: none; }
   lf-x-margin .xm-word {
     max-inline-size: 9rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   lf-x-margin .xm-word:empty { display: none; }
-  /* A pin stands over the page's words, so it keeps to its symbol on the page's ground. */
+  /* A pin stands over the page's words, so it keeps to its symbol on the page's
+     ground, and a row of two controls stacks them, so the pins take one column that a
+     card can stand clear of. */
   lf-x-margin[data-pinned] .xm-mark {
+    flex-direction: column;
     border-radius: var(--lf-r); background: var(--lf-paper);
   }
   lf-x-margin[data-pinned] .xm-word { display: none; }
   /* A card is where the user writes, so it stays drawn while its words scroll out of
-     a box, where a mark goes with them. Beside the column it takes the room right of
-     the marks. Under its words it takes the width Leaf's thread needs to say a
-     message's line whole beside its controls. */
+     a box, where a mark goes with them. The layout says how wide it is. */
   lf-x-margin .xm-card {
     position: fixed; z-index: 3; position-visibility: always;
-    inline-size: min(var(--xm-room, 22rem), 22rem);
-    max-inline-size: calc(100vw - 16px); max-block-size: 70vh; overflow: auto;
+    inline-size: var(--xm-width, ${CARD}rem);
+    max-block-size: 70vh; overflow: auto;
     --lf-ground: var(--lf-card);
     padding: var(--lf-sp-2); border: 1px solid var(--lf-border);
     border-radius: var(--lf-r-l); background: var(--lf-ground); color: var(--lf-ink);
     box-shadow: var(--lf-raise-2);
   }
-  lf-x-margin[data-under] .xm-card { inline-size: 26rem; }
   /* An outlet Leaf has yet to fill, or left to its panel, shows nothing. */
   lf-x-margin .xm-card:empty { display: none; }
   /* A wash of the theme's thread colour over the commented words. The rule names the
      elements holding them: one naming none would restyle every element on the page,
-     and Firefox paints a highlight only from a rule matching the words' own element. */
+     and Firefox paints a highlight only from a rule matching the words' own element.
+     It reaches the document's own words, not words inside a shadow tree. */
   [${WORDS}]::highlight(${TINT}) {
     background-color: oklch(from var(--lf-thread) l c h / 0.16);
   }
@@ -132,8 +146,10 @@ function mark(action, run) {
   const press = offerAction("symbol", "xm-press", "", { action });
   press.addEventListener("click", run);
   const word = offer("span", "xm-word");
+  const face = offer("span", "xm-face");
+  face.append(press, offer("span", "xm-dot"));
   const node = offer("div", "xm-mark");
-  node.append(press, word, offer("span", "xm-dot"));
+  node.append(face, word);
   return { node, press, word };
 }
 
@@ -157,9 +173,6 @@ customElements.define(
     #open = null; // the key of the thread whose card is open
     #hidden = false; // whether the user has hidden the annotation layer
     #pinned = false; // whether the marks stand as pins over the page
-    // The width a card has right of the marks, null where it stands under its words,
-    // and undefined until the first layout has read which.
-    #room = undefined;
     #tinted = new Set(); // the elements holding tinted words
     #schedule = frameFor(this, () => this.#layout());
     // A key pressed in a thread goes to the scopes on its outlet, then to the page
@@ -209,8 +222,8 @@ customElements.define(
           this.#surface.unregister();
           this.#view.unregister();
           this.#surface = this.#view = this.#sizes = null;
-          CSS.highlights.delete(TINT);
           this.#tint([]);
+          CSS.highlights.delete(TINT);
         };
       });
     }
@@ -444,18 +457,16 @@ customElements.define(
     }
 
     // Tint the words `ranges` cover, with the platform's highlights, and mark the
-    // elements holding them for the highlight's rule to name: each end's parent, or
-    // the host of a shadow tree holding the words directly.
+    // elements holding them for the highlight's rule to name. This margin is the
+    // attribute's only writer on the page, so it takes it off what it stops tinting.
     #tint(ranges) {
       CSS.highlights.set(TINT, new Highlight(...ranges));
       const holding = new Set(
         ranges.flatMap(({ startContainer, endContainer }) =>
-          [startContainer, endContainer].map(
-            (node) => node.parentElement ?? node.parentNode?.host,
-          ),
+          [startContainer, endContainer].map((node) => node.parentElement),
         ),
       );
-      holding.delete(undefined);
+      holding.delete(null);
       for (const element of this.#tinted)
         if (!holding.has(element)) element.removeAttribute(WORDS);
       for (const element of holding) keeps(element, WORDS, "");
@@ -474,15 +485,7 @@ customElements.define(
         // Pins go with hidden annotations, and marks clear of the column come back.
         if (this.#hidden) this.#redraw();
       }
-      // A card stands beside the column where the margin has the room for one.
-      const free = Math.round(edge.right - column.right - CARD_GAP);
-      const room = free >= CARD_MIN ? free : null;
-      if (room !== this.#room) {
-        this.#room = room;
-        keeps(this, "data-under", room === null ? "" : null);
-        if (room === null) this.style.removeProperty("--xm-room");
-        else this.style.setProperty("--xm-room", `${room}px`);
-      }
+      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
       // Read every box before writing any, so the pass lays the page out once.
       const marks = this.#marks().map(({ node, placement }) => {
         const at = standing(placement);
@@ -492,15 +495,31 @@ customElements.define(
       });
       const shown = marks.filter(({ shown }) => shown);
       for (const drawn of shown) drawn.size = drawn.node.getBoundingClientRect();
+      // The open card, which is never drawn narrower than a thread's head needs, and
+      // the comment box, which reads at less. An outlet Leaf has not filled has no box.
       const card = this.#outlets.get(this.#open);
       const floats = [
         ...(card
-          ? [{ node: card, ...standing(this.#threadMarks.get(this.#open).placement) }]
+          ? [
+              {
+                node: card,
+                want: CARD * rem,
+                least: CARD * rem,
+                ...standing(this.#threadMarks.get(this.#open).placement),
+              },
+            ]
           : []),
         ...(this.#composer && this.#composing
-          ? [{ node: this.#composer, ...standing(this.#composing) }]
+          ? [
+              {
+                node: this.#composer,
+                want: BOX * rem,
+                least: BOX_MIN * rem,
+                ...standing(this.#composing),
+              },
+            ]
           : []),
-      ].map((float) => ({ ...float, width: float.node.offsetWidth }));
+      ].filter(({ node }) => node.offsetWidth);
 
       // Marks beside one line stack down the margin in page order: right of the
       // column, or as pins at the window's edge.
@@ -518,23 +537,32 @@ customElements.define(
         this.#arrange();
       }
 
-      // A card stands right of the marks, beside the line its words start on. Where
-      // the margin lacks the room it stands under its words instead, so it covers none
-      // of them, as far into the margin as the window lets it. Either way it keeps
-      // clear of Leaf's panel, where Leaf would not seat the comment box.
-      const beside = room !== null;
-      for (const { node, lines, context, width } of floats) {
-        if (!width) continue;
+      // A card stands right of the marks' symbols, beside the line its words start
+      // on, where the margin has the room it needs. Otherwise it stands under its
+      // words, or over them where the window has no room below, starting where they
+      // start, and ends short of the marks, so it covers none of them and a press
+      // still reaches each. Either way it keeps clear of Leaf's panel, where Leaf would
+      // not seat the comment box.
+      const widest = Math.max(0, ...shown.map(({ size }) => size.width));
+      const marksLeft = pinned ? page.right - 4 - widest : column.right + GAP;
+      const limit = marksLeft - STACK;
+      const free = edge.right - column.right - CARD_GAP;
+      for (const { node, lines, context, want, least } of floats) {
         const [first] = lines;
         const last = lines.at(-1);
+        const beside = !pinned && free >= least;
+        const width = Math.round(Math.min(want, beside ? free : limit - edge.left));
+        if (node.style.getPropertyValue("--xm-width") !== `${width}px`)
+          node.style.setProperty("--xm-width", `${width}px`);
+        const start = Math.min(...lines.map((line) => line.left));
         const left = beside
           ? column.right + CARD_GAP
-          : Math.max(edge.left, edge.right - width);
+          : Math.max(edge.left, Math.min(start, limit - width));
         const clear = shownWindow({ gap: EDGE, across: { left, right: left + width } });
         const rootBoundary = {
           x: clear.x,
           y: clear.y,
-          width: clear.width,
+          width: Math.min(clear.right, beside ? clear.right : limit) - clear.x,
           height: clear.height,
         };
         const reference = {

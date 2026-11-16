@@ -15,6 +15,7 @@ from render_harness import (
     draft_control,
     expect_panel_says,
     expect_preview_words,
+    heard_draft,
     held_stale,
     holding,
     open_page,
@@ -29,6 +30,7 @@ from render_harness import (
     told,
     until_draft_settled,
     write,
+    write_draft_elsewhere,
 )
 
 from browser.drafts import (
@@ -702,9 +704,7 @@ def test_a_sent_draft_does_not_return_in_another_tab(browser, serve, one_user):
     again = open_page(browser, url, context=one_user)
     # The composer is still open — a seat that can hold keeps it — so the claim is
     # about what it opens with: a settled draft is words the next tab must not be handed.
-    expect(
-        seat_reply(again).locator("leaf-text")
-    ).to_have_js_property("value", "")
+    expect(seat_reply(again).locator("leaf-text")).to_have_js_property("value", "")
     roots = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -844,3 +844,33 @@ def test_a_tab_gives_back_the_words_a_server_lost(browser, serve):
         failure="the tab never gave its words back to the server",
     )
     expect(page_comment(page)).to_have_js_property("value", typed)
+
+
+def test_a_reading_older_than_a_write_s_answer_leaves_the_words_typed_since(
+    browser, serve
+):
+    """A drafts read the server answered before this tab's later write landed says
+    nothing newer of that draft, so the tab keeps the words it has typed since."""
+    page = open_page(browser, serve(LONG_PAGE))
+    box = page_comment(page)
+    write(box, "Zero.")
+    assert stored_draft_text(page, "general") == "Zero."
+    reads = []
+    page.route("**/api/drafts", lambda route: reads.append((route, route.fetch())))
+    elsewhere = "Another draft moves the version."
+    write_draft_elsewhere(page, "reply:elsewhere", elsewhere)
+    holding(page, reads, 1, "the drafts read")
+    write(box, "Zero. One.")
+    assert stored_draft_text(page, "general") == "Zero. One."
+    writes = []
+    page.route("**/api/draft", lambda route: writes.append(route))
+    write(box, "Zero. One. Two.")
+    holding(page, writes, 1, "the latest write")
+
+    route, answer = reads.pop()
+    route.fulfill(response=answer)
+    heard_draft(page, "reply:elsewhere", elsewhere)
+    expect(box).to_have_js_property("value", "Zero. One. Two.")
+    writes.pop().continue_()
+    page.unroute_all(behavior="wait")
+    assert stored_draft_text(page, "general") == "Zero. One. Two."

@@ -249,10 +249,13 @@
     value === words || Boolean(value?.includes(JSON.stringify(words)));
   // Leaf's drafts, read off what passes between this document and the page's server:
   // the words this document last wrote of each draft, the attempts it wrote them as,
-  // and what the server last said it holds of each, null for none.
+  // the words of each write still out, and what the server said it holds of each since
+  // this document last wrote it, null for none.
   /** @type {Map<string, string | null>} */
   const draftsWritten = new Map();
   const attemptsWritten = new Set();
+  /** @type {Map<string, string | null>} */
+  const draftsOut = new Map();
   /** @type {Map<string, {attempt: string, text: string} | null>} */
   const draftsHeld = new Map();
   const { fetch: send } = window;
@@ -282,30 +285,44 @@
         ({ context } = written);
         attemptsWritten.add(written.record.attempt);
         draftsWritten.set(context, written.record.text ?? null);
+        draftsOut.set(context, written.record.text ?? null);
+        // Only what the server says after this write is news of the draft since.
+        draftsHeld.delete(context);
       } catch {
         // A body the watch can't read credits nothing.
       }
-    return send.apply(this, arguments).then(async (response) => {
-      if (response.ok)
-        try {
-          const answer = await response.clone().json();
-          if (kind === "reading")
-            for (const key of new Set([
-              ...draftsHeld.keys(),
-              ...Object.keys(answer.drafts),
-            ]))
-              draftsHeld.set(key, answer.drafts[key] ?? null);
-          else if (context !== null)
-            draftsHeld.set(context, answer.record?.settled ? null : answer.record);
-        } catch {
-          // An answer the watch can't read credits nothing.
-        }
-      return response;
-    });
+    const settle = () => {
+      if (context !== null) draftsOut.delete(context);
+    };
+    return send.apply(this, arguments).then(
+      async (response) => {
+        settle();
+        if (response.ok)
+          try {
+            const answer = await response.clone().json();
+            if (kind === "reading")
+              for (const key of new Set([
+                ...draftsHeld.keys(),
+                ...Object.keys(answer.drafts),
+              ]))
+                draftsHeld.set(key, answer.drafts[key] ?? null);
+            else if (context !== null) draftsHeld.set(context, answer.record);
+          } catch {
+            // An answer the watch can't read credits nothing.
+          }
+        return response;
+      },
+      (error) => {
+        settle();
+        throw error;
+      },
+    );
   };
+  // Words a server holds, or a write of them still out, which it may yet take; a
+  // write it failed or turned away keeps nothing.
   const stored = (words) => {
     if ([...draftsHeld.values()].some((held) => held?.text === words)) return true;
-    if ([...draftsWritten.values()].includes(words)) return true;
+    if ([...draftsOut.values()].includes(words)) return true;
     try {
       for (let i = 0; i < localStorage.length; i++)
         if (holds(localStorage.getItem(localStorage.key(i)), words)) return true;

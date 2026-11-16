@@ -13,14 +13,17 @@
    survive reload, version navigation, closing the tab where they were typed, and the
    user moving to another tab or device. This document holds its copy of each
    (`draftCache`), which every box here reads and writes at once, and the copy goes on
-   to the server behind the keystroke (`writeDraft`). Words typed while the server is
-   out of reach stay in this document until a look reaches it again; a tab closed
-   before then takes them with it. An exported page has no server, so its drafts last
-   as long as its tab. No failed write disables the live Send or Save action.
+   to the server behind the keystroke (`writeDraft`); a page going away sends what is
+   still waiting. Words typed while the server is out of reach stay in this document
+   until a look reaches it again; a tab closed before then takes them with it. A server
+   that comes back holding less than this document heard from it gets its words back.
+   On leaf.page the first write starts the visitor's private page. An exported page
+   has no server, so its drafts last as long as its tab. No failed write disables the
+   live Send or Save action.
 
    Another tab or device hears a draft change through the look that tells it of the
    log: the look's `drafts` version moves, and the tab reads `/api/drafts`
-   (`hearDrafts`). A served document arrives with the drafts it was served with
+   (`lookForDrafts`). A served document arrives with the drafts it was served with
    (`lf-drafts`), so a box opens on its words before any look.
 
    One context has one shared generation. `watchDraft` mirrors every change into every
@@ -88,7 +91,7 @@
    The comment over the store below says where it came from. */
 
 import { offlineInteractive, pageUrl, runtime } from "./context.js";
-import { admitResponse, layerHeaders, sessionIsActive } from "./layer-client.js";
+import { admitResponse, layerHeaders } from "./layer-client.js";
 import { PENDING } from "./thread/identity.js";
 import { writingStore } from "./storage.js";
 import { randomId } from "./ids.js";
@@ -227,21 +230,25 @@ function adopt(ctx, record, version) {
   if (!sameDraftRecord(shown, next)) projectDraftRecord(ctx, next);
 }
 
-// The version of the drafts reading this document last took whole, and the read of the
-// next one while it is out.
+// The newest drafts version this document has taken, from a reading or from a write
+// that was the only change since one; whether a look heard the store go back; and the
+// reading out.
 let heardVersion = -1;
+let restoring = false;
 /** @type {Promise<void> | null} */
 let reading = null;
-// Take a reading of the server's drafts: every draft but one whose words still wait to
-// reach it, which keeps its words over the generation they replace, none, or one of its
-// own writes, and gives them up to anything else, which another tab or device wrote
-// later.
-/** @param {DraftsReading} drafts */
-function hearReading({ version, drafts }) {
-  if (version < heardVersion) {
-    // A store older than one this document heard is a server that went back, as one
-    // restarting from a saved copy of its page does: the words this document holds
-    // that it lost, and settlements it lost, go back to it over what it now holds.
+// Take a reading of the server's drafts. A draft this document heard of at the
+// reading's version or later keeps what it has, as the reading may have been taken
+// before a write this document's answer already told it of. A draft whose words still
+// wait to reach the server keeps them over the generation they replace, none, or one
+// of its own writes, and gives them up to anything else, which another tab or device
+// wrote later.
+/** @param {DraftsReading} drafts @param {boolean} restored */
+function hearReading({ version, drafts }, restored) {
+  if (restored) {
+    // The server went back to an older store, as one restarting from a saved copy of
+    // its page does (`lookForDrafts`): the words this document holds that it lost, and
+    // the settlements it lost, go back to it over what it now holds.
     for (const [ctx, copy] of draftCache)
       draftCache.set(ctx, {
         ...copy,
@@ -250,54 +257,76 @@ function hearReading({ version, drafts }) {
           ? { stored: drafts[ctx]?.attempt ?? null, durable: false }
           : {}),
       });
+    heardVersion = version;
   }
-  heardVersion = version;
+  heardVersion = Math.max(heardVersion, version);
   for (const ctx of new Set([...draftCache.keys(), ...Object.keys(drafts)])) {
     const incoming = drafts[ctx] ?? null;
     const copy = draftCache.get(ctx);
+    if (copy && (incoming ? incoming.version <= copy.version : version < copy.version))
+      continue;
     if (copy && !copy.durable) {
       if (incoming === null || incoming.attempt === copy.stored) continue;
       if (copy.ours.has(incoming.attempt)) {
         draftCache.set(ctx, { ...copy, stored: incoming.attempt });
         continue;
       }
-    } else if (copy && copy.version > (incoming?.version ?? version)) continue;
+    }
     adopt(ctx, recordOf(incoming), incoming?.version ?? version);
   }
+  // A generation the log took whose own write reached the server after its event, from
+  // a tab that closed before settling it, is settled by whichever tab hears of it.
+  for (const [ctx, { record, durable }] of draftCache)
+    if (durable && !record.settled && attemptAccepted(record.attempt))
+      settleDraft(ctx, record.attempt);
   writeWaiting();
 }
-// What a look at the server says of the drafts: their version, which moves with every
-// write, and goes back only with the store. A look that reaches the server also sends
-// on the words waiting for it.
+// A look at the server, taken from the version this document had heard as it set out,
+// which the server had already reached: the drafts version the look answers with moves
+// with every write, and is older only where the store went back. A look that reaches
+// the server also sends on the words waiting for it.
+export function lookForDrafts() {
+  const floor = heardVersion;
+  return (/** @type {number} */ version) => {
+    if (version < floor) restoring = true;
+    hearDrafts(version);
+  };
+}
 /** @param {number} version */
-export function hearDrafts(version) {
+function hearDrafts(version) {
   writeWaiting();
-  if (version === heardVersion || reading) return;
+  if (reading || (version <= heardVersion && !restoring)) return;
+  const restored = restoring;
+  restoring = false;
   reading = fetch(pageUrl("api/drafts"), { headers: layerHeaders() })
     .then(async (response) => {
       if (!admitResponse(response))
         throw new Error("drafts belong to another delivery");
       if (!response.ok) throw new Error(`drafts returned HTTP ${response.status}`);
-      hearReading(/** @type {DraftsReading} */ (await response.json()));
+      hearReading(/** @type {DraftsReading} */ (await response.json()), restored);
     })
-    .catch(() => {})
+    .catch(() => {
+      restoring ||= restored;
+    })
     .finally(() => (reading = null));
 }
 
 // The writes of each draft go to the server one at a time: words typed while one is
 // out wait behind it, the latest in place of any that waited before them, so a
 // keystroke costs this document a map write and the server a request for each answer
-// it gives.
-/** @type {Set<string>} */
-const writing = new Set();
-/** @param {string} context @param {string | null} expect @param {DraftRecord} record */
-async function postDraft(context, expect, record) {
+// it gives. An exported page has no server, so its drafts last as long as its tab.
+/** @type {Map<string, DraftRecord>} */
+const writing = new Map();
+/** @param {string} context @param {string | null} expect @param {DraftRecord} record
+ * @param {boolean} [keepalive] */
+async function postDraft(context, expect, record, keepalive = false) {
   const response = await fetch(pageUrl("api/draft"), {
     method: "POST",
     // The runtime it names keeps a tab from before an update from writing a shape a
     // newer runtime reads (`_runtime_gate`).
     headers: layerHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify({ context, expect, record }),
+    keepalive,
   });
   if (!admitResponse(response))
     throw new Error("draft answer belongs to another delivery");
@@ -307,12 +336,9 @@ async function postDraft(context, expect, record) {
 /** @param {string} ctx */
 function writeDraft(ctx) {
   const copy = draftCache.get(ctx);
-  if (!copy || copy.durable || writing.has(ctx)) return;
-  // An exported page has no server, and a leaf.page visitor no private page until
-  // they act.
-  if (offlineInteractive || !sessionIsActive()) return;
-  writing.add(ctx);
+  if (!copy || copy.durable || writing.has(ctx) || offlineInteractive) return;
   const sent = copy.record;
+  writing.set(ctx, sent);
   draftCache.set(ctx, { ...copy, ours: new Set([...copy.ours, sent.attempt]) });
   void postDraft(ctx, copy.stored, sent).then(
     (answer) => {
@@ -326,11 +352,30 @@ function writeDraft(ctx) {
 const writeWaiting = () => {
   for (const ctx of draftCache.keys()) writeDraft(ctx);
 };
+// A page going away sends the words still waiting in requests the browser finishes
+// after it (`keepalive`, which carries a small body), so a write the server would have
+// taken a moment later isn't lost with the tab.
+addEventListener("pagehide", () => {
+  if (offlineInteractive) return;
+  for (const [ctx, copy] of draftCache) {
+    const out = writing.get(ctx);
+    if (copy.durable || out === copy.record) continue;
+    draftCache.set(ctx, {
+      ...copy,
+      ours: new Set([...copy.ours, copy.record.attempt]),
+    });
+    void postDraft(ctx, out?.attempt ?? copy.stored, copy.record, true).catch(() => {});
+  }
+});
 // How many drafts hold words the server hasn't taken yet, for a check that reads what
 // another tab or device would find.
 export const draftsWaiting = () =>
   [...draftCache.values()].filter(({ durable }) => !durable).length;
-document.addEventListener("lf-session-active", writeWaiting);
+// Words whose box is gone move into the page's draft (`transferDraft`), and leave the
+// draft they came from once the server holds them there: words another tab or device
+// wrote there meanwhile turn them away, and they stay where they were.
+/** @type {Map<string, {from: string, attempt: string}>} */
+const moving = new Map();
 // The server's answer to a write: the draft as it now holds it. One of this document's
 // own generations leaves its words standing; any other is later words of another tab's
 // or device's, which own the draft.
@@ -340,7 +385,14 @@ function heardWrite(ctx, sent, { written, version, record }) {
   // A reading taken since may already have said more than this answer does.
   if (!copy || copy.version > version) return;
   const held = recordOf(record);
-  if (!written && !(held && copy.ours.has(held.attempt))) {
+  const own = written || Boolean(held && copy.ours.has(held.attempt));
+  const move = moving.get(ctx);
+  if (move && (written || !own)) {
+    moving.delete(ctx);
+    const settled = written && settleDraft(move.from, move.attempt);
+    if (settled) projectDraftRecord(move.from, settled);
+  }
+  if (!own) {
     adopt(ctx, held, record?.version ?? version);
     return;
   }
@@ -494,9 +546,10 @@ export const clearDraft = (ctx) => {
   return settleDraft(ctx, current.attempt);
 };
 // Words whose box is gone move into the page's draft (`moveToPage`), the one move a
-// draft makes. Every live destination view reads the same moved draft. The move also
-// moves Resume writing, with the source's caret, and the reply the source holds
-// (`held`).
+// draft makes. The source settles once the server holds the words in the page's draft
+// (`moving`), so a destination write it turns away never discards them. Every live
+// destination view reads the same moved draft. The move also moves Resume writing,
+// with the source's caret, and the reply the source holds (`held`).
 /** @param {string} from @param {string} to @param {string} text */
 function transferDraft(from, to, text) {
   const source = activeDraftRecord(from);
@@ -519,8 +572,10 @@ function transferDraft(from, to, text) {
     generation: randomId(),
   };
   keepWritingPlace(place);
-  const settled = settleDraft(from, source.attempt);
-  if (settled) projectDraftRecord(from, settled);
+  if (offlineInteractive) {
+    const settled = settleDraft(from, source.attempt);
+    if (settled) projectDraftRecord(from, settled);
+  } else moving.set(to, { from, attempt: source.attempt });
   tellDraft(to, activeDraftRecord(to)?.text ?? text);
   return place;
 }
@@ -1222,4 +1277,4 @@ export function mirrorDraft(
 // change reaches the list through the maps. A document served without them, as a
 // release's or an export's, hears them at its first look, or has none.
 const served = document.getElementById("lf-drafts")?.textContent;
-if (served) hearReading(/** @type {DraftsReading} */ (JSON.parse(served)));
+if (served) hearReading(/** @type {DraftsReading} */ (JSON.parse(served)), false);

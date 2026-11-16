@@ -81,7 +81,7 @@ lf-shot {
   flex: 1;
 }
 .lf-shotchoice {
-  display: flex;
+  display: flow-root;
   font: inherit;
   /* Its mark stands on the scale choices' edge (controls.css, `--lf-choice-pad`). */
   margin-inline-start: calc(-1 * var(--lf-choice-pad));
@@ -116,7 +116,7 @@ lf-shot {
   padding-block-start: var(--lf-sp-2);
   display: flex;
   align-items: center;
-  gap: var(--lf-sp-1);
+  gap: var(--lf-choice-gap);
 }
 .lf-shot-pixel-key > * {
   font: inherit;

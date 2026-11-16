@@ -71,7 +71,8 @@ def test_the_type_scale_follows_root_font_size_with_rounded_key_badges(browser, 
 def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, touch):
     """Authored choices share their label's hit area and focus ring without boxing
     selection or enlarging the native mark for a finger. Their words stand on the line
-    of the words beside them, whichever mark is checked."""
+    of the words beside them, whichever mark is checked, and run as one paragraph beside
+    the mark, however the page marks them up."""
     source = leaf_page(
         "Preview settings",
         '<h1>Preview settings</h1><div role="group" aria-labelledby="detail">'
@@ -81,7 +82,10 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
         '<label class="lf-choice"><input type="radio" name="detail" value="full">'
         "<span>Full detail</span></label></div>"
         '<label class="lf-choice"><input type="checkbox" name="notes">'
-        "<span>Include notes</span></label>",
+        "<span>Include notes</span></label>"
+        '<div id="rich"><label class="lf-choice"><input type="checkbox" name="hq">'
+        "Use <strong>high quality</strong> for every image in this report</label></div>",
+        head="<style>#rich { inline-size: 12em; }</style>",
     )
     context = browser.new_context(has_touch=touch)
     page = open_page(browser, serve(source), context=context)
@@ -103,6 +107,18 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
         return top;
       }))""")
     assert max(baselines) - min(baselines) < 0.5, baselines
+    # Each line of a label holding markup starts under the first, beside the mark, as
+    # a paragraph's would; laid out as a row of its parts, each part wrapped apart.
+    starts = page.locator("#rich .lf-choice").evaluate("""label => {
+      const range = document.createRange();
+      range.setStartAfter(label.querySelector('input'));
+      range.setEndAfter(label.lastChild);
+      const lines = new Map();
+      for (const rect of range.getClientRects())
+        lines.set(Math.round(rect.top), Math.min(lines.get(Math.round(rect.top)) ?? Infinity, rect.left));
+      return [...lines.values()];
+    }""")
+    assert len(starts) > 1 and max(starts) - min(starts) < 0.5, starts
     full.press("ArrowLeft")
     summary = page.get_by_role("radio", name="Summary", exact=True)
     expect(summary).to_be_checked()

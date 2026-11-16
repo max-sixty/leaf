@@ -3897,7 +3897,12 @@ def test_a_page_snapshot_stays_on_one_page_reading(page_dir, monkeypatch):
             json.loads(fetch(f"{server.origin}/registry.json")[1])
             == snapshot.context.registry
         )
-        assert _news(server.origin) == {"reading": snapshot.reading, "pages": None}
+        # A capture is no reading of what the user is writing, so it holds no drafts.
+        assert _news(server.origin) == {
+            "reading": snapshot.reading,
+            "pages": None,
+            "drafts": 0,
+        }
 
 
 def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):

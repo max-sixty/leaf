@@ -49,7 +49,7 @@ test("a surface widget whose constructor threw is not waited for", async () => {
     } catch {
       // A browser reports the failed upgrade rather than throwing from define.
     }
-    watchThreadSurfaces({ invalidate() {}, composition: {}, reveal() {} });
+    watchThreadSurfaces({ invalidate() {}, composition: {} });
     for (let turn = 0; turn < 5; turn++)
       await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(widget.matches(":defined"), false);
@@ -100,14 +100,13 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
     reply: { wireInput },
     reaction: {},
     invalidate() {},
-    reveal() {},
   };
   const portable = threadSurface(owner);
   const openers = [];
   const stopOpeners = effect(() => openers.push(portable.open));
   assert.deepEqual(openers, [null], "a host without registration offers no opener");
   const draw = (batch) => batch.map(() => outlet);
-  let surface = placePageThreads(owner, draw, commands);
+  let surface = placePageThreads(owner, draw, {}, commands);
   assert.equal(
     openers.at(-1),
     surface.open,
@@ -167,7 +166,7 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
     );
     surface.unregister();
     assert.equal(openers.at(-1), null, "retirement removes the capability");
-    surface = placePageThreads(owner, draw, commands);
+    surface = placePageThreads(owner, draw, {}, commands);
     assert.equal(
       openers.at(-1),
       surface.open,
@@ -184,7 +183,7 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
     const departed = surface;
     assert.equal(departed.open(target), false, "a captured departed opener is retired");
     document.body.append(owner);
-    surface = placePageThreads(owner, draw, commands);
+    surface = placePageThreads(owner, draw, {}, commands);
     departed.unregister();
     assert.equal(
       portable.open,
@@ -197,5 +196,53 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
     surface.unregister();
     owner.remove();
     target.remove();
+  }
+});
+
+test("a page surface's update is the pass that places its threads", async () => {
+  // A page widget that changes which threads it draws waits for the placement before
+  // it measures or focuses what an outlet holds. Several asks before the pass starts
+  // are one pass, and each ask gets that pass's own outcome.
+  const owner = document.createElement("section");
+  document.body.append(owner);
+  /** @type {PromiseWithResolvers<void>[]} */
+  const passes = [];
+  const surface = placePageThreads(
+    owner,
+    () => [],
+    {},
+    {
+      composition: {},
+      invalidate() {
+        const pass = Promise.withResolvers();
+        passes.push(pass);
+        return pass.promise;
+      },
+    },
+  );
+  try {
+    // Registration asks for the first pass.
+    await Promise.resolve();
+    assert.equal(passes.length, 1);
+    passes[0].resolve();
+    let placed = false;
+    const first = surface.update();
+    const second = surface.update();
+    assert.equal(first, second, "asks before the pass starts share it");
+    void first.then(() => (placed = true));
+    await Promise.resolve();
+    assert.equal(passes.length, 2, "one pass for both asks");
+    await Promise.resolve();
+    assert.equal(placed, false, "the update waits for the pass to show");
+    passes[1].resolve();
+    await first;
+    assert.equal(placed, true);
+    const failing = surface.update();
+    await Promise.resolve();
+    passes[2].reject(new Error("the pass failed"));
+    await assert.rejects(failing, /the pass failed/);
+  } finally {
+    surface.unregister();
+    owner.remove();
   }
 });

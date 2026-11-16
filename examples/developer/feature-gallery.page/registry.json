@@ -14,6 +14,21 @@
     "x-upgrade": true,
     "x-example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
   },
+  "lf-x-margin": {
+    "description": "A worked page presentation: marks, thread cards and the comment box beside the page's content, drawn through the public package interface.",
+    "x-instructions": "Use this only on a page whose body has data-annotations=\"page\", once, as the last child of main.",
+    "type": "object",
+    "properties": {
+      "id": {
+        "type": "string"
+      }
+    },
+    "required": ["id"],
+    "additionalProperties": false,
+    "x-content": "empty",
+    "x-upgrade": true,
+    "x-example": "<lf-x-margin id=\"margin-example\"></lf-x-margin>"
+  },
   "lf-margin-entry-gallery": {
     "description": "A developer exhibit of page-edge controls and status indicators across their supported states.",
     "x-instructions": "Use this only in the feature gallery. Ordinary pages demonstrate controls through the live widgets that own them.",

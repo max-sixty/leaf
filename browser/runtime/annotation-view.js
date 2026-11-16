@@ -85,8 +85,8 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
         ),
         place(entry, row) {
           admit(entry);
-          if (!(row instanceof Element) || !under(row, owner))
-            throw new TypeError("An annotation row must stay inside its owner");
+          if (!(row instanceof Element))
+            throw new TypeError("An annotation row must be an Element");
           nextPlaces.set(row, entry);
         },
         controls(entry) {
@@ -124,6 +124,12 @@ export function createAnnotationView(owner, render, inventory, invalidate, retir
         throw new TypeError(
           "Annotation paint must finish inside its inventory reading",
         );
+      // Read once the paint has arranged its rows, so it may place a row and then
+      // append it: a row built for an entry this reading is the first to list has no
+      // parent while its controls go in.
+      for (const row of nextPlaces.keys())
+        if (!under(row, owner))
+          throw new TypeError("An annotation row must stay inside its owner");
       for (const offered of offers)
         if (!nextOffers.has(offered))
           clearContributionControls(offered, "page", new Set());

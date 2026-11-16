@@ -1,5 +1,6 @@
 /* The physical annotation renderer: pins, contextual floating placement, posted
- * drawing paint, marks and annotation visibility.
+ * drawing paint and marks. Whether the layer shows is the core's
+ * (`../annotation-layer.js`), which a page presenting its own annotations reads too.
  * Boot imports this entry only for overlay presentation, so a page that presents its
  * own annotations (`data-annotations=page`) loads none of this closure; no other
  * runtime owner reaches it (`.dependency-cruiser.mjs`, `core-independent-of-overlay`).
@@ -17,9 +18,4 @@ export { createVisualMarkPaint } from "./visual-mark-paint.js";
 export { createFloatingResponsePlacement } from "./composing/floating-response.js";
 export { postedDrawings } from "./composing/drawing-paint.js";
 export { syncMarginContentLayout } from "./margin-layout.js";
-export {
-  annotationsHidden,
-  mountAnnotationControls,
-  restoreAnnotations,
-} from "./annotation-layer.js";
 export { floatingSelections } from "./floating.js";

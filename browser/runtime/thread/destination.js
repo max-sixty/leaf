@@ -6,7 +6,8 @@
    goes there even where it declines (messages.js, `authoredHolders`). A part the
    primary declined uses the page's nearest drawing of its thread: the outlet a widget
    seats it in (surfaces.js, `surfaceFocusTarget`), whose Resolved disclosure opens for
-   a resolved thread; then a page preview. A message
+   a resolved thread; then the outlet a page presenting its own threads gives it when
+   asked (surfaces.js, `revealOnPage`); then a page preview. A message
    part lands on its message there. Where neither shows it, the primary is asked again
    with `request.last` set, which says
    nothing else will show the thread, so the floating panel takes any thread then; a
@@ -69,7 +70,7 @@ import { replyThreadKey } from "./replies.js";
 import { threadNamed } from "./state.js";
 import { heldThread, openingPart, threadIn } from "./focus.js";
 import { showHeld } from "./held-news.js";
-import { surfaceFocusTarget } from "./surfaces.js";
+import { revealOnPage, surfaceFocusTarget } from "./surfaces.js";
 import { reveal } from "../widget-elements.js";
 import { visibleTargetParts } from "../visible-target-parts.js";
 import { closestAcross } from "../passages.js";
@@ -370,6 +371,14 @@ export function createThreadDestinations({
         return surfaceFocusTarget(id, { part });
       };
       if (surfaceFocusTarget(id, { part })) return openSurface();
+      // A page presenting its own threads draws this one once asked, and the route
+      // lands in the outlet it gives. A page with Leaf's margin answers null at once,
+      // so its card still opens in the task of the gesture.
+      const revealing = revealOnPage(id);
+      if (revealing && (await revealing)) {
+        if (!mayPresent()) return null;
+        if (surfaceFocusTarget(id, { part })) return openSurface();
+      }
       // A card stands beside its passage while the passage is drawn
       // (`commentAttachment`), and a card with nowhere to stand never places. A navigation step
       // reveals the passage as it arrives. A thread opened where the user is reveals

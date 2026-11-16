@@ -572,7 +572,6 @@ function createApplication(dependencies) {
   const threadSurfaceCommands = {
     invalidate: invalidateDom,
     composition: dependencies.compositionSurface,
-    reveal: openPageThread,
   };
   // data-annotations=page is the one switch that hands presentation to the page: both
   // page consumers refuse a document that keeps Leaf's own margin.
@@ -602,10 +601,18 @@ function createApplication(dependencies) {
   // The widgets declaring x-thread-surface, registered for as long as they stand, once
   // the registry that names them has loaded.
   const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
-  /** @type {(...args: [Parameters<typeof registerPageConsumer>[0], Parameters<typeof registerPageConsumer>[1]]) => ReturnType<typeof registerPageConsumer>} */
-  const placePageThreads = (owner, render) => {
+  /** @type {(owner: Parameters<typeof registerPageConsumer>[0], render: Parameters<typeof registerPageConsumer>[1], spec?: Parameters<typeof registerPageConsumer>[2]) => ReturnType<typeof registerPageConsumer>} */
+  const placePageThreads = (owner, render, spec = {}) => {
     requirePageAnnotations();
-    return registerPageConsumer(owner, render, threadSurfaceCommands);
+    // The page's own presentation asks for the thread pass itself, as a package's
+    // primary reader does (`presentThreads`), so what its `update()` returns is the
+    // pass that places its threads, which a state application never holds back: a
+    // route that waits for a revealed thread may run inside one (version.js, a
+    // revision's landing in the reply the user was writing).
+    return registerPageConsumer(owner, render, spec, {
+      ...threadSurfaceCommands,
+      invalidate: () => threadPresenter.present(),
+    });
   };
 
   // One reader is the page's primary at a time (thread/destination.js). Leaf's own

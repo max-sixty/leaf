@@ -47,6 +47,9 @@ export { navigateToDatum } from "./application.js";
 // user sees, as scroll anchoring and the chrome leave it.
 export { growthIsSeen, landingInsets, shownWindow } from "./geometry.js";
 export { registerRootHeader } from "./root-headers.js";
+// Standing a box by page content so the browser carries it through that content's
+// scrolls, as it carries Leaf's own marks.
+export { anchorTo } from "./css-anchors.js";
 // What stands at the reading line, and holding a place across one change the
 // browser's scroll anchoring can't keep still, such as one hiding what it anchors.
 export { holdPlace, readingAt } from "./user-place.js";
@@ -88,6 +91,8 @@ export {
   registerThreadPresentation,
   threadActions,
 } from "./application.js";
+// Joining the annotation layer `o` hides, for what a package draws over the page.
+export { watchAnnotationLayer } from "./annotation-layer.js";
 export { readThreads } from "./thread/state.js";
 export { turns as threadTurns } from "./thread/model.js";
 export { threadSummary } from "./thread/messages.js";

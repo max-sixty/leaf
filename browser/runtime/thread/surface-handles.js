@@ -22,14 +22,24 @@ export function setRegistration(owner, registration) {
   tick(registrationVersion);
 }
 
-/** @param {import("./surfaces.js").Registration} registration */
+// Ask for the pass that places a surface's threads again (`invalidate`), once however
+// many times the surface asks before it starts, and return what that ask returns. For
+// the page's presentation it is the thread pass, which settles once the page shows the
+// placement and rejects where the pass failed (application.js, `placePageThreads`). The
+// presentation coordinator has reported such a failure, so a caller that ignores the
+// promise raises nothing.
+/** @param {import("./surfaces.js").Registration} registration @returns {Promise<unknown>} */
 export function updateSurface(registration) {
-  if (registration.reconcileQueued) return;
-  registration.reconcileQueued = true;
-  queueMicrotask(() => {
-    registration.reconcileQueued = false;
-    void registration.invalidate();
+  if (registration.updating) return registration.updating;
+  const updating = new Promise((resolve) => {
+    queueMicrotask(() => {
+      registration.updating = null;
+      resolve(registration.invalidate());
+    });
   });
+  void updating.catch(() => undefined);
+  registration.updating = updating;
+  return updating;
 }
 
 // The registered surface of a widget declaring `x-thread-surface`, as the widget reads
@@ -40,7 +50,7 @@ export const threadSurface = (owner) =>
   Object.freeze({
     update() {
       const registration = registrations.get(owner);
-      if (registration) updateSurface(registration);
+      if (registration) void updateSurface(registration);
     },
     get open() {
       registrationVersion.value;

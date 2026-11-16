@@ -108,6 +108,11 @@ import { createDesignMode, inspectEl, legendRoot } from "./runtime/design.js";
 import { marginBarLayer } from "./runtime/margin-bars.js";
 import { createPageLayout } from "./runtime/page-layout.js";
 import { restoreUserView } from "./runtime/restore-state.js";
+import {
+  annotationsHidden,
+  mountAnnotationControls,
+  restoreAnnotations,
+} from "./runtime/annotation-layer.js";
 import { createVersionController, takeInitialDocument } from "./runtime/version.js";
 import { loadIcon, mountPageStatus } from "./runtime/page-status.js";
 import "./runtime/page-about.js";
@@ -210,7 +215,9 @@ async function boot() {
     : null;
   if (validationEntry && annotationRenderer)
     validationEntry.lfFloatingSelections = annotationRenderer.floatingSelections;
-  annotationRenderer?.mountAnnotationControls();
+  // Leaf's own margin draws the layer `o` hides. A page presenting its own declares
+  // the command once something of its watches (annotation-layer.js).
+  if (overlaySelected) mountAnnotationControls();
 
   /** @type {ReturnType<typeof mountApplication>} */
   let app;
@@ -519,7 +526,7 @@ async function boot() {
     openThreadSubject: (id, options) =>
       app.threadDestinations.openThreadSubject(id, options),
     showsOnPage: (key) => app.threadDestinations.showsOnPage(key),
-    annotationsHidden: () => annotationRenderer?.annotationsHidden() ?? false,
+    annotationsHidden,
     // Resume writing is built once the thread destinations it reveals in stand.
     resumeDraft: (context) => writingResume.resumeDraft(context),
   });
@@ -810,7 +817,7 @@ async function boot() {
 
   if (!offlineInteractive) {
     restoreUserView({ setDesignMode: designMode.setActive });
-    annotationRenderer?.restoreAnnotations();
+    if (overlaySelected) restoreAnnotations();
     // A page nobody has used starts Tab at the first control. Inputs before the
     // module graph arrived already gave this document a place to keep.
     recoverComposer.handoff(releaseFocus);

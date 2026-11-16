@@ -570,6 +570,28 @@ export function anchorAt(
   });
 }
 
+// A package's box standing where Leaf's own marks would (module-scroll-and-motion.md,
+// "A box that follows scrolled content"): at `box`, by the anchor that carries `context`
+// (`anchorFor`), written as theirs are (`anchorAt`), so the browser carries it through
+// each scroll of `context`. Its `position-visibility` is its author's stylesheet's to
+// set, so this clears what an earlier write here left inline. An anchor the browser lays
+// out after the box positions nothing (`anchorReaches`), so there the box stands where
+// the window holds it rather than at the fallback inset, off screen. It shares the
+// anchor and the inset arithmetic only: Leaf's own rows are also cut at a scroller's
+// edge and under sticky headers (`cutFrames`, `headerLevels`), which a package's box
+// isn't.
+/** @param {HTMLElement} node @param {Node} context @param {PaintBox} box */
+export function anchorTo(node, context, box) {
+  const anchor = anchorFor(context);
+  anchorAt(
+    node,
+    anchor && anchorReaches(anchor, node) ? anchor : null,
+    box,
+    undefined,
+    "",
+  );
+}
+
 // The frame itself has no painted box. Extend its zero-size clip to the measured band
 // (and beyond an uncut axis), so only its descendants stand over page text. A huge
 // transparent frame hid those words from contrast readers even though it took no press.

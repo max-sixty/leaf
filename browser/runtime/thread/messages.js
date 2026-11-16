@@ -59,11 +59,13 @@ import {
 import { stageWidgetDescriptors } from "../widget-descriptors.js";
 import {
   NOT_ANSWERED,
+  progressFace,
   strongestWorkflow,
   threadAttention,
   workflowTitle,
   workflowWord,
 } from "./workflow.js";
+import { threadMarks } from "../margin-model.js";
 import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
 import { highlightBlocks } from "../syntax.js";
@@ -206,10 +208,24 @@ export const threadHeading = (thread) =>
         ><span class="lf-quiet"> ${threadName(thread)}</span>`
     : threadName(thread);
 
-/** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0]} thread */
+// A thread as a mark standing for it says it, on any surface: its name, when it last
+// moved, and the margin's own reading of where it stands (margin-model.js,
+// `threadMarks`), read when asked. `status` is the word of whose turn it is or where
+// the agent's work on it has got to, else what it holds unread, said by whoever says
+// it (voice.js), or null; `progress` is the face a mark paints while the agent has the
+// thread (workflow.js, `progressFace`). The margin says a workflow's word on the
+// receipt it paints and every other word on its line, so `status` is whichever it says.
+/** @param {Parameters<typeof threadName>[0] & Parameters<typeof lastMovedAt>[0] & Parameters<typeof threadMarks>[0]} thread */
 export const threadSummary = (thread) => ({
   topic: threadName(thread),
   latest: lastMovedAt(thread),
+  get status() {
+    const { context, workflowReceipt } = threadMarks(thread, agentName());
+    return context ?? workflowWord(workflowReceipt, agentName());
+  },
+  get progress() {
+    return progressFace(threadMarks(thread, agentName()).workflowReceipt);
+  },
 });
 
 // A message's opening line, as a preview reads it: its first line of words, else

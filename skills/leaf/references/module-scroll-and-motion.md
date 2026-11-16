@@ -201,6 +201,24 @@ reach starts the sticky-header slot below them for everything in the page but th
 heads, so a package's header sticking at `var(--lf-top)` sticks below them, and the
 margin every box reads from the slot clears them.
 
+### A box that follows scrolled content
+
+A box a widget stands over the page beside some of its content, as a mark stands beside
+a commented line, is placed with `anchorTo(box, context, at)`. `context` is the element
+or text node the box follows, and `at` is where the box stands now in client
+coordinates: `{left, top}`, with `right` and `bottom` too where it should take that
+size. Leaf writes the box fixed there with CSS anchor positioning, against the anchor
+its own marks use, so the browser carries the box with `context` through every scroll,
+the document's or a box's around it, and no scroll listener runs. Call it again when
+layout changes where the box belongs, as on a resize, never on a scroll.
+
+The box comes after `context` in the document, since the browser lays an anchor out
+before what it positions; one that comes before stays where `at` put it and follows
+nothing. Its `position-visibility` is the widget's to set: `var(--lf-anchor-visible)`
+hides a mark while a box has scrolled its content out of sight, and `always` keeps a
+box the user writes in. Compute a placement that depends on the window's edges with
+Floating UI's `fixed` strategy (`page-behavior.md`), then hand the result to `anchorTo`.
+
 ### Sideways scrollers and container queries
 
 Give a box a package scrolls sideways the class `lf-text-scroller`, and Leaf leaves room

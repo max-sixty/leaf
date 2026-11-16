@@ -1358,6 +1358,151 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </template>
               </lf-sample>
             </section>
+            <section id="bg-page-margin" class="layout-flow">
+              <p class="eyebrow bg-feature-elements">lf-x-margin</p>
+              <h3>A margin the page draws itself</h3>
+              <p id="bg-page-margin-guide">
+                This page turns Leaf's margin off and draws its own with one page
+                widget: a mark beside each commented passage, its thread's card, and the
+                comment box. Leaf still keeps every thread, draft and obligation.
+              </p>
+              <ul id="bg-page-margin-steps">
+                <li>
+                  Press a thread's mark, or its tinted words: its card opens beside the
+                  passage. Press <kbd>Escape</kbd> until the card closes: you are back
+                  on its mark.
+                </li>
+                <li>
+                  From the page, press <kbd>t</kbd> and <kbd>T</kbd>: each thread opens
+                  in the page's own card, and Leaf's panel stays shut.
+                </li>
+                <li>
+                  Rest the pointer on tinted words: their thread previews above the
+                  line.
+                </li>
+                <li>
+                  Select words in the last paragraph and press <kbd>c</kbd>: the comment
+                  box opens beside them. Send it: a new mark stands there.
+                </li>
+                <li>
+                  Scroll the bordered box: its mark stays beside its words, and goes
+                  while they are out of sight.
+                </li>
+                <li>
+                  Press <kbd>o</kbd>, or Hide annotations under Annotations in the
+                  leaf's menu: every mark and tint goes, and comes back on the next
+                  press.
+                </li>
+                <li>
+                  Press the route question's Waiting on me mark: you land on the
+                  question. Accept the suggested wording from its marks beside the
+                  paragraph.
+                </li>
+              </ul>
+              <script id="bg-page-margin-history" type="application/json">
+                [
+                  {
+                    "id": "margin-weekends",
+                    "kind": "comment",
+                    "author": "user",
+                    "anchor": {
+                      "section": "margin-plan",
+                      "quote": "a full business day"
+                    },
+                    "text": "Does a full business day include weekends?"
+                  },
+                  {
+                    "kind": "reply",
+                    "author": "agent",
+                    "parent": "margin-weekends",
+                    "responds": "margin-weekends",
+                    "text": "No: a business day here is a weekday, so Friday's cohort waits until Monday."
+                  },
+                  {
+                    "id": "margin-regression",
+                    "kind": "comment",
+                    "author": "user",
+                    "anchor": {
+                      "section": "margin-plan",
+                      "quote": "a regression stops the rollout"
+                    },
+                    "text": "What counts as a regression?"
+                  },
+                  {
+                    "id": "margin-zone",
+                    "kind": "comment",
+                    "author": "user",
+                    "anchor": {
+                      "section": "margin-log-3",
+                      "quote": "the nightly window"
+                    },
+                    "text": "Which time zone is the nightly window in?"
+                  }
+                ]
+              </script>
+              <lf-sample
+                id="bg-page-margin-sample"
+                label="a page with its own margin"
+                window
+                data-width="wide"
+              >
+                <template
+                  id="bg-page-margin-page"
+                  data-sample
+                  data-annotations="page"
+                  data-sample-events="bg-page-margin-history"
+                >
+                  <style>
+                    #margin-log {
+                      block-size: 7rem;
+                      overflow: auto;
+                      border: 1px solid var(--lf-rule);
+                      padding-inline: var(--lf-sp-3);
+                    }
+                  </style>
+                  <h1>Rolling out the new export</h1>
+                  <p id="margin-plan">
+                    Each cohort moves after the checks hold for a full business day, so
+                    a regression stops the rollout before it reaches the next cohort.
+                  </p>
+                  <lf-ask id="margin-route">
+                    <h2>Which route should the export take?</h2>
+                    <lf-options id="margin-routes" choose>
+                      <lf-option id="margin-route-queue"
+                        >Through the batch queue</lf-option
+                      >
+                      <lf-option id="margin-route-storage"
+                        >Straight to object storage</lf-option
+                      >
+                    </lf-options>
+                  </lf-ask>
+                  <div id="margin-log" tabindex="0" aria-label="Rollout notes">
+                    <p id="margin-log-1">The first note sets the scene.</p>
+                    <p id="margin-log-2">A second note keeps the box tall.</p>
+                    <p id="margin-log-3">
+                      The third note holds the commented words about the nightly window.
+                    </p>
+                    <p id="margin-log-4">A fourth note follows it.</p>
+                    <p id="margin-log-5">A fifth note adds room.</p>
+                    <p id="margin-log-6">And a sixth closes the box.</p>
+                  </div>
+                  <p id="margin-wording">
+                    The old export is switched off
+                    <lf-suggestion id="margin-suggestion"
+                      ><lf-old>when the rollout ends</lf-old
+                      ><lf-new
+                        >a week after the last cohort moves</lf-new
+                      ></lf-suggestion
+                    >.
+                  </p>
+                  <p id="margin-tail">
+                    Until then both exports run side by side, and the dashboard compares
+                    their outputs each morning.
+                  </p>
+                  <lf-x-margin id="margin-own"></lf-x-margin>
+                </template>
+              </lf-sample>
+            </section>
             <section id="bg-native-replies" class="layout-flow">
               <h3>Native HTML in replies</h3>
               <p>

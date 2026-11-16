@@ -127,6 +127,11 @@ nor the browser's own Enter and Space acts on what the user can't see. That key 
 the document, so a listener on the control or the widget doesn't hear it, and a script's
 own listener on the document or window hears it only in capture.
 
+A widget's keys answer only where the user is in it, and no declaration binds one for
+the whole page: the page's letters are Leaf's, the same on every page. From anywhere,
+Tab and Go-to (`g`) reach a widget's controls, `m` its obligations, and `t` the threads
+a page presents itself (`module-annotations.md`, "Page annotation presentation").
+
 A menu or other scope that covers the page gives `allButCommandReference` as its
 declaration's `claims`, so the page's keys wait while the user is in it and only the
 command reference still opens.

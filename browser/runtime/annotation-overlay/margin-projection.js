@@ -134,7 +134,7 @@ import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
 import { nativeLayerHolding, skipped } from "../shadow-tree.js";
 
-import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
+import { annotationsHidden, watchAnnotations } from "../annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";

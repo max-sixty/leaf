@@ -24,6 +24,14 @@
    Source coverage and outlet containment are separate: an authored page rail can
    show a target elsewhere in the document.
 
+   A widget is handed the threads standing exactly on its data. The page presentation
+   is handed every thread whose anchor still has a place, a fallback's or an outdated
+   datum's included, since it stands in for Leaf's margin, which lists them all; each
+   target's `placement.status` says which it is. It may draw a thread only once the
+   thread is asked for, as a margin draws a card: a route to a thread no outlet holds
+   asks its `reveal(key)` (`revealOnPage`), and the pass that follows places the outlet
+   it then returns.
+
    Which threads a widget has claimed is a reading other paints follow (`claimed`):
    the margin lists a thread no widget seats, so a commit that changes the answer
    repaints it through its own presenter, and the thread pass itself paints no other
@@ -40,7 +48,7 @@ import { tagsDeclaring } from "../registry.js";
 import { watchArrivals } from "../arrivals.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads, threadIdNamed, threadNamed } from "./state.js";
-import { discussed, seatOf, seatRoot } from "./model.js";
+import { seatOf, seatRoot } from "./model.js";
 import { threadFocusDestination } from "./focus.js";
 import { under } from "../shadow.js";
 import { declareSide } from "../current-target.js";
@@ -70,13 +78,14 @@ import { registrations, setRegistration, updateSurface } from "./surface-handles
  * open: ReturnType<typeof import("../composing/surface.js").createResponseSurface>["commentOnTarget"],
  * seat: ReturnType<typeof import("../composing/surface.js").createResponseSurface>["seatFab"],
  * restore: ReturnType<typeof import("../composing/surface.js").createResponseSurface>["restoreFab"]}} CompositionSurface */
-/** @typedef {{invalidate: () => unknown, composition: CompositionSurface,
- * reveal: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]}} SurfaceServices */
-/** @typedef {Omit<SurfaceServices, "reveal"> & {owner: Element, render: OutletRender, kind: "widget" | "page",
+/** @typedef {{invalidate: () => unknown, composition: CompositionSurface}} SurfaceServices */
+/** @typedef {(key: string) => unknown} RevealThread */
+/** @typedef {SurfaceServices & {owner: Element, render: OutletRender, kind: "widget" | "page",
+ * reveal: RevealThread | null,
  * outlets: Set<Element>, placements: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement> | null,
- * reconcileQueued: boolean, cancelRender: () => void, stopSide: () => void,
- * handle: {read: typeof readThreads, reveal: (key: string) => unknown,
- * open: (node: Element) => boolean, update: () => void, unregister: () => void}}} Registration */
+ * updating: Promise<unknown> | null, cancelRender: () => void, stopSide: () => void,
+ * handle: {read: typeof readThreads, open: (node: Element) => boolean,
+ * update: () => Promise<unknown>, unregister: () => void}}} Registration */
 /** @type {Set<string>} */
 let claimedIds = new Set();
 let renderGeneration = 0;
@@ -137,16 +146,49 @@ export function watchThreadSurfaces(commands) {
 // The selected page presentation joins the same outlet and generation lifetime.
 // This owner nominates fallback candidates. Only the final cohort move knows which
 // widget nominations survived, and gives those seats priority over page nominations.
-/** @param {Element} owner @param {OutletRender} render @param {SurfaceServices} options */
-export function placePageThreads(owner, render, options) {
-  if ([...registrations.values()].some((item) => item.kind === "page"))
+/** @param {Element} owner @param {OutletRender} render
+ * @param {{reveal?: RevealThread}} spec @param {SurfaceServices} services */
+export function placePageThreads(owner, render, { reveal }, services) {
+  if (pageRegistration())
     throw new Error("The document already has a page Thread presentation");
-  return register(owner, render, options, "page");
+  if (reveal !== undefined && typeof reveal !== "function")
+    throw new TypeError("A page Thread presentation's reveal must be a function");
+  return register(owner, render, services, "page", reveal ?? null);
+}
+const pageRegistration = () =>
+  [...registrations.values()].find((item) => item.kind === "page") ?? null;
+
+// Ask the page presentation to draw a thread no outlet holds, as a route to it does
+// (thread/destination.js, `onPage`): null at once where no presentation reveals, so a
+// page with Leaf's own margin opens its card in the task that asked. Otherwise whether
+// the presentation took the thread, once the pass placing the outlet it gives has
+// shown. A presentation that declines (`false`) or fails leaves the thread to the next
+// reader the route asks.
+/** @param {string} name */
+export function revealOnPage(name) {
+  const registration = pageRegistration();
+  const thread = threadNamed(name);
+  if (!registration?.reveal || !thread) return null;
+  const { reveal } = registration;
+  return (async () => {
+    try {
+      if ((await reveal(thread.key)) === false) return false;
+    } catch (error) {
+      reportFailure(registration, error);
+      return false;
+    }
+    if (registrations.get(registration.owner) !== registration) return false;
+    // A pass that failed drew no outlet, and the presentation coordinator reported it.
+    return updateSurface(registration).then(
+      () => true,
+      () => false,
+    );
+  })();
 }
 
 /** @param {Element} owner @param {OutletRender} render @param {SurfaceServices} services
- * @param {"widget" | "page"} kind */
-function register(owner, render, { invalidate, composition, reveal }, kind) {
+ * @param {"widget" | "page"} kind @param {RevealThread | null} [reveal] */
+function register(owner, render, { invalidate, composition }, kind, reveal = null) {
   if (!(owner instanceof Element))
     throw new TypeError("A Thread presentation needs an Element owner");
   if (registrations.has(owner))
@@ -167,11 +209,6 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
   /** @type {Registration["handle"]} */
   const handle = {
     read: readThreads,
-    reveal(key) {
-      if (registrations.get(owner) !== registration) return false;
-      const thread = threadNamed(key);
-      return thread && discussed(thread) ? reveal(thread.id) : false;
-    },
     open(node) {
       if (registrations.get(owner) !== registration) return false;
       const target =
@@ -194,12 +231,13 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
       if (registrations.get(owner) !== registration) return;
       setRegistration(owner, null);
       clearRegistration(registration);
-      updateSurface(registration);
+      void updateSurface(registration);
     },
   };
   /** @type {Registration} */
   const registration = {
     render,
+    reveal,
     stopSide,
     handle,
     owner,
@@ -208,11 +246,11 @@ function register(owner, render, { invalidate, composition, reveal }, kind) {
     composition,
     outlets: new Set(),
     placements: null,
-    reconcileQueued: false,
+    updating: null,
     cancelRender: () => {},
   };
   setRegistration(owner, registration);
-  updateSurface(registration);
+  void updateSurface(registration);
   return registration.handle;
 }
 
@@ -257,9 +295,9 @@ function validateOutlets({ owner }, byOutlet) {
 }
 
 // Initial callback admission and the final move read the same current directory.
-// A widget owns its exact datum and itself; the page can present any complete
-// attachment place. The composer's `about` stands in for the root's where no thread
-// exists yet, so a box and the thread it starts are admitted alike.
+// A widget owns its exact datum and itself; the page can present any thread whose
+// anchor has a place, exact or not. The composer's `about` stands in for the root's
+// where no thread exists yet, so a box and the thread it starts are admitted alike.
 /** @template {ThreadRecord | null} T
  * @typedef {{anchor: import("../../types/domain.js").Anchor | null | undefined,
  * placement: ThreadPlacement | null | undefined, thread: T, about?: string | null | undefined}} TargetCandidate */
@@ -282,9 +320,7 @@ function widgetTarget({ owner }, target) {
 /** @template {ThreadRecord | null} T
  * @param {TargetCandidate<T>} target @returns {target is TargetCandidate<T> & PageOutletTarget} */
 function pageTarget(target) {
-  return (
-    target.placement?.status === "exact" && target.placement.place instanceof Element
-  );
+  return target.placement?.place instanceof Element;
 }
 /** @template {ThreadRecord | null} T
  * @param {Pick<Registration, "owner" | "kind">} registration @param {TargetCandidate<T>} target
@@ -450,7 +486,7 @@ export function renderSurfaces(collection, placements, commands) {
     );
     // Required preparation can yield after callback admission. The coordinator has
     // refreshed the target directory; read it and the outlets at the actual move.
-    // Page candidates cover every exact target. Only surviving widget nominations
+    // Page candidates cover every placed target. Only surviving widget nominations
     // reserve a Thread or composer here; a failed page cannot certify the cohort.
     const widgetClaims = new Set();
     for (const plan of plans) {

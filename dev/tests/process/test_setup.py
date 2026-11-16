@@ -86,14 +86,12 @@ cli(["setup"])
         events.mkdir()
         checkout = checkout or tmp_path / "checkout"
         checkout.mkdir(exist_ok=True)
-        pins = {"revision": "media", "thread_snapshots_revision": "snapshots"}
         (checkout / "leaf-assets.json").write_text(
-            json.dumps({"repository": "max-sixty/leaf-assets", **pins})
+            json.dumps({"repository": "max-sixty/leaf-assets", "revision": "media"})
         )
-        for revision in pins.values():
-            cached = checkout / ".tmp" / "leaf-assets" / revision
-            cached.mkdir(parents=True, exist_ok=True)
-            (cached / ".complete").write_text(revision)
+        cached = checkout / ".tmp" / "leaf-assets" / "media"
+        cached.mkdir(parents=True, exist_ok=True)
+        (cached / ".complete").write_text("media")
         contended = events / "contended"
         process = spawn(
             [sys.executable, str(caller), str(checkout), str(contended)],

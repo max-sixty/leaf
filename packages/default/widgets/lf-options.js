@@ -103,6 +103,7 @@
  * before this module upgrades the options; generated children use that parser too. */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
+import { nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
   addressableWord,
@@ -113,7 +114,6 @@ import {
   keeps,
   keepsText,
   LeafElement,
-  nothing,
   landInThread,
   markdownWords,
   offer,

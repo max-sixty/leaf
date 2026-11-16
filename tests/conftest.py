@@ -402,13 +402,17 @@ def pytest_addoption(parser):
 @pytest.hookimpl(wrapper=True)
 def pytest_runtest_call(item):
     """A test body that returns has its last shifts and lost words judged before its
-    fixtures end (`render_harness.judge_watches`). One that fails is marked so its
-    browser fixture keeps a picture of each page (`render_harness.clean_browser`)."""
-    from render_harness import judge_watches
+    fixtures end (`render_harness.judge_watches`), and a test marked `xfail` fails on
+    them here, where pytest reads that mark (`reject_browser_problems`). One that fails
+    is marked so its browser fixture keeps a picture of each page
+    (`render_harness.clean_browser`)."""
+    from render_harness import judge_watches, reject_browser_problems
 
     try:
         result = yield
         judge_watches()
+        if item.get_closest_marker("xfail"):
+            reject_browser_problems()
     except (Exception, pytest.fail.Exception):
         item.lf_failed = True
         raise

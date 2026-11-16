@@ -642,7 +642,8 @@ def test_commenting_on_the_same_selection_preserves_the_existing_suggestion(
 def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
-import {LeafElement, html} from '/runtime/widget-api.js';
+import { html } from '/vendor/lit.js';
+import { LeafElement } from '/runtime/widget-api.js';
 customElements.define('lf-draft-subject', class extends LeafElement {
   static properties = {words: {attribute: false}, key: {attribute: false}};
   constructor() {
@@ -687,7 +688,6 @@ customElements.define('lf-draft-subject', class extends LeafElement {
                         "property": "value",
                     }
                 },
-                "x-upgrade": True,
                 "x-example": '<lf-draft-subject id="example"></lf-draft-subject>',
             }
         },

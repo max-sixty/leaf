@@ -1256,13 +1256,27 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
 
 
 # Each contents row's words and the mark it wears, for the rows whose mark shows: the
-# outline's dot on its rule, or the map's halo round the row's marker.
-ROW_MARKS = """(toc) => Object.fromEntries([...toc.querySelectorAll('li, .lf-toc-start')]
-  .filter((row) => row.dataset.lfTocMark && (
-    row.querySelector(':scope > .lf-toc-mark')?.checkVisibility()
-    || (row.checkVisibility() && getComputedStyle(row, '::before').display !== 'none'
-      && getComputedStyle(row, '::before').boxShadow !== 'none')))
-  .map((row) => [row.querySelector('a').textContent.trim(), row.dataset.lfTocMark]))"""
+# outline's dot on its rule, or the map's marker ringed in the mark's colour. Where you
+# are, the map fills the marker in the accent instead, so a thread there shows only in
+# its link's preview.
+ROW_MARKS = """(toc) => {
+  const colour = (token) => {
+    const probe = document.body.appendChild(document.createElement('i'));
+    probe.style.color = `var(${token})`;
+    const value = getComputedStyle(probe).color;
+    probe.remove();
+    return value;
+  };
+  const marks = { thread: colour('--lf-thread'), 'on-me': colour('--lf-turn') };
+  return Object.fromEntries([...toc.querySelectorAll('li, .lf-toc-start')]
+    .filter((row) => row.dataset.lfTocMark && (
+      row.querySelector(':scope > .lf-toc-mark')?.checkVisibility()
+      || (row.checkVisibility() && getComputedStyle(row, '::before').display !== 'none'
+        && !row.querySelector(':scope > a[aria-current="location"]')
+        && getComputedStyle(row, '::before').borderTopColor
+          === marks[row.dataset.lfTocMark])))
+    .map((row) => [row.querySelector('a').textContent.trim(), row.dataset.lfTocMark]));
+}"""
 # Where each shown row's link and marker stand, which no mark may move.
 ROW_BOXES = """(toc) => [...toc.querySelectorAll('li, .lf-toc-start')]
   .filter((row) => row.checkVisibility())
@@ -1313,13 +1327,15 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
         "Ledger": "thread",
         "Retire the old password": "on-me",
     }
-    title = "Rotate the payments database credentials"
     # Each row's, the title row's, and the toggle's and the label's, which carry it.
     page.wait_for_function(
         "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 8",
         arg=toc.element_handle(),
     )
-    assert toc.evaluate(ROW_MARKS) == {title: "thread", **held}
+    # The title row is where the reader is, so the map fills its marker, and its thread
+    # stays on the row for the preview.
+    assert toc.evaluate(ROW_MARKS) == held
+    expect(toc.locator(".lf-toc-start")).to_have_attribute("data-lf-toc-mark", "thread")
     rendered(page)
     assert toc.evaluate(MARKS_IN_WORDS) == []
     boxes = toc.evaluate(ROW_BOXES)
@@ -1358,11 +1374,7 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     expect(toc.locator("li", has_text="Confirm access")).to_have_attribute(
         "data-lf-toc-mark", "thread"
     )
-    assert toc.evaluate(ROW_MARKS) == {
-        title: "thread",
-        **held,
-        "Confirm access": "thread",
-    }
+    assert toc.evaluate(ROW_MARKS) == {**held, "Confirm access": "thread"}
     page.keyboard.press("v")
     expect(toc.locator("[data-lf-toc-changed]")).to_have_count(3)
     rendered(page)

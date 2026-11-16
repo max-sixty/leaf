@@ -11,7 +11,7 @@
    helps it by keeping the nodes it doesn't change, since a
    node it replaces is an anchor lost: neither engine anchors again, so whatever grew
    above moves the reader by its full height (dom-children.js, `setRenderedChildren`,
-   for a message's words; `x-patch: members` for a widget a revision edits inside). A
+   for a message's words; a module's `lfPatch` for a widget a revision edits inside). A
    revision restores the reader's landmark after anchoring as well (version.js), which
    also returns them where a patch moved what they read between scrollers or into a
    closed disclosure.

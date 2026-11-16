@@ -728,7 +728,12 @@ customElements.define('lf-test-seat',class extends LeafElement{
             route.fulfill(response=response)
 
         page.route("**/api/state*", state)
-        page.route("**/api/news*", lambda route: route.fulfill(body=state_readings[0]))
+        page.route(
+            "**/api/news*",
+            lambda route: route.fulfill(
+                json={"reading": state_readings[0], "pages": None}
+            ),
+        )
 
     page = open_page(
         primed(browser, steady_state_origin),

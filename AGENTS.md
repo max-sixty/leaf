@@ -324,7 +324,8 @@ Stop hook; thread attention also reads the user's outstanding obligations. A bus
 doesn't mean every message is being worked on. The browser adds its own unsent
 gestures but never ages or reclassifies a workflow. Other pages read a page's
 activity only from the row `server_rows.py` writes and whether its server is
-alive.
+alive, and only into their list of other pages (`/api/pages`), which no page's
+own state or reading takes.
 
 The page directory is the durable record and the unit of deployment
 (`src/leaf/page-storage.md`).

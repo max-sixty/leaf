@@ -750,7 +750,7 @@ def test_a_server_keeps_its_row_fresh_without_browser_visits(page_dir, spawn):
     assert not server_rows_model.row_path(neighbor).exists()
 
 
-def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
+def test_pages_lists_the_machines_other_live_leaves(page_dir, server, tmp_path):
     """Both discovery homes supply compact publications of live server owners.
 
     Dead servers stay out; a corrupt neighbor cannot make this page parse its
@@ -793,8 +793,7 @@ def test_state_ships_the_machines_other_live_leaves(page_dir, server, tmp_path):
 
     for directory in (pages / "live", malformed, scratch):
         server_rows_model.RowPublisher(directory, "fixture-server").refresh()
-    state = json.loads(fetch(f"{server}/api/state")[1])
-    rows = {row["title"]: row for row in state["others"]}
+    rows = {row["title"]: row for row in json.loads(fetch(f"{server}/api/pages")[1])}
     assert list(rows) == [
         "A corrupted page",
         "Malformed stream",

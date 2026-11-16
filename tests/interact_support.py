@@ -865,6 +865,8 @@ def served_state_error(value, against: str | tuple[str, ...] = "Reading") -> str
 # (`http.PageEndpoint.POST_ROUTES` and its gates), so every answer a test reads holds
 # the schema the browser and the Worker are typed from.
 ROUTE_ANSWERS = {
+    r"/api/news": ("NewsAnswer",),
+    r"/api/pages": ("PagesAnswer",),
     r"/api/event": ("EventAnswer", "Refusal", "LayerAnswer"),
     r"/api/samples": ("SampleAnswer", "Refusal", "LayerAnswer"),
     r"/api/media": ("MediaAnswer", "Refusal", "LayerAnswer"),

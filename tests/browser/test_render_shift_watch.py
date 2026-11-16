@@ -577,6 +577,41 @@ def test_motion_without_input_fails_at_any_frame_rate(browser, motion, step, mov
         consume_browser_errors(page, moved_within(moving))
 
 
+def test_a_permitted_step_permits_nothing_after_it(browser):
+    """A declaration permits the step it measured: a card that widened, as a thread
+    card does once when a long message arrives, doesn't excuse its control moving later
+    in the same run of motion, which a spinner keeps going."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0"><div data-lf-runtime>'
+            '<div id="card" data-lf-widens style="width:120px">'
+            "<p>Words that take the card's new width once it widens.</p>"
+            '<button id="act">Act</button></div></div>'
+            '<div id="spinner" style="position:absolute;top:0;right:0;width:10px;'
+            'height:10px"></div></body>'
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """() => new Promise((done) => {
+          spinner.animate([{rotate: "0deg"}, {rotate: "360deg"}],
+            {duration: 1000, iterations: Infinity});
+          card.style.width = "240px";
+          let frames = 4;
+          const next = () => {
+            if (--frames) return requestAnimationFrame(next);
+            act.style.translate = "20px 0";
+            requestAnimationFrame(done);
+          };
+          requestAnimationFrame(next);
+        })"""
+    )
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#act"))
+
+
 def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
     """Chrome may paint a document the parser has only partly added, as a slow
     runner's parser yields mid-page: a select before its option and the taller box
@@ -1067,11 +1102,14 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
         assert names_move(errors, protected), errors
 
 
-@pytest.mark.parametrize("taken_down", [True, False])
-def test_a_control_shown_again_elsewhere_is_no_move(browser, taken_down):
+@pytest.mark.parametrize(
+    "taken_down, spinning", [(True, False), (False, False), (True, True)]
+)
+def test_a_control_shown_again_elsewhere_is_no_move(browser, taken_down, spinning):
     """A control taken off the page and later shown again where the page has since
     moved, as a thread's news notice is, appears there; one standing while the page
-    moves under it is carried."""
+    moves under it is carried. A spinner turning meanwhile keeps the page in one run
+    of motion, which still reads the notice's return as new."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
@@ -1081,10 +1119,15 @@ def test_a_control_shown_again_elsewhere_is_no_move(browser, taken_down):
             '<div id="seat"><button id="notice">1 new</button></div>'
             # A box with nothing to read, which the notice's return moves, so Chrome
             # reports a shift in the frame it returns in.
-            '<div style="height:20px;background:gray"></div></body>'
+            '<div style="height:20px;background:gray"></div>'
+            '<div id="spinner" style="position:absolute;top:0;right:0;width:10px;'
+            'height:10px"></div></body>'
         )
     )
     paint(page)
+    if spinning:
+        page.evaluate("""() => spinner.animate([{rotate: "0deg"}, {rotate: "360deg"}],
+          {duration: 1000, iterations: Infinity})""")
     page.evaluate(
         """takenDown => {
           const notice = document.getElementById('notice');

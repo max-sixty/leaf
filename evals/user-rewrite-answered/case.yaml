@@ -1,33 +1,18 @@
-# Added when the user could rewrite a sent message in place (the `edit` event a
-# browser posts). A user's rewrite is a turn the agent answers, addressed to the edit
-# rather than the message it rewrote, about what the new wording changes. The envelope
-# is the one Claude Code's prompt hook handed over for a log built through the append
-# door and `leaf thread reply`: the user asked for the owner to be named, the agent
-# answered, and the user then rewrote the request to add the launch date. Delivery id,
-# page path and the reply's id are substituted for readable stable ones.
+# A user's rewrite is a turn the agent answers, addressed to the edit rather than the
+# message it rewrote, about what the new wording changes. The envelope is the one
+# Claude Code's prompt hook handed over for a log built through the append door and
+# `leaf thread reply`: the user asked for the owner to be named, the agent answered,
+# and the user then rewrote the request to add the launch date. Delivery id, page path
+# and the reply's id are substituted for readable stable ones. It is frozen with
+# `freeze_delivery`: answers name `parent` and `responds`, the format is
+# `leaf-delivery/15`, and ids, page, claim and times are substituted.
 # The envelope carries the delivery's own handling, so `--base` arms differ only in
 # the references, and a handling change is scored by pasting each wording into the
 # prompt. Its thread is titled for its subject, which the rewrite keeps, so it also
-# guards the handling's retitling sentence: the title stands. A draft keyed on the
-# rewrite changing "what the thread is about" retitled it on Codex in `mid-session`
-# (1 of 1 completed run); keyed on the title no longer fitting, it held 4 of 4 on
-# Codex and 6 of 6 on Claude Code, cold and `mid-session`.
-# Re-frozen with delivery references as reply destinations. Against
-# 5851b2088 every sample answered `e7f1a2c3:0:edit-a` and kept the title: Claude Code
-# 2 of 2 cold and 2 of 2 `mid-session`, Codex 2 of 2 cold and 1 of 2 `mid-session`.
-# The Codex miss was the judgment grading a fact the prompt withholds: no launch date
-# is given, and it drafted only the reply asking for one. The rubric now accepts that
-# answer; Codex then passed 2 of 2.
-# Handling re-pasted from the registry at 3fe3eb0af (`--todo`, "update", and the
-# since-removed `--ask`),
-# where it passed 1/1 cold and 1/1 `mid-session` on Claude Code.
-# Re-pasted after the registry's readability rewrite (725e29e28 and its review
-# fixes), which reworded the `edit` clause and the reply clause: 2/2 cold and
-# 2/2 mid-session on each harness.
-# Re-frozen with `freeze_delivery` at 6a66b9b7b, when `DELIVERY` declared the
-# envelope: answers name `parent` and `responds`, the format is
-# `leaf-delivery/15`, and ids, page, claim and times are substituted as before.
-# Handling is the registry's at that commit. Not rescored.
+# guards the handling's retitling sentence: the title stands. A sentence keyed on the
+# rewrite changing "what the thread is about" leads agents to retitle it; keyed on
+# the title no longer fitting, the title holds. No launch date is given, so the rubric
+# accepts an answer that drafts only the reply asking for one.
 description: user-rewrite-answered
 metadata:
   purpose: "A user's rewrite of an answered message is answered as a new turn, for the edit's id, about what the rewrite changed, and a rewrite that keeps the thread's subject keeps its title."

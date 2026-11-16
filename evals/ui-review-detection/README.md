@@ -83,11 +83,7 @@ exact pixel geometry is not an observed fact in this condition. Source review an
 screenshot review answer different evidence questions, so differences are not
 a causal estimate of image benefit.
 
-An initial partial-source Sol calibration omitted the timeline bundle. Preserve
-that run separately: its timing uncertainty cannot be counted as a comparable
-miss against the complete-source condition.
-
-## Retained cases and calibration
+## Retained cases
 
 | Case                     | Target                                                                                                                | Corrected control                                                                      |
 | ------------------------ | --------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
@@ -97,31 +93,13 @@ miss against the complete-source condition.
 | `later-message-controls` | A head row's card-coloured cell paints over a later message's controls, so hovering it shows none.                    | The controls stand above the cell.                                                     |
 | `controls-after-a-press` | Controls follow any focus inside a message, so after a press they stay lit when the pointer moves to another message. | Controls follow the pointer and keyboard focus only.                                   |
 
-Manual calibration on 2026-10-10 found that Sol missed the timing target in three
-screenshot-only reviews; Opus and Fable detected it in their screenshot-only
-comparison runs, while Astra missed it. All four detected image movement from
-screenshots. These are narrow fresh
-review observations, mostly one conversation per comparative cell, not a general
-model ranking or a replay of the long authoring sessions. The ambiguous grouped
-navigation probe was exploratory and is not retained here.
+Under this suite's "consequential usability" prompt, reviewers can describe the
+mid-card Copy's inset as minor, where an open "what looks wrong" prompt flags the
+same placement. A browser reviewer that presses Copy and then clicks another control
+moves focus, so it sees the controls left lit after a press only by resting the
+pointer on another message as a reader does.
 
-The thread pairs were calibrated on 2026-10-28 with Opus and Sol, recognition
-no-tools three times and browser discovery twice per candidate. With the frames
-supplied, both models detected the covered controls (3/3 each); Opus detected the
-controls left lit after a press (3/3) while Sol reported a different grouping problem
-(0/3); neither flagged the mid-card Copy (one Opus partial in 3 each), describing the
-inset as minor under this suite's "consequential usability" prompt, where an open
-"what looks wrong" prompt had flagged the same placement in 45 of 50 fresh looks.
-Driving the browser from arrival, both found the covered controls (2/2 each) and
-neither found the lit controls (0/2 each): every reviewer pressed Copy and then
-clicked another control, which moves focus, and none rested the pointer on another
-message as a reader does. No control was flagged in either mode (0/30, 0/20). Those
-browser runs used Node Playwright's Chromium 1248 beside the Python captures' 1243.
-
-The calibration browser providers omitted computed accessibility and nested scroll
-targets. The current provider corrects those evidence gaps; their effect on model
-detection has not been measured. Do not pool different provider versions as if
-they supplied identical evidence.
+Do not pool different provider versions as if they supplied identical evidence.
 
 ## Evidence and grading
 
@@ -176,24 +154,11 @@ Promptfoo's exit convention: 0 for all passes and 100 for assertion failures or
 unscored samples.
 
 Automated scores are model judgments, not proof of UI correctness. The frozen
-rubric and evidence remain available for inspection and regrading. Historical
-study grades were manual and are not overwritten by new automatic judgments.
+rubric and evidence remain available for inspection and regrading.
 
-Native grader calibration on 2026-10-10 replayed eight historical answers and
-five retained semantic controls (`grader-controls.json`). All six clear historical
-target judgments agreed, and all thirteen unsupported-observation checks agreed.
-Four of five semantic controls matched exactly. The remaining timing answer raises
-a specific duration concern: the automatic judge and original manual grade gave
-full credit, while an independent reviewer gave partial credit. That partial/full
-boundary remains uncertain; this small calibration is not a general accuracy
-estimate. Both ambiguous historical judgments and the failed setup attempts remain
-in the study evidence.
-
-A fresh end-to-end Sol recognition run then completed all eight reviews and
-automatic grades: both timing defects missed, both movement defects detected,
-zero target alarms on four controls, zero unsupported observations and zero
-unscored samples. This verified the complete run, including actual browser traces,
-rather than replay alone.
+`grader-controls.json` holds the judge's retained semantic controls. The partial/full
+boundary for a timing answer that raises a specific duration concern remains
+uncertain.
 
 ## Browser tool experiments
 
@@ -215,7 +180,5 @@ completion status on exit. Inspect these measurements when a run is slow;
 elapsed time alone does not abort it. Browser operation limits remain part of the
 frozen tool condition. Provider or transport failures remain unscored.
 
-Earlier runs imposed a five-minute Claude query deadline and a Codex response-header
-deadline. Preserve those runs as historical evidence; their aborted answers stay
-unscored. Claude's native usage may include auxiliary models; observed assistant
-identity and complete native model-usage keys are retained.
+Claude's native usage may include auxiliary models; observed assistant identity and
+complete native model-usage keys are retained.

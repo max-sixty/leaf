@@ -1,11 +1,10 @@
-# From an issue-triage page (2026-10-25) the agent kept current for 16 hours inside one
-# conversation, through about 25 revisions. The skill gave the browser review only to a
-# record, a page used beyond the conversation, so the page never had one, and a table
-# whose page CSS kept its first column on one line reached the user scrolling sideways
-# with its status prose a word a line. `page check --render` reported it. The skill now
-# weighs a page's importance, a record being one reason, and reviews an important page
-# at the checkpoints the user names. Base 846f07ab9 ran no render check here (Claude
-# Code 0 of 4, Codex 0 of 2); the change ran one (5 of 5, 2 of 2).
+# An issue-triage page the agent kept current for 16 hours inside one conversation,
+# through about 25 revisions, never had a browser review, since the skill gave one
+# only to a record, a page used beyond the conversation; a table whose page CSS kept
+# its first column on one line reached the user scrolling sideways with its status
+# prose a word a line. `page check --render` reported it. The skill weighs a page's
+# importance, a record being one reason, and reviews an important page at the
+# checkpoints the user names.
 description: important-page-reviewed-at-checkpoints
 metadata:
   purpose: "Checks and checkpoints: a large page the user relies on throughout a long

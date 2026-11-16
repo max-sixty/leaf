@@ -1,16 +1,12 @@
-# Added when an agent answered "these gotta have previews!" on an open prototype
+# Replays an agent that answered "these gotta have previews!" on an open prototype
 # decision with `--done`: the previews were for the user to try before deciding,
 # but nothing put the answer on On Me, so the user could close the thread and lose
-# it. The delivery's handling then showed `--done` as the answer's command and
-# offered `--obligation` as an addition for replies that "need" a response; agents
-# reasoned that the decision itself was already on On Me. The handling now says the
+# it. A handling that shows `--done` as the answer's command and offers
+# `--obligation` as an addition for replies that "need" a response leads agents to
+# reason that the decision itself is already on On Me, so the handling says the
 # declaration names whose move the answer leaves. The envelopes are the real
 # delivery's shape with the handling at the commit that adds this case; a handling
 # change is scored by regenerating them with each wording.
-# Old handling, Claude Code: previews 0/3, finished fix 3/3; Codex: previews 0/3 on
-# both arms, turn writer 0/3 on both arms. New handling: previews 3/3 on each
-# harness, turn writer 3/3 (Codex), finished fix 3/3 on each harness and 3/3 as a
-# turn writer, question 3/3 on each harness.
 description: answer-hands-back-the-next-move
 metadata:
   purpose:

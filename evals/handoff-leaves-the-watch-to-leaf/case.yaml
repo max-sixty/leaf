@@ -1,11 +1,8 @@
-# Added when Leaf's Claude Code watch moved from a background `leaf wait` the model
-# restarts into Leaf's own `asyncRewake` Stop hook, which Claude Code 2.1.286 keeps
-# past the two-hour limit it puts on a background command. Replaces a case that
-# pinned the wait's `timeout`. Base at 12432f61c, whose reference has the model
-# start a background `leaf wait`, passed 0 of 4 runs that finished; the change 4 of
-# 4. Two runs in each arm ended on a model error and measured nothing. Opus 5.5's
-# safeguards later refused every run while the prompt asked for each tool call with
-# its full JSON input; asking for the commands, base passed 0 of 3, the change 3 of 3.
+# Leaf's Claude Code watch is Leaf's own `asyncRewake` Stop hook, which Claude
+# Code 2.1.286 keeps past the two-hour limit it puts on a background command,
+# rather than a background `leaf wait` the model restarts. Opus 5.5's safeguards
+# refuse every run while the prompt asks for each tool call with its full JSON
+# input, so the prompt asks for the commands.
 description: handoff-leaves-the-watch-to-leaf
 metadata:
   purpose:

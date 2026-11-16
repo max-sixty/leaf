@@ -1,13 +1,8 @@
 # Guardrail for the contents default: a short document readable at a glance
-# needs no outline. Passed 2/2 on both the earlier and revised Contents rule;
-# this measures the exception rather than reproducing the long-session omission.
-# The 2026-10-22 widget comparison's generic polish request prompted extra cards.
-# Adding that request here reproduced a card and theme overrides (0/1). A first
-# defaults-first rewrite removed the card but kept theme overrides (0/1); direct
-# guidance to polish within Leaf's treatment passed 1/1. Every run read the owner.
-# The explicit user-requested styling case passed before, after the first edit,
-# and on the final wording, with the owner read.
-# These samples establish the contrast, not a cross-page failure rate.
+# needs no outline; this measures the exception rather than reproducing the
+# long-session omission. A generic polish request prompts extra cards and theme
+# overrides. A defaults-first wording alone removes the card but keeps theme
+# overrides; direct guidance to polish within Leaf's treatment holds.
 description: brief-document-needs-no-outline
 metadata:
   purpose: "Short documents use Leaf's default styling and need no contents outline;

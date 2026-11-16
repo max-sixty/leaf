@@ -1,12 +1,12 @@
-# Added with `holder` in `leaf page state`: a Claude Code main thread whose context was
-# compacted reads what it owes with the selection `references/conversation-loop.md`
-# gives. One of the answers it lists is owed by a fork of the session that is still
-# answering it, so the main thread answering it too would take the thread from the
-# fork and give the user two answers. The output below is a real reading of a page in
-# that state, its fork renamed to an agent id since `holder` names forks by id; the
-# `without-holder` variant is the same reading as `page state` printed it before
-# `holder`. On Claude Code the agent left the fork's answer 3/3 with `holder`
-# and answered it too 0/3 without, so the reference names no rule for the field.
+# A Claude Code main thread whose context was compacted reads what it owes with the
+# selection `references/conversation-loop.md` gives. One of the answers it lists is
+# owed by a fork of the session that is still answering it, so the main thread
+# answering it too would take the thread from the fork and give the user two answers.
+# The output below is a real reading of a page in that state, its fork renamed to an
+# agent id since `holder` names forks by id; the `without-holder` variant is the same
+# reading as `page state` prints it without `holder`. Given `holder`, the agent leaves
+# the fork's answer, and without it answers it too, so the reference names no rule for
+# the field.
 description: Recovery leaves a fork's answer
 metadata:
   purpose:

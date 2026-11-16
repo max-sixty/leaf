@@ -1,13 +1,11 @@
-# From session d47e9799, whose decision section compared three designs in a table as
-# rows A, B and C, ordered by how far each departed from today, then listed the
-# lf-option cards as C, B, A: the recommended option first and the one closest to today
-# last, the order 243 of 312 recommending groups on that machine's pages used. The
-# overnight-2026-10-20 page did the same to a four-row table (D, C, B, A).
-# Notes alone passed on base 8 of 8; the session was copying its own page, so each
-# prompt pastes the page's earlier decisions, all recommended-first. Base 3a2e96564
-# then failed one-order in 2 of 5 and window-sizes' subject-order in 4 of 5; with the
-# authoring-decisions.md paragraph on ordering options by the subject, 9 of 9 and 5 of
-# 5, every run reading that reference.
+# A session's decision section compared three designs in a table as rows A, B and C,
+# ordered by how far each departed from today, then listed the lf-option cards as C,
+# B, A: the recommended option first and the one closest to today last, the order
+# most recommending groups on real pages use. Another page did the same to a
+# four-row table (D, C, B, A).
+# Notes alone don't reproduce it; the session was copying its own page, so each
+# prompt pastes the page's earlier decisions, all recommended-first.
+# authoring-on-me.md's paragraph on ordering options by the subject addresses it.
 description: options-keep-one-order
 metadata:
   purpose:
@@ -120,11 +118,11 @@ assert:
       design in which the widget draws itself in the card. Fail if another option is
       marked recommended or none is.
 variants:
-  # A sibling from overnight-2026-10-20 (#44), with a different subject and no letters
-  # in the notes: four window sizes on a scale of how far each moves from today, and
-  # the recommendation inside the scale, where moving it first breaks the scale.
-  # With the recommendation at the scale's far end, base wrote the scale reversed,
-  # which no single output can tell from a recommendation moved first.
+  # A sibling with a different subject and no letters in the notes: four window
+  # sizes on a scale of how far each moves from today, and the recommendation inside
+  # the scale, where moving it first breaks the scale. With the recommendation at the
+  # scale's far end, a run can write the scale reversed, which no single output can
+  # tell from a recommendation moved first.
   window-sizes:
     metadata:
       purpose:
@@ -207,16 +205,15 @@ variants:
           Pass only if exactly one `lf-option` carries a `recommended` label, and it
           is the choice that adds 1280×720 with the width sweep. Fail if another
           option is marked recommended or none is.
-  # From session d9c4e332's overnight-work page. The session had listed the options to
-  # the user in chat as A, B and C with its pick first, then wrote the page's cards in
-  # the subject's order, keep-today first and its pick second, and kept "I'd take the
-  # first option" in the prose, which then named the option it argued against. No run
-  # reproduced a wrong pointer, since a run writes the prose and cards together, so this
-  # grades the habit that let it through: naming an option by position. Without the
-  # pasted earlier decision, in the recommended-first order and "first option" wording
-  # most local pages used before #3790, base did so in 3 of 8; with it, 5 of 8 and 4 of
-  # 8. The authoring-decisions.md sentence on naming an option by its title passed 8 of
-  # 8, every run reading that reference.
+  # A session's overnight-work page. The session had listed the options to the user
+  # in chat as A, B and C with its pick first, then wrote the page's cards in the
+  # subject's order, keep-today first and its pick second, and kept "I'd take the
+  # first option" in the prose, which then named the option it argued against. A run
+  # writes the prose and cards together, so it doesn't reproduce a wrong pointer;
+  # this grades the habit that let it through: naming an option by position. The
+  # pasted earlier decision, in the recommended-first order and "first option"
+  # wording, tempts it. authoring-on-me.md's sentence on naming an option by its
+  # title addresses it.
   spine-pick:
     metadata:
       purpose:

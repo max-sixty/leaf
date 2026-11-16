@@ -1,15 +1,9 @@
-# Added with a queue as one `lf-tabs list="side"` (#1363). Base at b4cda1c37 built
-# the queue as panes or a table (0 of 3); the change 2 of 3, the third writing its
-# tickets as `section` elements, after which the guide named `lf-tab`. The prompt
-# gained the user's wish to take the tickets by outcome when `lf-tab` gained `group`.
-# Two runs on each harness: base grouped 0 of 4 (no `group` existed), the change 4 of
-# 4, each ordering escalate, fix, close. The `row` metric came from an authoring eval
-# where rows read "sev 1 · 9 h · suggested: fix" under a "Severity 1" heading and never
-# said what the ticket was; the prompt stopped naming the row's contents then. Three
-# Claude Code runs on each arm: base wrote no `summary` in any, and one run's rows said
-# only id, severity and age; the change wrote problem-first summaries without the
-# group in 2 of 3 and put the problem in the label in the third. Reading those samples
-# as rows, base passes 2 of 3 and the change 3 of 3.
+# A queue is one `lf-tabs list="side"`. Failing answers build the queue as panes or
+# a table, or write its tickets as `section` elements; the guide names `lf-tab`.
+# The prompt carries the user's wish to take the tickets by outcome, which `lf-tab`'s
+# `group` serves. The `row` metric guards against rows that read "sev 1 · 9 h ·
+# suggested: fix" under a "Severity 1" heading and never say what the ticket is, or
+# say only id, severity and age; the prompt doesn't name the row's contents.
 description: queue-is-a-side-list
 metadata:
   purpose:

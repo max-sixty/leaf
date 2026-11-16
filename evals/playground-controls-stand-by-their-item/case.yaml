@@ -1,21 +1,15 @@
-# Added when a playground control could stand inside the preview beside the item it
-# changes, after judges of the plain HTML comparison preferred configuration pages that
-# kept each alert's settings beside its evidence over a rail of fourteen settings.
-# Claude Code: base 0/2 (every control in the rail), head 2/2.
+# A playground control can stand inside the preview beside the item it changes:
+# judges of the plain HTML comparison preferred configuration pages that kept each
+# alert's settings beside its evidence over a rail of fourteen settings.
 # playground-presets-are-whole-designs holds the other side: controls that change the
 # whole preview stay in the rail.
-# workspace-premise-is-short came with the short-premise guidance in the playground's
-# author.md, after a 900x700 study page spent three lines of premise above the stage.
-# Claude Code: base 0/2 (three sentences), the rule in page-layout.md 0/2 (read, not
-# followed), the rule in author.md 2/2.
-# Those scores used the historical sentence-count rubric. The revised premise
-# rubric grades useful context and task prominence. Both saved Codex answers passed
-# when regraded for context anywhere on the page rather than repeated in its intro.
-# The rail for a setting every item shares was a recipe of #2711, which #4991 cut,
-# leaving each control within sight of what it changes. As a probe given a page with its
-# packages, at b90df8d3a2, three of four runs (one on Claude Code, both on Codex) put
-# the budget once in the preview beside the month's page count, and failed a rubric
-# that took only the rail; it now takes either place, and the four runs regraded 4 of 4.
+# premise-supports-the-task scores the short-premise guidance in the playground's
+# author.md; a 900x700 study page spent three lines of premise above the stage. The
+# rule sits in author.md, since authors read it in page-layout.md without following
+# it. The premise rubric grades useful context and task prominence, not a sentence
+# count. There is no rail recipe for a setting every item shares, so each control
+# stays within sight of what it changes; the rubric takes the budget in the rail or
+# once in the preview beside the month's page count.
 description: playground-controls-stand-by-their-item
 metadata:
   purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting every item shares stands once, within sight of the total it changes."

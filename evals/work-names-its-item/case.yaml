@@ -1,16 +1,11 @@
-# Added with step 4 of the What needs you plan, which folds `leaf status working --on`
-# into the task commands: work on a delivered move is shown against that move's own id,
-# work no move asked for gets an item the agent opens, and the handoff shows what the
-# agent wants back rather than leaving that work marked in progress. Scores
-# conversation-loop.md, "When to write" and "Page availability and handoff". The criterion is the
-# behavior, not either version's command, so the case guards both arms.
-# Reworded by #2329 (updates to progress messages); at 3fe3eb0af it passed 1/1 on
-# Claude Code. The `line-reads-at-a-glance` metric was added with the rule that a
+# Work on a delivered move is shown against that move's own id, work no move asked
+# for gets an item the agent opens, and the handoff shows what the agent wants back
+# rather than leaving that work marked in progress. Scores conversation-loop.md,
+# "When to write" and "Page availability and handoff". The criterion is the
+# behavior, not a command. The `line-reads-at-a-glance` metric holds the rule that a
 # working line says what the agent is doing in a few of the user's words; the to-do's
-# title and the CI wait on a named commit are the pulls real lines showed. Against
-# 7f13b512c it passed 0/6 before the rule and 6/6 after (3 each on Claude Code and
-# Codex, the CI wait's hash, run number and length failing), with `judgment` 6/6 on
-# both arms.
+# title and the CI wait on a named commit are the pulls real lines showed, and a line
+# fails on the CI wait's hash, run number and length.
 description: work-names-its-item
 metadata:
   purpose:

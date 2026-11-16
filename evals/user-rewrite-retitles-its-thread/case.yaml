@@ -1,26 +1,11 @@
-# Added with the `edit` handling's sentence on retitling: a thread's title names its
-# opening message's subject, so a rewrite of that message to a new subject leaves the
-# title stale. The envelope is frozen the way user-rewrite-answered's is, with the
-# thread titled for its first request and the opening rewritten to a different one. It
+# The `edit` handling's sentence on retitling: a thread's title names its opening
+# message's subject, so a rewrite of that message to a new subject leaves the title
+# stale. The envelope is frozen the way user-rewrite-answered's is, with the thread
+# titled for its first request and the opening rewritten to a different one. It
 # carries the delivery's own handling, so the arms are the wordings, pasted into the
 # prompt. Cold, the agent reads references/threads.md, which says to rename a thread
-# whose title no longer fits, and both wordings passed 3 of 3 on Claude Code.
-# `mid-session` reads no reference, leaving the handling as the guidance in reach:
-# without the sentence 0 of 3 on Claude Code and 0 of 2 on Codex, with it 3 of 3 on
-# each. Re-frozen with delivery references as reply destinations:
-# against 5851b2088 it passed 2 of 2 cold and 2 of 2 `mid-session` on each harness,
-# every sample retitling with `leaf thread edit /tmp/review comment-a --title` and
-# answering `e7f1a2c3:0:edit-a`.
-# Handling re-pasted from the registry at 3fe3eb0af (`--todo`, "update", and the
-# since-removed `--ask`),
-# where it passed 1/1 cold and 1/1 `mid-session` on Claude Code.
-# Re-pasted after the registry's readability rewrite (725e29e28 and its review
-# fixes), which reworded the `edit` clause and the reply clause: 2/2 cold and
-# 2/2 mid-session on each harness.
-# Re-frozen with `freeze_delivery` at 6a66b9b7b, when `DELIVERY` declared the
-# envelope: answers name `parent` and `responds`, the format is
-# `leaf-delivery/15`, and ids, page, claim and times are substituted as before.
-# Handling is the registry's at that commit. Not rescored.
+# whose title no longer fits. `mid-session` reads no reference, leaving the handling
+# as the guidance in reach: without the sentence, the agent leaves the title stale.
 description: user-rewrite-retitles-its-thread
 metadata:
   purpose: "A user's rewrite of a thread's opening message to a new subject retitles the thread."

@@ -1,5 +1,4 @@
-# From TODO.md, "Decide what plain `page check` runs in a browser from the mistakes
-# agents make". Plain `page check` runs a page in a browser only where `needs_browser`
+# Plain `page check` runs a page in a browser only where `needs_browser`
 # (render_gate/page_code.py) says so, which leaves out widgets that fail on their
 # authored values, such as a playground control whose value is off its step or names
 # no choice, and every widget in a thread's markup, such as a chart whose Plot

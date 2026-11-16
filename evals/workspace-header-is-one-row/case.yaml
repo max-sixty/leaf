@@ -1,7 +1,6 @@
-# Added with the one-row workspace header (#1301). Base at cd1d37b0d 0 of 3 (one run
-# put a lede in the header), the change 3 of 3.
-# Those historical scores required particular header contents and density-working.
-# The current rubric judges usable working space and understandable context instead.
+# The workspace header is one row; a failing page puts a lede in the header. The
+# rubric judges usable working space and understandable context, not particular
+# header contents and density-working.
 description: workspace-header-is-one-row
 metadata:
   purpose: "Writing a workspace: context leaves room to read and decide in the working regions."

@@ -1,20 +1,18 @@
-# From session d52b0343 (15 Nov). A thread asked "which line?" of a page paragraph that
-# said "Leaf's instructions tell authors not to write that line" without quoting them.
-# The agent reworded the paragraph, then replied with an eight-word fragment of the
-# guidance and `[The paragraph](#mark-guidance)`, a link to the passage the thread was
-# on, whose preview showed the thread itself. The user asked why the reply didn't quote
-# the section, collapsed if need be. The handling then asked for "what changed, in a
-# sentence or two, linking the section that shows it"; in the 30 days to 16 November,
-# 195 of 456 agent replies that linked a section linked their own thread's.
-# `earlier-decision` rebuilds a 27 October reply that paraphrased the record of a
-# user's choice and linked its own section; `page-paragraph` is the paragraph's first
-# draft; `result-elsewhere` guards the link a reply owes to a result in another section.
-# Claude Code, 3 runs each. Base with the old handling: which-line quoted 0/3 and linked
-# its own passage 3/3, earlier-decision quoted 2/3 and linked it 3/3, result-elsewhere
-# passed 3/3. The change passed 3/3 on every metric. page-paragraph quoted 3/3 on both
-# arms, so it guards the page rule rather than reproducing the failure, which came late
-# in a long session. The envelopes carry the handling at the commit that adds this case;
-# a handling change is scored by regenerating them with each wording.
+# A thread asked "which line?" of a page paragraph that said "Leaf's instructions
+# tell authors not to write that line" without quoting them. The agent reworded the
+# paragraph, then replied with an eight-word fragment of the guidance and
+# `[The paragraph](#mark-guidance)`, a link to the passage the thread was on, whose
+# preview showed the thread itself. The user asked why the reply didn't quote the
+# section, collapsed if need be. A handling that asks for "what changed, in a
+# sentence or two, linking the section that shows it" leads agent replies that link
+# a section to link their own thread's.
+# `earlier-decision` rebuilds a reply that paraphrased the record of a user's choice
+# and linked its own section; `page-paragraph` is the paragraph's first draft;
+# `result-elsewhere` guards the link a reply owes to a result in another section.
+# page-paragraph guards the page rule rather than reproducing the failure, which
+# came late in a long session. The envelopes carry the handling at the commit that
+# adds this case; a handling change is scored by regenerating them with each
+# wording.
 description: answer-quotes-what-it-cites
 metadata:
   purpose: A reply resting on a source quotes the source's words in the thread, and links a page section only where the result shows away from the thread's own passage.

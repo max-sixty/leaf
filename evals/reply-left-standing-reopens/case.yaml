@@ -1,11 +1,10 @@
-# Added with `--obligation <id>`, which the user chose on 2026-11-04 over two others: their reply
-# clears a question from On Me at once, so they can empty the list without waiting for
-# the agent, and where the reply left the question standing the agent puts the same item
+# `--obligation <id>` is the user's choice over two others: their reply clears a
+# question from On Me at once, so they can empty the list without waiting for the
+# agent, and where the reply left the question standing the agent puts the same item
 # back rather than asking under a new id. The envelopes are real deliveries, generated
 # with the `settled` handling at the commit that adds this case; regenerate them to score
-# a change to that clause. Base has no `--obligation <id>`, so no base arm can pass the first
-# context. Scores the `settled` clause in `$events.handling`, threads.md and
-# conversation-loop.md.
+# a change to that clause. Scores the `settled` clause in `$events.handling`, threads.md
+# and conversation-loop.md.
 description: reply-left-standing-reopens
 metadata:
   purpose:

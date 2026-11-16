@@ -1,18 +1,11 @@
-# From #5900. Handed about 9,500 words of notes on a proposed mechanism (its parts, how
-# a request moves through them, timings measured against the current mechanism and
-# three decisions), pages written on 20ad05cfe2c7's skill kept every measurement in
-# tables (0 of 3 charted them, on Fable 5.2 and on Opus 5.5) where 271547169ce7's
-# charted them in 3 of 3. Between the two, #4267 and #4629 had replaced "Show the
-# subject" with "Develop the work". `request.md` synthesizes such notes at about 3,200
-# words: a photo-upload pipeline moving its variant generation from the request to a
-# queue and workers.
-# This case doesn't reproduce that failure, so it guards the default. On 2026-11-15,
-# base 5cc9aef6a7 (no "Show the subject") and #5901 (the section restored) both charted
-# the timings and drew the upload's path in 4 of 4 runs each, on Opus 5.5 and on
-# Fable 5.2 (`--model claude-fable-5-2`). Every author read authoring-evidence.md,
-# whose `lf-chart` line SKILL.md routes measured facts to, and none delegated the
-# page to a fresh author. #5900's runs differ in the notes' length, a user's global
-# instructions and xhigh effort.
+# Handed notes on a proposed mechanism (its parts, how a request moves through them,
+# timings measured against the current mechanism and three decisions), a page can
+# keep every measurement in tables instead of charting them. `request.md`
+# synthesizes such notes at about 3,200 words: a photo-upload pipeline moving its
+# variant generation from the request to a queue and workers.
+# This case doesn't reproduce that failure, which came with about 9,500 words of
+# notes, a user's global instructions and xhigh effort, so it guards the default.
+# SKILL.md routes measured facts to authoring-evidence.md's `lf-chart` line.
 description: Mechanism proposal handover
 metadata:
   purpose: "Show the subject: a page handing over a proposed mechanism charts the

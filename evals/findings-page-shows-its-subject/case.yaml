@@ -1,21 +1,15 @@
-# From session 848900aa. Its survey of Leaf's cascade layers went to the user as prose,
-# a table and options written as code, though every finding was which tier a kind of
-# CSS lands in and what it can beat; the page pointed at the tier diagram on How it Works
-# instead of showing one. The user: "but there are no diagrams, it's a block of text",
-# and asked that a Leaf whose request says nothing about its form show diagrams or
-# images. Run cold, base 1518bc9bf read page-authoring.md and drew the tiers in 3 of 3,
-# and its options' change in 2 of 2, so this case guards the default rather than
-# reproducing the failure. Replaying the session from just before it wrote the page
-# reproduced it: base showed the tiers in 4 of 15 pages; SKILL.md's picture default and
-# code-as-effect rule, over four wordings, in 12 of 17, the committed wording 4 of 4.
-# On 2026-10-24, rendered review exposed a format false-negative: ranked tier lists
-# conveyed precedence, and inset specimens showed the proposal's consequences.
-# The relationship/consequence rubrics below passed saved HEAD 0/1 and the revised
-# authoring workflow 2/2 on saved output; these are content regrades, not an
-# estimate of reliability. Earlier rubric scores remain in scratch.
-# A later paired run graded equivalent computed outcomes differently by format.
-# Rendered review and Opus accepted both. The clarified consequence criterion passed
-# both saved pages and rejected benefits-only and false-measurement controls.
+# A session's survey of Leaf's cascade layers went to the user as prose, a table
+# and options written as code, though every finding was which tier a kind of CSS
+# lands in and what it can beat; the page pointed at the tier diagram on How it
+# Works instead of showing one. The user: "but there are no diagrams, it's a block
+# of text", and asked that a Leaf whose request says nothing about its form show
+# diagrams or images. Run cold, this case guards the default rather than
+# reproducing the failure, which a replay of the session from just before it wrote
+# the page reproduces; the picture default and code-as-effect rule in "Show the
+# subject" address it. The relationship/consequence rubrics accept ranked tier
+# lists, which convey precedence, and inset specimens, which show the proposal's
+# consequences. The consequence criterion grades equivalent computed outcomes alike
+# whatever their format, and rejects benefits-only and false-measurement answers.
 description: CSS cascade survey
 metadata:
   purpose: "Show the subject: a findings page presents cascade precedence and proposed
@@ -101,10 +95,10 @@ assert:
 variants:
   next-opportunities:
     description: Diagnostics report continuation
-    # From session 01a166a1-4914-7ee0-8926-080b8cf24446. The source agent appended
-    # prose-only proposals to an existing diagnostics report after reading guidance.
-    # This seeded continuation preserves that report and synthesizes its research
-    # notes; it is not a full trace replay of the source's code investigation.
+    # The source agent appended prose-only proposals to an existing diagnostics
+    # report after reading guidance. This seeded continuation preserves that report
+    # and synthesizes its research notes; it is not a full trace replay of the
+    # source's code investigation.
     metadata:
       authoring: false
       executor: leaf_dev.usability_eval

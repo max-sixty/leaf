@@ -1,17 +1,13 @@
-# Added when a survey of 360 real pages found 2 of 1,027 agent messages asking with a
-# widget in a thread, against 46 asking in words with --obligation: 3 of those listed
-# the answers ("Which do you want? - Keep this hold. - Drop it.") and 14 asked yes or no
-# to an action ("Shall I open the PR?"), which the user answers with a press when the
-# reply carries lf-options. The delivery's handling then sent every user move to
-# --obligation and named the widget route only as an aside. The envelopes are the real
-# delivery's shape with the handling at the commit that adds this case; a handling change
-# is scored by regenerating them with each wording.
-# Scored on Claude Code and Codex, three runs each. Before this case's handling, no
-# reply carried a widget (0 of 6 baseline choices, 0 of 6 permissions) and every open
-# question stayed in words (6 of 6). A handling that only named `lf-options` put every
-# choice and permission in a widget, but `leaf thread reply` refused each markup it
-# could read (9 of 9), which lacked ids and `choose`. Giving the markup's shape passed
-# all 18 runs, and the command accepted all 12 widgets.
+# On real pages, agent messages in a thread rarely ask with a widget and mostly ask in
+# words with --obligation, some listing the answers ("Which do you want? - Keep this
+# hold. - Drop it.") and some asking yes or no to an action ("Shall I open the PR?"),
+# which the user answers with a press when the reply carries lf-options. A handling
+# that sends every user move to --obligation and names the widget route only as an
+# aside keeps every open question in words. The envelopes are the real delivery's
+# shape with the handling at the commit that adds this case; a handling change is
+# scored by regenerating them with each wording. A handling that only names
+# `lf-options` leads agents to markup that `leaf thread reply` refuses, lacking ids
+# and `choose`, so the handling gives the markup's shape.
 description: thread-choice-takes-a-press
 metadata:
   purpose:

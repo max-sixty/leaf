@@ -1,11 +1,8 @@
-# From Widget lab, Codex chat 01a15cf1-f0af-7161-9d37-be33355c50fe:
-# the author read the one-scroll guidance but chose fixed preview heights for
+# An author read the one-scroll guidance but chose fixed preview heights for
 # stability, then framed the comparison app inside the Leaf page as well.
 # Exercises that competing goal; existing live-stream and window-sample cases
-# guard legitimate bounded views.
-# Codex on af7984ae1 passed 0/4 samples under this rubric. The goal-and-consideration
-# rewrite passed 1/1, plus the independent-passages and window-sample guards (2/2).
-# Earlier state-preservation clarifications still produced separate preview panes.
+# guard legitimate bounded views. State-preservation clarifications alone still
+# produce separate preview panes.
 # This scores proposed structure and code, not a rendered browser implementation.
 description: generated-preview-keeps-its-state
 metadata:

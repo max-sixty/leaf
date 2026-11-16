@@ -1,18 +1,16 @@
-# From session 07bcc268 (web-dev-gaps), which put eight small, unrelated refactors to the
-# user as one accept-or-reject ask. Earlier the user had asked for questions about
-# visible behavior to be "explained much more visually, always", so the session drew a
-# figure above the ask's table with one square per copy of a fact today and one after:
-# the table's counts again, as marks. The user called it "a comically naive diagram".
-# Stated cold, base 2fc25ade6 drew 6 or 7 figures per section, among them a mark per
-# call site and eight empty boxes for eight shadow values (0 of 3); "Show the subject"'s
-# geometry rule, with the refactor exceptions in SKILL.md and authoring-asks.md, drew
-# 1 to 3 that each show a layout or a call path (3 of 3). With the user's earlier
-# "explained much more visually, always" pasted in, both arms drew a figure per item
-# (0 of 4 and 0 of 3), which follows the user's word; the memory that carried it was
-# rewritten instead.
-# A paired run later exposed an answerability false positive: prose saying items
-# could be left out passed despite having no controls. The clarified criterion accepts
-# the saved eight-control page and rejects that list and a page missing one control.
+# A session put eight small, unrelated refactors to the user as one
+# accept-or-reject ask. Earlier the user had asked for questions about visible
+# behavior to be "explained much more visually, always", so the session drew a
+# figure above the ask's table with one square per copy of a fact today and one
+# after: the table's counts again, as marks. The user called it "a comically naive
+# diagram". Stated cold, an agent may draw several figures per section, among them
+# a mark per call site and eight empty boxes for eight shadow values; "Show the
+# subject"'s geometry rule, with its refactor exception, draws the few that each
+# show a layout or a call path. With the user's earlier "explained much more
+# visually, always" pasted in, an agent draws a figure per item, which follows the
+# user's word, so the prompt leaves it out.
+# The answerability criterion accepts the eight-control page and rejects prose
+# saying items could be left out with no controls, and a page missing one control.
 description: figures-add-what-words-cannot
 metadata:
   purpose:

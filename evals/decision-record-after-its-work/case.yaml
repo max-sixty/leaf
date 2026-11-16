@@ -1,19 +1,16 @@
-# From session e39862cf (2026-10-27, page widget-portability-next): over 25 revisions the
-# agent wrote each pick in with `chosen` and amended a sentence when its work landed
-# ("Both are decided: #4518 (merged)"), but never retired a question; all five answered
-# groups stayed open. Across this machine's pages, 125 of the 126 answered groups still open
-# on their page's final revision had `chosen` written in: agents do the step the pick's
-# delivery names ("write the answer into the markup") and stop there. The main prompt replays
-# the minute #4542 merged with that page's revision and the pick's real delivery; the
-# variant replays a pick that keeps today's behavior. Claude Code, 2026-10-28:
-# - delivery naming only writing in (skill not loaded): landed 0/4, no-work 0/4;
-# - delivery asking for the record once the work is done: landed 4/4, no-work 4/4, and
-#   the unfinished pick never called done;
-# - the earlier picks, delivered before that wording, with the skill loaded: settled 0/4
-#   under SKILL.md's one-line pointer to "Keep the current page current", 6/6 once
-#   "Keep the user current" states the goal (bring the whole page up to date; decisions
-#   you have acted on become settled records).
-# The open `keys` question stayed open in every arm.
+# Over 25 revisions of a page, the agent wrote each pick in with `chosen` and amended
+# a sentence when its work landed ("Both are decided: #4518 (merged)"), but never
+# retired a question; all five answered groups stayed open. Nearly every answered
+# group still open on its page's final revision has `chosen` written in: agents do
+# the step the pick's delivery names ("write the answer into the markup") and stop
+# there. The main prompt replays the minute #4542 merged with that page's revision
+# and the pick's real delivery; the variant replays a pick that keeps today's
+# behavior. A delivery naming only writing in leaves the question open; one asking
+# for the record once the work is done retires it, and never calls the unfinished
+# pick done. For the earlier picks, delivered before that wording, SKILL.md stating
+# the goal (bring the whole page up to date; decisions you have acted on become
+# settled records) settles them, where a one-line pointer to "Keep the current page
+# current" does not. The open `keys` question stays open.
 description: decision-record-after-its-work
 metadata:
   purpose:

@@ -1,10 +1,10 @@
 /* A local consumer exercises declaration-driven reports without shipping a task UI. */
+import { nothing } from "/vendor/lit.js";
 import {
   keeps,
   keepsHidden,
   keepsText,
   LeafElement,
-  nothing,
   offer,
   offerAction,
   readWork,

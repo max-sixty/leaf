@@ -256,7 +256,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 
     page.evaluate(
         """async () => {
-              (await window.__lfWidgetApi()).notice('Saved');
+              (await window.__lfCheckApi()).notice('Saved');
               dispatchEvent(new Event('resize'));
             }"""
     )

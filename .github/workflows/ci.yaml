@@ -212,9 +212,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            .tmp/test-results/
-            .tmp/thread-snapshots/runs/
+          path: .tmp/test-results/
           if-no-files-found: ignore
           retention-days: 30
 
@@ -352,8 +350,6 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: pytest-results-${{ github.job }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: |
-            .tmp/test-results/
-            .tmp/thread-snapshots/runs/
+          path: .tmp/test-results/
           if-no-files-found: ignore
           retention-days: 30

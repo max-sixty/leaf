@@ -26,7 +26,6 @@ KEYBOARD_HINT_REGISTRY = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-state": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-state"],
         "x-awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-awaits"],
     }
@@ -793,14 +792,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
     Obligation forwarding and the intrinsic route must preserve that choice and merge into
     one hint when both bindings reach the same original command.
     """
-    # This test's module seats no thread, so its entry declares no thread surface.
-    registry = {
-        "lf-verdict": {
-            key: value
-            for key, value in SEATED_OBLIGATION_LAYER["lf-verdict"].items()
-            if key != "x-thread-surface"
-        }
-    }
+    registry = {"lf-verdict": dict(SEATED_OBLIGATION_LAYER["lf-verdict"])}
     page = open_page(
         browser,
         serve(

@@ -213,7 +213,8 @@ def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browse
         "lf-first-box { display: block; } #reserved { block-size: 40px; }"
     )
     (package / "widgets/lf-first-box.js").write_text("""\
-import {LeafElement, html} from "/runtime/widget-api.js";
+import { html } from "/vendor/lit.js";
+import { LeafElement } from "/runtime/widget-api.js";
 customElements.define("lf-first-box", class extends LeafElement {
   render() { return html`<div style="block-size:40px">Drawn view</div>`; }
 });

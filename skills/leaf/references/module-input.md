@@ -113,7 +113,10 @@ a widget's state or the threads. For any other state it reads, hold the value in
 ### How scopes compose
 
 A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A scope takes only keys whose rows make a press, by a `run` or by
+then to the page. A key pressed inside an outlet Leaf fills with a Thread
+(`module-annotations.md`, "Widget-local Thread placement" and "Page annotation
+presentation") skips the widgets around the outlet: it goes to the scopes inside the
+outlet and on it, then to the page. A scope takes only keys whose rows make a press, by a `run` or by
 naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
 different meaning further out; an unavailable Escape, though, passes on to the next
 Escape. Text fields keep their editing keys ahead of every widget scope. A key other
@@ -222,8 +225,9 @@ A live revision moves focus from a generated control to its replacement by a
 whether focus is in a scope. `placeOf(node)` returns the page node a place stands for,
 so focus on a margin entry or in a thread card reads as being at its passage or
 obligation; a module asks it whether the user is on its content from either.
-`whenLeft(element, leave)` runs `leave` once when focus
-leaves an element. `onPressAway(away, dismiss)` hears each primary press that begins and
+`whenLeft(element, leave)` runs `leave` once when focus moves off `element`. Pass the
+focused element itself, or a host whose shadow tree holds focus: `whenLeft` doesn't
+hear focus leave a control among `element`'s children. `onPressAway(away, dismiss)` hears each primary press that begins and
 ends where `away(path)` is true of its composed path, as an open editor that a tap
 elsewhere should save does, and calls `dismiss(path, from)` before the press's click; it
 ignores a touch scroll the browser cancels, and returns its unsubscribe function. A group

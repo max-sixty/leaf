@@ -474,6 +474,26 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     expect(field).to_have_js_property("value", ninth)
 
 
+def test_page_map_reads_a_listed_draft_as_it_now_stands(browser, serve):
+    """Words added to a draft already in the margin reach its Page Map row, though the
+    drafts list publishes no keystroke."""
+    page = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+    draft = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
+    choose_comment_target(page, "#p9")
+    write(field, "About the ninth paragraph.")
+    page.keyboard.press("Escape")
+    draft.click()
+    expect(field).to_be_focused()
+    field.press("End")
+    page.keyboard.type(" More words added later.")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    expect(page.locator(".lf-page-map-list")).to_contain_text("More words added later")
+
+
 def test_drafts_stand_by_their_own_passage_and_outlast_a_resolved_thread(
     browser, serve
 ):

@@ -38,7 +38,7 @@ import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import { readingOrder, readingPlace, targetSegments } from "./resolved-target.js";
 import { resolveAnchor } from "./anchor-resolution.js";
-import { draftAnchor, draftSends, draftsReading, loadDraft } from "./drafts.js";
+import { draftAnchor, draftSends, draftsReading } from "./drafts.js";
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
@@ -511,7 +511,9 @@ export function createAnnotationInventory({
       kind: "draft",
       id: `draft:${draft.context}`,
       draft: draft.context,
-      text: excerptWords(loadDraft(draft.context)?.text ?? "", 60) || "A drawing",
+      // What the draft is, not its words, which a view reads where it draws them: the
+      // drafts list publishes no keystroke, so words copied here would go stale.
+      text: `${draftSends(draft)} draft`,
       context: leafSays(draftSends(draft)),
       activate: () => resumeDraft(draft.context),
     });

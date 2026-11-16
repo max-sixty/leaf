@@ -425,9 +425,6 @@ const laneOf = (box, layer) => {
 };
 // The page's sideways scroll as the last pass placed rows.
 let laidOutScrollX = 0;
-// The rail's side and edge across the document as the last pass placed rows.
-/** @type {string | null} */
-let laidOutRail = null;
 // Where the last pass stood each row it placed, as offsets from what carries it: its
 // carrier's anchor, as the pass measured it (`anchorBox`), on the axes the carrier
 // follows it (`across` where both, the window's left edge otherwise), or, for a row in
@@ -1926,11 +1923,6 @@ function layoutMountedRows(layer) {
   const shellStart = shellLeft();
   const rail = marginRail(main);
   const stands = Boolean(rail);
-  // A rail the page's layout now places elsewhere moves every rail row, whatever the
-  // records say (`seatings`): its placement can read boxes no observer here watches.
-  const railAt = rail && `${rail.side} ${rail.edge + windowX}`;
-  if (railAt !== laidOutRail) seatings.clear();
-  laidOutRail = railAt;
   const rootStyle = getComputedStyle(document.documentElement);
   const pinInset = parseFloat(rootStyle.getPropertyValue("--lf-pin-inset")) || 0;
   // The half that decides rail or pin is a rail marker's: a pin's entries are smaller.

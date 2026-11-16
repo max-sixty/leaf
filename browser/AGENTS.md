@@ -102,9 +102,9 @@ rule draws at once is drawn.
   `test_a_thread_joining_page_map_above_the_row_the_user_is_on_leaves_it_still`.
 - **Nothing Leaf draws moves the page's content.** Pins, passage marks and runtime
   controls sit over the page and take no space, and no rule pads or widens a block to
-  make room for them. The rail sits right of `main` when the window is wide enough and
-  never moves or narrows the column (`../skills/leaf/references/page-layout.md`, "The
-  rail and the margin"). Native block flow and wrapping rows place the page's own
+  make room for them. The rail sits right of `main` when the window is wide enough, or
+  where the page's layout places it, and never moves or narrows the column
+  (`../skills/leaf/references/page-layout.md`, "The rail and the margin"). Native block flow and wrapping rows place the page's own
   sidebars and notes from the first paint, and `runtime/content-layout.js` reads their
   CSS geometry for annotations and never reallocates document space. The chrome opens
   over the page too, in the
@@ -672,6 +672,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `shown-box.js` `contentsRects`, `contentsBox`                                      |
 | Whether a box is stuck, and the band sticky headers cover                                             | `geometry.js` `stuckBox`, `visibleBand`                                            |
 | Which headers the page itself holds over the document, at the window's top                            | `root-headers.js` `pageHeads`                                                      |
+| Where the margin's rail stands, and whether one stands at all                                         | `content-layout.js` `marginRail`, `railStands`                                     |
 | Whether a box scrolls, for a script or for the user                                                   | `geometry.js` `scrollContainer`, `userScrollport`                                  |
 | The box an input scrolls, along the chain native scrolling follows                                    | `scroll-containers.js` `inputScroller`, `scrollChainOf`                            |
 | Which axes a box clips                                                                                | `rect.js` `clippingAxes`                                                           |

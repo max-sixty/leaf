@@ -126,17 +126,27 @@ export function proseRect(main = layoutBox()) {
     corner(right, frame.height),
   ]);
 }
-// Where the margin's rail stands, a placement the page's layout makes: the line its rows
-// stand against (`edge`, across the window) and the side of that line they stand on
-// (`side`), or null where no rail stands and every row pins (margin-placement.js,
-// `rowPlacement`). The placement is asked with the room it decides in: the column's
-// prose box (`column`) and the page's box across (`shell`). By default the rail hangs
-// `--lf-rail-hang` past the column's right edge, where the shell leaves the rail's width
-// (`--lf-rail`) beside the column. A page or package whose layout keeps the margin
-// elsewhere, as a page with a strip of its own on the column's left does, says where
-// with `placeMarginRail`; the last placement registered stands until it is withdrawn. A
-// page whose annotations are its own (`data-annotations="page"`), or one that gives its
-// margin to its content (`data-rail="none"`), has no rail whatever is placed.
+// Where the margin's rail stands, which the page's layout decides (browser/AGENTS.md,
+// "The page owns its arrangement"). `side` is the side of the column the rail is on, and
+// `edge` is the line across the window its rows stand against, on that same side of the
+// line. Null means no rail stands, so every row pins (margin-placement.js,
+// `rowPlacement`). By default the rail hangs `--lf-rail-hang` past the column's right
+// edge, where the shell leaves the rail's width (`--lf-rail`) there. A page or package
+// that keeps its margin elsewhere, such as in a strip of its own left of the column,
+// registers a placement with `placeMarginRail`. Leaf then asks that placement instead,
+// with the column's prose box (`column`) and the shell's edges (`shell`). One placement
+// stands at a time: registering replaces it, and withdrawing the one that stands
+// restores the default. A page that presents its own annotations
+// (`data-annotations="page"`) or gives its margin to its content (`data-rail="none"`)
+// has no rail, whatever is registered.
+//
+// A placement says only where the one strip is. Each row's posture, packing and pin seat
+// stay with margin-placement.js. Handing a package those folds, or each row's posture,
+// would make `Pin`, `Row` and `Footprints` public and let a package seat a pin over a
+// control. The user chose a function a module registers over a side named in
+// `data-rail`, so the edge can stand beside a strip the page lays out itself
+// (2026-11-15). The thread card's side (annotation-overlay/comment-placement.js) and the
+// room `data-rail="right"` gives up (annotation-theme.css) still follow the default.
 /** @typedef {{edge: number, side: "left" | "right"}} Rail
  * @typedef {{column: ProseBox, shell: {left: number, right: number}}} RailRoom
  * @typedef {(room: RailRoom) => Rail | null} RailPlacement */
@@ -166,8 +176,8 @@ export function marginRail(main = layoutBox()) {
 }
 /** @param {Element | null} [main] */
 export const railStands = (main = layoutBox()) => Boolean(marginRail(main));
-// A placement replaces the last, and its withdrawal restores the default. Either moves
-// every rail row, so the margin lays out again (`LAYOUT`).
+// Registering or withdrawing a placement moves every rail row, so the margin lays out
+// again (`LAYOUT`).
 /** @param {RailPlacement} place */
 export function placeMarginRail(place) {
   railPlacement = place;

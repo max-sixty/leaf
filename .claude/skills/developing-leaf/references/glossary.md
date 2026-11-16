@@ -184,7 +184,7 @@ dialog**. The margin projection has its own terms:
 
 | Term | Identity criterion |
 |---|---|
-| **Rail** | The strip right of `main` where margin rows sit beside their targets, where there is room, without moving the column (`page-layout.md`, "The rail and the margin") |
+| **Rail** | The strip beside `main` where margin rows sit beside their targets without moving the column: right of `main` where there is room, or where the page's layout places it (`page-layout.md`, "The rail and the margin"; `marginRail` in `content-layout.js`) |
 | **Margin content** | Something beside the prose: annotations read its native track; CSS arranges the contents map, sidebar and notes (`page-layout.md`) |
 | **Margin row** | One row tied to a target and aligned with it, placed in the `rail`, as a `pin`, or `withheld` (`groupFor` in `annotation-inventory.js` says which rows a target gets) |
 | **Pin** | A margin row drawn over the page beside its target, used where the row can't sit in the rail (`rowPlacement`; `seatRows` in `margin-placement.js` places it) |

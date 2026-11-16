@@ -445,6 +445,91 @@ def test_a_workspace_page_keeps_no_rail_even_when_asked(browser, serve):
     )
 
 
+STRIP_PAGE = leaf_page(
+    "a rail in the page's own strip",
+    '<h1 id="t">A rail in a strip</h1><p id="p">A paragraph with a comment on it.</p>',
+    head="""<style>
+#notes-strip { position: absolute; inset-block: 0; left: 120px; width: 60px; }
+#notes-strip[data-at="moved"] { left: 160px; }
+@media (width < 700px) { #notes-strip { display: none; } }
+</style>
+<script type="module" src="/page/rail.js"></script>""",
+).replace("<body>", '<body>\n<aside id="notes-strip"></aside>')
+
+# The module `module-annotations.md`, "Where the margin's rail stands", shows, with the
+# page's own move of its strip and the withdrawal for the test to call.
+STRIP_RAIL = """
+import { layoutChanged, placeMarginRail } from "/runtime/widget-api.js";
+
+const strip = document.getElementById("notes-strip");
+const withdraw = placeMarginRail(() => {
+  const box = strip.getBoundingClientRect();
+  return box.width ? { edge: box.right, side: "left" } : null;
+});
+Object.assign(window, {
+  moveStrip() {
+    strip.dataset.at = "moved";
+    layoutChanged(strip);
+  },
+  withdrawRail: withdraw,
+});
+"""
+
+
+def test_a_page_stands_the_rail_in_a_strip_of_its_own(browser, serve):
+    """A page that keeps its margin in a strip of its own, left of the column, says where
+    with `placeMarginRail`. Its rows then stand in the rail there, ending at the edge the
+    page names. They follow the strip when the page moves it and announces the move,
+    pin where the strip is gone, and stand right of the column again once the page
+    withdraws its placement."""
+    page = open_page(
+        browser,
+        serve(
+            STRIP_PAGE, events=[_comment_on("p")], page_files={"rail.js": STRIP_RAIL}
+        ),
+    )
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    row = page.locator('.lf-margin-cluster[data-lf-margin-for="p"]')
+    expect(row).to_have_attribute("data-lf-place", "rail")
+    edges = """() => {
+      const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+      return {
+        row: box('[data-lf-margin-for="p"]'),
+        strip: box('#notes-strip'),
+        prose: box('#p'),
+      };
+    }"""
+    ends_at_the_strip = f"""() => {{
+      const {{row, strip}} = ({edges})();
+      return Math.abs(row.right - strip.right) <= 1;
+    }}"""
+    at = page.evaluate(edges)
+    assert at["strip"]["right"] == 180, at
+    assert abs(at["row"]["right"] - 180) <= 1, at
+
+    page.evaluate("() => window.moveStrip()")
+    assert page.evaluate(edges)["strip"]["right"] == 220
+    page.wait_for_function(ends_at_the_strip)
+
+    resized(page, 600, 900)
+    margins_laid_out(page)
+    expect(row).to_have_attribute("data-lf-place", "pin")
+
+    resized(page, 1440, 900)
+    margins_laid_out(page)
+    page.wait_for_function(ends_at_the_strip)
+    expect(row).to_have_attribute("data-lf-place", "rail")
+    page.evaluate("() => window.withdrawRail()")
+    page.wait_for_function(
+        f"""() => {{
+          const {{row, prose}} = ({edges})();
+          return row.left >= prose.right;
+        }}"""
+    )
+    expect(row).to_have_attribute("data-lf-place", "rail")
+
+
 WIDE_TABLE_ROW_PAGE = leaf_page(
     "a comment in a wide table",
     """

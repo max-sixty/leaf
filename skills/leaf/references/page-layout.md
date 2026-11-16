@@ -292,7 +292,9 @@ attributes. To change where a route stands, compose its sidebar and body explici
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives
 a column page's right margin to the page's own content. A workspace has no rail; a
-comment there shows as a pin on its block.
+comment there shows as a pin on its block. To stand the rail somewhere else, such as
+left of the column, place it from a module (`module-annotations.md`, "Where the margin's
+rail stands").
 
 ## Page-owned annotations
 

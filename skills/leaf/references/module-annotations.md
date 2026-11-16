@@ -75,25 +75,38 @@ node. Use the focus query when retaining a focused entry while updating its read
 
 ## Where the margin's rail stands
 
-Margin rows stand in the rail, a strip beside the column, or as pins on their targets
-where no rail stands beside them. By default the rail stands right of the column where
-the window leaves it room. A page or package whose layout keeps that strip elsewhere
-says where with `placeMarginRail(place)`. Leaf calls `place({column, shell})` once per
-layout pass, with the column's prose box and the page's box across (`shell.left`,
-`shell.right`), in window coordinates. It returns `{edge, side}`, the line rows stand
-against and the side of it they stand on (`"left"` or `"right"`), or `null` for no rail.
-It reads layout and writes nothing. Leaf keeps every other rule: a row pins where its
-block reaches into the rail, beside a note in it, or in a pane, and rows stack down the
-rail level with their targets. The call returns a function that withdraws the
-placement.
+Leaf stands margin entries in the rail, a strip beside the column, and over their
+targets as pins where no rail stands beside them. By default the rail is right of the
+column, wherever the window leaves it room. A page or package whose layout keeps the
+margin somewhere else, such as left of the column or in a strip of its own, calls
+`placeMarginRail(place)`.
+
+Leaf calls `place({column, shell})` whenever it lays out the margin, so keep it cheap.
+`column` is the box of the column's prose and `shell` holds the page's `left` and
+`right` edges, all in window coordinates, as `getBoundingClientRect` gives them. Return
+`{edge, side}`, or `null` for no rail. `side` is the side of the column the rail is on,
+`"left"` or `"right"`, and `edge` is the line entries stand against on that side: a left
+rail's entries end at `edge`, and a right rail's start there. `place` only reads layout.
+After your own code moves the strip, call `layoutChanged(strip)`, so Leaf asks again
+(`module-authoring.md`).
 
 ```js
 import { placeMarginRail } from "/runtime/widget-api.js";
 
-placeMarginRail(({ column, shell }) =>
-  column.left - shell.left >= 96 ? { edge: column.left - 24, side: "left" } : null,
-);
+const strip = document.getElementById("notes-strip");
+const withdraw = placeMarginRail(() => {
+  const box = strip.getBoundingClientRect();
+  return box.width ? { edge: box.right, side: "left" } : null;
+});
 ```
+
+One placement stands at a time: a later call replaces it, and the function the call
+returns withdraws it, which restores the default. Leaf keeps every rule about a single
+entry. An entry still pins where its block reaches into the rail, beside a note hanging
+there, and inside a pane, and entries stack down the rail level with their targets. A
+thread's card and the comment box still open where Leaf's own placement puts them, which
+prefers the right of the commented text. `data-rail="none"` and
+`data-annotations="page"` on `body` leave a page with no rail, whatever is placed.
 
 ## Visual parts
 

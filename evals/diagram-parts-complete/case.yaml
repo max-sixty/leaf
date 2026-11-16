@@ -4,13 +4,15 @@
 # accessible metadata was absent on the base and meaningful on the head.
 # Guidance survey #18 now checks that the renderer owns the node inventory rather
 # than making the author duplicate it in a synchronized roster.
-# The case now authors the page and names no entry to read: at 0e538e29d each of 4
-# Claude Code authors added the diagram package, read lf-diagram's instructions through
-# `leaf page instructions --use` and passed both grades, as 4 of 4 told probes did.
+# As an authoring case naming no entry to read, at 0e538e29d each of 4 Claude Code
+# authors added the diagram package, read lf-diagram's instructions through `leaf page
+# instructions --use` and passed both grades, as 4 of 4 told probes did. Now a probe
+# given a page with its packages, it passed Claude Code 2 of 2, Codex 2 of 2 at
+# b90df8d3a2.
 description: diagram-parts-complete
 metadata:
   purpose: A diagram exposes every named box through its renderer-owned inventory.
-  authoring: true
+  page: [diagram]
   tags:
     - diagram
     - comments

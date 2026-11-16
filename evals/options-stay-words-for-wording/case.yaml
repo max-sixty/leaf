@@ -18,18 +18,19 @@
 # reason-beside-options: while the registry's examples wrote the reason into the
 # recommended card (`<em>My take: …</em>`), base 2c52f93ec kept it out of the cards
 # in 1 of 5 Claude Code runs; with the reason in the lf-ask's prose, 5 of 5.
-# The case now authors the page and names no entry to read: at 0e538e29d, 2 of 2
-# Claude Code authors read the entries through `leaf page instructions --use`, and 1
-# of 2 kept every option words. The other showed each wording among the report's
-# lines in a `<pre>`, as authoring-on-me.md's "a wording as it would appear" asks,
-# which options-draw-nothing failed as an HTML mockup. It now passes text shown in
-# its setting and fails only a drawing, and the regraded run passed 2 of 2.
+# As an authoring case naming no entry to read, at 0e538e29d, 2 of 2 Claude Code authors
+# read the entries through `leaf page instructions --use`, and 1 of 2 kept every option
+# words. The other showed each wording among the report's lines in a `<pre>`, as
+# authoring-on-me.md's "a wording as it would appear" asks, which options-draw-nothing
+# failed as an HTML mockup. It now passes text shown in its setting and fails only a
+# drawing, and the regraded run passed 2 of 2. Now a probe given a page with its
+# packages, it passed Claude Code 2 of 2, Codex 2 of 2 at b90df8d3a2.
 description: options-stay-words-for-wording
 metadata:
   purpose:
     "Asks: when the alternatives differ only in wording, each lf-option stays a title and a sentence,
     with no drawing."
-  authoring: true
+  page: []
   tags:
     - asks
     - drawing

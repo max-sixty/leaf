@@ -517,10 +517,16 @@ export function watchScrolls(listener) {
 }
 
 // Each box's scroll sequence, from its first scroll until it ends: at its `scrollend`,
-// or, since a scroll restoration that replaces what was scrolling ends without one,
-// after a quiet spell of SETTLE_MS and two rendering updates with no scroll in the box.
-// The spell needs both: Firefox's main thread hears its smooth scroll's frames late,
-// and a busy page delays the updates that carry a scroll's events past any clock.
+// or, where none will come, after a quiet spell of SETTLE_MS and two rendering updates
+// with no scroll in the box. Chromium, Firefox and WebKit send one for every move that
+// lands, a script's, a clamp's and an anchoring adjustment's included, but none for an
+// input that moves nothing, a box that leaves mid-scroll or Chromium's stop of a smooth
+// scroll, nor for Playwright's wheel in Firefox and WebKit (2026-11-15). The spell needs
+// both: Firefox's main thread hears its smooth scroll's frames late, and a busy page
+// delays the updates that carry a scroll's events past any clock. A Firefox starved of
+// CPU outlasts both, applying a key's scroll up to 800 ms after the key and pausing
+// longer than the spell between its frames, so there the spell can end the reader's
+// scroll before or while it moves.
 // WebKit ends a keyboard scroll on each of its frames (notes/browser-support.md), so
 // there one keypress makes several sequences. A script that moves a
 // box a frame at a time, as the runtime's glide does (scrolling.js, `glideTo`), gets a

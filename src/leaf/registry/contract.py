@@ -552,10 +552,10 @@ def state_definition(
 def same_state_operation(recorded, current) -> bool:
     """The same fold destination and construction, independent of payload domain.
 
-    The operation is the fields `state_definition` writes now, `detail` aside. A
-    field an earlier Leaf recorded beside them, such as the verb flag it recorded
-    as `update` and then `report`, is how that version wrote the definition, not
-    part of the operation, so it never retracts a decision. A missing field still
+    The operation is the fields `state_definition` writes, `detail` aside. A field
+    another Leaf version recorded beside them, such as a verb flag, is how that version
+    wrote the definition, not part of the operation, so it never retracts a decision. A
+    missing field still
     fails."""
     return (
         isinstance(recorded, dict)

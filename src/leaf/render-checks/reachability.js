@@ -65,12 +65,12 @@ export function clippedControls() {
     // control whose containing block is above the clipping ancestor is painted
     // outside it on purpose, exactly as `misplacedBoxes`' own margin content is.
     if (getComputedStyle(el).position === "absolute") continue;
-    // Up to the body and no further: the document's own scrolling arrangement is
-    // the page's, not a widget's. The runtime scrolls body rather than the
-    // viewport so the panel has room beside it, which leaves <html> clipping and
-    // with nothing of its own to scroll — so a walk that ran to the root reported
-    // every control below the fold as hidden by the page it is on.
-    // Leaf's chrome stands after the body (base.css), so its controls stop at the root.
+    // Up to the body and no further: the document's own scrolling arrangement is the
+    // page's, not a widget's. The runtime scrolls body rather than the viewport so the
+    // panel has room beside it, which leaves <html> clipping and with nothing of its
+    // own to scroll — so a walk that ran to the root would report every control below
+    // the fold as hidden by the page it is on. Leaf's chrome stands after the body
+    // (base.css), so its controls stop at the root.
     for (
       let a = el.parentElement;
       a && a !== document.body && a !== document.documentElement;
@@ -178,11 +178,11 @@ export function unmarkableElements() {
   const HTML = "http://www.w3.org/1999/xhtml";
   const found = [];
   for (const el of document.querySelectorAll("[id]")) {
-    // The document's own elements, which is what an anchor can name and a walk can
-    // step to. A rendered diagram's insides are none of those — they are one
-    // picture, whose <lf-diagram> is the thing to point at and has a box of its
-    // own — and they are full of shapes with ids and no layout box: every <marker>
-    // in a diagram's <defs> read as an addressable element showing 11x11px of words.
+    // The document's own elements, which is what an anchor can name and a walk can step
+    // to. A rendered diagram's insides are none of those — they are one picture, whose
+    // <lf-diagram> is the thing to point at and has a box of its own — and they are
+    // full of shapes with ids and no layout box: a <marker> in a diagram's <defs> would
+    // read as an addressable element showing words.
     if (el.namespaceURI !== HTML) continue;
     if (el.closest(".lf-chrome")) continue;
     const box = shownBox(el);
@@ -227,11 +227,11 @@ export function unreachableWords() {
     Boolean(el.closest(".lf-ui, [data-lf-said]")?.matches("[data-lf-said]"));
   // Where a control's own words may sit: the control a widget declared (data-lf-offer,
   // asked instead of the role it wears, because lf-tabs overwrites `offer`'s
-  // role="button" with "tab" and a Δ badge in a tab then read as a heading somebody
-  // hid while the identical badge in a settled row read as chrome), or a native
-  // control. `label` is among those because a radio and a checkbox have nowhere else
-  // to put their words: a button holds its own, an input cannot, and HTML's answer is
-  // an element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
+  // role="button" with "tab", so a Δ badge in a tab would read as a heading somebody
+  // hid while the identical badge in a settled row reads as chrome), or a native
+  // control. `label` is among those because a radio and a checkbox have nowhere else to
+  // put their words: a button holds its own, an input cannot, and HTML's answer is an
+  // element beside it. lf-shot's flip is a checkbox, so that it keeps working in a page
   // whose script is gone. The line counting a passage's comments is one of these too —
   // the runtime builds it through `offer`, as a widget builds its own.
   const CONTROL = `button, ${TEXT_BOX}, input, select, label, a[href], [data-lf-offer]`;

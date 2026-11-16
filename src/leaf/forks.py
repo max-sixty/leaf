@@ -7,17 +7,16 @@ module (`hooks/claude-code.ts`). `docs/forks.html` is the design's home, diagram
 included; this header holds the rules this module keeps and the choices behind them,
 and `holding.py` the rule for which turn holds a message.
 
-On real pages the session's answer to a thread message is slow, slower when it is
-busy, and the thread shows nothing from the agent after a message until the
-session's first model call ends (`notes/fork-replies.md`, "Forks on real pages").
-`$.model.fork` resends the session's last request with one more message, at any
-moment, mid-command too, and a fork decides in a few seconds. The user had the fork
-post only the agent's working line and always hand over, rather than answer or hand
-over: a line fork can't call tools (`$.model.fork` denies every one),
-and answering is left to a fork that can act. The line fork also judges whether a
-working fork could do the work beside the session (`ANSWER`'s `work`): `take` gives
-the thread to one, where the module makes them (`_take`), and otherwise Leaf records
-the judgment and hands the thread over.
+On real pages the session's answer to a thread message took tens of seconds, longer when
+it was busy, and the thread showed nothing from the agent after a message until the
+session's first model call ended (`notes/fork-replies.md`, "Forks on real pages").
+`$.model.fork` resends the session's last request with one more message, at any moment,
+mid-command too, and there a fork decided in seconds. The user had the fork post only
+the agent's working line and always hand over, rather than answer or hand over: a line
+fork can't call tools (`$.model.fork` denies every one), and answering is left to a fork
+that can act. The line fork also judges whether a working fork could do the work beside
+the session (`ANSWER`'s `work`): `take` gives the thread to one, where the module makes
+them (`_take`), and otherwise Leaf records the judgment and hands the thread over.
 
 A thread's waiting messages are the user's messages the agent still owes an answer
 in it while it stands open (`holding.rounds`). Each thread with
@@ -93,13 +92,13 @@ turn, renewing it after an interrupt and holding the message at Working before t
 session had it, which would hide it from the nudge and the overdue count.
 
 The line fork thinks at the session's own effort, and its prompt asks it to reply
-straight away without thinking it over, since every second it takes keeps the
-thread's messages from the session; a fork at another effort can cost a rewrite of
-the conversation to the cache (`runFork` in `hooks/claude-code.ts` says when). A fork
-at `low` writes lines as good as xhigh's (`notes/fork-replies.md`, "How well the fork
-judges") and skips the occasional line xhigh spends seconds thinking over, while a
-fork at xhigh asked to reply straight away passes the eval's cases as well as a low
-one.
+straight away without thinking it over, since every second it takes keeps the thread's
+messages from the session; a fork at another effort can cost a rewrite of the
+conversation to the cache (`runFork` in `hooks/claude-code.ts` says when). A fork at
+`low` wrote lines as good as xhigh's on recorded messages (`notes/fork-replies.md`, "How
+well the fork judges") and skipped the occasional line xhigh spent seconds thinking
+over, while a fork at xhigh asked to reply straight away did as well on the eval's
+cases.
 
 Another message while the thread is kept back keeps it back, with a line fork for the
 new set, and drops the earlier line fork's line (`route`); a thread with the session

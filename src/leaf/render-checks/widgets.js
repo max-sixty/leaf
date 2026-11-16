@@ -126,14 +126,13 @@ export const invalidVisualProviders = (declarations) =>
 // built, in the platform's vocabulary (aria-*, role, hidden, tabindex) or under data-*,
 // which is the layer's and a widget's alike.
 //
-// An undeclared attribute a module writes, such as a record of a verb only a thread can
-// post (a thread's markup is frozen in the log, so no version could honor it) or of
-// which way this tab last left a disclosure (which no version carries at all), reaches
-// no consumer, and the one reader that does see it reads it wrong: shallowSigs excludes
-// exactly the attributes no version can assert, and its exclusion list is the runtime's
-// own paint — so a widget writing beside it is counted as state the author wrote, in
-// the reading `page check --render` uses to decide whether a version overrules the
-// user.
+// A record of a verb only a thread can post (a thread's markup is frozen in the log, so
+// no version could honor it) or of which way this tab last left a disclosure (which no
+// version carries at all) has no consumer, and the one reader that does see such an
+// attribute reads it wrong: shallowSigs excludes exactly the attributes no version can
+// assert, and its exclusion list is the runtime's own paint — so a widget writing
+// beside it is counted as state the author wrote, in the reading `page check --render`
+// uses to decide whether a version overrules the user.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */

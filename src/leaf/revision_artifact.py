@@ -306,7 +306,7 @@ def _javascript_imports(data: bytes, path: str):
     """`javascript_imports`, with the imports it refuses beside the rest.
 
     A layer's modules are the same bytes in every page that selects them, and parsing
-    a vendored bundle takes about a second, so a process reads each module once."""
+    a vendored bundle is costly, so a process reads each module once."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError:

@@ -5,21 +5,21 @@ a page where the fork says how, and passes the agent what else it finds out of d
 It is experimental, and runs only in Claude Code.
 
 An agent does the user's work and Leaf's bookkeeping in one context, and late in long
-sessions the bookkeeping slips: sessions holding live pages leave the decisions
-waiting on the user only in their chat replies, so On Me reads empty, and rewording
-the skill doesn't change that. A fork of the whole conversation reads what the agent
-said, so Leaf asks one. The user chose this shape over a digest of the final reply, an
-advisor that prompts the agent, and a clerk agent that also rewrites the page. They
-split its results by who can act on them: Leaf writes a result only where the fork's
-answer settles it and the record is one Leaf keeps for that purpose, an ask On Me, and
-everything else reaches the agent as a message, which it acts on or forks off, so for
-those findings alone the fork is the advisor they otherwise rejected. Only the agent
-opens a to-do on its own list, since that list holds work the user wants done. They
-asked that the fork also make small fixes itself, such as a lede that still says work
-is running, and tell the agent what it changed, which keeps the agent in control: it
-hears the old and new words and changes them back or rewrites them as it would its
-own edit. So the fork rewrites the page, which they rejected for a clerk, only for
-fixes of a few words; a fix that needs more goes to the agent as a message.
+sessions the bookkeeping slips: sessions holding live pages leave the decisions waiting
+on the user only in their chat replies, so On Me reads empty, and rewording the skill
+left that unchanged in replays of such a session. A fork of the whole conversation reads
+what the agent said, so Leaf asks one. The user chose this shape over a digest of the
+final reply, an advisor that prompts the agent, and a clerk agent that also rewrites the
+page. They split its results by who can act on them: Leaf writes a result only where the
+fork's answer settles it and the record is one Leaf keeps for that purpose, an ask On
+Me, and everything else reaches the agent as a message, which it acts on or forks off,
+so for those findings alone the fork is the advisor they otherwise rejected. Only the
+agent opens a to-do on its own list, since that list holds work the user wants done.
+They asked that the fork also make small fixes itself, such as a lede that still says
+work is running, and tell the agent what it changed, which keeps the agent in control:
+it hears the old and new words and changes them back or rewrites them as it would its
+own edit. So the fork rewrites the page, which they rejected for a clerk, only for fixes
+of a few words; a fix that needs more goes to the agent as a message.
 
 Four principles, the user's, bound what the fork may do:
 
@@ -50,54 +50,52 @@ Four principles, the user's, bound what the fork may do:
 
 What the fork is asked is prose in the shipped skill,
 `skills/leaf/references/turn-end-check.md`, which the agent can also read when one of
-the clerk's lines puzzles it; `fork_prompt` sends it verbatim with each page's facts
-and the answer's form. It asks for two things. Asks: what Leaf's rule for On Me puts
-there that the agent left to the user and no On Me item holds. The fork reads that
-rule, and the guidance for how a question reads in a thread, as the agent does
-(`guidance`), since the user chose that the fork apply Leaf's standard
-policy rather than a wording of its own, so a question such as whether a suggested
-follow-up goes On Me is settled once, by that rule. They chose the same
-for how a question reads, since a wording of the reference's own gives each
-question as one unbroken paragraph, so the agent's guidance shapes both.
-Findings for the agent:
-a page that still says what the work or the conversation has since changed, an On Me
-item already settled elsewhere, work promised or set running that no page shows,
-for which the fork sees the items the page shows started, and an open thread whose
-agent messages the user would misread (`overtaken`). The user cut the status line
-and missed page steps from what the fork is asked, and has it ask for the asks in
-Leaf's own words rather than any one user's markers. They left out an open-ended
-question about the agent's instructions, which draws noise findings and loses what it
-checks against once compaction drops the skill. What the page state
-alone settles, such as input not yet delivered, is code's to report rather than a
-model's.
+the clerk's lines puzzles it; `fork_prompt` sends it verbatim with each page's facts and
+the answer's form. It asks for two things. Asks: what Leaf's rule for On Me puts there
+that the agent left to the user and no On Me item holds. The fork reads that rule, and
+the guidance for how a question reads in a thread, as the agent does (`guidance`), since
+the user chose that the fork apply Leaf's standard policy rather than a wording of its
+own, so a question such as whether a suggested follow-up goes On Me is settled once, by
+that rule. They chose the same for how a question reads, since a wording of the
+reference's own gave recorded questions as one unbroken paragraph each, so the agent's
+guidance shapes both. Findings for the agent: a page that still says what the work or
+the conversation has since changed, an On Me item already settled elsewhere, work
+promised or set running that no page shows, for which the fork sees the items the page
+shows started, and an open thread whose agent messages the user would misread
+(`overtaken`). The user cut the status line and missed page steps from what the fork is
+asked, and has it ask for the asks in Leaf's own words rather than any one user's
+markers. They left out an open-ended question about the agent's instructions, which
+draws noise findings and loses what it checks against once compaction drops the skill.
+What the page state alone settles, such as input not yet delivered, is code's to report
+rather than a model's.
 
-The user left status lines out until a session shows a started item's line going
-stale while its work runs in the background. The fork is good at them: it restates a
-started line the conversation shows is over and leaves current lines alone. But
-recorded turn ends hold no stale line, and Leaf can't yet write one truthfully: a
-start written after the turn closed keeps the page reading working for the working
-grace after the background work stops, since `activity._start_age` dates a start's
-hold by when it was written rather than by the turn it names. Restating lines needs
-that changed first.
+The user left status lines out until a session shows a started item's line going stale
+while its work runs in the background. The fork is good at them: in replays it restated
+started lines the conversation showed were over and left current lines alone. But the
+recorded turn ends held no stale line, and Leaf can't yet write one truthfully: a start
+written after the turn closed keeps the page reading working for the working grace after
+the background work stops, since `activity._start_age` dates a start's hold by when it
+was written rather than by the turn it names. Restating lines needs that changed first.
 
 The user chose to try findings for what long sessions forget once compaction drops
 the rule a reference states, each kept only if replays of the turns where it should
 have fired catch it, a replay of ordinary recent turns stays near the noise without
 it, and the fork takes no longer. `overtaken` applies the agent's own guidance for
 threads (`GUIDANCE`) to two: a correction posted as a new reply to the agent's
-unanswered one rather than edited into it (#5724), and a thread question or state
-later work overtook. The fork has no finding for a section reporting a finding
-without the material it rests on (#5401): it asks for the run or script behind a
-count far more often than the user asks for material.
+unanswered one rather than edited into it, and a thread question or state later
+work overtook. Leaf asks for no finding of a section reporting a finding without the
+material it rests on: tried, that question missed the case it was for, and on other
+turns asked for the run or script behind a count far more often than the user asks
+for material.
 
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
 the answer it must give (`ANSWER`), and what Leaf does with that answer
-(`apply_answer`). A harness only makes the fork and carries the two halves
-(`cmd_fork`): Claude Code's hooks module calls `$.model.fork` from `turn.complete`
-(`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork`
-(ephemeral) and Pi's extension by resending its session, each handing the answer back
-the same way; neither does yet.
+(`apply_answer`). A harness only makes the fork and carries the two halves (`cmd_fork`):
+Claude Code's hooks module calls `$.model.fork` from `turn.complete`
+(`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork` (ephemeral)
+and Pi's extension by resending its session, each handing the answer back the same way;
+neither does yet.
 
 The fork can't author the page, so it writes what the agent would write without a
 widget (`conversation-loop.md`, "The On lists"): each ask, a step the user takes
@@ -182,14 +180,14 @@ The fork thinks at the session's own effort, and the check's reference asks it t
 answer straight away without thinking it over, as Claude Code's `$.model.fork`
 documentation suggests for a quick side job. Asking for `low` effort instead can cost
 a rewrite of the conversation to the cache (`runFork` in `hooks/claude-code.ts` says
-when), and a fork at xhigh asked to answer straight away passes the turn-end cases as
-a low fork does. The fork runs off the turn's path, but the sooner it answers, the
+when), and a fork at xhigh asked to answer straight away passed the turn-end cases
+as the low fork did. The fork runs off the turn's path, but the sooner it answers, the
 less often a turn opened meanwhile drops its asks (`basis`).
 
 `leaf-dev eval run 'turn-end-check*' --harness claude-code --base` scores a change to
 what the fork is asked, how hard it thinks or how Leaf takes its answer, on a short
-constructed
-conversation for each decision the prompt asks about (`dev/leaf_dev/fork_eval.py`).
+constructed conversation for each decision the prompt asks about
+(`dev/leaf_dev/fork_eval.py`).
 """
 
 import json

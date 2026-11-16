@@ -34,12 +34,13 @@ const moduleOwnsBox = (el) => {
 
 // A box that draws an inset and shows a different one. A child's outer margin normally
 // collapses through its parent and is spent between blocks; where the parent draws
-// something at that edge, or holds a formatting context of its own, it cannot get out and
-// is painted as the parent's inset instead. So the number a stylesheet states is not the
-// number a user sees, and which of the two they get depends on what the author wrote
-// inside: a card ending in a sentence shows its 16px, the same card ending in a paragraph
-// shows 29. base.css states the trim and a box opts in where it draws the frame
-// (`--lf-block-frame`); this is what says when one hasn't.
+// something at that edge, or holds a formatting context of its own, it cannot get out
+// and is painted as the parent's inset instead. So the number a stylesheet states is
+// not the number a user sees, and which of the two they get depends on what the author
+// wrote inside: a card ending in a sentence shows the inset its stylesheet states, and
+// the same card ending in a paragraph shows more. base.css states the trim and a box
+// opts in where it draws the frame (`--lf-block-frame`); this is what says when one
+// hasn't.
 //
 // It is a reading of the rendered page because nothing else can be. The trim is a style
 // query, the frame is a declaration in whichever layer drew the box, and a project overlays

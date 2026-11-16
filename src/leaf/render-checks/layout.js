@@ -347,7 +347,7 @@ export function misplacedBoxes() {
   if (!main) return [];
   // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
   // hidden with opacity or visibility has no box a user can lose. checkVisibility()
-  // ignores both properties unless they are requested, which made a hidden margin label
+  // ignores both properties unless they are requested, so a hidden margin label would
   // look like compact-width overflow.
   /** @type {NodeListOf<Element & {parentElement: HTMLElement}>} */
   const descendants = main.querySelectorAll("*");
@@ -722,10 +722,10 @@ export function misplacedBoxes() {
 //
 // The finding states the widths and leaves the diagnosis to the author, because the
 // widths carry it and a cause asserted here would be wrong: a column of test names
-// written outside <code> holds a table open at 583px beside prose at 118px, and twelve
-// columns of ordinary prose hold one open at 87px each, and "squeezed by what cannot
-// break" would be said of both. So every column is listed with its width, and both
-// remedies are offered.
+// written outside <code> holds a table open beside squeezed prose, and twelve columns
+// of ordinary prose hold one open with every column narrow, and "squeezed by what
+// cannot break" would be said of both. So every column is listed with its width, and
+// both remedies are offered.
 //
 // A column wraps when it stands wider with wrapping turned off, and that is the whole
 // reading: every column of a scrolling table is at its longest unbreakable run, so a
@@ -734,11 +734,11 @@ export function misplacedBoxes() {
 // `text-wrap: nowrap` and not `white-space: nowrap`, because the shorthand also
 // collapses white space and would have taken an author's newlines under a page rule
 // setting cells `pre-wrap`; `flex-wrap: nowrap` beside it, because a milestone's chips
-// can stack seven deep in a 114px cell with no text wrapping at all; `!important` on
-// the descendants too, because a widget's own rule beats an inherited value — a draft's
+// can stack deep in a narrow cell with no text wrapping at all; `!important` on the
+// descendants too, because a widget's own rule beats an inherited value — a draft's
 // body is `pre-wrap` by the default package's sheet; and not on a text box, whose value
 // wraps inside a box the table never sized. The gate reads its own page, so the probe
-// changes nothing a user sees, and readings measure the same before and after it.
+// changes nothing a user sees, and readings before and after it measured the same.
 //
 // The column and not a row or a cell's glyphs: a reading of line boxes, of which glyphs
 // are on the page, or of row height each falls to a counterexample: an inline <code> is
@@ -792,23 +792,24 @@ export function misplacedBoxes() {
 // A code block is contained (reading.css, `pre`), so it asks what holds it for no
 // width, and a box that takes its width from its content (a flex item at its default
 // `flex`, a grid `auto` track beside an `fr` track, a table cell, a box sized to fit)
-// sizes without it: two short commands in a flex row stood 30px wide each, with no room
-// inside for a character of their lines. A block is squeezed when it scrolls with less
-// than four times the size of its words inside, about six characters of a monospace
-// face, whatever narrowed it. The floor reads the result, not the cause: a holder with
+// sizes without it: two short commands in a flex row can stand with no room inside for
+// a character of their lines. A block is squeezed when it scrolls with less than four
+// times the size of its words inside, about six characters of a monospace face,
+// whatever narrowed it. The floor reads the result, not the cause: a holder with
 // nothing else in it leaves the block no room, but one sized by a heading or a cell's
 // column leaves whatever that text's length and font give it, a few characters or many.
-// A block such a holder leaves falls well under the floor, and one that reads well,
-// from a `flex-grow` column beside a nav at 360px to the column, sits well above it.
-// Tracks too many for the window narrow a block below the floor too, such as four
-// `minmax(0, 1fr)` tracks at 390px (44px inside), which giving the block a width would
-// not fix and stacking the tracks at that width does, so the words offer both. A sheet
-// that lifts the containment, to read the width the block's holder would give it, also
-// reports a `flex: auto` item beside another, whose basis grows with its lines and
-// takes room from its sibling, and it resets every scrolling block to its start. The
-// finding carries the width inside the block and whether a table cell holds it, since
-// the remedy there is the table's: move a long command out, or write a short one as
-// inline <code>.
+// The floor sits between the two: on the pages it was measured on, every block such a
+// holder left was 0–34px inside at 360–1920px, under 2.6 times its 13.5px font, and
+// every block that read well was 77px or more, from a `flex-grow` column beside a nav
+// at 360px to the column. Tracks too many for the window narrow a block below the floor
+// too, such as four `minmax(0, 1fr)` tracks at 390px (44px inside), which giving the
+// block a width would not fix and stacking the tracks at that width does, so the words
+// offer both. A sheet that lifts the containment, to read the width the block's holder
+// would give it, also reports a `flex: auto` item beside another, whose basis grows
+// with its lines and takes room from its sibling, and it resets every scrolling block
+// to its start. The finding carries the width inside the block and whether a table cell
+// holds it, since the remedy there is the table's: move a long command out, or write a
+// short one as inline <code>.
 //
 // Whether a box scrolls depends on the window, so the gate reads this at every width
 // of its sweep, and reports it as advice: the box still scrolls with every word in

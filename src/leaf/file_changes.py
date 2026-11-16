@@ -29,18 +29,18 @@ subscription suits only an owner that can afford to stop hearing changes and who
 trees can be too large for a thread per directory, such as a developer's
 preview.
 
-An event reaches a subscription as the platform reports it: at once from inotify,
-but for a file moved out of a watched directory, which watchdog holds up to 500 ms
-to pair with its arrival elsewhere, and within watchdog's 10 ms FSEvents latency on
-macOS. watchfiles polls for the events its Rust side has already received: it
-sleeps a step between looks and ends a batch a step after its last change, so a wake
-waits one to two steps, and a shorter step buys speed with idle wakes in every
-process. It also fixes a watcher's directories when the watcher starts, so a
-subscription needing a new directory would restart the process's watcher over every
-subscription and wake them all. Calling inotify and FSEvents through ctypes would
-avoid the thread per directory and the repairs to watchdog, but Leaf would own the
-foreign-function code and its hazards: it comes to half again this module's length,
-and crashes at exit unless it stops its FSEvents streams first.
+An event reaches a subscription as the platform reports it: at once from inotify, but
+for a file moved out of a watched directory, which watchdog holds up to 500 ms to pair
+with its arrival elsewhere, and within watchdog's 10 ms FSEvents latency on macOS.
+watchfiles polls for the events its Rust side has already received: it sleeps a step
+between looks and ends a batch a step after its last change, so a wake waits one to two
+steps, and a shorter step buys speed with idle wakes in every process. It also fixes a
+watcher's directories when the watcher starts, so a subscription needing a new directory
+would restart the process's watcher over every subscription and wake them all. Calling
+inotify and FSEvents through ctypes would avoid the thread per directory and the repairs
+to watchdog, but Leaf would own the foreign-function code and its hazards: a prototype
+ran to half again this module's length, and crashed at exit until it stopped its
+FSEvents streams first.
 
 A subscription hears what changes a file's content, metadata, name or presence.
 Opening and closing a file change none of those. watchdog also reports a directory

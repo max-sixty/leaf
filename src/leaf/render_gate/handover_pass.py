@@ -2,43 +2,44 @@
 each render check leaves behind.
 
 `page check --render` blocks the agent for the whole browser pass, so an agent making a
-quick edit hands the page over without it, and an agent that gets its findings after
-handover fixes the page in the same wake. So the server reads the version itself, and
-the agent hears what it found at its next delivery.
+quick edit can hand the page over without it, and agents that got its findings after
+handover mostly fixed the page in the same wake. So the server reads the version itself,
+and the agent hears what it found at its next delivery.
 
 **What starts a reading.** A live claimant has handed the page over, no file its version
 is built from has been written for `QUIET_S` (`version_written`), and its live version
 is not the one the latest reading read. A handover is the turn's end, as the activity
 fold reads it (`presence.claimant_reading`), or the agent declaring the page open for
-feedback (`leaf page open`) after its last save, whichever its harness records first:
-the turn record often closes only as the session ends, if at all, and handovers declare
-the page open after the last save. The declaration keeps its time to the millisecond, so
-one made in the millisecond of the save counts as after it. Saves inside a turn coalesce
-into the one reading at its handover, and `QUIET_S` coalesces saves that keep landing
-after it, such as a build the agent left running. The server makes a save live only once
-a reading is due, so on a page with no tab open the saves inside a turn make no
-revisions. A page nobody holds, or its agent has closed, has nobody to tell. The reading
-outlives the server, so a page served again reads only a version no reading has read: an
-older page, its first time served by this Leaf, is read once. A reading runs in a
-process of its own at low priority, away from the server that answers the user's
-gestures, and a server waits for its reading before it looks again. Readings of
-different pages run side by side, with no lock across the state home to run one at a
-time: such a lock rarely holds anything back, and a reading that never ends would stop
-every page's. A server started again while its predecessor's reading still runs may read
-that version a second time. The first of the two to tell, inside the page's transaction,
-tells the version, and the other tells nothing and leaves its reading. A reading that
-runs past `DEADLINE_S` is ended by its own alarm. Only a page whose own script never
-stops gets there, so its server tells the agent, as a failure, that the version couldn't
-be read, and keeps that as the version's reading, so the page costs the deadline once.
-Until the alarm, its server reads no later version of the page. A handover right after
-the last save waits 10 to 15 s for the version to stand and the next look, then for the
-reading.
+feedback (`leaf page open`) after its last save, whichever its harness records first: a
+turn record can close only as the session ends, if at all, and in eval handovers the
+declaration nearly always came after the last save. The declaration keeps its time to
+the millisecond, so one made in the millisecond of the save counts as after it. Saves
+inside a turn coalesce into the one reading at its handover, and `QUIET_S` coalesces
+saves that keep landing after it, such as a build the agent left running. The server
+makes a save live only once a reading is due, so on a page with no tab open the saves
+inside a turn make no revisions. A page nobody holds, or its agent has closed, has
+nobody to tell. The reading outlives the server, so a page served again reads only a
+version no reading has read: an older page, its first time served by this Leaf, is read
+once. A reading runs in a process of its own at low priority, away from the server that
+answers the user's gestures, and a server waits for its reading before it looks again.
+Readings of different pages run side by side, with no lock across the state home to run
+one at a time: on real pages such a lock rarely held anything back, and a reading that
+never ends would stop every page's. A server started again while its predecessor's
+reading still runs may read that version a second time. The first of the two to tell,
+inside the page's transaction, tells the version, and the other tells nothing and leaves
+its reading. A reading that runs past `DEADLINE_S` is ended by its own alarm. Only a
+page whose own script never stops gets there, so its server tells the agent, as a
+failure, that the version couldn't be read, and keeps that as the version's reading, so
+the page costs the deadline once. Until the alarm, its server reads no later version of
+the page. A handover right after the last save waits 10 to 15 s for the version to stand
+and the next look, then for the reading.
 
-**What it costs.** A reading costs a little less than `page check --render`, which also
-saves the screens, and more on larger pages; on a page that fails plain check it stops
-at the markup check, as the check does. Under load a reading takes as long at this
-niceness as at 0. A look that finds nothing new costs a fraction of a millisecond of
-CPU. A session saving 100 times in one turn pays one reading.
+**What it costs.** On copies of real pages on a shared machine, a reading cost a little
+less than `page check --render`, which also saves the screens, and more on larger pages;
+on a page that fails plain check it stops at the markup check, as the check does. Under
+load a reading took as long at this niceness as at 0. A look that finds nothing new,
+every `LOOK_S`, costs about 0.16 ms of CPU. A session saving 100 times in one turn pays
+one reading.
 
 **What it tells.** The findings the page's latest reading didn't hold, as a `render`
 event (`events.md`) whose handling clause tells failures from advice. A reading is kept
@@ -46,15 +47,15 @@ only once the agent has heard every finding in it: an agent's own `page check --
 reports them all, and the server keeps its reading once it has told the agent what was
 new in it. A reading whose version a save has replaced since the check froze the source
 tells nothing and leaves the page's reading as it was, so the next reading tells its
-findings. Under the `error` event's clause agents change the page for advice; this
-clause keeps every failure fixed and has Claude Code mostly leave the advice. A failure
-wakes the agent, since failures on real pages are rare and real. Advice alone wakes
-nobody and goes with the agent's next delivery (`delivery.deliverable`), since real
-pages often hold only advice, and a wake for it would mostly spend a turn deciding to
-leave the page alone. A finding keeps its place by the element it names (`_place`), so
-an edit that moves a measurement doesn't tell it again and a fault fixed and
-reintroduced is told again. A failure told once isn't told again while it stands, so an
-agent that can't fix it isn't woken for each attempt, and a version the agent checked
+findings. Under the `error` event's clause agents changed the page for advice; this
+clause kept every failure fixed and had Claude Code mostly leave the advice. A failure
+wakes the agent: on real pages failures were rare, and those found were real. Advice
+alone wakes nobody and goes with the agent's next delivery (`delivery.deliverable`),
+since real pages often held only advice, and a wake for it would mostly spend a turn
+deciding to leave the page alone. A finding keeps its place by the element it names
+(`_place`), so an edit that moves a measurement doesn't tell it again and a fault fixed
+and reintroduced is told again. A failure told once isn't told again while it stands, so
+an agent that can't fix it isn't woken for each attempt, and a version the agent checked
 itself is neither read twice nor told back to it.
 
 A reading a browser couldn't finish (`UNFINISHED`) says nothing of the page, so it

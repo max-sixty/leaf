@@ -205,17 +205,17 @@ def reload_skill(session_id: str) -> str | None:
     it removed, and to read the skill again and, through it, what the work in progress
     needs.
 
-    Claude Code keeps a model-written summary, the last few files read and the
-    skills loaded through its Skill tool. The rest of what the agent read is gone,
-    which takes the skill when it was read as a file, the references, and every
-    widget's instructions, which only `leaf page instructions` prints. The summary
-    paraphrases those rules, as in "settle the lf-options with `settled`", and the
-    page's own markup offers a pattern to copy, so an agent can believe it still has
-    them. Sending the agent back to the skill alone isn't enough: agents reread the
-    skill after most compactions, yet `lf-options` groups written after a compaction
-    often lack that widget's instructions in context, which every group written
-    before one has. Restating a rule on every prompt weighs on every turn and covers
-    only that rule, so this message names what the compaction removed and
+    Claude Code keeps a model-written summary, the last few files read and the skills
+    loaded through its Skill tool. The rest of what the agent read is gone, which takes
+    the skill when it was read as a file, the references, and every widget's
+    instructions, which only `leaf page instructions` prints. The summary paraphrases
+    those rules, as in "settle the lf-options with `settled`", and the page's own markup
+    offers a pattern to copy, so an agent can believe it still has them. Sending the
+    agent back to the skill alone wasn't enough: in recorded sessions agents reread the
+    skill after most compactions, yet many `lf-options` groups written after a
+    compaction lacked that widget's instructions in context, where those written before
+    one had them. Restating a rule on every prompt weighs on every turn and covers only
+    that rule, so this message names what the compaction removed and
     leaves the rules to the skill and its routes."""
     from .schema import SKILL_FILE
 

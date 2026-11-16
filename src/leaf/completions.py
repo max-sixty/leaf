@@ -7,7 +7,7 @@ the session's own files in the state home (`session_file`). The page server writ
 the record, reads it again every `POLL_S` until the module's reply is in it or its
 deadline passes, and then removes it (`ask`). It polls because a page server holds
 no native filesystem subscription (`file_changes`), and a request lasts only as long
-as the model takes, a second or two for a title.
+as the model takes.
 
 The session's pages follower (`hooks.cmd_pages`) waits on the session's records
 (`watch`), and lists each request as soon as it is written (`pending`), apart from

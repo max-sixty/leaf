@@ -12,12 +12,12 @@ from .schema import RENDER_CHECKS_DIR
 # (`render_gate.command.desktop_viewport`).
 RENDER_VIEWPORT = {"width": 1280, "height": 720}
 
-# The bound on one probe or request, sized for an oversubscribed host rather than an idle
-# one: it separates a wedged preview, which it turns into a useful failure rather than
-# an unbounded evaluate, from a machine that has not got there yet. At Playwright's own
-# 30s, browser tests on a host stacked with other sessions' suites time out in a
-# different place each run and pass alone, and each red run is re-run whole, adding
-# the load that failed it. A longer bound costs only a slower failure for a real hang.
+# The bound on one probe or request, sized for an oversubscribed host rather than an
+# idle one: it separates a wedged preview, which it turns into a useful failure rather
+# than an unbounded evaluate, from a machine that has not got there yet. At Playwright's
+# own 30s, browser tests on a host stacked with other sessions' suites can time out in a
+# different place each run and pass alone, and re-running a red run whole adds the load
+# that failed it. A longer bound costs only a slower failure for a real hang.
 SERVED_TIMEOUT_MS = 120_000
 # How long a whole page handover may take before the page counts as wedged: the wait,
 # from navigation, for the page to state every readiness fact (`wait_until_ready`).

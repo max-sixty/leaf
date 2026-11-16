@@ -111,12 +111,12 @@ export const shownVerbatim = (declarations, modules) =>
 // wears: an inactive tab's panel and a settled group's cards are hidden="until-found"
 // so that find-in-page still reaches inside, and the text in one reports the boxes it
 // last laid out in — every sibling's at the same place. So a page with a collapsed
-// group on it would fail about half the runs and pass the rest, which is the worst way
-// for a gate to be wrong: the page that goes out is whichever one the coin is kind to.
-// A collapse is asked for, and words nobody can see are not drawn over anything, so
-// [hidden] is held out here the way the size check holds it out. The coin comes down
-// the same side every time on a group that has been opened and closed, which is where
-// the test pins it.
+// group on it could fail some runs and pass the rest, which is the worst way for a gate
+// to be wrong: the page that goes out is whichever one the coin is kind to. A collapse
+// is asked for, and words nobody can see are not drawn over anything, so [hidden] is
+// held out here the way the size check holds it out. The coin comes down the same side
+// every time on a group that has been opened and closed, which is where the test pins
+// it.
 //
 // Leaf's own interface can cover words too. The floating panel's row stands over the
 // window's foot, and the theme pads the end of the page by the row's room
@@ -439,8 +439,8 @@ function paintedRuns(root, { holdFloating = true, holdHidden = true } = {}) {
 //
 // 4.5:1 is WCAG AA for body text, and body text is the threshold that applies — code is
 // 13px. Axe runs over this corpus too and passes it, which is not the same guarantee:
-// asked for colour-contrast alone on the example carrying the beige comment, it returned
-// 44 passing elements, no violation, and not one of the spans among them.
+// asked for colour-contrast alone on an example with a beige comment, it passed the
+// page without checking one of its spans.
 //
 // Which shadow roots it crosses into is OPEN_ROOTS' answer (that module says why it
 // crosses at all), which is the choice everything else here makes — colour is

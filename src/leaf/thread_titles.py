@@ -29,12 +29,12 @@ title is asked of `inference.CODEX_MODEL`, whatever model the user's tasks, or t
 website's, run on.
 
 A Codex title starts a private App Server when asked and stops it after the answer.
-Starting on demand takes roughly 1–2 s longer than keeping a server and thread warm,
-but keeps no idle App Server (about 105 MB each) for a page that is merely open.
+Starting on demand takes a little longer than keeping a server and thread warm, but
+keeps no idle App Server for a page that is merely open.
 
-On a ChatGPT login, gpt-6-luna limits bursts more tightly than gpt-6.1-sol: titles
-asked back to back start failing with a 429 within seconds, where gpt-6.1-sol answers
-them all, and a title every 20 s after a burst doesn't fail. The backend's refusal
+On a ChatGPT login, gpt-6-luna limits bursts more tightly than gpt-6.1-sol: titles asked
+back to back can fail with a 429 within seconds where gpt-6.1-sol answered the same
+burst, and a title every 20 s after a burst didn't fail. The backend's refusal
 (`turn_rate_limit_exceeded`) names a `Retry-After` that counts down to a free slot,
 which looks like a limit of ten titles a minute (codex-cli 0.160). Codex retries none of
 these, and its App Server passes on only the status, `responseTooManyFailedAttempts`
@@ -96,10 +96,10 @@ INSTRUCTIONS = (
     "short or vague message still gets a title, drawn from the passage if it has "
     "one."
 )
-# Last, after the thread's words. On Haiku without thinking, with neither this line
-# nor the schema, answers come back as prose, answering a message that asks for work
-# or asking for more context; with the schema and the line first, a few still aren't
-# titles; with the line last, every one is.
+# Last, after the thread's words. On Haiku without thinking, with neither this line nor
+# the schema, many answers came back as prose, answering a message that asked for work
+# or asking for more context; with the schema and the line first, a few still weren't
+# titles; with the line last, every one sampled was.
 ASK = "Write the title of this thread."
 OUTPUT_SCHEMA = {
     "type": "object",

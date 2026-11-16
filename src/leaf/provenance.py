@@ -55,9 +55,8 @@ or served otherwise.
 That is an order, not a cause, and the words say it as one (change-provenance.js).
 Nothing reliably knows which revision wrote a given paragraph, so a comparison across
 several versions says nothing, and no change names its own revisions: placing each
-changed block by the nearest element with an id credits the wrong revision to many
-changed blocks across versions compared one by one, and changes what a
-first-to-newest comparison would say for many of them.
+changed block by the nearest element with an id can credit the wrong revision to a
+changed block, and change what a first-to-newest comparison would say.
 """
 
 from bisect import bisect_left, bisect_right

@@ -26,7 +26,7 @@ prompt follows. Between turns the watch revives a dead server once for each page
 watches (`session.Watch`), and the next prompt tries again where that failed.
 
 Telling the agent to run `leaf server start` instead leaves the user's tab without
-a server until the agent acts, which agents often put off or never do.
+a server until the agent acts, which an agent can put off or never do.
 """
 
 import time

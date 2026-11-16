@@ -1221,8 +1221,12 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
         monkeypatch.setattr(render_gate_scheme, "wait_for_probe", moving)
     else:
+        ready = render_gate_scheme.wait_until_ready
 
-        def unready(*_args, **_kwargs):
+        def unready(page, *args, through=None, **kwargs):
+            # The page upgrades, and then stops at the stage held.
+            if through == "upgraded":
+                return ready(page, *args, through=through, **kwargs)
             raise render_checks_model.PageNotReady(failed_stage, f"held {failed_stage}")
 
         monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)

@@ -349,7 +349,7 @@
           "when": {
             "required": ["waiting"]
           },
-          "text": "Your questions in `waiting`, asked with a widget in this thread, still wait on the user's pick. Judge from each one's `text` whether the user's words answer it: end one they answer with `leaf task end <page> <id> done --text \"<where they answered>\"`, and leave one that still needs the user."
+          "text": "Your questions in `waiting`, asked with a widget in this thread, still wait on the user's pick. Judge from each one's `text` whether the user's words answer it. Once you have answered, if their words answer every one and nothing else in the thread waits on them, resolve the thread: `leaf thread resolve <page> <message>`, naming any message in it. Otherwise leave it open."
         }
       ],
       "edit": [
@@ -484,7 +484,7 @@
           "when": {
             "required": ["waiting"]
           },
-          "text": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one's `text` whether this action answers it: end one it settles with `leaf task end <page> <id> done --text \"<what answered it>\"`, and leave one that still needs the user."
+          "text": "Your questions in `waiting`, asked in a thread about this widget, still wait on the user. Judge from each one's `text` whether this action answers it. Resolve the thread of one it settles, unless something else in that thread still waits on them: `leaf thread resolve <page> <message>`, the message being its id after `message:`. Leave one that still needs the user."
         }
       ],
       "undo": [

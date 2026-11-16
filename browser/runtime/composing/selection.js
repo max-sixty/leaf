@@ -505,7 +505,7 @@ export function createSelectionComposer({
 
   // The quote suggestion mode auto-seeded, so reopening on a new anchor can tell
   // machine seed from user text: the seed belongs to its old anchor and is dropped;
-  // user text stays with its passage unless an explicit Comment gesture carries it.
+  // user text stays with its passage.
   let seededQuote = "";
   // Every view adopts the complete draft here. A fresh capture supplies its own
   // anchor/revision while taking existing words and modes; Resume supplies the saved

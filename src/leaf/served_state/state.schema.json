@@ -1191,33 +1191,7 @@
         "answer": {
           "anyOf": [{ "$ref": "#/$defs/ObligationAnswer" }, { "type": "null" }]
         },
-        "status": { "enum": ["open", "answered", "answered_elsewhere", "withdrawn"] },
-        "end": {
-          "description": "The agent's `leaf task end` that retired a question answered in words: where the answer is, or why the obligation no longer applies.",
-          "anyOf": [
-            {
-              "type": "object",
-              "properties": {
-                "detail": { "type": ["string", "null"] },
-                "event": {
-                  "description": "The ending's reference, which names no kind: every ending is a `todo_end`.",
-                  "type": "object",
-                  "properties": {
-                    "id": { "type": "string" },
-                    "seq": { "type": "integer" },
-                    "ts": { "type": "string" },
-                    "author": { "type": "string" }
-                  },
-                  "required": ["id", "seq", "ts", "author"],
-                  "additionalProperties": false
-                }
-              },
-              "required": ["detail", "event"],
-              "additionalProperties": false
-            },
-            { "type": "null" }
-          ]
-        },
+        "status": { "enum": ["open", "answered", "withdrawn"] },
         "next_actor": { "enum": ["user", "agent", null] }
       },
       "required": [
@@ -1228,7 +1202,6 @@
         "prompt",
         "answer",
         "status",
-        "end",
         "next_actor"
       ],
       "additionalProperties": false,

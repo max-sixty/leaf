@@ -444,6 +444,14 @@ test("a scroll a script holds ends once, after its release, and stays the script
     box.dispatchEvent(new window.Event("scroll"));
     assert.equal(browserScrolls(box), true);
     box.dispatchEvent(new window.Event("scrollend"));
+    // A holder that has landed, its last write leaving the box where it stood, owes it
+    // no further scroll event, so its release ends the scroll then and there.
+    const landing = holdScroll(box);
+    frame(40);
+    await renderFrame();
+    landing(true);
+    assert.deepEqual(ended, [box, box, box]);
+    assert.equal(scrolling(), false);
   } finally {
     stop();
     box.remove();

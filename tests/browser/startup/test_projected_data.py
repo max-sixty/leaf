@@ -852,6 +852,7 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
             json={
                 "reading": stale["reading"] if asked else "crossed-state-reading",
                 "pages": None,
+                "drafts": 0,
             }
         )
 

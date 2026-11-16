@@ -19,7 +19,7 @@
    never changes the semantic inventory or its obligation identities.
 
    A region holds an obligation when the obligation's source element is the region or stands under
-   it (`obligationsIn`), shadow trees included. A withdrawn obligation no longer asks anything, and
+   it (`obligationsIn`, or `obligationsByRegion` for many regions at once), shadow trees included. A withdrawn obligation no longer asks anything, and
    an obligation with no source (a question answered in words, an update's, or a frozen
    source not drawn) stands in no region, so a region counts what its widgets
    ask. Membership reads the complete
@@ -34,7 +34,7 @@
    obligation. */
 import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
-import { under } from "../shadow.js";
+import { composedParentNode } from "../shadow.js";
 import { readObligations } from "./model.js";
 
 const NOWHERE = Object.freeze({ source: null, context: null });
@@ -54,13 +54,28 @@ export function obligationPlace(item) {
 export const subjectPlace = (subject) =>
   subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 
-// The obligations `region` holds, in the order `obligations` lists them.
+// The obligations each of `regions` holds, in the order `items` lists them. Each
+// obligation's source climbs once to the top of the page, past each region above it, so
+// a widget that counts for every panel or card makes one pass over the inventory rather
+// than one per region.
+/** @param {readonly Node[]} regions
+ * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
+export function obligationsByRegion(regions, items = readObligations().all) {
+  /** @type {Map<Node, import("../framework/application.js").ObligationRecord[]>} */
+  const held = new Map(regions.map((region) => [region, []]));
+  for (const item of items) {
+    if (item.status === "withdrawn") continue;
+    const { source } = obligationPlace(item);
+    for (let at = /** @type {Node | null} */ (source); at; at = composedParentNode(at))
+      held.get(at)?.push(item);
+  }
+  return held;
+}
+
+// The obligations `region` holds, in the order `items` lists them.
 /** @param {Element} region
  * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
-export function obligationsIn(region, items = readObligations().all) {
-  return items.filter((item) => {
-    if (item.status === "withdrawn") return false;
-    const { source } = obligationPlace(item);
-    return Boolean(source && under(source, region));
-  });
-}
+export const obligationsIn = (region, items = readObligations().all) =>
+  /** @type {import("../framework/application.js").ObligationRecord[]} */ (
+    obligationsByRegion([region], items).get(region)
+  );

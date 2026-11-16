@@ -127,56 +127,6 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 )
 
 
-def test_startup_shift_evidence_serializes_as_advice(browser, serve, monkeypatch):
-    """Platform entries survive the real JS probe and report boundary as advice.
-
-    Supply deterministic PerformanceObserver readings rather than depending on
-    whether the compositor happened to paint before a particular module loaded.
-    """
-    probe = render_gate_scheme.evaluate_probe
-
-    def with_shifts(page, name, *args, **kwargs):
-        if name == "startupLayoutShifts":
-            page.evaluate("""() => {
-                const driver = globalThis.__leafRenderDriver;
-                globalThis.__leafRenderDriver = {
-                    ...driver,
-                    startupLayoutShifts: () => [
-                        {startTime: 0, value: .1, sources: []},
-                        {startTime: 500, value: .2, sources: [{
-                            node: document.querySelector('#shifted'),
-                            before: {x: 0, y: 10, width: 100, height: 20},
-                            after: {x: 0, y: 60, width: 100, height: 20},
-                        }]},
-                        {startTime: 2000, value: .15, sources: []},
-                    ],
-                };
-            }""")
-        return probe(page, name, *args, **kwargs)
-
-    monkeypatch.setattr(render_gate_scheme, "evaluate_probe", with_shifts)
-    findings, _, completed = render_gate_scheme._render_scheme(
-        browser,
-        serve(leaf_page("Shift evidence", '<p id="shifted">Reading.</p>'), packages=()),
-        "light",
-        {"width": 1200, "height": 900},
-        3_000,
-        [],
-    )
-    assert completed
-    shifts = [
-        finding.json() for finding in findings if finding.code == "startup-layout-shift"
-    ]
-    assert len(shifts) == 1
-    shift = shifts[0]
-    assert shift["severity"] == "advice"
-    assert shift["values"]["cls"] == pytest.approx(0.3)
-    assert "startup CLS 0.3000" in shift["text"]
-    movement = shift["values"]["entries"][1]["sources"][0]
-    assert movement["node"] == "<p id=shifted>"
-    assert (movement["before"]["y"], movement["after"]["y"]) == (10, 60)
-
-
 # A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
 # its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
 # diagram package's does.
@@ -214,7 +164,7 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     takes the drawing's height, as an inline diff's source text can.
     """
     findings = []
-    _, _, completed = render_gate_scheme._render_scheme(
+    _, _, completed = render_gate_scheme._render_page(
         browser,
         serve(
             leaf_page(
@@ -234,12 +184,11 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
             layer_registry={"lf-sketch": SKETCH_DECLARATION},
             layer_widgets={"lf-sketch.js": SKETCH_WIDGET},
         ),
-        "light",
         {"width": 1200, "height": 900},
         3_000,
         [],
         then=lambda page, _: findings.extend(
-            render_gate_readings.drawn_height_advice(page, "1200x900")
+            render_gate_readings.drawn_height_advice(page)
         ),
     )
     assert completed, findings
@@ -485,13 +434,12 @@ def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, re
 
         page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
 
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         primed(browser.unwatched, configure),
         serve(
             leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),
             packages=(),
         ),
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
@@ -551,10 +499,9 @@ def test_an_unanswered_entry_fails_the_render_gate(
         def new_page(self, **options):
             return page
 
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         ExistingPage(),
         dropped,
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
@@ -592,17 +539,16 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     controlled = primed(
         browser.unwatched, lambda page: page.set_default_timeout(EXPECTED_STALL_MS)
     )
-    failures, _, completed = render_gate_scheme._render_scheme(
+    failures, _, completed = render_gate_scheme._render_page(
         controlled,
         refused,
-        "light",
         {"width": 1200, "height": 900},
         EXPECTED_STALL_MS,
         [],
     )
     assert completed is False
     [failure] = failures
-    assert (failure.code, failure.scheme) == ("probe-failed", "light")
+    assert failure.code == "probe-failed"
     assert {
         "code": "console-error",
         "severity": "error",
@@ -1231,10 +1177,9 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
         monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)
 
-    failures, _notices, completed = render_gate_scheme._render_scheme(
+    failures, _notices, completed = render_gate_scheme._render_page(
         browser,
         serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")),
-        "light",
         {"width": 1200, "height": 900},
         3_000,
         [],
@@ -1442,7 +1387,6 @@ def _author_stateful_verbatim_widget(tmp_path):
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": True,
         "x-verbatim": True,
         "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
     }
@@ -1478,7 +1422,8 @@ SCROLL_PASS = (30,) * 8 + (-30,) * 8
 
 
 def unread_syntax(page):
-    """Code tokens the page paints too faint to read, in each colour scheme."""
+    """Code tokens the page paints too faint to read, each with the colour scheme it
+    was read in."""
     unread = []
     for scheme in ("light", "dark"):
         page.emulate_media(color_scheme=scheme)
@@ -1488,7 +1433,7 @@ def unread_syntax(page):
             "(a) => a instanceof CSSTransition && a.finish())"
         )
         unread += [
-            Finding.read(u, scheme=scheme)
+            (scheme, Finding.read(u))
             for u in render_checks_model.evaluate_probe(page, "unreadSyntax")
         ]
     return unread
@@ -2361,7 +2306,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 <p>Before.</p>
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
-<section id="eyebrow-led"><p class="eyebrow">Eyebrow</p><h2>Heading</h2></section>
+<section id="eyebrow-led"><hgroup><p>Eyebrow</p><h2>Heading</h2></hgroup></section>
 <div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
 <section id="prose-led"><p>Prose first.</p></section>
 <section id="list-led"><ol><li>A list first.</li></ol></section>
@@ -4189,7 +4134,7 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
     assert readable["background"] == faint["background"], population
     assert readable["ink"] != faint["ink"], population
 
-    assert len(syntax) == 4, "\n".join(map(str, syntax))
+    assert len(syntax) == 4, syntax
     for appearance, color in (
         ("light", "keyword"),
         ("light", "string"),
@@ -4197,10 +4142,10 @@ def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
         ("dark", "number"),
     ):
         assert any(
-            finding.scheme == appearance
+            scheme == appearance
             and finding.values["style"].startswith(f"color: var(--lf-syn-{color});")
             and finding.values["ratio"] < 4.5
-            for finding in syntax
+            for scheme, finding in syntax
         ), syntax
 
     page = open_page(browser, serve(CODE_CONTROL_PAGE))
@@ -4648,46 +4593,90 @@ def test_an_identifier_in_a_cell_breaks_rather_than_holding_its_column(browser, 
         assert scrolls == 0, (width, scrolls)
 
 
-def test_a_short_name_in_a_rows_first_cell_stays_on_one_line(browser, serve):
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
+def test_a_row_headings_name_stays_on_one_line(engine, request, serve):
     """The other side of the rule above: an option table, a column of short names beside
     a column of sentences. With every name breakable anywhere, the table's automatic
     layout gave the name column almost nothing past one character, so `--output-dir`
     stood as `--output-` over `dir` on the full measure and every name took two or
-    three lines in a 420px window. A row's first cell keeps its name whole, and the
-    table still fits."""
+    three lines in a 420px window. A row heading keeps its name whole, and the table
+    still fits. A name wider than a third of the column breaks inside a box that third
+    wide, and the sentence beside it keeps the rest. A name in another column is the
+    table's to break until the page keeps its cells on one line, which it can. It holds
+    in every engine: the rule once used a feature Firefox lacks, and the names stayed
+    broken there."""
     rows = (
-        ("--plugin", "Loads the named plugin before the run starts, so its commands"),
-        ("--dry-run", "Reports what the run would change without writing anything,"),
-        ("--output-dir", "Writes every generated file under this directory instead of"),
+        ("--plugin", "lf-options", "Loads the named plugin before the run starts, so"),
+        ("--dry-run", "lf-ask", "Reports what the run would change without writing,"),
+        ("--output-dir", "lf-options", "Writes every generated file under this folder"),
     )
     body = "".join(
-        f"<tr><td><code>{name}</code></td><td>{does} {does.lower()} {does.lower()}</td></tr>"
-        for name, does in rows
+        f'<tr><th scope="row"><code>{name}</code></th><td><code>{by}</code></td>'
+        f"<td>{does} {does.lower()} {does.lower()}</td></tr>"
+        for name, by, does in rows
+    )
+    head = (
+        "<thead><tr><th>Option</th><th>Read by</th><th>What it does</th></tr></thead>"
     )
     page = open_page(
-        browser,
+        request.getfixturevalue(engine),
         serve(
             leaf_page(
                 "Options",
-                '<h1>Options</h1><table id="options"><thead><tr><th>Option</th>'
-                f"<th>What it does</th></tr></thead><tbody>{body}</tbody></table>",
+                f'<h1>Options</h1><table id="options">{head}<tbody>{body}</tbody></table>'
+                f'<table id="kept">{head}<tbody>{body}</tbody></table>'
+                '<table id="tests"><tbody><tr><th scope="row">'
+                "<code>test_a_long_name_beside_a_sentence_keeps_a_third</code></th>"
+                f"<td>{rows[0][2]} {rows[1][2].lower()} {rows[2][2].lower()}</td>"
+                "</tr></tbody></table>",
+                head="<style>#kept td:nth-child(2) { white-space: nowrap; }</style>",
             )
         ),
     )
+    lines = """(c) => { const range = document.createRange();
+        range.selectNodeContents(c.firstChild);
+        return new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size;
+    }"""
+    long_name = page.locator("#tests code")
+    third = (
+        page.evaluate(
+            "parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--lf-col'))"
+        )
+        / 3
+    )
+    assert long_name.evaluate(lines) > 1
+    assert long_name.evaluate("(c) => c.getBoundingClientRect().width") <= third + 1
+    assert (
+        page.locator("#options td code").first.evaluate(
+            "(c) => getComputedStyle(c).display"
+        )
+        == "inline"
+    )
     for width in (1600, 800, 420):
         resized(page, width, 900)
-        measured = page.locator("#options").evaluate(
-            """(t) => {
-            const range = document.createRange();
-            return { scrolls: t.scrollWidth - t.clientWidth,
-                     lines: [...t.querySelectorAll('td code')].map((c) => {
-                         range.selectNodeContents(c.firstChild);
-                         return new Set([...range.getClientRects()]
-                             .map((r) => Math.round(r.top))).size;
-                     }) };
-        }"""
-        )
-        assert measured == {"scrolls": 0, "lines": [1, 1, 1]}, (width, measured)
+        for table, cells in (
+            ("#options", "th[scope=row]"),
+            ("#kept", "th[scope=row], td"),
+        ):
+            measured = page.locator(table).evaluate(
+                """(t, cells) => {
+                const range = document.createRange();
+                return { scrolls: t.scrollWidth - t.clientWidth,
+                         lines: [...t.querySelectorAll(cells)].flatMap((cell) =>
+                             [...cell.querySelectorAll(':scope > code')].map((c) => {
+                                 range.selectNodeContents(c.firstChild);
+                                 return new Set([...range.getClientRects()]
+                                     .map((r) => Math.round(r.top))).size;
+                             })) };
+            }""",
+                cells,
+            )
+            names = 3 if table == "#options" else 6
+            assert measured == {"scrolls": 0, "lines": [1] * names}, (
+                width,
+                table,
+                measured,
+            )
 
 
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):
@@ -4695,7 +4684,7 @@ def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, 
     that body while still fitting on screen, so measuring body would invent sideways
     document overflow where the canonical root scrollport has none. Sized in vw, the page
     keeps that contrast at every width the gate reads, so `rootOverflow`, the gate's
-    own reading, is asked at both of its viewports."""
+    own reading, is asked at a desktop width and a narrow one."""
     source = leaf_page(
         "root scrollport width",
         """
@@ -4783,7 +4772,7 @@ def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serv
     # Lit's html template creates HTML elements even when its result is rendered
     # into an SVG parent; the svg template is what creates SVG elements.
     page.locator("#drawing").evaluate("""async drawing => {
-      const {html, render} = await window.__lfWidgetApi();
+      const {html, render} = await window.__lfVendorImport('lit.js');
       render(html`<text>HTML template content</text>`, drawing.querySelector('g'));
     }""")
     reading = render_checks_model.evaluate_probe(page, "shrunkLabelReading")

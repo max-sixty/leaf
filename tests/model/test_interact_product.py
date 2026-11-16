@@ -290,8 +290,8 @@ def test_a_question_on_a_page_stands_under_its_heading(page_dir):
     # heading, and several widgets sharing one context all title their questions.
     for titled in (
         f'<section id="d"><h2>Choose</h2><p>Context.</p>{first}</section>',
-        f'<section id="d"><hgroup><p class="eyebrow">#5</p><h2>Choose</h2></hgroup>{first}</section>',
-        f'<section id="d"><p class="eyebrow">#5</p><h2>Choose</h2>{first}</section>',
+        f'<section id="d"><hgroup><p>#5</p><h2>Choose</h2></hgroup>{first}</section>',
+        f'<section id="d"><p>#5</p><h2>Choose</h2>{first}</section>',
         f'<section id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></section>',
         f'<article id="d"><h2>Choose</h2>{first}{second}</article>',
     ):
@@ -510,7 +510,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     }
     assert apparatus
     eyebrows = re.findall(
-        r'<p class="eyebrow bg-feature-elements">(.*?)</p>',
+        r'<p class="bg-feature-elements">(.*?)</p>',
         authored,
         flags=re.DOTALL,
     )

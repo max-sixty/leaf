@@ -56,7 +56,7 @@ function previewed(markup, { message = false } = {}) {
 
 test("a section previews its heading and first lines, past what stands above the heading", () => {
   assert.deepEqual(
-    previewed(`<section id="it"><p class="eyebrow">mobile</p><h2>The stall</h2>
+    previewed(`<section id="it"><p>mobile</p><h2>The stall</h2>
       <p id="p1">One in <a href="#x">forty</a> stalls.</p><p>It recovers.</p>
       <p>Third.</p><p>Fourth.</p></section>`),
     {

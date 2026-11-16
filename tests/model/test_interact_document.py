@@ -54,6 +54,7 @@ from interact_support import (
     stamp,
     state_json,
     vendored_at_another_protocol,
+    with_modules,
     write_revision,
 )
 
@@ -746,10 +747,11 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
 
 
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
-    registry = {
-        "lf-shell": {"x-upgrade": True, "x-verbatim": True},
-        "lf-piece": {"x-upgrade": True, "x-verbatim": True},
-    }
+    registry = with_modules(
+        {"lf-shell": {"x-verbatim": True}, "lf-piece": {"x-verbatim": True}},
+        "lf-shell",
+        "lf-piece",
+    )
     plain = passages_model.page_passages(
         structure_model.SourceDocument(
             '<lf-shell id="shell"><p>set<em>up</em></p>'
@@ -857,47 +859,38 @@ def test_example_fragments_retain_context_sensitive_elements(fragment, tags, ids
     assert parsed.authoring.errors == [] and parsed.authoring.unclosed == []
 
 
-def test_option_passages_read_rendered_markdown_words():
-    source = structure_model.SourceDocument(
-        '<main><lf-options id="choices"><lf-option id="leave">'
-        "Can we leave it to the _widget_? <code>Already HTML</code> "
-        "[unsafe label](javascript:alert(1)) "
-        "![unsafe alt](javascript:alert(1))"
-        "</lf-option></lf-options></main>"
-    )
-
-    passages = passages_model.page_passages(
-        source, {"lf-option": {"x-text-format": "inline-markdown"}}
-    )
-    assert passages.text == (
-        "Can we leave it to the widget? Already HTML unsafe label unsafe alt"
-    )
-
-
 @pytest.mark.parametrize(
     "case",
     json.loads((Path(__file__).parents[1] / "option_markdown_cases.json").read_text()),
 )
-def test_option_markdown_file_words_match_browser_cases(case):
+def test_added_option_file_words_match_browser_cases(case):
+    """An option the user added reads its typed words as the browser draws them, as
+    inline Markdown (body-text.test.mjs reads the same cases), while an authored
+    option's words are its HTML's."""
     source = structure_model.SourceDocument(
-        f'<main><lf-option id="choice">{case["source"]}</lf-option></main>'
+        '<main><lf-options id="choices"><lf-option id="authored">'
+        "Leave it to the _widget_</lf-option></lf-options></main>"
     )
+    registry = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
+    added = {"tag": "lf-option", "id": "added", "text": case["source"]}
     passages = passages_model.page_passages(
-        source, {"lf-option": {"x-text-format": "inline-markdown"}}
+        source, registry, additions={"choices": [added]}
     )
-    assert passages.text == case["words"]
+    assert passages.text == f"Leave it to the _widget_ {case['words']}"
 
 
 def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     """Authored and replayed Markdown share anchors without losing their source value."""
-    registry: dict[str, dict] = {
-        "lf-draft": {
-            "x-content": "data",
-            "x-upgrade": True,
-            "x-verbatim": True,
-            "x-text-format": "markdown",
-        }
-    }
+    registry: dict[str, dict] = with_modules(
+        {
+            "lf-draft": {
+                "x-content": "data",
+                "x-verbatim": True,
+                "x-text-format": "markdown",
+            }
+        },
+        "lf-draft",
+    )
     source = "**Keep** `--dry-run`.\n\n- First\n- [Second](https://example.com)"
     doc = structure_model.SourceDocument(
         f'<main><lf-draft id="note"><pre>{source}</pre></lf-draft></main>'
@@ -1536,48 +1529,34 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
     assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
 
 
-def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
-    """A widget attribute that declares itself a language (x-language) is held to the
-    layer's $languages list. A plain <pre><code class="language-…"> claims no
-    vocabulary: one the layer can't color stays the ink of an uncolored block."""
+def test_check_advises_on_a_language_class_nothing_will_colour(page_dir):
+    """Every block of code names its language one way, a `language-…` class, and one
+    check reads every such class, a widget's as a native block's: a name the layer
+    can't colour, a misspelling or a language it has no grammar for, is reported
+    beside the page and refuses nothing, since the class still names the code truly.
+    A grammar's alias, such as `py`, colours as its name does."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2>\n"
             '<pre><code class="language-pythn">x = 1</code></pre>\n'
-            '<lf-code id="walk-bad" language="pythn"><pre>z = 3\n</pre></lf-code>',
+            '<pre><code class="language-py">y = 2</code></pre>\n'
+            '<lf-code id="walk-bad"><pre><code class="language-pythn">z = 3\n'
+            "</code></pre></lf-code>\n"
+            '<lf-text-document id="notes" source="notes" class="language-haskell">'
+            "</lf-text-document>",
         )
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
+    assert status == 0
     assert [
-        (f.at, f.values["path"])
-        for f in found(findings, "attribute-schema", keyword="enum")
-    ] == [("<lf-code>", ["language"])]
-
-
-def test_a_widget_that_declares_a_language_is_checked_by_that_alone(page_dir):
-    """The list is the layer's fact, not one widget's, so nothing in the lint knows
-    which widget takes a language: a tag whose declaration carries x-language is held to
-    $languages on the strength of the declaration. A thirteenth widget that colors
-    something — a terminal transcript, a diff — is covered without the lint moving."""
-
-    def declare(registry):
-        registry["lf-gloss"]["properties"]["dialect"] = {"type": "string"}
-        registry["lf-gloss"]["x-language"] = "dialect"
-
-    declare_on_page(page_dir, declare)
-    (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<h2>Plan</h2>",
-            '<h2>Plan</h2>\n<lf-gloss tip="Feeder layout" dialect="lisp">feeders</lf-gloss>',
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings, "attribute-schema", "<lf-gloss>", keyword="enum", path=["dialect"]
-    )
+        (f.at, f.values["language"], f.severity)
+        for f in found(findings, "uncoloured-language")
+    ] == [
+        ("<code>", "pythn", "advice"),
+        ("<code>", "pythn", "advice"),
+        ("<lf-text-document>", "haskell", "advice"),
+    ]
 
 
 def test_every_declared_attribute_and_enum_stands_in_an_example():
@@ -1620,7 +1599,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
             seen = used.get(tag, {}).get(attr)
             # A declared word's enum is the layer's list, stamped in
             # (`registry.contract.stamp_words`), not values the widget draws apart.
-            declared = {entry.get(key) for key, _ in DECLARED_WORDS}
+            declared = {word for word, _ in DECLARED_WORDS}
             if seen is None:
                 missing.append(f"{tag}[{attr}]")
             elif attr not in declared:
@@ -1647,7 +1626,6 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
         "additionalProperties": False,
         "x-content": "markup",
         "x-reading-role": "pane",
-        "x-upgrade": False,
     }
     declare_on_page(page_dir, lambda registry: registry.update({"lf-zone": zone}))
     version = page_dir / "index.html"
@@ -1715,8 +1693,8 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
     assert not found(findings, "parts-in-layout")
 
 
-def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none():
-    """A layer that names none colors none, so a page declaring one is asking for
+def test_a_layer_naming_no_tones_refuses_every_word_rather_than_none():
+    """A layer that names none paints none, so a page declaring one is asking for
     something it cannot get. The list is therefore read and indexed, never tested for
     emptiness: an empty list that stood the check down would be a check retiring itself
     the moment its list moved — and this is the check whose failures the user can't
@@ -1724,12 +1702,11 @@ def test_a_layer_naming_no_languages_refuses_every_word_rather_than_none():
 
     Read where the words become the schema (`registry.contract.stamp_words`): no page
     can compose such a layer over the shipped one, whose widget examples name
-    languages."""
+    tones."""
     registry = copy.deepcopy(model_layer())
-    registry["$languages"]["names"] = []
-    registry["$languages"]["paths"] = {}
+    registry["$tones"]["names"] = []
     stamp_words(registry)
-    assert registry["lf-code"]["properties"]["language"]["enum"] == []
+    assert registry["lf-column"]["properties"]["tone"]["enum"] == []
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
@@ -3835,7 +3812,6 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
             "type": "object",
             "properties": {},
             "x-content": "markup",
-            "x-upgrade": False,
             "x-owners": ["lf-column"],
         }
 
@@ -4296,7 +4272,6 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 
     registry: dict[str, dict] = {
         "lf-draft": {
-            "x-upgrade": True,
             "x-verbatim": True,
             "x-state": {
                 "edit": {
@@ -4306,6 +4281,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             },
         }
     }
+    with_modules(registry, "lf-draft")
     page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
     frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
 
@@ -4366,7 +4342,6 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 def test_projected_verbatim_includes_generated_children():
     registry = {
         "lf-list": {
-            "x-upgrade": True,
             "x-verbatim": True,
             "x-state": {
                 "add": {
@@ -4384,8 +4359,9 @@ def test_projected_verbatim_includes_generated_children():
                 }
             },
         },
-        "lf-item": {"x-upgrade": False},
+        "lf-item": {},
     }
+    with_modules(registry, "lf-list")
     markup = '<lf-list id="list">Authored item.</lf-list>'
     event: dict[str, dict | str | int] = {
         "kind": "action",

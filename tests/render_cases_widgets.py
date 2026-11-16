@@ -17,9 +17,8 @@ from leaf.structure import SourceDocument
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
 # controlled independently, for page and frozen-message presentation journeys.
 PAGE_WIDGET = """\
-import {
-  html, keeps, layerFact, LeafElement, live,
-} from "/runtime/widget-api.js";
+import { html, live } from "/vendor/lit.js";
+import { keeps, layerFact, LeafElement } from "/runtime/widget-api.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {
@@ -78,7 +77,6 @@ PAGE_DECLARATION = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-state": {
             "choose": {
                 "unit": "widget",
@@ -185,7 +183,6 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
         "required": ["id", "parts"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-visual": {"parts": "parts"},
         "x-example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
     }
@@ -255,7 +252,6 @@ SHADOW_VISUAL_LAYER = {
         "required": ["id", "parts"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
         "x-shadow": True,
         "x-visual": {"parts": "parts"},
         "x-example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
@@ -703,10 +699,10 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-<lf-code id="patch" language="python"><pre>
+<lf-code id="patch"><pre><code class="language-python">
 def bracket():
     return "steel"
-</pre></lf-code>
+</code></pre></lf-code>
 """,
 )
 
@@ -1024,12 +1020,12 @@ graph LR
     </section>
   </section>
 </section>
-<lf-code id="walk" language="python" hi="2"><pre>
+<lf-code id="walk" hi="2"><pre><code class="language-python">
 def bracket(temp):
     if temp &lt; 0:
         return "steel"
     return "cedar"
-</pre>
+</code></pre>
   <lf-note id="line-note" at="2">Freezing is the only threshold that matters.
     <lf-diagram id="in-note"><pre>
 graph LR

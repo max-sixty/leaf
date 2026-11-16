@@ -5,7 +5,7 @@
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
 import { drawToc } from "../../packages/default/widgets/toc-view.js";
 import { marksWords, sectionMarks } from "../../packages/default/widgets/toc-marks.js";
 

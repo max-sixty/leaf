@@ -109,13 +109,13 @@ THREAD_CARD_PAGE = leaf_page(
 {before}
 <div id="title-pair">
   <section id="title-before">
-    <p class="eyebrow">Before · untitled</p>
+    <p>Before · untitled</p>
     <p id="thread-pending"><strong>An untitled thread.</strong> The workshop schedule
     leaves lunch open. The agent asked without naming the thread, so its row reads the
     question itself until the agent gives it a short name.</p>
   </section>
   <section id="title-after">
-    <p class="eyebrow">After · title assigned</p>
+    <p>After · title assigned</p>
     <p id="thread-text"><strong>An existing thread.</strong> The sample agenda has room
     for one more topic. Its speech-bubble control is green, and hovering it shows “On
     you” under the label. The image question still needs an answer even though the

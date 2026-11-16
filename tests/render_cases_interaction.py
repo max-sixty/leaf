@@ -1356,7 +1356,6 @@ SEATED_OBLIGATION_ENTRY = {
     "required": ["id"],
     "additionalProperties": False,
     "x-content": "markup",
-    "x-upgrade": True,
     "x-state": {
         "settle": {
             "detail": {
@@ -1373,7 +1372,6 @@ SEATED_OBLIGATION_ENTRY = {
         "when": {"asks": [True]},
         "answered": {"settle": {}},
     },
-    "x-thread-surface": True,
     "x-example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 

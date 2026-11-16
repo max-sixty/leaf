@@ -674,6 +674,27 @@ const bundles = {
           ),
       },
       {
+        file: /@pierre\/trees\/dist\/render\/scrollTarget\.js$/,
+        // Trees measures its viewport with getBoundingClientRect, so a reveal target
+        // can be fractional (138.16) where the browser holds the box at a device
+        // pixel (138). Compared exactly, the target never equals where the box
+        // stands, so each focus change writes a scroll that moves nothing and stops
+        // one under way. A target within a pixel is where the box already stands.
+        edit: (source) =>
+          seam(
+            seam(
+              source,
+              "return nextScrollTop === currentScrollTop ? null : nextScrollTop;",
+              "return Math.abs(nextScrollTop - currentScrollTop) < 1 ? null : nextScrollTop;",
+              "Trees scroll-target comparison",
+              3,
+            ),
+            "return preservedScrollTop === currentScrollTop ? null : preservedScrollTop;",
+            "return Math.abs(preservedScrollTop - currentScrollTop) < 1 ? null : preservedScrollTop;",
+            "Trees preserved scroll-target comparison",
+          ),
+      },
+      {
         file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
         edit: (source) =>
           seam(
@@ -834,9 +855,11 @@ async function bundle(spec) {
 /**
  * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
  * a literal import for each, so an export binds it, and each name and alias Shiki
- * gives a grammar, which a native Markdown fence uses, read here so that identifying a
+ * gives a grammar, which a `language-…` class names, read here so that identifying a
  * block loads no grammar. Both come from this build, which a page's grammars need
- * anyway, so the browser doesn't read `$languages.names` itself.
+ * anyway, so the browser doesn't read `$languages.names` itself. `page check` reads the
+ * names too, as the one line of JSON `syntaxLanguageNames` is written on
+ * (`leaf.validation.markup.COLOURED_LANGUAGES`).
  */
 async function syntaxLoaders() {
   const names = languages();

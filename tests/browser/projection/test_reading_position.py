@@ -335,7 +335,7 @@ def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, s
         "Heading continuity",
         f"""
 <header id="summary">
-  <p class="eyebrow">Playground replacement audit</p>
+  <p>Playground replacement audit</p>
   <h1>{title}</h1>
   <p>The opening account is long enough to become the next reading landmark.</p>
 </header>
@@ -752,7 +752,7 @@ def test_a_panes_scroll_behavior_change_keeps_the_reading_after_scrolling_past_f
         # Interleave at the announced handover, before its deferred restoration. The
         # platform input supersedes that restoration just as a trackpad gesture does.
         page.evaluate("""async () => {
-          const regions = await window.__lfWidgetApi();
+          const regions = await window.__lfCheckApi();
           const stop = regions.watchReadingRegionTransitions(({phase, shifted}) => {
             if (phase !== 'shift' || !shifted.some(({region}) => region.id === 'reading'))
               return;
@@ -844,7 +844,6 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "markup",
-        "x-upgrade": True,
         "x-example": (
             '<lf-owned-scroll id="example">'
             "<div data-scroll-body><button>Control</button></div>"

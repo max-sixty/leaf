@@ -1,8 +1,8 @@
 /* Control construction and labels are document-local. Leaf reads their generated
    word and action markers; an ordinary host needs no page services to build them. */
-import { offer, generatedElement, titlesName } from "./element-markers.js";
+import { offer, titlesName } from "./element-markers.js";
 import { actionName, showAction } from "./icon-paths.js";
-import { keeps, keepsText } from "./keeps.js";
+import { keeps } from "./keeps.js";
 import { keepFieldKeys } from "./field-keys.js";
 
 // Runtime searches share the vendor's native editor, frame and focus band. Callers
@@ -86,18 +86,11 @@ export function nameAction(control, action, { label, className } = {}) {
 //
 // `generatedElement(node, {says})` writes those markers without the words: for a box
 // whose contents the widget writes, or words it fills in some other way.
-// Widgets write the markers only through it, `relabel` and the offers, so the three
-// stay consistent. Words a module writes unmarked are the page's: the version
+// Widgets write the markers only through it and the offers, so the two stay
+// consistent. Words a module writes unmarked are the page's: the version
 // comparison reads sources (`version.js`), so they never read as a change, but `wrote`
 // keeps them and a quote can run across them. `generated({says})` is its template form:
 // `<h2 ${generated({ says: true })}>${title}</h2>`. Three writers stand apart because
 // they do something it doesn't: the datum projection (projection/data.js) marks and
 // unmarks authored nodes as their data comes and goes, markdown.js serializes its
 // media button as HTML, and revision_delivery.py writes prepaint faces on the server.
-
-/** @overload @param {Element} node @param {string} label @param {{says: boolean | "echo"}} options @returns {void} */
-/** @param {Element} node @param {string} label @param {{says?: boolean | "echo"}} [options] */
-export function relabel(node, label, options = {}) {
-  generatedElement(node, options);
-  keepsText(node, label);
-}

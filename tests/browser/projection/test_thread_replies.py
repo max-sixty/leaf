@@ -142,7 +142,6 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                     "required": ["id"],
                     "additionalProperties": False,
                     "x-content": "data",
-                    "x-upgrade": True,
                     "x-verbatim": True,
                     "x-state": {
                         "edit": {

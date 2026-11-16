@@ -307,7 +307,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     ).to_have_text(["1", "2"])
     page.evaluate(
         """async () => {
-          const {notice} = await window.__lfWidgetApi();
+          const {notice} = await window.__lfCheckApi();
           notice('Saved');
           dispatchEvent(new Event('resize'));
         }"""

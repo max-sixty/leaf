@@ -506,12 +506,12 @@ CODE_PAGE = leaf_page(
 <h1 id="t">Code</h1>
 <section id="walk">
 <p id="lede">The key changes shape:</p>
-<lf-code id="walk-code" language="python" hi="2"><pre>
+<lf-code id="walk-code" hi="2"><pre><code class="language-python">
 def bucket_key(request):
     if request.token:
         return f"tok:{request.token.id}"
     return "anon"
-</pre>
+</code></pre>
 <lf-note at="2">A token id shaped like an address would collide.</lf-note>
 </lf-code>
 <pre><code class="language-bash"># apply the migration, then run the marked suite
@@ -969,7 +969,8 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {keeps, offer, LeafElement, nothing, setChildren} from '/runtime/widget-api.js';
+import { nothing } from '/vendor/lit.js';
+import { keeps, offer, LeafElement, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
     this.show(this.value);
@@ -1014,7 +1015,6 @@ def data_projection_page(serve):
                 "property": "value",
             }
         },
-        "x-upgrade": True,
         "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
     }
     contract = {

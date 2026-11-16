@@ -1230,7 +1230,6 @@ FILM_DECLARATION = {
         "required": ["id"],
         "additionalProperties": False,
         "x-content": "empty",
-        "x-upgrade": True,
     }
     for tag in ("lf-film", "lf-loader")
 }

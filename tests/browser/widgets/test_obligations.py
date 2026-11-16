@@ -52,7 +52,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 ACROSS_OBLIGATION = """
   <section id="{id}">
-    <hgroup><p class="eyebrow">Retention</p><h3>How long should logs be kept?</h3></hgroup>
+    <hgroup><p>Retention</p><h3>How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
@@ -119,7 +119,6 @@ PLATE_PACKAGE = {
         "additionalProperties": False,
         "x-content": "markup",
         "x-visual": "whole",
-        "x-upgrade": False,
     }
 }
 

@@ -927,7 +927,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
     grammar = page.evaluate(
         """async () => {
           const {CONTRIBUTION_ENTRY_SCHEMA} =
-            await window.__lfWidgetApi();
+            await window.__lfCheckApi();
           return CONTRIBUTION_ENTRY_SCHEMA;
         }"""
     )
@@ -1505,7 +1505,7 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             childList: true,
             subtree: true,
           });
-          (await window.__lfWidgetApi())
+          (await window.__lfCheckApi())
             .notice('Agent replied — open Threads', {background: true});
         }"""
     )

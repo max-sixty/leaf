@@ -127,7 +127,7 @@ for the generated types and the producer's tests, outside the comparison.
 
 The number is also the only version of what Leaf keeps outside a page's log and
 document: every JSON record in a page directory or the state home (`state.Record`),
-the layer record among them, and the composer's draft in browser storage
+the layer record among them, and the composer's draft in the page's drafts (`drafts.py`)
 (`$events.draft`). Each carries `leaf-<kind>/<since>` in its `format`, where `since`
 is the protocol at which that record's own shape last changed, so a bump for another
 change leaves claims, deliveries and ports readable. A new record kind starts at the
@@ -142,7 +142,11 @@ as a newer Leaf's (`registry.storage.layer_record`): read as absent, it would ha
 
 ## Composition stamps
 
-Every composition, `page init`'s layer and a page's own declarations over it, stamps
+Every composition, `page init`'s layer and a page's own declarations over it, writes
+`$modules`, the module each declared element has among the files it composes
+(`registry/contract.MODULES`): `widgets/<tag>.js` in the kernel or a package, or
+`page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
+declaration says so. It then stamps
 the facts the browser reads rather than derives (`registry/layer.stamp_composition`),
 overwriting any a layer declared: `$decisions`, each widget's deciding `x-state` verb
 and the member tags each of its outcomes retires, and `$states`, each verb's writer

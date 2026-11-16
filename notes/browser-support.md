@@ -1164,8 +1164,8 @@ element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the rea
 theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
-taken out. The first is Firefox's to change; rewriting the rules is
-open (#5194).
+taken out. The first is Firefox's to change. The theme's eyebrow rules now end at an
+`hgroup` or a heading's place in it, and rewriting the others is open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
 `content-visibility: auto`, each row numbered by a `::before` counter, let it paint,

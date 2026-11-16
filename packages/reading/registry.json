@@ -1,7 +1,7 @@
 {
-  ".eyebrow": {
-    "description": "A small-caps label above a heading.",
-    "x-example": "<p class=\"eyebrow\">design proposal</p>\n<h1>Widgets</h1>"
+  "hgroup": {
+    "description": "A heading with its eyebrow, the short label above it, or its subtitle below it. The theme sets a `<p>` that opens the group, before the heading, as small capitals, and leaves one after the heading in the body's face.",
+    "x-example": "<hgroup>\n  <p>design proposal</p>\n  <h1>Widgets</h1>\n</hgroup>"
   },
   ".lede": {
     "description": "The opening paragraph, set slightly larger.",

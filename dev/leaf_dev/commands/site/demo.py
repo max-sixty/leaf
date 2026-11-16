@@ -155,8 +155,10 @@ def demo_page(version: int, board: dict[str, list[str]] | None = None) -> str:
 <body>
 <main class="layout-column">
 <header id="top">
-<p class="eyebrow">demo · migration rehearsal</p>
+<hgroup>
+<p>demo · migration rehearsal</p>
 <h1>Migrating billing to the new service</h1>
+</hgroup>
 <p class="lede" id="demo-lede">The rehearsal is running now. This page follows each
 new version as the checks finish.</p>
 </header>

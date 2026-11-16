@@ -2360,7 +2360,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 <p>Before.</p>
 <section id="h2-led"><h2>Heading</h2><p>Body.</p></section>
 <section id="h3-led"><h3>Subheading</h3><p>Body.</p></section>
-<section id="eyebrow-led"><p class="eyebrow">Eyebrow</p><h2>Heading</h2></section>
+<section id="eyebrow-led"><hgroup><p>Eyebrow</p><h2>Heading</h2></hgroup></section>
 <div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
 <section id="prose-led"><p>Prose first.</p></section>
 <section id="list-led"><ol><li>A list first.</li></ol></section>

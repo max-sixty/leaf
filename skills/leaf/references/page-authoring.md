@@ -235,14 +235,14 @@ rely on, in full:
 ```bash
 leaf page vocabulary <page> | jq 'with_entries(select(.key | startswith("$") | not))
     | map_values(.description)'
-leaf page vocabulary <page> | jq '.["lf-options"], .[".eyebrow"], .["$series"]'
+leaf page vocabulary <page> | jq '.["lf-options"], .[".lede"], .["$series"]'
 ```
 
 Before writing markup, read the author instructions for the entries you will use,
 including any example you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
+leaf page instructions <page> --use lf-options --use .lede | jq -r '.author // empty'
 ```
 
 The output is a JSON map from audience to text. When you or an agent you assign takes

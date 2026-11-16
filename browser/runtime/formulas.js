@@ -75,14 +75,16 @@ const temml = () =>
   ));
 
 // The source each host was typeset from. A formula is current while its host is all
-// it holds and holds that source still: a live revision that rewrites the source
-// replaces the host or its words, and the pass typesets it again.
+// it holds, holds that source still, and was set in the mode its place asks for: a live
+// revision that rewrites the source replaces the host or its words, one that adds words
+// beside a display formula makes it inline, and the pass typesets it again.
 /** @type {WeakMap<Node, string>} */
 const typeset = new WeakMap();
 /** @param {Element} code */
 const current = (code) =>
   code.childNodes.length === 1 &&
-  typeset.get(/** @type {Node} */ (code.firstChild)) === code.textContent;
+  typeset.get(/** @type {Node} */ (code.firstChild)) === code.textContent &&
+  code.getAttribute(PAINT) === (displayed(code) ? "display" : "inline");
 
 // A formula's words, out of the host an earlier pass typeset them into.
 /** @param {Element} code */

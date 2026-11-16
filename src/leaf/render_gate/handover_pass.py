@@ -167,8 +167,8 @@ def _place(finding: dict) -> tuple[str, str]:
     """What makes two readings' findings one fault: its code and the element it names,
     whose measurements an edit may move. One that names none is placed by the message it
     carries (`values["text"]`), as two console errors differ only by theirs, and
-    otherwise by its code alone, since its words carry measurements, such as when a
-    layout shift started."""
+    otherwise by its code alone, since its words carry measurements, such as how far
+    the page scrolls sideways."""
     named = finding.get("at") or finding.get("values", {}).get("text", "")
     return finding["code"], named
 

@@ -446,18 +446,18 @@ before wiring it.
 included: `sync.value()` reads it, `sync.load(value)` replaces it, and `sync()` repaints
 after the box's state changes. `sync.button` is the generated send control.
 
-Drafts survive a reload, a new version and a closed tab, and every tab of the page
-shares them. Keep each under a context string unique on the page, such as `option:` and
-its id:
+Drafts survive a reload, a new version and a closed tab, and every tab and device
+showing the page shares them, since the page's server keeps them. Keep each under a
+context string unique on the page, such as `option:` and its id:
 
 - `loadDraft(ctx)` returns the stored draft record, or `null`. Seed the box with
   `loadDraft(ctx)?.text ?? ""`; its `payload` holds the saved send data.
 - `saveDraft(ctx, text, payload)` records an edit, from `save`, with any `payload` the
   send needs.
 - `watchDraft(ctx, callback, {input: box})` calls `callback(text, payload)` when the
-  draft changes other than by typing in this box: another tab, a send emptying it, or a
-  refusal returning the words. Put them in the box with `sync.load(text ?? "")`, and
-  register the watch in `whileConnected`.
+  draft changes other than by typing in this box: another tab or device, a send
+  emptying it, or a refusal returning the words. Put them in the box with
+  `sync.load(text ?? "")`, and register the watch in `whileConnected`.
 - `sendDraft(ctx, owns, send)`, called from `send`, calls your `send(attempt, payload)`
   if the box still shows the stored draft and `owns()` is true, and resolves to the
   delivery's result. One `attempt` stands for one version of the words, so a resend

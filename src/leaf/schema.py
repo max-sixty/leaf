@@ -222,6 +222,20 @@ VERB_SCHEMA = {
         "unsent": {"const": True},
         "creates": ACTION_CREATES,
         "decides": {"const": True},
+        # What the deciding verb's outcomes do beyond answering (`$state`): the member
+        # tags each one takes off the page, and the one that declines the proposal.
+        "retires": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {
+                "type": "array",
+                "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
+                "minItems": 1,
+                "uniqueItems": True,
+            },
+        },
+        "withdraws": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "contract": {
             "type": "object",
             "properties": {
@@ -235,6 +249,7 @@ VERB_SCHEMA = {
         "text": {"const": True},
     },
     "required": ["unit"],
+    "dependentRequired": {"retires": ["decides"], "withdraws": ["decides"]},
     "allOf": [
         {
             "if": {"required": ["record"]},
@@ -395,7 +410,6 @@ EXTENSION_SCHEMA = {
             "minItems": 1,
         },
         "x-refers": REFERENCE_SCHEMA,
-        "x-retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-says": {
             "type": "object",
             "propertyNames": {"pattern": f"^{HTML_NAME}$"},
@@ -462,7 +476,6 @@ EXTENSION_SCHEMA = {
             "required": ["members"],
             "additionalProperties": False,
         },
-        "x-withdrawn-as": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-within": {
             "type": "array",
             "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
@@ -472,7 +485,6 @@ EXTENSION_SCHEMA = {
         "x-work": {"const": True},
     },
     "dependentRequired": {
-        "x-retired-when": ["x-owners"],
         "x-within": ["x-owners"],
         "x-measured": ["x-data"],
         "x-shows": ["x-owners", "x-refers"],
@@ -597,9 +609,7 @@ LAYER_FACTS = {
 # of them, because the failure is one — the attribute is absent, so the pass reading the
 # key finds nothing and does nothing, and the widget is simply missing from it with no
 # error anywhere (validate_registry holds every key here to the entry's `properties`).
-# The verb keys of the same shape (x-retired-when, x-withdrawn-as) are not in it: they
-# name an outcome rather than an attribute, and sharing a spelling is no reason to share
-# a check. x-awaits and x-data name attributes too and keep their own loops, having more
+# x-awaits and x-data name attributes too and keep their own loops, having more
 # to say about each than that it exists.
 ATTRIBUTE_KEYS = (
     "x-prepaint",

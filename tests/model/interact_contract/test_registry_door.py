@@ -506,33 +506,37 @@ def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
     assert key in refused.values["keys"]
 
 
-def test_retirement_requires_an_owner(page_dir):
+def test_a_decision_retires_only_members_its_widget_owns(page_dir):
+    """A decision reaches the members its widget owns directly, which is where the
+    file's reading and the browser's selector look for a retired one."""
     registry = vocabulary(page_dir)
     del registry["lf-old"]["x-owners"]
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
-    assert found(findings, "invalid-extensions", "<lf-old>")
+    assert found(
+        findings, "retires-member", "<lf-suggestion>", outcome="accept", member="lf-old"
+    )
 
 
-def test_check_refuses_a_retirement_outcome_its_parent_does_not_decide(page_dir):
-    """A retirement outcome is a cross-entry reference, not a free-form label.
+def test_check_refuses_a_retirement_outcome_its_verb_does_not_record(page_dir):
+    """A retirement outcome is a value of the deciding verb's `outcome` field, not a
+    free-form label.
 
-    If it names no outcome of the parent widget's deciding verb, the browser's selector can never
-    match and the file reading can disagree with what that widget knows how to
-    settle. Refuse that vocabulary at its one ingress instead of leaving every
-    consumer to rediscover the broken reference.
+    If the verb never records it, the browser's selector can never match and the file
+    reading can disagree with what that widget knows how to settle. Refuse that
+    vocabulary at its one ingress instead of leaving every consumer to rediscover the
+    broken reference.
     """
     registry = vocabulary(page_dir)
-    registry["lf-old"]["x-retired-when"] = "approve"
+    retires = registry["lf-suggestion"]["x-state"]["decide"]["retires"]
+    retires["approve"] = retires.pop("accept")
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
-    assert found(
-        findings, "retired-when", "<lf-old>", outcome="approve", owner="lf-suggestion"
-    )
+    assert found(findings, "retires-outcome", "<lf-suggestion>", outcome="approve")
 
 
 @pytest.mark.parametrize("fault", ["per-part", "agent-written"])
@@ -549,7 +553,6 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
     else:
         # An agent verb never answers an obligation, so the suggestion stops asking one.
         suggestion.pop("x-awaits")
-        suggestion.pop("x-withdrawn-as")
         suggestion["properties"].pop("resolves")
         decide["writer"] = "agent"
         suggestion["properties"]["outcome"] = decide.pop("detail")["properties"][
@@ -583,22 +586,6 @@ def test_a_boolean_attribute_schema_is_refused_beside_a_layer_fault(page_dir, sc
         ("undeclared-language", ""),
         ("reading-role-attr", "<lf-pane>"),
     ]
-
-
-def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
-    """The parent and the children retiring under it are checked in one run, so each
-    reads the parent's decision before its own check holds it to an outcome."""
-
-    def drop_outcome(registry):
-        detail = registry["lf-suggestion"]["x-state"]["decide"]["detail"]
-        del detail["properties"]["outcome"]
-        detail["required"].remove("outcome")
-
-    status, findings = _mutated_registry_check(page_dir, drop_outcome)
-
-    assert status != 0
-    assert found(findings, "awaits-blanket", "<lf-suggestion>")
-    assert found(findings, "retired-when", "<lf-old>", owner="lf-suggestion")
 
 
 @pytest.mark.parametrize(

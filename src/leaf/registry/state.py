@@ -2,12 +2,15 @@
 
 from .contract import (
     deciding_outcomes,
+    deciding_verb,
     deciding_verbs,
     declares_string,
     detail_schema,
     registry_error,
+    retired_members,
     state_specs,
     verb_writer,
+    withdrawing_outcome,
 )
 from .schema import json_validator, schema_reading
 
@@ -194,20 +197,31 @@ def validate_widget_record_contracts(
 def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) -> None:
     # Withdrawal names a declared deciding outcome; it does not require slots
     # whose historical ids a future revision must retain.
-    withdrawn = entry.get("x-withdrawn-as")
-    if withdrawn is not None and withdrawn not in deciding_outcomes(entry):
-        raise registry_error("withdrawn-as", path, tag, outcome=withdrawn)
-    retired = entry.get("x-retired-when")
-    if retired is None:
-        return
-    # Every owner, not the first: a slot that retires under its owner's outcome has
-    # to retire whichever owner it was written in, or it would be settled under one
-    # and undecidable under another.
-    for owner in entry["x-owners"]:
-        if retired not in deciding_outcomes(declarations[owner]):
+    outcomes = deciding_outcomes(entry)
+    verb = deciding_verb(entry)
+    withdrawn = withdrawing_outcome(entry)
+    if withdrawn is not None and withdrawn not in outcomes:
+        raise registry_error(
+            "withdraws-outcome", path, tag, verb=verb, outcome=withdrawn
+        )
+    for outcome, members in retired_members(entry).items():
+        # An outcome the verb never records would retire nothing, with no error.
+        if outcome not in outcomes:
             raise registry_error(
-                "retired-when", path, tag, outcome=retired, owner=owner
+                "retires-outcome", path, tag, verb=verb, outcome=outcome
             )
+        # A decision reaches the members its widget owns directly, which is where
+        # the file's reading and the browser's selector look for a retired one.
+        for member in members:
+            if tag not in declarations.get(member, {}).get("x-owners", []):
+                raise registry_error(
+                    "retires-member",
+                    path,
+                    tag,
+                    verb=verb,
+                    outcome=outcome,
+                    member=member,
+                )
 
 
 def validate_deciding_verb(tag: str, entry: dict, path) -> None:

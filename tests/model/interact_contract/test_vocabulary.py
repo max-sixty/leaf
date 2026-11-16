@@ -88,7 +88,8 @@ def test_page_registry_composes_declarations_and_implementations_independently(
 def test_a_composed_vocabulary_carries_its_decisions(page_dir):
     """`$decisions` is what the browser reads to know which verb decides a widget and
     which members each outcome takes off the page. Every composition stamps it, so a
-    page declaring a member of its own is served a relation that holds it."""
+    page that declares a member of its own, and restates the widget whose decision
+    retires it, is served a relation that holds it."""
     layer = registry_storage.load_registry(page_dir)
     assert layer["$decisions"] == {
         "lf-suggestion": {
@@ -96,13 +97,16 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
             "retires": {"accept": ["lf-old"], "reject": ["lf-new"]},
         }
     }
-    member = {**deepcopy(layer["lf-old"]), "x-retired-when": "reject"}
+    suggestion = deepcopy(layer["lf-suggestion"])
+    suggestion["x-state"]["decide"]["retires"]["reject"].append("lf-gone")
     layer_3 = registry_storage.layer_record(page_dir)
     assert layer_3 is not None
     widget_paths = set(registry_storage.layer_widgets(layer_3, page_dir))
 
     composed = registry_page.compose_page_registry(
-        layer, {"lf-gone": member}, widget_paths
+        layer,
+        {"lf-gone": deepcopy(layer["lf-old"]), "lf-suggestion": suggestion},
+        widget_paths,
     )
 
     assert composed.registry["$decisions"]["lf-suggestion"]["retires"] == {

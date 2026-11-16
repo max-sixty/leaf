@@ -348,6 +348,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
     options = registry["lf-options"]
     options["x-state"]["decide"] = {
         "decides": True,
+        "retires": {"keep": ["lf-option"]},
         "detail": {
             "type": "object",
             "properties": {"outcome": {"enum": ["keep"]}},
@@ -356,13 +357,9 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         },
         "unit": "widget",
     }
-    option = registry["lf-option"]
-    option["x-retired-when"] = "keep"
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(
-        json.dumps({"lf-options": options, "lf-option": option})
-    )
+    (overlay / "registry.json").write_text(json.dumps({"lf-options": options}))
 
     result = CliRunner().invoke(
         cli_model.cli,

@@ -166,19 +166,21 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
 
 def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
 
-    def withdrawn_as(outcome):
+    def withdraws(outcome):
         declare_on_page(
             trial_page,
-            lambda registry: registry["lf-trial"].update({"x-withdrawn-as": outcome}),
+            lambda registry: registry["lf-trial"]["x-state"]["decide"].update(
+                {"withdraws": outcome}
+            ),
         )
 
-    withdrawn_as("pause")
+    withdraws("pause")
     result = check(trial_page)
     assert result.exit_code == 0, result.output
-    withdrawn_as("missing")
+    withdraws("missing")
     status, findings = check_findings(trial_page)
     assert status != 0
-    assert found(findings, "withdrawn-as", "<lf-trial>", outcome="missing")
+    assert found(findings, "withdraws-outcome", "<lf-trial>", outcome="missing")
 
 
 @pytest.mark.parametrize(

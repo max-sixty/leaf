@@ -10,8 +10,9 @@ under the element's `x-state`. Leaf validates each event, works out the current 
 hands it to the module, and shows it to the agent under `state` in `leaf page state`.
 
 A verb declaring `decides: true` selects which of its widget's members retire. It
-folds by widget and requires a string-enum `outcome` field. `x-retired-when` and
-`x-withdrawn-as` refer to those outcomes. An `outcome` field on any other verb is
+folds by widget and requires a string-enum `outcome` field. Its `retires` maps an
+outcome to the member tags it removes, and its `withdraws` names the outcome that
+declines the proposal (`$state`). An `outcome` field on any other verb is
 ordinary domain data; whether an action answers an obligation is separately
 declared by `x-awaits`.
 

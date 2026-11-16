@@ -114,7 +114,7 @@ export const declarationFor = (el, key) =>
 
 // How a tag is decided, or null where no verb decides it: `verb`, the x-state verb whose
 // detail `outcome` is the decision, and `retires`, each outcome's member tags that leave
-// the page under it (x-retired-when). Composition stamps it into the vocabulary as
+// the page under it (the verb's `retires`). Composition stamps it into the vocabulary as
 // `$decisions` (Python's `registry.contract.stamp_decisions`), so nothing here re-derives it.
 /** @param {string} tag @returns {Decision | null} */
 export const decisionFor = (tag) => registry.$decisions[tag] ?? null;

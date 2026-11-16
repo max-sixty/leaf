@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 
 import turbohtml
 
-from .registry.contract import upgraded
+from .registry.contract import retired_members, upgraded
 from .registry.kernel import kernel_passages
 from .structure import VOID_TAGS, SourceDocument, pre_body
 
@@ -34,13 +34,12 @@ if TYPE_CHECKING:
 #               every owner, including one with no authored id. Those descendants keep
 #               their own declarations; without this key the whole upgraded element is
 #               opaque, as a diagram's notation is once its module has drawn a picture.
-#   x-retired-when  the outcome under which this element leaves the page: a decided
-#               suggestion's losing slot. The browser builds its anchor pass's skip
-#               list from this key too (`quotable` in passages.js), so a reading given
-#               the log's outcomes drops here exactly what drops there — and a widget
-#               whose decision leaves nothing showing goes with its slots (settledAway
-#               there, `gone` here). Its values are also the vocabulary's decision
-#               verbs, which is where `obligations` reads them from.
+#   x-state retires  on a deciding verb, the member tags that leave the page under
+#               each outcome: a decided suggestion's losing slot. The browser builds
+#               its anchor pass's skip list from it too (`quotable` in passages.js), so
+#               a reading given the log's outcomes drops here exactly what drops there
+#               — and a widget whose decision leaves nothing showing goes with its
+#               slots (settledAway there, `gone` here).
 #   x-owners with x-content markup  direct prose members remain readable inside a
 #               data widget; its other body content is source notation, withheld.
 #   x-state, record kind "body"  the verb whose detail text becomes this element's
@@ -269,9 +268,9 @@ class _PassageParser:
     first, so a match can name the section it fell in and be re-read within it.
 
     `decided` is the outcome each suggestion stands under (`retirement_outcomes`).
-    A decision retires a slot — the registry's `x-retired-when` names which outcome —
-    and the browser's anchor pass reads the same key (`quotable` in passages.js), so
-    this reading drops it the same way. A decision that leaves its
+    A decision retires a slot — its widget's deciding verb names which, by outcome
+    (`retires`) — and the browser's anchor pass reads the same declaration (`quotable`
+    in passages.js), so this reading drops it the same way. A decision that leaves its
     widget with nothing — a deletion accepted, an insertion refused — empties the
     wrapper too (`gone`), because an element showing nothing is one nobody can point
     at, however present its markup. `rewrites` is the user's
@@ -468,14 +467,16 @@ class _PassageParser:
             elif value == "false":
                 editable = False
         editing_boundary = editable != bool(parent and parent["editable"])
-        # A slot a decision retired: its words left the page with the outcome the
-        # registry names, and everything under it goes too. Looked up by the parent's
-        # own id — the same child-of-suggestion shape as the browser's selector.
+        # A slot a decision retired: its words left the page with the outcome its
+        # parent's deciding verb names, and everything under it goes too. Looked up by
+        # the parent's own id — the same child-of-suggestion shape as the browser's
+        # selector.
         retired_by = (parent["retired_by"] if parent else None) or (
             parent["id"]
             if parent
-            and entry.get("x-retired-when")
-            and self.decided.get(parent["id"]) == entry["x-retired-when"]
+            and (outcome := self.decided.get(parent["id"])) is not None
+            and tag
+            in retired_members(self.registry.get(parent["tag"], {})).get(outcome, ())
             else None
         )
         # A wall this element raises itself: its words are off the user's page, whatever

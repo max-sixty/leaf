@@ -408,9 +408,9 @@ def detail_schema(
 
 
 def decides(spec: dict) -> bool:
-    """Whether a verb declares the role that selects retirable members
-    (x-retired-when, x-withdrawn-as). Its required `outcome` carries that choice;
-    the same field name on any other verb is ordinary domain data.
+    """Whether a verb declares the role whose outcome retires members or declines the
+    proposal (its `retires` and `withdraws`). Its required `outcome` carries that
+    choice; the same field name on any other verb is ordinary domain data.
     The browser reads the role from `$decisions`
     (`registry.contract.stamp_decisions`)."""
     return spec.get("decides", False)
@@ -429,14 +429,27 @@ def deciding_verb(entry: dict) -> str | None:
 def deciding_outcomes(entry: dict) -> list[str]:
     """The outcomes the deciding verb may stand under; empty without one, or where
     the verb declares no `outcome` words. Validation reads it before holding the
-    verb to its shape (`state.validate_deciding_verb`), and a declaration reads it
-    of another whose own check may have failed."""
+    verb to its shape (`state.validate_deciding_verb`)."""
     verb = deciding_verb(entry)
     if verb is None:
         return []
     detail = entry["x-state"][verb].get("detail") or {}
     schema = detail.get("properties", {}).get("outcome")
     return list(schema.get("enum", [])) if isinstance(schema, dict) else []
+
+
+def retired_members(entry: dict) -> dict:
+    """outcome → the member tags that leave the page under it, as one declaration's
+    deciding verb says (`retires`); empty where no verb decides or it retires none."""
+    verb = deciding_verb(entry)
+    return entry["x-state"][verb].get("retires", {}) if verb is not None else {}
+
+
+def withdrawing_outcome(entry: dict) -> str | None:
+    """The outcome of one declaration's deciding verb that declines the proposal
+    (`withdraws`), or None."""
+    verb = deciding_verb(entry)
+    return entry["x-state"][verb].get("withdraws") if verb is not None else None
 
 
 def verb_writer(spec: dict) -> str:
@@ -572,19 +585,15 @@ def event_spec(entry: dict, event: dict) -> dict | None:
 
 
 def retirement_slots(registry: dict) -> dict:
-    """owner tag → {outcome verb → the tags that leave the page under it}: every
-    owner/member pair `x-retired-when` relates, the member naming the outcome and
-    `x-owners` the widgets whose decision reaches it. Read out of the merged
-    registry rather than known here, so which widgets a decision settles is a
-    fact about this page's vocabulary and never a list in the code."""
-    slots = {}
-    for tag, entry in registry.items():
-        if not is_element_name(tag) or not entry.get("x-retired-when"):
-            continue
-        outcome = entry["x-retired-when"]
-        for owner in entry["x-owners"]:
-            slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
-    return slots
+    """owner tag → {outcome → the member tags that leave the page under it}, for
+    every widget whose deciding verb retires members (`retired_members`). Read out
+    of the merged registry rather than known here, so which widgets a decision
+    settles is a fact about this page's vocabulary and never a list in the code."""
+    return {
+        tag: slots
+        for tag, entry in registry.items()
+        if is_element_name(tag) and (slots := retired_members(entry))
+    }
 
 
 def stamp_states(registry: dict) -> dict:
@@ -681,17 +690,16 @@ def stamp_grammars(registry: dict) -> dict:
 
 def stamp_decisions(registry: dict) -> dict:
     """Write `$decisions` into a validated vocabulary: owner tag → {`verb`, its deciding
-    x-state verb; `retires`, `retirement_slots`' outcome → member tags}, for every tag
-    that declares a deciding verb.
+    x-state verb; `retires`, that verb's outcome → member tags}, for every tag that
+    declares a deciding verb.
 
     Each composition stamps it (`registry.layer.stamp_composition`), so the browser
     reads which verb decides a widget and what its outcome takes off the page rather
     than walking the declarations a second time. Python reads `deciding_verb` and
-    `retirement_slots` themselves, the definitions this is derived from, since
+    `retired_members` themselves, the definitions this is derived from, since
     validation asks them of declarations that no composition has stamped yet."""
-    slots = retirement_slots(registry)
     registry["$decisions"] = {
-        tag: {"verb": verb, "retires": slots.get(tag, {})}
+        tag: {"verb": verb, "retires": retired_members(entry)}
         for tag, entry in registry.items()
         if is_element_name(tag) and (verb := deciding_verb(entry)) is not None
     }

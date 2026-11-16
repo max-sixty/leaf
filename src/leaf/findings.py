@@ -1609,13 +1609,23 @@ _TEXT = {
         f"{at} attribute `{v['attribute']}` names unknown data contract"
         f" {v['contract']!r} for `{v['verb']}` detail field `{v['field']}`"
     ),
-    "withdrawn-as": _declared(
-        lambda v: f"x-withdrawn-as `{v['outcome']}` is not a deciding outcome"
-    ),
-    "retired-when": _declared(
+    "withdraws-outcome": _declared(
         lambda v: (
-            f"x-retired-when `{v['outcome']}` is invalid: <{v['owner']}>"
-            " declares no deciding x-state verb with that outcome"
+            f"x-state verb `{v['verb']}` declares `withdraws: {v['outcome']}`,"
+            " which is not a value of its `outcome` field"
+        )
+    ),
+    "retires-outcome": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` retires members under `{v['outcome']}`,"
+            " which is not a value of its `outcome` field"
+        )
+    ),
+    "retires-member": _declared(
+        lambda v: (
+            f"x-state verb `{v['verb']}` retires <{v['member']}> under"
+            f" `{v['outcome']}`: <{v['member']}> must declare this widget in its"
+            " x-owners"
         )
     ),
     "answering-part": _declared(

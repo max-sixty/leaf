@@ -504,11 +504,13 @@ flowchart TD
             A working fork's shell commands run in the session's environment, so a
             <code>leaf</code> command it runs looks like one of the main thread's. The
             fork tells Leaf which are its own: the fork's task names the turn Leaf
-            opened for it and tells it to begin each <code>leaf</code> command with
-            <code>leaf --turn</code> and that turn (<code>forks.work_prompt</code>). The
-            command still begins with <code>leaf</code>, so a permission rule allowing
-            <code>leaf</code> commands still matches it. The turn it names decides the
-            writes that name a turn: a reply, a start, a pickup and an acknowledgement.
+            opened for it and tells it to name that turn in each
+            <code>leaf</code> command, as in
+            <code>leaf --turn &lt;turn&gt; thread reply …</code>
+            (<code>forks.work_prompt</code>). The command still begins with
+            <code>leaf</code>, so a permission rule allowing <code>leaf</code> commands
+            still matches it. The turn it names decides the writes that name a turn: a
+            reply, a start, a pickup and an acknowledgement.
             <span class="tag ok">built</span>
             <span class="tag">only with the flag</span>
           </p>

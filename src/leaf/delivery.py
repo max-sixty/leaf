@@ -919,8 +919,8 @@ def cmd_delivery_ack(delivery_id: str) -> None:
 
 
 def earlier_pickup(payload: dict, session_id: str):
-    """The note saying that an earlier turn of `session_id` already picked up the
-    delivery `payload`, or None where none did.
+    """The note saying that an earlier turn of `session_id`'s main thread already
+    picked up the delivery `payload`, or None where none did.
 
     `codex queue` takes no message id, so a failure after it returns and before
     Leaf records the acceptance queues the same pointer again, and Codex runs a
@@ -928,14 +928,18 @@ def earlier_pickup(payload: dict, session_id: str):
     pickups name the turns that took the delivery, and the note names them with
     the answers its updates still owe, read from the page rather than the
     agent's memory, so the turn acknowledging it again repeats no work and still
-    answers what the earlier turn left owed."""
+    answers what the earlier turn left owed. An agent's turn that picked the
+    updates up and left them owed, as a line turn does each message it holds,
+    handed them on rather than taking them in twice, so its pickup is no repeat."""
     from .activity import answer_command
     from .findings import Finding
     from .served_state.context import read_page
+    from .state import agent_turns
 
     record = session_record(session_id)
     assert record is not None
     turn = acting_agent_turn(session_id) or record["turn"]
+    agents = agent_turns(session_id)
     turns, answers = set(), []
     for batch in payload["batches"]:
         page_dir = Path(batch["page"])
@@ -946,6 +950,7 @@ def earlier_pickup(payload: dict, session_id: str):
                 for receipt in pickup_receipts(page.events, phase="opened")
                 if receipt["session"] == session_id
                 and receipt["turn"] != turn
+                and receipt["turn"] not in agents
                 and inputs.intersection(receipt["events"])
             }
             if not earlier:

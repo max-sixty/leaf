@@ -122,8 +122,9 @@ under the same turn, so the module asks no second line fork, and the message goe
 where the thread goes, to the working fork at its tool boundary (`holding.to_carry`)
 or to the main thread. The line the line fork wrote for the first message alone goes
 in nowhere, since the thread's newest message carries its one answer, so the line
-turn ends without a line (`_line`). A thread with the session stays there until the
-session answers it, and a message after that answer is kept back again.
+turn hands the thread over without a line (`_line`). A thread with the session stays
+there until the session answers it, and a message after that answer is kept back
+again.
 
 Each way out of a line turn is one every agent turn already has: closing it, which
 writes the session's agent turns that the watch's reading stamps
@@ -138,25 +139,25 @@ pickup in the log as a working fork holds its thread, over the separate hold Lea
 kept until then: a line holder the reading gave each thread admitted since the lane
 came up, a record outside the log of the messages each line fork handed over, and a
 30 s bound the follower enforced with a nudge. Five rare paths changed with it, which
-they accepted:
+they accepted, counted on this machine's pages to that day:
 
 - A thread the line fork hands over after the delivery cursor passed its messages,
   as when the main thread took in later input meanwhile, reaches the main thread at
   its next prompt, the watch's wake as its turn ends or the user's, rather than at
   its next tool boundary: the line turn's pickup names the messages, and a tool
   boundary hands over only passed input no pickup names (`delivery.deliverable`).
-  None of the 61 hand-overs in the logs met it.
+  None of 61 hand-overs met it.
 - A second message while the line fork writes joins the line turn with no line, as
-  above, where a line fork was asked again about both before. None of the 147 line
-  forks in the logs met it.
+  above, where a line fork was asked again about both before. None of 147 line forks
+  met it.
 - A message in a working fork's last moments, which its run never carries, goes to
   the main thread as the run ends rather than to the same fork resumed, since Leaf
   decides whether to keep a message back only as it admits it.
 - An agent turn whose start nothing confirms lapses after 30 s rather than a minute,
   a working fork's included, which bounds a line turn as the 30 s bound did. Each of
-  the 77 fork starts in the logs was confirmed within 0.7 s of its take, and a line
-  turn passed to a fork keeps its opening, so its harness confirms the fork's start
-  within 30 s of the message's admission.
+  77 fork starts was confirmed within 0.7 s of its take. A line turn passed to a fork
+  keeps its opening, so the fork's start must be confirmed within 30 s of the
+  message's admission; 147 line forks answered within 20 s of it.
 - A line turn that lapses nudges no one, so an idle session no watch follows finds
   the message at its next prompt.
 
@@ -811,8 +812,8 @@ def _given(session_id: str, basis: dict, turn: str, agent: str) -> None:
 
 def started(session_id: str, basis: dict, turn: str, agent: str) -> dict:
     """Record that the agent its harness names `agent` runs the fork turn `turn`
-    Leaf opened for the thread `basis` names (`state.name_agent_turn`), so its tool
-    boundaries carry the thread's further messages and its turn is believed for the
+    Leaf passed to it for the thread `basis` names (`state.name_agent_turn`), so its
+    tool boundaries carry the thread's further messages and its turn is believed for the
     working grace, and tell the main session which fork has the thread (`_given`):
     the fork the module spawned, whose id Leaf learns only now, or resumed, once the
     module has sent it the thread's messages. A turn that ended first, as its

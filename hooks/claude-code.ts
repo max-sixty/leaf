@@ -540,7 +540,7 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
 }
 
 // The forks doing a thread's work, by agent id, with when each one's present run
-// started, spawned or resumed, and the turn Leaf opened for that run, both of which
+// started, spawned or resumed, and the turn Leaf passed to that run, both of which
 // the end of the run reports: the turn by its id, since the run can end before Leaf
 // hears which agent runs it (`forks.started`). `$.state` keeps them, which a reload
 // of this module's code leaves standing, so a fork made before a reload still ends
@@ -617,7 +617,7 @@ async function changeForks(
 
 /** Give a thread's work to the fork Leaf chose (`forks._take`), with Leaf's
  * `prompt`: resume the fork that answered the thread before, where Leaf names one
- * (`resume`), which runs the turn Leaf opened from its opening; or else spawn a fork
+ * (`resume`), which runs the turn Leaf passed to it from then on; or else spawn a fork
  * of the conversation and tell Leaf which agent runs that turn (`forks.started`),
  * which tells the main thread the agent id it reaches the fork by. A fork that
  * can't be resumed or fails to start, or a step of this that fails, ends that turn
@@ -667,7 +667,7 @@ async function workFork(
   }
 }
 
-/** Spawn a fork of the conversation for the turn Leaf opened (`workFork`): the
+/** Spawn a fork of the conversation for the turn Leaf passed to it (`workFork`): the
  * agent it started, if any, and how its run ended where it failed to start or
  * ended before the module registered it. The fork goes unnamed, so the main thread
  * reaches it only by its agent id (`forks.py` says why): a name passes to the

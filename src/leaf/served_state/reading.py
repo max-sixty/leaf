@@ -101,8 +101,8 @@ def page_roots(page_dir: Path) -> set[Path]:
 def outside_inputs(page_dir: Path) -> set[Path]:
     """The files outside the page directory its reading stamps: the claim, its
     claimant session's lifecycle and its agents' turns (`state.AGENT_TURNS`), which
-    change what is deliverable, and each bound file. A watcher subscribes to these by path, and follows a new set when
-    the claim or the grants change."""
+    change what is deliverable, and each bound file. A watcher subscribes to these by
+    path, and follows a new set when the claim or the grants change."""
     return {path for _name, path in _outside(page_dir)}
 
 

@@ -1779,6 +1779,28 @@ def test_a_late_acknowledgement_does_not_take_a_thread_back(claimed, lane, capsy
         assert forks_model.page_holding(page).of(more["id"]) == held
 
 
+def test_a_handed_over_message_acknowledged_by_pointer_is_no_repeat(
+    claimed, lane, capsys
+):
+    """A kept-back message the line fork hands over, too large for the hook, reaches
+    the main thread by pointer, and its acknowledgement says nothing of an earlier
+    turn having picked it up: the line turn's pickup at admission did no work the
+    main thread could repeat."""
+    asked = said(claimed, "Here is the config:\n" + "cache: warm\n" * 1200)
+    handed = forks_model.route(
+        "s1",
+        basis(claimed, asked["id"], asked["id"]),
+        answer=judged("reading the config"),
+        failed=None,
+    )
+    assert handed["outcome"] == "hand_over", handed
+    pointer = pointer_in(context(capsys, "UserPromptSubmit"))
+    assert pointer is not None
+    acked = CliRunner().invoke(cli_model.cli, ["delivery", "ack", pointer])
+    assert acked.exit_code == 0, acked.output
+    assert "earlier turn" not in acked.output + capsys.readouterr().err
+
+
 def test_a_command_naming_a_turn_that_is_not_open_acts_as_nobody(
     claimed, lane, capsys, monkeypatch
 ):

@@ -1016,7 +1016,7 @@ def close_agent_turns(
     """Close the session's open agent turn `turn`, or, where no turn is named, every
     open turn of `agent`, as the harness says the agent's run ended or never
     started; the ids it closed. An end that names its turn closes only that one, so
-    a late end of an agent's earlier turn leaves the turn a resume opened for it
+    a late end of an agent's earlier turn leaves the turn a resume passed to it
     since. A turn no agent was named for yet, as when Leaf failed to record the
     start of an agent that runs on, is named for `agent` as it closes, so the main
     session hears which agent ran it, by the id that reaches it (`forks.ended`)."""

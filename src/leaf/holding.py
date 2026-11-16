@@ -37,15 +37,15 @@ the moment it takes the thread until another turn does (`Hold`).
   own answer, but not answer again a message the main thread answered over it.
 
 `reading_of` reads this once for a page, from its log, or the threads the fold built
-from it, and the claimant's agent turns (`forks.page_holding`, `served_state.work`), and every rule asks that one
-`Holding` rather than reading the pickups and answers itself: delivery
-(`delivery.deliverable`) and admission (`forks.kept_from_main_at_admission`) keep
-from the main thread what it doesn't owe and hand it what a fork's ended turn left
-it; the activity fold reads it once (`activity.canonical_activity`), as every hook
-that reads the fold does (`activity.agent_holds`); and an agent's tool boundary
-(`to_carry`), the receipts that pass what the main thread doesn't await
-(`not_awaited`), the end of its run
-(`forks.ended`), keeping a thread back for a line fork (`forks.kept_back`) and every
+from it, and the claimant's agent turns (`forks.page_holding`, `served_state.work`),
+and every rule asks that one `Holding` rather than reading the pickups and answers
+itself: delivery (`delivery.deliverable`) and admission
+(`forks.kept_from_main_at_admission`) keep from the main thread what it doesn't owe
+and hand it what an agent's ended turn left it; the activity fold reads it once
+(`activity.canonical_activity`), as every hook that reads the fold does
+(`activity.agent_holds`); and an agent's tool boundary (`to_carry`), the receipts
+that pass what the main thread doesn't await (`not_awaited`), the end of its run
+(`forks.ended`), listing the threads line turns hold (`forks.kept_back`) and every
 writer's right to act on a thread (`authorize`, `pickable`) ask it too.
 
 A thread's holder, for a reader (`holder`), is the session's main thread, a line
@@ -360,8 +360,9 @@ def reading_of(
     presence reading carries of its claim
     (`presence.presence_with_activity`): the claimant's session (`claim_session`)
     and its agent turns (`agent_turns`), which may run only while the session is
-    alive (`session_alive`) at `now_iso`. The fold reads it from the page's presence and the threads it built,
-    and `forks.page_holding` from the claim it holds the page's transaction under."""
+    alive (`session_alive`) at `now_iso`. The fold reads it from the page's presence
+    and the threads it built, and `forks.page_holding` from the claim it holds the
+    page's transaction under."""
     from .activity import running_agent_turns
 
     live = present["session_alive"] is True

@@ -1,7 +1,7 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { selectEnds } from "../native-selection.js";
-import { anchoringIsReady } from "../anchor-resolution.js";
+import { anchoringIsReady, captured } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow, hasRows } from "../keyboard/bindings.js";
 import { el, offerAction, searchField } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
@@ -652,7 +652,7 @@ export function createTargetPicker({
 
   /** @param {PickerTarget} candidate */
   function chooseTarget(candidate) {
-    const target = candidate.capture ? candidate.capture() : candidate;
+    const target = captured(candidate);
     closeTargetPicker();
     releaseFocus();
     commentOnTarget(target);
@@ -772,7 +772,7 @@ export function createTargetPicker({
     template: hintTemplate,
     take: chooseTarget,
     words: {
-      describe: (target) => (target.capture ? target.capture() : target).label,
+      describe: (target) => captured(target).label,
       take: "choose",
       all: "All target hints.",
     },

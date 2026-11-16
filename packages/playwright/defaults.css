@@ -140,6 +140,8 @@ lf-trace[hidden="until-found"] {
   --lf-trace-capture-h: 14px;
   --lf-trace-mark: color-mix(in srgb, var(--lf-ink) 55%, var(--lf-paper));
   --lf-trace-input: var(--lf-accent);
+  /* The overview, beside the scroller, follows its pan. */
+  timeline-scope: --lf-trace-pan;
   position: relative;
   display: grid;
   /* A fixed name column: a font arriving cannot move the time scale. */
@@ -191,6 +193,7 @@ lf-trace[hidden="until-found"] {
 }
 .lf-trace-scroller {
   --lf-drawing: 1;
+  scroll-timeline: --lf-trace-pan x;
   overflow-x: auto;
   overflow-y: hidden;
   min-inline-size: 0;
@@ -414,13 +417,22 @@ lf-trace[hidden="until-found"] {
   background: var(--lf-ground);
   touch-action: none;
 }
+/* The window is the share of the zoomed track the scroller shows, standing as far
+   along the overview as the scroller is panned. */
 .lf-trace-overview-window {
   position: absolute;
   inset-block: 1px;
-  left: calc(var(--lf-trace-window-start, 0) * 100%);
-  inline-size: calc(var(--lf-trace-window-size, 1) * 100%);
+  left: 0;
+  inline-size: calc(100% / var(--lf-trace-zoom, 1));
+  animation: lf-trace-pan linear both;
+  animation-timeline: --lf-trace-pan;
   border-radius: var(--lf-r-s);
   background: color-mix(in srgb, var(--lf-accent) 22%, transparent);
+}
+@keyframes lf-trace-pan {
+  to {
+    left: calc(100% - 100% / var(--lf-trace-zoom, 1));
+  }
 }
 .lf-trace-overview[data-lf-zoomed] {
   cursor: grab;

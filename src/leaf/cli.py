@@ -760,7 +760,7 @@ def state(
 
     MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
     frozen into one, names its thread: the output is that thread with a page of its
-    messages, their frozen markup, and the state of its widgets, paged by --after
+    messages and the state of their widgets, paged by --after
     and --limit. Each action in force and each message carries what its delivery
     added to it, such as a choice's words and a message's `unsent`. A widget on the page names itself: its element, its current
     actions and reports, its obligations and to-dos, and its workflows."""
@@ -1447,7 +1447,6 @@ def _title_option(command):
 @click.option("--section", metavar="ID", help="element ID to anchor or scope --quote")
 @click.option("--part", metavar="ID", help="declared visual part within --section")
 @body_options("the comment's text")
-@click.option("--markup", help="HTML fragment after the text, validated here")
 @_title_option
 @click.option(
     "--obligation",
@@ -1461,17 +1460,16 @@ def thread_create(
     part: str,
     text: str | None,
     body_file,
-    markup: str,
     title: str | None,
     obligation: bool,
 ) -> dict:
     """Create a thread as the agent: anchored where --quote or
     --section points at a passage, general where neither does — a question about
-    the work as a whole.
+    the work as a whole. The text is Markdown, and HTML in it draws, checked here.
 
     Use --obligation when the next move is the user's: the message waits on
     On Me until their reply or settling reaction. A question whose answers you
-    can list takes an `lf-options` choice in --markup instead, which waits on
+    can list takes an `lf-options` choice in the text instead, which waits on
     the user until they pick. Refuses a quote the active revision does not
     hold, or holds more than once. The comment's id is the thread's.
     """
@@ -1483,7 +1481,6 @@ def thread_create(
         section,
         part,
         read_body(text, body_file),
-        markup,
         title=title,
         obligation=obligation,
     )
@@ -1498,7 +1495,6 @@ def thread_create(
     "--done", is_flag=True, help="the reply delivers what the message asked for"
 )
 @body_options("the reply's text")
-@click.option("--markup", default="", help="frozen HTML fragment after the text")
 @click.option(
     "--todo",
     metavar="TITLE",
@@ -1532,9 +1528,10 @@ def thread_reply(
 ) -> dict | None:
     """Answer a delivered update by its `answer.ref` alone, or post into the
     thread PAGE MESSAGE names, which is refused while that thread owes an answer.
+    The text is Markdown, and HTML in it draws, checked here.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
-    carries a widget in --markup that asks, as an `lf-options` choice asks a
+    carries a widget in its text that asks, as an `lf-options` choice asks a
     question whose answers you can list; --ephemeral progress declares nothing,
     and --done needs a reference. The reply
     publishes your saved page edits, checked as `page check` checks them without a
@@ -1554,6 +1551,7 @@ def thread_reply(
             resolve_dir(destination),
             {"parent": message},
             text,
+            html=True,
             validate_source=True,
             **options,
         )
@@ -1577,7 +1575,7 @@ def thread_reply(
     # An answer that declares nothing must carry a widget that asks; `post_reply`
     # refuses it otherwise (`undeclared-answer`).
     options["asks_back"] = not declared and answers
-    return post_response(destination, text, **options)
+    return post_response(destination, text, html=True, **options)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")
@@ -1598,8 +1596,8 @@ def thread_edit(
     or with --title rename the thread MESSAGE is in, whoever opened it. --title
     alone leaves the text as it is.
 
-    Frozen markup is not editable. Keep a title stable unless the thread's subject
-    changes.
+    A message holding HTML is not editable, and an edit adds none. Keep a title
+    stable unless the thread's subject changes.
     """
     from leaf.thread import cmd_edit
 

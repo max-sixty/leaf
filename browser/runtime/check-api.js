@@ -24,6 +24,7 @@ export {
   resolveAnchor,
   aimTargets,
   aimTargetAt,
+  captured,
 } from "./anchor-resolution.js";
 export {
   shownBand,

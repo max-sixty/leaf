@@ -269,7 +269,7 @@ jobs:
         run: |
           mkdir -p .tmp/bench-report
           uv run leaf-dev bench documents --sizes 64,128,256 --rounds 2 \
-            --input design --input draw --input capture \
+            --input design --input inspect --input draw --input capture \
             --input data --input reveal --input search --input matches --input browse \
             | tee .tmp/bench-report/documents.txt
           { echo '```'; cat .tmp/bench-report/documents.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
@@ -321,8 +321,7 @@ jobs:
   # daily schedule and a dispatch run it, since it adds a runner for as long as the
   # nightly suite takes, and a failure turns the run red for tend like `test`'s. The
   # Linux job's gates, website checks and profiles are platform-independent or
-  # Linux-only, so this job runs the suite alone. The runner has three cores, so two
-  # workers keep the share of cores `test` leaves idle.
+  # Linux-only, so this job runs the suite alone.
   test-macos:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-15
@@ -334,18 +333,26 @@ jobs:
 
       - uses: ./.github/actions/setup
 
-      # A step that overruns fails the job before the six-hour job deadline, which
-      # would cancel the run and never summon tend. An explicit `bash` adds
-      # `pipefail`, so pytest's status survives `tee`. Four workers on the runner's
-      # three cores starve every test of CPU, which makes this the run that checks the
-      # suite's results don't depend on speed (tests/AGENTS.md, "Waits"); the suite
-      # can take as long at four workers as at two.
+      - name: Install GNU timeout
+        run: brew install coreutils
+
+      # A suite that overruns is interrupted before the six-hour job deadline, which
+      # would cancel the run and never summon tend. pytest stops at one interrupt and
+      # still writes results.xml for every test that ran, but a second one, arriving
+      # while it stops its workers, ends it before the report. GNU timeout signals its
+      # own process group: pytest and its workers. It runs inside `uv run` because uv
+      # passes on every interrupt it receives, so a uv inside that group would send
+      # pytest a second one. An explicit `bash` adds `pipefail`, so the step fails
+      # with timeout's status. Four workers on the runner's three cores starve every
+      # test of CPU, which makes this the run that checks the suite's results don't
+      # depend on speed (tests/AGENTS.md, "Waits"); the suite can take as long at four
+      # workers as at two.
       - name: 🧪 Python tests
-        timeout-minutes: 300
         shell: bash
         run: |
           mkdir -p .tmp/test-results
-          uv run pytest tests -n 4 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
+          uv run gtimeout --verbose --signal=INT --kill-after=1m 345m \
+            pytest tests -n 4 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
             2>&1 | tee .tmp/test-results/output.log
 
       - name: Upload pytest results

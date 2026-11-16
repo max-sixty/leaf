@@ -841,7 +841,7 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     option, after the view is put away and after a reload, while the thread stays
     undrawn."""
     url = serve(leaf_page("ship plan", '<h1 id="title">Ship plan</h1>'))
-    # As `leaf thread create --markup` writes it.
+    # As `leaf thread create` writes a message holding HTML.
     append_carried_log_record(
         serve.page_dir,
         {
@@ -849,11 +849,12 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
             "author": "agent",
             "agent": "Claude",
             "revision": 1,
-            "text": "Ship on Friday?",
-            "markup": '<lf-options id="ship" choose>'
+            "text": "Ship on Friday?\n\n"
+            '<lf-options id="ship" choose>'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -930,11 +931,12 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
                 "source": "review-patch",
                 "source_revision": source_revision(serve.page_dir, "review-patch"),
             },
-            "text": "Ship on Friday?",
-            "markup": '<lf-options id="ship" choose>'
+            "text": "Ship on Friday?\n\n"
+            '<lf-options id="ship" choose>'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -984,11 +986,12 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
             "agent": "Claude",
             "revision": 1,
             "anchor": {"section": "risk"},
-            "text": "Ship on Friday?",
-            "markup": '<lf-options id="ship" choose>'
+            "text": "Ship on Friday?\n\n"
+            '<lf-options id="ship" choose>'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
+            "html": True,
         },
     )
     page = open_page(request.getfixturevalue(engine), url)

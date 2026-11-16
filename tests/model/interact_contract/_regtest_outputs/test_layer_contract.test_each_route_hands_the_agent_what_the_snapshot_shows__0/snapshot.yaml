@@ -78,7 +78,7 @@
 
 leaf wait:
   output:
-    format: leaf-delivery/15
+    format: leaf-delivery/46
     id: '11111111'
     created_at: 1790046750.29
     acknowledge: >-
@@ -126,7 +126,7 @@ leaf wait:
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
-            in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+            in your reply in place of `--obligation`, as `<lf-options id="…" choose>`
             holding an `<lf-option id="…">` for each answer: the user answers with
             a press, and the choice waits on them by itself (`references/threads.md`,
             "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
@@ -140,7 +140,7 @@ leaf wait:
             answer rests on a source, such as a rule, a file or a message, quote
             the whole passage it turns on, conditions included, so the user can
             check your answer against it there; put a passage longer than a few
-            lines in a `<details>` in `--markup`.
+            lines in a `<details>` in your reply.
         events:
           - kind: comment
             revision: 1
@@ -172,7 +172,7 @@ Claude Code hook:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.
     delivery:
-      format: leaf-delivery/15
+      format: leaf-delivery/46
       id: '44444444'
       created_at: 1790046750.29
       acknowledge: null
@@ -215,7 +215,7 @@ Claude Code hook:
               the thread, even where the decision itself is already there. Where
               your answer asks a question of its own whose answers you can list,
               such as which of two ways to proceed or whether to take an action,
-              put them in `--markup` in place of `--obligation`, as `<lf-options
+              put them in your reply in place of `--obligation`, as `<lf-options
               id="…" choose>` holding an `<lf-option id="…">` for each answer: the
               user answers with a press, and the choice waits on them by itself
               (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
@@ -230,7 +230,7 @@ Claude Code hook:
               your answer rests on a source, such as a rule, a file or a message,
               quote the whole passage it turns on, conditions included, so the user
               can check your answer against it there; put a passage longer than
-              a few lines in a `<details>` in `--markup`.
+              a few lines in a `<details>` in your reply.
           events:
             - kind: comment
               revision: 1
@@ -262,7 +262,7 @@ Codex queue:
     <leaf-delivery id="22222222" operation="delivery read" />
     ```
   leaf delivery read 22222222:
-    format: leaf-delivery/15
+    format: leaf-delivery/46
     id: '22222222'
     created_at: 1790046750.29
     acknowledge: >-
@@ -308,7 +308,7 @@ Codex queue:
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
-            in `--markup` in place of `--obligation`, as `<lf-options id="…" choose>`
+            in your reply in place of `--obligation`, as `<lf-options id="…" choose>`
             holding an `<lf-option id="…">` for each answer: the user answers with
             a press, and the choice waits on them by itself (`references/threads.md`,
             "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
@@ -322,7 +322,7 @@ Codex queue:
             answer rests on a source, such as a rule, a file or a message, quote
             the whole passage it turns on, conditions included, so the user can
             check your answer against it there; put a passage longer than a few
-            lines in a `<details>` in `--markup`.
+            lines in a `<details>` in your reply.
         events:
           - kind: comment
             revision: 1
@@ -355,7 +355,7 @@ Codex App Server:
     toolOutput:
       name: leaf_delivery
       output:
-        format: leaf-delivery/15
+        format: leaf-delivery/46
         id: '33333333'
         created_at: 1790046750.29
         acknowledge: null
@@ -390,10 +390,11 @@ Codex App Server:
                 instead: it puts the answer on their On Me list even where the decision
                 itself is already there. Where your answer asks a question of its
                 own whose answers you can list, such as which of two ways to proceed
-                or whether to take an action, reply with them in `--markup` in place
-                of `--obligation`, as `<lf-options id="…" choose>` holding an `<lf-option
-                id="…">` for each answer, so the user answers with a press (`references/threads.md`,
-                "Ask for a pick"). Reply explicitly too for other widgets, work
+                or whether to take an action, put them in a `leaf thread reply`
+                in place of `--obligation`, as `<lf-options id="…" choose>` holding
+                an `<lf-option id="…">` for each answer, so the user answers with
+                a press (`references/threads.md`, "Ask for a pick"). Reply explicitly
+                too for other HTML, which your final message shows as text, work
                 promised beyond this turn (`--todo`), a title or moving the thread
                 (`references/threads.md`); an explicit reply posts at once, and
                 your final message is then not posted.
@@ -406,7 +407,7 @@ Codex App Server:
                 Where your answer rests on a source, such as a rule, a file or a
                 message, quote the whole passage it turns on, conditions included,
                 so the user can check your answer against it there; put a passage
-                longer than a few lines in a `<details>` in `--markup`.
+                longer than a few lines in a `<details>` in your reply.
             events:
               - kind: comment
                 revision: 1

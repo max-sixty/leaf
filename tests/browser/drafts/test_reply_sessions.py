@@ -133,8 +133,9 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "author": "agent",
             "parent": root["id"],
             "revision": 1,
-            "text": "Filter the files in this patch.",
-            "markup": """<lf-diff id="reply-patch" data-height="151"><pre>
+            "text": """Filter the files in this patch.
+
+<lf-diff id="reply-patch" data-height="151"><pre>
 diff --git a/reading.py b/reading.py
 --- a/reading.py
 +++ b/reading.py
@@ -149,6 +150,7 @@ diff --git a/notes.md b/notes.md
 -before
 +after
 </pre></lf-diff>""",
+            "html": True,
         },
     )
     # Turns after the patch, so the thread's view scrolls.

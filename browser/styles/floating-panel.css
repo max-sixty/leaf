@@ -788,68 +788,6 @@
     left: 19px;
     box-shadow: 0 0 0 1.5px var(--lf-fp-surface);
   }
-  /* The row's one small notice, beside the seat (floating-panel.js,
-     `rowNoticeTemplate`): a tinted chip of the qualifying size, whose press is the
-     words that end it, an inline press (controls.css). The field gives up the room it
-     takes, so the seat keeps its place, and while the user writes it stands aside with
-     the mark. */
-  .lf-fp-row-notice {
-    flex: none;
-    display: flex;
-    align-items: center;
-    min-height: var(--lf-line);
-  }
-  /* The field gives the notice its room only at rest: words a notice arriving would
-     narrow rewrap, and the field grows up over its line under the reader. It stands
-     aside with the mark while the user writes or the field holds a draft
-     (floating-panel.js, `writing`), and while the field's end offers a press, which a
-     notice coming or going on news would move from under the user's aim
-     (`data-lf-presses`). */
-  .lf-floating-panel[data-lf-writing] .lf-fp-row-notice,
-  .lf-floating-panel[data-lf-drafted] .lf-fp-row-notice,
-  .lf-floating-panel[data-lf-presses] .lf-fp-row-notice {
-    display: none;
-  }
-  /* Its tone tints it: an older version in warning. */
-  .lf-fp-row-notice-face {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    min-height: 26px;
-    padding: 0 9px;
-    border-radius: var(--lf-r);
-    /* A notice with no tone, as a passing one's, stands on the panel's own ground. */
-    --lf-fp-notice-tint: transparent;
-    --lf-fp-notice-ink: var(--lf-ink);
-    background: var(--lf-fp-notice-tint);
-    color: var(--lf-ink);
-    font: var(--lf-font-small);
-    &[data-lf-tone="warn"] {
-      --lf-fp-notice-tint: var(--lf-warn-tint);
-    }
-    &[data-lf-tone="ok"] {
-      --lf-fp-notice-tint: var(--lf-ok-tint);
-    }
-  }
-  /* The row holds one line. A notice's words longer than the room the field gives it
-     end in an ellipsis, and its press stays whole; wrapped, they took two lines and
-     stood Undo over its key. */
-  .lf-fp-row-notice-face {
-    max-width: 100%;
-    > * {
-      flex: none;
-    }
-  }
-  .lf-fp-row-notice-face > .lf-fp-row-notice-says {
-    flex: 0 1 auto;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .lf-fp-row-notice-sep {
-    color: var(--lf-quiet);
-  }
 
   /* ---------- folded to the leaf, in the window's corner ---------- */
   .lf-floating-panel[data-lf-rest="mark"] {
@@ -861,7 +799,6 @@
     margin: 0;
     .lf-fp-field,
     .lf-fp-expand,
-    .lf-fp-row-notice,
     .lf-fp-quick,
     .lf-fp-opened {
       display: none;

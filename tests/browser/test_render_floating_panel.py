@@ -4266,8 +4266,8 @@ def test_a_failed_save_is_an_error_until_the_next_valid_one(browser, serve):
 
 def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, serve):
     """On Leaf's website the agent is on call: the leaf wears listening's tone and the
-    field invites the comment that starts it, with no notice in the row, and the leaf's
-    menu keeps the introduction with its links."""
+    field invites the comment that starts it, and the leaf's menu keeps the
+    introduction with its links."""
     page = floating(
         browser,
         serve(
@@ -4283,7 +4283,6 @@ def test_a_website_copy_says_who_revises_it_and_where_leaf_comes_from(browser, s
         "placeholder", re.compile("^Ready — comment to revise this copy")
     )
     expect(page.locator(".lf-fp-leaf")).to_have_attribute("data-lf-tone", "listening")
-    expect(page.locator(".lf-fp-row-notice")).to_be_hidden()
     links = panel_menu(page).locator(".lf-fp-state a")
     expect(links).to_have_count(2)
     assert links.evaluate_all("as => as.map(a => a.getAttribute('href'))") == [
@@ -5818,9 +5817,11 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
             "author": "agent",
             "revision": 1,
             "parent": root,
-            "text": "The mounts come first.",
-            "markup": "<p>" + "The mounts come first. " * 300 + "</p>"
+            "text": "The mounts come first.\n\n<p>"
+            + "The mounts come first. " * 300
+            + "</p>"
             '<lf-local id="thread-local" choice="idle"></lf-local>',
+            "html": True,
         },
     )
     page.wait_for_function("""() => {

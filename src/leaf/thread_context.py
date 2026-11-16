@@ -1,4 +1,4 @@
-"""Thread identity, frozen markup, and bounded delivery context."""
+"""Thread identity, frozen message markup, and bounded delivery context."""
 
 from collections.abc import Callable
 from functools import lru_cache
@@ -16,7 +16,7 @@ from leaf.events import (
     summary_range,
     taken_back,
 )
-from leaf.passages import enclosing_ids
+from leaf.passages import enclosing_ids, message_markup
 from leaf.registry.kernel import kinds_declaring
 from leaf.structure import SourceDocument
 
@@ -182,27 +182,28 @@ class ThreadStructure(NamedTuple):
 
 
 def logged_fragment(event: dict) -> SourceDocument:
-    """The parse of one logged event's frozen markup, shared read-only.
+    """The parse of the markup one logged message holding HTML draws
+    (`passages.message_markup`), shared read-only.
 
-    The log is append-only and a logged event is never rewritten, so its markup is
-    one immutable fragment for the page's lifetime, and every reader of the log
-    takes this one parse of it. The parse is a function of the markup alone, so it
-    is held by that text, which names it exactly whichever page and log it came
-    from. Markup a writer hands in has not been admitted yet and is another fact:
-    its gate parses it afresh (`validation.admission.check_markup`)."""
-    return _fragment(event["markup"])
+    The log is append-only and such a message is never edited (`thread.cmd_edit`),
+    so its markup is one immutable fragment for the page's lifetime, and every
+    reader of the log takes this one parse of it. The parse is a function of the
+    text alone, so it is held by that text, which names it exactly whichever page and
+    log it came from. Text a writer hands in has not been admitted yet and is another
+    fact: its gate parses it afresh (`validation.admission.check_markup`)."""
+    return _fragment(event["text"])
 
 
 @lru_cache(maxsize=4096)
-def _fragment(markup: str) -> SourceDocument:
-    return SourceDocument(markup)
+def _fragment(text: str) -> SourceDocument:
+    return SourceDocument(message_markup(text))
 
 
 def thread_structure(events: list) -> ThreadStructure:
-    """Each logged markup fragment (`logged_fragment`) as the panel's id universe."""
+    """Each logged message's markup (`logged_fragment`) as the panel's id universe."""
     ids, by_id, fragments = set(), {}, {}
     for e in events:
-        if e.get("markup"):
+        if e.get("html"):
             fragment = logged_fragment(e)
             fragments[e["id"]] = fragment
             ids.update(fragment.ids)
@@ -322,7 +323,7 @@ def thread_memberships(
 
 
 # What one message is, to a wait consumer holding no page: who said it, when, what they
-# said, the widget they sent with it, and the id an answer names. `seq` is the log
+# said, any widget in it included, and the id an answer names. `seq` is the log
 # position, which is also what marks a message as already delivered. `ts` is when it
 # was said: a reply says what was true when it was sent ("I'm building it now"), so a
 # reader needs its moment as well as its order. A
@@ -342,7 +343,6 @@ MESSAGE_FIELDS = (
     # grew out of a mark reads as the mark it started from rather than as a
     # message with nothing in it.
     "token",
-    "markup",
     "drawing",
     "suggestion",
     # What the user had on screen as they wrote a message with no passage, which is

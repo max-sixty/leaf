@@ -560,8 +560,8 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
             "id": "c-diff",
             "author": "agent",
             "revision": 1,
-            "text": "The patch, for the record.",
-            "markup": '<lf-diff id="msg-diff"><pre>'
+            "text": "The patch, for the record.\n\n"
+            '<lf-diff id="msg-diff"><pre>'
             "diff --git a/gateway/limits.py b/gateway/limits.py\n"
             "--- a/gateway/limits.py\n"
             "+++ b/gateway/limits.py\n"
@@ -570,6 +570,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
             "-        return request.remote_addr\n"
             "+        return request.token.id\n"
             "</pre></lf-diff>",
+            "html": True,
         },
     )
     told(page)

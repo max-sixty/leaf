@@ -25,7 +25,7 @@ from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.obligations import local_obligation_entry, shown_in
-from leaf.passages import SourceReading
+from leaf.passages import SourceReading, holds_html, message_markup
 from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring, title_limit
@@ -40,6 +40,15 @@ from leaf.validation.admission import (
     thread_obligation,
 )
 from leaf.validation.source import SourceCheck, moved_threads, source_advice
+
+
+def drawn_markup(text: str, html: bool) -> str:
+    """The markup an agent's message draws from `text`, where its writer reads the
+    text with HTML (`html`) and it holds some (`passages.holds_html`); else none,
+    and the message is Markdown alone. Only the agent's `leaf thread` commands read
+    HTML: text a harness or Leaf posts for it, such as a turn's final message, keeps
+    any tag in it as words."""
+    return message_markup(text) if html and holds_html(text) else ""
 
 
 def _messages(events: list) -> dict[str, dict]:
@@ -283,7 +292,6 @@ def cmd_comment(
     section: str,
     part: str,
     text,
-    markup: str,
     *,
     title: str | None = None,
     obligation: bool = False,
@@ -294,9 +302,10 @@ def cmd_comment(
     the work rather than a passage belongs. An anchor is captured against the active
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
-    so a quote is met here the way it would land there."""
-    body = checked_text(page_dir, text)
-    if markup:
+    so a quote is met here the way it would land there. The text is the agent's
+    own, read with any HTML in it (`drawn_markup`)."""
+    body = checked_text(page_dir, text, html=True)
+    if markup := drawn_markup(body, True):
         from leaf.render_gate.command import message_check
 
         # Apart from the page lease, since a browser run takes about a second.
@@ -309,7 +318,7 @@ def cmd_comment(
             quote,
             section,
             part,
-            markup,
+            html=True,
             title=title,
             obligation=obligation,
         )
@@ -322,21 +331,22 @@ def open_thread(
     quote: str = "",
     section: str = "",
     part: str = "",
-    markup: str = "",
     *,
+    html: bool = False,
     title: str | None = None,
     obligation: bool = False,
     identity: dict | None = None,
 ) -> dict:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
-    describes, from a `body` already checked (`checked_text`); `identity` names the
-    agent and session where the writer isn't the agent's own process, as Leaf's
-    clerk is (`clerk.apply_answer`)."""
+    describes, from a `body` already checked (`checked_text`) and read with HTML
+    where `html` says (`drawn_markup`); `identity` names the agent and session where
+    the writer isn't the agent's own process, as Leaf's clerk is
+    (`clerk.apply_answer`)."""
     events = page.events
     revision, anchor = current_anchor(
         page_dir, events, quote, section, part, transaction=page
     )
-    if markup:
+    if markup := drawn_markup(body, html):
         publication = revision_publication(page_dir, revision)
         fragment = check_markup(
             page_dir, "comment", markup, events, publication=publication
@@ -355,7 +365,7 @@ def open_thread(
     if anchor:
         event["anchor"] = anchor
     if markup:
-        event["markup"] = markup
+        event["html"] = True
     if title is not None:
         event["title"] = title
     return append_admitted(page, event)[0]
@@ -378,7 +388,7 @@ def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -
         addressed,
         identity,
         body,
-        "",
+        html=False,
         attempt=None,
         failure=None,
         validate_source=False,
@@ -456,8 +466,8 @@ def post_reply(
     page_dir: Path,
     address: dict,
     text,
-    markup: str = "",
     *,
+    html: bool = False,
     settlement: Settlement = REFUSE,
     attempt: str | None = None,
     identity: dict | None = None,
@@ -490,6 +500,9 @@ def post_reply(
     declaration, so a CLI retry whose text was reworded returns the first reply
     rather than refusing.
 
+    ``html`` reads the text with any HTML in it (`drawn_markup`), as the agent's own
+    `leaf thread reply` does; text a harness or Leaf posts keeps its tags as words.
+
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
@@ -510,8 +523,8 @@ def post_reply(
     the user's message gets the agent's first words and its Working line from one
     write. A `Receipt`'s progress takes nothing in hand.
     """
-    text = checked_text(page_dir, text)
-    if markup:
+    text = checked_text(page_dir, text, html=html)
+    if markup := drawn_markup(text, html):
         from leaf.render_gate.command import message_check
 
         # Apart from the page lease, since a browser run takes about a second.
@@ -585,7 +598,7 @@ def post_reply(
             addressed,
             posting_identity,
             text,
-            markup,
+            html=html,
             attempt=attempt,
             failure=failure,
             validate_source=validate_source,
@@ -804,8 +817,8 @@ def _compose_and_append(
     obligation: _Obligation,
     posting_identity: dict,
     text: str,
-    markup: str,
     *,
+    html: bool,
     attempt: str | None,
     failure: str | None,
     validate_source: bool,
@@ -819,13 +832,14 @@ def _compose_and_append(
     detach: bool,
     title: str | None,
 ) -> tuple[dict, "_Published | None"]:
-    """Check the reply's content against the page, compose its event and append it
-    at `obligation`. Successful replies publish saved edits when `validate_source`
+    """Check the reply's content, read with HTML where `html` says (`drawn_markup`),
+    against the page, compose its event and append it at `obligation`. Successful replies publish saved edits when `validate_source`
     requests it. Progress and failure reports use the active revision; detaching
     still checks saved source. Return the appended record and any checked
     publication for `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand = obligation
+    markup = drawn_markup(text, html)
     event = {
         "kind": "reply",
         "author": "agent",
@@ -939,8 +953,8 @@ def _compose_and_append(
     asking = asking_widget(fragment, publication.registry) if markup else None
     if explicit_obligation:
         refuse_second_request(asking)
-    # A markup-only answer must itself request input. Explicit obligations need
-    # no widget: the message is their source.
+    # An answer that declares nothing must ask with a widget in its text. Explicit
+    # obligations need no widget: the message is their source.
     elif asks_back and asking is None:
         unasked = unasked_widget(fragment, publication.registry) if markup else {}
         raise Rejected([Finding("undeclared-answer", values=unasked)])
@@ -960,7 +974,7 @@ def _compose_and_append(
     if todo is not None:
         event["todo"] = todo
     if markup:
-        event["markup"] = markup
+        event["html"] = True
     if attempt is not None:
         event["attempt"] = attempt
     if failure is not None:
@@ -986,7 +1000,7 @@ def _compose_and_append(
 
 
 def post_response(
-    reference: str, text, markup: str = "", *, reservation: str | None = None, **options
+    reference: str, text, *, reservation: str | None = None, **options
 ) -> dict | None:
     """Author a complete reply at the delivery's exact captured response address.
 
@@ -1029,7 +1043,6 @@ def post_response(
         Path(address["page"]),
         address,
         text,
-        markup,
         settlement=REFUSE if reservation is None else ProviderFinal(reservation),
         attempt=attempt,
         validate_source=True,
@@ -1155,11 +1168,12 @@ def cmd_edit(
     in, or both, and return the records appended.
 
     The message event is immutable: the edit points back to it, so the log retains
-    every wording while thread folds project the latest one. Markup stays frozen with
-    the original message because user actions may already rest on widgets it sent.
-    Admission refuses a message another voice wrote (`event_contracts._edit_error`).
-    A rename adds no turn and changes no obligation. Under one lease, the rename is
-    admitted before the edit is appended, so a refused title leaves the text unedited.
+    every wording while thread folds project the latest one. A message holding HTML
+    is frozen whole, since user actions may already rest on what it drew, and an
+    edit, read as Markdown alone, adds none. Admission refuses a message another
+    voice wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
+    obligation. Under one lease, the rename is admitted before the edit is appended,
+    so a refused title leaves the text unedited.
     """
     from leaf.event_contracts import admitted_event, voiced
     from leaf.page_view import PageView
@@ -1175,6 +1189,12 @@ def cmd_edit(
             admitted_event(PageView(page_dir), page.events, voiced(named))
         records = []
         if body is not None:
+            if _messages(page.events).get(message, {}).get("html"):
+                raise Rejected(
+                    [Finding("edit-holds-html", values={"message": message})]
+                )
+            if holds_html(body):
+                raise Rejected([Finding("edit-adds-html")])
             edit = {
                 "kind": "edit",
                 "author": "agent",

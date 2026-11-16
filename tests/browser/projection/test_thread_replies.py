@@ -185,8 +185,8 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "author": "agent",
             "revision": 1,
             "parent": "body-question",
-            "text": "Edit these words.",
-            "markup": f'<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
+            "text": f'Edit these words.\n\n<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
+            "html": True,
         },
     )
     page = open_page(browser, live_url(url))
@@ -258,11 +258,12 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
                 "parent": "draft-question",
                 "author": "agent",
                 "revision": 1,
-                "text": "Edit this draft.",
-                "markup": '<div id="crossed-region">'
+                "text": "Edit this draft.\n\n"
+                '<div id="crossed-region">'
                 '<lf-tally id="crossed-tally" for="crossed-region" next></lf-tally>'
                 '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n'
                 "</pre></lf-draft></div>",
+                "html": True,
             },
         )
     holding(page, held, 1, "the frozen draft module")
@@ -357,8 +358,8 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "author": "agent",
             "parent": "c-decision",
             "revision": 1,
-            "text": SAMPLE_TEXT,
-            "markup": SAMPLE_MARKUP,
+            "text": SAMPLE_TEXT + "\n\n" + SAMPLE_MARKUP,
+            "html": True,
         },
     )
     decision = append_command(

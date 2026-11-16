@@ -9,7 +9,7 @@ import {
   eventSource,
 } from "../pointer.js";
 import { elementFromPointAcross, inChrome } from "../passages.js";
-import { aimTargetAt } from "../anchor-resolution.js";
+import { aimTargetAt, captured } from "../anchor-resolution.js";
 import { setRuntimeRootAttribute } from "../root-state.js";
 import { legendRoot } from "../design.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
@@ -237,10 +237,12 @@ export function createAim({
       // A user ⌥-pressing on that seam was outlined one option and commented on the next.
       //
       // Under the picker the press chooses, which closes the picker, rather than comments.
+      // Either way the press commits its target, so it captures it here, once for the
+      // press and any continuation (anchor-resolution.js, `captured`).
       claimedPress = designTarget
-        ? { designMode: designMode.target(pressed) }
+        ? { designMode: captured(designMode.target(pressed)) }
         : armed
-          ? { aim: aimedTarget(), choosing: targetPicker.active() }
+          ? { aim: captured(aimedTarget()), choosing: targetPicker.active() }
           : null;
     }
     if (!claimedPress && ev.type === "mousedown" && ev.detail > 1 && previousPress)

@@ -361,13 +361,14 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
             "author": "agent",
             "parent": "c-inline-margin",
             "revision": 1,
-            "text": "Here is the change:",
-            "markup": (
+            "text": (
+                "Here is the change:\n\n"
                 '<lf-suggestion id="reply-suggestion">'
                 "<lf-old>Keep the long label.</lf-old>"
                 "<lf-new>Use the short label.</lf-new>"
                 "</lf-suggestion>"
             ),
+            "html": True,
         },
     )
     page = open_page(browser, url)

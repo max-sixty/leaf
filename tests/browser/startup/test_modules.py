@@ -504,9 +504,9 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "--done",
             response_reference(d, "c-store"),
             "--text",
-            "Depends what you want to keep:",
-            "--markup",
-            (
+            "Depends what you want to keep:"
+            + "\n\n"
+            + (
                 '<lf-ask id="store-decision"><h3>Which store?</h3>'
                 '<lf-options id="store-pick" choose>'
                 '<lf-option id="store-redis"><strong>Redis</strong></lf-option>'

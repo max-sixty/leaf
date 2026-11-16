@@ -1108,6 +1108,10 @@ _TEXT = {
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
         " into; the page serves the one theme its layer composes"
     ),
+    "widget-in-paragraph": lambda at, v: (
+        f"{at} follows words on its line, so the message's Markdown reads the line as"
+        " a paragraph around it; start it on a line of its own"
+    ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
         " holds this message, so its child would hold the same sample again; select"
@@ -2118,8 +2122,8 @@ _TEXT = {
         f"response {v['reference']!r} requires {v['answer']}, not a reply"
     ),
     "ephemeral-content": lambda at, v: (
-        "--ephemeral is for progress text; it cannot ask the user, open a to-do, carry"
-        " widgets, report failure, or move the thread"
+        "--ephemeral is for progress text; it cannot ask the user, open a to-do, hold"
+        " HTML, report failure, or move the thread"
     ),
     "detach-with-target": lambda at, v: (
         "--detach cannot be combined with --quote, --section, or --part"
@@ -2136,19 +2140,27 @@ _TEXT = {
         " TITLE when it promises work it doesn't deliver, or --obligation when it needs"
         " the user's next move"
         + (
-            f"; or let the <{v['tag']} id={v['id']!r}> in --markup ask in its place,"
+            f"; or let the <{v['tag']} id={v['id']!r}> in the text ask in its place,"
             f" which it does with {v['needs']}"
             if v
-            else " (a widget in --markup may also ask)"
+            else " (a widget in the text may also ask)"
         )
     ),
     "obligation-beside-widget": lambda at, v: (
-        f"the <{v['tag']} id={v['id']!r}> in --markup already waits on the user's"
+        f"the <{v['tag']} id={v['id']!r}> in the text already waits on the user's"
         " answer; drop --obligation, which would keep the message on their On Me list"
         " after they answer it, and ask anything the widget doesn't answer in a message"
         " of its own"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
+    "edit-holds-html": lambda at, v: (
+        f"message {v['message']!r} holds HTML, which stays as it was sent, since the"
+        " user may have acted on what it drew; post a new message instead"
+    ),
+    "edit-adds-html": lambda at, v: (
+        "an edit changes a message's words and adds no HTML; post a new message to"
+        " send HTML"
+    ),
 }
 
 # What a browser shows the person whose gesture a refusal turned down, where the

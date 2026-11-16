@@ -44,11 +44,11 @@ Usage: leaf page state [OPTIONS] PAGE [MESSAGE_OR_WIDGET]
 
   MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
   frozen into one, names its thread: the output is that thread with a page of
-  its messages, their frozen markup, and the state of its widgets, paged by
-  --after and --limit. Each action in force and each message carries what its
-  delivery added to it, such as a choice's words and a message's `unsent`. A
-  widget on the page names itself: its element, its current actions and reports,
-  its obligations and to-dos, and its workflows.
+  its messages and the state of their widgets, paged by --after and --limit.
+  Each action in force and each message carries what its delivery added to it,
+  such as a choice's words and a message's `unsent`. A widget on the page names
+  itself: its element, its current actions and reports, its obligations and to-
+  dos, and its workflows.
 
 Options:
   --after SEQ            a thread's history after this sequence (default: from
@@ -121,34 +121,35 @@ Usage: leaf thread create [OPTIONS] PAGE
 
   Create a thread as the agent: anchored where --quote or --section points at a
   passage, general where neither does \u2014 a question about the work as a whole.
+  The text is Markdown, and HTML in it draws, checked here.
 
   Use --obligation when the next move is the user's: the message waits on On Me
   until their reply or settling reaction. A question whose answers you can list
-  takes an `lf-options` choice in --markup instead, which waits on the user
+  takes an `lf-options` choice in the text instead, which waits on the user
   until they pick. Refuses a quote the active revision does not hold, or holds
   more than once. The comment's id is the thread's.
 
 Options:
-  --quote TEXT   passage text from the active revision
-  --section ID   element ID to anchor or scope --quote
-  --part ID      declared visual part within --section
-  --text TEXT    the comment's text
-  --file PATH    read the comment's text from PATH, - for stdin; with neither
-                 option, from piped stdin
-  --markup TEXT  HTML fragment after the text, validated here
-  --title TEXT   name the thread for the panel unless it has a name: a few
-                 words, at most 80 characters
-  --obligation   put this message on On Me until the user replies or settles it
-  --help         Show this message and exit.
+  --quote TEXT  passage text from the active revision
+  --section ID  element ID to anchor or scope --quote
+  --part ID     declared visual part within --section
+  --text TEXT   the comment's text
+  --file PATH   read the comment's text from PATH, - for stdin; with neither
+                option, from piped stdin
+  --title TEXT  name the thread for the panel unless it has a name: a few words,
+                at most 80 characters
+  --obligation  put this message on On Me until the user replies or settles it
+  --help        Show this message and exit.
 
 ## leaf thread reply --help
 Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
 
   Answer a delivered update by its `answer.ref` alone, or post into the thread
-  PAGE MESSAGE names, which is refused while that thread owes an answer.
+  PAGE MESSAGE names, which is refused while that thread owes an answer. The
+  text is Markdown, and HTML in it draws, checked here.
 
   An answer declares what it leaves with --done, --todo or --obligation, or
-  carries a widget in --markup that asks, as an `lf-options` choice asks a
+  carries a widget in its text that asks, as an `lf-options` choice asks a
   question whose answers you can list; --ephemeral progress declares nothing,
   and --done needs a reference. The reply publishes your saved page edits,
   checked as `page check` checks them without a browser. The Leaf skill's
@@ -159,7 +160,6 @@ Options:
   --text TEXT        the reply's text
   --file PATH        read the reply's text from PATH, - for stdin; with neither
                      option, from piped stdin
-  --markup TEXT      frozen HTML fragment after the text
   --todo TITLE       the reply promises work it doesn't deliver; opens that to-
                      do on the thread, ended by `leaf task end` with the reply's
                      id
@@ -182,8 +182,8 @@ Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
   with --title rename the thread MESSAGE is in, whoever opened it. --title alone
   leaves the text as it is.
 
-  Frozen markup is not editable. Keep a title stable unless the thread's subject
-  changes.
+  A message holding HTML is not editable, and an edit adds none. Keep a title
+  stable unless the thread's subject changes.
 
 Options:
   --text TEXT   the replacement text

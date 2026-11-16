@@ -1362,8 +1362,8 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Choose a route.",
-            "markup": 'Before <lf-options id="frozen" choose><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options> after.',
+            "text": 'Choose a route.\n\n<lf-options id="frozen" choose><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
+            "html": True,
         },
     )
     append_command(
@@ -1383,9 +1383,8 @@ def test_thread_read_reads_frozen_construction(page_dir):
     reading = json.loads(result.output)
     assert reading["thread"]["id"] == root["id"]
     [message] = reading["content"]
-    assert message["text"] == "Choose a route."
-    assert message["content"][0] == "Before "
-    assert message["content"][-1] == " after."
+    assert message["text"].startswith("Choose a route.\n\n<lf-options")
+    assert message["content"][0]["content"] == ["Choose a route."]
     frozen = construction_nodes(message["content"])
     assert "chosen" in frozen["second"]["attrs"]
     assert frozen["frozen"]["edit"] == {
@@ -1854,9 +1853,7 @@ def test_reply_refuses_a_suggestion(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "Fixed:",
-            "--markup",
-            '<lf-suggestion id="sug-x"><lf-new><p>fixed</p></lf-new></lf-suggestion>',
+            'Fixed:\n\n<lf-suggestion id="sug-x"><lf-new><p>fixed</p></lf-new></lf-suggestion>',
         ],
     )
     assert result.exit_code != 0
@@ -2220,9 +2217,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread",
             "create",
             "--text",
-            "Which store?",
-            "--markup",
-            '<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store" choose>'
+            'Which store?\n\n<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store" choose>'
             '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></lf-ask>",
         ).output.splitlines()
@@ -2495,8 +2490,8 @@ def test_stamp_checks_events_that_arrive_as_it_reads_the_log(monkeypatch, page_d
                     "kind": "comment",
                     "author": "agent",
                     "revision": 1,
-                    "text": "Keep this message address distinct.",
-                    "markup": '<p id="arriving-message">A concurrent reply.</p>',
+                    "text": 'Keep this message address distinct.\n\n<p id="arriving-message">A concurrent reply.</p>',
+                    "html": True,
                 },
             )
         return events
@@ -2876,7 +2871,7 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
     assert data_model.source_file(page_dir, "project-feed").exists()
 
 
-def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
+def test_a_source_bound_only_by_frozen_reply_html_can_be_set(page_dir):
     """A widget sent by an agent is still a data consumer. Its binding enters the
     page-lifetime index even though no authored version contains its seat."""
     declare_data_input(
@@ -2900,8 +2895,8 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     reply = thread_model.post_reply(
         page_dir,
         {"parent": "data-question", "responds": "data-question"},
-        "Here it is.",
-        '<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
+        'Here it is.\n\n<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
+        html=True,
     )
     assert reply["revision"] == 1
 
@@ -2919,7 +2914,7 @@ def test_a_source_bound_only_by_frozen_reply_markup_can_be_set(page_dir):
     ]
 
 
-def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
+def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
     """A later frozen thread does not redirect the active page's producer contract.
     Its incompatible reading cannot become the page's valid payload.
     """
@@ -2954,13 +2949,14 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
     reply = thread_model.post_reply(
         page_dir,
         {"parent": "data-question", "responds": "data-question"},
-        "Here it is.",
-        '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+        'Here it is.\n\n<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
+        html=True,
     )
 
+    assert reply["html"] is True
     assert (
-        reply["markup"]
-        == '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>'
+        '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>'
+        in reply["text"]
     )
 
     binding = state_json(page_dir)["data_bindings"]["project-feed"]
@@ -2976,7 +2972,10 @@ def test_thread_markup_can_use_a_different_binding_from_a_page_source(page_dir):
     assert active["contract"] == "rows" and active["value"] == ["active page"]
     captured = artifact_model.read_revision(page_dir, reply["revision"]).registry
     thread_bindings, errors = data_contracts_model.declared_data_bindings(
-        structure_model.SourceDocument(reply["markup"]).lf_elements, captured
+        structure_model.SourceDocument(
+            passages_model.message_markup(reply["text"])
+        ).lf_elements,
+        captured,
     )
     assert errors == [] and thread_bindings == {"project-feed": "other-rows"}
     assert data_contracts_model.payload_error(
@@ -3347,8 +3346,8 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which mitigations?",
-            "markup": '<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
+            "html": True,
+            "text": 'Which mitigations?\n\n<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
             '<lf-options id="gm" choose multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
@@ -4139,8 +4138,8 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
             "id": "frozen-data",
             "revision": 1,
             "author": "agent",
-            "text": "The captured feed.",
-            "markup": '<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
+            "text": 'The captured feed.\n\n<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
+            "html": True,
         },
     )
     events = events_model.read_events(page_dir)
@@ -4323,8 +4322,8 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "author": "agent",
             "parent": "c-scope",
             "revision": 1,
-            "text": "Here it is:",
-            "markup": frozen,
+            "text": f"Here it is:\n\n{frozen}",
+            "html": True,
             "seq": 2,
         },
         action("page-draft", "Page future.", 3),
@@ -4431,6 +4430,44 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     assert [
         {"text": link.text, "href": link.attrs["href"]} for link in rendered.select("a")
     ] == case["links"]
+
+
+@pytest.mark.parametrize(
+    "case",
+    json.loads((Path(__file__).parents[1] / "message_html_cases.json").read_text()),
+)
+def test_message_html_lands_where_the_browser_draws_it(case):
+    """An agent's message holding HTML is checked as Python renders it and drawn as
+    the browser does, so both place each HTML block and tag in the same element and
+    show the same words (body-text.test.mjs reads the same cases), and only a message
+    whose HTML changes what it draws holds HTML."""
+    import turbohtml
+
+    def words(node):
+        if isinstance(node, turbohtml.Text):
+            return node.data
+        return "".join(map(words, getattr(node, "children", ())))
+
+    def elements(node):
+        for child in node.children:
+            if isinstance(child, turbohtml.Element):
+                classes = child.attrs.get("class") or []
+                classes = classes.split() if isinstance(classes, str) else classes
+                yield child.tag + (
+                    f"#{child.attrs['id']}"
+                    if child.attrs.get("id")
+                    else f".{classes[0]}"
+                    if classes
+                    else ""
+                )
+                yield from elements(child)
+
+    rendered = turbohtml.parse_fragment(
+        passages_model.message_markup(case["source"]), context="div", positions=False
+    )
+    assert list(elements(rendered)) == case["elements"]
+    assert " ".join(words(rendered).split()) == case["words"]
+    assert passages_model.holds_html(case["source"]) is case["html"]
 
 
 @pytest.mark.parametrize("source", ["    code", "A ", "A\n", "A  \nB", "\nA"])

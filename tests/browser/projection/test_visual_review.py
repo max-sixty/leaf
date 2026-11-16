@@ -70,8 +70,9 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
         {
             "kind": "comment",
             "author": "agent",
-            "text": "Review the comparisons in this reply.",
-            "markup": '<lf-visual-review id="reply-review" source="gallery-visual-run"></lf-visual-review>',
+            "text": "Review the comparisons in this reply.\n\n"
+            '<lf-visual-review id="reply-review" source="gallery-visual-run"></lf-visual-review>',
+            "html": True,
         },
     )
     page = open_page(browser, url)

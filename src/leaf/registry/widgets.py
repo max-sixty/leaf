@@ -143,12 +143,6 @@ def _validate_widget_structure(
         required = set(entry.get("required", []))
         if "id" not in required or not _typed(properties, "id", "string"):
             raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
-        if layout == "pane" and (
-            "label" not in required or not _typed(properties, "label", "string")
-        ):
-            raise registry_error(
-                "reading-role-attr", path, tag, role="pane", attr="label"
-            )
     for input_name, spec in entry.get("x-data", {}).items():
         contract = spec["contract"]
         source_attr = spec.get("source")

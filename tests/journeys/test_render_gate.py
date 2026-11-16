@@ -1159,7 +1159,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
   <lf-piece>First child.</lf-piece>
   <lf-piece>Second child.</lf-piece> After
 </lf-shell>
-<lf-pane id="bare-pane" label="Decision"><p>Pane body.</p></lf-pane>
+<lf-pane id="bare-pane" aria-label="Decision"><p>Pane body.</p></lf-pane>
 <lf-paint id="flow"></lf-paint>
 <svg id="gradient" width="20" height="20" viewBox="0 0 20 20">
   <defs><linearGradient id="blue"><stop stop-color="var(--lf-accent)" /></linearGradient></defs>

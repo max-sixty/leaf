@@ -478,7 +478,6 @@ EXTENSION_SCHEMA = {
             "minItems": 1,
         },
         "x-word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
-        "x-name": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "x-work": {"const": True},
     },
     "required": ["x-content", "x-upgrade"],
@@ -622,7 +621,6 @@ LAYER_FACTS = {
 # to say about each than that it exists.
 ATTRIBUTE_KEYS = (
     "x-language",
-    "x-name",
     "x-prepaint",
     "x-refers",
     "x-says",

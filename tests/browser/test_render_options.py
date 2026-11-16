@@ -991,7 +991,8 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     <lf-options id="framed-options" choose><lf-option id="framed-route">Route A</lf-option></lf-options>
   </lf-ask>
 </div>
-<lf-sample id="sample" label="a first Ask">
+<lf-sample id="sample">
+  <strong>a first Ask</strong>
   <template id="sample-page" data-sample>
     <lf-ask id="sample-ask"><h2>Choose the route</h2>
       <lf-options id="sample-options" choose><lf-option id="sample-route">Route A</lf-option></lf-options>
@@ -1157,10 +1158,10 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     page = open_page(browser, url)
     assert page.locator(".lf-error").count() == 0
 
-    # The exhibit rendered: the gutter's caption, and cards with real size. The label is
-    # the page's own word, so the runtime says it as text a user can quote; only the
-    # "quoted · " in front of it is the theme's, and only that is still pseudo-content.
-    label = page.locator('#spec > [data-lf-said="label"]')
+    # The exhibit rendered: the gutter's caption, and cards with real size. The caption
+    # is the sample's name, the <strong> it opens with, words the user can quote; only
+    # the "quoted · " in front of it is the theme's, and only that is pseudo-content.
+    label = page.locator("#spec > strong:first-child")
     assert label.text_content() == "a decision"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")
@@ -2293,7 +2294,7 @@ def test_widget_work_in_a_declared_shadow_tree_keeps_its_button_and_leaves_with_
     projects the claim away."""
     work_page = TWICE_PAGE.replace(
         '<lf-diff id="patch">',
-        '<lf-board id="shadow-work"><lf-column id="shadow-now" label="Now">\n'
+        '<lf-board id="shadow-work"><lf-column id="shadow-now">\n<strong>Now</strong>\n'
         '  <lf-card id="shadow-card"><strong>Check the shard</strong></lf-card>\n'
         '</lf-column></lf-board>\n<lf-diff id="patch">',
     )
@@ -2387,7 +2388,7 @@ def test_a_sample_holds_a_wide_exhibit_inside_the_column(browser, serve):
     """
     source = leaf_page(
         "wide sample",
-        '<h1>A wide exhibit</h1><lf-sample id="spec" label="wide content">'
+        '<h1>A wide exhibit</h1><lf-sample id="spec"><strong>wide content</strong>'
         '<div id="wide-exhibit" style="overflow-x: auto">'
         '<div style="width: 600px">An exhibit wider than the page column.</div>'
         "</div></lf-sample>",
@@ -2455,10 +2456,8 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     ).to_be_attached()  # the reply's widgets upgraded
 
     # The gutter renders in the panel: the sample rules aren't scoped to the
-    # document's column, and neither is the label — which reaches the panel only
-    # because renderSaid runs over a reply's markup too, where no custom element
-    # upgrade would have carried it.
-    label = view.locator('#rp-spec > [data-lf-said="label"]')
+    # document's column, and neither is the caption the sample's name stands as.
+    label = view.locator("#rp-spec > strong:first-child")
     assert label.text_content() == "the April thread"
     assert (
         label.evaluate("el => getComputedStyle(el, '::before').content")

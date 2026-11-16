@@ -449,8 +449,8 @@ none does.
 Shared control styles (`page-layout.md`, "Page CSS and Leaf's controls") apply to
 generated controls too.
 
-A control whose label is the page's own words, such as a tab's name, must stay
-selectable, so build it with `selectableOffer(role, className, label)`, a focusable
+A control whose label is the page's own words, such as a tab showing a copy of its
+panel's name, must stay selectable, so build it with `selectableOffer(role, className, label)`, a focusable
 span, or `<span ${selectableOffered(role, className)}>${label}</span>`. With the role
 `"button"`, Enter and Space press it, with Leaf or without, and like any press it
 names its role last: `selectableOffer("button", className, label, "row")`. For
@@ -460,7 +460,7 @@ offer, so build structure that isn't injected UI with `el(tag, className, text)`
 `relabel(node, label, {says})` writes a generated control's label. Set `says: true`
 where the label is the page speaking, as a pick mark reading "chosen" does, `false` for an
 action word, and `"echo"` for a copy of words the page shows elsewhere, such as a
-worker's name.
+worker's name or a tab's copy of its panel's name.
 
 Words a module writes into the page need no marking: setting an element's
 `textContent`, appending a paragraph or rendering a template leaves them the page's

@@ -581,8 +581,8 @@ HIDDEN_SCROLLERS = {
             f"""
 <h1 id="t">Tabbed scroller</h1>
 <lf-tabs id="views">
-  <lf-tab id="tab-first" label="First"><p id="p-first">The tab shown first.</p></lf-tab>
-  <lf-tab id="tab-wide" label="Wide">{HIDDEN_SCROLLER_ROW}</lf-tab>
+  <lf-tab id="tab-first"><strong>First</strong><p id="p-first">The tab shown first.</p></lf-tab>
+  <lf-tab id="tab-wide"><strong>Wide</strong>{HIDDEN_SCROLLER_ROW}</lf-tab>
 </lf-tabs>
 """,
             head=HIDDEN_SCROLLER_STYLE,

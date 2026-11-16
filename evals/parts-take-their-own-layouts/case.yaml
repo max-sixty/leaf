@@ -39,7 +39,8 @@ assert:
       Read the HTML. Pass only if the page is a page of parts: `main` carries no Layout
       class, and holds one `lf-parts` directly, with an `lf-part` for the playground and
       separate ones for the proposal and the reasoning (the two may share one). Each
-      `lf-part` has one child carrying a Layout class: the proposal's and reasoning's a
+      `lf-part` has one child carrying a Layout class, besides any header naming the
+      part: the proposal's and reasoning's a
       reading `layout-column`, the playground's one that gives the playground the room
       beside or around its controls (a `layout-workspace`, or a `layout-column` whose
       `lf-playground` takes `data-width="available"`). Anything written before the

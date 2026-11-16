@@ -139,21 +139,15 @@ lf-column {
     }
   }
 }
-/* The heading is written by lf-board.js rather than by the x-says pass, because
-   it is the list's accessible name as well as its visible words and the pass
-   knows nothing about names. Where the upgrade ran, the column carries those
-   words as its name and the span is aria-hidden, so they reach the tree once;
-   where no script runs at all there is no name either, and the generated text
-   is the whole rendering, audible as well as visible. */
-lf-column::before,
-lf-column > [data-lf-said="label"] {
+/* The heading is the column's name, the <strong> it opens with (the column holds
+   nothing else but its cards). Where the upgrade ran, the column carries its words as
+   its name and the heading is hidden from the tree (lf-board.js), so they reach the
+   tree once; where no script runs, the heading is read as any other words. */
+lf-column > :first-child:not(lf-card) {
   display: block;
   font: var(--lf-font-title);
   color: var(--lf-ink-2);
   padding: 2px var(--lf-card-inset) 10px;
-}
-lf-column::before {
-  content: attr(label);
 }
 /* The column's heading row: a status dot, the name, and its card count at the far
    edge. A tone says what landing in the column means, in the page's three status tones;
@@ -173,8 +167,7 @@ lf-column[tone="warn"] {
 lf-column[tone="danger"] {
   --lf-tone-dot: var(--lf-danger);
 }
-lf-column::before,
-lf-column > [data-lf-said="label"] {
+lf-column > :first-child:not(lf-card) {
   padding-left: calc(var(--lf-card-inset) + 14px);
   padding-right: calc(var(--lf-card-inset) + 2.5em);
   background: radial-gradient(circle, var(--lf-tone-dot) 3.5px, transparent 4px)
@@ -187,9 +180,6 @@ lf-column > .lf-column-count {
   font: var(--lf-font-title);
   color: var(--lf-muted);
   font-variant-numeric: tabular-nums;
-}
-lf-column:has(> [data-lf-said="label"])::before {
-  content: none;
 }
 lf-card {
   --lf-card-inset-block: 12px;

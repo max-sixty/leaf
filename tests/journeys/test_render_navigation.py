@@ -437,7 +437,7 @@ def test_c_leaves_an_item_its_own_scroller_has_taken_away(browser, serve):
 <lf-board id="b">
 """
             + "\n".join(
-                f'<lf-column id="col{i}" label="Column {i}">'
+                f'<lf-column id="col{i}"><strong>Column {i}</strong>'
                 f'<lf-card id="card{i}">Card {i} with a '
                 f'<a href="https://example.invalid/{i}">link {i}</a> inside it.</lf-card>'
                 "</lf-column>"

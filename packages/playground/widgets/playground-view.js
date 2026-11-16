@@ -10,8 +10,23 @@
  * markup says so, not only the page's call, because this drawing is the first paint: a
  * bar drawn here and withdrawn once the page's script registered its own would move
  * the page as it loads.
+ *
+ * A control, a choice and a preset are each named by the <strong> they open with, as
+ * any element is (addressable-names.js). The view draws a copy of that markup where it
+ * draws the name, beside a field, as a radio's label or on a preset's button
+ * (`echoCopy`), and a select's option, which takes only text, its words. The name
+ * itself stays the element's first child, hidden (defaults.css), so every reading of
+ * the element's name takes the one the page wrote.
  */
-import { offerElement, offeredAction, generatedElement } from "/runtime/widget-api.js";
+import {
+  addressableName,
+  echoCopy,
+  generated,
+  generatedElement,
+  leadingTitle,
+  offerElement,
+  offeredAction,
+} from "/runtime/widget-api.js";
 
 import { html, nothing, ref, render } from "/vendor/lit.js";
 
@@ -30,6 +45,13 @@ function requiredAttribute(element, name) {
   if (value === null) throw new Error(`${element.localName} needs ${name}`);
   return value;
 }
+// The child an element opens with that holds its name, which the view keeps first and
+// draws a copy of (above).
+/** @param {Element} element */
+const nameOf = (element) => {
+  const title = leadingTitle(element);
+  return [...element.children].find((child) => child.contains(title)) ?? null;
+};
 /** @param {Element} host @param {Element} member */
 const belongsTo = (host, member) =>
   member.parentElement?.closest("lf-playground, [data-lf-exhibit]") === host;
@@ -128,14 +150,35 @@ export function createPlayground(host) {
   const interactive = !host.closest("[data-lf-exhibit]");
   const authored = [...host.childNodes];
   const railed = controls.filter((control) => control.parentElement === host);
+  // Each named element's name, kept first, the copy drawn of it, and its words, read
+  // before the view takes the children it draws.
+  /** @type {Map<Element, {node: Element | null, copy: Node[], words: string}>} */
+  const names = new Map();
+  for (const root of [...controls, ...choicesByName.values()].flat().concat(presets)) {
+    const node = nameOf(root);
+    names.set(root, {
+      node,
+      copy: echoCopy(leadingTitle(root)),
+      words: addressableName(root),
+    });
+  }
+  /** @param {Element} root */
+  const named = (root) =>
+    /** @type {{node: Element | null, copy: Node[], words: string}} */ (
+      names.get(root)
+    );
+  /** @param {Element} root */
+  const unnamed = (root) =>
+    [...root.childNodes].filter((child) => child !== named(root).node);
   /** @type {Set<HTMLElement>} */
   const candidates = new Set();
   /** @type {Map<HTMLElement, ChildNode[]>} */
   const bodies = new Map();
   for (const [name, choices] of choicesByName) {
+    for (const choice of choices) bodies.set(choice, unnamed(choice));
     if (
       choices.some((choice) =>
-        [...choice.childNodes].some(
+        (bodies.get(choice) ?? []).some(
           (child) =>
             child.nodeType === Node.ELEMENT_NODE ||
             (child instanceof Text && child.data.trim()),
@@ -145,7 +188,6 @@ export function createPlayground(host) {
       const control = controlByName.get(name);
       if (control) candidates.add(control);
     }
-    for (const choice of choices) bodies.set(choice, [...choice.childNodes]);
   }
   host.classList.toggle("lf-playground-quoted", !interactive);
   for (const control of controls) {
@@ -176,7 +218,7 @@ export function createPlayground(host) {
     presets.map((preset) => {
       const settings = own(preset, "lf-playground-setting");
       if (!settings.length)
-        throw new Error(`preset ${preset.getAttribute("label")} is empty`);
+        throw new Error(`preset ${named(preset).words || preset.id} is empty`);
       return [
         preset,
         Object.freeze(
@@ -206,13 +248,13 @@ export function createPlayground(host) {
     generatedElement(slot, { says: true });
     return { slot, name, control };
   });
-  const presetWords = new Map(
-    presets.map((preset) => [preset, [...preset.childNodes]]),
-  );
+  const presetWords = new Map(presets.map((preset) => [preset, unnamed(preset)]));
   // These are independent authored roots, including controls inside arbitrary preview
-  // markup. Each retains its node and has one Lit template, on delivery and live updates.
+  // markup. Each retains its node and has one Lit template, on delivery and live updates,
+  // drawn after the name it opens with, which stays where it stands.
   for (const root of [...controls, ...bodies.keys(), ...presets, ...slots])
-    root.replaceChildren();
+    for (const child of [...root.childNodes])
+      if (child !== names.get(root)?.node) child.remove();
   host.replaceChildren();
   /** @param {(element: Element) => void} apply */
   const offered = (apply) =>
@@ -413,7 +455,6 @@ export function createPlayground(host) {
       }
       for (const control of controls) {
         const { name, kind, choices } = reading(control);
-        const label = control.getAttribute("label");
         // The words beside the input name it, so its preview, which says only what
         // its face and labels don't, repeats none of them. A span rather than a
         // `<label>`, since a press on the words selects them and works no control.
@@ -425,32 +466,35 @@ export function createPlayground(host) {
         if (!select)
           for (const choice of choices)
             render(
-              html`
-                ${
-                  interactive
-                    ? html`<label class="lf-choice" data-lf-gen="1"
-                        ><input
-                          ${radioOffer}
-                          type="radio"
-                          name=${`${host.id}-${name}`}
-                          value=${choice.getAttribute("value")}
-                          .checked=${next[name] === choice.getAttribute("value")}
-                        /><span class="lf-playground-choice-label" data-lf-gen="1"
-                          >${choice.getAttribute("label")}</span
-                        ></label
-                      >`
-                    : html`<p class="lf-playground-choice-heading" data-lf-gen="1">
-                        ${choice.getAttribute("label")}
-                      </p>`
-                }
-                ${
-                  candidates.has(control)
-                    ? html`<div class="lf-playground-choice-preview">
-                        ${bodies.get(choice)}
-                      </div>`
-                    : nothing
-                }
-              `,
+              html`${
+                interactive
+                  ? html`<label class="lf-choice" data-lf-gen="1"
+                      ><input
+                        ${radioOffer}
+                        type="radio"
+                        name=${`${host.id}-${name}`}
+                        value=${choice.getAttribute("value")}
+                        .checked=${next[name] === choice.getAttribute("value")}
+                      /><span
+                        class="lf-playground-choice-label"
+                        ${generated({ says: "echo" })}
+                        >${named(choice).copy}</span
+                      ></label
+                    >`
+                  : html`<p
+                      class="lf-playground-choice-heading"
+                      ${generated({ says: "echo" })}
+                    >
+                      ${named(choice).copy}
+                    </p>`
+              }
+              ${
+                candidates.has(control)
+                  ? html`<div class="lf-playground-choice-preview">
+                      ${bodies.get(choice)}
+                    </div>`
+                  : nothing
+              } `,
               choice,
             );
         if (!interactive) {
@@ -472,8 +516,11 @@ export function createPlayground(host) {
           .value=${kind === "toggle" ? "on" : next[name]}
         />`;
         render(
-          html`<span class="lf-playground-control-label" id=${labelId} data-lf-gen="1"
-              >${label}</span
+          html`<span
+              class="lf-playground-control-label"
+              id=${labelId}
+              ${generated({ says: "echo" })}
+              >${named(control).copy}</span
             >
             ${
               select
@@ -489,7 +536,7 @@ export function createPlayground(host) {
                           value=${choice.getAttribute("value")}
                           .selected=${next[name] === choice.getAttribute("value")}
                         >
-                          ${choice.getAttribute("label")}
+                          ${named(choice).words}
                         </option>`,
                     )}
                   </select>`
@@ -527,7 +574,7 @@ export function createPlayground(host) {
                 Object.is(next[name], value),
               )}
             >
-              ${preset.getAttribute("label")}
+              <span ${generated({ says: "echo" })}>${named(preset).copy}</span>
             </button>`,
           preset,
         );

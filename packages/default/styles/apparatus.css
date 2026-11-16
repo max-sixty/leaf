@@ -8,15 +8,13 @@
  * otherwise set them back.
  *
  * Figures come with the face, and this package is where that earns its keep: the
- * numbers a report moves between versions are all here — a board's column label or
+ * numbers a report moves between versions are all here — a board's column name or
  * a screenshot's source label — and in the sans's own figures each rewrite resizes
  * the chip the number is set in, and moves whatever stands after it. The core's copy
  * of this rule (reading.css) carries the norm it answers. */
 .lf-shotcap,
 lf-sample::before,
-lf-sample > [data-lf-said="label"],
-lf-column::before,
-lf-column > [data-lf-said="label"],
-lf-tab::before {
+lf-sample > strong:first-child,
+lf-column > :first-child:not(lf-card) {
   font-variant-numeric: tabular-nums;
 }

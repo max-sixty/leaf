@@ -9,7 +9,7 @@
  * on the page's where it is the page's own (below); a queue's column is a tinted
  * index.
  * Live pages select their panel before the strip arrives. Without the runtime,
- * panels stack as labeled sections. */
+ * panels stack as sections, each under the name it opens with. */
 /* A set authored as layout-flow shares the document's space and draws no frame. Every
  * other set is boxed. layouts.css owns the flow declaration the module reads for
  * scrolling; primary URL/history ownership is a separate fact (lf-tabs.js). */
@@ -23,20 +23,14 @@
 :is(lf-tab, lf-parts, lf-part) {
   display: block;
 }
-/* A stacked panel's name takes the label font (base.css, `.lf-label`), which a
- * generated name can't wear as a class. A side list's group label is a list's group
- * heading (controls.css, `.lf-rows-head`). */
-:is(lf-tab, lf-part)::before {
-  content: attr(label);
-  display: block;
-  margin: 18px 0 8px;
-  font: var(--lf-font-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--lf-muted);
-}
 lf-tabs[data-lf-views] > lf-tab {
   margin-top: 14px;
+}
+/* A tab's name and summary are copies of the markup its panel opens with (lf-tabs.js),
+ * each set on one line of the tab: a summary's <p> runs inline there. */
+.lf-tabstrip :is(.lf-tab-name, .lf-tab-summary) > :not(.lf-tab-mark) {
+  display: inline;
+  margin: 0;
 }
 /* Laid out by the live-page block below; hidden until then, because a row of
  * buttons is worth showing only where something will answer one. */
@@ -826,6 +820,15 @@ lf-tabs[data-lf-views] > lf-tab {
       :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {
         border-inline-start: 1px solid var(--lf-rule);
       }
+      /* The list shows each part's name and summary, a copy of the header the part
+       * opens with (lf-tabs.js), so while the list stands beside or over the parts the
+       * header stands hidden: shown, it stood outside the box the part's Layout pads
+       * and centres, against the rule, and over a full-height workspace it pushed the
+       * workspace past the window's foot. Stacked on paper or without the runtime, each
+       * part opens with it. */
+      :scope:is(lf-parts)[data-lf-views] > lf-part > :is(header, strong):first-child {
+        display: none;
+      }
       /* On a phone the list is a row that sticks over the open part as the page tabs'
      * strip does, a header of the root (lf-tabs.js, `#declareHeader`), so the reader
      * reaches another part from anywhere in this one, and what sticks inside the part
@@ -869,27 +872,39 @@ lf-tabs[data-lf-views] > lf-tab {
 }
 /* Paper prints inactive panels open (controls.css, `until-found`). */
 @media print {
-  /* Stacked on paper, a queue's panel carries its group before its name, since no list
-   * stands over the panels to say it. */
+  /* Stacked on paper, a queue's panel carries its group over its name, since no list
+   * stands over the panels to say it. It takes the label font (base.css, `.lf-label`),
+   * which generated words can't wear as a class. */
   lf-tabs[list="side"] > lf-tab[group]::before {
-    content: attr(group) " · " attr(label);
+    content: attr(group);
+    display: block;
+    margin: 18px 0 8px;
+    font: var(--lf-font-label);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lf-muted);
   }
 }
 
 /* A region reaching the window's foot keeps clearance after its reading content.
- * A tab holding only another view or pane transfers that edge instead. */
+ * A tab holding only another view or pane, after the name it opens with, transfers that
+ * edge instead. */
 @media screen {
   @scope (html[data-lf-interactive]) {
     @container not style(--lf-end-room: 0px) {
       lf-tabs
         > lf-tab:not([hidden]):has(
-          > :is(lf-tabs, [data-lf-reading-role="pane"]):only-child
+          > :is(lf-tabs, [data-lf-reading-role="pane"]):nth-child(
+              1 of :not(:is(header, strong):first-child)
+            ):last-child
         ) {
         --lf-tab-end: 0px;
       }
       lf-tabs
         > lf-tab:not([hidden])
-        > :is(lf-tabs, [data-lf-reading-role="pane"]):only-child {
+        > :is(lf-tabs, [data-lf-reading-role="pane"]):nth-child(
+          1 of :not(:is(header, strong):first-child)
+        ):last-child {
         --lf-end-room: inherit;
         margin-block-end: 0;
       }
@@ -961,12 +976,20 @@ lf-tabs[data-lf-views] > lf-tab {
           flex: 1 0 auto;
         }
       }
+      /* A tab's one block, past the name the tab opens with, fills the tab. */
       @container style(--lf-full-height: 1) {
         :scope:is(lf-tabs)
           > lf-tab:not([hidden]):has(
-            > :nth-child(1 of :not(script, style, template)):nth-last-child(
-                1 of :not(script, style, template)
-              )
+            > :nth-child(
+                1
+                  of
+                  :not(
+                    script,
+                    style,
+                    template,
+                    :is(header, strong):nth-child(1 of :not(script, style, template))
+                  )
+              ):nth-last-child(1 of :not(script, style, template))
           ) {
           flex: 1 1 0;
           min-block-size: 0;
@@ -978,9 +1001,16 @@ lf-tabs[data-lf-views] > lf-tab {
       @container style(--lf-full-height: 1) {
         :scope:is(lf-tabs)
           > lf-tab:not([hidden])
-          > :nth-child(1 of :not(script, style, template)):nth-last-child(
-            1 of :not(script, style, template)
-          ) {
+          > :nth-child(
+            1
+              of
+              :not(
+                script,
+                style,
+                template,
+                :is(header, strong):nth-child(1 of :not(script, style, template))
+              )
+          ):nth-last-child(1 of :not(script, style, template)) {
           flex: 1 1 0;
           margin-block: 0;
         }

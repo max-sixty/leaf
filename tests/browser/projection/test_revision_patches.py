@@ -403,7 +403,8 @@ def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
         """
 <h1 id="sample-title">Live sample revision</h1>
 <p id="sample-before">This paragraph comes first.</p>
-<lf-sample id="sample-held" label="Live draft" window>
+<lf-sample id="sample-held" window>
+  <strong>Live draft</strong>
   <template id="sample-source" data-sample>
     <h1>Practice draft</h1>
     <lf-draft id="sample-draft"><pre>Authored sample words.</pre></lf-draft>
@@ -546,7 +547,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
         '<p id="nm-kept">A <lf-gloss tip="the cutover of the store">cutover</lf-gloss>'
         " the user is asking about.</p>\n"
         '<p id="nm-edited">The store has not moved.</p>\n'
-        '<lf-sample id="qt-spec" label="an inert pick">\n'
+        '<lf-sample id="qt-spec">\n<strong>an inert pick</strong>\n'
         '  <lf-options id="qt-opts" choose>\n'
         '    <lf-option id="qt-a">Alpha</lf-option>\n'
         '    <lf-option id="qt-b">Beta</lf-option>\n'
@@ -897,8 +898,9 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
 
     def tabs(lede, extra=""):
         return f"""<lf-tabs id="tp-views">
-  <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
-  <lf-tab id="tp-ask-tab" label="Ask">
+  <lf-tab id="tp-plan"><strong>Plan</strong><p id="tp-lede">{lede}</p></lf-tab>
+  <lf-tab id="tp-ask-tab">
+    <strong>Ask</strong>
     <lf-ask id="tp-store-ask"><h2>Which store?</h2>
     <lf-options id="tp-store" choose>
       <lf-option id="tp-keep">Keep the store</lf-option>
@@ -913,7 +915,7 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
         "Tabs third",
         tabs(
             "Ship on Tuesday.",
-            '\n  <lf-tab id="tp-notes" label="Notes"><p>Later.</p></lf-tab>',
+            '\n  <lf-tab id="tp-notes"><strong>Notes</strong><p>Later.</p></lf-tab>',
         ),
     )
     page = open_page(browser, live_url(serve(first)))

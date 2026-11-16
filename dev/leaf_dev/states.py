@@ -2658,6 +2658,18 @@ def film_inspector(page: Page) -> None:
     )
 
 
+def parts_list(page: Page) -> None:
+    """A page of parts in its sample window, its list down the left: each row a copy
+    of the header its part opens with, one name in code type over a coloured
+    diffstat."""
+    page.get_by_role("tab", name="Page & layout", exact=True).click()
+    sample = page.locator("#bg-parts-sample")
+    # Its page starts as the reader brings it near (lf-sample.js).
+    sample.scroll_into_view_if_needed()
+    sample.evaluate("sample => sample.ready")
+    expect(sample.frame_locator("iframe").get_by_role("tablist")).to_be_visible()
+
+
 def live_sample_embedded(page: Page) -> None:
     """The arrived practice page at its embedded content height."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
@@ -2880,6 +2892,7 @@ STATES = (
         live_sample_embedded,
         region="#bg-live-sample",
     ),
+    State("parts-list", "feature-gallery", parts_list, region="#bg-parts-sample"),
     State(
         "live-sample-full-view",
         "feature-gallery",

@@ -153,8 +153,8 @@ def test_a_revision_keeps_the_paragraph_under_a_focused_stuck_tab(browser, serve
         return leaf_page(
             f"Stuck tab {added}",
             "<style>html { overflow-anchor: none; }</style>"
-            f'<lf-tabs id="views" class="layout-flow"><lf-tab id="first" label="First view">{paragraphs}'
-            '</lf-tab><lf-tab id="second" label="Second view"><p>Other.</p></lf-tab>'
+            f'<lf-tabs id="views" class="layout-flow"><lf-tab id="first"><strong>First view</strong>{paragraphs}'
+            '</lf-tab><lf-tab id="second"><strong>Second view</strong><p>Other.</p></lf-tab>'
             "</lf-tabs>",
         )
 
@@ -283,9 +283,9 @@ def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
         return leaf_page(
             f"Two panes {added}",
             "<style>html { overflow-anchor: none; }</style>"
-            '<lf-pane id="notes" label="Notes"><div>'
+            '<lf-pane id="notes" aria-label="Notes"><div>'
             '<textarea aria-label="Working draft"></textarea>'
-            f'{notes}</div></lf-pane><lf-pane id="log" label="Log"><div>{log}</div></lf-pane>',
+            f'{notes}</div></lf-pane><lf-pane id="log" aria-label="Log"><div>{log}</div></lf-pane>',
             layout="workspace",
         )
 
@@ -505,7 +505,7 @@ def test_revision_remembers_the_active_region_when_a_workspace_reflows(browser, 
 
     def pane(side):
         return f"""
-    <lf-pane id="{side}-reading" label="{side.title()} reading"><div>
+    <lf-pane id="{side}-reading" aria-label="{side.title()} reading"><div>
       <p id="{side}-start">{side.title()} start with enough words for a landmark.</p>
       <div style="height: 320px"></div>
       <p id="{side}-landmark">The current {side} reading has a stable semantic landmark.
@@ -564,10 +564,10 @@ def test_revision_keeps_a_focused_control_visible_without_a_text_landmark(
     content = """
 <header><h1>Control workspace</h1></header>
 <div id="reading-split">
-  <lf-pane id="left-reading" label="Left reading"><div>
+  <lf-pane id="left-reading" aria-label="Left reading"><div>
     <p>Another pane's reading does not name the active control.</p>
   </div></lf-pane>
-  <lf-pane id="right-reading" label="Right reading"><div>
+  <lf-pane id="right-reading" aria-label="Right reading"><div>
     <div style="height: 1100px"></div>
     <button id="right-subject">Right subject</button>
     <div style="height: 500px"></div>
@@ -608,7 +608,7 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
     would push the title down."""
     content = """
 <h1 id="reading-title">The page landmark surrounding these controls remains stable.</h1>
-<lf-pane id="controls-pane" label="Controls">
+<lf-pane id="controls-pane" aria-label="Controls">
   <button id="focused-control">Change setting</button>
 </lf-pane>
 <div style="height: 1000px"></div>
@@ -648,7 +648,7 @@ def test_revision_reveals_a_page_landmark_around_an_empty_active_region(browser,
 def test_revision_reveals_an_active_region_without_any_reading_landmark(browser, serve):
     """A surviving active region remains reachable even when no passage names it."""
     content = """
-<lf-pane id="controls-pane" label="Controls">
+<lf-pane id="controls-pane" aria-label="Controls">
   <button id="focused-control">Change setting</button>
 </lf-pane>
 <div style="height: 1000px"></div>
@@ -728,7 +728,7 @@ def test_a_panes_scroll_behavior_change_keeps_the_reading_after_scrolling_past_f
     )
     source = leaf_page(
         "Reading beyond the focused control",
-        '<lf-pane id="reading" label="Reading"><div id="reading-body">'
+        '<lf-pane id="reading" aria-label="Reading"><div id="reading-body">'
         '<button id="control">Earlier focused control</button>'
         f"{paragraphs}</div></lf-pane>",
         head="""<style>
@@ -795,7 +795,7 @@ def test_revision_does_not_move_a_page_offset_into_a_new_bounded_region(browser,
             else ""
         )
         return f"""
-<lf-pane id="{name}-pane" label="{name.title()}">
+<lf-pane id="{name}-pane" aria-label="{name.title()}">
   <div>{control}<div style="height: 1100px"></div></div>
 </lf-pane>
 """
@@ -1018,7 +1018,7 @@ def test_a_drawing_beside_a_document_out_of_view_stays_the_place(browser, serve)
 <section id="fig">
 <svg id="chart" width="600" height="1200" viewBox="0 0 600 1200" role="img"
   aria-label="Tall chart"><rect width="600" height="1200" fill="#9ab"></rect></svg>
-<lf-text-document id="notes" label="notes.txt"><pre>
+<lf-text-document id="notes"><strong>notes.txt</strong><pre>
 first line of the notes document, long enough to quote as a reading place
 second line of the notes document, also long enough to quote as a place
 </pre></lf-text-document>

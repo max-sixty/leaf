@@ -62,7 +62,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
         leaf_page(
             "Document readings",
             '<h1>Document readings</h1><lf-text-document id="document" '
-            'source="document-text" preview="markdown" label="Notes">'
+            'source="document-text" preview="markdown"><strong>Notes</strong>'
             "</lf-text-document>",
         )
     )
@@ -113,15 +113,15 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
         leaf_page(
             "Written passage",
             '<h1>Written passage</h1><lf-text-document id="passage" '
-            'label="CHANGELOG.md" preview="markdown"><pre>\n'
+            'preview="markdown"><strong>CHANGELOG.md</strong><pre>\n'
             + text.replace("<", "&lt;").replace(">", "&gt;")
             + "</pre></lf-text-document>",
         )
     )
     page = open_page(browser, url)
     document = page.locator("#passage")
-    expect(document.locator("figcaption")).to_have_text("CHANGELOG.md")
-    expect(document.locator("strong")).to_have_text("Fixed")
+    expect(document.locator(":scope > strong")).to_have_text("CHANGELOG.md")
+    expect(document.locator(".lf-text-document-preview strong")).to_have_text("Fixed")
     expect(document.locator(".lf-text-document-preview code")).to_have_text("--config")
     expect(document.locator(".lf-text-document-preview")).to_contain_text(
         "names <missing> files."
@@ -161,7 +161,7 @@ def test_a_written_markdown_source_keeps_the_preview_height_until_shown_whole(
         leaf_page(
             "Release notes",
             '<h1>Release notes</h1><lf-text-document id="notes" '
-            f'label="CHANGELOG.md" preview="markdown"><pre>\n{text}</pre>'
+            f'preview="markdown"><strong>CHANGELOG.md</strong><pre>\n{text}</pre>'
             '</lf-text-document><p id="after">After the notes.</p>',
         )
     )
@@ -215,7 +215,7 @@ def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
                 "<h1>Widget document</h1>"
                 '<lf-document-gallery id="producer"></lf-document-gallery>'
                 '<lf-text-document id="document" for="producer" '
-                'preview="markdown" label="Release note"></lf-text-document>',
+                'preview="markdown"><strong>Release note</strong></lf-text-document>',
             ),
             page_files={
                 "registry.json": json.dumps({"lf-document-gallery": declaration}),
@@ -272,7 +272,7 @@ def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
         leaf_page(
             "Stable document readings",
             '<h1>Inspect evidence</h1><lf-text-document id="document" '
-            f'source="document-text" preview="{preview}" label="Evidence">'
+            f'source="document-text" preview="{preview}"><strong>Evidence</strong>'
             '</lf-text-document><p id="following">The following passage.</p>',
             head=style,
         )
@@ -291,7 +291,7 @@ def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
         return [rect.top + scrollY, rect.height];
       };
       const owner = document.querySelector('#document');
-      return [box(owner), box(owner.querySelector('figcaption')),
+      return [box(owner), box(owner.querySelector(':scope > strong')),
               box(owner.querySelector('[role="tablist"]')),
               box(document.querySelector('#following')), scrollY];
     }"""
@@ -472,13 +472,13 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
     url = serve(
         leaf_page(
             "Prompt and notes",
-            '<lf-tabs id="sections" list="side"><lf-tab id="about" label="About">'
-            '<lf-tabs id="views"><lf-tab id="prompt" label="Prompt">'
-            '<lf-text-document id="document" label="prompt.md" preview="markdown">'
+            '<lf-tabs id="sections" list="side"><lf-tab id="about"><strong>About</strong>'
+            '<lf-tabs id="views"><lf-tab id="prompt"><strong>Prompt</strong>'
+            '<lf-text-document id="document" preview="markdown"><strong>prompt.md</strong>'
             "<pre>The prompt's first sentence.\n\nIts second paragraph.</pre>"
-            '</lf-text-document></lf-tab><lf-tab id="notes" label="Notes">'
+            '</lf-text-document></lf-tab><lf-tab id="notes"><strong>Notes</strong>'
             "<p>Notes.</p></lf-tab></lf-tabs></lf-tab>"
-            '<lf-tab id="method" label="Method"><p>Method.</p></lf-tab></lf-tabs>',
+            '<lf-tab id="method"><strong>Method</strong><p>Method.</p></lf-tab></lf-tabs>',
         )
     )
     page = open_page(browser, url)
@@ -489,7 +489,7 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
         with subtests.test(width=width):
             resized(page, width, 844)
             read = document.evaluate("""el => {
-              const caption = el.querySelector('figcaption').getBoundingClientRect();
+              const caption = el.querySelector(':scope > strong').getBoundingClientRect();
               const strip = el.querySelector('.lf-tabstrip').getBoundingClientRect();
               const panel = el.querySelector('[role=tabpanel]:not([hidden])');
               const top = panel.getBoundingClientRect();
@@ -513,7 +513,7 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
     listing's text, which is what its find bar searches."""
     lines = [f"line {at}" for at in range(300)]
     tabs = "".join(
-        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'<lf-tab id="tab-{at}"><strong>Doc {at}</strong><lf-text-document id="doc-{at}" '
         f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
         for at in range(3)
     )
@@ -559,8 +559,8 @@ def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engin
         leaf_page(
             "Documents",
             '<lf-tabs id="docs" list="side">'
-            '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
-            '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
+            '<lf-tab id="tab-open"><strong>Open</strong><p>The open tab.</p></lf-tab>'
+            '<lf-tab id="tab-long"><strong>Long</strong><lf-text-document id="log" '
             'source="log-text" language="python"></lf-text-document></lf-tab>'
             "</lf-tabs>",
         )
@@ -602,7 +602,7 @@ def test_a_closed_tab_gives_up_its_document_s_colour_and_wears_it_as_it_opens(
     when the closed tab kept it, also after a rewrite while it was closed moved those
     lines into runs of their own: Firefox showed them uncoloured for a frame or two."""
     tabs = "".join(
-        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'<lf-tab id="tab-{at}"><strong>Doc {at}</strong><lf-text-document id="doc-{at}" '
         f'source="text-{at}" language="python"></lf-text-document></lf-tab>'
         for at in range(2)
     )
@@ -692,8 +692,8 @@ def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
         leaf_page(
             "Documents",
             '<lf-tabs id="docs" list="side">'
-            '<lf-tab id="tab-open" label="Open"><p>The open tab.</p></lf-tab>'
-            '<lf-tab id="tab-long" label="Long"><lf-text-document id="log" '
+            '<lf-tab id="tab-open"><strong>Open</strong><p>The open tab.</p></lf-tab>'
+            '<lf-tab id="tab-long"><strong>Long</strong><lf-text-document id="log" '
             'source="log-text" language="python"></lf-text-document></lf-tab>'
             "</lf-tabs>",
         )
@@ -734,7 +734,7 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
     its draw (`drawn`, which stamps its data's provenance) as it draws, so a comment on
     its words stands on them without waiting for the documents after it."""
     tabs = "".join(
-        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'<lf-tab id="tab-{at}"><strong>Doc {at}</strong><lf-text-document id="doc-{at}" '
         f'source="text-{at}"></lf-text-document></lf-tab>'
         for at in range(3)
     )
@@ -791,7 +791,7 @@ def closed_documents(serve, count):
     """A page of `count` tabs, each a document bound to its own source of distinct
     lines; Doc 0's tab is open."""
     tabs = "".join(
-        f'<lf-tab id="tab-{at}" label="Doc {at}"><lf-text-document id="doc-{at}" '
+        f'<lf-tab id="tab-{at}"><strong>Doc {at}</strong><lf-text-document id="doc-{at}" '
         f'source="text-{at}"></lf-text-document></lf-tab>'
         for at in range(count)
     )
@@ -940,7 +940,7 @@ def test_document_views_remember_independently_and_follow_live_source_updates(
     )
     first.get_by_role("tab", name="Preview", exact=True).click()
     expect(first.get_by_role("heading", name="First updated")).to_be_visible()
-    expect(first.locator("strong")).to_have_text("evidence")
+    expect(first.locator(".lf-text-document-preview strong")).to_have_text("evidence")
     expect(second.get_by_role("heading", name="Second original")).to_be_visible()
     round_trip(page)
     assert decisions() == before
@@ -964,7 +964,9 @@ def test_an_exported_markdown_document_keeps_its_preview_and_source_switch(
     page = open_page(browser, out.as_uri())
     document = page.locator("#document")
     expect(document.get_by_role("heading", name="Captured heading")).to_be_visible()
-    expect(document.locator("strong")).to_have_text("captured")
+    expect(document.locator(".lf-text-document-preview strong")).to_have_text(
+        "captured"
+    )
     source = document.get_by_role("tab", name="Source", exact=True)
     source.click()
     expect(document.locator("pre")).to_be_visible()
@@ -1002,7 +1004,7 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
         leaf_page(
             "HTML evidence",
             '<h1 id="leaf-title">HTML evidence</h1><lf-text-document id="document" '
-            'source="html-text" preview="html" label="HTML capture">'
+            'source="html-text" preview="html"><strong>HTML capture</strong>'
             "</lf-text-document>",
         )
     )

@@ -1038,7 +1038,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
     container in one order."""
     registry = model_layer()
     columns = "".join(
-        f'<lf-column id="{column}" label="{column}">'
+        f'<lf-column id="{column}"><strong>{column}</strong>'
         + "".join(f'<lf-card id="{card}">{card}</lf-card>' for card in cards)
         + "</lf-column>"
         for column, cards in case["authored"].items()
@@ -1481,7 +1481,7 @@ def test_check_rejects_widget_violations(page_dir):
             '<lf-gloss tip="A short explanation"/>'
             "<figure/>"
             "<lf-bogus></lf-bogus>"
-            '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
+            '<lf-column id="bad-tone" tone="medium"><strong>S</strong></lf-column>'
             '<lf-option id="stray"><strong>S</strong></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
@@ -1512,16 +1512,15 @@ def test_check_rejects_widget_violations(page_dir):
 
 def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
     """A data widget's text is its <pre> or its bound input, never both, so text
-    written under a binding, which the widget would never show, is refused. Written
-    text names its origin with a label, as a bound document names its file."""
+    written under a binding, which the widget would never show, is refused. The
+    <strong> naming a document stands before its <pre>, which it leaves the body."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
             "<h2>Plan</h2>"
             '<lf-text-document id="bound" source="notes"></lf-text-document>'
-            '<lf-text-document id="written" label="CHANGELOG.md" preview="markdown">'
+            '<lf-text-document id="written" preview="markdown"><strong>CHANGELOG.md</strong>'
             "<pre>**Fixed** a crash.</pre></lf-text-document>"
-            '<lf-text-document id="unnamed"><pre>Text</pre></lf-text-document>'
             '<lf-text-document id="both" source="notes"><pre>Unseen</pre>'
             "</lf-text-document>"
             '<lf-code id="bare-code"></lf-code>',
@@ -1532,8 +1531,6 @@ def test_check_takes_a_documents_text_from_its_pre_or_its_binding(page_dir):
         ("<lf-text-document>", True),
         ("<lf-code>", False),
     ]
-    assert [f.at for f in found(findings, "attribute-schema")] == ["<lf-text-document>"]
-    assert found(findings, "attribute-schema", "<lf-text-document>", keyword="required")
 
 
 def test_check_rejects_a_widget_language_nothing_will_color(page_dir):
@@ -1654,7 +1651,7 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
     regions = """<header><h2>Plan</h2></header>
   <div id="regions" style="display: grid; grid-template-columns: 1fr 2fr">
     <lf-zone id="queue" label="Queue"><p>First</p></lf-zone>
-    <lf-pane id="detail" label="Detail"><p>Second</p></lf-pane>
+    <lf-pane id="detail" aria-label="Detail"><p>Second</p></lf-pane>
   </div>
   <footer><p>Finish</p></footer>"""
     version.write_text(
@@ -1680,9 +1677,9 @@ def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
         PAGE.replace(
             "<h2>Plan</h2>",
             """<h2>Plan</h2>
-<lf-pane id="queue" label="Queue"><p>Before.</p><header><h3>Queue</h3></header></lf-pane>
-<lf-pane id="detail" label="Detail"><p>First</p><p>Split</p></lf-pane>
-<lf-pane id="loose" label="Loose">Loose text</lf-pane>""",
+<lf-pane id="queue" aria-label="Queue"><p>Before.</p><header><h3>Queue</h3></header></lf-pane>
+<lf-pane id="detail" aria-label="Detail"><p>First</p><p>Split</p></lf-pane>
+<lf-pane id="loose" aria-label="Loose">Loose text</lf-pane>""",
         )
     )
     status, findings = check_findings(page_dir)
@@ -1699,7 +1696,7 @@ def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
     Layout, so a `main` holding them with a Layout of its own is refused; the same
     parts under a `main` with none pass."""
     parts = (
-        '<lf-parts id="parts"><lf-part id="read" label="Read">'
+        '<lf-parts id="parts"><lf-part id="read"><header><strong>Read</strong></header>'
         '<article class="layout-column"><p>Words.</p></article></lf-part></lf-parts>'
     )
     (page_dir / "index.html").write_text(
@@ -1750,20 +1747,48 @@ def test_check_rejects_loose_content_in_items_container(page_dir):
 
 
 def test_tabs_reject_structural_violations(page_dir):
-    # A label-less panel, a stray panel outside lf-tabs, and loose text between
+    # A nameless panel, a stray panel outside lf-tabs, and loose text between
     # panels are each refused.
     bad = """<lf-tabs id="ws">
   loose text
   <lf-tab id="ws-a"><p>x</p></lf-tab>
 </lf-tabs>
-<lf-tab id="ws-stray" label="Stray"><p>y</p></lf-tab>
+<lf-tab id="ws-stray"><strong>Stray</strong><p>y</p></lf-tab>
 <lf-options>"""
     (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", bad))
     status, findings = check_findings(page_dir)
     assert status == 1
-    assert found(findings, "attribute-schema", "<lf-tab>", keyword="required")
+    assert [f.values["line"] for f in found(findings, "unnamed-view", "<lf-tab>")] == [
+        PAGE.split("<lf-options>")[0].count("\n") + 3
+    ]
     assert found(findings, "not-member", "<lf-tab>", owners=["lf-tabs"])
     assert found(findings, "loose-text", "<lf-tabs>")
+
+
+def test_a_widget_opens_with_its_name_and_no_control_stands_in_a_tab_s(page_dir):
+    """A widget opens with the element naming it under the content model it declares:
+    a column before its cards, a document before its <pre>. A view's tab, a control,
+    shows a copy of its whole header, so the header holds no link, control or widget;
+    a column's name is shown nowhere but where it stands, so a control there is the
+    column's own."""
+    named = """<lf-board id="b"><lf-column id="c"><strong><code>main</code></strong>
+  <lf-card id="k"><strong>Card</strong></lf-card></lf-column></lf-board>
+<lf-text-document id="d"><strong>notes.md</strong><pre>Text</pre></lf-text-document>
+<lf-tabs id="t"><lf-tab id="t1"><header><strong>Files</strong>
+  <p><a href="#k">see</a></p></header><p>x</p></lf-tab></lf-tabs>
+<lf-board id="b2"><lf-column id="c2"><strong><button>Go</button></strong></lf-column>
+</lf-board>
+<lf-options>"""
+    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", named))
+    _, findings = check_findings(page_dir)
+    assert not [
+        f
+        for f in findings
+        if f.code in {"stray-members", "data-body", "loose-text", "unnamed-view"}
+    ]
+    assert [(f.at, f.values["found"]) for f in found(findings, "interactive-name")] == [
+        ("<lf-tab>", ["a"]),
+    ]
 
 
 def test_suggestion_rejects_malformed_shapes(page_dir):
@@ -3843,9 +3868,9 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     declare_on_page(page_dir, declare)
     board = (
         '<lf-board id="reading-board">'
-        '<lf-column id="reading-todo" label="To do">'
+        '<lf-column id="reading-todo"><strong>To do</strong>'
         '<lf-card id="reading-a">A</lf-card></lf-column>'
-        '<lf-column id="reading-done" label="Done">'
+        '<lf-column id="reading-done"><strong>Done</strong>'
         "<lf-label>Already reviewed</lf-label>"
         '<lf-card id="reading-b">B</lf-card></lf-column></lf-board>'
     )

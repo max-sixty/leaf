@@ -110,7 +110,9 @@ def test_release_publication_requires_the_marker_in_board_markup():
         "Release board unchanged", f"Release {marker} passed"
     )
     assert end.names(active, marker)
-    request.html = f'<main><lf-column label="Release {marker}"></lf-column></main>'
+    request.html = (
+        f"<main><lf-column><strong>Release {marker}</strong></lf-column></main>"
+    )
     assert end.names(active, marker)
 
 

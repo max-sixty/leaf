@@ -3,7 +3,7 @@
 import re
 
 from leaf.findings import Finding, element_at
-from leaf.gesture_words import leading_title_node
+from leaf.gesture_words import TITLES, leading_title, leading_title_node
 from leaf.obligations import (
     encloses,
     local_obligation_entry,
@@ -133,10 +133,13 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # Tags that name this declaration in x-owners are its admissible members under
         # any content model. "data" takes one <pre>, or none where the markup binds an
         # x-data input, whose value is then the text; "members" takes element members
-        # only, and "empty" takes nothing at all.
+        # only, and "empty" takes nothing at all. Under "data" and "members" a widget
+        # may open with the element that names it, a title or a <header> holding one
+        # (`gesture_words.element_name`), as a column opens with its <strong>.
         content = entry["x-content"]
         allowed = members_of.get(tag, set())
-        stray = sorted({c for c in rec["children"] if c not in allowed})
+        children = rec["children"][1:] if names_itself(rec) else rec["children"]
+        stray = sorted({c for c in children if c not in allowed})
         bound = any(
             rec["attrs"].get(spec.get(key))
             for spec in entry.get("x-data", {}).values()
@@ -146,10 +149,10 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             errors.append(found_at("content-empty", rec))
         elif content == "data":
             others = [c for c in stray if c != "pre"]
-            pres = rec["children"].count("pre")
+            pres = children.count("pre")
             if pres != (0 if bound else 1) or others:
                 errors.append(
-                    found_at("data-body", rec, children=rec["children"], bound=bound)
+                    found_at("data-body", rec, children=children, bound=bound)
                 )
             if rec["text"]:
                 errors.append(found_at("text-outside-pre", rec))
@@ -244,6 +247,65 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         if rec["parent"] == "main"
         and registry.get(rec["tag"], {}).get("x-views", {}).get("parts")
     ]
+
+
+# The elements that open a widget as its name: a title, or a title group holding one
+# (`gesture_words.leading_title_node`).
+NAMING = TITLES | {"header", "hgroup"}
+# Content that takes input of its own, which a control drawn around a copy of it would
+# nest inside itself; a widget's own markup upgrades wherever a copy of it stands.
+INTERACTIVE = frozenset(
+    {"a", "audio", "button", "details", "embed", "iframe", "input", "label"}
+    | {"select", "textarea", "video"}
+)
+
+
+def names_itself(rec: dict) -> bool:
+    """Whether a widget opens with the element that names it."""
+    return bool(rec["direct"]) and rec["direct"][0] in NAMING
+
+
+def name_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+    """A view (`x-views`) is listed by its name, a copy of the title and summary its
+    leading <header> holds drawn in its tab, so a view without a name, an empty tab
+    nobody can tell from another, is refused. The tab is a control, so the header holds
+    no link, control or widget: the browser draws a control nested in another without
+    complaint, and the outer one takes the press."""
+    views = {
+        declaration["x-views"]["members"]
+        for tag, declaration in registry.items()
+        if is_element_name(tag) and "x-views" in declaration
+    }
+    errors = []
+    for rec in document.lf_elements:
+        node = document.authoring.node_of(rec)
+        if node is None or rec["tag"] not in views:
+            continue
+        if not leading_title(node):
+            errors.append(found_at("unnamed-view", rec))
+            continue
+        name = (
+            next(child for child in node["content"] if not isinstance(child, str))
+            if names_itself(rec)
+            else leading_title_node(node)
+        )
+        found = sorted(
+            {
+                inner["tag"]
+                for inner in _within(name)
+                if inner["tag"] in INTERACTIVE or is_element_name(inner["tag"])
+            }
+        )
+        if found:
+            errors.append(found_at("interactive-name", rec, found=found))
+    return errors
+
+
+def _within(node: dict | None):
+    for child in (node or {}).get("content", ()):
+        if not isinstance(child, str):
+            yield child
+            yield from _within(child)
 
 
 def unasked(rec: dict, entry: dict) -> dict:
@@ -615,6 +677,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         widget_errors(lf_elements, registry)
         + layout_errors(lf_elements, registry)
         + parts_errors(document, registry)
+        + name_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
         + enclosing_errors(document, registry)
         + unique_errors(lf_elements, registry)

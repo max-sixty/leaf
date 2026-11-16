@@ -1011,6 +1011,16 @@ _TEXT = {
     "loose-text": lambda at, v: (
         f"{_line(at, v)}: loose text between its members isn't allowed"
     ),
+    "unnamed-view": lambda at, v: (
+        f"{_line(at, v)}: a view is listed by its name — open it with the <strong>"
+        " that names it, or a <header> holding that <strong> and a summary after it"
+    ),
+    "interactive-name": lambda at, v: (
+        f"{_line(at, v)}: its name holds "
+        + ", ".join(f"<{tag}>" for tag in v["found"])
+        + "; its tab shows a copy of its name and summary, and a tab is a control, so"
+        " they hold words and phrasing markup only"
+    ),
     "parts-in-layout": lambda at, v: (
         f"{_line(at, v)}: stands in a <main> that carries {v['layout']}; a page of"
         " parts needs a <main> with no Layout, since each part's child carries its"

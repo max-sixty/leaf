@@ -1202,15 +1202,15 @@ def test_a_widget_that_failed_soft_claims_no_room(browser, serve, source, tag):
 def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serve):
     """A live page draws a tab set's first panel alone before its module upgrades it,
     and the strip the module builds is the only way to the rest. Where the runtime could
-    not start, no strip will come, so every panel stands under its label. Without the
+    not start, no strip will come, so every panel stands under its name. Without the
     startup failure guard the second panel computes to `display: none` and the page
     keeps a word the user cannot reach."""
     url = serve(
         leaf_page(
             "tabs",
             '<h1 id="t">Tabs</h1>\n<lf-tabs id="views">'
-            '<lf-tab id="one" label="One"><p id="first">First.</p></lf-tab>'
-            '<lf-tab id="two" label="Two"><p id="second">Second.</p></lf-tab></lf-tabs>',
+            '<lf-tab id="one"><strong>One</strong><p id="first">First.</p></lf-tab>'
+            '<lf-tab id="two"><strong>Two</strong><p id="second">Second.</p></lf-tab></lf-tabs>',
         )
     )
     page = browser.new_page()
@@ -1222,12 +1222,7 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     expect(page.locator("#views")).not_to_have_class("lf-rendered")
     expect(page.locator("#first")).to_be_visible()
     expect(page.locator("#second")).to_be_visible()
-    assert (
-        page.evaluate(
-            "getComputedStyle(document.getElementById('two'), '::before').content"
-        )
-        == '"Two"'
-    )
+    expect(page.locator("#two > strong")).to_be_visible()
     consume_browser_errors(page, "lf-tabs.js", "net::ERR_FAILED")
 
 
@@ -1406,7 +1401,7 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
     boards = "".join(
         f'<lf-board id="board-{count}">'
         + "".join(
-            f'<lf-column id="col-{count}-{i}" label="Column {i}"></lf-column>'
+            f'<lf-column id="col-{count}-{i}"><strong>Column {i}</strong></lf-column>'
             for i in range(count)
         )
         + "</lf-board>"
@@ -2657,7 +2652,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "parent": "c-log",
             "revision": 1,
             "text": "Here it is, with the log:",
-            "markup": '<lf-sample id="rp-quoted" label="the old copy">'
+            "markup": '<lf-sample id="rp-quoted"><strong>the old copy</strong>'
             '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>'
             '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>'
             '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>'
@@ -3138,11 +3133,11 @@ def test_a_page_views_sidebar_uses_the_columns_margin(browser, serve):
     source = leaf_page(
         "View composition",
         '<h1>Release review</h1><lf-tabs id="topics" class="layout-flow">'
-        '<lf-tab id="evidence-view" label="Evidence" class="layout-flow"><div class="layout-sidebar">'
+        '<lf-tab id="evidence-view" class="layout-flow"><strong>Evidence</strong><div class="layout-sidebar">'
         '<aside id="route"><div class="layout-track">Read the evidence.</div></aside>'
         '<div class="layout-column"><h2 id="evidence-title">Evidence</h2><p>Compare the counts.</p>'
         '<div id="wide" data-width="available">Evidence</div></div></div></lf-tab>'
-        '<lf-tab id="decision-view" label="Decision" class="layout-flow"><h2>Decision</h2></lf-tab></lf-tabs>',
+        '<lf-tab id="decision-view" class="layout-flow"><h2>Decision</h2></lf-tab></lf-tabs>',
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -3185,11 +3180,11 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
         "parts",
         f"""<header id="title"><h1>Release review</h1></header>
 <lf-parts id="parts">
-<lf-part id="plan" label="Plan"><article id="box" class="layout-column">{column_body}</article></lf-part>
-<lf-part id="queue" label="Queue"><div id="work" class="layout-workspace">
+<lf-part id="plan"><header><strong>Plan</strong></header><article id="box" class="layout-column">{column_body}</article></lf-part>
+<lf-part id="queue"><header><strong>Queue</strong></header><div id="work" class="layout-workspace">
 <header><h1>Queue</h1></header><div id="regions"><p>Work one item at a time.</p></div>
 </div></lf-part>
-<lf-part id="note" label="Note"><article class="layout-column"><p>One line.</p></article></lf-part>
+<lf-part id="note"><header><strong>Note</strong></header><article class="layout-column"><p>One line.</p></article></lf-part>
 </lf-parts>""",
         layout=None,
     )

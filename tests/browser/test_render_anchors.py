@@ -55,6 +55,7 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     SAID_PAGE,
+    SAID_VOCABULARY,
     _traffic,
     compare_with,
     consume_browser_errors,
@@ -208,7 +209,7 @@ def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
 
 def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
     """The gesture itself, on the words a widget renders from an attribute: drag across
-    a column's heading and the same button, quote, and mark come up as for a paragraph,
+    a widget's said label and the same button, quote, and mark come up as for a paragraph,
     and the comment is still anchored a version later. A real drag, because the whole
     class of bug here is text that looks selectable and isn't — a synthetic Range would
     select what no pointer can.
@@ -218,9 +219,11 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     unupgraded, where these spans don't exist. Drop their data-lf-gen and every widget
     holding a said attribute lights up as changed on every revision — a failure that
     looks like a busy page rather than like a bug."""
-    page = open_page(browser, live_url(serve(SAID_PAGE)))
+    page = open_page(
+        browser, live_url(serve(SAID_PAGE, layer_registry=SAID_VOCABULARY))
+    )
 
-    heading = page.locator('lf-column#col-now > [data-lf-said="label"]')
+    heading = page.locator('#col-now > [data-lf-said="label"]')
     box = heading.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
@@ -240,8 +243,8 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     )
     quoted = composer_quote(page)["text"]
     assert quoted.strip("“”") == "In flight"
-    write(page.locator(".lf-composer leaf-text"), "this column's name is wrong")
-    with sending(page, "the comment on the card's column name"):
+    write(page.locator(".lf-composer leaf-text"), "this label is wrong")
+    with sending(page, "the comment on the widget's said label"):
         page.keyboard.press("ControlOrMeta+Enter")
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
 
@@ -286,7 +289,9 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     itself, so that widget arrives alone into the page and its fence is read off the
     arriving root rather than off a page it is not yet in.
     """
-    page = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
+    page = open_page(
+        browser, live_url(serve(FENCED_CAPTURE_PAGE, layer_registry=SAID_VOCABULARY))
+    )
     source = FENCED_CAPTURE_PAGE
     if revision == 2:
         source = FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
@@ -498,14 +503,14 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     """Neither a pane nor the obligation inside it turns visible prose into separate
     quotation islands."""
     content = """<div id="split">
-      <lf-pane id="decision-pane" label="Decision"><lf-ask id="decision">
+      <lf-pane id="decision-pane" aria-label="Decision"><lf-ask id="decision">
         <h2 id="question">Which plan should lead?</h2>
         <lf-options id="plans" choose>
           <lf-option id="steady">Keep the steady plan.</lf-option>
           <lf-option id="fast">Try the faster plan.</lf-option>
         </lf-options>
       </lf-ask></lf-pane>
-      <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
+      <lf-pane id="evidence-pane" aria-label="Evidence"><p>Supporting evidence.</p></lf-pane>
     </div>"""
     markup = leaf_page(
         "Shared quotation",
@@ -580,24 +585,22 @@ def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
     assert events_model.read_events(serve.page_dir) == before
 
 
-def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, serve):
-    """The other half of the pair above: a word the page says that the widget renders
-    into a control. A tab's name is the case with nowhere else to go — the panel heading
-    the theme paints stands down the moment the strip exists — so if the strip's button
-    can't be quoted, the user can read the tab's name and never point at it.
-
-    That is what a user hit, twice, on a draft's heading: the words were the page's
-    and the row holding them was marked as the runtime's. `.lf-ui` is a look, and
-    anchoring's question is whose words these are — so the label answers it where it is
-    written (relabel), and the nearest answer wins over the box around it.
+def test_a_tabs_name_takes_a_comment_where_its_panel_says_it(browser, serve):
+    """The other half of the pair above: a widget's name that a control shows. A tab's
+    name is markup its panel opens with, which stays at the panel's top while the tab
+    shows a copy of it (lf-tabs.js), so the user points at the name where the page says
+    it, and a comment there anchors as one on a heading does. The copy anchors nothing,
+    since two passages with the same words and no context could not be told apart.
 
     A real drag, because the whole class of bug is text that looks selectable and
-    isn't. Then the republish, because an anchor on a widget's word has to survive a
+    isn't. Then the republish, because an anchor on a widget's name has to survive a
     version turning over the way one on a paragraph does."""
     page = open_page(browser, live_url(serve(CONTROL_LABEL_PAGE)))
 
     tab = page.get_by_role("tab", name="Heated bird bath")
-    box = tab.locator("[data-lf-said]").bounding_box()
+    expect(tab.locator(".lf-tab-name[data-lf-echo]")).to_have_text("Heated bird bath")
+    tab.click()
+    box = page.locator("#tab-bath > strong").bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 6, y), (box["x"] + box["width"] - 6, y))
 
@@ -605,10 +608,6 @@ def test_a_widgets_label_takes_a_comment_inside_the_control_it_labels(browser, s
     assert pending_text(page).strip() == "Heated bird bath", (
         "a drag across the tab's name selected nothing"
     )
-    # The drag ended on a button, and the button still switches tabs — but this mouseup
-    # was a selection's, not a press, so the user is still looking at what they were
-    # reading when they reached for the name.
-    expect(page.locator("#p-feeders")).to_be_visible()
 
     page.locator(".lf-fab-input").click()
     expect(page.locator(".lf-composer")).to_be_visible()
@@ -1450,8 +1449,8 @@ def test_code_copy_leaves_the_window_with_its_hidden_source(browser, serve, hold
     contents = (
         "<details><summary>Code</summary>" + source + "</details>"
         if holder == "disclosure"
-        else '<lf-tabs id="views"><lf-tab id="overview" label="Overview">'
-        '<p id="intro">Overview</p></lf-tab><lf-tab id="code" label="Code">'
+        else '<lf-tabs id="views"><lf-tab id="overview"><strong>Overview</strong>'
+        '<p id="intro">Overview</p></lf-tab><lf-tab id="code"><strong>Code</strong>'
         + source
         + "</lf-tab></lf-tabs>"
     )
@@ -3686,19 +3685,20 @@ def test_a_state_only_version_change_does_not_offer_an_empty_card(browser, serve
         """
         <h1>Board</h1>
         <lf-board id='board'>
-          <lf-column id='left' label='Left'>
+          <lf-column id='left'>
+            <strong>Left</strong>
             <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>
           </lf-column>
-          <lf-column id='right' label='Right'></lf-column>
+          <lf-column id='right'><strong>Right</strong></lf-column>
         </lf-board>
         """,
     )
     second = first.replace(
         "<lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
         "          </lf-column>\n"
-        "          <lf-column id='right' label='Right'></lf-column>",
+        "          <lf-column id='right'><strong>Right</strong></lf-column>",
         "</lf-column>\n"
-        "          <lf-column id='right' label='Right'>\n"
+        "          <lf-column id='right'>\n<strong>Right</strong>\n"
         "            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
         "          </lf-column>",
     )
@@ -4359,8 +4359,9 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
         """
 <h1 id="title">Review</h1>
 <lf-tabs id="views">
-  <lf-tab id="overview" label="Overview"><p>Start here.</p></lf-tab>
-  <lf-tab id="patch-tab" label="Patch">
+  <lf-tab id="overview"><strong>Overview</strong><p>Start here.</p></lf-tab>
+  <lf-tab id="patch-tab">
+    <strong>Patch</strong>
     <lf-diff id="patch" source="review-patch"></lf-diff>
   </lf-tab>
 </lf-tabs>
@@ -6263,8 +6264,8 @@ def test_a_search_match_whose_end_shows_is_brought_to_its_start(engine, request,
 # A page of four documents in tabs, the first open, each holding "needle" once.
 def _needles_in_tabs(serve):
     tabs = "".join(
-        f'<lf-tab id="t{i}" label="Doc {i}">'
-        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f'<lf-tab id="t{i}"><strong>Doc {i}</strong>'
+        f'<lf-text-document id="d{i}"><strong>doc-{i}.md</strong>'
         f"<pre>A line before.\nneedle {i}\nA line after.\n</pre></lf-text-document></lf-tab>"
         for i in range(4)
     )
@@ -6424,7 +6425,7 @@ def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser,
     stands unfinished, and its first slice takes a dozen steps (`__steps`)."""
     lines = "\n".join(f"Line {n}." for n in range(60))
     documents = "".join(
-        f'<lf-text-document id="d{i}" label="doc-{i}.md">'
+        f'<lf-text-document id="d{i}"><strong>doc-{i}.md</strong>'
         f"<pre>needle {i}\n{lines}\n</pre></lf-text-document>"
         for i in range(10)
     )

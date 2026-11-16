@@ -215,7 +215,9 @@ def build(inputs: list[Path]) -> str:
                 )
             owner[i] = source.name
         body = main_body(source, parsed)
-        tabs.append(f'<lf-tab id="corpus-{stem}" label="{label}">\n{body}\n</lf-tab>\n')
+        tabs.append(
+            f'<lf-tab id="corpus-{stem}">\n<strong>{label}</strong>\n{body}\n</lf-tab>\n'
+        )
 
     head = HEAD.replace("</head>", "\n".join(authored_assets) + "\n</head>")
     return head + "\n" + "\n".join(tabs) + "\n" + FOOT

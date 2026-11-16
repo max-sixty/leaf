@@ -1006,7 +1006,7 @@ class _ObligationReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
-            text = element_name(self.nodes[surface["attrs"]["id"]], self.registry)
+            text = element_name(self.nodes[surface["attrs"]["id"]])
             records.append(
                 {
                     "id": "widget:" + unit,

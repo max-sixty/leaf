@@ -31,7 +31,8 @@ ACCENT = """() => {
 }"""
 
 
-REPLY_SAMPLE = """<lf-sample id="reply-practice" label="Practice in a reply">
+REPLY_SAMPLE = """<lf-sample id="reply-practice">
+  <strong>Practice in a reply</strong>
   <template id="reply-practice-source" data-sample>
     <h1 id="reply-child-heading">Practice from a reply</h1>
     <lf-ask id="reply-child-ask"><h2>Which approach?</h2>
@@ -93,13 +94,15 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
                 "Inline samples",
                 """
       <h1>Delivery</h1>
-      <lf-sample id="working" interactive label="Working choices">
+      <lf-sample id="working" interactive>
+        <strong>Working choices</strong>
         <lf-options id="delivery" choose>
           <lf-option id="standard">Standard</lf-option>
           <lf-option id="express">Express</lf-option>
         </lf-options>
       </lf-sample>
-      <lf-sample id="quoted" label="Quoted choices">
+      <lf-sample id="quoted">
+        <strong>Quoted choices</strong>
         <lf-options id="quoted-delivery" choose>
           <lf-option id="quoted-standard">Standard</lf-option>
         </lf-options>
@@ -109,9 +112,9 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
         ),
     )
     sample = page.locator("#working")
-    # A working sample's note is its label alone; a quoted one opens with "quoted".
+    # A working sample's note is its name alone; a quoted one opens with "quoted".
     prefix = """sample => getComputedStyle(
-      sample.querySelector(':scope > [data-lf-said="label"]'), '::before'
+      sample.querySelector(':scope > strong:first-child'), '::before'
     ).content"""
     assert sample.evaluate(prefix) == '""'
     assert page.locator("#quoted").evaluate(prefix) == '"quoted · "'

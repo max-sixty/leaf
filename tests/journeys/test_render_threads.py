@@ -62,7 +62,8 @@ BARE_PAGE = leaf_page("doc-change", CHANGE_HEAD)
 CAPTURE_SAMPLE_PAGE = leaf_page(
     "Capture a live sample",
     """<h1>Capture a live sample</h1>
-<lf-sample id="capture-sample" label="practice">
+<lf-sample id="capture-sample">
+  <strong>practice</strong>
   <template id="capture-sample-page" data-sample>
     <h1>Practice</h1>
     <section id="child-paint" style="height:200px;background:rgb(200,40,40)"></section>

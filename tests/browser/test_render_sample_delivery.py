@@ -25,7 +25,8 @@ def test_a_reload_ends_a_sample_view_selection(browser, serve):
                 "Reloading sample",
                 """
 <h1>Containing page</h1>
-<lf-sample id="practice" label="Practice" window>
+<lf-sample id="practice" window>
+  <strong>Practice</strong>
   <template id="practice-source" data-sample><h1>Practice page</h1></template>
 </lf-sample>
 """,
@@ -110,7 +111,8 @@ def test_a_page_cache_round_trip_keeps_the_sample_connected(browser, serve):
                 """
 <h1>Containing page</h1>
 <div style="height: 150vh"></div>
-<lf-sample id="practice" label="Practice">
+<lf-sample id="practice">
+  <strong>Practice</strong>
   <template id="practice-source" data-sample><h1>Practice page</h1></template>
 </lf-sample>
 """,

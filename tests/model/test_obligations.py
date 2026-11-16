@@ -1063,7 +1063,7 @@ def test_an_element_is_named_as_the_browser_names_it(case):
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.authoring.content, "it")
     assert node is not None
-    assert element_name(node, case.get("registry", {})) == case["name"]
+    assert element_name(node) == case["name"]
 
 
 EXHIBITS = json.loads(

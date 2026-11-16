@@ -20,10 +20,11 @@ created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
-`name` is what the authoring contract calls it away from itself: the attribute its
-entry declares with `x-name`, else a leading `<summary>`, heading, or `<strong>`,
-inside a leading `<header>` or `<hgroup>` too — the rule the browser's `addressableName` reads off
-the live page, read here off the document the gesture was made in.
+`name` is what the authoring contract calls it away from itself: a leading `<summary>`,
+heading, or `<strong>`, inside a leading `<header>` or `<hgroup>` too — the rule the
+browser's `addressableName` reads off the live page, read here off the document the
+gesture was made in. A widget is named that way too, as a column by its leading
+`<strong>`.
 """
 
 from collections.abc import Callable
@@ -77,14 +78,12 @@ def leading_title(node: dict) -> str:
     return collapse(_text(title)) if title else ""
 
 
-def element_name(node: dict, registry: dict) -> str:
-    """What the authoring contract calls an element away from itself: the attribute
-    its entry declares with `x-name`, else its leading title, in the words the author
-    wrote. The browser's `addressableName` reads the same rule off the live page;
-    `tests/name_cases.json` holds both to the same cases."""
-    attribute = registry.get(node["tag"], {}).get("x-name")
-    declared = (node["attrs"].get(attribute) or "").strip() if attribute else ""
-    return declared or leading_title(node)
+def element_name(node: dict) -> str:
+    """What the authoring contract calls an element away from itself: its leading
+    title, in the words the author wrote. The browser's `addressableName` reads the
+    same rule off the live page; `tests/name_cases.json` holds both to the same
+    cases."""
+    return leading_title(node)
 
 
 def _nodes(content: list):
@@ -119,7 +118,7 @@ class _Document:
         }
 
     def name(self, node: dict) -> str:
-        return element_name(node, self.registry)
+        return element_name(node)
 
     @cached_property
     def marks(self) -> dict:

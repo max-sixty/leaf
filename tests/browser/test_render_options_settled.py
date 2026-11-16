@@ -40,12 +40,12 @@ def test_a_reconnected_settled_obligation_restores_its_comparison_reading(
     """Tabs and settled answers count the comparison, including after reconnection."""
     first = SETTLED_PAGE.replace(
         '<lf-ask id="transport-decision">',
-        '<lf-tabs id="views"><lf-tab id="decision" label="Decision">'
+        '<lf-tabs id="views"><lf-tab id="decision"><strong>Decision</strong>'
         '<lf-ask id="transport-decision">',
         1,
     ).replace(
         "</lf-ask>",
-        '</lf-ask></lf-tab><lf-tab id="notes" label="Notes">'
+        '</lf-ask></lf-tab><lf-tab id="notes"><strong>Notes</strong>'
         "<p>Notes.</p></lf-tab></lf-tabs>",
         1,
     )
@@ -82,12 +82,12 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     and still paints the next comparison: the failed reading stands, not the failure."""
     first = SETTLED_PAGE.replace(
         '<lf-ask id="transport-decision">',
-        '<lf-tabs id="views"><lf-tab id="decision" label="Decision">'
+        '<lf-tabs id="views"><lf-tab id="decision"><strong>Decision</strong>'
         '<lf-ask id="transport-decision">',
         1,
     ).replace(
         "</lf-ask>",
-        '</lf-ask></lf-tab><lf-tab id="notes" label="Notes">'
+        '</lf-ask></lf-tab><lf-tab id="notes"><strong>Notes</strong>'
         "<p>Notes.</p></lf-tab></lf-tabs>",
         1,
     )

@@ -58,8 +58,9 @@ so its items keep their top margins level.
 
 ## A page of parts
 
-Write one `lf-parts` in a `main` that carries no Layout, and give each `lf-part` one
-child carrying that part's Layout:
+Write one `lf-parts` in a `main` that carries no Layout. Open each `lf-part` with a
+`<header>` holding the `<strong>` that names it and a summary, then one child carrying
+that part's Layout:
 
 ```html
 <main>
@@ -67,10 +68,18 @@ child carrying that part's Layout:
     <h1>Floating comment panel</h1>
   </header>
   <lf-parts id="parts">
-    <lf-part id="try" label="Try" summary="The panel, live">
+    <lf-part id="try">
+      <header>
+        <strong>Try</strong>
+        <p>The panel, live</p>
+      </header>
       <div class="layout-workspace">…</div>
     </lf-part>
-    <lf-part id="proposal" label="Proposal" summary="What changes and why">
+    <lf-part id="proposal">
+      <header>
+        <strong>Proposal</strong>
+        <p>What changes and why</p>
+      </header>
       <article class="layout-column">…</article>
     </lf-part>
   </lf-parts>
@@ -78,9 +87,11 @@ child carrying that part's Layout:
 ```
 
 The page's `header` is the only element in `main` besides the parts. It appears at the
-top of a column along the window's left edge, followed by the list of parts, with each part's `summary`
-under its label. Each part takes the rest of the width from the top of the window, so
-a workspace part fills the window. Keep the header to the page's title, since it shares
+top of a column along the window's left edge, followed by the list of parts, which shows
+each part's header, the summary under the name. A name or summary may hold phrasing
+markup, such as a file name in `<code>` or a diffstat coloured by your own classes, but
+no link or control, since the list draws it inside a tab. Each part takes the rest of the width from the top of the window, so
+a workspace part fills the window. Keep the page's header to its title, since it shares
 the column's width. Give each part its own heading, and a column part its own contents
 outline.
 
@@ -185,8 +196,14 @@ grid of panes:
     <p><span class="tag warn">…</span></p>
   </header>
   <div id="regions">
-    <lf-pane id="log" label="Log">…</lf-pane>
-    <lf-pane id="chart" label="Chart">…</lf-pane>
+    <lf-pane id="log"
+      ><header><h2>Log</h2></header>
+      …</lf-pane
+    >
+    <lf-pane id="chart"
+      ><header><h2>Chart</h2></header>
+      …</lf-pane
+    >
   </div>
 </main>
 ```
@@ -220,9 +237,11 @@ For a queue of items decided one at a time, such as tickets or findings, make th
 one `lf-tabs list="side"` with an `lf-tab` per item, and put an `lf-tally` with `next`
 where the reader looks for the queue's state, such as the header. The list marks each
 tab's open obligations and the tally counts what is left, so write no script or count
-of your own, and don't state the count in prose or chips. Each item's `summary` shows under its label, so the user can choose an item
+of your own, and don't state the count in prose or chips. Open each item with a
+`<header>` holding the `<strong>` that names it and, after it, its summary, such as a
+`<p>`; the list shows that header, the summary under the name, so the user can choose an item
 without opening it. Start the summary with what the item is about, such as the problem
-a ticket reports, unless the label already says so, then what sets it apart from its
+a ticket reports, unless the name already says so, then what sets it apart from its
 neighbours, such as its age or suggested outcome. Leave out the item's group, which its
 heading shows. Where items fall into kinds the user works through in turn, such as
 merge, close and FYI, give each item its kind as `group` and place each kind's items

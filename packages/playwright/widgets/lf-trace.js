@@ -74,6 +74,7 @@
  * the disclosure and lands on its destination instead.
  */
 import {
+  addressableName,
   alreadyShown,
   generatedElement,
   dragging,
@@ -723,7 +724,7 @@ export class Trace extends LeafElement {
         return {
           index,
           target,
-          label: member.getAttribute("label"),
+          label: addressableName(member),
           key: member.getAttribute("key"),
         };
       },

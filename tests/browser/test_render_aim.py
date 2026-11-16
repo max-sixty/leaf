@@ -118,8 +118,8 @@ TAB_AIM_PAGE = leaf_page(
     """
 <h1>Review the route</h1>
 <lf-tabs id="aim-tabs">
-  <lf-tab id="aim-current" label="Current"><p>The current route is covered.</p></lf-tab>
-  <lf-tab id="aim-context" label="Context"><p>Rain moved the route.</p></lf-tab>
+  <lf-tab id="aim-current"><strong>Current</strong><p>The current route is covered.</p></lf-tab>
+  <lf-tab id="aim-context"><strong>Context</strong><p>Rain moved the route.</p></lf-tab>
 </lf-tabs>
 """,
 )
@@ -2598,7 +2598,7 @@ CONTROL_SHAPES = {
     # The page's file doesn't hold a tab's generated summary, so the anchor names the tab
     # and quotes nothing.
     "queue": (
-        '<lf-tabs id="queue" list="side"><lf-tab id="first" label="Primary" summary="pages"><p>Primary evidence.</p></lf-tab><lf-tab id="second" label="Backup" summary="pages"><p>Backup evidence.</p></lf-tab></lf-tabs>',
+        '<lf-tabs id="queue" list="side"><lf-tab id="first"><header><strong>Primary</strong><p>pages</p></header><p>Primary evidence.</p></lf-tab><lf-tab id="second"><header><strong>Backup</strong><p>pages</p></header><p>Backup evidence.</p></lf-tab></lf-tabs>',
         "#queue [role=tab] .lf-tab-summary",
         [("Primary", None), ("Backup", None)],
     ),
@@ -3172,9 +3172,9 @@ def test_the_legend_reads_no_style_in_a_closed_tab(browser, serve):
         serve(
             leaf_page(
                 "Tabs",
-                '<lf-tabs id="views"><lf-tab id="one" label="One">'
+                '<lf-tabs id="views"><lf-tab id="one"><strong>One</strong>'
                 '<p id="open-words">Words in the open tab.</p></lf-tab>'
-                '<lf-tab id="two" label="Two"><p id="closed-words" '
+                '<lf-tab id="two"><strong>Two</strong><p id="closed-words" '
                 'style="border-radius: 6px">Words in the closed tab.</p></lf-tab>'
                 "</lf-tabs>",
             )
@@ -3221,7 +3221,7 @@ def test_a_design_part_s_spoken_name_says_the_words_beside_it(browser, serve):
                 "Keep</button> after it.</p></section>"
                 '<section id="checks"><p><button type="button" aria-label="Canary check">'
                 "Canary check 0 of 47 real</button></p></section>"
-                '<lf-text-document id="doc" label="notes.txt">'
+                '<lf-text-document id="doc"><strong>notes.txt</strong>'
                 f"<pre>{lines}</pre></lf-text-document>",
             )
         ),
@@ -3870,9 +3870,9 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
                 '<button id="named">Named control</button><span id="component"></span>'
                 '<label class="lf-choice"><input id="pick" type="checkbox">Keep this choice</label>'
                 '<section><lf-tabs id="views">'
-                '<lf-tab id="view-a" label="First">First panel</lf-tab>'
-                '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
-                '</lf-tabs></section><lf-pane id="pane" label="Findings">'
+                '<lf-tab id="view-a"><strong>First</strong>First panel</lf-tab>'
+                '<lf-tab id="view-b"><strong>Second</strong>Second panel</lf-tab>'
+                '</lf-tabs></section><lf-pane id="pane" aria-label="Findings">'
                 '<div id="pane-body" style="height:160px;overflow:auto">'
                 '<p style="height:400px">The pane scrolls.</p></div></lf-pane>',
             )
@@ -4133,8 +4133,8 @@ COMPOSER_ATTACHMENT_PAGE = leaf_page(
 <h2 id="second">Second section</h2><p>Another section gives the contents outline destinations.</p>
 <details id="disclosure" open><summary>Disclosure</summary><p id="detail-word" tabindex="0">A comment target inside a disclosure.</p></details>
 <section id="tabbed-section"><h2 id="views-title">A tabbed section</h2>
-<lf-tabs id="views"><lf-tab id="active-view" label="First view"><p id="tab-word" tabindex="0">A comment target in the first view.</p></lf-tab>
-<lf-tab id="other-view" label="Other view"><p>The other view can appear without closing a draft.</p></lf-tab></lf-tabs></section>
+<lf-tabs id="views"><lf-tab id="active-view"><strong>First view</strong><p id="tab-word" tabindex="0">A comment target in the first view.</p></lf-tab>
+<lf-tab id="other-view"><strong>Other view</strong><p>The other view can appear without closing a draft.</p></lf-tab></lf-tabs></section>
 <p id="offscreen-word" tabindex="0">A comment target whose paragraph can scroll away.</p>
 <p id="quote-holder" style="height:72px;overflow:auto">Quoted words stay attached to this paragraph.<br>
  More lines inside its reading region.<br> More lines inside its reading region.<br> More lines inside its reading region.<br>
@@ -4345,7 +4345,7 @@ DESIGN_PANE_PAGE = leaf_page(
     "design paint in a pane",
     """
   <div id="design-split">
-    <lf-pane id="design-pane" label="Findings">
+    <lf-pane id="design-pane" aria-label="Findings">
       <div>
         <div style="height: 100px"></div>
         <p id="pane-target" style="height: 260px">The first finding, named.</p>
@@ -4353,7 +4353,7 @@ DESIGN_PANE_PAGE = leaf_page(
         <div style="height: 1600px"></div>
       </div>
     </lf-pane>
-    <lf-pane id="other-pane" label="Notes"><div><p id="note">Notes.</p></div></lf-pane>
+    <lf-pane id="other-pane" aria-label="Notes"><div><p id="note">Notes.</p></div></lf-pane>
   </div>""",
     head=regions_side_by_side("design-split"),
     layout="workspace",

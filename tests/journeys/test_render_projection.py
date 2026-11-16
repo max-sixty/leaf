@@ -742,7 +742,7 @@ def test_a_moved_card_identifies_its_user_origin_across_tabs(browser, serve):
     # no-ops against it and the mark has nothing left to say.
     d = serve.page_dir
     honored = REPLAYED_PAGE.replace(IMPORTER_CARD, "").replace(
-        'label="Done">', f'label="Done">{IMPORTER_CARD}'
+        "<strong>Done</strong>", f"<strong>Done</strong>{IMPORTER_CARD}"
     )
     stamp_page(d, honored, "t")
     third = open_page(browser, url.replace("v1.html", "v2.html"))

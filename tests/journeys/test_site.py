@@ -1327,7 +1327,8 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
 def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, browser):
     """Opaque children retain working state and display authenticated uploaded bytes."""
     source = """<!doctype html><html><head><title>Sample state</title></head><body><main>
-      <lf-sample id="practice" label="practice page">
+      <lf-sample id="practice">
+        <strong>practice page</strong>
         <template id="practice-page" data-sample><p id="copy">Practice here.</p></template>
       </lf-sample>
     </main></body></html>"""
@@ -1727,7 +1728,8 @@ def test_what_a_user_leaves_on_one_page_stays_on_it(served_example, browser):
 def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
     """A healthy contained page may present after an arbitrarily slow state read."""
     url = serve("""<!doctype html><html><head><title>Slow sample</title></head><body><main>
-      <lf-sample id="practice" label="practice page">
+      <lf-sample id="practice">
+        <strong>practice page</strong>
         <template id="practice-page" data-sample><p id="copy">Practice here.</p></template>
       </lf-sample>
     </main></body></html>""")

@@ -437,10 +437,10 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     body = writing + reading
     if hidden_tab:
         body = (
-            '<lf-tabs id="views"><lf-tab id="writing-view" label="Writing">'
+            '<lf-tabs id="views"><lf-tab id="writing-view"><strong>Writing</strong>'
             + writing
             + '<div style="height:3300px"></div>'
-            '</lf-tab><lf-tab id="reading-view" label="Reading">'
+            '</lf-tab><lf-tab id="reading-view"><strong>Reading</strong>'
             + reading
             + "</lf-tab></lf-tabs>"
         )

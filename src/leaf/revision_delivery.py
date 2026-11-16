@@ -462,12 +462,13 @@ def mark_declared(
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names
-        # (`x-prepaint`), first paint as the rendering their module will draw.
+        # (`x-prepaint`), first paint as the rendering their module will draw, in the
+        # `<pre>`'s place, after the name the element opens with.
         words = declaration.get("x-text-format") == "markdown"
         prepaint = declaration.get("x-prepaint")
         file = bool(prepaint) and attrs.get(prepaint) == "markdown"
         pre = element.select_one(":scope > pre") if words or file else None
-        if pre is not None:
+        if pre is not None and (pre_location := pre.source_location) is not None:
             text = "".join(
                 child.data
                 for child in pre.children
@@ -478,9 +479,10 @@ def mark_declared(
                 if words
                 else ""
             )
+            start = pre_location.start_tag
             edits.append(
                 (
-                    index(location.start_tag.end_line, location.start_tag.end_col),
+                    index(start.start_line, start.start_col),
                     (
                         '<div class="lf-markdown-body" data-lf-prepaint data-lf-gen="1"'
                         f"{source_words}>{markdown_markup(text)}</div>"

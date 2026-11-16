@@ -1311,9 +1311,10 @@ def test_a_focus_stop_leaves_the_pictures_it_holds_commentable(browser, serve):
         "focusable holders",
         """
 <h1 id="top">Focusable holders</h1>
-<lf-tabs id="tabs"><lf-tab id="first" label="First">
+<lf-tabs id="tabs"><lf-tab id="first">
+<strong>First</strong>
 <figure id="tabbed"><svg viewBox="0 0 20 20" width="40" height="40"><circle cx="10" cy="10" r="8" /></svg></figure>
-</lf-tab><lf-tab id="second" label="Second"><p>More.</p></lf-tab></lf-tabs>
+</lf-tab><lf-tab id="second"><strong>Second</strong><p>More.</p></lf-tab></lf-tabs>
 <div id="stage" role="application" tabindex="0" aria-label="Stage">
 <lf-diagram id="flow" parts="all"><pre>
 graph LR

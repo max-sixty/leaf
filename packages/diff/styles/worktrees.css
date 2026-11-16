@@ -116,6 +116,11 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
   font-weight: 600;
   overflow-wrap: anywhere;
 }
+/* The name is the <strong> the page wrote, slotted here (worktree-view.js), so it takes
+   the row's weight rather than its own. */
+.lf-worktree-label > slot::slotted(*) {
+  font-weight: inherit;
+}
 
 .lf-worktree-ref {
   font: var(--lf-font-code);

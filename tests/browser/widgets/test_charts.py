@@ -561,8 +561,8 @@ def test_a_chart_in_a_shut_tab_draws_when_the_tab_opens(browser, serve):
         leaf_page(
             "chart in a shut tab",
             '<h1 id="t">Views</h1><lf-tabs id="views">'
-            '<lf-tab id="words" label="Words"><p id="p">Some words.</p></lf-tab>'
-            '<lf-tab id="numbers" label="Numbers">'
+            '<lf-tab id="words"><strong>Words</strong><p id="p">Some words.</p></lf-tab>'
+            '<lf-tab id="numbers"><strong>Numbers</strong>'
             f"{chart_markup('tab-chart', MESSAGE_CHART)}</lf-tab></lf-tabs>",
         )
     )
@@ -599,8 +599,8 @@ def test_a_chart_first_laid_out_on_paper_draws_at_its_stated_height(browser, ser
         leaf_page(
             "chart printed from a shut tab",
             '<h1 id="t">Views</h1><lf-tabs id="views">'
-            '<lf-tab id="words" label="Words"><p id="p">Some words.</p></lf-tab>'
-            '<lf-tab id="numbers" label="Numbers">'
+            '<lf-tab id="words"><strong>Words</strong><p id="p">Some words.</p></lf-tab>'
+            '<lf-tab id="numbers"><strong>Numbers</strong>'
             + chart_markup("tab-chart", MESSAGE_CHART).replace(
                 '<lf-chart id="tab-chart">',
                 '<lf-chart id="tab-chart" data-height="200">',
@@ -1184,9 +1184,9 @@ def test_a_reading_stays_while_the_pointer_crosses_onto_it_past_the_chart(
     chart_in = (
         TALL
         if where == "page"
-        else '<lf-tabs id="views"><lf-tab id="tasks" label="Tasks"><p id="words"'
+        else '<lf-tabs id="views"><lf-tab id="tasks"><strong>Tasks</strong><p id="words"'
         ' style="height: 200px">The panel\'s words above its chart.</p>'
-        f'{TALL}</lf-tab><lf-tab id="other" label="Other"><p>Other words.</p>'
+        f'{TALL}</lf-tab><lf-tab id="other"><strong>Other</strong><p>Other words.</p>'
         "</lf-tab></lf-tabs>"
     )
     page = open_page(

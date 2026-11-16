@@ -55,22 +55,19 @@
     "name": "Migration"
   },
   {
-    "id": "the x-name attribute names its element",
-    "registry": { "lf-column": { "x-name": "label" } },
-    "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card><strong>A</strong></lf-card></lf-column>",
+    "id": "a widget is named by its leading strong",
+    "markup": "<lf-column id=\"it\"><strong>Ready</strong><lf-card><strong>A</strong></lf-card></lf-column>",
     "name": "Ready"
   },
   {
-    "id": "the x-name attribute comes before a heading",
-    "registry": { "lf-column": { "x-name": "label" } },
-    "markup": "<lf-column id=\"it\" label=\"Ready\"><h3>Later</h3></lf-column>",
-    "name": "Ready"
+    "id": "a name's markup is read as its words",
+    "markup": "<lf-part id=\"it\"><header><strong><code>README.md</code></strong><p><span class=\"added\">+120</span> <span class=\"removed\">−45</span> lines</p></header><article><p>Body.</p></article></lf-part>",
+    "name": "README.md"
   },
   {
-    "id": "without its attribute an element takes its heading",
-    "registry": { "lf-column": { "x-name": "label" } },
-    "markup": "<lf-column id=\"it\"><h3>Later</h3></lf-column>",
-    "name": "Later"
+    "id": "a leading name comes before a heading",
+    "markup": "<lf-tab id=\"it\"><strong>Ready</strong><h3>Later</h3></lf-tab>",
+    "name": "Ready"
   },
   {
     "id": "an attribute shown first is not a name",

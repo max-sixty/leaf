@@ -423,7 +423,7 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
 
     def column(b: int, name: str, count: int) -> str:
         return (
-            f'<lf-column id="b{b}-{name}" label="{name.title()}">'
+            f'<lf-column id="b{b}-{name}"><strong>{name.title()}</strong>'
             + "".join(
                 f'<lf-card id="b{b}-{name}{j}"><strong>Card {j}</strong> of board {b}.'
                 "</lf-card>"
@@ -480,7 +480,7 @@ def document_lines(n: int) -> str:
         "</lf-options></lf-ask>"
     )
     document = (
-        '<lf-text-document id="listing" label="steps.py" language="python">'
+        '<lf-text-document id="listing" language="python"><strong>steps.py</strong>'
         f"<pre>{steps(n * 32)}</pre></lf-text-document>"
     )
     return page("Document", question + document)
@@ -503,8 +503,8 @@ def side_documents(n: int) -> str:
     syntax colour paints most words, as the colour a tab keeps is what `browse`
     reads."""
     tabs = "".join(
-        f'<lf-tab id="t{d}" label="Document {d}"><lf-text-document id="d{d}" '
-        f'source="s{d}" label="document_{d}.py" language="python"></lf-text-document>'
+        f'<lf-tab id="t{d}"><strong>Document {d}</strong><lf-text-document id="d{d}" '
+        f'source="s{d}" language="python"><strong>document_{d}.py</strong></lf-text-document>'
         "</lf-tab>"
         for d in range(documents(n))
     )

@@ -30,6 +30,11 @@ export { rankAt } from "./projection/model.js";
 export { fragmentTarget, projectedDatum } from "./anchor-resolution.js";
 export { fragmentUrl } from "./anchor-coordinate.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
+// An element's name is its markup, as a section's is its heading: `leadingTitle(element)`
+// is the element holding it, here kept with the page reading as Leaf's own readers keep
+// it, `addressableName(element)` its words for a place that takes only text, and
+// `echoCopy(node, after)` a copy of a node's markup to draw the name elsewhere.
+export { addressableName, echoCopy, leadingTitle } from "./addressable-names.js";
 // `titledElement(heading)`: the element a heading titles, the outermost one that opens
 // with it, which a count per heading counts under that heading.
 export { titledElement } from "./addressable-names.js";

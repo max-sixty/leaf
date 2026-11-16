@@ -215,7 +215,7 @@ def queue_board_registry(registry: dict) -> dict:
     registry["lf-board"]["x-awaits"] = {
         "value": "move",
         "answered": {
-            "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
+            "move": {"empty": {"within": "lf-column", "when": {"id": ["queue"]}}}
         },
     }
     return registry
@@ -1189,8 +1189,8 @@ def _board(todo, done):
 
     return (
         '<lf-board id="b1">'
-        f'<lf-column id="c-todo" label="Todo">{"".join(map(card, todo))}</lf-column>'
-        f'<lf-column id="c-done" label="Done">{"".join(map(card, done))}</lf-column>'
+        f'<lf-column id="c-todo"><strong>Todo</strong>{"".join(map(card, todo))}</lf-column>'
+        f'<lf-column id="c-done"><strong>Done</strong>{"".join(map(card, done))}</lf-column>'
         "</lf-board>"
     )
 

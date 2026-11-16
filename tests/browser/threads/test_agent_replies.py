@@ -937,9 +937,9 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             "parent": root,
             "responds": root,
             "text": "Here is the board.",
-            "markup": '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
+            "markup": '<lf-board id="fb"><lf-column id="fb-todo"><strong>To do</strong>'
             '<lf-card id="fb-cache"><strong>Cache</strong></lf-card></lf-column>'
-            '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
+            '<lf-column id="fb-done"><strong>Done</strong></lf-column></lf-board>',
         },
     )
     page = open_page(browser, url)

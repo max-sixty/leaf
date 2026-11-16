@@ -34,9 +34,23 @@ To name an element elsewhere, such as in a feed row, use `addressableLabel(eleme
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets
-an empty label, and `addressableWord(element)` gives the word for its kind instead. A
-widget whose title is an attribute, as a column's `label` is, declares it with
-`x-name`.
+an empty label, and `addressableWord(element)` gives the word for its kind instead.
+
+An element's name is markup it opens with: a section's heading, a disclosure's
+`<summary>`, or a `<strong>`, looked for inside a leading `<header>` or `<hgroup>` too.
+A widget is named that way, as a column by its leading `<strong>`, so give your widget's
+authors the same instruction rather than a name attribute. `leadingTitle(element)` is
+the element holding the name, or null; `addressableName(element)` is its words, for a
+place that takes only text, such as an `aria-label`, a native `<option>` or an
+announcement. To show the name away from its element, as a tab strip shows each panel's,
+draw `echoCopy(leadingTitle(element))`, a copy of its markup without ids or generated
+words, inside a box marked `generated({ says: "echo" })`, so a comment on the words
+anchors where the page says them. `echoCopy(header, title)` copies only what a header
+holds after its title, as a tab copies its panel's summary. A widget that draws a copy
+in place of the name keeps the name in its element, hidden if need be, so every reading
+of the name still finds it there. A copy inside a control nests whatever the name
+holds in it, so draw it only where the name is phrasing; `page check` refuses a link,
+control or widget in a view's header, which its tab copies.
 
 `titledElement(heading)` is the element a heading titles: the outermost element whose
 first heading it is, such as its `hgroup`, the question it opens and a `section`
@@ -45,8 +59,8 @@ wrapping that question; where it titles no element, the heading itself. A `secti
 wrapper; any other element only where every other heading inside ranks below it, no
 words stand before it outside a `header` or `hgroup`, and each element between them
 takes it too.
-An element whose `x-name` attribute names it, such as a tab, is not titled by a heading
-inside it. Every element between the two is titled by the heading too. `lf-toc` links
+An element named by a `<strong>` it opens with, such as a tab, is not titled by a
+heading after it. Every element between the two is titled by the heading too. `lf-toc` links
 each heading to one of them, and a heading's link preview counts a thread about any of
 them. The headings that count are those the reading of its document lists, the page's
 or a message's, Leaf's chrome aside, and "first" means first in reading order, which

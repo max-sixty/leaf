@@ -143,7 +143,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     source = (
         leaf_page(
             "Inline task thread",
-            '<h1 id="title">Before the frost</h1><lf-test-plan id="jobs" label="Jobs">'
+            '<h1 id="title">Before the frost</h1><lf-test-plan id="jobs"><strong>Jobs</strong>'
             '<lf-test-task id="bracket" status="active" talk>'
             "<strong>Which jobs can share a visit?</strong></lf-test-task></lf-test-plan>",
         )

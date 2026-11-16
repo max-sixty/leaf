@@ -414,8 +414,8 @@ FOLDED = leaf_page(
 <p id="first">The first goes.</p><p id="k">Kappa stays.</p><p id="last">The last goes.</p>
 </details>
 <p id="d">Delta reads one way.</p>
-<lf-tabs id="views"><lf-tab id="notes" label="Notes"><p id="note">The only note goes.</p>
-</lf-tab><lf-tab id="others" label="Others"><p id="other">Another stays.</p></lf-tab></lf-tabs>
+<lf-tabs id="views"><lf-tab id="notes"><strong id="notes-name">Notes</strong><p id="note">The only note goes.</p>
+</lf-tab><lf-tab id="others"><strong>Others</strong><p id="other">Another stays.</p></lf-tab></lf-tabs>
 <div id="pane" class="lf-scroll" style="max-height: 8rem; overflow-y: auto">
 <p id="lead">The lead goes.</p><p id="tall">{TALL}</p></div>
 <p id="long">{LONG}</p>
@@ -428,7 +428,7 @@ GAPS = """() => Object.fromEntries(
     return [`${bar.dataset.lfGap} ${bar.dataset.lfFor}`, [box.top, box.bottom]];
   }),
 )"""
-EDGES = """() => Object.fromEntries(['a', 'more', 's', 'k', 'notes'].map((id) => {
+EDGES = """() => Object.fromEntries(['a', 'more', 's', 'k', 'notes-name'].map((id) => {
   const box = document.getElementById(id).getBoundingClientRect();
   return [id, [box.top, box.bottom]];
 }))"""
@@ -443,8 +443,8 @@ def test_a_removal_stands_in_the_part_of_the_page_it_left(browser, serve):
     of the page it stood in: the paragraph before a `details` stands before the
     `details`, not inside it; the last paragraph of the `details` stands inside it,
     after the block it followed, even where the paragraph after the `details` was
-    rewritten and a new element wraps them both; and a tab's only paragraph stands in
-    that tab, which counts it. The walk stops on each gap's stand-in, two gaps beside
+    rewritten and a new element wraps them both; and a tab's only paragraph stands
+    after the tab's name, in the tab, which counts it. The walk stops on each gap's stand-in, two gaps beside
     one block included, and rings the gap, bringing it into view past a block taller
     than the window or inside a scroller, and opening a `details` only for a gap inside
     it. Each of the two entries beside one block outlines its own gap."""
@@ -492,7 +492,7 @@ def test_a_removal_stands_in_the_part_of_the_page_it_left(browser, serve):
 
     # A bar stands only while its block is near the window.
     page.evaluate("() => scrollTo(0, 0)")
-    near = ["after k", "before k", "before more", "in notes"]
+    near = ["after k", "before k", "before more", "after notes-name"]
     for gap in near:
         side, at = gap.split()
         expect(
@@ -501,13 +501,13 @@ def test_a_removal_stands_in_the_part_of_the_page_it_left(browser, serve):
     gaps, edges = page.evaluate(GAPS), page.evaluate(EDGES)
     assert set(near) <= set(gaps), gaps
     a, more, summary, kappa, notes = (
-        edges[key] for key in ("a", "more", "s", "k", "notes")
+        edges[key] for key in ("a", "more", "s", "k", "notes-name")
     )
     # Each bar stands between the boxes on either side of its gap, or in its element.
     assert a[1] - 1 <= gaps["before more"][0] and gaps["before more"][1] <= more[0] + 1
     assert summary[1] - 1 <= gaps["before k"][0] and gaps["before k"][1] <= kappa[0] + 1
     assert kappa[1] - 1 <= gaps["after k"][0] and gaps["after k"][1] <= more[1] + 1
-    assert notes[0] - 1 <= gaps["in notes"][0]
+    assert notes[1] - 1 <= gaps["after notes-name"][0]
 
     outline = page.locator(".lf-change-outline:not(.lf-change-ring)")
     entries = page.locator('[data-lf-margin-for="k"] [data-lf-kinds~="change"]')

@@ -130,16 +130,11 @@
   },
   "lf-text-document": {
     "description": "Text written in the page, or from page data or a widget output, with numbered lines, syntax coloring, and an optional Markdown or HTML preview.",
-    "x-instructions": "Write text that belongs to this version of the page, such as a passage you quote, in the `<pre>`, HTML-escaped (& before < and >), and name where it comes from with `label`. HTML drops a newline right after `<pre>`; every other character is part of the text. For text that changes apart from the page, bind `source` to the page's data source, or `for` to a widget publishing a `document` output, leave out the `<pre>`, and name the file with `label`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. A Markdown preview of text written in the `<pre>` takes its rendered height up to `--lf-bound`, 28rem by default, and its Source tab shows as much of the source as that height holds, with a press for the rest. Other documents, such as bound ones, whose text arrives after the page first paints, scroll inside a box that tall however long the text. To start it collapsed, put it inside `details`.\n\n## Refreshing a source\n\nA Markdown file bound to a source:\n\n```html\n<lf-text-document\n  id=\"skill-source\"\n  source=\"leaf-skill\"\n  label=\"SKILL.md\"\n  preview=\"markdown\"\n></lf-text-document>\n```\n\nSet the source to one JSON string. For a whole file:\n\n```bash\njq -Rs . SKILL.md | leaf data set <page> leaf-skill\n```\n\nFor a selected line range instead:\n\n```bash\nsed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill\n```\n\nRun the pipeline again to refresh the open page. `references/authoring-evidence.md`,\n\"Source files and media\", owns when evidence follows a source and when it keeps a snapshot.",
-    "x-name": "label",
+    "x-instructions": "Write text that belongs to this version of the page, such as a passage you quote, in the `<pre>`, HTML-escaped (& before < and >), and name where it comes from with a `<strong>` before it, which the document's bar shows. HTML drops a newline right after `<pre>`; every other character is part of the text. For text that changes apart from the page, bind `source` to the page's data source, or `for` to a widget publishing a `document` output, leave out the `<pre>`, and name the file with a `<strong>`. Set `preview` to `markdown` or `html` to add Preview and Source tabs over the same text. `language` colors the source, and defaults to the preview's language. An HTML preview is a separate document that inherits no Leaf styles, and comments can't reach inside it, so the user comments on the source. A Markdown preview of text written in the `<pre>` takes its rendered height up to `--lf-bound`, 28rem by default, and its Source tab shows as much of the source as that height holds, with a press for the rest. Other documents, such as bound ones, whose text arrives after the page first paints, scroll inside a box that tall however long the text. To start it collapsed, put it inside `details`.\n\n## Refreshing a source\n\nA Markdown file bound to a source:\n\n```html\n<lf-text-document\n  id=\"skill-source\"\n  source=\"leaf-skill\"\n  preview=\"markdown\"\n><strong>SKILL.md</strong></lf-text-document>\n```\n\nSet the source to one JSON string. For a whole file:\n\n```bash\njq -Rs . SKILL.md | leaf data set <page> leaf-skill\n```\n\nFor a selected line range instead:\n\n```bash\nsed -n '71,102p' SKILL.md | jq -Rs . | leaf data set <page> leaf-skill\n```\n\nRun the pipeline again to refresh the open page. `references/authoring-evidence.md`,\n\"Source files and media\", owns when evidence follows a source and when it keeps a snapshot.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
       "source": { "type": "string" },
-      "label": {
-        "type": "string",
-        "minLength": 1
-      },
       "preview": {
         "type": "string",
         "enum": ["markdown", "html"]
@@ -165,15 +160,7 @@
     "x-prepaint": "preview",
     "x-bound": "start",
     "x-upgrade": true,
-    "x-example": "<lf-text-document id=\"changelog-fix\" label=\"CHANGELOG.md\" preview=\"markdown\"><pre>**Fixed** a crash when `--config` names a missing file.</pre></lf-text-document>",
-    "if": {
-      "not": {
-        "anyOf": [{ "required": ["source"] }, { "required": ["for"] }]
-      }
-    },
-    "then": {
-      "required": ["label"]
-    },
+    "x-example": "<lf-text-document id=\"changelog-fix\" preview=\"markdown\"><strong>CHANGELOG.md</strong><pre>**Fixed** a crash when `--config` names a missing file.</pre></lf-text-document>",
     "x-refers": {
       "for": {}
     }
@@ -420,7 +407,7 @@
   },
   "lf-board": {
     "description": "Cards grouped into columns for scanning work and status, with movement and reordering available.",
-    "x-instructions": "Use a board to show grouped work and status. When the user must make decisions, give them explicit controls or `lf-options` rather than relying on moving cards. When revising, place each card in the column and rank `state` gives it (`$state` defines ranks), unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").\n\n## One answer in its section and on a board\n\nFor this composition, read the `lf-options` and `lf-option` instructions too.\n\nWhen the user answers proposals beside their cases and also needs every answer in one\nview to compare or rearrange, keep each answer in its section's `lf-options` and add a\nboard whose cards show those answers, rather than asking twice. Give each option a\n`value` naming the answer it gives, in words every section shares, and the board one\ncolumn per value with that `value`, plus one column without a value for proposals not\nyet answered or answered in the user's own words. Each card's `shows` names its\nsection's group, and the card appears in the column matching that group's selected value:\n\n```html\n<lf-options id=\"rail-choice\" choose>\n  <lf-option id=\"rail-next\" value=\"next\">Next</lf-option>\n  <lf-option id=\"rail-later\" value=\"later\">Later</lf-option>\n</lf-options>\n<!-- … the other proposals' sections … -->\n<lf-board id=\"plan\">\n  <lf-column id=\"plan-open\" label=\"Undecided\">\n    <lf-card id=\"plan-rail\" shows=\"rail-choice\"><strong>Keep the rail</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"plan-next\" label=\"Next\" value=\"next\"></lf-column>\n  <lf-column id=\"plan-later\" label=\"Later\" value=\"later\"></lf-column>\n</lf-board>\n```\n\nA drop on the board answers through the group, so the page holds one answer, which\nUndo and `restated` take back in both views. When a revision writes the user's pick\ninto the group, move the card to that pick's column too. A card that shows an answer\nkeeps the order you wrote it in; where the order within a column is itself the user's\ncall, ask for it as its own question.",
+    "x-instructions": "Use a board to show grouped work and status. When the user must make decisions, give them explicit controls or `lf-options` rather than relying on moving cards. When revising, place each card in the column and rank `state` gives it (`$state` defines ranks), unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").\n\n## One answer in its section and on a board\n\nFor this composition, read the `lf-options` and `lf-option` instructions too.\n\nWhen the user answers proposals beside their cases and also needs every answer in one\nview to compare or rearrange, keep each answer in its section's `lf-options` and add a\nboard whose cards show those answers, rather than asking twice. Give each option a\n`value` naming the answer it gives, in words every section shares, and the board one\ncolumn per value with that `value`, plus one column without a value for proposals not\nyet answered or answered in the user's own words. Each card's `shows` names its\nsection's group, and the card appears in the column matching that group's selected value:\n\n```html\n<lf-options id=\"rail-choice\" choose>\n  <lf-option id=\"rail-next\" value=\"next\">Next</lf-option>\n  <lf-option id=\"rail-later\" value=\"later\">Later</lf-option>\n</lf-options>\n<!-- … the other proposals' sections … -->\n<lf-board id=\"plan\">\n  <lf-column id=\"plan-open\">\n    <strong>Undecided</strong>\n    <lf-card id=\"plan-rail\" shows=\"rail-choice\"><strong>Keep the rail</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"plan-next\" value=\"next\"><strong>Next</strong></lf-column>\n  <lf-column id=\"plan-later\" value=\"later\"><strong>Later</strong></lf-column>\n</lf-board>\n```\n\nA drop on the board answers through the group, so the page holds one answer, which\nUndo and `restated` take back in both views. When a revision writes the user's pick\ninto the group, move the card to that pick's column too. A card that shows an answer\nkeeps the order you wrote it in; where the order within a column is itself the user's\ncall, ask for it as its own question.",
     "type": "object",
     "properties": {
       "id": { "type": "string" }
@@ -439,18 +426,14 @@
       }
     },
     "x-space": "available",
-    "x-example": "<lf-board id=\"feeder-board\">\n  <lf-column id=\"col-todo\" label=\"To do\">\n    <lf-card id=\"card-heater\"><strong>Heated perch</strong> Wire the south feeder.</lf-card>\n    <lf-card id=\"card-baffle\"><strong>Squirrel baffle</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-doing\" label=\"Doing\">\n    <lf-card id=\"card-camera\"><strong>Camera mount</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-done\" label=\"Done\"></lf-column>\n</lf-board>"
+    "x-example": "<lf-board id=\"feeder-board\">\n  <lf-column id=\"col-todo\">\n    <strong>To do</strong>\n    <lf-card id=\"card-heater\"><strong>Heated perch</strong> Wire the south feeder.</lf-card>\n    <lf-card id=\"card-baffle\"><strong>Squirrel baffle</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-doing\">\n    <strong>Doing</strong>\n    <lf-card id=\"card-camera\"><strong>Camera mount</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-done\"><strong>Done</strong></lf-column>\n</lf-board>"
   },
   "lf-column": {
     "description": "One named board column, including empty columns the user can move a card into.",
-    "x-instructions": "Write a label that names the column on its own. Use tone when landing here carries a status judgment, such as blocked, needing review, or done; otherwise leave it neutral. On a board whose cards show answers, `value` names the answer the column holds, and a column without one holds the answers that name none.",
-    "x-name": "label",
+    "x-instructions": "Open the column with a `<strong>` that names it on its own. Use tone when landing here carries a status judgment, such as blocked, needing review, or done; otherwise leave it neutral. On a board whose cards show answers, `value` names the answer the column holds, and a column without one holds the answers that name none.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
-      "label": {
-        "type": "string"
-      },
       "tone": {
         "type": "string"
       },
@@ -459,15 +442,12 @@
         "pattern": "^[a-z0-9][a-z0-9-]*$"
       }
     },
-    "required": ["id", "label"],
+    "required": ["id"],
     "additionalProperties": false,
     "x-owners": ["lf-board"],
     "x-content": "members",
     "x-tone": "tone",
-    "x-upgrade": false,
-    "x-says": {
-      "label": "before"
-    }
+    "x-upgrade": false
   },
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
@@ -511,7 +491,7 @@
     "x-upgrade": true,
     "x-patch": "members",
     "x-views": { "members": "lf-tab" },
-    "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
+    "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\">\n    <strong>Implementation</strong>\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\">\n    <strong>Vision</strong>\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
     "description": "A count of the open obligations in one region, such as the decisions left in a queue, split into those waiting on the user and those waiting on the agent, with an optional control that goes to the next one waiting on the user.",
@@ -533,26 +513,19 @@
     },
     "x-upgrade": true,
     "x-shadow": true,
-    "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\" label=\"Retry storm\">\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\" label=\"Stale flag\">\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
+    "x-example": "<header>\n  <h1>Release triage</h1>\n  <p><lf-tally id=\"triage-left\" for=\"triage-queue\" next></lf-tally></p>\n</header>\n<lf-tabs id=\"triage-queue\" list=\"side\">\n  <lf-tab id=\"triage-retries\">\n    <strong>Retry storm</strong>\n    <lf-ask id=\"retries-ask\">\n      <h3>Ship the retry cap?</h3>\n      <lf-options id=\"retries-choice\" choose>\n        <lf-option id=\"retries-ship\">Ship the retry cap</lf-option>\n        <lf-option id=\"retries-hold\">Canary the retry cap first</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n  <lf-tab id=\"triage-flag\">\n    <strong>Stale flag</strong>\n    <lf-ask id=\"flag-ask\">\n      <h3>Remove the flag?</h3>\n      <lf-options id=\"flag-choice\" choose>\n        <lf-option id=\"flag-remove\">Remove the stale flag</lf-option>\n        <lf-option id=\"flag-keep\">Keep the flag for another release</lf-option>\n      </lf-options>\n    </lf-ask>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tab": {
-    "description": "One labeled view in a tab set, optionally summarized and grouped in a side-list queue.",
-    "x-instructions": "In a side-list queue, write each tab's `summary` and `group` as `page-layout.md`, \"A workspace\", says. Keep ids distinct across tabs, which share the page's id space.",
-    "x-name": "label",
+    "description": "One named view in a tab set, optionally summarized and grouped in a side-list queue.",
+    "x-instructions": "Open each tab with the `<strong>` that names it, or with a `<header>` holding that `<strong>` and, after it, a summary such as a `<p>`. The tab shows a copy of that markup, so a name can set a file in code type or colour a count, and the header stays at the top of the panel. In a side-list queue, write each tab's summary and `group` as `page-layout.md`, \"A workspace\", says. Keep ids distinct across tabs, which share the page's id space.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
-      "label": {
-        "type": "string"
-      },
-      "summary": {
-        "type": "string"
-      },
       "group": {
         "type": "string"
       }
     },
-    "required": ["id", "label"],
+    "required": ["id"],
     "additionalProperties": false,
     "x-owners": ["lf-tabs"],
     "x-content": "markup",
@@ -571,23 +544,16 @@
     "x-upgrade": true,
     "x-patch": "members",
     "x-views": { "members": "lf-part", "parts": true },
-    "x-example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\" label=\"Decide\" summary=\"Ship the retry cap?\">\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\" label=\"Background\">\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"
+    "x-example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\">\n    <header><strong>Decide</strong><p>Ship the retry cap?</p></header>\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\">\n    <header><strong>Background</strong></header>\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"
   },
   "lf-part": {
-    "description": "One labeled part of a page, holding the box its own Layout arranges.",
-    "x-instructions": "Hold exactly one child, carrying the part's Layout. Its `summary` shows under its label in the list, so the user can tell the parts apart before opening one; start it with what the part holds unless the label already says so. Keep ids distinct across parts, which share the page's id space.",
-    "x-name": "label",
+    "description": "One named part of a page, holding the box its own Layout arranges.",
+    "x-instructions": "Open the part with a `<header>` holding the `<strong>` that names it and, after it, a summary such as a `<p>`, then one child carrying the part's Layout. The list of parts shows a copy of the header, the summary under the name, so the user can tell the parts apart before opening one; start the summary with what the part holds unless the name already says so. Keep ids distinct across parts, which share the page's id space.",
     "type": "object",
     "properties": {
-      "id": { "type": "string" },
-      "label": {
-        "type": "string"
-      },
-      "summary": {
-        "type": "string"
-      }
+      "id": { "type": "string" }
     },
-    "required": ["id", "label"],
+    "required": ["id"],
     "additionalProperties": false,
     "x-owners": ["lf-parts"],
     "x-content": "markup",
@@ -633,15 +599,11 @@
     "x-example": "<lf-draft id=\"note-cli\"><pre>\nAdds --dry-run to every mutating command.</pre></lf-draft>"
   },
   "lf-sample": {
-    "description": "A labeled sample: quoted content, interactive content on this page, or an isolated child Leaf page.",
-    "x-instructions": "Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On Me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
-    "x-name": "label",
+    "description": "A sample, named by a leading `<strong>` or not: quoted content, interactive content on this page, or an isolated child Leaf page.",
+    "x-instructions": "Name the sample with a leading `<strong>`, which shows as its note. Use interactive for inline controls that share this page’s state and Undo; they ask nothing, so none goes on On Me. For an isolated live child page, put its main content in one direct template[data-sample] with a stable id. Use window for a whole Leaf window including its chrome. Read live-samples.md for child-page interaction, reset, and isolation.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
-      "label": {
-        "type": "string"
-      },
       "interactive": { "type": "boolean" },
       "window": {
         "type": "boolean"
@@ -650,33 +612,25 @@
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
-    "x-says": {
-      "label": "before"
-    },
     "x-exhibit": { "when": { "interactive": [false] } },
     "x-upgrade": true,
-    "x-example": "<lf-sample id=\"spec-gear\" label=\"next season's kit\">\n  <p>I'd take the GPS, the better tool in the field.</p>\n  <lf-options>\n    <lf-option id=\"sp-paper\"><small class=\"tag\">effort: low</small> <strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\"><small class=\"tag\">effort: med</small> <small class=\"tag ok\">recommended</small> <strong>Dedicated GPS</strong> Offline maps, week-long battery.</lf-option>\n  </lf-options>\n</lf-sample>"
+    "x-example": "<lf-sample id=\"spec-gear\">\n  <strong>next season's kit</strong>\n  <p>I'd take the GPS, the better tool in the field.</p>\n  <lf-options>\n    <lf-option id=\"sp-paper\"><small class=\"tag\">effort: low</small> <strong>Paper maps</strong> Nothing to charge.</lf-option>\n    <lf-option id=\"sp-gps\"><small class=\"tag\">effort: med</small> <small class=\"tag ok\">recommended</small> <strong>Dedicated GPS</strong> Offline maps, week-long battery.</lf-option>\n  </lf-options>\n</lf-sample>"
   },
   "lf-pane": {
     "description": "A reading region with an optional header and footer, independently scrollable inside a full-height workspace.",
-    "x-instructions": "For independent scrolling, place the pane as a full-height workspace\u2019s body or a direct cell; elsewhere the page scrolls. Wrap multiple body blocks in one div or section. Use label to name the region accessibly and its header for the visible heading. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
-    "x-name": "label",
+    "x-instructions": "For independent scrolling, place the pane as a full-height workspace\u2019s body or a direct cell; elsewhere the page scrolls. Wrap multiple body blocks in one div or section. Name the region with a heading in its header; a pane with no visible heading takes `aria-label` instead. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
     "type": "object",
     "properties": {
-      "id": { "type": "string" },
-      "label": {
-        "type": "string",
-        "minLength": 1
-      }
+      "id": { "type": "string" }
     },
-    "required": ["id", "label"],
+    "required": ["id"],
     "additionalProperties": false,
     "x-content": "markup",
     "x-reading-role": "pane",
     "x-upgrade": true,
     "x-patch": "members",
     "x-verbatim": true,
-    "x-example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
+    "x-example": "<lf-pane id=\"detail\"><header><h2>Selected record</h2></header><p>Read the selected record.</p></lf-pane>"
   },
   "$reactions": {
     "tokens": {

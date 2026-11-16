@@ -1,5 +1,5 @@
 /* lf-tabs: several views of one page, one panel on screen at a time.
- * Lit draws the generated strip from panel labels and tracked readings; authored
+ * Lit draws the generated strip from panel names and tracked readings; authored
  * panels stay outside its render root. The upgrade hides
  * inactive panels with hidden="until-found", so browser find-in-page and
  * fragment navigation still reach them, and so does Leaf's travel to a comment
@@ -46,7 +46,7 @@
  * has a place of its own,
  * and its id is the URL fragment, as a page tab's is. Their list runs down the window's
  * left edge, under the page's title, walked up and down as well as across, each row
- * with its part's `summary` as a side list's has; the parts beside it start at the
+ * with its part's summary as a side list's has; the parts beside it start at the
  * window's top, so the list is no header over them. Where the window is too narrow for
  * the column, as on a phone, the list is a row sticking over the open part, a header
  * as the page tabs' row is. Parts placed anywhere else, as when the corpus embeds a
@@ -60,10 +60,19 @@
  * once; keyboard and vertical navigation stay immediate. A reversed choice continues
  * from the line's painted place, and scrolling or resizing the strip ends the cue at
  * its selected tab.
- * Every tab's accessible name is its label; what else the tab shows describes it. A
+ * A panel is named as any element is, by the title it opens with: a <strong>, or a
+ * leading <header> whose title names it and whose words after the title summarize it
+ * (addressable-names.js). The header stays at the top of the panel, and each tab draws a
+ * copy of its markup (`echoCopy`), as the contents repeat headings, so a list of files
+ * can set a name in code type and colour a diffstat. The copy anchors nothing: a
+ * comment on a name anchors in the panel, where the page says it. Every tab's
+ * accessible name, and its panel's, is the words of the name it shows, which a set Leaf
+ * composes for a widget's own readings, as a document's Preview and Source, names by
+ * a hidden <strong> it writes (lf-text-document.js); what else the tab shows describes
+ * it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
- * the panel's `summary` under the name, then its obligations' state on a reserved line. While any
+ * the panel's summary under the name, then its obligations' state on a reserved line. While any
  * obligation the panel holds is unanswered, it shows an open mark and whose turn it is, by the
  * server's next actor, the reading an `lf-tally` and its Next On Me use: the mark alone while one
  * waits on the user, since the mark and the tally already say so (its description says "To
@@ -76,10 +85,16 @@
  * authors an obligation keeps the mark's room either way, so an answer moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
- * panels stack as labeled sections; authored content is never replaced, so
- * there is no failSoft. */
+ * panels stack as sections under their names; authored content is never replaced, so
+ * there is no failSoft.
+ *
+ * Replaced: a tab's name and summary were its `label` and `summary` attributes, which
+ * the strip copied as text. An attribute holds only text, and its words stood outside
+ * the elements page check, comment anchoring and the version diff read. */
 import {
   addressableLabel,
+  echoCopy,
+  leadingTitle,
   afterScript,
   setScroll,
   actionTemplate,
@@ -144,11 +159,35 @@ const substantiveChildren = (owner) =>
       (child instanceof Element && !child.matches("script, style, template")) ||
       (child instanceof Text && child.data.trim()),
   );
+// A panel's content box, as a part's Layout child: its one substantive child besides
+// the header or title naming it.
 /** @param {Element} owner */
 const soleSubstantiveElement = (owner) => {
   const children = substantiveChildren(owner);
-  return children.length === 1 && children[0] instanceof Element ? children[0] : null;
+  const named =
+    children[0] instanceof Element && children[0].contains(leadingTitle(owner));
+  const body = named ? children.slice(1) : children;
+  return body.length === 1 && body[0] instanceof Element ? body[0] : null;
 };
+// What a panel's leading <header> says after the title naming it, as a copy for its tab
+// and as words for the tab's description: a part listing a file has its diffstat there.
+/** @param {Element} panel @returns {Node[]} */
+const summaryCopy = (panel) => {
+  const title = leadingTitle(panel);
+  const header = title?.closest("header");
+  return header?.parentElement === panel ? echoCopy(header, title) : [];
+};
+/** @param {Node[]} nodes */
+const wordsOf = (nodes) =>
+  nodes
+    .map((node) => node.textContent)
+    .join("")
+    .replace(/\s+/g, " ")
+    .trim();
+// A panel's name as its tab shows it, and as its words, which name both the tab and the
+// panel where only text can.
+/** @param {Element} panel */
+const nameCopy = (panel) => echoCopy(leadingTitle(panel));
 
 export class TabSet extends LeafElement {
   // Whether the set is a page's parts (lf-parts.js).
@@ -197,13 +236,12 @@ export class TabSet extends LeafElement {
     const down = side || (this.#parts && this.#root);
     this.#down = down;
     // The strip is a thing to work, and its tabs ride inside it, so paper drops the
-    // whole row and puts each panel's label back on the panel. What a tab says is not
-    // the strip's word though — it is the panel's name, and once the strip exists it
-    // is the only place that name is written. So the name goes in its own span,
-    // declared the page speaking, and the anchor pass reads it over the chrome around
-    // it: a user points at a tab's name the way they point at a heading. Its own
-    // span rather than the tab's whole text, because the Δ count lands here too and
-    // it is the runtime talking about the document.
+    // whole row; each panel keeps its name at its top. What a tab says is a copy of the
+    // panel's name, so the name goes in its own span, declared a copy of words the page
+    // says elsewhere: a user points at the name in the panel, the way they point at a
+    // heading rather than at its contents entry. Its own span rather than the tab's
+    // whole text, because the Δ count lands here too and it is the runtime talking
+    // about the document.
     //
     // A press is a span wearing the role rather than a <button> (see `offer`), which
     // is what makes a drag across the name possible at all.
@@ -223,7 +261,7 @@ export class TabSet extends LeafElement {
       run.panels.push(panel);
       panel.toggleAttribute("data-lf-scroll", true);
       panel.setAttribute("role", "tabpanel");
-      keeps(panel, "aria-label", panel.getAttribute("label"));
+      keeps(panel, "aria-label", wordsOf(nameCopy(panel)) || null);
       // The browser found something inside (find-in-page, an anchor jump), or
       // Leaf is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", () => this.#activate(panel, "reveal"));
@@ -444,9 +482,10 @@ export class TabSet extends LeafElement {
         ? turn
         : "";
     const group = this.#side && panel.getAttribute("group");
+    const summary = summaryCopy(panel);
     const description = [
       group && `${group} group`,
-      panel.getAttribute("summary"),
+      wordsOf(summary),
       changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
       !items.length
         ? ""
@@ -469,18 +508,18 @@ export class TabSet extends LeafElement {
         if (button instanceof HTMLElement) this.#buttons.set(panel, button);
       })}
       aria-controls=${panel.id}
-      aria-label=${panel.getAttribute("label")}
+      aria-label=${wordsOf(nameCopy(panel)) || nothing}
       aria-selected=${panel === this.#active.value}
       aria-description=${description || nothing}
       tabindex=${panel === this.#active.value ? 0 : -1}
       @click=${(/** @type {MouseEvent} */ event) =>
         this.#activate(panel, "ordinary", !pressIsKeyboardActivation(event))}
-      ><span class="lf-tab-name" ${generated({ says: true })}
-        >${panel.getAttribute("label")}${this.#down ? nothing : mark}</span
+      ><span class="lf-tab-name" ${generated({ says: "echo" })}
+        >${nameCopy(panel)}${this.#down ? nothing : mark}</span
       >${
-        this.#down && panel.hasAttribute("summary")
-          ? html`<span class="lf-tab-summary" ${generated({ says: true })}
-              >${panel.getAttribute("summary")}</span
+        this.#down && summary.length
+          ? html`<span class="lf-tab-summary" ${generated({ says: "echo" })}
+              >${summary}</span
             >`
           : nothing
       }${

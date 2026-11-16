@@ -76,9 +76,9 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
     source = (
         '<lf-options id="picks" choose><lf-option id="first">First</lf-option></lf-options>'
         '<lf-draft id="draft"><pre>Initial words</pre></lf-draft>'
-        '<lf-board id="board"><lf-column id="todo" label="Todo">'
+        '<lf-board id="board"><lf-column id="todo"><strong>Todo</strong>'
         '<lf-card id="card">Card</lf-card></lf-column>'
-        '<lf-column id="done" label="Done"></lf-column></lf-board>'
+        '<lf-column id="done"><strong>Done</strong></lf-column></lf-board>'
     )
     page = ModelPage(source, registry=registry)
     for widget, action, valid, invalid in (

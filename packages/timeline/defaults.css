@@ -3,14 +3,13 @@
   min-width: 0;
 }
 /* The authored lanes and events are the drawing's data; once Leaf draws, the drawing
-   shows them. Without the runtime they read as a plain list. */
+   shows them. Without the runtime they read as a plain list, each under its name. */
 lf-lane {
   display: block;
   margin-block: var(--lf-sp-2);
 }
-:is(lf-lane, lf-run)::before {
-  content: attr(label);
-  font-weight: 600;
+:is(lf-lane, lf-run) > strong:first-child {
+  display: block;
 }
 lf-run > lf-lane {
   margin-inline-start: var(--lf-list-inset);
@@ -20,7 +19,10 @@ lf-event {
   margin-inline-start: var(--lf-list-inset);
 }
 lf-event::before {
-  content: attr(at) " ms: " attr(label);
+  content: attr(at) " ms: ";
+}
+lf-event > strong:first-child {
+  font-weight: inherit;
 }
 
 .lf-timeline-controls {

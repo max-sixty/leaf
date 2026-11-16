@@ -150,8 +150,9 @@
         </p>
       </header>
       <lf-tabs id="how" class="layout-flow"
-        ><lf-tab id="overview" label="Overview" class="layout-flow"
-          ><details class="topic-outline" id="overview-outline">
+        ><lf-tab id="overview" class="layout-flow"
+          ><strong>Overview</strong>
+          <details class="topic-outline" id="overview-outline">
             <summary>In this topic</summary>
             <nav aria-label="Overview sections">
               <ul>
@@ -363,8 +364,9 @@ flowchart TD
               </tbody>
             </table>
           </section></lf-tab
-        ><lf-tab id="workflow" label="Workflow" class="layout-flow"
-          ><details class="topic-outline" id="workflow-outline">
+        ><lf-tab id="workflow" class="layout-flow"
+          ><strong>Workflow</strong>
+          <details class="topic-outline" id="workflow-outline">
             <summary>In this topic</summary>
             <nav aria-label="Workflow sections">
               <ul>
@@ -459,11 +461,8 @@ leaf server start ./review</code></pre>
                 feed to see the choice marked undone. This example uses the page’s
                 activity log and Undo; its queue policy is fictional.
               </p>
-              <lf-sample
-                id="queue-example"
-                label="Practice: choose a queue policy"
-                interactive
-              >
+              <lf-sample id="queue-example" interactive>
+                <strong>Practice: choose a queue policy</strong>
                 <h2>Importer queue policy</h2>
                 <p id="queue-premise">
                   The importer receives bursts of records faster than it can process
@@ -626,10 +625,8 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                   clauses and reads current state before answering: a newer update may
                   already have settled the response the captured batch requested.
                 </p>
-                <lf-sample
-                  id="handling-example"
-                  label="illustrative batch excerpt; other fields omitted"
-                >
+                <lf-sample id="handling-example">
+                  <strong>illustrative batch excerpt; other fields omitted</strong>
                   <pre id="handling-json"><code class="language-json">{
   "handling": {
     "h1": "Read the thread context before answering.",
@@ -1360,8 +1357,9 @@ flowchart TD
               </p>
             </details>
           </section></lf-tab
-        ><lf-tab id="state" label="State" class="layout-flow"
-          ><details class="topic-outline" id="state-outline">
+        ><lf-tab id="state" class="layout-flow"
+          ><strong>State</strong>
+          <details class="topic-outline" id="state-outline">
             <summary>In this topic</summary>
             <nav aria-label="State sections">
               <ul>
@@ -1723,8 +1721,9 @@ flowchart TD
               durable browser queue.
             </p>
           </section></lf-tab
-        ><lf-tab id="event-log" label="Event log" class="layout-flow"
-          ><details class="topic-outline" id="event-log-outline">
+        ><lf-tab id="event-log" class="layout-flow"
+          ><strong>Event log</strong>
+          <details class="topic-outline" id="event-log-outline">
             <summary>In this topic</summary>
             <nav aria-label="Event log sections">
               <ul>
@@ -1848,7 +1847,8 @@ flowchart TD
               the changed history; it waits so arrivals never move the text being read.
               The three undos return the choices to their starting state.
             </p>
-            <lf-sample id="try-sample" label="release question" interactive>
+            <lf-sample id="try-sample" interactive>
+              <strong>release question</strong>
               <lf-ask id="ship-ask">
                 <h2>When should this ship?</h2>
                 <lf-options id="ship" choose>
@@ -2207,8 +2207,9 @@ flowchart TD
               </li>
             </ul>
           </section></lf-tab
-        ><lf-tab id="revisions" label="Revisions" class="layout-flow"
-          ><details class="topic-outline" id="revisions-outline">
+        ><lf-tab id="revisions" class="layout-flow"
+          ><strong>Revisions</strong>
+          <details class="topic-outline" id="revisions-outline">
             <summary>In this topic</summary>
             <nav aria-label="Revisions sections">
               <ul>
@@ -2260,11 +2261,8 @@ flowchart TD
               Choose Publish the report, then choose it again. The request changes
               immediately, and the activity feed records the pick and its withdrawal.
             </p>
-            <lf-sample
-              id="permission-sample"
-              label="Permission for a sample report"
-              interactive
-            >
+            <lf-sample id="permission-sample" interactive>
+              <strong>Permission for a sample report</strong>
               <lf-ask id="sample-publish-report-decision">
                 <h2>Publish the sample report?</h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
@@ -2375,8 +2373,9 @@ flowchart TD
               an event naming its target, so the recomputed result survives reloads.
             </p>
           </section></lf-tab
-        ><lf-tab id="progress" label="Progress" class="layout-flow"
-          ><details class="topic-outline" id="progress-outline">
+        ><lf-tab id="progress" class="layout-flow"
+          ><strong>Progress</strong>
+          <details class="topic-outline" id="progress-outline">
             <summary>In this topic</summary>
             <nav aria-label="Progress sections">
               <ul>
@@ -2930,8 +2929,9 @@ EOF</code></pre>
               </p>
             </details>
           </section></lf-tab
-        ><lf-tab id="threads" label="Threads" class="layout-flow"
-          ><details class="topic-outline" id="threads-outline">
+        ><lf-tab id="threads" class="layout-flow"
+          ><strong>Threads</strong>
+          <details class="topic-outline" id="threads-outline">
             <summary>In this topic</summary>
             <nav aria-label="Threads sections">
               <ul>
@@ -3317,8 +3317,9 @@ EOF</code></pre>
               one, and disappear once its next ordinary reply arrives.
             </p>
           </section></lf-tab
-        ><lf-tab id="keys" label="Keys" class="layout-flow"
-          ><details class="topic-outline" id="keys-outline">
+        ><lf-tab id="keys" class="layout-flow"
+          ><strong>Keys</strong>
+          <details class="topic-outline" id="keys-outline">
             <summary>In this topic</summary>
             <nav aria-label="Keys sections">
               <ul>
@@ -3788,8 +3789,9 @@ EOF</code></pre>
               </li>
             </ul>
           </section></lf-tab
-        ><lf-tab id="runtime" label="Runtime" class="layout-flow"
-          ><details class="topic-outline" id="runtime-outline">
+        ><lf-tab id="runtime" class="layout-flow"
+          ><strong>Runtime</strong>
+          <details class="topic-outline" id="runtime-outline">
             <summary>In this topic</summary>
             <nav aria-label="Runtime sections">
               <ul>

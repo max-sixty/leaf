@@ -245,7 +245,7 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
         # Faults against the other declarations, once every one holds alone.
         (
             {
-                "lf-beta": _faulty("lf-beta", **{"x-name": "label"}),
+                "lf-beta": _faulty("lf-beta", **{"x-tone": "label"}),
                 "lf-eps": _faulty(
                     "lf-eps", **{"x-reading-role": "pane", "x-content": "empty"}
                 ),

@@ -68,19 +68,21 @@ PLAYGROUND_PAGE = leaf_page(
 <lf-ask id="card-playground-ask">
   <h2>How should the card look?</h2>
   <lf-playground id="card-playground">
-    <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-      value="12" min="0" max="28" step="1" unit="px"></lf-playground-control>
-    <lf-playground-control id="compact" name="compact" label="Compact spacing" kind="toggle"
-      value="false"></lf-playground-control>
-    <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-      <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-      <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
+    <lf-playground-control id="radius" name="radius" kind="range"
+      value="12" min="0" max="28" step="1" unit="px"><strong>Corner radius</strong></lf-playground-control>
+    <lf-playground-control id="compact" name="compact" kind="toggle"
+      value="false"><strong>Compact spacing</strong></lf-playground-control>
+    <lf-playground-control id="tone" name="tone" kind="choice" value="quiet">
+      <strong>Tone</strong>
+      <lf-playground-choice id="tone-quiet" value="quiet"><strong>Quiet</strong></lf-playground-choice>
+      <lf-playground-choice id="tone-bold" value="bold"><strong>Bold</strong></lf-playground-choice>
     </lf-playground-control>
-    <lf-playground-control id="accent" name="accent" label="Accent" kind="color"
-      value="#4f766f"></lf-playground-control>
-    <lf-playground-control id="title" name="title" label="Title" kind="text"
-      value="Field note" placeholder="Card title"></lf-playground-control>
-    <lf-playground-preset id="preset-dense" label="Dense">
+    <lf-playground-control id="accent" name="accent" kind="color"
+      value="#4f766f"><strong>Accent</strong></lf-playground-control>
+    <lf-playground-control id="title" name="title" kind="text"
+      value="Field note" placeholder="Card title"><strong>Title</strong></lf-playground-control>
+    <lf-playground-preset id="preset-dense">
+      <strong>Dense</strong>
       <lf-playground-setting for="radius" value="4"></lf-playground-setting>
       <lf-playground-setting for="compact" value="true"></lf-playground-setting>
       <lf-playground-setting for="tone" value="bold"></lf-playground-setting>

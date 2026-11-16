@@ -65,8 +65,8 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         '<lf-suggestion id="change"><lf-old>Retry twice.</lf-old>'
         "<lf-new>Retry three times.</lf-new></lf-suggestion>"
         '<lf-text-document id="current" source="instructions"></lf-text-document>'
-        '<lf-text-document id="reviewed" source="reviewed-instructions" '
-        'label="Reviewed"></lf-text-document>',
+        '<lf-text-document id="reviewed" source="reviewed-instructions">'
+        "<strong>Reviewed</strong></lf-text-document>",
     )
     url = live_url(serve(authored))
     data_model.cmd_data_set(

@@ -46,6 +46,58 @@ from leaf_dev.browser import PANEL_THREAD
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
+def test_a_widget_seats_the_thread_about_itself_and_none_inside_it(browser, serve):
+    """A widget is offered the thread anchored to its element and nothing inside it,
+    and the comment box that starts one. A thread on a passage of its words points
+    into the widget rather than standing in the place it offers, so it keeps its margin
+    entry, and so does the thread on a widget that returns no outlet."""
+    url = serve(
+        leaf_page(
+            "seats",
+            '<h1 id="h">Three jobs</h1><lf-test-plan id="hub" label="Before the frost">'
+            '<lf-test-task id="jobs" status="active" talk><strong>Which jobs are '
+            "worth starting?</strong> The mounts came down in January.</lf-test-task>"
+            '<lf-test-task id="quiet" status="active"><strong>Stain the fence</strong>'
+            "</lf-test-task></lf-test-plan>",
+        )
+    )
+
+    def comment(anchor, text):
+        return append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": text,
+                "anchor": anchor,
+            },
+        )["id"]
+
+    own = comment({"section": "jobs"}, "About the whole task.")
+    passage = comment(
+        {"section": "jobs", "quote": "The mounts came down in January."},
+        "About these words.",
+    )
+    unseated = comment({"section": "quiet"}, "About a task that seats nothing.")
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    seat = page.locator("#jobs > .lf-test-threads")
+    expect(seat.locator(".lf-page-thread")).to_have_count(1)
+    expect(seat.locator(f'.lf-page-thread[data-lf-thread="{own}"]')).to_be_visible()
+    for elsewhere in (passage, unseated):
+        drawn = page.locator(f'.lf-page-thread[data-lf-thread="{elsewhere}"]')
+        expect(drawn).to_have_count(0)
+    for target in ("jobs", "quiet"):
+        marker = page.locator(f'[data-lf-margin-for="{target}"] .lf-margin-marker')
+        expect(marker).to_have_count(1)
+
+    # The task's Comment control opens the box in its seat, under the thread there.
+    page.locator("#jobs > .lf-test-comment").click()
+    expect(seat.locator(".lf-fab-input")).to_be_focused()
+    expect(page.locator("#quiet > .lf-test-comment")).to_have_count(0)
+
+
 @pytest.mark.watch_shifts
 def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, serve):
     """A diff line's thread resolved elsewhere stays open behind its notice.

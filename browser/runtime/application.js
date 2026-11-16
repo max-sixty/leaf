@@ -45,7 +45,6 @@ import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "./margin-bars.js";
 import { renderMarginThread } from "./thread/inline.js";
 import { showHeld } from "./thread/held-news.js";
-import { threadBox as buildThreadBox } from "./thread/box.js";
 import { isMessageEvent } from "./pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
@@ -470,7 +469,6 @@ function createApplication(dependencies) {
   });
 
   threadPresenter = createThreadPresentation({
-    inlineView,
     surfaceView,
     anchorPlacement: dependencies.anchorPlacement,
     anchorPaint: dependencies.anchorPaint,
@@ -571,13 +569,6 @@ function createApplication(dependencies) {
     receiveState,
   });
 
-  /** @type {(...args: [Parameters<typeof buildThreadBox>[0], Parameters<typeof buildThreadBox>[1]]) => ReturnType<typeof buildThreadBox>} */
-  const threadBox = (owner, hint) =>
-    buildThreadBox(owner, hint, {
-      createComment: (command) => threadActions.create(command)?.delivery ?? null,
-      onDraftChanged: invalidateDom,
-      wireInput: dependencies.wireInput,
-    });
   const threadSurfaceCommands = {
     invalidate: invalidateDom,
     composition: dependencies.compositionSurface,
@@ -737,7 +728,6 @@ function createApplication(dependencies) {
   const mounted = {
     withdraw: undo.withdraw,
     midComposition: engagement.midComposition,
-    threadBox,
     hasPending,
     invalidateDom,
     landInThread: dependencies.landInThread,
@@ -796,8 +786,6 @@ function createApplication(dependencies) {
   return mounted;
 }
 
-/** @type {ReturnType<typeof createApplication>["threadBox"]} */
-export const threadBox = (...args) => app().threadBox(...args);
 /** @type {ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["dispatchWidget"]} */
 export const dispatchWidget = commandDispatch.dispatchWidget;
 /** @type {ReturnType<typeof createApplication>["invalidateDom"]} */

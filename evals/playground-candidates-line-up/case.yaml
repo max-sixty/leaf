@@ -8,12 +8,13 @@
 # shared-lines sentence passed 4/4. A wording that named no parts ("line up part
 # for part") let one Claude Code run subgrid the card's own rows and stretch
 # every card to one height, which cards-keep-their-height catches.
-# The case now authors the page and names nothing to read; it hasn't run in this form.
+# Now a probe given a page with its packages, it passed Claude Code 0 of 2, Codex 0 of 2
+# (no rows shared across candidates) at b90df8d3a2.
 description: playground-candidates-line-up
 metadata:
   purpose: "Playground: candidates compared side by side line up part for part, whatever
     their labels and notes wrap to."
-  authoring: true
+  page: [playground]
   tags:
     - playground
 vars:

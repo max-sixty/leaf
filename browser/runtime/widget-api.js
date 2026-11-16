@@ -83,7 +83,6 @@ export { readQueues, queueItemKey } from "./queue-api.js";
 export { queueTitle } from "./queue-title.js";
 export { queueActions } from "./application.js";
 export {
-  threadBox,
   placePageThreads,
   consumeAnnotations,
   registerThreadPresentation,

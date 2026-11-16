@@ -27,7 +27,7 @@ export const upgraded = () => document.body.dataset.lfUpgraded === "1";
 // heads, moves only while something scrolls, which `scrolling` reads, and a paused one
 // isn't running, so neither is in it. Only an animation on a document timeline runs
 // on the clock: Firefox 159 gave a message head's view-timeline animation a finite end
-// (30769 ms on 2026-11-11), where Chromium gives a percentage.
+// (30769 ms), where Chromium gives a percentage.
 const finiteMotion = () =>
   openRoots(document)
     .flatMap((root) => root.getAnimations())

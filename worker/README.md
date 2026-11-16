@@ -256,7 +256,7 @@ aggregate product events. Each record type below has a `component` field:
 | `leaf-agent`       | Worker and container | Step of a request or hosted turn, and each `500` the adapter answers |
 
 Workers Logs keeps records for at most seven days; a page directory's own `events.jsonl`
-lasts as long as its container. TODO(2026-09-25): Export interaction records to durable
+lasts as long as its container. TODO: Export interaction records to durable
 storage if they need to outlive [Workers Logs
 retention](https://developers.cloudflare.com/workers/observability/logs/workers-logs/).
 

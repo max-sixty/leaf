@@ -189,8 +189,8 @@ def _stored_events(data: bytes, before: int = 0) -> list[dict]:
     `before + 1`."""
     events = []
     # The log's grammar is events joined by "\n" — the writer's own separator,
-    # not splitlines()'s wider class, which once read a U+2028 inside a comment's
-    # text as a break and left half an event leading a line no parse could take.
+    # not splitlines()'s wider class, which reads a U+2028 inside a comment's
+    # text as a break and leaves half an event leading a line no parse can take.
     # Bytes, decoded per line: a crash can tear mid-character as easily as
     # mid-line (ensure_ascii=False writes multi-byte UTF-8), and one strict
     # read_text of the file would raise on the tear before any line-level

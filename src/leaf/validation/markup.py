@@ -247,8 +247,8 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     page of its own: the runtime parses an agent's reply markup into a template and
     moves those nodes into the message body, where a <style> among them becomes a
     document stylesheet like any other. `<style>main h1 { color: red !important
-    }</style>` in a reply was accepted here and repainted the version's own heading,
-    past every gate the same rule in a version answers to.
+    }</style>` in a reply would repaint the version's own heading, past every gate
+    the same rule in a version answers to.
 
     Nothing is lost by refusing them. The layer already dresses a widget an agent
     sends — that is what an element declaration and its theme rules are for — and a rule
@@ -267,9 +267,10 @@ def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
 
     Markup names a picture in an attribute or a stylesheet, where the parsed reading
     finds it (`revision_artifact.uncaptured_errors`); a message names one as a
-    Markdown destination, which that reading cannot see — so an agent sending a
-    screenshot came through the one door that never asked. `check_markup` runs only when `--markup` is
-    given, and text on its own reached the log unread.
+    Markdown destination, which that reading cannot see — so a screenshot an agent
+    sends that way would come through the one door that never asks. `check_markup`
+    runs only when `--markup` is given, and text on its own would reach the log
+    unread.
 
     A reference is a rendered link or image destination, never a scan of the words.
     Parsing the Markdown resolves referenced definitions and leaves fenced examples

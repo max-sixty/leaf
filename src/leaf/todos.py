@@ -3,8 +3,8 @@
 A to-do is work the agent owes, on its On <agent> list. Nothing is a to-do on the
 user: everything On Me is an obligation whose source says how the user answers it,
 a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no Done
-of its own to any of them. The user chose this on 2026-11-03, reversing the to-do on
-the user that `leaf task create --on user` opened from 2026-10: the widget or thread
+of its own to any of them. The user chose this over a to-do on the user
+(`leaf task create --on user`): the widget or thread
 an ask stands on is sovereign over how it is answered, and a step such as trying a
 build is asked in a thread, which the user's reply or settling reaction answers.
 

@@ -62,11 +62,10 @@ export const shownVerbatim = (declarations, modules) =>
       })),
     );
 
-// Words the page draws in the same place as other words. A copy went out with a settled
-// group's cards laid across the heading above them — the cards kept the collapsed
-// padding, which is the room the group is laid out in — and the user saw it in the
-// first second while every assertion passed: the words were all present, all shown, and
-// all of a usable size. They were in the same place, and nothing was asking about place.
+// Words the page draws in the same place as other words, such as a settled group's
+// cards laid across the heading above them, which the user sees in the first second
+// while every other assertion passes: the words are all present, all shown, and all of
+// a usable size. They are in the same place, and nothing else asks about place.
 //
 // Boxes rather than a hit test, which is the other way to ask: a press landing on the
 // wrong element is a different fault with its own test, and the medium this has to hold
@@ -74,13 +73,12 @@ export const shownVerbatim = (declarations, modules) =>
 // text over a background, a border, or a picture is how a page is built.
 //
 // What floats over the document on purpose is answered for, and that is one exemption
-// rather than two. It reads as the runtime's, because for a long time the runtime owned
-// every float there was; the sentence is about the float and not about the owner. A
-// sidenote hangs out of the flow level with the block it annotates, pinned by what it
-// belongs to, and a page's own absolutely placed furniture does the same; covering a
-// word there is the page's composition, not a fault. A control in the flow covering a
-// word is a fault this still reports. Leaf's margin rows stand in its own layer over the
-// page, which the chrome skip below takes whole.
+// rather than two. It reads as the runtime's; the sentence is about the float and not
+// about the owner. A sidenote hangs out of the flow level with the block it annotates,
+// pinned by what it belongs to, and a page's own absolutely placed furniture does the
+// same; covering a word there is the page's composition, not a fault. A control in the
+// flow covering a word is a fault this still reports. Leaf's margin rows stand in its
+// own layer over the page, which the chrome skip below takes whole.
 //
 // A pair where one element contains the other is skipped: a paragraph and the <em>
 // inside it are one run of words that the flow lays out together, and their boxes
@@ -110,14 +108,15 @@ export const shownVerbatim = (declarations, modules) =>
 // that has to be remembered when the next float is written.
 //
 // checkVisibility knows nothing of content-visibility either, which is what a collapse
-// wears: an inactive tab's panel and a settled group's cards are hidden="until-found" so
-// that find-in-page still reaches inside, and the text in one reports the boxes it last
-// laid out in — every sibling's at the same place. So a page with a collapsed group on it
-// failed about half the runs and passed the rest, which is the worst way for a gate to be
-// wrong: the page that goes out is whichever one the coin was kind to. A collapse is asked
-// for, and words nobody can see are not drawn over anything, so [hidden] is held out here
-// the way the size check holds it out. The coin comes down the same side every time on a
-// group that has been opened and closed, which is where the test pins it.
+// wears: an inactive tab's panel and a settled group's cards are hidden="until-found"
+// so that find-in-page still reaches inside, and the text in one reports the boxes it
+// last laid out in — every sibling's at the same place. So a page with a collapsed
+// group on it would fail about half the runs and pass the rest, which is the worst way
+// for a gate to be wrong: the page that goes out is whichever one the coin is kind to.
+// A collapse is asked for, and words nobody can see are not drawn over anything, so
+// [hidden] is held out here the way the size check holds it out. The coin comes down
+// the same side every time on a group that has been opened and closed, which is where
+// the test pins it.
 //
 // Leaf's own interface can cover words too. The floating panel's row stands over the
 // window's foot, and the theme pads the end of the page by the row's room
@@ -574,15 +573,14 @@ export function shrunkLabelReading(drawn = drawnPage()) {
   };
 }
 
-// Labels a drawing shrank past reading. An inline <svg> states its size in its own units
-// and the theme fits it to its box (`svg.drawing` takes the figure's width), so what the
-// author wrote as an 11px label is drawn at 11px times whatever the box made of the
-// viewBox. Nothing in the source says what that is: the page is correct, the labels are
-// all there, and every other reading passes it — an eval's dashboard went out with its
-// rollout graphic's labels a few pixels high at 900px and on a phone, and the gate said
-// nothing. So the size is asked of the drawing as drawn: the font-size each run of words
-// was set at, times the vertical scale of the transform from its element to the screen,
-// which is the viewBox fit and any transform inside or around it.
+// Labels a drawing shrank past reading. An inline <svg> states its size in its own
+// units and the theme fits it to its box (`svg.drawing` takes the figure's width), so
+// what the author wrote as an 11px label is drawn at 11px times whatever the box made
+// of the viewBox. Nothing in the source says what that is: the page is correct, the
+// labels are all there, and every other reading passes it. So the size is asked of the
+// drawing as drawn: the font-size each run of words was set at, times the vertical
+// scale of the transform from its element to the screen, which is the viewBox fit and
+// any transform inside or around it.
 //
 // A label counts when the drawing made it smaller than it was set and smaller than
 // `floor`. Drawn size is what decides, since halving a 28px heading leaves it legible

@@ -1004,8 +1004,8 @@ def _capture_artifact(
     # captures the same revision. A page is often read by two Leaf versions at
     # once, as a server keeps the Leaf it started with while the agent's commands
     # run a newer one, and each composes its own vocabulary: digesting that
-    # vocabulary had each publish the other's capture again and reload the tab
-    # every time. What an open document runs under comes from the serving Leaf
+    # vocabulary would have each publish the other's capture again and reload the
+    # tab every time. What an open document runs under comes from the serving Leaf
     # instead: a change to its runtime or a bundled package reaches the tab as a
     # server that refuses it (`runtime_selection`), and a new selection or a
     # changed package copy as a new generation (`vendoring`), which a tab speaks
@@ -1473,8 +1473,8 @@ class _History:
 
     Markers are named by their content and only ever added, so a newer listing
     extends the one read, and only the revisions it adds are read. A scan that read
-    each revision on every call re-parsed each one the compact budget had evicted:
-    on 1,600 versions of a page of 16 questions, `leaf page state` took a second."""
+    each revision on every call would re-parse each one the compact budget had
+    evicted."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()

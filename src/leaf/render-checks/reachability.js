@@ -30,14 +30,13 @@ export function sealedAxes(style) {
 // It is the failure with no witness. Nothing overflows the page, so the sideways-scroll
 // check is quiet; nothing is past the column, so that gate is quiet; the words are in a
 // text node and technically selectable, so the unreachable-words gate is quiet. What the
-// user gets is a question with no visible way to answer it — which is exactly what
-// shipped: a `choose` group in its row form states `width: 100%` on options that a
-// live-page rule gives a 30px keyboard-address rail, and under the default box-sizing
-// those are the row's width *plus* its padding, so every row ran 28px wider than the
-// group whose `overflow: hidden` keeps its cells' hairlines square. The last cell is the
-// pick mark, so all of it went over the edge: every row-form decision on every live page
-// drew no dot, no "chosen", nothing. Paper was right throughout, the rail being
-// screen-only, so no medium outside a browser could see it.
+// user gets is a question with no visible way to answer it — as when a `choose` group
+// in its row form states `width: 100%` on options that a live-page rule gives a 30px
+// keyboard-address rail: under the default box-sizing those are the row's width *plus*
+// its padding, so every row runs 28px wider than the group whose `overflow: hidden`
+// keeps its cells' hairlines square, and the last cell, the pick mark, goes over the
+// edge. Paper is right throughout, the rail being screen-only, so no medium outside a
+// browser can see it.
 //
 // Only where the clip cannot be scrolled away. A board's columns run past the board and
 // are reached by scrolling, which is the arrangement rather than a fault, so an ancestor
@@ -115,13 +114,13 @@ export function clippedControls() {
 }
 
 // A widget that upgraded into no room to be read in. The floor is two numbers, and
-// which of them a widget is held to is the widget's to declare (x-inline), because
-// the two kinds are laid out by different rules: one reserves a region and the other
-// is set among the words around it, where the box is the words and there is no width
-// it was supposed to reach. Held to the region's floor, an inline widget fails for
-// being short — a chip reading a price is 31px wide and correct, and the gate reported
-// the author's own words as a collapse. The height floor is both kinds': a line of
-// words is a line tall wherever it is laid out, which leaves a flattened chip caught.
+// which of them a widget is held to is the widget's to declare (x-inline), because the
+// two kinds are laid out by different rules: one reserves a region and the other is set
+// among the words around it, where the box is the words and there is no width it was
+// supposed to reach. Held to the region's floor, an inline widget fails for being short
+// — a chip reading a price is 31px wide and correct, and the gate would report the
+// author's own words as a collapse. The height floor is both kinds': a line of words is
+// a line tall wherever it is laid out, which leaves a flattened chip caught.
 //
 // Declared, not read off the computed display, because a custom element with no rule
 // left computes as inline: a theme that lost the chip block would silence the
@@ -165,11 +164,10 @@ export function tinyBoxes(declarations) {
 // children out in its parent's flow and generates no box of its own, so its rect is the
 // empty one every rect starts as — zero-sized, at the document's origin, a real-looking
 // answer naming a place it is not. An outline drawn on it draws nothing, and a scroll
-// aimed at it lands at the top of the page: a page whose open decisions were all suggestions
-// answered `d` by appearing to do nothing at all, and that reached its user rather than
-// this gate. The runtime answers it by hanging a mark on the boxes an element shows
-// through (shownParts) — which leaves one case that answer cannot reach, an element whose
-// words are in no child element at all, where there is nothing to hang anything on.
+// aimed at it lands at the top of the page. The runtime answers it by hanging a mark on
+// the boxes an element shows through (shownParts) — which leaves one case that answer
+// cannot reach, an element whose words are in no child element at all, where there is
+// nothing to hang anything on.
 //
 // `tinyBoxes` is next door and cannot see this: `checkVisibility()` is false for an element
 // with no box, so the very elements at issue are the ones it filters out. Both readings are

@@ -7,14 +7,13 @@ module (`hooks/claude-code.ts`). `docs/forks.html` is the design's home, diagram
 included; this header holds the rules this module keeps and the choices behind them,
 and `holding.py` the rule for which turn holds a message.
 
-On real pages the session's answer to a thread message took a median 48 s when it
-was idle and 100 s when it was busy, and the thread showed nothing from the agent
-for a median 35 s after a message, until the session's first model call ended
-(`notes/fork-replies.md`, "Forks on real pages"). `$.model.fork` resends the
-session's last request with one more message, at any moment, mid-command too, and a
-fork decided in a median 3 s. The user chose on 2026-10-31 a fork that answers or
-hands over. On 2026-11-05 they had the fork post only the agent's working line,
-always handing over: a line fork can't call tools (`$.model.fork` denies every one),
+On real pages the session's answer to a thread message is slow, slower when it is
+busy, and the thread shows nothing from the agent after a message until the
+session's first model call ends (`notes/fork-replies.md`, "Forks on real pages").
+`$.model.fork` resends the session's last request with one more message, at any
+moment, mid-command too, and a fork decides in a few seconds. The user had the fork
+post only the agent's working line and always hand over, rather than answer or hand
+over: a line fork can't call tools (`$.model.fork` denies every one),
 and answering is left to a fork that can act. The line fork also judges whether a
 working fork could do the work beside the session (`ANSWER`'s `work`): `take` gives
 the thread to one, where the module makes them (`_take`), and otherwise Leaf records
@@ -43,7 +42,7 @@ and wrote. The main session hears which fork took a thread once the module says 
 fork runs (`started`): as it says which agent it spawned for a new one, and once it
 has delivered a resumed one's message; and it hears as the fork's run ends
 (`clerk.queue`), since Claude Code tells it nothing of a fork a module made. The user
-chose these lines on 2026-11-11 over the fork's own SendMessage to the main thread,
+chose these lines over the fork's own SendMessage to the main thread,
 which would wake it for every answer (`docs/forks.html`, "How a fork tells the main
 thread"). A line waits for the session's next tool boundary or prompt, and Leaf wakes
 an idle session only for what a fork's end leaves it owing: a thread given back,
@@ -55,11 +54,11 @@ The fork's task names its turn and tells it to begin each `leaf` command with
 the turn from the fork's first command on, and is refused once the turn has closed
 (`state.acting_agent_turn`). A fork's command without it acts as the main thread's,
 as any command that names no turn does, and says beside its result which fork holds
-the thread (`holding.authorize`). The user chose on 2026-11-15 that the fork marks its
-own commands, over Leaf's PreToolUse hook rewriting each to name the fork's agent id:
-that hook could mark only a `leaf` that led its Bash call, so it denied every other,
+the thread (`holding.authorize`). The user chose that the fork marks its own
+commands, over Leaf's PreToolUse hook rewriting each to name the fork's agent id:
+that hook can mark only a `leaf` that leads its Bash call, so it denies every other,
 and Leaf learns a new fork's agent id only once Claude Code has spawned it, so until
-then it denied every agent's `leaf` command.
+then it denies every agent's `leaf` command.
 
 These lines, the holder `leaf page state` prints (`holding.holder`) and the advice
 beside a command on a fork's thread all name the fork by its agent id, and the main
@@ -72,13 +71,13 @@ nothing by a name after `claude --resume` (2.1.325, `notes/fork-replies.md`). So
 module spawns each fork unnamed, leaving the main session no second address that
 could move.
 
-The user chose on 2026-11-10 that one fork works a thread. While a fork's turn runs,
+The user chose that one fork works a thread. While a fork's turn runs,
 its thread's further messages are its own, and Leaf keeps none back for another
 (`kept_back`). A later message the line fork judges `take`, in a thread whose last
 answer names a fork's turn that has since closed, goes to that fork again, resumed in
 a new turn (`_resumable`), with a message (`resume_prompt`) that tells it to read
 the page's state, since its transcript lacks what the rest of the session did there
-meanwhile. The user chose on 2026-11-12 that reading over a summary Leaf wrote of it,
+meanwhile. The user chose that reading over a summary Leaf wrote of it,
 and that a thread whose fork can't be resumed goes to the main thread rather than to
 a new fork.
 
@@ -87,29 +86,20 @@ the thread shows until the session's own words replace it. From the moment Leaf
 starts keeping a thread back, and while the line stands, the thread's waiting
 messages read On it (`holding.Holding.forked`, which `served_state.work` serves as their workflows'
 `at_work`, so every surface showing whether the agent is at work agrees), as the user
-chose on 2026-11-05. That word is all the line fork changes: as a receipt's progress
+chose. That word is all the line fork changes: as a receipt's progress
 the line takes nothing in hand (`thread.Receipt`), so every reader that ages, nudges
 or holds a turn reads the message's delivery. A start would read as the session's
 turn, renewing it after an interrupt and holding the message at Working before the
-session had it, which hid it from the nudge and the overdue count.
+session had it, which would hide it from the nudge and the overdue count.
 
 The line fork thinks at the session's own effort, and its prompt asks it to reply
 straight away without thinking it over, since every second it takes keeps the
 thread's messages from the session; a fork at another effort can cost a rewrite of
-the conversation to the cache (`runFork` in `hooks/claude-code.ts` says when). From
-2026-11-09 to 2026-11-14 it asked for `low`. On the eval's seven
-cases on 2026-11-14, a fork at xhigh asked to reply straight away passed 7, against
-the low fork's 6, writing 1.49 times its output (95% interval 0.91–2.44) in 1.09
-times its time (0.94–1.25). On 2026-11-09 low wrote lines as good as xhigh's. On 40
-recorded thread messages, each replayed from its session's transcript
-(`notes/fork-replies.md`, "How well the fork judges"), a judge blind to the effort
-passed 35 lines at each effort and preferred low's on 19, xhigh's on 16 and neither
-on 5; `leaf-dev eval run 'line-fork*'` passed 35 of 35 at each over five repeats.
-Neither effort thought on the recorded messages, so their output and time matched
-there (low wrote 1.03 times the tokens, 95% interval 0.97–1.10). On the eval's short
-conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s where a line
-took a median 1 s, and low over none, for 0.85 times xhigh's time (0.75–0.95). So
-low removed the occasional line xhigh spent seconds thinking over.
+the conversation to the cache (`runFork` in `hooks/claude-code.ts` says when). A fork
+at `low` writes lines as good as xhigh's (`notes/fork-replies.md`, "How well the fork
+judges") and skips the occasional line xhigh spends seconds thinking over, while a
+fork at xhigh asked to reply straight away passes the eval's cases as well as a low
+one.
 
 Another message while the thread is kept back keeps it back, with a line fork for the
 new set, and drops the earlier line fork's line (`route`); a thread with the session

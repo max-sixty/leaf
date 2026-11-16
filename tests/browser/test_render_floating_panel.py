@@ -460,8 +460,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     next open thread, with `t`, while one stands open, and once none does, the Undo
     that takes the Resolve back. The field's "Resolved the thread" read as the thread
     now open. `z` returns the user to the thread they resolved; with none left, the
-    user is back at Threads. Escape there puts the view away and returns the user to
-    the page."""
+    user is back at Threads and the field says that every thread is resolved. Escape
+    there puts the view away and returns the user to the page."""
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     panel_comment(serve.page_dir, "Should the mobile cohort wait?")
@@ -513,6 +513,10 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
         page.keyboard.press("r")
     threads = page.locator(panel_view("threads"))
     expect(threads).to_be_visible()
+    # The field marks the moment, in Threads' own words.
+    expect(hint.locator(".lf-compose-placeholder-words")).to_have_text(
+        "All threads resolved"
+    )
     # The user stands on the list itself, and nothing in it wears a ring: its only row
     # is the folded Resolved, whose heading is no landing.
     expect(threads).to_be_focused()
@@ -526,8 +530,8 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
 
 
 def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
-    """The row's "Resolved “…”" and its press name one gesture. A Resolve that leaves no
-    thread open offers the Undo that takes it back. The log refusing that Resolve takes
+    """The row's notice of a Resolve and its press name one gesture. A Resolve that
+    leaves no thread open says so and offers the Undo that takes it back. The log refusing that Resolve takes
     the notice away with it, and its press takes back that Resolve even once another
     gesture of the user's is the newest, the one `z` would take: a press that ran `z`
     took back an earlier gesture once its own was refused. The agent having picked
@@ -571,7 +575,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     thread.focus()
     page.keyboard.press("r")
     holding(page, held, 1, "the resolve")
-    expect(said).to_have_text(f"Resolved “{first}”")
+    expect(said).to_have_text("All threads resolved")
     expect(undo).to_contain_text("Undo")
     # The refusal arrives as news once the Resolve's motion has ended, which can be
     # well after its rendering settles. Its thread rejoins Open in the Threads view as
@@ -593,7 +597,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     with sending(page, "the resolve"):
         page.keyboard.press("r")
     expect(page.locator(panel_view("threads"))).to_be_visible()
-    expect(said).to_have_text(f"Resolved “{first}”")
+    expect(said).to_have_text("All threads resolved")
     expect(undo).to_contain_text("Undo")
     # Another tab of the user's reopens one of the others, so `z` would take that.
     append_carried_log_record(

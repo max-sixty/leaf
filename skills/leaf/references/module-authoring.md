@@ -61,7 +61,7 @@ ignore:
   and keyboard routes"). A plain page binds none and advertises none. A button that must
   work off Leaf makes its own press, from its own click listener: its row names it as
   `control` and has no `run`, and the widget draws it `aria-disabled` while the press
-  can't act, which is the availability Leaf reads. Where a key leaves the user is the
+  can't act, which is the availability Leaf reads. Where a key takes the user is the
   row's `lands(from)` (`module-input.md`, "Command rows"), which only Leaf calls.
 - A preview: an element's `lfPreview()` (`module-input.md`, "Previews"). A plain page
   shows none.

@@ -18,7 +18,7 @@
   wa-option,
   wa-input
 ) {
-  --wa-font-family-body: var(--sans);
+  --wa-font-family-body: var(--lf-sans);
   /* Controls inherit typography through their hosts. Reset the surrounding prose's
      face without overriding the component's size, weight, line height or state ink. */
   &:not(:root) {
@@ -32,43 +32,51 @@
     word-spacing: normal;
     text-transform: none;
   }
-  --wa-color-surface-raised: var(--card);
-  --wa-color-surface-default: var(--field);
-  --wa-color-surface-lowered: var(--card);
-  --wa-color-surface-border: var(--border-2);
-  --wa-color-text-normal: var(--ink);
-  --wa-color-text-quiet: var(--muted);
-  --wa-color-neutral-fill-quiet: var(--field);
-  /* The vendor's hover and track fill. It stands on --card (a listbox, a slider's
-     panel), so --card here drew an option's hover and a slider's unfilled track in the
-     colour of the ground they sit on; --chip is the fill Leaf's own chips wear. */
-  --wa-color-neutral-fill-normal: var(--chip);
-  --wa-color-neutral-border-normal: var(--border-2);
+  --wa-color-surface-raised: var(--lf-card);
+  --wa-color-surface-default: var(--lf-field);
+  --wa-color-surface-lowered: var(--lf-card);
+  --wa-color-surface-border: var(--lf-border);
+  --wa-color-text-normal: var(--lf-ink);
+  --wa-color-text-quiet: var(--lf-muted);
+  --wa-color-neutral-fill-quiet: var(--lf-field);
+  /* The vendor's hover and track fill. It stands on --lf-card (a listbox, a slider's
+     panel), so --lf-card here drew an option's hover and a slider's unfilled track in the
+     colour of the ground they sit on; --lf-chip is the fill Leaf's own chips wear. */
+  --wa-color-neutral-fill-normal: var(--lf-chip);
+  --wa-color-neutral-border-normal: var(--lf-border);
   /* A control's outline, an unchosen radio's or checkbox's (controls.css, `.lf-choice`):
      upstream's mid grey in Leaf's warm ink, at least 3:1 against a card. */
-  --wa-color-neutral-border-loud: color-mix(in oklab, var(--muted) 75%, var(--card));
-  --wa-color-neutral-on-quiet: var(--ink-2);
-  --wa-color-neutral-on-normal: var(--ink);
-  --wa-color-brand-fill-quiet: var(--accent-tint);
-  --wa-color-brand-on-quiet: var(--accent);
-  --wa-color-brand-border-quiet: var(--accent);
-  --wa-color-brand-border-loud: color-mix(in srgb, var(--accent) 45%, var(--card));
+  --wa-color-neutral-border-loud: color-mix(
+    in oklab,
+    var(--lf-muted) 75%,
+    var(--lf-card)
+  );
+  --wa-color-neutral-on-quiet: var(--lf-ink-2);
+  --wa-color-neutral-on-normal: var(--lf-ink);
+  --wa-color-brand-fill-quiet: var(--lf-accent-tint);
+  --wa-color-brand-on-quiet: var(--lf-accent);
+  --wa-color-brand-border-quiet: var(--lf-accent);
+  --wa-color-brand-border-loud: color-mix(
+    in srgb,
+    var(--lf-accent) 45%,
+    var(--lf-card)
+  );
   /* A solid/active surface and its ink move together in either page scheme.
      Components own which state uses the pair, through their upstream tokens. */
-  --wa-color-brand-fill-loud: var(--accent);
-  --wa-color-brand-on-loud: light-dark(var(--card), var(--paper));
-  --wa-color-focus: var(--accent);
-  /* Upstream's corner scale is Leaf's (tokens.css, `--r`); one home for both. */
-  --wa-border-radius-s: var(--r-s);
-  --wa-border-radius-m: var(--r);
-  --wa-border-radius-l: var(--r-l);
+  --wa-color-brand-fill-loud: var(--lf-accent);
+  --wa-color-brand-on-loud: light-dark(var(--lf-card), var(--lf-paper));
+  --wa-color-focus: var(--lf-accent);
+  /* Upstream's corner scale is Leaf's (tokens.css, `--lf-r`); one home for both. */
+  --wa-border-radius-s: var(--lf-r-s);
+  --wa-border-radius-m: var(--lf-r);
+  --wa-border-radius-l: var(--lf-r-l);
   /* Leaf's logical focus owner paints the band. The vendor's native focus and open
      states must not paint another, including during a held label press. */
   --wa-focus-ring-style: none;
-  --wa-form-control-background-color: var(--field);
-  --wa-form-control-border-color: var(--border-2);
-  --wa-form-control-value-color: var(--ink);
-  --wa-form-control-placeholder-color: var(--quiet);
+  --wa-form-control-background-color: var(--lf-field);
+  --wa-form-control-border-color: var(--lf-border);
+  --wa-form-control-value-color: var(--lf-ink);
+  --wa-form-control-placeholder-color: var(--lf-quiet);
   /* A line tall (`--lf-line`) whatever its type would make it, restated on each
      control so a place that sets the line sets it here too. */
   --wa-form-control-height: var(--lf-line);

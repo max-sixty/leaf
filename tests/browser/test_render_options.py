@@ -175,7 +175,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         "els => els.map(el => getComputedStyle(el).backgroundColor)"
     )
     wanted = page.evaluate(
-        """() => ['--chip', '--danger-tint'].map(name => {
+        """() => ['--lf-chip', '--lf-danger-tint'].map(name => {
             const probe = document.createElement('div');
             probe.style.backgroundColor = `var(${name})`;
             document.body.append(probe);
@@ -893,7 +893,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             # And the user's own option is filled the way an option nobody has picked is
             # filled, which is the other half of what says it is one of the answers. A pick
             # colours the cell that holds it and nothing else does, so any other ground here is
-            # a state the group hasn't got: the cell wore --field, a tinted band that in this
+            # a state the group hasn't got: the cell wore --lf-field, a tinted band that in this
             # theme means a detail or a note, and a band under the answers is a footer whatever
             # else is written in it.
             open_option = next(
@@ -925,7 +925,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
         ok = page.evaluate(
             """() => {
                  const probe = document.body.appendChild(document.createElement('i'));
-                 probe.style.color = 'var(--settled)';
+                 probe.style.color = 'var(--lf-settled)';
                  const rgb = getComputedStyle(probe).color.match(/\\d+/g).slice(0, 3);
                  probe.remove();
                  return rgb.map(Number);
@@ -1259,7 +1259,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     # Both forms anyway, and the second is not the first repeated: a row has a wash rule of
     # its own with its own exclusion, outranked by the joined group's wherever that one
     # applies, so it is the quoted read that answers for it. Withdraw its exclusion and the
-    # quoted row takes --chip where it wore nothing.
+    # quoted row takes --lf-chip where it wore nothing.
     #
     # The live twin goes first, and is both the control and the edge the quoted read is
     # anchored on. Its rest value is read while the pointer is on the other one, and the

@@ -27,7 +27,7 @@ vars:
     The hosted harness serves the page and handles its status, so run no server,
     watcher or status operation. No checkpoint was requested.
 
-    Read the contract and write the remaining steps you would take before ending
+    Write the remaining steps you would take before ending
     the turn. Only reading instructions runs here; show any commands you would
     run and then the final reply.
 assert:

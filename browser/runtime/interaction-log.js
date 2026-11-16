@@ -4,7 +4,8 @@
    the document's monotonic clock and visibility. A session names
    one document lifetime, so only rows in that session share a browser clock. */
 import { TEXT_BOX } from "./control-selectors.js";
-import { PAGE_ROOT } from "./context.js";
+import { DELIVERY, PAGE_ROOT } from "./context.js";
+import { servedRevision } from "./document-identity.js";
 import { focused } from "./focus.js";
 import { isNativeLayer } from "./shadow-tree.js";
 import { randomId } from "./ids.js";
@@ -427,6 +428,10 @@ if (url !== null) {
   enqueue({
     type: "session_start",
     location: `${pagePath(location.pathname)}${location.hash}`,
+    // What this document runs, which its resource paths name only as one identity:
+    // a later revision or another runtime is why a tab reloaded.
+    revision: servedRevision,
+    runtime: DELIVERY.runtime ?? null,
     viewport: [window.innerWidth, window.innerHeight],
     userAgent: navigator.userAgent,
   });

@@ -23,7 +23,7 @@ vars:
     the page when you get there. After the patch I'll try the build on a laptop that
     sleeps, since only I have one. Then write the release note."
 
-    Read whatever instructions you need. Only Skill and Read run here, so write out,
+    Only Skill and Read run here, so write out,
     in order, each command you would run on the page before you start reproducing the
     drop.
 assert:

@@ -7,11 +7,15 @@
 # the final paragraph. These score authored strings, not animation behavior.
 # A removal survey exposed inconsistent grading of retained outer controls. Judge
 # partial revisions by what they change and explicitly preserve, not repeated markup.
+# The case now authors the page and names nothing to read, so the author writes every
+# control and the judgment no longer accepts a partial revision; it hasn't run in
+# this form.
 description: playground-candidates-use-product-copy
 metadata:
   purpose:
     "Playground: candidates use realistic product content; exploration commentary stays around
     the interface."
+  authoring: true
   tags:
     - playground
 vars:
@@ -25,9 +29,7 @@ vars:
     \ obey the layouts. Seeing the sketch will help me think about where it's\nviable to try further.\"\
     \n\nLeaf's current composer has an editable message and Send. Its thread has the\npassage being discussed,\
     \ the message, a reaction, Undo, Resolve, and Reply.\nTry smooth outward growth and a piece-by-piece\
-    \ build, with slow motion and\nreplay so the user can inspect the transition.\n\nThe page uses the\
-    \ playground package; read its author instructions at\n`../../packages/playground/instructions/author.md`\
-    \ relative to the leaf skill's base\ndirectory, the directory that holds its `references/`.\nThe first\
+    \ build, with slow motion and\nreplay so the user can inspect the transition.\n\nThe first\
     \ draft has been written. The two motions work and a browser check\nmeasured zero text movement. Its\
     \ preview markup is:\n\n<lf-playground-preview>\n  <div class=\"stage\" id=\"animation-stage\">\n\
     \    <p class=\"passage\">A comment starts small.\n      <mark>The thread needs room for context and\
@@ -48,10 +50,9 @@ vars:
     \    <button class=\"reset-draft\">Edit again</button>\n    <label>Progress <input aria-label=\"Animation\
     \ progress\" type=\"range\"\n      min=\"0\" max=\"100\" value=\"0\"></label>\n  </div>\n</lf-playground-preview>\n\
     \nIts Resolve handler currently sets:\nseat.querySelector('.tail').textContent = on\n  ? 'Resolved\
-    \ \xB7 sketch only'\n  : 'Illustrative thread \xB7 no comment sent to the agent';\n\nFinish the draft\
-    \ for handoff. Keep the working motions and simplify copy\nthat does not help the user understand\
-    \ or operate it. The page directory is\nnot reachable here, so reply with the revised playground HTML\
-    \ and the relevant\nscript handlers. You can omit the unchanged animation implementation and CSS.\n"
+    \ \xB7 sketch only'\n  : 'Illustrative thread \xB7 no comment sent to the agent';\n\nWrite the page from\
+    \ that draft and finish it for handoff, simplifying copy\nthat does not help the user understand\
+    \ or operate it. A placeholder can stand\nfor the animation implementation and its CSS.\n"
 assert:
   - type: llm-rubric
     metric: judgment
@@ -68,7 +69,5 @@ assert:
       2. The user can send a message, compare the two motions, slow them down, and
          replay them through controls with meaningful labels. The copy rule must
          not remove useful exploration controls around the simulated interface.
-         This revises a working draft: a partial replacement may explicitly retain
-         its existing outer controls and handlers without repeating their markup.
          Merely promising new controls, or removing existing ones, does not count.
       Fail if either does not hold.

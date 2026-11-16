@@ -225,7 +225,7 @@ on the `lf-playground` as a custom property, `--playground-NAME`, and an attribu
   border-radius: var(--playground-radius);
 }
 #notification-playground[data-playground-compact="true"] .notification-candidate {
-  padding: var(--sp-2);
+  padding: var(--lf-sp-2);
 }
 ```
 
@@ -380,6 +380,7 @@ that change its result. Check that the preview and measurements reflect the chos
 values, the copied or submitted instruction stands alone, and the controls remain
 reachable where the layout changes. Check that focus lands where the user expects after
 adding or removing a row, and that a decision survives filtering, reordering, Reset and
-reload. Verify Reset, reload and export for state or behavior the page adds to them;
-live samples need a server. Capture any real fixture the playground needs when you build
-the page, so reopening and exporting it need no network.
+reload. Verify Reset, reload and export for state or behavior the page adds to them,
+exporting with `leaf page export --runtime` so the file's reader can operate the
+controls; live samples need a server. Capture any real fixture the playground needs when
+you build the page, so reopening and exporting it need no network.

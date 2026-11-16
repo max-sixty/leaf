@@ -36,21 +36,21 @@
  * of that rule or spine; paper leaves them out. */
 lf-toc {
   display: block;
-  margin: var(--sp-4) 0 30px;
+  margin: var(--lf-sp-4) 0 30px;
 }
 /* The closed native toggle has the same box before its outline arrives. */
 lf-toc:empty {
-  min-block-size: max(calc(var(--t-6) * 1.3 + 14px), var(--aim-floor));
+  min-block-size: max(calc(var(--lf-t-6) * 1.3 + 14px), var(--lf-aim-floor));
 }
 lf-toc[data-lf-toc-empty] {
   display: none;
 }
 lf-toc .lf-toc-nav {
   position: relative;
-  border-inline-start: 1px solid var(--border-2);
-  padding-inline-start: var(--sp-3);
-  color: var(--muted);
-  font: var(--font-ui);
+  border-inline-start: 1px solid var(--lf-border);
+  padding-inline-start: var(--lf-sp-3);
+  color: var(--lf-muted);
+  font: var(--lf-font-ui);
 }
 lf-toc .lf-toc-disclosure {
   border: 0;
@@ -65,8 +65,8 @@ lf-toc .lf-toc-heading {
 }
 lf-toc .lf-toc-toggle {
   margin: 0;
-  padding-block: max(7px, (var(--aim-floor) - 1lh) / 2);
-  --lf-ring-at: var(--focus-ring-inset);
+  padding-block: max(7px, (var(--lf-aim-floor) - 1lh) / 2);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 lf-toc .lf-toc-disclosure[open] .lf-toc-toggle {
   margin-bottom: 7px;
@@ -94,7 +94,7 @@ lf-toc .lf-toc-disclosure[open] .lf-toc-toggle {
       display: none;
     }
     lf-toc a[aria-current="location"] {
-      color: var(--ink);
+      color: var(--lf-ink);
     }
   }
 }
@@ -141,14 +141,14 @@ lf-toc a {
   display: inline-block;
   color: inherit;
   text-decoration: none;
-  padding-block: max(2px, (var(--aim-floor) - 1lh) / 2);
+  padding-block: max(2px, (var(--lf-aim-floor) - 1lh) / 2);
 }
 lf-toc a:hover,
 lf-toc a[data-lf-focus] {
-  color: var(--accent);
+  color: var(--lf-accent);
 }
 /* A section's mark (toc-view.js) says it holds an On me item, in the user's turn's
- * colour, or else an open thread, in a thread's (tokens.css, at `--turn`); its link's
+ * colour, or else an open thread, in a thread's (tokens.css, at `--lf-turn`); its link's
  * preview counts both. It is a small ring of its colour inside a soft disc of that colour, with a
  * hairline of paper round the disc (`--lf-toc-halo`), so the disc never runs into a
  * changed stretch or the lens. The outline draws the ring on its rule, centred on the
@@ -164,34 +164,34 @@ lf-toc a[data-lf-focus] {
  * and an upright bar a line tall for each kind in the gutter read as more spine beside
  * the map's spine and lens. The halo was picked on 14 November 2026 over the bar, a
  * ring and dot column, a dot on the marker's shoulder and a filled marker. The rule
- * stands `--sp-3` before each row's indent. */
+ * stands `--lf-sp-3` before each row's indent. */
 lf-toc .lf-toc-mark {
   position: absolute;
   z-index: 1;
-  top: calc(max(2px, (var(--aim-floor) - 1lh) / 2) + 0.5lh);
-  inset-inline-start: calc(-3px - var(--sp-3) - var(--lf-toc-indent));
+  top: calc(max(2px, (var(--lf-aim-floor) - 1lh) / 2) + 0.5lh);
+  inset-inline-start: calc(-3px - var(--lf-sp-3) - var(--lf-toc-indent));
   box-sizing: border-box;
   width: 5px;
   height: 5px;
   border: 1px solid var(--lf-toc-mark);
   border-radius: 50%;
   translate: 0 -50%;
-  background: var(--paper);
+  background: var(--lf-paper);
   box-shadow: var(--lf-toc-halo);
   pointer-events: none;
 }
 lf-toc [data-lf-toc-mark="thread"] {
-  --lf-toc-mark: var(--thread);
+  --lf-toc-mark: var(--lf-thread);
 }
 lf-toc [data-lf-toc-mark="on-me"] {
-  --lf-toc-mark: var(--turn);
+  --lf-toc-mark: var(--lf-turn);
 }
 /* Mixed in oklab, which keeps the mark's hue: oklch takes the short way round the hue
    circle to the paper's yellow, which turned the accent's halo green. */
 lf-toc [data-lf-toc-mark] {
   --lf-toc-halo:
-    0 0 0 3.5px color-mix(in oklab, var(--lf-toc-mark) 38%, var(--paper)),
-    0 0 0 4.5px var(--paper);
+    0 0 0 3.5px color-mix(in oklab, var(--lf-toc-mark) 38%, var(--lf-paper)),
+    0 0 0 4.5px var(--lf-paper);
 }
 lf-toc
   :is(.lf-toc-start, li, .lf-toc-toggle, .lf-toc-heading)[data-lf-toc-changed]::after {
@@ -199,10 +199,10 @@ lf-toc
   position: absolute;
   top: 0;
   bottom: 0;
-  inset-inline-start: calc(-2px - var(--sp-3) - var(--lf-toc-indent));
+  inset-inline-start: calc(-2px - var(--lf-sp-3) - var(--lf-toc-indent));
   width: 3px;
   border-radius: 1.5px;
-  background: var(--lf-change-bar, var(--change));
+  background: var(--lf-change-bar, var(--lf-change));
 }
 /* The outline's head, the disclosure's toggle or the label over the outline beside the
  * body, stands where the start row they leave out would, so it carries the marks of what
@@ -212,7 +212,7 @@ lf-toc :is(.lf-toc-toggle, .lf-toc-heading) {
   position: relative;
 }
 lf-toc .lf-toc-toggle > .lf-toc-mark {
-  top: calc(max(7px, (var(--aim-floor) - 1lh) / 2) + 0.5lh);
+  top: calc(max(7px, (var(--lf-aim-floor) - 1lh) / 2) + 0.5lh);
 }
 lf-toc .lf-toc-heading > .lf-toc-mark {
   top: 0.5lh;
@@ -249,8 +249,8 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
   @container (width < 8rem) and style(--lf-track-spine: 1) {
     lf-toc {
       --lf-toc-height: calc(
-        var(--lf-view-height) - var(--sp-4) - var(--page-pad-end) -
-          var(--focus-region-room)
+        var(--lf-view-height) - var(--lf-sp-4) - var(--lf-page-pad-end) -
+          var(--lf-focus-region-room)
       );
       height: var(--lf-toc-height);
       margin: 0;
@@ -267,21 +267,21 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       height: 100%;
       border: 0;
       box-sizing: border-box;
-      padding: var(--sp-4) 0;
-      clip-path: inset(0 calc(100% - 100cqi) 0 calc(-1 * var(--sp-2)));
+      padding: var(--lf-sp-4) 0;
+      clip-path: inset(0 calc(100% - 100cqi) 0 calc(-1 * var(--lf-sp-2)));
       transition: background-color 0.24s ease-out;
     }
     lf-toc .lf-toc-nav:dir(rtl) {
-      clip-path: inset(0 calc(-1 * var(--sp-2)) 0 calc(100% - 100cqi));
+      clip-path: inset(0 calc(-1 * var(--lf-sp-2)) 0 calc(100% - 100cqi));
     }
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-nav {
       clip-path: none;
-      background: color-mix(in srgb, var(--paper) 92%, transparent);
+      background: color-mix(in srgb, var(--lf-paper) 92%, transparent);
     }
     @scope (body[data-lf-go-to-active] lf-toc) {
       :scope:is(lf-toc) .lf-toc-nav {
         clip-path: none;
-        background: color-mix(in srgb, var(--paper) 92%, transparent);
+        background: color-mix(in srgb, var(--lf-paper) 92%, transparent);
       }
     }
     lf-toc .lf-toc-toggle {
@@ -297,7 +297,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       isolation: isolate;
       display: flex;
       /* A details element with display: contents gives percentages no height. */
-      height: calc(var(--lf-toc-height) - 2 * var(--sp-4));
+      height: calc(var(--lf-toc-height) - 2 * var(--lf-sp-4));
       --lf-toc-spine-width: 1px;
       flex-direction: column;
     }
@@ -309,7 +309,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       bottom: 0;
       inset-inline-start: 0;
       width: var(--lf-toc-spine-width);
-      background: var(--border-2);
+      background: var(--lf-border);
     }
     /* One pixel tall, scaled to the lens's length by the widget's scroll-driven
        * animation, which the compositor runs. */
@@ -322,7 +322,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       width: var(--lf-toc-spine-width);
       height: 1px;
       transform-origin: top;
-      background: var(--accent);
+      background: var(--lf-accent);
     }
     /* A row is a span of the spine, and its link hangs from the row's top and may run
        * past the row's foot when rows are dense. The row takes no presses, so the next
@@ -357,7 +357,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       width: var(--lf-toc-dot);
       height: var(--lf-toc-dot);
       border-radius: 50%;
-      background: var(--muted);
+      background: var(--lf-muted);
     }
     lf-toc .lf-toc-start::before {
       --lf-toc-dot: 9px;
@@ -367,12 +367,12 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     }
     lf-toc .lf-toc-start::before,
     lf-toc li[data-lf-depth="0"]::before {
-      border: 1px solid var(--muted);
-      background: var(--paper);
+      border: 1px solid var(--lf-muted);
+      background: var(--lf-paper);
     }
     lf-toc :is(.lf-toc-start, li):has(> a[aria-current="location"])::before {
-      background: var(--accent);
-      border-color: var(--accent);
+      background: var(--lf-accent);
+      border-color: var(--lf-accent);
     }
     lf-toc .lf-toc-start a,
     lf-toc li a {
@@ -394,7 +394,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
         opacity 0.24s ease-out;
     }
     lf-toc .lf-toc-start a {
-      font: var(--font-title);
+      font: var(--lf-font-title);
     }
     /* The words fade in as the map reveals them, and a reading of what the page shows
      * (`checkVisibility`) finds none of them at rest. */
@@ -426,7 +426,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
         :has(> a[aria-current="location"])
       )::before {
       border: 1px solid var(--lf-toc-mark);
-      background: var(--paper);
+      background: var(--lf-paper);
     }
     lf-toc li:not([data-lf-depth="0"])[data-lf-toc-mark]::before {
       --lf-toc-dot: 5px;
@@ -438,20 +438,20 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     }
     lf-toc
       :is(.lf-toc-start a, li a[aria-current="location"]):not(:hover, [data-lf-focus]) {
-      color: var(--ink-2);
+      color: var(--lf-ink-2);
     }
     lf-toc a {
-      --lf-ring-at: var(--focus-ring-inset);
+      --lf-ring-at: var(--lf-focus-ring-inset);
     }
     /* A crowded but physically fitting map uses one line per destination before the
        * shared scale is fitted. It still shows the complete route. */
     lf-toc[data-lf-compact] :is(.lf-toc-start, li) a {
       max-height: 1lh;
-      font: var(--font-small);
+      font: var(--lf-font-small);
       -webkit-line-clamp: 1;
     }
     lf-toc[data-lf-compact] .lf-toc-start a {
-      font: var(--font-heading);
+      font: var(--lf-font-heading);
     }
     /* When the labels themselves exceed the map's height, this is an ordinary open,
        * scrollable outline instead, revealed as the map is. With no spine it takes the
@@ -461,10 +461,10 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
        * rather than as its border. */
     lf-toc[data-lf-outline] .lf-toc-nav {
       overflow-y: auto;
-      padding-inline-start: calc(var(--sp-3) + 8px);
+      padding-inline-start: calc(var(--lf-sp-3) + 8px);
     }
     lf-toc[data-lf-outline] .lf-toc-rows::before {
-      inset-inline-start: calc(-1px - var(--sp-3));
+      inset-inline-start: calc(-1px - var(--lf-sp-3));
     }
     lf-toc[data-lf-outline] .lf-toc-window,
     lf-toc[data-lf-outline] :is(.lf-toc-start, li)::before {
@@ -475,7 +475,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       top: calc(3px + 0.5lh);
     }
     lf-toc[data-lf-outline] :is(.lf-toc-start, li)[data-lf-toc-changed]::after {
-      inset-inline-start: calc(-2px - var(--sp-3) - var(--lf-toc-indent));
+      inset-inline-start: calc(-2px - var(--lf-sp-3) - var(--lf-toc-indent));
     }
     lf-toc[data-lf-outline] .lf-toc-heading {
       display: block;

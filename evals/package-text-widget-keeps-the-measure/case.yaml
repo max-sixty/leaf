@@ -15,7 +15,7 @@ vars:
     they go. Teams will put a checklist on their release dashboards, which are wide
     pages with charts and tables beside the prose.
 
-    Read the package reference and show the registry.json entries for lf-checklist
+    Show the registry.json entries for lf-checklist
     and lf-check, with a sentence on each declaration you chose, and the stylesheet
     rules that set lf-checklist's width. Return JSON in your reply.
 assert:

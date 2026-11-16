@@ -18,8 +18,8 @@ lf-visual-review {
   container-name: visual-review;
   --lf-full-height: inherit;
   --lf-block-frame: 1;
-  color: var(--ink);
-  font: var(--font-widget);
+  color: var(--lf-ink);
+  font: var(--lf-font-widget);
 }
 .lf-vr-dashboard {
   display: grid;
@@ -34,21 +34,21 @@ lf-visual-review {
   flex-wrap: wrap;
   gap: 8px 16px;
   padding-block: 12px;
-  border-block-end: 1px solid var(--rule);
+  border-block-end: 1px solid var(--lf-rule);
 }
 .lf-vr-heading h2 {
   margin: 0;
-  font: var(--font-title);
+  font: var(--lf-font-title);
 }
 .lf-vr-progress {
   display: flex;
   gap: 16px;
-  color: var(--muted);
-  font: var(--font-compact);
+  color: var(--lf-muted);
+  font: var(--lf-font-compact);
   font-variant-numeric: tabular-nums;
 }
 .lf-vr-progress strong {
-  color: var(--ink);
+  color: var(--lf-ink);
   font-weight: 600;
 }
 .lf-vr-workspace {
@@ -100,7 +100,7 @@ lf-visual-review {
   min-width: 2ch;
 }
 .lf-vr-case-status {
-  color: var(--ok-ink);
+  color: var(--lf-ok-ink);
 }
 .lf-vr-case-status[data-lf-approved="false"] {
   visibility: hidden;
@@ -146,8 +146,8 @@ lf-visual-review {
 }
 .lf-vr-claim .lf-vr-action {
   margin-block-start: 6px;
-  font: var(--font-compact);
-  color: var(--muted);
+  font: var(--lf-font-compact);
+  color: var(--lf-muted);
 }
 .lf-vr-decision {
   display: flex;
@@ -167,8 +167,8 @@ lf-visual-review {
    stacked desk has no such gap (below). */
 .lf-vr-approval {
   gap: 7px;
-  margin-inline-start: calc(-1 * var(--choice-pad));
-  font: var(--font-compact);
+  margin-inline-start: calc(-1 * var(--lf-choice-pad));
+  font: var(--lf-font-compact);
 }
 .lf-vr-inspect {
   anchor-name: --review-inspect;
@@ -188,7 +188,7 @@ lf-visual-review {
   max-block-size: calc(100dvh - 100px);
   overflow: auto;
   padding: 20px;
-  font: var(--font-ui);
+  font: var(--lf-font-ui);
 }
 .lf-vr-sources {
   display: flex;
@@ -202,7 +202,7 @@ lf-visual-review {
   --lf-full-height: inherit;
   /* The capture stands on a tint of the paper, between a header and a claim on the
      paper itself; each is a solid surface naming its ground (package-themes.md). */
-  --lf-ground: color-mix(in srgb, var(--ink) 3%, var(--paper));
+  --lf-ground: color-mix(in srgb, var(--lf-ink) 3%, var(--lf-paper));
   background: var(--lf-ground);
   border: 0;
   border-radius: 0;
@@ -214,15 +214,15 @@ lf-visual-review {
   flex-wrap: wrap;
   gap: 8px 16px;
   padding: 10px 12px;
-  border-block-end: 1px solid var(--rule);
-  --lf-ground: var(--paper);
+  border-block-end: 1px solid var(--lf-rule);
+  --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
 }
 .lf-vr-evidence-note {
   flex: 1 1 20rem;
   margin: 0;
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
 }
 /* The capture takes the desk's spare height, but never less than its toolbar and a
    frame worth reading: in a short window, where the desk's other regions leave it
@@ -299,21 +299,21 @@ lf-visual-review {
   }
   .lf-vr-progress {
     gap: 10px;
-    font: var(--font-small);
+    font: var(--lf-font-small);
     font-variant-numeric: tabular-nums;
   }
   .lf-vr-case-button {
     padding-block: 8px;
-    font: var(--font-small);
+    font: var(--lf-font-small);
   }
   .lf-vr-case-number {
     display: none;
   }
   .lf-vr-claim p {
-    font: var(--font-compact);
+    font: var(--lf-font-compact);
   }
   .lf-vr-claim .lf-vr-action {
-    font: var(--font-small);
+    font: var(--lf-font-small);
   }
   .lf-vr-decision {
     gap: 8px;
@@ -352,7 +352,7 @@ lf-visual-review {
 }
 .lf-vr-inspection-heading h4 {
   margin: 0;
-  font: var(--font-title);
+  font: var(--lf-font-title);
 }
 
 .lf-vr-open-threads {
@@ -365,12 +365,12 @@ lf-visual-review {
   display: block;
   inline-size: 100%;
   text-align: start;
-  margin-block-start: var(--sp-2);
+  margin-block-start: var(--lf-sp-2);
 }
 
 .lf-vr-claim {
-  padding: var(--sp-3);
-  --lf-ground: var(--paper);
+  padding: var(--lf-sp-3);
+  --lf-ground: var(--lf-paper);
   background: var(--lf-ground);
 }
 

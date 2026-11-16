@@ -1,8 +1,8 @@
 .lf-drawing-reference {
   display: block;
   margin-top: 2px;
-  color: var(--muted);
-  font: var(--font-status);
+  color: var(--lf-muted);
+  font: var(--lf-font-status);
 }
 /* A seat's resolved threads stand under one disclosure (thread/inline.js), whose
    threads are page threads like any other. Its summary is one line at the aim floor,
@@ -24,17 +24,17 @@
   display: none;
 }
 .lf-resolved-summary {
-  border-radius: var(--r);
+  border-radius: var(--lf-r);
   cursor: pointer;
-  padding: max(var(--sp-1), (var(--aim-floor) - 1lh) / 2) var(--sp-1);
-  color: var(--muted);
-  font: var(--font-small);
+  padding: max(var(--lf-sp-1), (var(--lf-aim-floor) - 1lh) / 2) var(--lf-sp-1);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .lf-resolved-summary:hover {
-  color: var(--ink-2);
+  color: var(--lf-ink-2);
 }
 .lf-page-thread .lf-btn {
   font: inherit;
@@ -62,11 +62,11 @@
 .lf-reaction {
   appearance: none;
   margin: 0;
-  padding: var(--chip-pad);
+  padding: var(--lf-chip-pad);
   white-space: nowrap;
   border: 1px solid transparent;
-  border-radius: var(--chip-r);
-  font: var(--font-chip);
+  border-radius: var(--lf-chip-r);
+  font: var(--lf-font-chip);
   --lf-ring-at: 0;
 }
 
@@ -75,33 +75,33 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  min-width: max(26px, var(--aim-floor));
+  min-width: max(26px, var(--lf-aim-floor));
 }
 /* A reaction's states, wherever one shows them: a strip's token, and a reaction among
    the response bar's choices, whose role keeps only its own resting ground (the
    response face, below). The margin draws a reaction as an entry (below). */
 :is(.lf-reaction, .lf-response-face[aria-pressed]) {
-  color: var(--muted);
+  color: var(--lf-muted);
   border-color: transparent;
   background: transparent;
 }
 :is(.lf-reaction, .lf-response-face[aria-pressed]):is(:hover, [data-lf-focus]) {
-  color: var(--ink-2);
-  border-color: var(--border-2);
-  background: var(--chip);
+  color: var(--lf-ink-2);
+  border-color: var(--lf-border);
+  background: var(--lf-chip);
 }
 /* A reaction the user added wears the accent, so it reads as theirs even alone in the
    closed strip, and its tint deepens under the pointer as a neighbour's chip rises. */
 :is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"] {
-  color: var(--accent);
-  border-color: var(--accent);
-  background: var(--accent-tint);
+  color: var(--lf-accent);
+  border-color: var(--lf-accent);
+  background: var(--lf-accent-tint);
 }
 :is(.lf-reaction, .lf-response-face[aria-pressed])[aria-pressed="true"]:is(
     :hover,
     [data-lf-focus]
   ) {
-  background: color-mix(in srgb, var(--accent) 24%, var(--card));
+  background: color-mix(in srgb, var(--lf-accent) 24%, var(--lf-card));
 }
 /* A reaction says its word through its preview (runtime/preview.js), which a finger
    reads by holding the choice, so the press owns the gesture: it neither scrolls nor
@@ -157,7 +157,7 @@
   align-items: center;
   min-inline-size: 0;
   block-size: 0;
-  margin-inline-start: calc(-1 * var(--sp-2));
+  margin-inline-start: calc(-1 * var(--lf-sp-2));
 }
 .lf-msg-control-room:has(> .lf-msg-controls:empty) {
   display: none;
@@ -277,12 +277,12 @@ svg[data-lf-icon] {
   &::after {
     content: "";
     position: absolute;
-    inset-inline-start: calc(100% + var(--sp-2) / 2);
+    inset-inline-start: calc(100% + var(--lf-sp-2) / 2);
     inset-block-start: 50%;
     translate: -50% -50%;
     inline-size: 1px;
     block-size: 16px;
-    background: var(--border-2);
+    background: var(--lf-border);
     opacity: var(--lf-msg-offered, 0);
     pointer-events: none;
   }
@@ -304,19 +304,19 @@ svg[data-lf-icon] {
   anchor-name: --lf-react-trigger;
 }
 /* A popover a control opens over the page, such as a menu of choices or a card of
-   details, wears one face while it is open: the raised surfaces' ground (`--card`),
+   details, wears one face while it is open: the raised surfaces' ground (`--lf-card`),
    which it names as its ground for its opaque controls (package-themes.md), a border
    that sets it apart from the page in either scheme, and the shadow of what opens over
-   the page (`--raise-2`, tokens.css). A popover takes the face with the `lf-popover`
+   the page (`--lf-raise-2`, tokens.css). A popover takes the face with the `lf-popover`
    class, and its own rule sets only its place, size and padding. The rule has no
    specificity, so the popover's own rules win. */
 :where(.lf-popover:popover-open) {
-  --lf-ground: var(--card);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
+  --lf-ground: var(--lf-card);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
   background: var(--lf-ground);
-  color: var(--ink);
-  box-shadow: var(--raise-2);
+  color: var(--lf-ink);
+  box-shadow: var(--lf-raise-2);
 }
 /* The list is an auto popover, in the top layer: open, it stands over everything in
    the thread, the sticky title and reply row included, so its message is never raised
@@ -360,7 +360,7 @@ svg[data-lf-icon] {
   inline-size: 32px;
   block-size: 32px;
   padding: 0;
-  font: var(--font-emoji);
+  font: var(--lf-font-emoji);
 }
 @media (hover: none) {
   .lf-msg {
@@ -370,11 +370,11 @@ svg[data-lf-icon] {
 .lf-msg-meta {
   display: flex;
   align-items: baseline;
-  gap: var(--sp-2);
+  gap: var(--lf-sp-2);
   min-width: 0;
 }
 .lf-msg-sending {
-  color: var(--muted);
+  color: var(--lf-muted);
   white-space: nowrap;
 }
 /* Each speaker has one face wherever a seat shows its words (voice.js, glossary.md
@@ -401,7 +401,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 .lf-msg-sending::before {
   content: "\00b7";
   margin-inline-end: 6px;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* The unread dot: news's one mark, wherever it is marked, a reply, a row of Threads,
    the On Me mark and the folded leaf. A margin entry draws the same dot on its corner
@@ -410,7 +410,7 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--news);
+  background: var(--lf-news);
 }
 /* An unread reply wears the unread dot beside its time, and says New only to a screen reader, which reads it with the
    head. It stands with the time rather than among the head's annotations, so where a
@@ -643,7 +643,7 @@ summary,
  * (3 November 2026); before them a word framed on the card ground, a second look
  * for the same press, until the user chose the quiet one on 25 October. */
 :is(.lf-btn, .lf-icon-action) {
-  --wa-color-neutral-on-quiet: var(--muted);
+  --wa-color-neutral-on-quiet: var(--lf-muted);
 }
 .lf-btn.lf-commit {
   --wa-color-on-quiet: var(--wa-color-brand-on-quiet);
@@ -673,21 +673,21 @@ summary,
  * a second frame or selected fill. The target owns its ring room inside its box,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
- * face out by that padding, `--choice-pad`. A page's own label wears `lf-choice`
+ * face out by that padding, `--lf-choice-pad`. A page's own label wears `lf-choice`
  * too. */
 .lf-choice {
-  --choice-pad: max(var(--sp-1), var(--focus-ring-room));
+  --lf-choice-pad: max(var(--lf-sp-1), var(--lf-focus-ring-room));
   display: inline-flex;
   align-items: center;
   justify-self: start;
-  gap: var(--sp-1);
-  padding: var(--choice-pad);
-  min-block-size: var(--aim-floor);
-  min-inline-size: var(--aim-floor);
+  gap: var(--lf-sp-1);
+  padding: var(--lf-choice-pad);
+  min-block-size: var(--lf-aim-floor);
+  min-inline-size: var(--lf-aim-floor);
   box-sizing: border-box;
   cursor: pointer;
-  font: var(--font-ui);
-  --lf-ring-at: var(--focus-ring-inset);
+  font: var(--lf-font-ui);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 /* The mark is Web Awesome's: the radio and checkbox region of its native styles,
  * generated onto the face's input into vendor/webawesome-native.css, so a choice
@@ -728,7 +728,7 @@ summary,
   outline: none;
 }
 .lf-choice[data-lf-control-focus-visible] {
-  outline: var(--focus-ring);
+  outline: var(--lf-focus-ring);
   --lf-wears-ring: 1;
 }
 
@@ -793,13 +793,13 @@ summary,
    such as the composer's Send and a rewrite's Save, and keeps the accent under the
    pointer; disabled, it takes the quiet ink. */
 .lf-icon-action[data-lf-tone="accent"]:not(:disabled, [aria-disabled="true"]) {
-  color: var(--accent);
+  color: var(--lf-accent);
 }
 /* A symbol whose menu, picker or popover is open (`aria-expanded`), such as a
    message's reaction picker or the panel's leaf menu, keeps the chip while it shows. */
 .lf-icon-action[aria-expanded="true"] {
-  background: var(--chip);
-  color: var(--ink);
+  background: var(--lf-chip);
+  color: var(--lf-ink);
 }
 /* A symbol on a vendor control, Copy, wears the face on its host, which holds no line
    of words of its own; the button inside fills the face and takes the press. The host
@@ -824,18 +824,18 @@ wa-copy-button.lf-icon-action {
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
    is marked settled, as a chosen answer is (below). */
 .lf-btn.lf-commit[aria-pressed="true"] {
-  color: var(--settled-ink);
-  border-color: var(--settled);
-  background: var(--settled-tint);
+  color: var(--lf-settled-ink);
+  border-color: var(--lf-settled);
+  background: var(--lf-settled-tint);
 }
 /* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
    ground. It is the faces' own state, so it stands here beside them; a disc, which
    shows its state on its disc, such as Dictate listening, keeps its box clear (the
    disc, below). */
 :is(.lf-btn, .lf-icon-action):is([aria-pressed="true"], [aria-checked="true"]) {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--chip);
+  border-color: var(--lf-accent);
+  color: var(--lf-accent);
+  background: var(--lf-chip);
 }
 /* The disc, a variant of the symbol (`data-lf-disc`): a glyph drawn in its action's
    own ink, whose state shows on a disc behind it, a square of the face (its
@@ -871,7 +871,7 @@ wa-copy-button.lf-icon-action {
   box-sizing: border-box;
   inline-size: var(--lf-icon-action-face);
   block-size: var(--lf-icon-action-face);
-  border-radius: var(--r);
+  border-radius: var(--lf-r);
   background: var(--lf-disc-rest, var(--lf-disc-ground, transparent));
 }
 .lf-icon-action[data-lf-disc]:not([aria-pressed="true"])::after {
@@ -889,7 +889,7 @@ wa-copy-button.lf-icon-action {
   box-shadow: none;
 }
 .lf-icon-action[data-lf-disc]:not([data-lf-tone]):is(:hover, [aria-expanded="true"]) {
-  color: var(--ink);
+  color: var(--lf-ink);
 }
 .lf-icon-action[data-lf-disc]:not(:disabled, [aria-disabled="true"]):is(
     :hover,
@@ -899,44 +899,44 @@ wa-copy-button.lf-icon-action {
     [aria-pressed="true"],
     [aria-expanded="true"]
   )::before {
-  background: var(--accent-tint);
+  background: var(--lf-accent-tint);
 }
 .lf-icon-action[data-lf-disc][aria-pressed="true"] {
-  color: var(--accent);
+  color: var(--lf-accent);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="ink"] {
-  color: var(--ink);
+  color: var(--lf-ink);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="ink"]:not(
     :disabled,
     [aria-disabled="true"]
   ):is(:hover, [data-lf-focus-visible])::before {
-  background: var(--chip);
+  background: var(--lf-chip);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"] {
-  color: var(--settled-ink);
+  color: var(--lf-settled-ink);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"]::before {
-  background: var(--settled-tint);
+  background: var(--lf-settled-tint);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="positive"]:not(
     :disabled,
     [aria-disabled="true"]
   ):is(:hover, [data-lf-focus-visible])::before {
-  background: color-mix(in srgb, var(--settled-ink) 18%, var(--settled-tint));
+  background: color-mix(in srgb, var(--lf-settled-ink) 18%, var(--lf-settled-tint));
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="negative"] {
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
 .lf-icon-action[data-lf-disc][data-lf-tone="negative"]:is(
     :hover,
     [data-lf-focus-visible]
   )::before {
-  background: var(--danger-tint);
+  background: var(--lf-danger-tint);
 }
 .lf-icon-action[data-lf-disc]:is(:disabled, [aria-disabled="true"]) {
   opacity: 1;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* The answer face: one of the answers a question offers, as On Me's cards offer a
    decision's choices (floating-panel.js). Each stands in a hairline frame in the ink,
@@ -948,12 +948,12 @@ wa-copy-button.lf-icon-action {
    Its words wrap rather than running past their surface's edge. */
 .lf-answer {
   box-sizing: border-box;
-  min-width: var(--aim-floor);
+  min-width: var(--lf-aim-floor);
   padding: max(0px, (var(--lf-line) - 1lh) / 2 - 1px) 11px;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
   background: transparent;
-  color: var(--ink);
+  color: var(--lf-ink);
   font: inherit;
   text-align: start;
   white-space: normal;
@@ -966,13 +966,13 @@ wa-copy-button.lf-icon-action {
 }
 @media (hover: hover) {
   .lf-answer:where(:not(:disabled, [aria-disabled="true"])):hover {
-    background: var(--chip);
+    background: var(--lf-chip);
   }
 }
 .lf-answer[aria-pressed="true"] {
-  border-color: color-mix(in srgb, var(--settled) 45%, transparent);
-  background: var(--settled-tint);
-  color: var(--settled-ink);
+  border-color: color-mix(in srgb, var(--lf-settled) 45%, transparent);
+  background: var(--lf-settled-tint);
+  color: var(--lf-settled-ink);
 }
 .lf-answer[aria-pressed="true"]::before {
   content: "✓";
@@ -991,20 +991,20 @@ wa-copy-button.lf-icon-action {
   border: 0;
   border-radius: 0;
   background: transparent;
-  color: var(--code-muted);
+  color: var(--lf-code-muted);
   cursor: pointer;
 }
 .lf-gutter::before {
   content: "+";
   position: absolute;
-  inset-inline-start: var(--focus-ring-w);
-  inset-block: var(--focus-ring-w);
-  width: calc(2ch - 1px - var(--focus-ring-w));
+  inset-inline-start: var(--lf-focus-ring-w);
+  inset-block: var(--lf-focus-ring-w);
+  width: calc(2ch - 1px - var(--lf-focus-ring-w));
   display: grid;
   place-content: center;
-  border-radius: var(--r-s);
-  background: var(--accent-tint);
-  color: var(--accent);
+  border-radius: var(--lf-r-s);
+  background: var(--lf-accent-tint);
+  color: var(--lf-accent);
   font-weight: 600;
   text-align: center;
   opacity: 0;
@@ -1021,7 +1021,7 @@ wa-copy-button.lf-icon-action {
 .lf-picture {
   padding: 0;
   border: 0;
-  border-radius: var(--r);
+  border-radius: var(--lf-r);
   background: transparent;
   color: inherit;
   font: inherit;
@@ -1029,7 +1029,7 @@ wa-copy-button.lf-icon-action {
 }
 /* Every picture in reading content wears one face: a 1px ring in its surface's edge
    colour (`--lf-ring`, which a surface on another ground sets) and the lowest lift
-   (tokens.css, `--raise-1`, which an image lies at). A capture whose edge is the
+   (tokens.css, `--lf-raise-1`, which an image lies at). A capture whose edge is the
    ground's colour, such as a screenshot of a white page, then shows where it ends: on
    the page, in a thread wherever it is drawn, and on a draft's shelf as once it is
    sent. A box that frames a picture wears the face for it by declaring
@@ -1044,10 +1044,10 @@ wa-copy-button.lf-icon-action {
    a box that declares `.lf-media-frame` wears it on any page. */
 .lf-media-frame,
 .lf-picture[data-lf-frame] {
-  border-radius: var(--r);
+  border-radius: var(--lf-r);
   box-shadow:
-    0 0 0 1px var(--lf-ring, var(--border-2)),
-    var(--raise-1);
+    0 0 0 1px var(--lf-ring, var(--lf-border)),
+    var(--lf-raise-1);
 }
 /* A forced palette drops the ring, so a picture takes a system edge; a focused
    frame's focus ring outranks it. */
@@ -1070,23 +1070,23 @@ wa-copy-button.lf-icon-action {
   display: flex;
   width: 100%;
   align-items: baseline;
-  min-height: var(--aim-floor);
-  gap: var(--sp-2);
+  min-height: var(--lf-aim-floor);
+  gap: var(--lf-sp-2);
   padding: 7px 0;
   font-weight: 600;
   text-align: left;
   background: transparent;
   cursor: pointer;
   border: 1px solid transparent;
-  border-radius: var(--r);
-  --lf-ring-at: var(--focus-ring-inset);
+  border-radius: var(--lf-r);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 .lf-fold::before {
   align-self: center;
   margin: 0;
 }
 .lf-fold:hover {
-  border-color: var(--border-2);
+  border-color: var(--lf-border);
 }
 /* The proxy face: a pixel out of flow, out of the selection and transparent, taking no
    pointer, since what it stands for takes the pointer and is what the user sees. Its
@@ -1128,29 +1128,29 @@ wa-copy-button.lf-icon-action {
 .lf-margin-face {
   position: relative;
   box-sizing: border-box;
-  width: var(--margin-entry);
-  min-width: var(--margin-entry);
-  height: var(--margin-entry);
-  min-height: var(--margin-entry);
+  width: var(--lf-margin-entry);
+  min-width: var(--lf-margin-entry);
+  height: var(--lf-margin-entry);
+  min-height: var(--lf-margin-entry);
   padding: 0;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--lf-entry-tint, var(--paper));
-  color: var(--lf-entry-ink, var(--ink-2));
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-entry-tint, var(--lf-paper));
+  color: var(--lf-entry-ink, var(--lf-ink-2));
   flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 0;
-  font: var(--font-heading);
+  font: var(--lf-font-heading);
   line-height: 1;
   white-space: nowrap;
-  scroll-margin-block: var(--focus-ring-landing);
+  scroll-margin-block: var(--lf-focus-ring-landing);
   /* On its edge (:root, "Where it stands"), since a cluster's entries stand 4px apart
-     (`--margin-gap`), closer than a control's ring reaches. */
+     (`--lf-margin-gap`), closer than a control's ring reaches. */
   --lf-ring-at: 0;
   /* The raised face a pressable entry wears, beneath any pulse that rings it. */
-  --lf-entry-lift: 0 1px 0 var(--border-2), var(--raise-1);
+  --lf-entry-lift: 0 1px 0 var(--lf-border), var(--lf-raise-1);
 }
 /* A margin entry carries one of three promises on the same paper surface.
    An action's heavier ring and lower shadow say this press acts now; a disclosure's
@@ -1159,12 +1159,12 @@ wa-copy-button.lf-icon-action {
    while the static status alone has no raised or responsive material. */
 .lf-margin-face[data-lf-behavior="action"] {
   border-width: 2px;
-  color: var(--lf-entry-ink, var(--ink));
+  color: var(--lf-entry-ink, var(--lf-ink));
   box-shadow: var(--lf-entry-lift);
 }
 .lf-margin-face[data-lf-behavior="disclosure"] {
-  border-color: color-mix(in srgb, var(--ink) 34%, var(--paper));
-  color: var(--lf-entry-ink, var(--ink-2));
+  border-color: color-mix(in srgb, var(--lf-ink) 34%, var(--lf-paper));
+  color: var(--lf-entry-ink, var(--lf-ink-2));
   box-shadow: none;
 }
 /* A change's entry opens its card, a disclosure, but wears an action's raised face, so
@@ -1172,24 +1172,24 @@ wa-copy-button.lf-icon-action {
    3 November over the flatter disclosure face. */
 .lf-margin-face[data-lf-behavior="disclosure"][data-lf-kinds="change"] {
   border-width: 2px;
-  border-color: var(--border-2);
-  color: var(--lf-entry-ink, var(--ink));
+  border-color: var(--lf-border);
+  color: var(--lf-entry-ink, var(--lf-ink));
   box-shadow: var(--lf-entry-lift);
 }
 .lf-margin-face[data-lf-behavior="status"] {
-  border-color: var(--rule);
-  color: var(--lf-entry-ink, var(--ink-2));
+  border-color: var(--lf-rule);
+  color: var(--lf-entry-ink, var(--lf-ink-2));
   box-shadow: none;
   cursor: default;
 }
 /* Tone keeps an action's meaning on its icon throughout delivery and agent work. */
 .lf-margin-face[data-lf-tone="positive"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: var(--ok-ink);
+  color: var(--lf-ok-ink);
 }
 .lf-margin-face[data-lf-tone="negative"]
   > :is(.lf-margin-entry-icon, .lf-margin-entry-glyph) {
-  color: var(--danger-ink);
+  color: var(--lf-danger-ink);
 }
 /* Pointer and hover feedback belong to interactive offers. A status keeps its ghost
    ring in the page-map walk, while its hand and hover response go. */
@@ -1201,7 +1201,7 @@ wa-copy-button.lf-icon-action {
 .lf-margin-face:is(button, [role="button"]):not([data-lf-behavior="status"]):hover:not(
     [aria-disabled="true"]
   ) {
-  background: var(--lf-entry-tint, var(--chip));
+  background: var(--lf-entry-tint, var(--lf-chip));
 }
 /* A disclosure says on its own contour and ink that it is about to open, or is open.
    The keyboard says it too: the Page Map walk lands with [data-lf-focus], and a
@@ -1218,14 +1218,14 @@ wa-copy-button.lf-icon-action {
     [data-lf-focus],
     [aria-expanded="true"]
   ):not([aria-disabled="true"]) {
-  border-color: var(--accent);
-  color: var(--lf-entry-ink, var(--ink));
+  border-color: var(--lf-accent);
+  color: var(--lf-entry-ink, var(--lf-ink));
 }
 /* A selected page reading and its compact Page Map projection share one accent. Reuse
    the entry's existing contour: category still owns its weight, and focus can
    add the one outer ring that says where input will land. */
 .lf-margin-face[data-lf-target-selected] {
-  border-color: var(--accent);
+  border-color: var(--lf-accent);
 }
 .lf-margin-face[aria-disabled="true"] {
   cursor: default;
@@ -1241,8 +1241,8 @@ wa-copy-button.lf-icon-action {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: var(--news);
-  box-shadow: 0 0 0 2px var(--paper);
+  background: var(--lf-news);
+  box-shadow: 0 0 0 2px var(--lf-paper);
 }
 .lf-margin-entry-glyph {
   line-height: 1;
@@ -1283,15 +1283,15 @@ wa-copy-button.lf-icon-action {
   padding: 0 3px;
   box-sizing: border-box;
   border-radius: 999px;
-  border: 1px solid var(--paper);
-  background: var(--ink);
-  color: var(--paper);
+  border: 1px solid var(--lf-paper);
+  background: var(--lf-ink);
+  color: var(--lf-paper);
   display: grid;
   place-items: center;
-  font: var(--font-count);
+  font: var(--lf-font-count);
 }
 /* Margin and Page Map share the same attention reading, in the colours of what each
-   says (tokens.css, at `--turn`): the agent's work on an entry that holds no thread, a
+   says (tokens.css, at `--lf-turn`): the agent's work on an entry that holds no thread, a
    thread's own colour over it on one that does, and the user's turn over both, even
    when another thread on the same carrier has active agent work. Progress stays in the
    status words and the one arrival pulse rather than competing for the attention
@@ -1301,26 +1301,26 @@ wa-copy-button.lf-icon-action {
     .lf-page-map-action[data-lf-agent-workflow]
   )
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--work);
+  color: var(--lf-work);
 }
 :where(
     .lf-margin-face[data-lf-kinds~="comment"],
     .lf-page-map-action[data-lf-map-item^="comment:"]
   )
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--thread);
+  color: var(--lf-thread);
 }
 :is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
-  color: var(--turn-ink);
+  color: var(--lf-turn-ink);
 }
 /* A row that says the thread's word at its end, in Threads and the Page Map, says the
    user's turn in the same colour. */
 :is(.lf-page-map-action, .lf-fp-thread)[data-lf-turn="user"] > .lf-row-end {
-  color: var(--turn-ink);
+  color: var(--lf-turn-ink);
 }
 .lf-margin-face[data-lf-turn="user"] {
-  --lf-entry-tint: var(--turn-wash);
+  --lf-entry-tint: var(--lf-turn-wash);
 }
 :is(.lf-margin-face, .lf-page-map-action)[data-lf-agent-arrival] {
   animation: lf-runtime-4f3c2a8d-agent-work-arrival var(--lf-motion-agent-arrival)
@@ -1330,12 +1330,12 @@ wa-copy-button.lf-icon-action {
   0% {
     box-shadow:
       var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 0 color-mix(in srgb, var(--work) 42%, transparent);
+      0 0 0 0 color-mix(in srgb, var(--lf-work) 42%, transparent);
   }
   58% {
     box-shadow:
       var(--lf-agent-stage-shadow, 0 0 0 0 transparent),
-      0 0 0 7px color-mix(in srgb, var(--work) 16%, transparent);
+      0 0 0 7px color-mix(in srgb, var(--lf-work) 16%, transparent);
   }
   100% {
     box-shadow:
@@ -1371,10 +1371,10 @@ wa-copy-button.lf-icon-action {
    entry's meaning. Overflow and revealed actions use this same face. The pin supplies
    its ink through --lf-entry-ink, so the shared entry states retain it. */
 [data-lf-place="pin"] .lf-margin-face {
-  border-radius: var(--r) var(--r) var(--r) 0;
-  border: 1px solid var(--border-2);
-  --lf-entry-ink: var(--ink-2);
-  box-shadow: var(--raise-1);
+  border-radius: var(--lf-r) var(--lf-r) var(--lf-r) 0;
+  border: 1px solid var(--lf-border);
+  --lf-entry-ink: var(--lf-ink-2);
+  box-shadow: var(--lf-raise-1);
 }
 [data-lf-place="pin"]
   .lf-margin-face
@@ -1389,12 +1389,12 @@ wa-copy-button.lf-icon-action {
     [aria-expanded="true"],
     [data-lf-target-selected]
   ) {
-  border-color: var(--border-2);
+  border-color: var(--lf-border);
 }
 /* An entry in force, such as a reaction the user left, stands on the chip, a pin's
    included, so it follows the pin. */
 .lf-margin-face[aria-pressed="true"] {
-  background: var(--chip);
+  background: var(--lf-chip);
 }
 /* Comment boxes, the response bar's field (`.lf-response-control`, response.css) and its
    choices share their frame and focus paint. Other uses of the editor plumbing, such
@@ -1406,16 +1406,16 @@ wa-copy-button.lf-icon-action {
 .lf-comment-box > leaf-composition-field > .lf-compose-field,
 .lf-response-control,
 .lf-response-face {
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-card);
 }
 .lf-comment-box
   > leaf-composition-field
   > .lf-compose-field[data-lf-control-focus-visible],
 .lf-response-control[data-lf-focus-visible],
 .lf-response-face[data-lf-focus-visible] {
-  outline: var(--focus-ring);
+  outline: var(--lf-focus-ring);
   --lf-ring-at: 0;
   border-color: transparent;
   --lf-wears-ring: 1;
@@ -1424,7 +1424,7 @@ wa-copy-button.lf-icon-action {
    room inside its scrollport; a filter lets its shadow extend beyond that clip. */
 .lf-response-control,
 .lf-response-face {
-  filter: drop-shadow(var(--raise-1));
+  filter: drop-shadow(var(--lf-raise-1));
 }
 /* The field and its choices share height, vertical padding and type. Tab opens
      the anchored picker without replacing or moving the field.
@@ -1435,7 +1435,7 @@ wa-copy-button.lf-icon-action {
 .lf-response-face {
   box-sizing: border-box;
   min-height: var(--lf-response-height);
-  color: var(--ink-2);
+  color: var(--lf-ink-2);
   font-weight: 400;
   line-height: inherit;
   padding-block: var(--lf-compose-pad-block);
@@ -1447,7 +1447,7 @@ wa-copy-button.lf-icon-action {
    while not in force; the others, Comment and Suggest, take the frame's accent edge
    under the pointer and decline the wash every generated press takes there. */
 .lf-response-face {
-  min-width: max(30px, var(--aim-floor));
+  min-width: max(30px, var(--lf-aim-floor));
   padding-inline: 9px;
   display: inline-flex;
   align-items: center;
@@ -1457,14 +1457,14 @@ wa-copy-button.lf-icon-action {
   cursor: pointer;
 }
 .lf-response-face:hover {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--card));
-  background: var(--card);
+  border-color: color-mix(in srgb, var(--lf-accent) 45%, var(--lf-card));
+  background: var(--lf-card);
 }
 .lf-response-face:not([aria-pressed]):hover {
   box-shadow: none;
 }
 .lf-response-face[aria-pressed]:where(:not([aria-pressed="true"])) {
-  background: var(--card);
+  background: var(--lf-card);
 }
 /* The mark face: a small icon press seated on the thing it acts on. It rides a corner of that
    thing (`data-lf-corner`, below), as the floating panel's fold, an attachment's
@@ -1472,7 +1472,7 @@ wa-copy-button.lf-icon-action {
    block's corner (`.lf-mark-bar`, integration.css), as a code block's Copy and a
    draft's Edit, Save and Discard do. Every mark wears this one face at one size: the
    face the user chose on 22 October from the panel's fold, its icon in the dim ink and
-   full ink under the pointer, at the fold's 20px (`--mark-size`, tokens.css). On 25
+   full ink under the pointer, at the fold's 20px (`--lf-mark-size`, tokens.css). On 25
    October the user gave it to the toolbars' marks as well, which had been 26px with a
    quiet wash under the pointer, a second look for the same kind of press. A seat gives
    its marks only a place and a ground: a corner mark a patch of its own, a toolbar's
@@ -1487,26 +1487,26 @@ wa-copy-button.lf-icon-action {
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  inline-size: var(--mark-size);
+  inline-size: var(--lf-mark-size);
   min-inline-size: 0;
-  block-size: var(--mark-size);
+  block-size: var(--lf-mark-size);
   min-block-size: 0;
   padding: 0;
   border: 0;
-  border-radius: var(--r-s);
+  border-radius: var(--lf-r-s);
   font: inherit;
   background: none;
-  color: var(--muted);
+  color: var(--lf-muted);
   box-shadow: none;
   cursor: pointer;
   outline-offset: 0;
 }
 :where(button).lf-mark-action:hover,
 .lf-mark-action.lf-ui::part(button):hover {
-  color: var(--ink);
+  color: var(--lf-ink);
 }
 .lf-mark-action.lf-ui::part(lf-focus-visible) {
-  outline: var(--focus-ring);
+  outline: var(--lf-focus-ring);
 }
 .lf-mark-action > svg {
   inline-size: 12px;
@@ -1517,9 +1517,9 @@ wa-copy-button.lf-icon-action {
    (`data-lf-bar`), as a code block's Copy does. */
 .lf-mark-bar,
 .lf-mark-action[data-lf-bar] {
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-card);
 }
 /* A corner mark stands on a patch of the ground the thing it rides stands on, set off
    by that ground's ring and a lift. An attachment's marks were a dark disc with a
@@ -1531,8 +1531,8 @@ wa-copy-button.lf-icon-action {
   z-index: 1;
   background: var(--lf-ground);
   box-shadow:
-    0 0 0 1px var(--lf-ring, var(--border-2)),
-    var(--raise-1);
+    0 0 0 1px var(--lf-ring, var(--lf-border)),
+    var(--lf-raise-1);
 }
 /* A forced palette drops the ground's ring and lift, so it takes a system edge. A
    toolbar's ground keeps its real border. */
@@ -1557,9 +1557,9 @@ wa-copy-button.lf-icon-action {
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
 :is(textarea, leaf-text).lf-ui:where(:not(.lf-fab-input)) {
   padding: var(--lf-compose-pad-block, 8px) var(--lf-compose-pad-inline-start, 10px);
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--card);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-card);
   color: inherit;
   resize: none;
   field-sizing: content;
@@ -1594,7 +1594,7 @@ wa-copy-button.lf-icon-action {
     [type="image"]
   )
 ):is(.lf-ui, .lf-field) {
-  --wa-form-control-background-color: var(--card);
+  --wa-form-control-background-color: var(--lf-card);
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
   width: auto;
@@ -1604,7 +1604,7 @@ wa-copy-button.lf-icon-action {
   }
 }
 textarea.lf-field {
-  --wa-form-control-background-color: var(--card);
+  --wa-form-control-background-color: var(--lf-card);
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
 }
@@ -1625,7 +1625,7 @@ textarea.lf-field {
 }
 .lf-ui :is(input, textarea)::placeholder,
 :is(input, textarea):is(.lf-ui, .lf-field)::placeholder {
-  color: var(--quiet);
+  color: var(--lf-quiet);
   opacity: 1;
 }
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
@@ -1657,14 +1657,14 @@ textarea.lf-field {
   padding: 0;
   border: 0;
   background: none;
-  color: var(--accent);
+  color: var(--lf-accent);
   font: inherit;
   font-weight: 600;
   text-decoration: none;
   cursor: pointer;
 }
 :where(button).lf-inline-action[data-lf-tone="warn"] {
-  color: var(--warn-ink);
+  color: var(--lf-warn-ink);
 }
 /* One standing among a box's empty words (`data-lf-hint`), as a passing notice's Undo
    does at the floating panel field's end, wears their face, as the word and key that
@@ -1692,7 +1692,7 @@ textarea.lf-field {
    and Versions, the command reference, the Page Map, a timeline's steps, a recording's
    moments and a visual review's cases. Its words are what the reader scans, so they
    stand in the ink at the list's own type. Under a hovering pointer or the keys, the
-   offer's wash (`--offer-hover`) lies over whatever ground the row has, as an image,
+   offer's wash (`--lf-offer-hover`) lies over whatever ground the row has, as an image,
    so a list's own tint shows through it; a listbox's selected option is the keys'
    target, as in the command reference. The row the list stands on, `aria-current`,
    wears the accent's tint and a stripe at its start. Every row keeps the stripe's
@@ -1712,11 +1712,11 @@ textarea.lf-field {
   border-inline-start: 2px solid transparent;
   border-radius: 0;
   background-color: transparent;
-  color: var(--ink);
+  color: var(--lf-ink);
   font: inherit;
   text-align: start;
   text-decoration: none;
-  --lf-ring-at: var(--focus-ring-inset);
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 /* It declines the shadow every generated press takes under the pointer (surfaces.css),
    which, inset, would leave the stripe's room unwashed. */
@@ -1727,11 +1727,11 @@ textarea.lf-field {
     [data-lf-focus-visible],
     [aria-selected="true"]
   ) {
-  background-image: linear-gradient(var(--offer-hover), var(--offer-hover));
+  background-image: linear-gradient(var(--lf-offer-hover), var(--lf-offer-hover));
 }
 @media (hover: hover) {
   .lf-row:where(:not(:disabled, [aria-disabled="true"])):hover {
-    background-image: linear-gradient(var(--offer-hover), var(--offer-hover));
+    background-image: linear-gradient(var(--lf-offer-hover), var(--lf-offer-hover));
   }
 }
 /* A step still ahead of the row a list stands on (`data-lf-ahead`), as a timeline's
@@ -1739,7 +1739,7 @@ textarea.lf-field {
    its words alone (`.lf-row-end`, above), on the row's own ground: a wash would repeat
    them, and touching turn rows would merge into one band. */
 .lf-row[data-lf-ahead] {
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* A row that is its group's band (`.lf-rows-group`, below), as Done and Resolved are
    (floating-panel.js, `settledHeading`), takes the band's ink, so it reads as the
@@ -1748,15 +1748,15 @@ textarea.lf-field {
   color: inherit;
 }
 .lf-row[aria-current]:not([aria-current="false"]) {
-  border-inline-start-color: var(--accent);
-  background-color: var(--accent-tint);
-  color: var(--ink);
+  border-inline-start-color: var(--lf-accent);
+  background-color: var(--lf-accent-tint);
+  color: var(--lf-ink);
 }
 /* The row of the thread whose passage the pointer is on (`.lf-mark-hover`,
    anchor-paint.js, `markRow`) wears that passage's hover wash, so the row and the lit
    words read as one thread. */
 .lf-row.lf-mark-hover {
-  background: var(--mark-hover);
+  background: var(--lf-mark-hover);
 }
 /* A row's layout, beside its face: what marks it (`.lf-row-lead`: a dot, a symbol, a
    number or a time), what it names (`.lf-row-main`) and what it says or offers at its
@@ -1777,7 +1777,7 @@ textarea.lf-field {
   align-items: baseline;
   box-sizing: border-box;
   width: 100%;
-  min-height: max(30px, var(--aim-floor));
+  min-height: max(30px, var(--lf-aim-floor));
   padding: 5px 8px 5px 6px;
   line-height: var(--lf-ui-lh);
 }
@@ -1807,7 +1807,7 @@ textarea.lf-field {
   place-items: center end;
   min-height: 1lh;
   margin-inline-end: 8px;
-  color: var(--muted);
+  color: var(--lf-muted);
   font-variant-numeric: tabular-nums;
 }
 .lf-row-main {
@@ -1819,8 +1819,8 @@ textarea.lf-field {
   grid-column: end;
   justify-self: end;
   margin-inline-start: 12px;
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -1841,8 +1841,8 @@ textarea.lf-field {
   justify-content: space-between;
   margin: 0;
   padding: 5px 8px 1px;
-  font: var(--font-heading);
-  color: var(--muted);
+  font: var(--lf-font-heading);
+  color: var(--lf-muted);
 }
 /* A list holds each group in a box of its own (`.lf-rows-group`), and the heading opens
    the box as its band: across the surface the list stands on (`--lf-rows-bleed`, the
@@ -1912,7 +1912,7 @@ textarea.lf-field {
   block-size: var(--lf-rows-band);
   margin-inline: calc(-1 * var(--lf-rows-bleed, 0px));
   padding: 0 calc(var(--lf-rows-bleed, 0px) + 8px);
-  background: color-mix(in srgb, var(--ink) 6%, var(--lf-ground));
+  background: color-mix(in srgb, var(--lf-ink) 6%, var(--lf-ground));
 }
 .lf-rows-group > .lf-rows-head:not(:last-child) {
   margin-block-end: 4px;
@@ -1956,7 +1956,7 @@ textarea.lf-field {
 .lf-rows-empty {
   margin: 0;
   padding: 5px 8px;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* A time axis, drawn by every widget that has one (`axisTicks`, runtime/time-axis.js).
    Each thing placed on it, a ruler's tick (`.lf-axis-tick`), a gridline
@@ -1979,12 +1979,12 @@ textarea.lf-field {
    its words would run past the axis's end. */
 .lf-axis-ruler {
   position: relative;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 .lf-axis-tick {
   inset-block-end: 0;
   block-size: 4px;
-  border-inline-start: 1px solid var(--border-2);
+  border-inline-start: 1px solid var(--lf-border);
   white-space: nowrap;
 }
 .lf-axis-tick[data-lf-major] {
@@ -1992,7 +1992,7 @@ textarea.lf-field {
   box-sizing: border-box;
   padding-inline-start: 3px;
   padding-block-start: 3px;
-  border-inline-start-color: var(--muted);
+  border-inline-start-color: var(--lf-muted);
   font-weight: 400;
   font-variant-numeric: tabular-nums;
 }
@@ -2000,7 +2000,7 @@ textarea.lf-field {
   translate: -100% 0;
   padding-inline: 0 3px;
   border-inline-start: 0;
-  border-inline-end: 1px solid var(--muted);
+  border-inline-end: 1px solid var(--lf-muted);
 }
 /* A gridline at each major tick's time runs down the drawing below the ruler, so a
    mark far below it, in a later lane, still reads against it. The widget places their
@@ -2013,7 +2013,7 @@ textarea.lf-field {
 }
 .lf-axis-gridline {
   inset-block: 0;
-  border-inline-start: 1px dotted var(--border-2);
+  border-inline-start: 1px dotted var(--lf-border);
 }
 .lf-axis-gridline[data-lf-flip] {
   translate: -100% 0;

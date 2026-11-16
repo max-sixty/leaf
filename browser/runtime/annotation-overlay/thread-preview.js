@@ -41,7 +41,10 @@
    Nothing else chooses the edge, whatever the user pressed, and the card remembers no
    press or send (`heldEdge`). News at the thread's end shows at once where that edge
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
-   thread-card.js, `newsMoves`).
+   thread-card.js, `newsMoves`). A pointer resting on Resolve or a message's control is
+   not where the user is, so that news may carry the control from under it, as the
+   floating panel's growth does (floating-panel.js, the user's choice of 14 November
+   2026).
 
    The user chose this rule on 5 November 2026 as the platform's: CSS scroll anchoring
    prefers a focused text field or the find match as the node it keeps still, and
@@ -525,8 +528,15 @@ export function createThreadPreview({
               }
             }
           }
-          card.style.setProperty("--lf-thread-fade-top", layoutPx(edge));
-          card.style.setProperty("--lf-thread-fade-height", layoutPx(height));
+          // Each length inherits through the thread (annotation-chrome.css), so a write
+          // restyles the card's every element. At zero it stays unset, which the fade reads
+          // as zero, so a card nothing has scrolled, as a new one is, writes nothing.
+          for (const [name, length] of /** @type {const} */ ([
+            ["--lf-thread-fade-top", edge],
+            ["--lf-thread-fade-height", height],
+          ]))
+            if (length) card.style.setProperty(name, layoutPx(length));
+            else card.style.removeProperty(name);
           keeps(card, "data-lf-scrolled", above ? "" : null);
           gutter();
         },
@@ -1058,7 +1068,7 @@ export function createThreadPreview({
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
-      // actions line, which on a card in a narrow room (`--thread-card-min`) already
+      // actions line, which on a card in a narrow room (`--lf-thread-card-min`) already
       // leaves the message heads little room; " of " made it 12px wider, which on a
       // 311px card pushed the actions past the card's start.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);

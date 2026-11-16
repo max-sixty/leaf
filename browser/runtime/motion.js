@@ -125,7 +125,7 @@ export const agentArrivalDuration = () => motionTime("--lf-motion-agent-arrival"
 // so hover, theme changes and transparent surfaces never snap back when it ends.
 /** @param {Element} el @param {number} ms */
 export function backgroundFlash(el, ms) {
-  return motion(el, [{ backgroundColor: "var(--hi-tint)", offset: 0 }], ms);
+  return motion(el, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], ms);
 }
 
 // How long room takes to go back. Long enough that the eye can follow a paragraph's

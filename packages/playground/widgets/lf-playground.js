@@ -243,7 +243,7 @@ customElements.define(
             const box = entry.borderBoxSize[0];
             if (!box) continue;
             split?.style.setProperty(
-              "--playground-controls-height",
+              "--lf-playground-controls-height",
               `${box.blockSize}px`,
             );
             return;

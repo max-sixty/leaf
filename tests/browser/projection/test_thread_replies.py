@@ -585,7 +585,7 @@ def test_a_done_press_answers_optimistically_and_the_next_press_follows_its_face
     page.keyboard.press("m")
     expect(page.locator(PANEL_THREAD)).to_be_visible()
     page.keyboard.press("m")
-    expect(page.locator("#tq-set")).to_be_focused()
+    expect(page.locator("#tq-set-decision")).to_be_focused()
     done = page.locator("#tq-set .lf-done")
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))

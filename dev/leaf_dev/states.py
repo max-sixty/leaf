@@ -1871,7 +1871,7 @@ def tally_after_an_answer(page: Page) -> None:
     page.locator("#ar-canary-consecutive").click()
     expect(page.locator("#ar-left .lf-tally-words")).to_have_text("8 left to answer")
     next_on_me.click()
-    expect(page.locator("#ar-latency-choice")).to_be_focused()
+    expect(page.locator("#ar-latency-decision")).to_be_focused()
     settle(page)
 
 
@@ -2315,10 +2315,9 @@ def card_message_by_keyboard(page: Page) -> None:
 
 def card_ask_by_keyboard(page: Page) -> None:
     """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
-    ask's options, so the location ring stands round them inside the card's
-    transcript."""
+    ask, so the location ring stands round it inside the card's transcript."""
     page.keyboard.press("m")
-    expect(page.locator(".lf-margin-preview lf-options")).to_be_focused()
+    expect(page.locator(".lf-margin-preview section")).to_be_focused()
     settle(page)
 
 
@@ -2462,7 +2461,7 @@ def obligation_marker_by_keyboard(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open obligation, a question's options, reached with `m`: its ring and its
+    """The next open obligation, a question's section, reached with `m`: its ring and its
     marker in view."""
     page.keyboard.press("m")
     page.locator("[data-lf-obligation]").first.wait_for()

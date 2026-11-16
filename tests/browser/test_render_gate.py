@@ -3845,7 +3845,7 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 
 def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
-    """A question's section holding a wide block grows round it. Boxes pulled or
+    """An obligation holding a wide block keeps it inside the ring. Boxes pulled or
     sized past the actual page edge remain render-gate findings: each is past the
     column, and a box pulled off the leading edge, which no scroll reaches, is also
     clipped out. A box sized past only the trailing edge is reached by the root's

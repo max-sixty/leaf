@@ -120,7 +120,7 @@ def test_a_revision_that_restates_an_obligation_preserves_the_users_location_in_
     """
     version_url = serve(LIVE_KEYS_V1)
     page = open_page(browser, live_url(version_url))
-    decision = page.locator("#lk-options")
+    decision = page.locator("#lk-decision")
 
     page.keyboard.press("m")
     expect(decision).to_be_focused()
@@ -161,7 +161,7 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     (serve.page_dir / "index.html").write_text(LIVE_KEYS_OBLIGATION_REWRITTEN)
     told(page)
     expect(page).to_have_title("(1) Live keys rewritten")
-    expect(page.locator("#lk-options")).to_be_focused()
+    expect(page.locator("#lk-decision")).to_be_focused()
     # The press they had lined up decides nothing on its own, and the option they were
     # holding is still the one their own digit reaches.
     page.keyboard.press("Space")
@@ -491,7 +491,7 @@ customElements.define('page-counter', class extends HTMLElement {
     )
     page = open_page(browser, live_url(serve(first)))
     page.keyboard.press("m")
-    expect(page.locator("#lk-options")).to_be_focused()
+    expect(page.locator("#lk-decision")).to_be_focused()
     original_document = page.evaluate("performance.timeOrigin")
 
     (serve.page_dir / "index.html").write_text(second)
@@ -501,7 +501,7 @@ customElements.define('page-counter', class extends HTMLElement {
     assert page.evaluate("performance.timeOrigin") != original_document, (
         "the revision was patched in, so this proves nothing about the other install"
     )
-    expect(page.locator("#lk-options")).to_be_focused()
+    expect(page.locator("#lk-decision")).to_be_focused()
     assert active_digit_bindings(page) == "1–4"
 
 
@@ -542,7 +542,7 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     stamp_page(d, OBLIGATIONS_PAGE, "two")
     wait_for_revision(page, 2)
 
-    expect(page.locator("#t-baffles-review")).to_have_attribute(
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
         "data-lf-obligation", "1"
     )
     expect(page.locator("[data-lf-obligation]")).to_have_count(1)
@@ -550,14 +550,16 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     # own prose is on screen above the one the user was located on, so a walk reading
     # the page alone starts behind them and steps forward onto the obligation they just left.
     position = page.evaluate("""() => {
-            const decision = document.getElementById('t-baffles-review').getBoundingClientRect();
+            const decision = document.getElementById('t-baffles-decision').getBoundingClientRect();
         const earlier = document.getElementById('refill-now').getBoundingClientRect();
         return {earlierBottom: earlier.bottom, decisionTop: decision.top,
                 scrollTop: document.scrollingElement.scrollTop};
     }""")
     assert 42 < position["earlierBottom"] <= position["decisionTop"], position
     page.keyboard.press("m")
-    expect(page.locator("#t-bath-choice")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#t-bath-decision")).to_have_attribute(
+        "data-lf-obligation", "1"
+    )
 
 
 def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve):
@@ -621,7 +623,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     still meaning one thing. An arrival is the other side of that: it places the user on
     the decision rather than in the control, so there the decision's own ring is the one."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
-    question = page.locator("#live-question")
+    question = page.locator("#live-question-decision")
     page.keyboard.press("m")
     expect(question).to_have_attribute("data-lf-obligation", "1")
     arrival_ring = question.evaluate(LOCATION_RING)
@@ -748,7 +750,7 @@ def seed_thread_about_the_ask(page_dir, root, *, resolved=False):
             "author": "user",
             "revision": 1,
             "text": f"A question about the store ({root})",
-            "anchor": {"section": "store"},
+            "anchor": {"section": "store-ask"},
         },
     )
     append_carried_log_record(
@@ -786,7 +788,7 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     seed_thread_about_the_ask(serve.page_dir, "t-open")
     page = open_page(browser, url)
     resized(page, 1400, 900)
-    ask = page.locator("#store")
+    ask = page.locator("#store-ask")
     card = page.locator(".lf-margin-preview")
 
     row = thread_row(page, "t-open")
@@ -841,7 +843,7 @@ def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serv
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches")
     view = open_panel_thread(page, "t-open")
     expect(view).to_be_focused()
-    expect(page.locator("#store")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
 
 
 def test_an_on_me_card_represents_its_ask(browser, serve):
@@ -852,7 +854,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     panel_settled(page, view="queue")
     card = page.locator(""".lf-fp-on-item[data-lf-key='["widget","widget:store"]']""")
     card.focus()
-    expect(page.locator("#store")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
     expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
 
@@ -873,7 +875,7 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     )
     page = open_page(browser, url)
     page.keyboard.press("m")
-    expect(page.locator("#live-question[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)
     # The reference says the press in its own words. It said "Back out one layer" for
     # every rung, which was true while every rung took a layer of chrome off the page:
     # making a decision current is the user holding something, with no layer over the
@@ -886,7 +888,7 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     ).to_contain_text("Let go")
     page.keyboard.press("Escape")  # the reference's own rung, which hands focus back
     expect(page.locator(".lf-command-reference")).not_to_have_class(re.compile("open"))
-    expect(page.locator("#live-question[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)
 
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
@@ -896,7 +898,7 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     # The directional walk reads the user's current visible place after Escape.
     # Reenter the first obligation from there, then move to the next one.
     page.keyboard.press("m")
-    expect(page.locator("#live-question")).to_be_focused()
+    expect(page.locator("#live-question-decision")).to_be_focused()
     # The suggestion's thread comes up beside it, hung from its own entry, which the
     # cluster unfolds to show for as long as the card stands there.
     page.keyboard.press("m")
@@ -909,7 +911,7 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     # only the new destination's Tab-style arrival. The two halves share one native
     # focus transition, whose focusout and focusin both fire inside focus().
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-review[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision[data-lf-obligation]")).to_have_count(1)
     expect(walked_item.locator(":scope > .lf-margin-more")).to_be_visible()
     expect(walked_item.locator(":scope > .lf-margin-options")).to_be_hidden()
 
@@ -961,9 +963,9 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
     # The blanket answer went with the declaration that named its verb.
     expect_panel_offers(page, "blanket:accept", offered=False)
     for expected in [
-        "live-question",
-        "t-baffles-review",
-        "t-bath-choice",
+        "live-question-decision",
+        "t-baffles-decision",
+        "t-bath-decision",
     ]:
         page.keyboard.press("m")
         expect(page.locator(f"#{expected}")).to_have_attribute(

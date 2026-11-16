@@ -13,9 +13,9 @@
    has no page target; a comment from there addresses the whole page.
 
    Each feature derives its answer from that target: the obligation view finds the
-   obligation source; `c` and `e` use its semantic target;
-   walks use its position in page order. An open obligation represented by its card
-   still wears its ring and takes its digits. At an element represented by its own
+   obligation source or the section it stands at alone; `c` and `e` use its semantic
+   target; walks use its position in page order. An open obligation represented by its
+   card still wears its ring and takes its digits. At an element represented by its own
    thread, `c` continues the thread, `r` settles it, and `m` and `t` step from the target.
 
    Current location does not imply arrival at the target. The floating panel shows a
@@ -84,18 +84,23 @@ export function declareSide(bridge, { beside = false } = {}) {
   return () => sides.delete(bridge);
 }
 
-// The innermost obligation whose source is or holds `node` (`obligationPlace`).
-// Obligations nest, as a question inside a proposal's new text does, so the nearest
-// source holding the node names the obligation: on the inner question the user is on
-// that question, not on the proposal whose source holds it. Of two standing at one
-// place, the first the list names it. `items` may be a selection, such as those waiting
-// on the user. Only the obligations whose place names one of the node's ancestors are
-// placed (`namedPlaces`), so a keystroke, which asks this many times, costs the node's
-// depth rather than the inventory. The names are read once per list, so that holds for
-// a list the state keeps, such as the inventory, and not for one built for the call.
+// The innermost obligation whose source, or whose own place, is or holds `node`: the
+// section framing a widget, or the element a to-do is on. A section framing several
+// sources cannot identify one of them on its own, so only a source stands for such an
+// obligation (`obligationPlace`). Obligations nest, as a question inside a proposal's
+// new text does, so the nearest place holding the node names the obligation rather than
+// the kind of place: in the inner question's section the user is on that question, not
+// on the proposal whose source holds it. Of two standing at one
+// place, the first the inventory lists names it. `items` may be a selection, such as
+// those waiting on the user, placed as the whole `inventory` places them. Only the
+// obligations whose place names one of the node's ancestors are placed
+// (`namedPlaces`), so a keystroke, which asks this many times, costs the node's depth
+// rather than the inventory. The names are read once per list, so that holds for a
+// list the state keeps, such as the inventory, and not for one built for the call.
 /** @template {import("./framework/application.js").ObligationRecord} T
- * @param {readonly T[]} items @param {Node | null} node */
-export function obligationHolding(items, node) {
+ * @param {readonly T[]} items @param {Node | null} node
+ * @param {readonly import("./framework/application.js").ObligationRecord[]} inventory */
+export function obligationHolding(items, node, inventory = items) {
   if (!node) return null;
   const names = namedPlaces(items);
   /** @type {Map<T, number>} */
@@ -108,18 +113,20 @@ export function obligationHolding(items, node) {
       for (const [order, item] of (name && names.get(name)) || [])
         near.set(item, order);
   }
+  /** @param {Element | null} element */
+  const holds = (element) => element && under(node, element);
   /** @type {{item: T, at: Element} | null} */
   let held = null;
   for (const [item] of [...near].sort((a, b) => a[1] - b[1])) {
-    const { source: at } = obligationPlace(item);
-    if (at && under(node, at) && (!held || (at !== held.at && under(at, held.at))))
-      held = { item, at };
+    const { source, node: target } = obligationPlace(item, inventory);
+    const at = holds(source) ? source : holds(target) ? target : null;
+    if (at && (!held || (at !== held.at && under(at, held.at)))) held = { item, at };
   }
   return held?.item ?? null;
 }
 
 // The obligations of a list that could stand at an element, by what names their places
-// (`obligationPlace`): the id of a widget's source; for a record unit,
+// (`obligationPlace`): the id of a widget's source and of its context; for a record unit,
 // which stands only at its datum, the widget's id with the datum's key, as the datum
 // carries them (`data-lf-projection`, `data-lf-datum`). Each name keeps the list's
 // order. Read from the records alone, once per list, so it
@@ -146,6 +153,7 @@ function namedPlaces(items) {
       add(`@${source.id} ${source.unit}`, order, item);
     } else if (source.kind === "widget") {
       add(`#${source.id}`, order, item);
+      if (item.prompt.target) add(`#${item.prompt.target}`, order, item);
     }
   });
   placeNames.set(items, names);
@@ -302,5 +310,5 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem) {
 // The obligation the user is in, answered or not: where letting go lands, and the extent
 // of what `c` counts as the element they are at.
 export function heldObligation(node = focused()) {
-  return obligationPlace(obligationAt(node)).source;
+  return obligationPlace(obligationAt(node)).node;
 }

@@ -475,7 +475,7 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
     assert not shown(last)
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "8 of 8 waiting on me · Options")
-    expect(page.locator("#pick-8")).to_be_focused()
+    expect(page.locator("#ask-8")).to_be_focused()
     expect(view.locator(".lf-fp-on-item[data-lf-walked]")).to_have_count(1)
     expect(last).to_have_attribute("data-lf-walked", "")
     assert last.evaluate("card => getComputedStyle(card).outlineStyle") == "solid"
@@ -1077,7 +1077,7 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    for decision, at in [("timeline", 1), ("ship", 2), ("timeline", 1)]:
+    for decision, at in [("timeline", 1), ("ship-ask", 2), ("timeline", 1)]:
         page.keyboard.press("m")
         expect_walk_position(page, f"{at} of 2 waiting on me · Options")
         expect(page.locator(f"#{decision}")).to_be_focused()

@@ -992,7 +992,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     one = page.locator(f'{PANEL_THREAD}[data-lf-thread="c-which"]')
     expect(one).to_be_visible()
     # The arrival stands on the question's own region; its picks are the next Tab stops.
-    expect(page.locator("#tq-one")).to_be_focused()
+    expect(page.locator("#tq-one-decision")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#tq-one .lf-pick").first).to_be_focused()
     reply = panel_field(page)

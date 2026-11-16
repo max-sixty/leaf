@@ -691,7 +691,7 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
     resized(page, 1200, 900)
     # With nothing focused, the walk enters the first Ask the reader sees.
     page.keyboard.press("m")
-    expect(page.locator("#options-0")).to_be_focused()
+    expect(page.locator("#ask-0")).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")

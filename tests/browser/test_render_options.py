@@ -382,7 +382,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     field = group.get_by_role("textbox", name="Another option")
     added = group.locator(":scope > lf-option[data-lf-added]")
     page.keyboard.press("m")
-    expect(page.locator("#choices")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     write(field, "First addition")
     group.get_by_role("button", name="Add and select option").click()
     round_trip(page)
@@ -390,7 +390,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     first_id = added.get_attribute("id")
     group.get_by_role("button", name=re.compile("^Done:")).focus()
     page.keyboard.press("m")
-    expect(page.locator("#choices")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )5($| )")
     )
@@ -419,7 +419,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     assert added.get_attribute("id") != first_id
     group.get_by_role("button", name=re.compile("^Done:")).focus()
     page.keyboard.press("m")
-    expect(page.locator("#choices")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     expect(added.locator(".lf-pick")).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"(^| )6($| )")
     )
@@ -627,7 +627,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#approach[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#approach-decision[data-lf-obligation]")).to_have_count(1)
     ring_on = """el => { const on = el.closest('lf-option');
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
@@ -1291,7 +1291,7 @@ def test_one_band_says_where_the_user_is_located(browser, serve):
     mark.focus()
     page.keyboard.press("Shift+Tab")
     page.keyboard.press("Tab")
-    expect(page.locator("#storage-options[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#storage-decision[data-lf-obligation]")).to_have_count(1)
     drawn = """el => { const s = getComputedStyle(el);
                        return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); }"""
     rendered(page)
@@ -1719,7 +1719,7 @@ def test_a_nested_obligation_keeps_its_own_arity_and_commands(browser, serve, su
         # inner question either breaks the key routes or lends its answers to the wrong
         # obligation.
         page.keyboard.press("m")
-        expect(page.locator("#outer")).to_be_focused()
+        expect(page.locator("#outer-decision")).to_be_focused()
         outer_hints = page.locator("#outer > lf-option > .lf-key-badge")
         expect(outer_hints).to_have_text(["1", "2"])
         expect(outer_hints.first).to_be_visible()
@@ -2582,7 +2582,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     page = open_page(browser, serve(named_source("alert-review")))
     resized(page, 1440, 900)
     page.keyboard.press("m")
-    expect(page.locator("#ar-canary-choice")).to_be_focused()
+    expect(page.locator("#ar-canary-decision")).to_be_focused()
     page.keyboard.press("2")
     expect(page.locator("#ar-canary-suppress")).to_have_attribute("chosen", "")
     # The answer's pin stands in the first card's corner, where the seats are.

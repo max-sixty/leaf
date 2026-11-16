@@ -101,7 +101,7 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     for question_id in ("wrapped", "kept"):
         assert boxes[f"{question_id}-evidence"] == boxes[question_id] == column, boxes
     # What the question asks stands by its words, not at the edge of the evidence.
-    marker = page.locator("[data-lf-margin-for='holds-options']")
+    marker = page.locator("[data-lf-margin-for='holds']")
     expect(marker).to_have_attribute("data-lf-place", "rail")
     assert marker.bounding_box()["x"] < column[1] + 100
 

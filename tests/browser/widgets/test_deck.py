@@ -149,11 +149,11 @@ def test_by_keyboard_an_answer_lands_on_the_next_question_once(browser, serve):
     is left and takes the user back in."""
     page = open_page(browser, serve(DECK_PAGE))
     page.keyboard.press("m")
-    expect(page.locator("#store-choice")).to_be_focused()
+    expect(page.locator("#store-ask")).to_be_focused()
     page.keyboard.press("1")
     round_trip(page)
     open_card(page, "beta-ask")
-    expect(page.locator("#beta-choice")).to_be_focused()
+    expect(page.locator("#beta-ask")).to_be_focused()
     page.keyboard.press("ArrowRight")
     open_card(page, "notes-ask")
     page.keyboard.press("2")

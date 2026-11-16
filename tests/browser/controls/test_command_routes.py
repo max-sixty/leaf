@@ -164,7 +164,7 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
 
     # The question context forwards the widget's declaration without an obligation allocator.
     page.keyboard.press("m")
-    expect(page.locator("#probe")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     expect(badge).to_be_visible()
     expect(badge).to_have_text("1")
     expect(active_hints).to_have_count(1)
@@ -476,8 +476,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     """Forwarding has no nine-action cap and never assigns a missing binding.
 
     A source declaration replacement withdraws its old routes and installs references
-    to the replacement callback. Arriving puts the user on the widget, so its own keys
-    act there as its forwarded ones do.
+    to the replacement callback; the ordinary widget key never leaks to its question.
     """
     page = open_page(
         browser,
@@ -493,18 +492,19 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     )
     result = page.locator("#probe output")
     page.keyboard.press("m")
-    expect(page.locator("#probe")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     assert offered_routes(page)["probe.action-1"] == ["1"]
     page.keyboard.press("9")
     expect(result).to_have_text("Action 9 applied")
     page.keyboard.press("F10")
     expect(result).to_have_text("Action 10 applied")
     page.keyboard.press("F12")
-    expect(result).to_have_text("Action 12 applied")
+    rendered(page)
+    expect(result).to_have_text("Action 10 applied")
     page.keyboard.press("Tab")
     expect(page.get_by_role("button", name="Action 1", exact=True)).to_be_focused()
-    page.keyboard.press("F10")
-    expect(result).to_have_text("Action 10 applied")
+    page.keyboard.press("F12")
+    expect(result).to_have_text("Action 12 applied")
     page.get_by_role("button", name="Action 11", exact=True).click()
     expect(result).to_have_text("Action 11 applied")
     page.keyboard.press("?")
@@ -517,8 +517,7 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
     expect(result).to_have_text("Action 11 applied")
 
     page.get_by_role("button", name="Replace declaration").click()
-    page.keyboard.press("m")
-    expect(page.locator("#probe")).to_be_focused()
+    page.locator("#question").focus()
     rendered(page)
     page.keyboard.press("1")
     rendered(page)
@@ -554,7 +553,7 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
         """async () => {
           const {focusDestination} = await window.__lfWidgetApi();
           const {executeCommand} = await window.__lfCheckApi();
-          focusDestination(document.getElementById('probe'), 'move');
+          focusDestination(document.getElementById('question'), 'move');
           const executed = executeCommand('probe.action-10');
           return {executed, held: document.activeElement.id,
             output: document.querySelector('#probe output').textContent};
@@ -562,7 +561,7 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
     )
     assert immediate == {
         "executed": True,
-        "held": "probe",
+        "held": "question",
         "output": "Action 10 applied",
     }
 
@@ -599,7 +598,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     )
     result = page.locator("#probe output")
     page.keyboard.press("m")
-    expect(page.locator("#probe")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     rendered(page)
     routes = page.evaluate(
         """async () => {
@@ -610,7 +609,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
               .map(entry => entry.binding));
         }"""
     )
-    assert routes == ["x", "Escape"]
+    assert routes == ["Escape"]
     expect(
         page.locator(".lf-command-binding-badges .lf-command-binding-badge")
     ).to_be_visible()
@@ -624,7 +623,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     expect(reference_action).to_have_attribute("data-lf-available", "true")
     reference_action.click()
     expect(result).to_have_text("Applied 2")
-    expect(page.locator("#probe")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("Tab")
     expect(
         page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
@@ -686,22 +685,28 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             expect(row).to_have_count(1)
             expect(row).to_contain_text(title)
             expect(row).to_have_attribute(
-                "data-lf-available", str(current_location == "question").lower()
+                "data-lf-available",
+                str(
+                    current_location == "question" and command_id == "probe.apply"
+                ).lower(),
             )
         page.keyboard.press("Escape")
         if current_location == "outside":
             page.keyboard.press("m")
-            expect(page.locator("#probe")).to_be_focused()
+            expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("1")
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("F9")
-    expect(result).to_have_text("Neighbour applied")
+    rendered(page)
+    expect(result).to_have_text("Applied 1")
     page.keyboard.press("Tab")
     expect(
         page.locator("#probe").get_by_role("button", name="Apply operation", exact=True)
     ).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 2")
+    page.keyboard.press("F9")
+    expect(result).to_have_text("Neighbour applied")
 
 
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
@@ -735,7 +740,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     )
     result = page.locator("#probe output")
     page.keyboard.press("m")
-    expect(page.locator("#probe")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("?")
@@ -748,7 +753,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     rendered(page)
     expect(result).to_have_text("Applied 1")
     page.keyboard.press("Escape")
-    expect(page.locator("#probe")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     page.keyboard.press("F8")
     expect(result).to_have_text("Applied 2")
 
@@ -806,7 +811,7 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
     result = page.locator("#probe output")
 
     page.keyboard.press("m")
-    expect(page.locator("#probe")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     expect(chip).to_have_text("1")
     expect(chip).to_be_visible()
     expect(inherited).to_be_hidden()

@@ -377,10 +377,8 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
         )
 
     page.keyboard.press("m")
-    expect(on_me_marker("short-choice")).to_have_attribute(
-        "data-lf-target-selected", ""
-    )
-    expect(on_me_marker("long-choice")).not_to_have_attribute(
+    expect(on_me_marker("short-ask")).to_have_attribute("data-lf-target-selected", "")
+    expect(on_me_marker("long-ask")).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
     )
     rendered(page)
@@ -397,7 +395,7 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
                   || tip.scrollHeight > tip.clientHeight};
     }"""
     seen = {}
-    for item in ("short-choice", "long-choice"):
+    for item in ("short-ask", "long-ask"):
         marker = on_me_marker(item)
         marker.scroll_into_view_if_needed()
         marker.hover()
@@ -408,12 +406,12 @@ def test_an_obligation_marker_names_its_question_once_the_user_points_at_it(
     question = page.locator("#long-ask h2").evaluate(
         "h => h.textContent.replace(/\\s+/g, ' ').trim()"
     )
-    assert seen["short-choice"]["text"] == "Where should sessions live?", seen
-    assert not seen["short-choice"]["cut"], seen
-    assert seen["long-choice"]["text"] == question, seen
-    assert not seen["long-choice"]["cut"], seen
+    assert seen["short-ask"]["text"] == "Where should sessions live?", seen
+    assert not seen["short-ask"]["cut"], seen
+    assert seen["long-ask"]["text"] == question, seen
+    assert not seen["long-ask"]["cut"], seen
     # The accessible route includes the question's distinguishing alternative.
-    assert "roll every tenant" in seen["long-choice"]["name"], seen
+    assert "roll every tenant" in seen["long-ask"]["name"], seen
 
 
 PREVIEW_INSIDE = """() => {

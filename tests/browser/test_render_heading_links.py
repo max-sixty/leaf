@@ -211,6 +211,6 @@ def test_enter_copies_a_link_no_pointer_has_shown(browser, serve):
     context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
     page = open_page(browser, url, context=context)
     page.keyboard.press("m")
-    expect(page.locator("#c")).to_be_focused()
+    expect(page.locator("#q")).to_be_focused()
     page.keyboard.press("Enter")
-    until_copied(page, page.url.split("#")[0] + "#c")
+    until_copied(page, page.url.split("#")[0] + "#q")

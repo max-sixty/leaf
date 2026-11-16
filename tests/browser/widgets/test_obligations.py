@@ -604,14 +604,13 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     ).click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-review[data-lf-obligation]")).to_have_count(1)
-    expect(page.locator("#t-baffles-review")).to_be_focused()
+    expect(page.locator("#t-baffles-decision[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#t-baffles-decision")).to_be_focused()
     expect_obligations_answered(page, "2/5")
 
 
 def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, serve):
-    """Going to a question starts at the section its heading opens, so its premise and
-    evidence come before its answer, and stands the user on the answer.
+    """The decision is the question's whole reading region, not only its answer control.
 
     An options group used to be both the state owner and the navigation target. When
     the heading, premise, and evidence stood immediately above it, `d` centred the
@@ -628,7 +627,11 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     tall it was and stood the user on the frame.
     """
     page = open_page(browser, serve(OBLIGATION_WITH_CONTEXT_PAGE))
-    resized(page, 900, 900)
+    # Short enough that even the pick in the card's compact header falls under the
+    # panel's band at the window's foot once the decision's opening is at its head,
+    # which is the shape the fault has: the walk cannot both show the question and
+    # stand the user on its answer.
+    resized(page, 900, 230)
 
     # The options really do begin below context, and enough page follows the region for
     # aligning its start to be possible. Without either condition, centring the inner
@@ -646,37 +649,58 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     )
     assert before["room"] > 500, "the page has no room to put the decision at its start"
 
-    landing = """() => {
-      const ask = document.getElementById('storage-decision').getBoundingClientRect();
-      const options = document.getElementById('storage-options').getBoundingClientRect();
-      const scroller = getComputedStyle(document.scrollingElement);
-      return {obligation: ask.top, options: options.top, bottom: options.bottom,
-              clear: parseFloat(scroller.scrollPaddingTop),
-              foot: innerHeight - parseFloat(scroller.scrollPaddingBottom)};
-    }"""
     page.keyboard.press("m")
-    expect(page.locator("#storage-options")).to_be_focused()
-    expect(page.locator("#storage-options")).to_have_attribute(
+    expect(page.locator("#storage-decision")).to_be_focused()
+    expect(page.locator("#storage-decision")).to_have_attribute(
         "data-lf-obligation", "1"
     )
-    expect(page.locator("#storage-decision")).not_to_have_attribute(
+    expect(page.locator("#storage-options")).not_to_have_attribute(
         "data-lf-obligation", "1"
     )
     scroll_settled(page)
-    landed = page.evaluate(landing)
+    # Where the user was left is on the screen the walk has just arranged, and the pick
+    # the walk used to stand them on is the measurement that says the two cannot both be.
+    position = page.evaluate(
+        """() => {
+          const box = document.activeElement.getBoundingClientRect();
+          const pick = document.querySelector('#storage-options .lf-pick')
+            .getBoundingClientRect();
+          const foot = parseFloat(
+            getComputedStyle(document.scrollingElement).scrollPaddingBottom);
+          return {top: box.top, pick: pick.top, height: innerHeight - foot};
+        }"""
+    )
+    assert position["pick"] > position["height"], (
+        f"the first pick is on screen at this size, so focusing it would have been no "
+        f"worse than focusing the obligation and nothing below is evidence: {position}"
+    )
+    assert 0 <= position["top"] < position["height"], (
+        f"the walk left the user located off the screen it had just scrolled: "
+        f"{position}"
+    )
+    landed = page.evaluate(
+        """() => {
+          const ask = document.getElementById('storage-decision').getBoundingClientRect();
+          const options = document.getElementById('storage-options').getBoundingClientRect();
+          const clear = parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop)
+            + parseFloat(getComputedStyle(document.getElementById('storage-decision'))
+              .scrollMarginTop);
+          return {obligation: ask.top, options: options.top, clear};
+        }"""
+    )
     assert abs(landed["obligation"] - landed["clear"]) <= 2, (
-        f"the question starts at {landed['obligation']:.1f}px instead of the landing "
-        f"band's top at {landed['clear']:.1f}px"
+        f"the obligation starts at {landed['obligation']:.1f}px instead of the landing band's top and its "
+        f"ring's room at {landed['clear']:.1f}px"
     )
     assert landed["options"] > landed["obligation"] + 100, (
         "the arrival did not leave the obligation's context above its options"
     )
-    assert landed["bottom"] <= landed["foot"], landed
 
-    # Tab remains the complementary route into the widget's controls. The obligation
-    # action context remains the same; its key badges may move to the shared chrome
-    # when Linux font metrics leave a local badge clipped, but the controls retain the
-    # same semantic routes.
+    # Tab remains the complementary route into the widget's controls. Read after the
+    # landing above, because a Tab onto a control below the fold scrolls to it and would
+    # take the arrival's own geometry with it. The obligation action context remains the same;
+    # its key badges may move to the shared chrome when Linux font metrics leave a local
+    # badge clipped, but the controls retain the same semantic routes.
     page.keyboard.press("Tab")
     expect(page.locator("#storage-options .lf-pick").first).to_be_focused()
     picks = page.locator("#storage-options .lf-pick")
@@ -690,20 +714,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     # And nothing of the borrowed stop is left behind: PAGE_PAINT_ATTRIBUTES is the whole
     # of what the runtime may leave on an author's element, and `tabindex` is not in it.
     page.keyboard.press("Escape")
-    expect(page.locator("#storage-options")).not_to_have_attribute("tabindex", "-1")
-
-    # A window shorter than the question starts at the words before the answer, and
-    # leaves the user standing on an answer they can see.
-    page.keyboard.press("Escape")
-    resized(page, 900, 230)
-    page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
-    scroll_settled(page)
-    page.keyboard.press("m")
-    expect(page.locator("#storage-options")).to_be_focused()
-    scroll_settled(page)
-    landed = page.evaluate(landing)
-    assert landed["obligation"] < landed["clear"], landed
-    assert landed["clear"] - 2 <= landed["options"] < landed["foot"], landed
+    expect(page.locator("#storage-decision")).not_to_have_attribute("tabindex", "-1")
 
 
 def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
@@ -719,7 +730,7 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     resized(page, 900, 900)
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question")).to_be_focused()
+    expect(page.locator("#live-question-decision")).to_be_focused()
     assert active_digit_bindings(page) == "1–3"
     expect(
         page.locator(
@@ -1160,10 +1171,10 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
     # below is measured where the walk began, the scroll it computes is issued there, and
     # the travel then lands on top of it with the badge back above the bar.
     page.keyboard.press("m")
-    expect(page.locator("#cards")).to_be_focused()
+    expect(page.locator("#cards-decision")).to_be_focused()
     scroll_settled(page)
     page.keyboard.press("m")
-    expect(page.locator("#rows")).to_be_focused()
+    expect(page.locator("#rows-decision")).to_be_focused()
     scroll_settled(page)
     expect(
         page.locator("#rows > lf-option > .lf-key-badge[data-lf-binding-badge]")
@@ -1232,7 +1243,7 @@ def walked_to(page, key, target):
 def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_there(
     browser, serve, subtests
 ):
-    """A change to a phrase has no frame of its own, so the document supplies one.
+    """A change to a phrase has no region to declare, so the document supplies one.
 
     A question's section frames its arrival: a heading, the context, then the control.
     A suggestion stands mid-sentence, named by its sentence and the heading over that,
@@ -1508,7 +1519,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
-    expect(page.locator("#t-baffles-review")).to_have_attribute(
+    expect(page.locator("#t-baffles-decision")).to_have_attribute(
         "data-lf-obligation", "1"
     )
 
@@ -1543,7 +1554,9 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#live-question-decision")).to_have_attribute(
+        "data-lf-obligation", "1"
+    )
     # Where the user now stands, which is what the next press is measured against. The
     # bug takes them to the document's origin, so a scroll that ends *below* where they
     # started is the whole of what says they were carried to the change instead.
@@ -1641,7 +1654,9 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
       return box.top >= 0 && box.bottom <= innerHeight; }"""
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#live-question-decision")).to_have_attribute(
+        "data-lf-obligation", "1"
+    )
     scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"

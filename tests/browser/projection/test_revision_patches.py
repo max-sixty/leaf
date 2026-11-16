@@ -1026,7 +1026,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
             == "served-selection"
         )
         page.keyboard.press("m")
-        expect(page.locator("#answer")).to_be_focused()
+        expect(page.locator("#question")).to_be_focused()
     if departure != "focused":
         assert page.evaluate("history.length") == entries + 1
         scroll_settled(page)

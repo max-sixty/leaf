@@ -663,37 +663,37 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     """A pin goes below a control of the page level with it rather than take its
     presses. The controls were read at their whole boxes, so a body obligation's controls
     scrolled behind the pane's footer, where nobody can see or press them, pushed the
-    footer obligation's marker below the options it stands beside."""
+    footer obligation's marker below the heading it stands beside."""
     page = open_page(browser, serve(FOOTER_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     pane_scroll_behavior(page, page.locator("#ask-pane"), "bounded")
     # Scroll the body until its obligation's last control, at the obligation's right edge where a
-    # pin stands, is behind the footer obligation's options, with the body obligation's options in
+    # pin stands, is behind the footer obligation's heading, with the body obligation's heading in
     # view.
     page.evaluate(
         """() => {
           const body = document.getElementById('ask-body');
-          const control = [...document.querySelectorAll('#body-choice button')].at(-1)
+          const control = [...document.querySelectorAll('#body-ask button')].at(-1)
             .getBoundingClientRect();
-          const options = document.getElementById('foot-choice').getBoundingClientRect();
-          body.scrollTop += control.top - options.top - 2;
+          const heading = document.querySelector('#foot-ask > h3').getBoundingClientRect();
+          body.scrollTop += control.top - heading.top - 2;
         }"""
     )
     margins_laid_out(page)
     expect(
-        page.locator('[data-lf-margin-for="body-choice"] .lf-margin-marker')
+        page.locator('[data-lf-margin-for="body-ask"] .lf-margin-marker')
     ).to_be_visible()
-    marker = page.locator('[data-lf-margin-for="foot-choice"] .lf-margin-marker')
+    marker = page.locator('[data-lf-margin-for="foot-ask"] .lf-margin-marker')
     expect(marker).to_be_visible()
     tops = page.evaluate(
         """() => {
-          const hidden = [...document.querySelectorAll('#body-choice button')].at(-1)
+          const hidden = [...document.querySelectorAll('#body-ask button')].at(-1)
             .getBoundingClientRect();
           const foot = document.querySelector('#ask-pane > footer').getBoundingClientRect();
           return {
             hiddenTop: hidden.top, footTop: foot.top,
-            heading: document.getElementById('foot-choice').getBoundingClientRect().top,
-            marker: document.querySelector('[data-lf-margin-for="foot-choice"] .lf-margin-marker')
+            heading: document.querySelector('#foot-ask > h3').getBoundingClientRect().top,
+            marker: document.querySelector('[data-lf-margin-for="foot-ask"] .lf-margin-marker')
               .getBoundingClientRect().top,
           };
         }"""
@@ -732,12 +732,12 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
       });
     }""")
     margins_laid_out(page)
-    row = page.locator('[data-lf-margin-for="channel"]')
+    row = page.locator('[data-lf-margin-for="slotted-ask"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
     expect(row).to_be_visible()
     reading = page.evaluate("""() => {
       const edges = ({left, top, right, bottom}) => ({left, top, right, bottom});
-      const row = document.querySelector('[data-lf-margin-for="channel"]');
+      const row = document.querySelector('[data-lf-margin-for="slotted-ask"]');
       return {
         controls: [...row.querySelectorAll('.lf-margin-entry')]
           .filter(node => node.checkVisibility()).map(node => edges(node.getBoundingClientRect())),

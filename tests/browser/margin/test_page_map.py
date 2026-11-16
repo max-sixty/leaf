@@ -160,9 +160,11 @@ def test_the_current_obligation_marks_its_selected_margin_reading(browser, serve
     resized(page, 1440, 900)
 
     page.keyboard.press("m")
-    first = page.locator("#jobs")
+    first = page.locator("#jobs-decision")
     expect(first).to_be_focused()
-    first_marker = page.locator('[data-lf-margin-for="jobs"] > .lf-margin-marker')
+    first_marker = page.locator(
+        '[data-lf-margin-for="jobs-decision"] > .lf-margin-marker'
+    )
     expect(first).to_have_attribute("data-lf-obligation", "1")
     expect(first_marker).to_have_attribute("data-lf-target-selected", "")
     ring_style, _, ring_color = first.evaluate(LOCATION_RING)
@@ -172,12 +174,12 @@ def test_the_current_obligation_marks_its_selected_margin_reading(browser, serve
         == ring_color
     )
     page.keyboard.press("m")
-    expect(page.locator("#bracket")).to_be_focused()
+    expect(page.locator("#bracket-decision")).to_be_focused()
     expect(first_marker).not_to_have_attribute(
         "data-lf-target-selected", re.compile(".*")
     )
     expect(
-        page.locator('[data-lf-margin-for="bracket"] > .lf-margin-marker')
+        page.locator('[data-lf-margin-for="bracket-decision"] > .lf-margin-marker')
     ).to_have_attribute("data-lf-target-selected", "")
 
 
@@ -733,7 +735,9 @@ def test_the_chrome_names_an_obligation_by_its_question(browser, serve):
     page.keyboard.press("Shift+p")
     dialog = page.get_by_role("dialog", name="Page Map", exact=True)
     group = dialog.locator(".lf-page-map-group").filter(
-        has=page.get_by_role("heading", name="options · Which jobs are worth starting?")
+        has=page.get_by_role(
+            "heading", name="question · Which jobs are worth starting?"
+        )
     )
     expect(group).to_have_count(1)
     expect(group.locator(".lf-page-map-action")).to_have_text(["Waiting on me"])

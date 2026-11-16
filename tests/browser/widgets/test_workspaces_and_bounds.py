@@ -338,9 +338,9 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
     button = page.locator("#left").get_by_role("button", name="Next On Me")
     before = button.bounding_box()
     button.click()
-    expect(page.locator("#first")).to_be_focused()
+    expect(page.locator("#first-decision")).to_be_focused()
     button.click()
-    second = page.locator("#second")
+    second = page.locator("#second-decision")
     expect(second).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") > 0

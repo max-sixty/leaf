@@ -470,7 +470,7 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
     )
     expect(question).to_be_visible()
     question.click()
-    page.wait_for_function("!!document.activeElement?.closest('#routes')")
+    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
     contributed = review.get_by_role("button", name="Mark reviewed", exact=True)
     expect(contributed).to_be_visible()
     contributed.click()

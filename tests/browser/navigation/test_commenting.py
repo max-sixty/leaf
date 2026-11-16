@@ -335,13 +335,13 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     expect(comment).to_be_focused()
     drop()
 
-    # A decision: the composer opens on the decision, named by its question, rather
-    # than on the option the walk happens to stand the user on, or on the page.
+    # A decision: the composer opens on the question rather than on the option the
+    # walk happens to stand the user on, and rather than on the page.
     page.keyboard.press("m")
-    expect(page.locator("#shape")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("c")
     expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-composer")).to_contain_text("options · Which material?")
+    expect(page.locator(".lf-composer")).to_contain_text("question · Which material?")
     drop()
 
     # A settled group: not a decision at all, and the thread seat it still holds is
@@ -442,12 +442,12 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     assert page.locator(".lf-fab-bar .lf-compose-field").bounding_box() == resting
 
     page.keyboard.press("Escape")
-    expect(page.locator("#routes")).to_be_focused()
+    expect(page.locator("#route")).to_be_focused()
     expect(rest).to_be_visible()
     assert rest.bounding_box() == resting
 
     page.keyboard.press("Escape")
-    expect(page.locator("#routes")).not_to_be_focused()
+    expect(page.locator("#route")).not_to_be_focused()
     expect(rest).to_be_hidden()
     expect(panel_key).to_have_text("c")
 
@@ -469,7 +469,7 @@ def test_the_box_waits_for_the_press_with_no_room_beside_its_target(browser, ser
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, 700, 800)
     page.keyboard.press("m")
-    expect(page.locator("#routes")).to_be_focused()
+    expect(page.locator("#route")).to_be_focused()
     expect(page.locator(".lf-fab-bar[data-lf-withheld]")).to_have_count(1)
     expect(page.locator(".lf-fab-rest")).to_be_hidden()
     page.keyboard.press("c")
@@ -524,7 +524,7 @@ def test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus(browser,
     expect(rest).to_be_visible()
     scroll(down=True)
     expect(page.locator("#route")).not_to_be_in_viewport()
-    expect(page.locator("#routes")).to_be_focused()
+    expect(page.locator("#route")).to_be_focused()
     expect(rest).to_be_hidden()
     expect(panel_key).to_have_text("c")
 
@@ -628,7 +628,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     # And with it shut, which is every other reading below.
     page.locator("#shape .lf-settle").focus()
-    expect(page.locator("#shape")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
     # The count is completion, not the open walk's position, so focus leaves it stable.
     expect_obligations_answered(page, "1/3")
 
@@ -656,7 +656,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     # completion count remains stable.
     expect_obligations_answered(page, "1/3")
     expect(page.locator("#shape .lf-settle")).to_be_focused()
-    expect(page.locator("#shape")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#shape-decision")).to_have_attribute("data-lf-obligation", "1")
 
     # And the press means that thread, so the next line joins the one the first line
     # opened rather than starting another on the obligation or the widget. Whichever surface

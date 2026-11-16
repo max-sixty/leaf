@@ -1034,7 +1034,7 @@ def test_r_settles_the_thread_shown_for_the_element_the_user_stands_on(
     the obligation `m` lands on, or on any element the keyboard stands on. The card
     closes and the user stays on the element. Leaf's panel stands at no place, so `r`
     there leaves the card's thread alone though the card stays up."""
-    section = "cache" if arrival == "walk" else "passage"
+    section = "cache-ask" if arrival == "walk" else "passage"
     url = serve(ATTACHED_THREAD_PAGE)
     root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": section}

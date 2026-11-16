@@ -130,7 +130,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
 
     # An On Me arrival focuses the decision, and its location ring is its focus cue.
     page.keyboard.press("m")
-    expect(page.locator("#focus-open-options")).to_be_focused()
+    expect(page.locator("#focus-open-decision")).to_be_focused()
     rendered(page)
     drawn = rings_drawn(page)
     assert len([ring for ring in drawn if ring["sample"]]) == 1, (

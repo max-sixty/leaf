@@ -334,7 +334,7 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
     first = page.locator("#first").bounding_box()
     assert first["y"] + first["height"] <= page.locator(detail).bounding_box()["y"]
     page.keyboard.press("m")
-    expect(page.locator("#second-o")).to_be_focused()
+    expect(page.locator("#second")).to_be_focused()
     scroll_settled(page, detail)
 
     page.locator("#rail-words").click()
@@ -431,7 +431,7 @@ def test_the_page_hands_a_step_it_cannot_take_to_its_largest_pane_and_takes_it_b
     first = page.locator("#first").bounding_box()
     assert first["y"] + first["height"] <= page.locator(long).bounding_box()["y"]
     page.keyboard.press("m")
-    expect(page.locator("#second-o")).to_be_focused()
+    expect(page.locator("#second")).to_be_focused()
 
 
 @pytest.mark.parametrize("pressed", ["loaded", "held"])
@@ -1598,7 +1598,7 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
     before = page.evaluate("() => document.scrollingElement.scrollTop")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("m")
-    expect(page.locator("#o")).to_be_focused()
+    expect(page.locator("#q")).to_be_focused()
     scroll_settled(page, "#log")
     scroll_settled(page)
     after = page.evaluate("() => document.scrollingElement.scrollTop")

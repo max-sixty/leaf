@@ -547,12 +547,12 @@ OBLIGATIONS_PAGE = leaf_page(
 """,
 )
 OBLIGATIONS_IN_ORDER = [
-    "live-question",
+    "live-question-decision",
     "sug-refill",
-    "t-baffles-review",
-    "t-bath-choice",
+    "t-baffles-decision",
+    "t-bath-decision",
 ]
-ALL_OBLIGATIONS_IN_ORDER = [*OBLIGATIONS_IN_ORDER, "honored"]
+ALL_OBLIGATIONS_IN_ORDER = [*OBLIGATIONS_IN_ORDER, "honored-decision"]
 
 
 OBLIGATION_WITH_CONTEXT_PAGE = leaf_page(

@@ -1521,7 +1521,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     expect(walked).to_be_focused()
 
     page.keyboard.press("m")
-    expect(page.locator("#live-question[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)
     page.evaluate(press, ["m", True])  # the same grammar repeats for obligations
     expect(page.locator("#sug-refill[data-lf-obligation]")).to_have_count(1)
 
@@ -1945,7 +1945,9 @@ def test_an_obligations_pick_stays_a_place_to_stand_after_the_answer(browser, se
 
     page.keyboard.press("Space")
     expect(page.locator("#c-heater .lf-pick")).to_have_attribute("aria-checked", "true")
-    assert page.evaluate("() => document.activeElement.closest('#cards') !== null")
+    assert page.evaluate(
+        "() => document.activeElement.closest('#cards-decision') !== null"
+    )
     expect(pick).to_be_focused()
     page.keyboard.press("Escape")
     assert page.evaluate("() => document.activeElement === document.body")
@@ -2086,7 +2088,9 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     words = page.locator("#frame-label span")
     first.focus()
     current_location = offered_routes(page)
-    expect(page.locator("#first-question[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#first-question-decision[data-lf-obligation]")).to_have_count(
+        1
+    )
 
     # A secondary contact does not drive native label activation, so it must not
     # start the logical transaction either.
@@ -2125,7 +2129,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
         }"""
     )
     assert offered_routes(page) == current_location
-    held_obligation = page.locator("#first-question[data-lf-obligation]")
+    held_obligation = page.locator("#first-question-decision[data-lf-obligation]")
     expect(held_obligation).to_have_count(1)
     expect(held_obligation).to_have_attribute("data-lf-projected-location", "")
     # Native label activation temporarily blurs the radio. Its logical input
@@ -2149,7 +2153,9 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     page.mouse.up()
     expect(control).to_be_checked()
     expect(control).to_be_focused()
-    expect(page.locator("#frame-question[data-lf-obligation]")).to_have_count(1)
+    expect(page.locator("#frame-question-decision[data-lf-obligation]")).to_have_count(
+        1
+    )
 
     # The press has its own frame and the drag comes after it, so the line's only route
     # to the word is the selection the drag makes: the user is taking words out of a
@@ -2234,12 +2240,11 @@ def test_escape_on_a_declaring_control_does_exactly_what_it_says(browser, serve)
 
 def test_comment_escape_returns_to_its_authored_parent(browser, serve, subtests):
     """Closing a comment removes one layer: composer, then its authored subject.
-    The same obligation is the parent when walking or focusing an option, and the
-    question's section when aiming at its heading; entry history cannot change its
-    Escape route. Each case closes what it opened, so the cases share one page."""
+    The same obligation is the parent when walking, focusing an option, or aiming at
+    its heading; entry history cannot change its Escape route. Each case closes what it
+    opened, so the cases share one page."""
     page = open_page(browser, serve(WHERE_I_STAND_PAGE))
-    question = page.locator("#shape-decision")
-    item = page.locator("#shape")
+    item = page.locator("#shape-decision")
 
     def walk():
         page.keyboard.press("m")
@@ -2251,15 +2256,15 @@ def test_comment_escape_returns_to_its_authored_parent(browser, serve, subtests)
         page.keyboard.press("c")
 
     def aim():
-        question.locator("h2").click(modifiers=["Alt"])
+        item.locator("h2").click(modifiers=["Alt"])
 
-    for enter, parent in ((walk, item), (option, item), (aim, question)):
+    for enter in (walk, option, aim):
         with subtests.test(entry=enter.__name__):
             enter()
             expect(page.locator(".lf-composer")).to_be_visible()
             page.keyboard.press("Escape")
             expect(page.locator(".lf-composer")).to_be_hidden()
-            expect(parent).to_be_focused()
+            expect(item).to_be_focused()
             page.keyboard.press("Escape")
             assert page.evaluate("document.activeElement === document.body")
 

@@ -647,11 +647,11 @@ export function createAnnotationInventory({
     // have no node.
     /** @param {import("./framework/application.js").ObligationRecord} item
      * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
-    const hasPlace = (item) => Boolean(obligationPlace(item).source);
+    const hasPlace = (item) => Boolean(obligationPlace(item).node);
     const placed = () => readObligations().user.filter(hasPlace);
     for (const item of readObligations().user) {
       const id = item.id;
-      const target = obligationPlace(item).source;
+      const target = obligationPlace(item).node;
       if (!target) continue;
       add(groups, target, {
         kind: "on-me",

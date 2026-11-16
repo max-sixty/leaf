@@ -103,9 +103,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
     Each open obligation, a suggestion as much as a question, gets the window `m` brings it
     into, as the user working the page meets it, including those `m` reaches past a
-    page widget move handed back to the user. That stop stands the user on the answered
-    question's widget, which wears the ring there as a question it reviews, so it gets a
-    window too."""
+    page widget move handed back to the user, which is a stop of its own and no obligation."""
     tiles = "".join(
         f"<dl id='m{i}'><dt>metric {i}</dt><dd>{i}</dd></dl>" for i in range(4)
     )
@@ -180,9 +178,8 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         "1280px-obligation-1.png",
         "1280px-obligation-2.png",
         "1280px-obligation-3.png",
-        "1280px-obligation-4.png",
     } <= set(names)
-    assert "1280px-obligation-5.png" not in names
+    assert "1280px-obligation-4.png" not in names
     assert any("each press of `m`" in label for label in shows.values())
     assert '"Pre-handover review"' in screens["next"]
     assert any("<main> 1+2 → 1+1+1" in label for label in shows.values())

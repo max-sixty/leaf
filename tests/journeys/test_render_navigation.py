@@ -211,13 +211,13 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     )
 
     page.keyboard.press("m")
-    expect(page.locator("#review-cache-rollback")).to_be_focused()
+    expect(page.locator("#review-cache-decision")).to_be_focused()
     with sending(page, "the cache rollback decision"):
         page.keyboard.press("1")
     expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
 
     page.keyboard.press("m")
-    expect(page.locator("#review-billing-path")).to_be_focused()
+    expect(page.locator("#review-billing-decision")).to_be_focused()
     with sending(page, "the billing reconciliation decision"):
         page.keyboard.press("1")
     expect_obligations_answered(page, "2/2")
@@ -282,7 +282,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("m")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator("lf-options[data-lf-obligation]")).to_be_focused()
+    expect(card.locator("section[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -1360,7 +1360,9 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
             '<p id="dsc-body"><a id="revealed-link" href="#p2">Read next passage</a> ',
         )
     )
-    thread = answered_comment(serve.page_dir, "A visible thread.", {"section": "opts"})
+    thread = answered_comment(
+        serve.page_dir, "A visible thread.", {"section": "opts-decision"}
+    )
     page = open_page(browser, url)
     resized(page, 1280, 800)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
@@ -1417,7 +1419,8 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     ), "an inline hint repeated the sequence context"
 
     mixed = page.locator(
-        f'{CHIPS}[data-lf-go-to-kind="Margin entry"][data-lf-go-to-target="opts"]'
+        f'{CHIPS}[data-lf-go-to-kind="Margin entry"]'
+        '[data-lf-go-to-target="opts-decision"]'
     )
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
@@ -1465,10 +1468,12 @@ def test_target_mnemonics_filter_the_generated_map_without_renumbering_hints(
     expect(
         page.locator(f'{CHIPS}[data-lf-go-to-target="revealed-link"]')
     ).to_have_count(1)
-    obligation_code = address_code(page, "Margin entry", "opts", obligation_key)
+    obligation_code = address_code(
+        page, "Margin entry", "opts-decision", obligation_key
+    )
     page.keyboard.type(obligation_code)
-    expect(page.locator("#opts")).to_be_focused()
-    expect(page.locator("#opts")).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#opts-decision")).to_be_focused()
+    expect(page.locator("#opts-decision")).to_have_attribute("data-lf-obligation", "1")
 
     # Scroll past the links to give the hyperlinks filter no members. An empty
     # filter stays empty through resize; Escape restores the complete map.

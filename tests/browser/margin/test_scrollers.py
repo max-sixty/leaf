@@ -146,13 +146,13 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     )
     expect(leaving).to_be_focused()
     page.keyboard.press("m")
-    expect(page.locator("#options")).to_be_focused()
+    expect(page.locator("#work")).to_be_focused()
     expect(leaving).to_have_count(0)
     expect(row).to_be_visible()
     expect(
         page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
     ).to_be_visible()
-    expect(page.locator("#options")).to_be_focused()
+    expect(page.locator("#work")).to_be_focused()
 
 
 def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, serve):
@@ -886,7 +886,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
     resized(page, 1024, 600)
     body = page.locator("#seat-pane > div")
     pane_scroll_behavior(page, page.locator("#seat-pane"), "bounded")
-    row = page.locator('.lf-margin-lane [data-lf-margin-for="seat-choice"]')
+    row = page.locator('.lf-margin-lane [data-lf-margin-for="seat-ask"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
 
     def seat_at(gap):
@@ -894,7 +894,7 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
         top, and where the pin's top stands against that top."""
         body.evaluate(
             """(body, gap) => {
-              const ask = document.getElementById('seat-choice');
+              const ask = document.getElementById('seat-ask');
               body.scrollTop += ask.getBoundingClientRect().top
                 - body.getBoundingClientRect().top - gap;
             }""",
@@ -906,8 +906,8 @@ def test_a_pin_in_a_pane_takes_one_seat_at_every_scroll(browser, serve):
             """async () => {
               await new Promise((done) =>
                 requestAnimationFrame(() => requestAnimationFrame(done)));
-              const row = document.querySelector('[data-lf-margin-for="seat-choice"]');
-              const ask = document.getElementById('seat-choice').getBoundingClientRect();
+              const row = document.querySelector('[data-lf-margin-for="seat-ask"]');
+              const ask = document.getElementById('seat-ask').getBoundingClientRect();
               const pane = document.querySelector('#seat-pane > div')
                 .getBoundingClientRect();
               const pin = row.getBoundingClientRect();

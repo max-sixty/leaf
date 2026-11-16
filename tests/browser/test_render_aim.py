@@ -1168,10 +1168,9 @@ ROWS_ON = """([target]) => {
 @pytest.mark.parametrize("case", ["obligation", "thread"])
 def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     """A comment pointed at a row deep in its target stands its own margin row there;
-    the rest of the target's margin does not follow it. Commenting in a question's section
-    hands its obligation to the agent, so the obligation's marker, which stands at its
-    answer, leaves. A comment already on a thread target stays at the target's top,
-    where `t` still lands it."""
+    the rest of the target's margin does not follow it. Commenting on an obligation hands it
+    to the agent, so its obligation marker leaves. A comment already on a thread target
+    stays at the target's top, where `t` still lands it."""
     if case == "obligation":
         url, target = serve(TALL_OBLIGATION_PAGE), "way"
         row = f"#{target} p >> nth=25"
@@ -1192,16 +1191,9 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
     resized(page, 1440, 900)
     rendered(page)
     before = page.evaluate(ROWS_ON, [target])
-    marker = page.locator(
-        '[data-lf-margin-for="route"] .lf-margin-marker[data-lf-kinds~="on-me"]'
+    assert before and all(abs(top) <= 8 for _, top in before), (
+        f"the target's own rows must start at its top: {before}"
     )
-    if case == "obligation":
-        expect(marker).to_have_count(1)
-        assert before == [], before
-    else:
-        assert before and all(abs(top) <= 8 for _, top in before), (
-            f"the target's own rows must start at its top: {before}"
-        )
 
     pointed = page.locator(row)
     pointed.scroll_into_view_if_needed()
@@ -1223,7 +1215,6 @@ def test_a_pointed_comment_keeps_the_rows_still_owed(browser, serve, case):
         expect(
             page.locator(f'[data-lf-margin-for="{target}"] > .lf-margin-marker')
         ).to_have_attribute("data-lf-kinds", "comment")
-        expect(marker).to_have_count(0)
     else:
         for index, top in before:
             assert abs(after.get(index, 1e9) - top) <= 8, (

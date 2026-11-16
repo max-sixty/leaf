@@ -192,7 +192,7 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     }""")
     assert before["at"] == "source"
     page.keyboard.press("m")
-    expect(page.locator("#places")).to_be_focused()
+    expect(page.locator("#question")).to_be_focused()
     if close_source:
         page.locator("#source-fold > summary").click()
     page.go_back()
@@ -1126,7 +1126,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     thread = page.evaluate("document.scrollingElement.scrollTop")
     assert thread < reading - 1000
     page.keyboard.press("m")
-    expect(page.locator("#second")).to_be_focused()
+    expect(page.locator("#second-decision")).to_be_focused()
     expect(card).to_be_hidden()
     scroll_settled(page)
     assert entry() == start + 2
@@ -1138,7 +1138,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     # From the bottom again, the obligation walk upward.
     start = entry()
     page.keyboard.press("Shift+m")
-    expect(page.locator("#second")).to_be_focused()
+    expect(page.locator("#second-decision")).to_be_focused()
     # Focus precedes the outer scroll, so observe movement before waiting for rest.
     page.wait_for_function(
         "top => document.scrollingElement.scrollTop < top - 1000", arg=reading
@@ -1152,7 +1152,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     page.keyboard.press("1")
     expect(page.locator("#se-rota[chosen]")).to_have_count(1)
     page.keyboard.press("Shift+m")
-    expect(page.locator("#first")).to_be_focused()
+    expect(page.locator("#first-decision")).to_be_focused()
     page.wait_for_function(
         "top => document.scrollingElement.scrollTop < top - 1000", arg=landed
     )
@@ -1161,7 +1161,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
     assert walked < landed - 1000
     assert entry() == start + 2
     back_to(landed)
-    page.wait_for_function("() => document.activeElement?.closest('#second')")
+    page.wait_for_function("() => document.activeElement?.closest('#second-decision')")
     back_to(reading)
 
 
@@ -1297,7 +1297,7 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
 ):
     page = open_page(browser, serve(ALIGN_CURRENT_PAGE))
     page.keyboard.press("m")
-    expect(page.locator("#align-options")).to_be_focused()
+    expect(page.locator("#align-ask")).to_be_focused()
     page.locator("#align-yes").get_by_role("checkbox").focus()
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     page.evaluate("scrollBy(0, -180)")
@@ -1316,12 +1316,12 @@ def test_align_current_item_keeps_obligation_control_heading_selection_and_histo
     expect(reference).to_be_hidden()
     # The reference hands focus back before the current-location paint. Its command can align
     # before the ring supplies a scroll margin; either landing clears the pinned band.
-    _expect_aligned(page, "#align-options", exact_margin=False)
+    _expect_aligned(page, "#align-ask", exact_margin=False)
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     page.evaluate("scrollBy(0, -180)")
     page.keyboard.press("g")
     page.keyboard.press("z")
-    _expect_aligned(page, "#align-options")
+    _expect_aligned(page, "#align-ask")
     expect(page.locator("#align-yes").get_by_role("checkbox")).to_be_focused()
     assert (
         page.evaluate("[history.length, navigation.currentEntry.key, location.href]")
@@ -1404,7 +1404,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     # Returning focus from the menu can align before the current-location paint
     # supplies its scroll margin, just as activation from the command reference does.
     # Both landings must clear the pinned band.
-    _expect_aligned(page, "#align-options", exact_margin=False)
+    _expect_aligned(page, "#align-ask", exact_margin=False)
     page.locator("#align-heading").focus()
     page.keyboard.press("g")
     expect(page.locator(CHIPS).first).to_be_visible()

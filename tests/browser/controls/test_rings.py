@@ -1191,7 +1191,7 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
         ),
     )
     marker = page.locator('.lf-margin-entry[data-lf-kinds="on-me"]')
-    decision = page.locator("#answer")
+    decision = page.locator("#decision")
     marker.hover()
     expect(decision).to_have_attribute("data-lf-traced", "")
     page.mouse.move(0, 0)

@@ -623,7 +623,7 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
             )
         ),
     )
-    question = page.locator("#note")
+    question = page.locator("#note-decision")
     editor = page.locator("#note leaf-text")
     edit = draft_control(page, "edit", "note")
     expect(page.locator("#note .lf-draft-tools")).to_have_css("opacity", "1")

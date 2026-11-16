@@ -151,13 +151,13 @@ def test_m_walks_what_waits_on_you_and_on_me_counts_it(browser, serve):
     expect(message).to_be_focused()
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
-    expect(page.locator("#channel")).to_be_focused()
+    expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Reply")
     expect(message).to_be_focused()
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
-    expect(page.locator("#channel")).to_be_focused()
+    expect(page.locator("#channel-ask")).to_be_focused()
     page.keyboard.press("Shift+m")
     expect_walk_position(page, "1 of 2 waiting on me · Reply")
     expect(message).to_be_focused()
@@ -285,7 +285,7 @@ def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve)
     expect(box).to_be_focused()
     expect(press.locator("kbd")).to_have_count(0)
     press.click()
-    expect(page.locator("#channel")).to_be_focused()
+    expect(page.locator("#channel-ask")).to_be_focused()
     expect(press.locator("kbd")).to_have_text("m")
 
     with sending(page, "the pick"):
@@ -335,7 +335,7 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
 
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 3 waiting on me · Options")
-    lands_whole("#channel")
+    lands_whole("#mid-ask")
     expect(thread).to_have_count(1)
     expect(page.locator(".lf-fp-field .lf-compose-placeholder-lead")).to_have_text(
         "1 of 3 waiting on me · Options"
@@ -344,7 +344,7 @@ def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, ser
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 3 waiting on me · Options")
     panel_settled(page, open=False)
-    lands_whole("#notes")
+    lands_whole("#foot-ask")
 
 
 # A choice at the end of a bounded block at the page's foot: landing on it scrolls the
@@ -398,7 +398,7 @@ def test_travel_reads_the_landing_through_every_region_it_scrolls(browser, serve
     scroll_settled(page)
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Options")
-    expect(page.locator("#bound")).to_be_focused()
+    expect(page.locator("#bound-ask")).to_be_focused()
     panel_settled(page, open=False)
     scroll_settled(page)
     assert page.evaluate(SEEN_SHARE, "#bound-ask") > 0.99
@@ -419,7 +419,7 @@ def test_on_me_stays_over_only_the_items_it_lists(browser, serve):
     panel_settled(page, view="queue")
     page.keyboard.press("m")
     expect_walk_position(page, "2 of 2 waiting on me · Options")
-    expect(page.locator("#notes")).to_be_focused()
+    expect(page.locator("#foot-ask")).to_be_focused()
     expect(on_me).to_have_count(1)
     page.keyboard.press("t")
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
@@ -465,7 +465,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     )
     words = page.locator("#left .lf-tally-words")
     button = page.locator("#left").get_by_role("button", name="Next On Me")
-    first, second = page.locator("#first"), page.locator("#second")
+    first, second = page.locator("#first-decision"), page.locator("#second-decision")
     expect(words).to_have_text("2 left to answer")
     count = page.locator("#left .lf-tally-count")
     waiting_color = count.evaluate("node => getComputedStyle(node).color")
@@ -585,8 +585,8 @@ def test_an_idle_m_arrival_paints_in_its_first_frame(browser, serve, idle_setup)
     }""")
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 1 waiting on me · Options")
-    expect(page.locator("#channel")).to_be_focused()
-    assert page.evaluate("focusAtFirstFrame") == "channel"
+    expect(page.locator("#channel-ask")).to_be_focused()
+    assert page.evaluate("focusAtFirstFrame") == "channel-ask"
 
 
 def test_an_m_step_newer_focus_cancels_at_a_thread_claims_no_arrival(browser, serve):
@@ -672,7 +672,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
     # rather than the digit straight off the arrival, because where an arrival lands is
     # not this test's subject and it should not go red when that moves.
     page.keyboard.press("m")
-    expect(page.locator("#only")).to_be_focused()
+    expect(page.locator("#only-decision")).to_be_focused()
     page.keyboard.press("Tab")
     expect(page.locator("#only .lf-pick").first).to_be_focused()
     held = []
@@ -749,7 +749,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
           return obligationActions.open('widget:only');
         }"""
     )
-    expect(page.locator("#only")).to_be_focused()
+    expect(page.locator("#only-decision")).to_be_focused()
 
 
 def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
@@ -831,7 +831,7 @@ def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
         return [LEAF_MOTIONS[turn] for turn in page.evaluate("() => window.__lfLeaf")]
 
     page.keyboard.press("m")
-    expect(page.locator("#only")).to_be_focused()
+    expect(page.locator("#only-decision")).to_be_focused()
     assert gestures(1) == ["nod"]
     page.keyboard.press("m")
     assert gestures(2) == ["nod", "nod"]
@@ -892,7 +892,7 @@ def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     card = page.locator(".lf-fp-card")
     suggestion = page.locator("#insert")
     page.keyboard.press("m")
-    expect(page.locator("#pick-0")).to_be_focused()
+    expect(page.locator("#ask-0")).to_be_focused()
     page.keyboard.press("Shift+m")
     expect(suggestion).to_be_focused()
     scroll_settled(page)

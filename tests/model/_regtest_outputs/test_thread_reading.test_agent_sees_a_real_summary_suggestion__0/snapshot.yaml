@@ -26,26 +26,31 @@ delivery:
           messages:
             - id: event-2
               seq: 2
+              ts: <time>
               author: user
               text: >-
                 Which rollout?
             - id: event-3
               seq: 3
+              ts: <time>
               author: agent
               text: >-
                 Rollout consideration 1.
             - id: event-4
               seq: 4
+              ts: <time>
               author: user
               text: >-
                 Rollout consideration 2.
             - id: event-5
               seq: 5
+              ts: <time>
               author: agent
               text: >-
                 Rollout consideration 3.
             - id: event-6
               seq: 6
+              ts: <time>
               author: user
               text: >-
                 Rollout consideration 4.

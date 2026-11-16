@@ -497,6 +497,72 @@ def test_a_shift_without_input_fails(browser):
     consume_browser_errors(page, moved_within("textarea#field", by=[0, 6]))
 
 
+# Words under a box, and a button holding its label centred. A script animates the
+# box's height, carrying the words; the button's, re-centring its label; or the words'
+# own `translate`. `#press` begins the box's animation from a press instead.
+STEPPED_MOTION = """<!doctype html><body style="margin:0">
+<div id="box" style="height:24px"></div>
+<p id="below">Words under the box</p>
+<button id="centred" style="position:absolute;top:0;left:200px;height:24px">
+Centred</button>
+<button id="press" style="position:absolute;top:0;left:300px">Press</button>
+<script>
+  const motions = {
+    grows: [box, [{height: "24px"}, {height: "40px"}]],
+    centres: [centred, [{height: "24px"}, {height: "40px"}]],
+    slides: [below, [{translate: "0 0"}, {translate: "0 16px"}]],
+  };
+  // Draws `motion` to its end `step` px of the box's growth a frame, as a fast host
+  // draws a slow animation in small steps and a starved host a fast one in large steps.
+  window.animateBy = (motion, step) => new Promise((done) => {
+    const [target, keyframes] = motions[motion];
+    const effect = target.animate(keyframes, {duration: 16, fill: "forwards"});
+    effect.pause();
+    let at = 0;
+    const next = () => {
+      at = Math.min(16, at + step);
+      effect.currentTime = at;
+      requestAnimationFrame(at < 16 ? next : done);
+    };
+    requestAnimationFrame(next);
+  });
+  press.addEventListener("click", () => {
+    window.pressed = animateBy("grows", 0.5);
+  });
+</script>"""
+
+
+@pytest.mark.parametrize(
+    "motion,step,moving",
+    [
+        ("grows", 0.5, "p#below"),
+        ("grows", 16, "p#below"),
+        ("centres", 0.5, "button#centred"),
+        ("slides", 0.5, "p#below"),
+        ("press", 0.5, None),
+    ],
+)
+def test_motion_without_input_fails_at_any_frame_rate(browser, motion, step, moving):
+    """An animation no input began fails whether its frames step it half a pixel or
+    16 px at a time. At 60 frames a second a slow animation moves the words less than
+    the 3 px a frame Chrome reports as a layout shift, and less than a pixel, so the
+    watch judges how far they have moved since the motion began rather than each
+    frame's step. It reads transforms too, which Chrome never reports. The same growth
+    begun by a press is credited across every one of its frames."""
+    page = browser.new_page()
+    page.goto("data:text/html," + quote(STEPPED_MOTION))
+    paint(page)
+    if motion == "press":
+        page.locator("#press").click()
+        page.evaluate("() => pressed")
+        judge_watches()
+        assert take_browser_errors(page) == []
+    else:
+        page.evaluate("([motion, step]) => animateBy(motion, step)", [motion, step])
+        judge_watches()
+        consume_browser_errors(page, moved_within(moving))
+
+
 def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
     """Chrome may paint a document the parser has only partly added, as a slow
     runner's parser yields mid-page: a select before its option and the taller box
@@ -2944,8 +3010,7 @@ CENTRED = """<!doctype html><body style="margin:0">
 def test_a_size_animation_carries_what_its_box_lays_out(browser, arm):
     """A box a press's animation grows re-centres its words between its edges,
     whichever edge holds. The test seeks the animation to its end in one frame, as a
-    starved host's long frames do; at 60 frames a second each step moves the words
-    less than the 3 px Chrome reports as a shift. Words a script carries farther than
+    starved host's long frames do. Words a script carries farther than
     the box grew still fail, and so do words re-centred by a size change that no
     animation of their box makes."""
     place = "position:absolute;bottom:0;left:0;right:0" if arm == "foot" else ""
@@ -5320,9 +5385,7 @@ def test_real_floating_plane_retains_local_motion(
         '<div id="holder" style="visibility:hidden;position:fixed;width:220px;height:90px;'
         'padding:12px;border:1px solid;box-sizing:border-box;background:white">'
         '<textarea id="field" style="display:block;width:160px;height:36px;'
-        'box-sizing:border-box;resize:none"></textarea></div>'
-        '<p id="evidence" style="position:fixed;left:10px;top:440px;'
-        'width:300px;height:30px;margin:0">Paint evidence</p>',
+        'box-sizing:border-box;resize:none"></textarea></div>',
         layout=None,
     )
     page = open_page(browser, serve(source))
@@ -5380,13 +5443,6 @@ def test_real_floating_plane_retains_local_motion(
     held_stretch(page)
     before, holder_before = field.bounding_box(), holder.bounding_box()
     page.evaluate("window.beforeField=document.querySelector('#field')")
-    page.evaluate("""()=>{
-      window.nativePlaneEntries=[];
-      new PerformanceObserver(list=>nativePlaneEntries.push(...list.getEntries().map(e=>({
-        at:e.startTime,sources:e.sources.map(s=>({kind:s.node?.nodeName,
-          previous:s.previousRect.toJSON(),current:s.currentRect.toJSON()}))
-      })))).observe({type:'layout-shift'});
-    }""")
     page.evaluate(
         """fault=>{
           window.planeChanges=0;
@@ -5406,9 +5462,6 @@ def test_real_floating_plane_retains_local_motion(
               const edge=planeControl.read().edge;
               holder.style[edge]=`calc(${edge==='top'?80:-80}px + ${holder.style[edge]})`;
             }
-            // Transform-only faults need a native paint signal; this extra source
-            // cannot establish the independently asserted field displacement.
-            if(fault) document.querySelector('#evidence').style.marginLeft='30px';
           };
         }""",
         fault,
@@ -5430,8 +5483,6 @@ def test_real_floating_plane_retains_local_motion(
     assert page.evaluate("planeChanges") == 1
     judge_watches()
     errors = take_browser_errors(page)
-    entries = page.evaluate("nativePlaneEntries")
-    assert entries, (fault, guard_mode, destination, "no Chrome paint admission")
     after, holder_after = field.bounding_box(), holder.bounding_box()
     assert page.evaluate("beforeField===document.querySelector('#field')")
     assert after["width"] == before["width"]

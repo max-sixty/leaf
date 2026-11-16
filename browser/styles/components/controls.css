@@ -1399,10 +1399,12 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-border);
 }
 /* A draft's entry, words the user wrote here and hasn't sent (the `draft` kind,
-   contribution-model.js), wears its contour dashed, as a draft does, in the rail and
-   as a pin. */
+   contribution-model.js), wears the muted grey the On Me mark's dot wears for a draft
+   (`.lf-unread-dot[data-lf-drafts]`), in the rail and as a pin, so it reads apart from
+   a thread's entry in the thread's colour. The user chose the grey on 16 November 2026
+   over the dashed contour the entry first wore (#6091). */
 .lf-margin-face[data-lf-kinds="draft"] {
-  border-style: dashed;
+  --lf-entry-ink: var(--lf-muted);
 }
 /* An entry in force, such as a reaction the user left, stands on the chip, a pin's
    included, so it follows the pin. */

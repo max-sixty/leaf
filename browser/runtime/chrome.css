@@ -365,10 +365,12 @@ html[data-lf-draw-mode] {
     path {
     stroke: var(--lf-accent);
   }
-  /* Unsent ink whose composer is put away stays on the page, dashed as a draft set
-     aside, apart from the drawing the open composer carries. */
+  /* Unsent ink whose composer is put away, or whose element a revision took away, stays
+     on the page dimmed, apart from the drawing the open composer carries. The user
+     chose dimming over dashing for a draft on 16 November 2026; the accent stays, since
+     grey ink over the page read as the page's own strikethrough. */
   .lf-drawing-mark.lf-drawing-parked path {
-    stroke-dasharray: 7 6;
+    stroke-opacity: 0.6;
   }
   .lf-live {
     position: fixed;

@@ -8,6 +8,7 @@ this endpoint shares with every other writer.
 
 from pathlib import Path
 
+from .drafts import settle_sent
 from .event_contracts import (
     EventRefused,
     append_admitted,
@@ -129,6 +130,11 @@ def _execute_event(
                 nudge_unwatched(page)
             if event["kind"] in kinds_declaring("message") and claim:
                 spoken = admitted["id"], claim
+        # The draft the event was sent from is spoken now, in every tab and on every
+        # device, a retry's included (`drafts.py`), and within the transaction, so the
+        # page a commit saves never holds a sent draft as unsent.
+        if attempt := admitted.get("attempt"):
+            settle_sent(page_dir, attempt)
     # A comment opens a thread with no name, and the claimant's harness names it from
     # its words while the agent is still reading them; a reply names a thread its
     # comment left untitled, as a reaction does. The request reads the thread under

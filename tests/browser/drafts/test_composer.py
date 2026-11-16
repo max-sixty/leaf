@@ -31,6 +31,7 @@ from render_harness import (
     panel_field,
     panel_settled,
     primed,
+    refuse,
     resized,
     scroll_settled,
     select_words,
@@ -38,6 +39,7 @@ from render_harness import (
     stamp_page,
     stored_draft_text,
     write,
+    write_draft_elsewhere,
 )
 
 from browser.margin import MARGIN_EDITOR_ROOTS
@@ -552,6 +554,43 @@ def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
     )
     assert stored_draft_text(page, "edit:editable") is None
     assert stored_draft_text(page, "general") == joined
+
+
+def test_words_whose_box_is_gone_stay_put_when_the_page_s_draft_turns_them_away(
+    browser, serve
+):
+    """Moving words into Comment on the page settles the draft they came from only once
+    the server holds them there: where another device wrote the page's draft
+    meanwhile, they stay where they were rather than going nowhere."""
+    edited = (
+        '<lf-draft id="editable"><pre>Initial words</pre></lf-draft>'
+        "<p>The rest of the page.</p>"
+    )
+    source = leaf_page("Removed box", '<h1 id="top">Removed box</h1>' + edited)
+    url = live_url(serve(source))
+    context = browser.new_context()
+    page = open_page(browser, url, context=context)
+    write(page_comment(page), "A page-wide thought.")
+    page.keyboard.press("Escape")
+    page.locator("#editable .lf-draft-body").click()
+    write(page.locator("#editable .lf-draft-edit"), "An unsent edit.")
+    stamp_page(
+        serve.page_dir, source.replace(edited, "<p>The rest of the page.</p>"), "cut"
+    )
+    page = open_page(browser, url, context=context)
+    expect(page.locator("#editable")).to_have_count(0)
+    # Another device writes the page's draft, which this tab doesn't hear of.
+    page.route("**/api/drafts", refuse)
+    elsewhere = "Words another device wrote here."
+    write_draft_elsewhere(page, "general", elsewhere)
+
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    box = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    expect(box).to_have_js_property("value", elsewhere)
+    assert stored_draft_text(page, "general") == elsewhere
+    assert stored_draft_text(page, "edit:editable") == "An unsent edit."
 
 
 def test_resume_writing_returns_to_an_option_being_added(browser, serve):

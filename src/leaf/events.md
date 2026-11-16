@@ -214,8 +214,8 @@ event. Every `action` and `report` records:
   (`layer-registry.md`).
 - `answer`, on an action whose admission makes its widget's `x-awaits.answered` hold:
   the thread the answer closes, from the widget's authored `resolves` in the sending
-  document, or null. An outcome equal to the widget's `x-withdrawn-as` declines and
-  closes nothing.
+  document, or null. The outcome its deciding verb `withdraws` declines and closes
+  nothing.
 - `creates`, the tag of the child a `creates` verb adds. The child is the action's
   unit, so it lasts as long as the action does, whether or not a document holds it.
 - `among`, on a position move ("Position moves").

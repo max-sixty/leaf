@@ -1086,9 +1086,9 @@ def test_an_inline_thread_keeps_drawing_context_on_the_page(browser, serve):
 def test_an_unsent_drawing_stays_where_it_was_when_its_data_revision_changes(
     browser, serve
 ):
-    """A revision that takes a draft's element away leaves its ink where the element last
-    stood, dashed as detached, rather than stretched over the widget its anchor now falls
-    back to or vanishing; the box can still take it off."""
+    """A revision that takes a draft's element away leaves its ink where the element
+    last stood, dimmed as a box put away leaves it, rather than stretched over the
+    widget its anchor now falls back to or vanishing; the box can still take it off."""
     page = open_data_revision_diff(browser, serve)
     target = page.locator(
         "lf-diff [data-line-type='change-deletion'][data-lf-datum]"

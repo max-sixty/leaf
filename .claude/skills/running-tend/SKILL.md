@@ -21,9 +21,11 @@ commit message; hold its claims to the standard the diff is held to.
 Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage** and **Fix the underlying
 issue** to the verdict; most of Tend's own pull requests land on this review alone.
 Once a change moves Leaf toward a coherent architecture, its claimed path works and
-what it adds is worth keeping, the review is done. Reserve findings for architectural seams, cross-runtime invariants, public
-surface traps, regressions anywhere the change reaches, additions that cost more
-than they buy, or a central claim or test that is false or that nothing has shown.
+what it adds is worth keeping, the review is done. Reserve findings for architectural
+seams, cross-runtime invariants, public surface traps (root `AGENTS.md`, "Where
+instructions live", names those in prose), regressions anywhere the change reaches,
+additions that cost more than they buy, or a central claim or test that is false or
+that nothing has shown.
 Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
 prose or test polish unless they expose one of those problems. Those findings ask a
 change to cover more or read better; a finding that it adds more than it buys is
@@ -37,14 +39,6 @@ in the session what the change adds that later changes must hold, what that buys
 pays its cost and who gains beyond the claimed case, and the cheapest other change
 you can name that buys the same. Where that change keeps what this one must and costs
 materially less, it is the finding: withhold approval and name it.
-
-In shipped text (the references, `--help`, UI strings, `SKILL.md`, and the agent
-instructions in the `AGENTS.md` files and `/developing-leaf`), these prose defects
-are public surface traps: mechanism written for a reader other than the one the text
-addresses, a second copy of a rule another text owns, a coined term used without its
-definition, and, in maintainer guidance, a sentence that says how the diff's code
-works or which failure it fixed rather than what other code must rely on. Ask for
-that sentence to move to the module header or the commit message.
 
 A diff that settles its symptom without reaching the underlying issue is an
 architectural seam: name the issue, and withhold approval unless the change meets the
@@ -90,21 +84,19 @@ profiles from CI.
 A CI repair that changes what a page draws, such as its CSS, layout or a widget's
 rendering, names in its description the states it changes on screen. Before the
 verdict, its review captures each of them on the base and the head with
-`uv run leaf-dev stills --state NAME`, choosing the scheme and window with
-`--scheme`, `--viewport` and `--touch`, and adds a state to `STATES`
-(`dev/leaf_dev/states.py`) for a surface none reaches, one per surface and never one
-per scheme or window (the `states.py` header says when a state keeps its own). It
-looks at the crops and weighs what changed against every state that pays for it.
+`uv run leaf-dev stills --state NAME` (its `--help` covers the scheme and window, and
+the `dev/leaf_dev/states.py` header says when to add a state). It looks at the crops
+and weighs what changed against every state that pays for it.
 Without captures it can read, the review withholds approval.
 
 ## Explaining UI changes and questions
 
 Include screenshots when explaining a UI change or asking the maintainer to judge
-an interface. Put the visual evidence in the PR description or reply where the
-change or question is presented, so the reader can inspect the affected state
-before answering. Show before and after for a change, and the relevant alternatives
-for a design question. Follow `/developing-leaf`, **Prove and hand off a visible
-change**, for capture and delivery.
+an interface: before and after for a change, and for a design question each
+alternative, pictured as root `AGENTS.md` asks. Put them in the PR description or
+reply that presents the change or question, so the reader can inspect the affected
+state before answering. `/developing-leaf`'s **Prove and hand off a visible change**
+covers capture.
 
 Upload screenshots to GitHub with the CLI’s native attachments:
 
@@ -118,24 +110,8 @@ Read back the published body and open its image URLs to verify the evidence.
 
 ## Reading a red suite
 
-When a change turns a test red, merged or still in a pull request, the change and
-the behavior the test protects disagree. Choose the repair by what it keeps of each:
-
-- **The change's intent**: what its author meant it to do, read from the pull
-  request's description, discussion and diff. Undoing part of it reverses a
-  decision someone made.
-- **The interface**: what users see and do, and what callers rely on, such as a
-  gesture's effect, a layout, a command or a file format. A repair that moves it
-  further than the change meant to makes a product decision nobody asked for.
-
-The existing assertion is evidence about both, not authority (`tests/AGENTS.md`,
-**Failing tests**). Prefer a repair that keeps both:
-update the test whose expectation the change replaced, or fix the code so the
-change's intent holds without moving the interface further. Where no repair
-keeps both, revert the change, or the part of it at fault. When the test itself is
-wrong, validate the intended behavior with corrected or replacement checks, and
-justify removing a test that protects no user behavior rather than claiming it
-passed.
+When a change turns a test red, merged or still in a pull request, choose the repair
+as `tests/AGENTS.md`, **Failing tests**, says.
 
 A repair that gives up any of the change's intent, or was chosen where the evidence
 left the choice uncertain, needs an issue so the change can return deliberately.

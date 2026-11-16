@@ -410,6 +410,17 @@ def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tm
     expect(widget.locator(".lf-file-editor-status")).to_have_text(
         "", use_inner_text=True
     )
+    # The agent's line is marked as written elsewhere, and the reader's is not.
+    written = editor.locator(".cm-line.lf-written")
+    expect(written).to_have_text(["  minReplicas: 4"])
+    # A later write with nothing unsaved moves the mark to the line it changed, and
+    # the reader's edit there takes it off.
+    file.write_text("replicas: 4\n\nautoscaling:\n  minReplicas: 2\n")
+    expect(written).to_have_text(["  minReplicas: 2"])
+    written.click()
+    page.keyboard.press("End")
+    page.keyboard.insert_text("0")
+    expect(written).to_have_count(0)
     # The agent's line changed inside the region the reader was typing in; their own
     # words stayed where they typed them.
     page.evaluate("lfWordsJudged()")

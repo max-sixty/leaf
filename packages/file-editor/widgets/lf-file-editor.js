@@ -25,7 +25,9 @@
  * lines apart from the draft's, as a line merge would, so an agent writing one part of
  * a file while the reader types in another meets no conflict however the two requests
  * interleave; changes to the same or adjacent lines retain both versions for explicit
- * review.
+ * review. Either way the lines a version written elsewhere changed stay marked until the
+ * next such version or the reader's edit of them (editor.js, `written`), so a reader
+ * whose file an agent edited sees where; a file's first reading marks nothing.
  * The editor reads the open file when it connects, when the tab is shown again, when
  * the reader opens it and when the page's state stamps its binding anew
  * (`boundFile().watch`). A read asked for while another request on that file is in
@@ -81,7 +83,7 @@ import {
   tabStore,
   whileConnected,
 } from "/runtime/widget-api.js";
-import { createEditor, mergeKept } from "./editor.js";
+import { createEditor, followKept, mergeKept } from "./editor.js";
 
 /** @typedef {import("../../../browser/types/contract.js").ServedFileSnapshot} FileSnapshot */
 /** @typedef {{kind: "read", message: string} | {kind: "save", message: string, replace: boolean}} FileFailure */
@@ -627,10 +629,16 @@ customElements.define(
             !of.base ||
             (!of.recovering && !unsettled(of) && seenGeneration === of.generation)
           ) {
+            // A first reading shows the file; a later one follows what was written
+            // elsewhere and marks where.
+            const first = !of.base;
             of.base = current;
             of.latest = null;
-            if (of === file) editor.value = current.text;
-            else if (text(of) !== current.text) of.kept = null;
+            if (of === file) {
+              if (first) editor.value = current.text;
+              else editor.follow(current.text);
+            } else if (of.kept && text(of) !== current.text)
+              of.kept = followKept(of.kept, current.text);
           } else if (current.text === text(of)) {
             of.base = current;
             of.latest = null;

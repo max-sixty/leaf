@@ -35,10 +35,11 @@ page binds, here `deploy/values.yaml`, `deploy/alerts.yaml` and `docs/runbook.md
 `leaf file bind` prints the label it gives.
 
 Tell the reader that edits save automatically. The editor saves as the reader types
-and saves a file the moment the reader opens another. It takes in a change written
-elsewhere, by you or another program, on other lines than the reader's unsaved edit;
-where the two touch the same lines, it keeps the draft and reports the conflict in
-its own status line with the choices that resolve it.
+and saves a file the moment the reader opens another. It shows a change written
+elsewhere, by you or another program, and marks the lines it changed until the
+reader edits them. It takes such a change in on other lines than the reader's unsaved
+edit; where the two touch the same lines, it keeps the draft and reports the conflict
+in its own status line with the choices that resolve it.
 
 Edits change the file itself, outside Leaf's action history, and Undo in the editor is
 an ordinary edit that saves too. Show a file the reader should not change with `lf-code`

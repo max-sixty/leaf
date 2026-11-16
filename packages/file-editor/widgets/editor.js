@@ -9,10 +9,14 @@ import {
 } from "/runtime/widget-api.js";
 import * as codemirror from "/vendor/codemirror.esm.js";
 import {
+  Annotation,
   ChangeSet,
   Compartment,
+  Decoration,
   EditorState,
   Prec,
+  StateEffect,
+  StateField,
   Transaction,
   EditorView,
   keymap,
@@ -54,6 +58,11 @@ const theme = EditorView.theme({
   ".cm-scroller": { fontFamily: "var(--lf-mono)", lineHeight: "24px" },
   ".cm-content": { caretColor: "var(--lf-accent)" },
   ".cm-line": { padding: "0 .85rem" },
+  // A line another writer changed (`written`), tinted and barred in the accent.
+  ".cm-line.lf-written": {
+    background:
+      "linear-gradient(to right, var(--lf-accent) 3px, oklch(from var(--lf-accent) l c h / 0.1) 3px)",
+  },
   ".cm-gutters": {
     backgroundColor: "var(--lf-paper)",
     color: "var(--lf-muted)",
@@ -170,6 +179,70 @@ const loadLanguage = (name) => {
   }
   return pending;
 };
+// The lines the last write from elsewhere changed, such as an agent's: shown until
+// the next one replaces them, and each until the reader edits that line, so a reader
+// whose file changed under them sees where. A file's first reading marks nothing.
+const fromElsewhere = Annotation.define();
+/** @type {import("@codemirror/state").StateEffectType<import("@codemirror/view").DecorationSet>} */
+const markWritten = StateEffect.define();
+const writtenLine = Decoration.line({ class: "lf-written" });
+const written = StateField.define({
+  create: () => Decoration.none,
+  update(marks, transaction) {
+    for (const effect of transaction.effects)
+      if (effect.is(markWritten)) return effect.value;
+    if (!transaction.docChanged) return marks;
+    marks = marks.map(transaction.changes);
+    if (transaction.annotation(fromElsewhere)) return marks;
+    // The reader's edit takes the mark off each line it touches.
+    const doc = transaction.state.doc;
+    /** @type {[number, number][]} */
+    const touched = [];
+    transaction.changes.iterChangedRanges((_fromA, _toA, from, to) =>
+      touched.push([doc.lineAt(from).from, doc.lineAt(to).from]),
+    );
+    return marks.update({
+      filter: (from) => !touched.some(([start, end]) => from >= start && from <= end),
+    });
+  },
+  provide: (field) => EditorView.decorations.from(field),
+});
+// The marks for `changes`, a write from elsewhere, on each line of `doc`, the text
+// after it, that the write put text on or took text from.
+/** @param {ChangeSet} changes @param {import("@codemirror/state").Text} doc */
+const writtenMarks = (changes, doc) => {
+  /** @type {Set<number>} */
+  const starts = new Set();
+  changes.iterChangedRanges((_fromA, _toA, from, to) => {
+    for (let line = doc.lineAt(from); ; line = doc.line(line.number + 1)) {
+      starts.add(line.from);
+      if (line.to >= to || line.number === doc.lines) break;
+    }
+  });
+  return Decoration.set(
+    [...starts].sort((a, b) => a - b).map((at) => writtenLine.range(at)),
+  );
+};
+// The transaction a write from elsewhere makes of `changes` on `state`: not the
+// reader's to undo, and marking the lines it changed.
+/** @param {EditorState} state @param {ChangeSet} changes */
+const writeFromElsewhere = (state, changes) => ({
+  changes,
+  effects: markWritten.of(writtenMarks(changes, changes.apply(state.doc))),
+  annotations: [Transaction.addToHistory.of(false), fromElsewhere.of(true)],
+});
+/** The changes that turn `from` into `to`, in CodeMirror's terms.
+ * @param {string} from @param {string} to */
+const changesBetween = (from, to) =>
+  ChangeSet.of(
+    diff(from, to).map((change) => ({
+      from: change.fromA,
+      to: change.toA,
+      insert: to.slice(change.fromB, change.toB),
+    })),
+    from.length,
+  );
+
 /** What the editor holds of one file while another is open (`suspend`).
  * @typedef {{state: import("@codemirror/state").EditorState,
  *   scroll: {top: number, left: number}}} KeptFile */
@@ -212,12 +285,20 @@ export function mergeKept(kept, base, theirs) {
   return (
     changes && {
       ...kept,
-      state: kept.state.update({
-        changes,
-        annotations: Transaction.addToHistory.of(false),
-      }).state,
+      state: kept.state.update(writeFromElsewhere(kept.state, changes)).state,
     }
   );
+}
+
+/** What the editor keeps of a file while another is open, taken to `text`, written
+ * elsewhere, as `follow` takes the open file.
+ * @param {KeptFile} kept @param {string} text @returns {KeptFile} */
+export function followKept(kept, text) {
+  const changes = changesBetween(kept.state.doc.toString(), text);
+  return {
+    ...kept,
+    state: kept.state.update(writeFromElsewhere(kept.state, changes)).state,
+  };
 }
 
 /** Create a file editor. External text changes use CodeMirror transactions,
@@ -264,6 +345,7 @@ export function createEditor(
       doc: value,
       extensions: [
         undoHistory.of(history()),
+        written,
         drawSelection(),
         keymap.of([...defaultKeymap, ...historyKeymap]),
         language.of([]),
@@ -337,6 +419,27 @@ export function createEditor(
         dispatch({ effects: language.reconfigure(extension) });
     });
   };
+  // Adopt `value` as the file's text, from a new undo history; `mark` marks the lines
+  // it changed as written elsewhere, and otherwise every mark goes.
+  /** @param {string} value @param {boolean} mark */
+  const adopt = (value, mark) => {
+    if (value === reading().doc.toString()) return;
+    replacing = true;
+    try {
+      const changes = changesBetween(reading().doc.toString(), value);
+      const write = writeFromElsewhere(reading(), changes);
+      dispatch({
+        ...write,
+        effects: [
+          undoHistory.reconfigure([]),
+          mark ? write.effects : markWritten.of(Decoration.none),
+        ],
+      });
+      dispatch({ effects: undoHistory.reconfigure(history()) });
+    } finally {
+      replacing = false;
+    }
+  };
   let retained = state(text);
   /** @type {InstanceType<typeof LeafEditorView> | null} */
   let view = new LeafEditorView({ state: retained, parent });
@@ -375,23 +478,13 @@ export function createEditor(
       return reading().doc.toString();
     },
     set value(value) {
-      if (value === reading().doc.toString()) return;
-      replacing = true;
-      try {
-        const previous = reading().doc.toString();
-        dispatch({
-          changes: diff(previous, value).map((change) => ({
-            from: change.fromA,
-            to: change.toA,
-            insert: value.slice(change.fromB, change.toB),
-          })),
-          effects: undoHistory.reconfigure([]),
-          annotations: Transaction.addToHistory.of(false),
-        });
-        dispatch({ effects: undoHistory.reconfigure(history()) });
-      } finally {
-        replacing = false;
-      }
+      adopt(value, false);
+    },
+    // Take the text to `value`, a version written elsewhere, as `value` does, and mark
+    // the lines it changed (`written`).
+    /** @param {string} value */
+    follow(value) {
+      adopt(value, true);
     },
     // Fold `theirs` into the text being edited (`lineMerge`), keeping the reader's
     // selection and undo history; say whether it did.
@@ -401,7 +494,7 @@ export function createEditor(
       if (!changes) return false;
       replacing = true;
       try {
-        dispatch({ changes, annotations: Transaction.addToHistory.of(false) });
+        dispatch(writeFromElsewhere(reading(), changes));
       } finally {
         replacing = false;
       }

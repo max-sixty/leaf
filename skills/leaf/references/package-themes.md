@@ -116,7 +116,10 @@ writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-heig
 `[data-lf-exhibit]` and similar attributes, rather than by tag. An element that names
 page media also arrives with `data-lf-media-width` and `data-lf-media-height`, the
 largest width and height among its images, so a theme can give the frame their shape
-before they load, as `lf-shot` does with `aspect-ratio`.
+before they load, as `lf-shot` does with `aspect-ratio`. A table cell whose whole text
+is one `<code>` or `<samp>` arrives with `data-lf-name`, which tells a name from a
+sentence that mentions one, so a theme can keep the name on one line, as the reading
+theme does.
 
 The page decides how wide it is and how its blocks are arranged (`page-layout.md`,
 "Layouts"). A package's element fills its box. One that needs more room than the

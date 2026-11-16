@@ -815,6 +815,29 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     )
 
 
+def test_a_cell_that_holds_a_name_alone_says_so():
+    """A stylesheet sees no text, so it can't tell a cell whose whole text is one name
+    from a sentence that mentions one. Delivery marks the first, for the reading face to
+    keep on one line: a name in any column, linked or not, and never a sentence, a name
+    with words beside it, two names, or a block of code."""
+    cells = {
+        "name": "<td><code>x-awaits</code></td>",
+        "head": '<th scope="row"> <samp>--dry-run</samp>\n</th>',
+        "linked": '<td><a href="#x"><code>reading.css</code></a></td>',
+        "sentence": "<td>Reads <code>x-state</code> once.</td>",
+        "tagged": "<td><code>x-awaits</code> <small>new</small></td>",
+        "pair": "<td><code>a</code><code>b</code></td>",
+        "block": "<td><pre><code>go()</code></pre></td>",
+        "words": "<td>plain</td>",
+    }
+    source = "<table><tr>" + "".join(
+        cell.replace(">", f' id="{name}">', 1) for name, cell in cells.items()
+    )
+    tree = SourceDocument(mark_declared(source + "</tr></table>", {}, {})).tree
+    marked = {cell.attrs["id"] for cell in tree.select("[data-lf-name]")}
+    assert marked == {"name", "head", "linked"}
+
+
 def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
     from html import escape
 

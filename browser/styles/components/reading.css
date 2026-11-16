@@ -349,26 +349,31 @@ dl.lf-facts dd {
       background: none;
       font-size: 0.9em;
     }
-    /* A row's first cell names it, and a name there stays whole, as an option table in a
-     * man page keeps `--output-dir`. `anywhere` (above) gives a name a one-character
-     * minimum, and a table's automatic layout hands the room above each column's minimum
-     * out by how much more it would take, so a column of names beside a column of
-     * sentences got almost none: at 720px `--output-dir` stood as `--output-` over `dir`,
-     * and `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box
-     * of its own width, which the column can't go under, up to a third of the reading
+    /* A cell that holds a name alone keeps it whole, as an option table in a man page
+     * keeps `--output-dir`. `anywhere` (above) gives a name a one-character minimum, and
+     * a table's automatic layout sets every column the same share of the way from its
+     * minimum to its widest, so a column of names beside a column of sentences got
+     * almost none: at 720px `--output-dir` stood as `--output-` over `dir`, and
+     * `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box of
+     * its own width, which the column can't go under, up to a third of the reading
      * column, or of the nearest size container where that is narrower (the body, unless
-     * a box nearer declares one). The names take a third at most and the cells beside
-     * them keep the rest; a longer name breaks inside its box rather than hold the
-     * column open. Only the first cell, because code in a sentence is not a name the row
-     * is read by: on every cell, `allowUnsandboxedCommands` in a sentence made a
-     * four-column table scroll at 560px.
+     * a box nearer declares one). A longer name breaks inside its box rather than hold
+     * the column open.
+     *
+     * Delivery says which cells those are (`data-lf-name`, revision_delivery.py): the
+     * ones whose whole text is one `<code>` or `<samp>`. A selector sees no text, so it
+     * can't tell such a cell from a sentence that mentions a name, and a box there
+     * stands a long identifier in the middle of its sentence as a block. Until November
+     * 2026 the rule took every code in a row's first cell, sentences included, and left
+     * a name in any other column to break. A message's table carries no mark, since the
+     * browser draws it, and keeps its names breakable.
      *
      * The box's width is its least and its most, so a name past the third breaks there
      * even in a table with room for it. `calc-size(max-content, min(size, 20ch))` as
-     * the box's minimum capped only the least, and until November 2026 was the rule, but
-     * Firefox lacks calc-size() and kept every name breakable there. This width is one
-     * every engine computes. */
-    :is(th, td):first-child :is(code, samp):not(pre *) {
+     * the box's minimum capped only the least, and was the rule before, but Firefox
+     * lacks calc-size() and kept every name breakable there. This width is one every
+     * engine computes. */
+    :is(th, td)[data-lf-name] :is(code, samp) {
       display: inline-block;
       inline-size: max-content;
       max-inline-size: min(var(--lf-col) / 3, 33cqi);
@@ -765,13 +770,6 @@ leaf-text.lf-fab-input,
      "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
 .lf-msg-body :is(th, td) {
   overflow-wrap: normal;
-}
-/* A name in a row's first cell takes a third of the narrowest thread card here. No
-   rule can read how wide the card or panel holding a message is, and at the reading
-   column's third a three-column table in a 320px card drew its names whole and
-   scrolled its other columns out of sight. */
-.lf-msg-body :is(th, td):first-child :is(code, samp):not(pre *) {
-  max-inline-size: calc(var(--lf-thread-card-min) / 3);
 }
 .lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
   margin: 8px 0 4px;

@@ -24,10 +24,10 @@ document's import map sends to where its revision's resources answer
 A document is delivered once, by `compose_document`, whoever delivers it: the HTTP
 server and the static live shell, and a standalone export. A
 host states what it adds as a `Delivery` value, and the composer writes every document
-the same way. It also paints what each element's registry entry declares, and the size
-of the page media it names, for the stylesheet to read (`mark_declared`), so the first
-paint lays out what a script would otherwise only mark once the registry loads or an
-image once it decodes.
+the same way. It also paints what each element's registry entry declares, the size
+of the page media it names, and which table cells hold a name alone, for the stylesheet
+to read (`mark_declared`), so the first paint lays out what a script would otherwise
+only mark once the registry loads or an image once it decodes.
 """
 
 import html
@@ -386,20 +386,36 @@ def media_size(data: bytes) -> tuple[int, int] | None:
     return None
 
 
+def holds_a_name_alone(cell) -> bool:
+    """Whether a table cell's whole text is one `<code>` or `<samp>`: a name, such as an
+    option or a path, and not a sentence that mentions one."""
+    names = cell.select("code, samp")
+    return (
+        len(names) == 1
+        and names[0].closest("pre") is None
+        and (name := names[0].text.strip()) != ""
+        and cell.text.strip() == name
+    )
+
+
 def mark_declared(
     source: str,
     registry: Mapping,
     resources: Mapping[str, Resource],
 ) -> str:
     """Paint each element's declared marks (`registry.kernel.kernel_marks`) onto its
-    start tag, the rest byte-for-byte, and the size of the page media it names.
+    start tag, the rest byte-for-byte, the size of the page media it names, and
+    `data-lf-name` on a table cell that holds a name alone.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
     has no size until it decodes, so an element naming page media in its attributes is
     painted with the box that holds any of them, the largest width and the largest
     height (`data-lf-media-width`, `data-lf-media-height`), for the stylesheet to lay
-    out a frame that the images arrive in. What a template holds is inert until a
+    out a frame that the images arrive in. A stylesheet can't tell a cell whose whole
+    text is one name from a sentence with code in it, since a selector sees no text, so
+    the cell says so (`holds_a_name_alone`), and the reading face keeps that name on one
+    line (reading.css). What a template holds is inert until a
     module clones it, and a declarative shadow tree's content is its host's to style, so
     neither is marked.
 
@@ -459,6 +475,8 @@ def mark_declared(
         if sizes:
             marks["data-lf-media-width"] = str(max(width for width, _ in sizes))
             marks["data-lf-media-height"] = str(max(height for _, height in sizes))
+        if element.tag in ("th", "td") and holds_a_name_alone(element):
+            marks["data-lf-name"] = ""
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names

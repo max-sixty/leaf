@@ -423,7 +423,7 @@ export class TabSet extends LeafElement {
   /** @param {Element} panel */
   #tab(panel) {
     const changed = comparisonChanges(panel).length;
-    const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
+    const hasAnswer = this.#down && elementsDeclaring(panel, "x-awaits").length > 0;
     const items = hasAnswer ? obligationsIn(panel) : [];
     // Withdrawn items are already left out; an answer given elsewhere ends one too.
     const done = items.filter((item) => item.status !== "open");

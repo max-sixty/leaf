@@ -67,6 +67,30 @@ test("overlapping message reads share preparation and retain it through surface 
   delete globalThis.messagePreparation;
 });
 
+// A thread named by its opening message, and On Me's row for a reply, read these words
+// on one line: a choice's options read apart, as its accessible name and page search
+// read them, not run together as "Open it nowHold it".
+test("a message's words part its blocks, as the page reading does", async () => {
+  adoptRegistry({
+    $layer: { generation: "message-words" },
+    "lf-options": {},
+    "lf-option": {},
+  });
+  assert.equal(await loadMarkdown(), true);
+  const prepared = await prepareAuthoredMessage(
+    {
+      id: "worded-message",
+      text:
+        'Pick one:\n\n<lf-options id="worded-choice" choose>' +
+        '<lf-option id="worded-now"><strong>Open it now</strong></lf-option>' +
+        '<lf-option id="worded-hold"><strong>Hold</strong> <em>it</em></lf-option>' +
+        "</lf-options>",
+    },
+    "worded-thread",
+  );
+  assert.equal(prepared.body.text, "Pick one: Open it now Hold it");
+});
+
 test("failed message preparation reaches every waiting state read and later reads", async (t) => {
   const initializer = `data:text/javascript,${encodeURIComponent(
     'throw new Error("message initializer failed");',

@@ -137,7 +137,7 @@ export async function typesetFormulas(root) {
       // the source, is the whole of what they need.
       reportPageError(
         err instanceof Error && err.name === "ParseError" ? err.message.trim() : err,
-        `<code class="language-math"> failed to typeset`,
+        "A formula failed to typeset",
       );
       if (code.hasAttribute(PAINT)) {
         code.replaceChildren(...words(code));

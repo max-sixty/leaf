@@ -527,6 +527,7 @@ from render_harness import (
 )
 
 from leaf import event_log as events_model
+from leaf.render_gate import scheme as render_gate_scheme
 from leaf.render_gate import version as render_gate_model
 
 
@@ -875,7 +876,7 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
 
 
 def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
-    browser, serve
+    browser, serve, monkeypatch
 ):
     url = serve(
         FILM_PAGE.replace("</main>", '<img src="/page/missing-image.png"></main>'),
@@ -898,8 +899,10 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     class RoutedBrowser:
         def __init__(self, *, fail_helper):
             self.fail_helper = fail_helper
+            self.opened = 0
 
         def new_page(self, **kwargs):
+            self.opened += 1
             page = browser.unwatched.new_page(**kwargs)
             page.route(
                 "**/page/helper.js",
@@ -940,3 +943,14 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     ), failed
 
     assert run_page_code(RoutedBrowser(fail_helper=False), url) == []
+
+    # `page check --render` takes the same reading on the render check's first page,
+    # and a page that cannot start is read no further. A page that refuses never
+    # upgrades, so a reading that missed the refusal would wait out each page's
+    # deadline, shortened here.
+    monkeypatch.setattr(render_gate_scheme, "HANDOVER_DEADLINE_MS", 20_000)
+    routed = RoutedBrowser(fail_helper=True)
+    folded = []
+    reading = render_gate_model.render_version(routed, url, page_code=folded)
+    assert folded == failed
+    assert (reading.findings, routed.opened) == ([], 1)

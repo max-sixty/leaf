@@ -275,6 +275,14 @@ def _render_scheme(
     def probe_failure(error):
         return explained("probe-failed", error=str(error).strip())
 
+    def never_ready(error, finding):
+        # Where this page takes the page-code reading, a page that never got ready
+        # fails it, and the version is read no further.
+        if code is not None and page_code is not None:
+            page_code.extend(code.findings(page, error))
+            return ended([], complete=True)
+        return explained(finding)
+
     page.on("console", console_message)
     collect_page_exceptions(page, errors)
     # The runtime writes each report to the console too, which is where this reading
@@ -287,7 +295,9 @@ def _render_scheme(
     try:
         observe_output_documents(page)
         page.goto(url)
-        wait_for_probe(page, "runtimeStarted")
+        wait_for_probe(page, "runtimeStarted", fixed_server=True)
+    except PageNotReady as error:
+        return never_ready(error, "no-runtime")
     except PlaywrightTimeout:
         return explained("no-runtime")
     except PlaywrightError as error:
@@ -303,10 +313,15 @@ def _render_scheme(
         # At least 1ms: Playwright reads a zero timeout as none.
         return max(1, round((handover_ends - time.monotonic()) * 1000))
 
+    # A page that declares it cannot start, as one whose widget module failed to load
+    # does, upgrades nothing more, and nothing replaces the preview server that would
+    # reload it, so the declaration ends each wait as well.
     try:
-        wait_for_probe(page, "upgraded", timeout_ms=handover_left())
-    except PlaywrightTimeout:
-        return explained("never-upgraded")
+        wait_until_ready(
+            page, through="upgraded", timeout_ms=handover_left(), fixed_server=True
+        )
+    except PageNotReady as error:
+        return never_ready(error, "never-upgraded")
     except PlaywrightError as error:
         return probe_failure(error)
     # The served documents every reading below is asked against, read once each

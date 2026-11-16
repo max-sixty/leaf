@@ -39,10 +39,13 @@ const differenceMark = (region, reading) =>
 // Fit uses the content box: the scrollport's padding keeps the image shadow visible.
 // In flow nothing bounds the stage's height, so a single frame or a stacked Pair takes
 // the screen's room below the toolbar as its bound: the reader sees the whole
-// comparison in one view, and 100% shows a long capture at its own size.
+// comparison in one view, and 100% shows a long capture at its own size. The screen's
+// height is the stylesheet's (`--lf-shot-screen`, shot.css), which holds that room
+// before this module draws.
 /** @param {HTMLElement} host @param {HTMLElement} stage @param {HTMLElement} toolbar */
 function shotAllocation(host, stage, toolbar) {
   const style = getComputedStyle(stage);
+  const hostStyle = getComputedStyle(host);
   const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
   return {
     available:
@@ -50,11 +53,13 @@ function shotAllocation(host, stage, toolbar) {
       parseFloat(style.paddingLeft) -
       parseFloat(style.paddingRight),
     availableHeight:
-      getComputedStyle(host).getPropertyValue("--lf-holds-height").trim() === "1"
+      hostStyle.getPropertyValue("--lf-holds-height").trim() === "1"
         ? stage.clientHeight - padding
         : undefined,
     screenHeight:
-      document.documentElement.clientHeight - toolbar.offsetHeight - padding,
+      parseFloat(hostStyle.getPropertyValue("--lf-shot-screen")) -
+      toolbar.offsetHeight -
+      padding,
   };
 }
 

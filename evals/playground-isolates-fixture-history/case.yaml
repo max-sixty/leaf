@@ -11,11 +11,15 @@
 # All four runs preserved fixture isolation; the view-selection assertion alone
 # separated them. The earlier CC-only run hit
 # the old harness's turn limit on both baseline samples and measured no baseline.
+# The case now authors the page and names nothing to read: at 0e538e29d, 2 of 2
+# Claude Code authors read the playground's instructions through `leaf page
+# instructions` and passed.
 description: playground-isolates-fixture-history
 metadata:
   purpose:
     "Playground: live Leaf candidates own fictional history and practice interactions; the outer
     page owns feedback."
+  authoring: true
   tags:
     - playground
 vars:
@@ -31,14 +35,8 @@ vars:
     the thread gallery. The review page has no log yet. We need one HTML source
     which the repository's preview command can build by itself.
 
-    The page was initialized with the `playground` package, whose author
-    instructions `page init` copied into the page; the same file is
-    `../../packages/playground/instructions/author.md` relative to the leaf skill's base
-    directory, the directory that holds its `references/`. Read that file and
-    `references/page-authoring.md` and `references/live-samples.md` from that
-    same skill directory.
-    Write the playground HTML with real operable Leaf candidates, including their
-    initial exchange. The page directory is not reachable, so reply with the HTML.
+    Write the playground with real operable Leaf candidates, including their
+    initial exchange.
 assert:
   - type: llm-rubric
     metric: authored-isolation

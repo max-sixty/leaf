@@ -17,9 +17,12 @@ from render_cases_navigation import (
     go_to_address,
 )
 from render_harness import (
+    LONG_PAGE,
+    held_frames,
     leaf_page,
     open_page,
     resized,
+    scroll_settled,
     shown,
     told,
 )
@@ -512,6 +515,60 @@ def test_generated_hints_follow_the_page_while_it_moves(browser, serve):
     assert all(abs(seen["gap"] - resting) < 2 for seen in travel["moving"]), (
         f"a chip came off the target it names while the page moved: {travel}"
     )
+
+
+def test_a_map_armed_as_a_walk_lands_names_what_the_landed_page_shows(browser, serve):
+    """`g` pressed while a `t` walk glides lands the glide and names what the page shows
+    where the walk left it, as `g` pressed after the walk does. There the thread card the
+    walk opened covers the thread's margin entry, so the entry gets no hint. Read in the
+    task that landed the glide, the card still stood where the glide had carried it, a
+    frame behind the scroll, and the map named the entry, which Tab then walked to first;
+    read again as that scroll ended, before the frame that moved the card, it named it
+    again (arrivals.js, `scrollDrawn`)."""
+    source = LONG_PAGE.replace(
+        "<p id='p20'>Paragraph 20.", "<p id='p20'>Paragraph 20. <a href='#p20'>Mid</a>"
+    ).replace(
+        "<p id='p42'>Paragraph 42.",
+        "<p id='p42'>Paragraph 42. <a id='near' href='#p42'>Near</a>",
+    )
+    url = serve(source, anchored=[("p41", "Paragraph 41.")])
+
+    def hints(during):
+        page = open_page(browser, url)
+        resized(page, 1440, 900)
+        page.locator("#p20 a").focus()
+        scroll_settled(page)
+        rendered(page)
+        start = page.evaluate("scrollY")
+        if during:
+            with held_frames(page) as step:
+                page.keyboard.press("t")
+                for _ in range(30):
+                    if page.evaluate("scrollY") != start:
+                        break
+                    step()
+                else:
+                    raise AssertionError("the walk's glide never set off")
+                step()
+                page.keyboard.press("g")
+        else:
+            page.keyboard.press("t")
+            scroll_settled(page)
+            rendered(page)
+            page.keyboard.press("g")
+        scroll_settled(page)
+        rendered(page)
+        expect(page.locator(CHIPS).first).to_be_visible()
+        return page.evaluate(
+            """sel => [...document.querySelectorAll(sel)]
+              .map(chip => `${chip.dataset.lfGoToKind} ${chip.dataset.lfGoToTarget}`)
+              .sort()""",
+            CHIPS,
+        )
+
+    after = hints(during=False)
+    assert "Link near" in after, after
+    assert hints(during=True) == after
 
 
 def test_a_generated_hint_is_never_drawn_on_the_panel(browser, serve):

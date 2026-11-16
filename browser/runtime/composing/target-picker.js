@@ -322,11 +322,12 @@ export function createTargetPicker({
     pickerMode.value = on ? "hints" : "closed";
     presentSearchField();
     if (on) {
-      const found = hints.arm();
-      announce(
-        found.length
-          ? `Choose a target — press an element${bindings(TARGET_HINT_TYPE).length ? `, type one of ${found.length} hints` : ""}, or press Tab to hear targets and Enter to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`
-          : `There is no visible target to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`,
+      hints.arm((found) =>
+        announce(
+          found.length
+            ? `Choose a target — press an element${bindings(TARGET_HINT_TYPE).length ? `, type one of ${found.length} hints` : ""}, or press Tab to hear targets and Enter to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`
+            : `There is no visible target to choose.${bindings(PAGE_SEARCH).length ? " Press slash to search the page." : ""}`,
+        ),
       );
     } else {
       hints.disarm();

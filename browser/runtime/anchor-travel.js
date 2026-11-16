@@ -592,7 +592,8 @@ export function createAnchorTravel({
     // press left it.
     // A route naming no part of the thread lands on the place it is about, where the
     // page shows that place but no view of the thread (thread/destination.js,
-    // `reader: "page"`).
+    // `reader: "page"`). A part lands on the page's drawing of it, since this is travel
+    // on the page (thread/destination.js, `threadFocusTarget`'s `page`).
     return arrive(
       () => {
         const where = threadDestination(id);
@@ -601,7 +602,7 @@ export function createAnchorTravel({
         const target = !focus
           ? null
           : part
-            ? threadFocusTarget(id, { part })
+            ? threadFocusTarget(id, { part, page: true })
             : (targetElement(placement) ?? targetPlace(placement));
         /** @type {ScrollPlacement[]} */
         const scroll = [];

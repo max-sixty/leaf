@@ -389,8 +389,8 @@ variants:
         > All checks pass. Other rewrites remain proposals.
         You were about to leave the page available for comments and hand it over.
 
-        Finish this turn. You can read the installed Leaf instructions, but the
-        review page and its services are unreachable here. Write the commands and
+        Finish this turn. The review page and its services are unreachable here.
+        Write the commands and
         any HTML edits you would use, followed by the short final reply.
     assert:
       - type: llm-rubric

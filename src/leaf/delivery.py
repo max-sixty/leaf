@@ -81,6 +81,7 @@ from .state import (
     acting_agent_turn,
     described,
     flocked,
+    leaf_invocation,
     object_schema,
     open_agent_turns,
     open_session_turn,
@@ -854,8 +855,8 @@ READ_CHARS = 3500
 def pointer_acknowledgement(delivery_id: str) -> str:
     return (
         "After every part of this delivery is in context, confirm complete receipt "
-        f"with `leaf delivery ack {delivery_id}` before handling its input. "
-        "If any output is missing, reread that part before confirming."
+        f"with `{leaf_invocation()} delivery ack {delivery_id}` before handling its "
+        "input. If any output is missing, reread that part before confirming."
     )
 
 
@@ -890,7 +891,7 @@ def delivery_reading(payload: dict, *, part: int = 1) -> dict:
         "parts": count,
         "text": serialized[(part - 1) * READ_CHARS : part * READ_CHARS],
         "next": (
-            f"leaf delivery read {payload['id']} --part {part + 1}"
+            f"{leaf_invocation()} delivery read {payload['id']} --part {part + 1}"
             if part < count
             else None
         ),

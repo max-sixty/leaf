@@ -26,7 +26,6 @@ artifact. When a browser test is slow, or fails on timing or geometry outside it
 contract, repair its setup or move its contract to a lower boundary.
 
 Each helper's docstring owns its contract, and code cites the sections below by heading.
-Message delivery has one shared journey, `leaf_dev.thread_journey`.
 
 ## Failing tests
 

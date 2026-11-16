@@ -61,6 +61,7 @@
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
  * around the questions it is waiting on, chosen by the user on 2026-10-24. */
+import { html, nothing } from "/vendor/lit.js";
 import {
   agentName,
   answerWords,
@@ -97,8 +98,6 @@ import {
   tallyWords,
   under,
   whileConnected,
-  html,
-  nothing,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
@@ -125,6 +124,7 @@ const waitsOn = (held) =>
 customElements.define(
   "lf-deck",
   class extends LeafElement {
+    static lfPatch = "members";
     #bar = offer("div", "lf-deck-bar");
     #back = offerAction("symbol", "lf-deck-back", "Back", { action: "previous" });
     #forward = offerAction("symbol", "lf-deck-forward", undefined, { action: "next" });

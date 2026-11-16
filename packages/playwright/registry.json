@@ -420,7 +420,6 @@
         "property": "value"
       }
     },
-    "x-upgrade": true,
     "x-space": "available",
     "x-visual": {
       "prefixes": ["trace-"]
@@ -449,9 +448,7 @@
     "additionalProperties": false,
     "x-content": "empty",
     "x-owners": ["lf-trace"],
-    "x-name": "label",
-    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark label=\"Popup closes\" target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"></lf-trace-bookmark></lf-trace>",
-    "x-upgrade": false
+    "x-example": "<lf-trace id=\"recorded-checkout\" source=\"checkout-trace\"><lf-trace-bookmark label=\"Popup closes\" target=\"trace-0000000000000000000000000000000000000000000000000000000000000000-image-demo\"></lf-trace-bookmark></lf-trace>"
   },
   "lf-trace-compare": {
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
@@ -462,8 +459,6 @@
     },
     "required": ["id"],
     "additionalProperties": false,
-    "x-content": "markup",
-    "x-upgrade": true,
     "x-views": { "members": ":not(script, style, template)" },
     "x-space": "available",
     "x-example": "<lf-trace-compare id=\"paired-recordings\"><lf-trace id=\"before\" label=\"Before\" source=\"before-recording\"></lf-trace><lf-trace id=\"after\" label=\"After\" source=\"after-recording\"></lf-trace></lf-trace-compare>"

@@ -101,10 +101,7 @@ pnpm run test:evals
 
 - `leaf-dev site previews` (as `wt refresh-previews`), `site demo` and
   `site media` publish images to `max-sixty/leaf-assets`; in the tree they change
-  only the pin
-  in `leaf-assets.json` and the README's image URLs.
-  `journey snapshots` accepts reviewed images by moving `leaf-assets.json`'s
-  `thread_snapshots_revision`.
+  only the pin in `leaf-assets.json` and the README's image URLs.
 - `worker/deploy-dev.sh` (`pnpm run deploy:dev`) deploys the checkout to the
   `leaf-website-dev` environment. Production deploys only through
   `.github/workflows/publish-site.yaml`; `worker/README.md` owns diagnostics.

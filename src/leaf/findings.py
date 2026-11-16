@@ -651,6 +651,11 @@ _TEXT = {
         f"the browser probe module failed: {v['error']}"
         + (" — " + _explained(v["console"]) if v.get("console") else "")
     ),
+    "reading-overran": lambda at, v: (
+        f"the render check gave up on this version after {v['seconds'] // 60} minutes"
+        " without finishing a reading of it; a page script that never stops, such as"
+        " a loop that starts after load, keeps a reading running"
+    ),
     "no-runtime": lambda at, v: (
         "the runtime never injected its chrome — "
         + (_explained(v["console"]) or "and no console message explains why")

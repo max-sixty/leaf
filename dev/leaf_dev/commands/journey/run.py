@@ -651,9 +651,11 @@ def run_journey(end: HttpEnd | BrowserEnd, version: str) -> dict:
     ends (`User.sample`).
 
     The page check finds the release's short hash in the authored board markup:
-    where on the board the agent records it is the agent's call.
+    where on the board the agent records it is the agent's call. The hash is git's
+    seven characters, the length an agent abbreviates a longer one to, so a copy of
+    the asked hash and its own short form of it both contain it.
     """
-    marker = version[:8]
+    marker = version[:7]
     opening = end.opening()
     turn, asks, revision, profile = ask_until_answered(end, marker)
     published, answer = check_turn_answered(end.url, marker, turn, asks, revision)
@@ -1263,7 +1265,7 @@ class BrowserEnd:
                 f"with its status reading ‘{status}’",
             )
             # `inner_text` applies the theme's text-transform, so a release recorded in
-            # an uppercase eyebrow or panel heading reads `35B36571`. Compare ignoring case.
+            # an uppercase eyebrow or panel heading reads `35B3657`. Compare ignoring case.
             # The page is body less Leaf's own elements (passages.js, `inPage`).
             rendered = page.evaluate(
                 "() => [...document.body.children]"

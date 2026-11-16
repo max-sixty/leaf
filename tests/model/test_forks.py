@@ -299,9 +299,7 @@ def test_a_fork_takes_work_it_judges_its_own_as_a_pickup_in_its_own_turn(
     ] == [turn]
 
 
-def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
-    claimed, lane, monkeypatch
-):
+def test_the_fork_answers_with_its_own_reply_in_its_own_turn(claimed, lane):
     """The fork's commands name its turn, so its progress and answer, from the
     delivery Leaf gave it, post as the agent's, and its start names the fork's turn:
     the page reads the fork at work whatever the main thread's turn does, and the
@@ -316,47 +314,49 @@ def test_the_fork_answers_with_its_own_reply_in_its_own_turn(
     assert started["outcome"] == "start"
     [given] = clerk_model.queued("s1")
     assert "agent id agent-1" in given and "SendMessage agent-1." in given, given
-    monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-    ref = answer_ref(claimed, asked["id"])
+    with state_model.acting_in(taken["turn"]):
+        ref = answer_ref(claimed, asked["id"])
 
-    progress = thread_model.post_response(ref, "reading pyproject.toml", ephemeral=True)
-    assert progress is not None
-    assert (progress["start"], progress["turn"]) == (
-        {"item": asked["id"]},
-        taken["turn"],
-    )
-    state_model.close_session_turn("s1")
-    activity = reading(claimed)["activity"]
-    assert (activity["kind"], activity["detail"]) == (
-        "working",
-        "reading pyproject.toml",
-    )
+        progress = thread_model.post_response(
+            ref, "reading pyproject.toml", ephemeral=True
+        )
+        assert progress is not None
+        assert (progress["start"], progress["turn"]) == (
+            {"item": asked["id"]},
+            taken["turn"],
+        )
+        state_model.close_session_turn("s1")
+        activity = reading(claimed)["activity"]
+        assert (activity["kind"], activity["detail"]) == (
+            "working",
+            "reading pyproject.toml",
+        )
 
-    answer = thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
-    assert answer is not None
-    assert (answer["author"], answer["session"], answer["responds"]) == (
-        "agent",
-        "s1",
-        asked["id"],
-    )
-    assert reading(claimed)["activity"]["obligations"] == []
-    assert forks_model.ended(
-        "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
-    ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
-    assert state_model.open_agent_turns("s1") == {}
-    # The take's line, which the main thread never heard, leaves with the fork's end.
-    [told] = clerk_model.queued("s1")
-    assert told.startswith("Your fork agent-1 answered"), told
-    # Another run of the agent ends nothing more.
-    assert (
-        forks_model.ended("s1", agent="agent-1", turn=None, answer="", failed=None)
-        == []
-    )
+        answer = thread_model.post_response(
+            ref, "Python 3.12 or later.", asks_back=False
+        )
+        assert answer is not None
+        assert (answer["author"], answer["session"], answer["responds"]) == (
+            "agent",
+            "s1",
+            asked["id"],
+        )
+        assert reading(claimed)["activity"]["obligations"] == []
+        assert forks_model.ended(
+            "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
+        ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
+        assert state_model.open_agent_turns("s1") == {}
+        # The take's line, which the main thread never heard, leaves with the fork's end.
+        [told] = clerk_model.queued("s1")
+        assert told.startswith("Your fork agent-1 answered"), told
+        # Another run of the agent ends nothing more.
+        assert (
+            forks_model.ended("s1", agent="agent-1", turn=None, answer="", failed=None)
+            == []
+        )
 
 
-def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
-    claimed, lane, monkeypatch
-):
+def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(claimed, lane):
     """A fork that finds the work bigger than an answer opens a to-do with its reply
     (`leaf thread reply --todo`), from the delivery Leaf gave it. The reply answers
     the message, and the to-do is the session's: it stays open, on the session's
@@ -367,43 +367,43 @@ def test_a_to_do_the_fork_opens_stays_the_sessions_after_its_turn_ends(
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
-    monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-    reply = thread_model.post_response(
-        answer_ref(claimed, asked["id"]),
-        "That needs a profile of the start; I've put it on the list.",
-        todo="Profile the cold start",
-    )
-    assert reply is not None
-    assert (reply["session"], reply["todo"]) == ("s1", "Profile the cold start")
-    todos_model.cmd_start(claimed, reply["id"], "profiling the cold start")
-    activity = reading(claimed)["activity"]
-    assert activity["obligations"] == []
-    assert (activity["kind"], activity["detail"]) == (
-        "working",
-        "profiling the cold start",
-    )
+    with state_model.acting_in(taken["turn"]):
+        reply = thread_model.post_response(
+            answer_ref(claimed, asked["id"]),
+            "That needs a profile of the start; I've put it on the list.",
+            todo="Profile the cold start",
+        )
+        assert reply is not None
+        assert (reply["session"], reply["todo"]) == ("s1", "Profile the cold start")
+        todos_model.cmd_start(claimed, reply["id"], "profiling the cold start")
+        activity = reading(claimed)["activity"]
+        assert activity["obligations"] == []
+        assert (activity["kind"], activity["detail"]) == (
+            "working",
+            "profiling the cold start",
+        )
 
-    clerk_model.heard("s1", clerk_model.queued("s1"))
-    assert forks_model.ended(
-        "s1", agent="agent-1", turn=None, answer="Opened a to-do.", failed=None
-    ) == [
-        {
-            "page": str(claimed),
-            "thread": asked["id"],
-            "outcome": "todo",
-            "todos": [reply["id"]],
-        }
-    ]
-    [told] = clerk_model.queued("s1")
-    assert "answered" in told and "“Profile the cold start”" in told
-    assert "which you now owe" in told and "owes nothing" not in told
-    [todo] = reading(claimed)["activity"]["todos"]
-    assert (todo["id"], todo["title"], todo["session"], todo["running"]) == (
-        reply["id"],
-        "Profile the cold start",
-        "s1",
-        None,
-    )
+        clerk_model.heard("s1", clerk_model.queued("s1"))
+        assert forks_model.ended(
+            "s1", agent="agent-1", turn=None, answer="Opened a to-do.", failed=None
+        ) == [
+            {
+                "page": str(claimed),
+                "thread": asked["id"],
+                "outcome": "todo",
+                "todos": [reply["id"]],
+            }
+        ]
+        [told] = clerk_model.queued("s1")
+        assert "answered" in told and "“Profile the cold start”" in told
+        assert "which you now owe" in told and "owes nothing" not in told
+        [todo] = reading(claimed)["activity"]["todos"]
+        assert (todo["id"], todo["title"], todo["session"], todo["running"]) == (
+            reply["id"],
+            "Profile the cold start",
+            "s1",
+            None,
+        )
 
 
 def test_a_forks_leaf_command_acts_in_the_turn_it_names(claimed, lane):
@@ -426,12 +426,12 @@ def test_a_forks_leaf_command_acts_in_the_turn_it_names(claimed, lane):
     assert started.exit_code == 0, started.output
     [start] = [e for e in events_model.read_events(claimed) if e["kind"] == "start"]
     assert start["turn"] == turn
-    assert state_model.TURN_VARIABLE not in os.environ
+    assert state_model.leaf_invocation() == "leaf"
     [command] = read_interactions(claimed, types=("leaf_command",))
     assert (command["command"], command["turn"]) == ("task start", turn)
 
 
-def test_an_answer_leaf_prints_for_a_fork_names_its_turn(claimed, lane, monkeypatch):
+def test_an_answer_leaf_prints_for_a_fork_names_its_turn(claimed, lane):
     """Where Leaf tells a fork's command which command answers an owed message, as
     its refusal of a message that answers nothing in a thread that owes one does,
     that command names the fork's turn, so the fork that runs it as printed answers
@@ -447,9 +447,8 @@ def test_an_answer_leaf_prints_for_a_fork_names_its_turn(claimed, lane, monkeypa
         return finding.values["answer"]
 
     plain = told()
-    monkeypatch.setenv(state_model.TURN_VARIABLE, turn)
-    answer = told()
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(turn):
+        answer = told()
     assert answer == plain.replace("`leaf ", f"`leaf --turn {turn} ", 1), answer
     [command] = re.findall(r"`(leaf [^`]+)`", answer)
     ran = CliRunner().invoke(
@@ -765,11 +764,10 @@ def test_input_the_main_thread_took_in_past_a_message_a_fork_holds_is_received_o
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
     clerk_model.heard("s1", clerk_model.queued("s1"))
-    monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-    assert thread_model.post_response(
-        answer_ref(claimed, asked["id"]), "3.12 or later.", asks_back=False
-    )
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(taken["turn"]):
+        assert thread_model.post_response(
+            answer_ref(claimed, asked["id"]), "3.12 or later.", asks_back=False
+        )
     more = said(claimed, "And 3.14?", parent=asked["id"])
     follow = said(claimed, "And the lease?", parent=first["id"])
     answered_at_a_tool_boundary(claimed, capsys, follow)
@@ -1034,7 +1032,7 @@ def test_a_running_fork_carries_nothing_of_a_thread_the_user_resolved(claimed, l
 
 
 def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
-    claimed, lane, monkeypatch, capsys
+    claimed, lane, capsys
 ):
     """The main thread is sovereign: its answer to a message a running fork holds
     takes the thread over at once, with whatever answer reference it uses, since
@@ -1072,12 +1070,14 @@ def test_the_main_thread_answering_over_a_running_fork_takes_its_thread(
         ran = CliRunner().invoke(cli_model.cli, ["--turn", taken["turn"], *command])
         assert ran.exit_code != 0, command
         assert "no longer holds" in ran.output, ran.output
-    monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-    with pytest.raises(delivery_model.ReceiptRefused, match="no longer holds"):
-        thread_model.post_reply(
-            claimed, {"parent": asked["id"]}, "No, it never caches.", todo="Check it"
-        )
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(taken["turn"]):
+        with pytest.raises(delivery_model.ReceiptRefused, match="no longer holds"):
+            thread_model.post_reply(
+                claimed,
+                {"parent": asked["id"]},
+                "No, it never caches.",
+                todo="Check it",
+            )
     assert events_model.read_events(claimed) == events
 
     assert forks_model.ended(
@@ -1232,7 +1232,7 @@ def test_a_waiting_messages_pickup_holds_its_thread_over_an_older_messages_newer
     assert (held.turn, held.picked) == ("waiting", True)
 
 
-def test_a_forks_end_reports_only_what_its_own_turn_wrote(claimed, lane, monkeypatch):
+def test_a_forks_end_reports_only_what_its_own_turn_wrote(claimed, lane):
     """The end of a fork's run says the fork answered, and names the to-dos it
     opened, only by what its own turn wrote: a to-do the main thread opened on the
     thread meanwhile is the main thread's, so the fork's answer is reported as an
@@ -1247,11 +1247,10 @@ def test_a_forks_end_reports_only_what_its_own_turn_wrote(claimed, lane, monkeyp
         ["task", "create", str(claimed), asked["id"], "--title", "Profile it"],
     )
     assert created.exit_code == 0, created.output
-    monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-    assert thread_model.post_response(
-        answer_ref(claimed, asked["id"]), "The cache starts cold.", asks_back=False
-    )
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(taken["turn"]):
+        assert thread_model.post_response(
+            answer_ref(claimed, asked["id"]), "The cache starts cold.", asks_back=False
+        )
     assert forks_model.ended(
         "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
     ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
@@ -1270,16 +1269,15 @@ def started_fork(page_dir, text: str, agent: str) -> dict:
     return asked
 
 
-def fork_ends(page_dir, monkeypatch, asked: dict, agent: str, **reply) -> str:
+def fork_ends(page_dir, asked: dict, agent: str, **reply) -> str:
     """The fork `agent`'s reply to `asked` from its own turn, with `reply`'s options,
     and then the end of its run; what `forks.ended` judged of the thread."""
     turn = state_model.agent_turn_of("s1", agent)
     assert turn is not None
-    monkeypatch.setenv(state_model.TURN_VARIABLE, turn)
-    assert thread_model.post_response(
-        answer_ref(page_dir, asked["id"]), f"An answer to: {asked['text']}", **reply
-    )
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(turn):
+        assert thread_model.post_response(
+            answer_ref(page_dir, asked["id"]), f"An answer to: {asked['text']}", **reply
+        )
     [ended] = forks_model.ended(
         "s1", agent=agent, turn=None, answer="Done.", failed=None
     )
@@ -1413,7 +1411,7 @@ def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
     watching = Watching(monkeypatch)
     assert watching.woke == []
 
-    answered = fork_ends(claimed, monkeypatch, asked, "agent-1", asks_back=False)
+    answered = fork_ends(claimed, asked, "agent-1", asks_back=False)
     assert answered == "answer"
     watching.settle()
     assert watching.woke == []
@@ -1429,7 +1427,7 @@ def test_the_watch_wakes_the_idle_session_for_a_to_do_its_fork_opened(
 
     monkeypatch.setattr(forks_model, "close_agent_turns", closed_and_read)
     todo = "Profile the warm start"
-    assert fork_ends(claimed, monkeypatch, later, "agent-2", todo=todo) == "todo"
+    assert fork_ends(claimed, later, "agent-2", todo=todo) == "todo"
     watching.thread.join(STATED_TIMEOUT)
     assert watching.woke == [session_model.wake_line(claimed, "told")]
     hooks_model.cmd_hook(
@@ -1464,18 +1462,16 @@ def test_a_to_do_its_fork_opened_nudges_a_session_no_watch_follows_once(
     main_thread_opens_a_to_do(claimed, asked["id"])
     state_model.close_session_turn("s1")
 
-    assert fork_ends(claimed, monkeypatch, asked, "agent-1", asks_back=False) == (
-        "answer"
-    )
+    assert fork_ends(claimed, asked, "agent-1", asks_back=False) == ("answer")
     assert nudged == []
 
     todo = "Profile the warm start"
-    assert fork_ends(claimed, monkeypatch, later, "agent-2", todo=todo) == "todo"
+    assert fork_ends(claimed, later, "agent-2", todo=todo) == "todo"
     [(page, owed)] = nudged
     assert page == claimed.resolve()
     assert any("“Profile the warm start”" in line for line in owed)
 
-    fork_ends(claimed, monkeypatch, last, "agent-3", todo="Profile the build")
+    fork_ends(claimed, last, "agent-3", todo="Profile the build")
     assert len(nudged) == 1
 
 
@@ -1544,18 +1540,17 @@ def test_a_follow_up_too_large_for_the_hook_reaches_the_fork_by_pointer(
     assert agent_context(capsys, "agent-1") == ""
 
 
-def answered_by_a_fork(page_dir, monkeypatch, text: str, agent: str) -> dict:
+def answered_by_a_fork(page_dir, text: str, agent: str) -> dict:
     """The user's message in a thread of its own, which a fork the module spawned as
     `agent` took, answered from its own turn, and ended; the message."""
     asked, taken = taken_by_a_fork(page_dir, text)
     forks_model.started(
         "s1", basis(page_dir, asked["id"], asked["id"]), taken["turn"], agent
     )
-    monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-    assert thread_model.post_response(
-        answer_ref(page_dir, asked["id"]), f"The answer to: {text}", asks_back=False
-    )
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(taken["turn"]):
+        assert thread_model.post_response(
+            answer_ref(page_dir, asked["id"]), f"The answer to: {text}", asks_back=False
+        )
     forks_model.ended("s1", agent=agent, turn=None, answer="Answered.", failed=None)
     clerk_model.heard("s1", clerk_model.queued("s1"))
     return asked
@@ -1576,9 +1571,7 @@ def taken_again(page_dir, thread: str, more: dict) -> dict:
     return taken
 
 
-def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
-    claimed, lane, monkeypatch
-):
+def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(claimed, lane):
     """The user's further message in a thread a fork answered, once the fork's run
     has ended, goes to the same fork in a new turn of its own, which Leaf opens,
     names with the fork's agent id and records the pickup in, so the fork works the
@@ -1590,7 +1583,7 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     command naming the earlier turn is refused, and a late end of that turn leaves
     the new one running. The fork's answer from the new turn is its own, and the
     turn's end reports it."""
-    asked = answered_by_a_fork(claimed, monkeypatch, "Which Python?", "agent-1")
+    asked = answered_by_a_fork(claimed, "Which Python?", "agent-1")
     more = said(claimed, "And which uv?", parent=asked["id"])
     taken = taken_again(claimed, asked["id"], more)
     assert taken["resume"] == "agent-1"
@@ -1626,21 +1619,18 @@ def test_a_follow_up_after_the_forks_run_goes_to_that_fork_again(
     assert f"`leaf --turn {taken['turn']} page state {claimed}`" in resume
     assert "--todo" in resume and forks_model.HAND_BACK in resume
 
-    monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-    answer = thread_model.post_response(
-        answer_ref(claimed, more["id"]), "uv 0.9 or later.", asks_back=False
-    )
-    assert answer is not None and answer["responds"] == more["id"]
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(taken["turn"]):
+        answer = thread_model.post_response(
+            answer_ref(claimed, more["id"]), "uv 0.9 or later.", asks_back=False
+        )
+        assert answer is not None and answer["responds"] == more["id"]
     assert forks_model.ended(
         "s1", agent="agent-1", turn=None, answer="Answered.", failed=None
     ) == [{"page": str(claimed), "thread": asked["id"], "outcome": "answer"}]
     assert state_model.open_agent_turns("s1") == {}
 
 
-def test_a_thread_whose_fork_cannot_be_resumed_goes_to_the_main_thread(
-    claimed, lane, monkeypatch
-):
+def test_a_thread_whose_fork_cannot_be_resumed_goes_to_the_main_thread(claimed, lane):
     """A thread whose last answer the main thread gave goes to a new fork, even
     where the main thread answered a message the fork gave back with the fork's own
     answer reference, before any pickup of its own, since the answer names the turn
@@ -1665,7 +1655,7 @@ def test_a_thread_whose_fork_cannot_be_resumed_goes_to_the_main_thread(
     more = said(claimed, "And the autocomplete service?", parent=asked["id"])
     assert "resume" not in taken_again(claimed, asked["id"], more)
 
-    earlier = answered_by_a_fork(claimed, monkeypatch, "Which region?", "agent-2")
+    earlier = answered_by_a_fork(claimed, "Which region?", "agent-2")
     turns = state_model.agent_turns("s1")
     for entry in turns.values():
         entry["generation"] = "an earlier generation"
@@ -1675,7 +1665,7 @@ def test_a_thread_whose_fork_cannot_be_resumed_goes_to_the_main_thread(
     later = said(claimed, "And staging?", parent=earlier["id"])
     assert "resume" not in taken_again(claimed, earlier["id"], later)
 
-    lost = answered_by_a_fork(claimed, monkeypatch, "Which shard?", "agent-3")
+    lost = answered_by_a_fork(claimed, "Which shard?", "agent-3")
     again = said(claimed, "And its replica?", parent=lost["id"])
     taken = taken_again(claimed, lost["id"], again)
     assert taken["resume"] == "agent-3"
@@ -1692,9 +1682,7 @@ def test_a_thread_whose_fork_cannot_be_resumed_goes_to_the_main_thread(
     assert state_model.agent_turn_of("s1", "agent-3") is None
 
 
-def test_one_fork_works_a_thread_while_its_turn_runs(
-    claimed, lane, capsys, monkeypatch
-):
+def test_one_fork_works_a_thread_while_its_turn_runs(claimed, lane, capsys):
     """A thread a running fork turn took is never kept back for a second fork. The
     user's message after the fork answered, while its turn still runs, is that
     fork's: the main thread isn't given it, and the fork's next tool boundary
@@ -1709,11 +1697,10 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
         "s1", basis(claimed, zone["id"], zone["id"]), running["turn"], "agent-5"
     )
     clerk_model.heard("s1", clerk_model.queued("s1"))
-    monkeypatch.setenv(state_model.TURN_VARIABLE, running["turn"])
-    assert thread_model.post_response(
-        answer_ref(claimed, zone["id"]), "us-east-1b.", asks_back=False
-    )
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(running["turn"]):
+        assert thread_model.post_response(
+            answer_ref(claimed, zone["id"]), "us-east-1b.", asks_back=False
+        )
     status, admitted = endpoint_model.accept_event(
         claimed,
         {"kind": "reply", "parent": zone["id"], "revision": 1, "text": "Replica's?"},
@@ -1734,11 +1721,10 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
     pickup = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"][-1]
     assert (pickup["events"], pickup["turn"]) == ([soon["id"]], running["turn"])
 
-    monkeypatch.setenv(state_model.TURN_VARIABLE, running["turn"])
-    assert thread_model.post_response(
-        answer_ref(claimed, soon["id"]), "us-east-1c.", asks_back=False
-    )
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(running["turn"]):
+        assert thread_model.post_response(
+            answer_ref(claimed, soon["id"]), "us-east-1c.", asks_back=False
+        )
     late = said(claimed, "And the third?", parent=zone["id"])
     assert kept_back(claimed) == []
     # Another fork's take records a receipt, which passes nothing no turn took in.
@@ -1746,7 +1732,7 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
     forks_model.ended("s1", agent="agent-5", turn=None, answer="Done.", failed=None)
     assert taken_again(claimed, zone["id"], late)["resume"] == "agent-5"
 
-    region = answered_by_a_fork(claimed, monkeypatch, "Which region now?", "agent-6")
+    region = answered_by_a_fork(claimed, "Which region now?", "agent-6")
     first = said(claimed, "And its zones?", parent=region["id"])
     resumed = taken_again(claimed, region["id"], first)
     assert resumed["resume"] == "agent-6"
@@ -1774,9 +1760,10 @@ def test_one_fork_works_a_thread_while_its_turn_runs(
     assert agent_context(capsys, "agent-7") == ""
 
     elsewhere = said(claimed, "Which region is that shard in?")
-    monkeypatch.setenv(state_model.TURN_VARIABLE, kept["turn"])
-    assert thread_model.post_reply(claimed, {"responds": elsewhere["id"]}, "eu-west.")
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(kept["turn"]):
+        assert thread_model.post_reply(
+            claimed, {"responds": elsewhere["id"]}, "eu-west."
+        )
     after = said(claimed, "And its replica's?", parent=elsewhere["id"])
     assert kept_back(claimed) == []
     assert after["id"] in agent_context(capsys, "agent-7")
@@ -1898,7 +1885,7 @@ def test_a_command_naming_a_turn_that_is_not_open_acts_as_nobody(
 
 
 def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
-    claimed, lane, capsys, monkeypatch
+    claimed, lane, capsys
 ):
     """The end of a fork's run is judged by the messages its turn picked up itself.
     A fork that answered is reported as answering though the user writes again
@@ -1910,11 +1897,10 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
-    monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-    thread_model.post_response(
-        answer_ref(claimed, asked["id"]), "Python 3.12 or later.", asks_back=False
-    )
-    monkeypatch.delenv(state_model.TURN_VARIABLE)
+    with state_model.acting_in(taken["turn"]):
+        thread_model.post_response(
+            answer_ref(claimed, asked["id"]), "Python 3.12 or later.", asks_back=False
+        )
     uv = said(claimed, "And which uv?", parent=asked["id"])
     clerk_model.heard("s1", clerk_model.queued("s1"))
     assert forks_model.ended(
@@ -1961,9 +1947,7 @@ def test_a_fork_that_answered_is_reported_however_its_thread_moves_on(
     assert joins == ["answer", "taken_over"]
 
 
-def test_a_message_a_line_fork_was_asked_about_is_noted_as_unanswered(
-    claimed, lane, monkeypatch
-):
+def test_a_message_a_line_fork_was_asked_about_is_noted_as_unanswered(claimed, lane):
     """A message the user writes in a fork's thread after the fork's turn ended, or
     so late in the turn that its bound still ran as the turn ended, goes to a line
     fork: where that gives no answer within the bound, the page's diagnostics say
@@ -1974,11 +1958,10 @@ def test_a_message_a_line_fork_was_asked_about_is_noted_as_unanswered(
         forks_model.started(
             "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], agent
         )
-        monkeypatch.setenv(state_model.TURN_VARIABLE, taken["turn"])
-        thread_model.post_response(
-            answer_ref(claimed, asked["id"]), "Yes, for a minute.", asks_back=False
-        )
-        monkeypatch.delenv(state_model.TURN_VARIABLE)
+        with state_model.acting_in(taken["turn"]):
+            thread_model.post_response(
+                answer_ref(claimed, asked["id"]), "Yes, for a minute.", asks_back=False
+            )
         return asked, taken
 
     asked, taken = answered_by("agent-1", "Does the suggest service cache?")
@@ -2120,13 +2103,13 @@ def test_a_take_the_module_never_names_lets_its_thread_go_within_a_minute(
 
 @pytest.mark.parametrize("confirmed", [False, True])
 def test_a_resumed_take_counts_for_a_minute_until_its_start_is_confirmed(
-    claimed, lane, monkeypatch, confirmed
+    claimed, lane, confirmed
 ):
     """A fork Leaf resumes is named as its turn opens, but its turn counts only for
     `STARTING_GRACE` until the module confirms the resume (`forks.started`), so a
     resume whose step timed out leaves the thread to the main thread within a
     minute; once confirmed, the turn counts for the working grace."""
-    asked = answered_by_a_fork(claimed, monkeypatch, "Which Python?", "agent-1")
+    asked = answered_by_a_fork(claimed, "Which Python?", "agent-1")
     more = said(claimed, "And which uv?", parent=asked["id"])
     taken = taken_again(claimed, asked["id"], more)
     if confirmed:

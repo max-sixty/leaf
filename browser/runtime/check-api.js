@@ -139,3 +139,4 @@ export { servedElements } from "./version.js";
 export { colourableAs, colouredAs } from "./syntax.js";
 
 export { pageRange } from "./native-selection.js";
+export { leavesOffered } from "./live-leaves.js";

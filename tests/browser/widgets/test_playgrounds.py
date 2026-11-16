@@ -1514,6 +1514,36 @@ def test_a_playground_whose_page_never_hands_over_its_actions_fails(browser, ser
     consume_browser_errors(page, report)
 
 
+def test_a_playground_refuses_a_name_its_control_would_nest(browser, serve):
+    """A preset's name is drawn on its button, so a link in the name would stand inside
+    the button, where the button takes the press: the playground fails, naming what the
+    name holds, where `page check` reads failures."""
+    source = leaf_page(
+        "Linked preset",
+        """<h1>Tune alert policy</h1>
+<lf-playground id="policy">
+  <lf-playground-preset id="policy-preset">
+    <strong>Recommended, per <a href="#policy">the review</a></strong>
+    <lf-playground-setting for="threshold" value="6"></lf-playground-setting>
+  </lf-playground-preset>
+  <lf-playground-preview>
+    <lf-playground-control id="threshold" name="threshold" kind="range"
+      value="5" min="1" max="10"><strong>Threshold</strong></lf-playground-control>
+  </lf-playground-preview>
+  <lf-playground-output>Use <lf-playground-value for="threshold"></lf-playground-value>.</lf-playground-output>
+</lf-playground>""",
+    )
+    page = open_page(browser, serve(source))
+    report = '<lf-playground id="policy"> failed: '
+    expect(page.locator("#policy .lf-error")).to_contain_text("its name holds <a>")
+    round_trip(page)
+    assert any(
+        event["kind"] == "error" and event["text"].startswith(report)
+        for event in events_model.read_events(serve.page_dir)
+    )
+    consume_browser_errors(page, report)
+
+
 def test_a_page_drawn_preset_sets_its_whole_slice_as_one_gesture(browser, serve):
     """The shadow scale's presets are the page's own buttons over its contributor
     slice. A press, by pointer or key, sets all three elevations at once and shows

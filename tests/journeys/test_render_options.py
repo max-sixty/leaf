@@ -307,7 +307,8 @@ def test_the_gutter_runs_beside_the_exhibit_and_no_further(source, browser, serv
             "el => el.querySelector(':scope > .lf-sample-view > .lf-sample-exhibit')"
             " ? `#${el.id} .lf-sample-exhibit` : `#${el.id}`"
         )
-        # Painted to read it: computed style writes the theme's neutrals in oklab.
+        # Computed style can write the bar's colour in oklab, so it is painted on a
+        # canvas to read its sRGB channels.
         ink = tuple(
             page.locator(painter).evaluate(
                 """el => {

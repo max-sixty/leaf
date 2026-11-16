@@ -746,9 +746,14 @@ export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
 }
 
 // A target as a comment takes it: a Design mode control part with its passage
-// captured (`designTargetAt`), and any other target as it is.
-/** @template {AimTarget | null | undefined} T @param {T} target @returns {T | AimTarget} */
-export const captured = (target) => (target?.capture ? target.capture() : target);
+// captured (`designTargetAt`), and any other target as it is. What a caller added to
+// the target, such as the point a press landed on (pointed-place.js), stays with it.
+/** @template {AimTarget | null | undefined} T @param {T} target @returns {T} */
+export const captured = (target) => {
+  if (!target?.capture) return target;
+  const { capture, ...added } = target;
+  return /** @type {T} */ ({ ...added, ...capture() });
+};
 
 /** @param {AimOptions} [options] @returns {AimTarget[]} */
 export function aimTargets(options = {}) {

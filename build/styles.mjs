@@ -1,29 +1,60 @@
-/** Bundle the third-party stylesheets Leaf's own sheets import into ready files.
+/** Bundle the third-party stylesheets Leaf's own sheets import into ready files, and
+ * draw Leaf's control faces onto the controls a page writes itself.
  *
  * Leaf's sheets need no build: layer composition and the serving runtime place each
  * `@import` of a file beside them inline (`leaf.layer.stylesheet`). A dependency's
  * sheet lives in `node_modules`, which an install doesn't have, so esbuild resolves its
  * imports here at contributor build time and the result is committed beside the sheet
- * that imports it. `build/browser/build.mjs` writes and checks these outputs with its
- * own.
+ * that imports it. The faces of a page's own controls are a projection of Leaf's,
+ * generated here from the rules that draw Leaf's own (`regions`, below), so an edit to
+ * one of those regions of controls.css takes `pnpm run build:browser` to reach a page's
+ * controls, and `pnpm run check:browser` fails until it has. `build/browser/build.mjs`
+ * writes and checks these outputs with its own.
  */
 import { resolve, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
+const NATIVE = "node_modules/@awesome.me/webawesome/dist/styles/native.css";
+
+/** Leaf owns the type and the focus band of every control (surfaces.css), and its
+ * motion (`--lf-motion-*`), so the rules taken from a dependency leave these
+ * properties out. A transition would also report a control's old colour to whatever
+ * reads it during the fade, as a test reading a state just set does. */
+const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
+
 /** A control a page writes itself: one Leaf didn't build (`data-lf-offer`,
  * element-markers.js) and that doesn't stand in Leaf's chrome. */
 const PAGE_CONTROL = ":not([data-lf-offer], .lf-chrome *)";
 
+/** Leaf's control faces, as a page's own controls wear them: a word is a button, the
+ * commit a submit button, HTML's word for the action that commits a form, a choice a
+ * label holding a radio or checkbox, and a field a text field or select. A symbol has
+ * no page twin. */
+const LEAF_ONTO_PAGE = {
+  ".lf-btn": `button${PAGE_CONTROL}`,
+  ".lf-icon-action": null,
+  ".lf-commit": '[type="submit"]',
+  ".lf-choice": `label${PAGE_CONTROL}:has(> input:is([type="checkbox"], [type="radio"]):not([data-lf-offer]))`,
+  ".lf-ui": PAGE_CONTROL,
+  input: "input",
+  select: "select",
+};
+
 /** Source and output pairs, readable without build dependencies by the trusted
- * dependency publisher as well as the compiler. A third member takes regions of the
+ * dependency publisher as well as the compiler. A third member takes regions of a
  * source onto faces instead of the whole sheet, in one projection after another
  * (`regions`, below).
  *
  * Web Awesome's native buttons, fields and choices draw two sets of controls: Leaf's
- * own, by their roles' classes, and a page's own, in the reading face's layer and
- * under its input (controls.css, "A page's own controls").
+ * own, by their roles' classes, and a page's own (controls.css, "The faces of Leaf's
+ * control roles"), which also take Leaf's departures from the library, the regions of
+ * controls.css that draw them. A page's stand under markup's reading face, the theme's
+ * input (reading.css), at no weight, so any rule of the page's own outranks them. They
+ * stand in the tier Leaf's own faces do rather than a layer below it, where the
+ * layer's band (surfaces.css) would outrank the rule that moves a choice's ring from
+ * its mark to its label.
  * @type {[source: string, output: string, projections?: Projection[]][]} */
 export const styleEntries = [
   [
@@ -31,10 +62,11 @@ export const styleEntries = [
     "browser/styles/vendor/webawesome-theme.css",
   ],
   [
-    "node_modules/@awesome.me/webawesome/dist/styles/native.css",
+    NATIVE,
     "browser/styles/vendor/webawesome-native.css",
     [
       {
+        drops: LEAF_OWNS,
         faces: {
           "Checkboxes + Radios": { input: ".lf-choice > input" },
           Buttons: {
@@ -52,7 +84,14 @@ export const styleEntries = [
           },
         },
       },
+    ],
+  ],
+  [
+    NATIVE,
+    "browser/styles/vendor/page-controls.css",
+    [
       {
+        drops: LEAF_OWNS,
         faces: {
           "Checkboxes + Radios": { input: `label > input${PAGE_CONTROL}` },
           Buttons: {
@@ -64,13 +103,20 @@ export const styleEntries = [
           },
           "Text Fields + Textareas + Selects": {
             input: `input${PAGE_CONTROL}`,
-            // Leaf's own text boxes grow with their words (controls.css), which the
-            // library's fixed-height field doesn't; a page's takes the library's.
-            textarea: `textarea${PAGE_CONTROL}`,
             select: `select${PAGE_CONTROL}:is([multiple], :not([size]), [size="0"], [size="1"])`,
           },
         },
-        within: ["@layer lf-reading-face", "@container style(--lf-reading-face: 1)"],
+        within: ["@container style(--lf-reading-face: 1)"],
+      },
+      {
+        source: "browser/styles/components/controls.css",
+        faces: Object.fromEntries(
+          ["Word", "Choice", "Toggle", "Field"].map((name) => [
+            `Face: ${name}`,
+            LEAF_ONTO_PAGE,
+          ]),
+        ),
+        within: ["@container style(--lf-reading-face: 1)"],
       },
     ],
   ],
@@ -88,43 +134,38 @@ export async function styleOutputs() {
   return outputs;
 }
 
-/** Leaf owns the type and the focus band of every control (surfaces.css), and its
- * motion (`--lf-motion-*`), so the rules taken from a dependency leave these
- * properties out. A transition would also report a control's old colour to whatever
- * reads it during the fade, as a test reading a state just set does. */
-const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
-
 /** Values in the library's rules that Leaf sets otherwise. A select's chevron is drawn
  * in the library's cool grey, which its blend against the field's ground turned violet
  * on Leaf's warm grounds; a neutral grey blends to a neutral grey in either scheme. A
  * value the library no longer writes fails the build. */
 const LEAF_SETS = { "rgb(180 180 200)": "rgb(180 180 180)" };
 
-/** Regions of a dependency's sheet, each with its rules rewritten onto the faces that
- * take them, once for each projection. Web Awesome ships its styles for native
- * controls only in `native.css`, which restyles every element of a kind in the
- * document, so Leaf takes the regions for the controls it draws and names, for each
- * region, the faces each of the region's element types, classes and states stand for
- * (controls.css says which role takes which).
+/** Regions of a sheet, each with its rules rewritten onto the faces that take them,
+ * once for each projection. Web Awesome ships its styles for native controls only in
+ * `native.css`, which restyles every element of a kind in the document, so Leaf takes
+ * the regions for the controls it draws and names, for each region, the faces each of
+ * the region's element types, classes and states stand for (controls.css says which
+ * role takes which). A projection may read another source's regions, as a page's
+ * controls read the regions of controls.css that draw Leaf's faces, and may drop the
+ * properties Leaf owns from a dependency's rules.
  *
  * A type or class a region's map doesn't name, and anything it maps to null, matches
  * no face: a selector that requires one goes, `:not()` of one goes from the selector
  * it stands in, and a selector that names nothing in the map goes too. Every rule then
  * weighs nothing (`:where()`), as the library's own sheet stands in its lowest layer,
- * and the rules keep the library's order, which alone ranks them among themselves. A
+ * and the rules keep their source's order, which alone ranks them among themselves. A
  * projection's rules stand within the at-rules it names, outermost first. shadow.css
- * imports the result after the layer's defaults for every control, such as
- * `.lf-ui-face`'s ink, which it replaces, and before controls.css, whose rules state
- * where Leaf departs from it. A region that moves or goes fails the build rather than
- * shipping an empty sheet.
+ * imports the results after the layer's defaults for every control, such as
+ * `.lf-ui-face`'s ink, which they replace, and before controls.css, whose rules state
+ * where Leaf departs from the library. A region that moves or goes fails the build
+ * rather than shipping an empty sheet.
  * @typedef {Record<string, Record<string, string | null>>} Faces
- * @typedef {{ faces: Faces, within?: string[] }} Projection
+ * @typedef {{ faces: Faces, source?: string, drops?: RegExp, within?: string[] }} Projection
  * @param {string} source
  * @param {Projection[]} projections */
 async function regions(source, projections) {
   const { readFile } = await import("node:fs/promises");
   const { transform, Features } = await import("lightningcss");
-  const text = await readFile(resolve(root, source), "utf8");
   const parse = (/** @type {string} */ code, /** @type {any} */ visitor = undefined) =>
     transform({
       filename: source,
@@ -143,11 +184,13 @@ async function regions(source, projections) {
     });
     return found;
   };
-  let out = `/* @noformat Generated from ${source} by build/styles.mjs. */\n`;
-  for (const { faces, within = [] } of projections) {
+  const sources = [...new Set(projections.map((p) => p.source ?? source))];
+  let out = `/* @noformat Generated from ${sources.join(" and ")} by build/styles.mjs. */\n`;
+  for (const { faces, source: from = source, drops, within = [] } of projections) {
+    const text = await readFile(resolve(root, from), "utf8");
     let projected = "";
     for (const [name, select] of Object.entries(faces))
-      projected += `\n/* Region "${name}" */\n${region(name, select)}\n`;
+      projected += `\n/* Region "${name}" */\n${region(text, from, name, select, drops)}\n`;
     out += within.reduceRight((rules, at) => `\n${at} {${rules}}\n`, projected);
   }
   for (const [from, to] of Object.entries(LEAF_SETS)) {
@@ -157,14 +200,15 @@ async function regions(source, projections) {
   }
   return out;
 
-  /** @param {string} name @param {Record<string, string | null>} select */
-  function region(name, select) {
+  /** @param {string} text @param {string} from @param {string} name
+   * @param {Record<string, string | null>} select @param {RegExp | undefined} drops */
+  function region(text, from, name, select, drops) {
     const start = text.indexOf(`/* #region ${name} `);
     const end = text.indexOf("/* #endregion */", start);
-    if (start < 0 || end < 0) throw new Error(`No region "${name}" in ${source}`);
+    if (start < 0 || end < 0) throw new Error(`No region "${name}" in ${from}`);
     const map = new Map(
-      Object.entries(select).map(([from, to]) => [
-        from,
+      Object.entries(select).map(([key, to]) => [
+        key,
         to === null ? null : components(to),
       ]),
     );
@@ -177,7 +221,7 @@ async function regions(source, projections) {
             .filter(Boolean)
             .map(weightless);
           const kept = (/** @type {any[]} */ list) =>
-            list.filter((d) => !LEAF_OWNS.test(declared(d)));
+            drops ? list.filter((d) => !drops.test(declared(d))) : list;
           const declarations = {
             declarations: kept(rule.value.declarations.declarations ?? []),
             importantDeclarations: kept(

@@ -3,7 +3,8 @@
  * `lf-ui-face` on each native control it builds; an `lf-btn` takes its ink from the
  * press's face (controls.css) instead. A native control the page writes takes the font
  * too, and keeps the browser's ink, which goes with the browser's ground for it, until
- * its theme gives it a face of Leaf's (controls.css, "A page's own controls").
+ * its theme gives it a face of Leaf's (controls.css, "The faces of Leaf's control
+ * roles").
  * Apparatus marked only `lf-ui`, such as lf-diff's line numbers and a custom element's
  * host, keeps its component's face.
  *

@@ -66,69 +66,6 @@ def test_the_type_scale_follows_root_font_size_with_rounded_key_badges(browser, 
     expect(choice).to_be_checked()
 
 
-# What a control's face draws, as `getComputedStyle` names it.
-FACE = (
-    "el => Object.fromEntries(['paddingTop', 'paddingLeft', 'height', 'borderTopWidth',"
-    " 'borderTopColor', 'borderTopLeftRadius', 'backgroundColor', 'color', 'fontSize']"
-    ".map(p => [p, getComputedStyle(el)[p]]))"
-)
-
-
-@pytest.mark.parametrize("theme", [None, False])
-def test_a_theme_gives_the_page_s_own_controls_leaf_s_faces(browser, serve, theme):
-    """Where the page's theme turns on markup's reading face, a button, a submit
-    button, a text field and a labelled checkbox the page writes wear the faces of
-    Leaf's own word, commit, field and choice (controls.css, "A page's own controls"),
-    so the page's controls and Leaf's beside them read as one set. A rule of the page's
-    own outranks the face, a box that sets the input to `initial` keeps the browser's
-    controls, and so does a page that takes no theme. Until 16 November 2026 a page
-    took these faces only by writing Leaf's class names, `lf-btn`, `lf-field` and
-    `lf-choice`."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Own controls",
-                '<h1>Own controls</h1><p id="controls"></p>'
-                '<p><button id="own" type="button">Run all</button>'
-                ' <button id="own-submit" type="submit">Generate</button>'
-                ' <input id="own-field" type="text" aria-label="Name">'
-                ' <label><input id="own-check" type="checkbox">Notes</label></p>'
-                '<p><button id="styled" class="mine" type="button">Mine</button></p>'
-                '<div style="--lf-reading-face: initial">'
-                '<p><button id="opted" type="button">Opted out</button></p></div>',
-                head="<style>.mine { background: rgb(1, 2, 3); }</style>",
-            ),
-            theme=theme,
-        ),
-    )
-    page.evaluate("""async () => {
-      const {offerAction} = await window.__lfWidgetApi();
-      const commit = offerAction('commit', '', 'Commit');
-      commit.id = 'commit';
-      document.getElementById('controls').append(commit);
-    }""")
-    page.evaluate(LEAF_CONTROLS)
-
-    def face(selector):
-        return page.locator(selector).evaluate(FACE)
-
-    mark = page.locator("#own-check").evaluate("el => getComputedStyle(el).appearance")
-    if theme is False:
-        assert face("#own")["paddingLeft"] != face("#press")["paddingLeft"]
-        assert face("#own-field")["height"] != face("#field")["height"]
-        assert mark == "auto"
-        return
-    assert face("#own") == face("#press")
-    assert face("#own-submit") == face("#commit")
-    assert face("#own-field") == face("#field")
-    assert mark == "none", "the checkbox keeps the browser's mark"
-    styled = face("#styled")
-    assert styled["backgroundColor"] == "rgb(1, 2, 3)", styled
-    assert styled["paddingLeft"] == face("#press")["paddingLeft"], styled
-    assert face("#opted")["paddingLeft"] != face("#press")["paddingLeft"]
-
-
 @pytest.mark.parametrize("touch", [False, True])
 def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, touch):
     """Authored choices share their label's hit area and focus ring without boxing

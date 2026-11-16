@@ -596,10 +596,10 @@ def test_an_answer_to_a_held_reading_addresses_a_new_revision_at_the_page_root(
 def test_an_answer_to_a_held_reading_addresses_only_the_events_it_sends(
     page_dir, tmp_path, monkeypatch
 ):
-    """Beneath a prefix each message's markup is addressed at the page root, which
+    """Beneath a prefix each message's HTML is addressed at the page root, which
     parses it. An answer carrying only what changed since the tab's reading sends no
-    event the tab holds, so it parses none of their markup: its parses fall short of
-    the whole answer's by one for each markup message the log holds."""
+    event the tab holds, so it parses none of their HTML: its parses fall short of
+    the whole answer's by one for each message holding HTML the log holds."""
     import leaf.http
 
     site = tmp_path / "site"
@@ -608,9 +608,7 @@ def test_an_answer_to_a_held_reading_addresses_only_the_events_it_sends(
     shutil.copytree(page_dir, published)
     messages = 3
     for at in range(messages):
-        created = open_thread(
-            published, "--text", f"Look {at}:", "--markup", f"<p>Part {at}.</p>"
-        )
+        created = open_thread(published, "--text", f"Look {at}:\n\n<p>Part {at}.</p>")
         assert created.exit_code == 0, created.output
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     parsed = []

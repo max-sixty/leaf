@@ -94,9 +94,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
             str(page_dir),
             json.loads(opened.output)["id"],
             "--text",
-            "here:",
-            "--markup",
-            shot,
+            f"here:\n\n{shot}",
         ],
     )
     assert posted.exit_code == 1, (
@@ -126,9 +124,7 @@ def test_the_reply_door_reads_a_message_stylesheet_as_the_capture_does(
     opened = comment(
         page_dir,
         "--text",
-        "Look:",
-        "--markup",
-        f'<p style="background-image: url({ref})">Shown</p>',
+        f'Look:\n\n<p style="background-image: url({ref})">Shown</p>',
     )
     assert opened.exit_code == 1, opened.output
     assert code in opened.output, opened.output

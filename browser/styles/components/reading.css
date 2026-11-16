@@ -809,7 +809,7 @@ leaf-text.lf-fab-input,
    them: a line apart for each blank line the source left before one, and touching
    where it left none, as a list typed under its first line or an item under the
    last. The renderer counts those lines (markdown.js, `data-lf-gap`); HTML an agent
-   wrote carries none, and keeps the spacing above. A fence's count stands
+   wrote carries none (below). A fence's count stands
    on its code. A line is the message's, computed where the text starts, since code
    sets a shorter one of its own. */
 @property --lf-msg-line {
@@ -834,6 +834,12 @@ leaf-text.lf-fab-input,
 }
 .lf-msg-text :is([data-lf-gap="3"], pre:has(> [data-lf-gap="3"])) {
   margin-block-start: calc(3 * var(--lf-msg-line));
+}
+/* A block of HTML an agent wrote stands a line below what it follows, as the blank line
+   it is written after would stand a Markdown block, so a table between two paragraphs
+   stands as far from each. */
+.lf-msg-text > :not([data-lf-gap], pre:has(> [data-lf-gap]), :first-child) {
+  margin-block-start: var(--lf-msg-line);
 }
 
 /* Non-verbatim data widgets start as readable source. The registry's existing

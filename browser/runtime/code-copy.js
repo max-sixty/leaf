@@ -297,11 +297,8 @@ export function watchCodeBlocks() {
     }
   };
   // A widget's data body is no document block: its module draws it, and declares the
-  // block it draws. Nor is a typeset display formula, which shows no source
-  // (formulas.js).
-  const formula = PAGE_PAINT_ATTRIBUTE.formula;
-  const documentBlocks = `pre:has(> code):not(${DECLARED}, ${DATA_BODY}, [${formula}])`;
-  watchArrivals(documentBlocks, ["style", formula], {
+  // block it draws.
+  watchArrivals(`pre:has(> code):not(${DECLARED}, ${DATA_BODY})`, ["style"], {
     arriveBatch: prepareDocumentBlocks,
     leave(pre) {
       if (deferred.delete(pre)) revealed.unobserve(pre);

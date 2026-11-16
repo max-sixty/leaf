@@ -17,9 +17,10 @@
 
    Temml loads only on a page that shows a formula. Its sheet stands in each formula's
    root, but its font face in the document, where Chromium reads a face from, beside the
-   rules that keep a formula's `<code>` and `<pre>`, which wear `data-lf-formula`, from
-   drawing code's face round it, in lf-base as a dependency's defaults are
-   (base-layer.js), so the page's own CSS outranks them. A source Temml refuses keeps
+   rules that keep a formula's `<code>`, which wears `data-lf-formula`, and a display
+   formula's `<pre>` from drawing code's face round it, in lf-base as a dependency's
+   defaults are (base-layer.js), so the page's own CSS outranks them. A display
+   formula keeps a code block's Copy, which copies its LaTeX. A source Temml refuses keeps
    showing as written, and the refusal goes to the page's log, where its agent reads it
    (`reportPageError`). */
 import { reportPageError } from "./layer-client.js";
@@ -43,7 +44,7 @@ code[${PAINT}] {
   border: 0;
   padding: 0;
 }
-pre[${PAINT}] {
+pre:has(> code[${PAINT}="display"]) {
   font: inherit;
   color: inherit;
   background: none;
@@ -139,7 +140,6 @@ export async function typesetFormulas(root) {
       if (code.hasAttribute(PAINT)) {
         code.replaceChildren(...words(code));
         keeps(code, PAINT, null);
-        if (display) keeps(code.parentElement, PAINT, null);
       }
       continue;
     }
@@ -151,6 +151,5 @@ export async function typesetFormulas(root) {
     code.replaceChildren(host);
     typeset.set(host, host.textContent);
     keeps(code, PAINT, display ? "display" : "inline");
-    if (display) keeps(code.parentElement, PAINT, "display");
   }
 }

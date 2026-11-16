@@ -92,6 +92,7 @@ import {
   pressIsKeyboardActivation,
   reachedForWords,
   paintMarkdown,
+  dressCode,
   markdownSourceOffset,
   markdownWords,
   focusDestination,
@@ -181,6 +182,8 @@ customElements.define(
     #cancelSize = null;
     /** @type {ReturnType<typeof onPressAway> | null} */
     #stopPressAway = null;
+    /** @type {Promise<void> | undefined} */
+    #dressing;
 
     setup() {
       // The name the draft opens with stays over its body (`openingTitle`).
@@ -552,6 +555,19 @@ customElements.define(
           );
         }
       }
+    }
+
+    // The body `render` painted draws its code and formulas once it stands
+    // (module-state.md, "Rendering").
+    /** @param {Map<PropertyKey, unknown>} changed */
+    updated(changed) {
+      super.updated(changed);
+      this.#dressing = dressCode(this.#body);
+    }
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#dressing;
+      return result;
     }
 
     // A live editor owns its transient text; the complete state waits for it.

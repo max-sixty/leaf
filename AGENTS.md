@@ -137,7 +137,7 @@ The repository is the plugin: `.claude-plugin/marketplace.json` and
 `.agents/plugins/marketplace.json` name `./` as the payload, and
 `package.json`'s `pi` key makes it a Pi package. The payload is the whole
 repository, whether a harness copies it into a cache or loads it in place.
-Read an area's `AGENTS.md` before changing it.
+Read an area's `AGENTS.md` before changing or reviewing it.
 
 The **plugin root** is the installation and execution boundary: manifests register
 harness components there, and `bin/leaf` runs its uv project. The **skill root**,
@@ -191,21 +191,40 @@ for agents that use Leaf or extend its package interface.
 ### Where instructions live
 
 The sections above **Repository map**, and the `SOUL.md` they import, are the
-maintainer's direction; change them only when the user asks. An `AGENTS.md` holds what an agent needs before changing
-its area: goals, invariants that span modules, who owns what, and the gates to
-run. A contract one module owns goes in that module's header, a helper's in its
+maintainer's direction; change them only when the user asks.
+
+Place an instruction by who must act on it and what missing it costs. Every
+session in the repository reads this file, subagents and Tend's runs included, and
+one that changes or reviews an area reads that area's `AGENTS.md`; a skill reaches
+only the sessions that load it, and subagents and Tend's runs often don't. So an
+`AGENTS.md` holds what a change could break by missing: goals, invariants that span
+modules, who owns what, the criteria a change or review is judged by, and the gates
+to run, stated as goals rather than steps. How to do one kind of task, such as
+previewing a page, proving a visible change or landing, goes in a project skill such
+as `/developing-leaf`, not in the shipped `/leaf` skill, since missing it makes the
+task slower or worse but breaks nothing; a procedure for a rarer task goes in that
+skill's `references/`, behind a pointer that names the task. `running-tend` holds
+only what Tend's jobs alone do.
+
+A contract one module owns goes in that module's header, a helper's in its
 docstring, and how a rule was found in the commit message. A contract several modules
 share goes in the protocol reference for that boundary, which says what each side
 relies on, not how one side provides it. A header also records
 the product decisions its module embodies and the alternatives they rejected; a
-change that reverses one rewrites that record and says so in its commit. A
-maintainer's workflow for one kind of task goes in a project skill such as
-`/developing-leaf`, not in the shipped `/leaf` skill.
+change that reverses one rewrites that record and says so in its commit.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
 `vendor.mjs`; point to it, so a new member needs no edit. Where the prose must
 list them, a test holds the list to the code's copy (`tests/AGENTS.md`, "Put
 each assertion at the boundary that owns it").
+
+In shipped text (the references, `--help`, UI strings, `SKILL.md`) and in agent
+instructions (the `AGENTS.md` files and project skills), these prose defects are
+public surface traps: mechanism written for a reader other than the one the text
+addresses, a second copy of a rule another text owns, a coined term used without its
+definition, and, in maintainer guidance, a sentence that says how the diff's code
+works or which failure it fixed rather than what other code must rely on, which
+belongs in the module header or the commit message.
 
 ### Use dependencies
 
@@ -396,26 +415,38 @@ makes Leaf harder to develop than it is worth:
   package, a widget or a `leaf-dev` command, costs little beyond its own files; remove
   it only when it is large and unused. Keep anything users would notice losing,
   including Leaf's interface guarantees. Taking a feature away is the maintainer's
-  call, so propose the removal with what users lose and what it deletes.
+  call, so propose the removal with what users lose and what it deletes, measured
+  as `/developing-leaf`'s "Measure a removal" says.
 - **Several implementations of one capability.** Consolidate them into one home and
   move every caller to it ("Fix the underlying issue"). The other copies seldom sit
   beside the file you're reading, so search for them as **What it repeats** says.
 - **A mechanism a dependency or the platform already provides.** Delegate it ("Use
   dependencies").
 
-Measure a candidate by making the change in a scratch worktree: `git diff --numstat`
-gives what it deletes, and a probe or capture of the affected journey shows what users
-lose. A count read off the code overstates the saving.
-
 ## Working on the repository
 
 When the user is to choose among designs, show the candidates side by side and
-let them select one (`/developing-leaf`, "Explore an open design").
+let them select one (`/developing-leaf`, "Explore an open design"). A choice about
+how something looks or moves can't be judged from a description, so every UI option
+you leave to the user carries a picture of its result: a still pair, a sketch, a
+diagram or a live sample. That includes the calls a PR body leaves to the user, and
+the decisions a page relays from it.
+
+Before writing words the user sees, such as a label, status line or placeholder, or
+naming anything they operate or an identifier for one, read
+`.claude/skills/developing-leaf/references/glossary.md`, Leaf's canonical vocabulary
+and guidance for visible text. A control may need no words at all
+(`browser/AGENTS.md`, "Controls are few and quiet"). Before changing anything Leaf
+draws, read that file's "Leaf's interface".
+
+The user judges a UI change by using it and by looking at it, so whoever hands one
+over or reviews it does both (`/developing-leaf`, "Review a UI change"), with a
+`/ui-sweep` pass for a theme or shared-control change.
 
 Before finishing a feature:
 
 - Give every result a pointer reaches a keyboard route and a touch route
-  (`runtime/keyboard/AGENTS.md`, "Touch routes"), without a page-level binding
+  (`browser/runtime/keyboard/AGENTS.md`, "Touch routes"), without a page-level binding
   for each. The route is owed to the result, not each gesture: ask what a user
   could no longer see, reach or decide without the gesture. Dragging a thread
   card aside needs no route, since Escape also uncovers the passage beneath it.
@@ -424,8 +455,12 @@ Before finishing a feature:
   `skills/leaf/SKILL.md` or the one reference that owns the workflow, and point
   other references at that section. Shipped instructions set goals for the user's
   experience and name the surface they read on, leaving format and phrasing to
-  the agent. Where an agent could read the change more than one way, score it with
-  `evals/` before and after (`/developing-leaf`, "Score an instruction change").
+  the agent.
+
+Score any change to agent instructions that an agent could read more than one way,
+such as a new or reworded rule, a goal that competes with another or a cut that may
+have carried a behavior, before and after (`/developing-leaf`, "Score an instruction
+change").
 
 Several sessions share one machine, so local compute is often the bottleneck.
 Before handing over, run the tests that cover what the change touches, and
@@ -446,15 +481,14 @@ landing paths run them too. The website's delivery checks (the site build, the
 Worker's dry-run deploy, `leaf-dev site verify website-worker`) run on a pull
 request and in `publish-site`, but not in `wt merge`.
 
-For a change that can alter browser startup, compare base and head: served
-previews for a runtime change, `leaf-dev site verify website-worker` for site
-delivery, Worker routing or containers. Read the comparison by phase (the
-document arriving, widgets upgrading, the page first showing the server's
-state), and compare the requests and bytes loaded before that last phase
-directly; elapsed time is only diagnostic. A change that adds work on that path
-says what the user gains and why it can't wait. Bytes off the path, such as a
-lazy module, a vendored file or the install's size, are not alone a reason for a
-change.
+A change to how a harness runs Leaf, such as its hooks or sandbox, runs the agent
+journey on that harness (`/developing-leaf`, "Run the agent journey").
+
+Compare base and head for a change that can alter browser startup
+(`/developing-leaf`, "Compare checkout versions"). A change that adds work before the
+page first shows the server's state says what the user gains and why it can't wait.
+Bytes off that path, such as a lazy module, a vendored file or the install's size,
+are not alone a reason for a change.
 
 Land through a GitHub pull request, which squash-merges to `main`; use `wt merge`
 only when the user asks for it. For now, a failing check the change doesn't cause blocks nothing (`tests/AGENTS.md`,

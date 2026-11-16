@@ -70,7 +70,7 @@ def ios_safari(scheme: str = "light"):
         options.set_capability("safari:useSimulator", True)
         options.set_capability("safari:deviceUDID", udid)
         # Under the default strategy, which waits for the page's load, navigating to a
-        # Leaf page never returns; `load` waits on readiness instead.
+        # Leaf page can fail to return; `load` waits on readiness instead.
         options.set_capability("pageLoadStrategy", "none")
         driver = webdriver.Safari(options=options)
         try:

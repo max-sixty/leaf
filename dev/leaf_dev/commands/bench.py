@@ -185,9 +185,9 @@ FITTED = 3
 # Where a reading grows by less than its floor above BASE, what little it grew is the
 # host's noise, and its exponent leaves that size out. A floor is a share of the BASE
 # page's load CPU from the same run. A slower machine slows that reading as much as
-# every other, so it fits the same sizes to the same exponent. With the BASE page
-# loading in 150-210 ms on an unloaded M5 Max, the shares put a floor near 10 ms of
-# CPU and near 50 ms of elapsed time. Sizes and counts no machine's speed changes have
+# every other, so it fits the same sizes to the same exponent. Where the BASE page
+# loads in about 200 ms, the shares put a floor near 10 ms of CPU and near 50 ms of
+# elapsed time. Sizes and counts no machine's speed changes have
 # floors of their own.
 FLOOR_SHARES = {"cpu": 0.05, "elapsed": 0.25}
 COUNT_FLOORS = {"KB": 10, "requests": 1}
@@ -1873,7 +1873,7 @@ def traced(page: Page, directory: Path, name: str):
     browser = page.context.browser
     assert browser is not None
     recorded = []
-    # The trace starts first: a profile started before it holds no samples in the
+    # The trace starts first: a profile started before it can hold no samples in the
     # window the trace's marks bound.
     browser.start_tracing(page=page, path=str(trace), categories=CATEGORIES)
     try:

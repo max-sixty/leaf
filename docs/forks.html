@@ -424,7 +424,8 @@ sequenceDiagram
             read the same reading. A main thread recovering what it owes there, as after
             a compaction, leaves a running fork's answer to the fork, and a message a
             line fork is judging to it. No shipped instruction asks it to: the field
-            alone does it.
+            alone does it. The eval <code>recovery-leaves-a-forks-answer</code> checks
+            it.
             <span class="tag ok">built</span>
           </p>
           <figure id="holding-figure" class="diagram-figure">
@@ -767,7 +768,7 @@ flowchart TD
               start a fork only with <code>$.agent.spawn</code>, whose first run never
               notifies the main thread, since the module's call to the Agent tool is
               refused (2.1.322). A resumed run's notification wakes an idle main thread
-              whichever way tells it, and that woken turn checks the forks' answers.
+              whichever way tells it, and that woken turn can check the forks' answers.
             </p>
             <p id="telling-address">
               The main thread reaches a fork by its agent id, the one address Leaf gives

@@ -389,8 +389,8 @@ QUOTE_RANGE = """(root, words) => {
 
 # Where a mouse was last over a `tab`'s document, in its viewport, and which of its
 # buttons it held. A native drag sends no `pointerup`; it ends in `dragend` where it
-# drops, with no button held. Its `pointercancel` reads (0, 0) in Chromium and the
-# button still held in Firefox, and WebKit sends none.
+# drops, with no button held. Its `pointercancel` can read (0, 0) in Chromium and the
+# button still held in Firefox, and WebKit can send none.
 POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dragend"])
   addEventListener(type, (event) => {
     if ((event.pointerType ?? "mouse") === "mouse")
@@ -402,12 +402,12 @@ POINTER = """for (const type of ["pointermove", "pointerdown", "pointerup", "dra
 # Whether the document's hover ends at the element under a resting mouse, or no mouse
 # rests here. Both are read in the document's own tree, where a shadow host stands for
 # everything its shadow root draws. Read inside a shadow root they can disagree:
-# Firefox hovers a radio button's host but not the slot under the pointer.
+# Firefox can hover a radio button's host but not the slot under the pointer.
 # A held button keeps the hover where the press began, and a mouse over a child frame
 # moves where this document can't follow it. A subtree hidden under the pointer keeps
-# its hover after the hover moves on, so only drawn elements count: Chromium leaves
-# `.lf-fp-opened` hovered once the panel's view closes under a press, through every
-# later move.
+# its hover after the hover moves on, so only drawn elements count: Chromium can
+# leave `.lf-fp-opened` hovered once the panel's view closes under a press, through
+# every later move.
 HOVER_CAUGHT_UP = """() => {
   const at = globalThis.__lfPointer;
   if (!at || at.buttons) return true;
@@ -427,9 +427,9 @@ def catch_up_hover(page: Page) -> bool:
 
     Content that scrolls under a resting pointer keeps the old element hovered until
     the engine hit-tests again on a timer of its own, dispatching `pointerover` as the
-    hover moves. Playwright's Firefox (build 1555) takes about 100 ms, its WebKit
-    (build 2370) 20 to 120 ms, and its Chromium about a frame, though on a loaded host
-    sometimes longer than the rest of `settle`, so a capture taken first draws the
+    hover moves. In Playwright's Firefox (build 1555) and WebKit (build 2370) that
+    can take around 100 ms, and in its Chromium about a frame, though on a loaded host
+    sometimes longer than the rest of `settle`, so a capture taken first can draw the
     button a state's driver pressed still hovered. The page may answer
     `pointerover`, so `settle` settles again after a hover moved.
 

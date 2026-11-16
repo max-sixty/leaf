@@ -25,11 +25,12 @@ whole run.
 
 Before dispatching an item, establish that it is still live and its premise
 true, by running something: a probe, the test it names, a reproduction.
-A premise checked by reading the code is a guess, and often a wrong one.
+A premise checked by reading the code is a guess, and can be wrong where one
+checked by running holds.
 Check also that no open PR, other session or other campaign already works on the
 item (`gh pr list`, `claude agents`, `wt list`): an unlinked PR is invisible to the
-query. Two campaigns on the same list duplicate each other's PRs, and other
-sessions land its items on main mid-run.
+query. Two campaigns on the same list can duplicate each other's PRs, and other
+sessions can land its items on main mid-run.
 
 ## Run the agents
 
@@ -41,7 +42,7 @@ instructions also names the eval cases to score, with a paired `--base` arm
 (`/developing-leaf`, "Score an instruction change"): an unpaired comparison
 against an earlier run can credit a sentence with a lift main alone reaches.
 
-Claude Code runs at most 20 subagents at once, and that many agents load an
+Claude Code runs at most 20 subagents at once, and that many agents can load an
 18-core Mac past its cores, which makes wall-clock benchmarks useless. Run
 performance items on a quiet host or measure CPU time, and queue the rest as slots
 free.
@@ -61,9 +62,9 @@ counts carried across a compaction drift.
 Give each PR an independent reviewer in its own worktree, briefed with the PR
 and what to check, not with the author's conclusions, and told to verify by
 running and to weigh what the change adds (root `AGENTS.md`, "Weigh what a
-change adds"). Many campaign PRs carry a substantive defect: a regression, a
-false central claim, a red test, or lost input, and reviewers who check
-correctness alone pass every addition the user would cut.
+change adds"). A campaign PR can carry a substantive defect: a regression, a
+false central claim, a red test, or lost input, and a reviewer who checks
+correctness alone can pass additions the user later cuts.
 
 Send the findings back to the author with `SendMessage`, since it holds the
 context to fix them in minutes, and review every fix again: an unreviewed fix
@@ -78,8 +79,7 @@ Once a PR's review and the reviews of its fixes pass, mark it ready
 (`gh pr ready`). Tend then reviews and lands it under `running-tend`'s
 **Landing**, which reserves some changes, such as agent instructions, for the
 maintainer; send Tend's findings to the author as above. Drafts held for the
-user wait while main moves on and other sessions fix some of their items first,
-and the user lands the rest with one choice.
+user wait while main moves on, and other sessions can fix their items first.
 
 A PR stays a draft, with its decision on the user's page, when it leaves a call
 for the user, or when it adds something beyond the repair and the test that
@@ -89,7 +89,7 @@ in its report, and the reviewer checks the list.
 
 Mark PRs ready as their reviews finish rather than all at once: each ready PR
 starts Tend runs, which share one GitHub API quota that agents landing in
-parallel use up.
+parallel can use up.
 
 ## Hand over
 

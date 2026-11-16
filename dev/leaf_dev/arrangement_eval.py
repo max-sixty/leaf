@@ -379,9 +379,8 @@ def open_as_user(run: Run, url: str) -> None:
     reported for the page (`render_gate.command.desktop_viewport`), so in use it
     checks the user's window. Without this view the browser user first opens the
     page in the comment phase, and until then every render check reads the fixed
-    laptop window while the user's stated window is 1600×1000: authors hunt for a
-    way to change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's
-    source."""
+    laptop window rather than the user's stated one: authors can hunt for a way to
+    change it, setting `LEAF_RENDER_VIEWPORT` and grepping Leaf's source."""
     with headless_shell() as browser, tab(browser, run.journey_window) as view:
         load(view, url)
         deadline = time.monotonic() + 20

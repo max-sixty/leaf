@@ -216,12 +216,12 @@ test("a subject stands at the element it names, or nowhere", () => {
   }
 });
 
-test("which regions ask the user is read from the page's widgets, not the regions' elements", () => {
+test("which regions ask the user is read from the captured widgets, not the regions' elements", () => {
   // A side list keeps room on a panel's row for the answer to what its markup asks,
-  // from before the first reading lists the obligation. A panel can hold a text
-  // document of 100,000 rows, so the answer comes from the revision's widgets, each
-  // climbing once, and no region is searched: rows cost nothing, and a widget in a
-  // message's markup asks nothing of the page.
+  // from before the first reading lists the obligation, in the page or in a message's
+  // markup. A panel can hold a text document of 100,000 rows, so the answer comes from
+  // the captured widgets, each climbing once, and no region is searched: rows cost
+  // nothing, and a widget that asks nothing marks no region.
   /** @param {string} id @param {"page" | "thread"} kind @param {boolean} awaits */
   const descriptor = (id, kind, awaits) => [
     id,
@@ -264,6 +264,7 @@ test("which regions ask the user is read from the page's widgets, not the region
   try {
     assert.deepEqual([...regionsAwaiting(regions)].map((region) => region.id).sort(), [
       "asks",
+      "message",
       "page",
     ]);
   } finally {

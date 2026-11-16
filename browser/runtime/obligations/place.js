@@ -102,13 +102,16 @@ export const obligationsIn = (region, items = readObligations().all) =>
   );
 
 // The regions among `regions` that hold a widget declaring `x-awaits`, one whose markup
-// asks the user something. A region holds it whether or not the inventory lists its
-// obligation: before the first reading the obligation isn't listed yet, and once it is
-// withdrawn it isn't listed again, and a queue's row keeps room for the answer through
-// both. The widgets are the revision's (widget-descriptors.js), and each climbs once
-// from its element, as an obligation's source does in `obligationsByRegion`. So the
-// cost grows with the page's widgets and not with the elements the regions hold, of
-// which a panel holding a 96,000-line text document has about 97,000.
+// asks the user something, in the page or in a message's markup. A region holds it
+// whatever the inventory says of its obligation: before the first reading the
+// obligation isn't listed yet, and once it is withdrawn the inventory lists it as
+// withdrawn, which `obligationsByRegion` leaves out. A queue's row keeps room for the
+// answer through both. The widgets are the documents' captured ones
+// (widget-descriptors.js), which change with each revision and each message whose
+// markup is captured, and each climbs once from its element, as an obligation's source
+// does in `obligationsByRegion`. So the cost grows with the widgets and not with the
+// elements the regions hold, of which a panel holding a 96,000-line text document has
+// about 97,000.
 const authoredWidgets = readPart((root) => root.document.descriptors);
 /** @type {WeakMap<ReadonlyMap<string, import("../framework/application.js").WidgetDescriptor>, string[]>} */
 const awaitingIds = new WeakMap();
@@ -118,10 +121,7 @@ export function regionsAwaiting(regions) {
   let ids = awaitingIds.get(widgets);
   if (!ids) {
     ids = [...widgets.values()]
-      .filter(
-        ({ document, declaration }) =>
-          document.kind === "page" && declaration["x-awaits"] !== undefined,
-      )
+      .filter(({ declaration }) => declaration["x-awaits"] !== undefined)
       .map(({ id }) => id);
     awaitingIds.set(widgets, ids);
   }

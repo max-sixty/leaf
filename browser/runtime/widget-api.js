@@ -68,7 +68,8 @@ export {
 export { TEXT_FIELD } from "./control-selectors.js";
 export { answeredInWords, readObligations } from "./obligations/model.js";
 // The obligations a region of the page holds, by the rule every count and walk of them
-// reads, and which regions' markup asks the user something before or after they do.
+// reads, and which regions hold a widget that asks the user something, including one
+// whose obligation the inventory hasn't listed yet or lists as withdrawn.
 export {
   obligationsByRegion,
   obligationsIn,

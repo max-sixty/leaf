@@ -855,6 +855,37 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     expect(marks.nth(1)).to_have_text("Keep")
 
 
+def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve):
+    """A side list whose panels ask nothing gives its rows no answer line. A revision that
+    adds the first question to a panel edits inside that panel and leaves the list in
+    place, and the panel's row turns open with it, with no other change to redraw the
+    list."""
+    source = leaf_page(
+        "Questions arrive",
+        '<lf-tabs id="queue" list="side">'
+        '<lf-tab id="first" label="First"><p>Nothing to decide.</p></lf-tab>'
+        '<lf-tab id="last" label="Last"><p id="last-words">Nothing yet.</p></lf-tab>'
+        "</lf-tabs>",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    rows = page.locator("#queue .lf-tab-btn")
+    expect(rows).to_have_count(2)
+    expect(page.locator("#queue .lf-tab-answer")).to_have_count(0)
+    stamp_page(
+        serve.page_dir,
+        source.replace(
+            '<p id="last-words">Nothing yet.</p>',
+            '<lf-options id="pick" choose><lf-option id="pick-a">Go</lf-option></lf-options>',
+        ),
+        "Ask the first question",
+    )
+    wait_for_revision(page, 2)
+    expect(rows.nth(1).locator(".lf-tab-answer")).to_have_attribute(
+        "data-lf-obligations", "open"
+    )
+    expect(rows.nth(0).locator(".lf-tab-answer")).to_have_count(0)
+
+
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
     """An obligation answered before the page loads is named once the page presents, however
     late the answering widget's module arrives: startup imports every module the

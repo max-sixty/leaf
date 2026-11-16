@@ -246,6 +246,12 @@ def agent_context(capsys, agent: str) -> str:
     return json.loads(out)["hookSpecificOutput"]["additionalContext"] if out else ""
 
 
+def opened_pickup(event: dict) -> bool:
+    """Whether `event` is a pickup that took its messages into a turn, rather than
+    a line turn's `held` one."""
+    return event["kind"] == "pickup" and event["phase"] == "opened"
+
+
 def answer_ref(page_dir, input_id: str) -> str:
     """The answer reference the newest pickup carrying one gave `input_id`."""
     return next(
@@ -306,7 +312,7 @@ def test_a_fork_takes_work_it_judges_its_own_as_a_pickup_in_its_own_turn(
     assert activity_model.turn_obligations(state, watched=False) == []
     context(capsys, "UserPromptSubmit")
     assert {
-        e["turn"] for e in events_model.read_events(claimed) if e["kind"] == "pickup"
+        e["turn"] for e in events_model.read_events(claimed) if opened_pickup(e)
     } == {turn}
 
 
@@ -486,7 +492,7 @@ def taken_over(claimed, capsys) -> tuple[dict, dict]:
     context(capsys, "UserPromptSubmit")
     claim = service_model.page_claim(claimed)
     assert claim is not None
-    picked = [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
+    picked = [e for e in events_model.read_events(claimed) if opened_pickup(e)]
     assert list(dict.fromkeys(pickup["turn"] for pickup in picked)) == [
         taken["turn"],
         claim["turn"],
@@ -868,9 +874,9 @@ def test_a_quiet_tool_boundary_of_a_session_with_forks_reads_no_holding(
     who holds each thread costs a walk of the page's threads, about 50 ms on a page
     of 41,000 events. A boundary with no input past the cursor and none the cursor
     passed that no pickup took in has nothing that reading could change, so a
-    session with an agent's turn open and its lane up reads the page's log alone."""
+    session with a fork's turn open and its lane up reads the page's log alone."""
     taken_in_by_the_main_thread(claimed, capsys, monkeypatch)
-    state_model.open_agent_turn("s1")
+    state_model.open_agent_turn("s1", "fork", "agent-9")
     context(capsys, "PostToolBatch")
 
     def unread(*args, **kwargs):
@@ -1976,7 +1982,7 @@ def test_a_page_reads_only_the_agent_turns_it_needs(claimed, lane):
     forks_model.started(
         "s1", basis(claimed, asked["id"], asked["id"]), taken["turn"], "agent-1"
     )
-    elsewhere = state_model.open_agent_turn("s1")
+    elsewhere = state_model.open_agent_turn("s1", "fork", "agent-2")
     assert elsewhere is not None
     state_model.close_agent_turns("s1", turn=elsewhere)
 
@@ -1996,7 +2002,7 @@ def test_a_page_reads_only_the_agent_turns_it_needs(claimed, lane):
     state_model.AGENT_TURNS.write(
         session_file("s1", state_model.AGENT_TURNS.kind), {"turns": turns}
     )
-    assert state_model.open_agent_turn("s1") is not None
+    assert state_model.open_agent_turn("s1", "line") is not None
     assert "earlier" not in state_model.agent_turns("s1")
     assert {taken["turn"], elsewhere} <= set(state_model.agent_turns("s1"))
 
@@ -2012,13 +2018,61 @@ def opened_long_ago(turn: str, by: timedelta) -> None:
     )
 
 
+def test_a_line_turn_that_ended_leaves_the_record_and_its_thread_reads_as_before(
+    claimed, lane, capsys
+):
+    """Opening a turn drops the line turns that have closed or lapsed, so the
+    session's record grows with its working forks rather than with every message
+    Leaf kept back. A thread such a line turn held reads as the main thread's as it
+    did while the entry stood: its message is the main thread's input, `leaf page
+    state` says the main thread owes its answer, and the main thread's prompt takes
+    it in."""
+    handed = said(claimed, "Which Python?")
+    assert (
+        forks_model.route(
+            "s1",
+            basis(claimed, handed["id"], handed["id"]),
+            answer=judged("checking"),
+            failed=None,
+        )["outcome"]
+        == "hand_over"
+    )
+    lapsed = said(claimed, "Which uv?")
+    opened_long_ago(basis(claimed, lapsed["id"])["turn"], activity_model.STARTING_GRACE)
+    ended = {handed["id"], lapsed["id"]}
+    main = {"kind": "main"}
+    assert deliverable(claimed) == [handed["id"], lapsed["id"]]
+    assert {
+        i: h for i, h in holders(claimed)[0].items() if i in ended
+    } == dict.fromkeys(ended, main)
+
+    third = said(claimed, "Which Node?")
+    assert set(state_model.agent_turns("s1")) == {basis(claimed, third["id"])["turn"]}
+    assert deliverable(claimed) == [handed["id"], lapsed["id"]]
+    assert {
+        i: h for i, h in holders(claimed)[0].items() if i in ended
+    } == dict.fromkeys(ended, main)
+    taken = context(capsys, "UserPromptSubmit")
+    assert handed["text"] in taken and lapsed["text"] in taken
+    assert third["text"] not in taken
+    assert deliverable(claimed) == []
+
+
 def test_a_take_the_module_never_names_lets_its_thread_go_within_30_s(claimed, lane):
-    """A turn Leaf passed to a fork the module never names, as when the step that
+    """A turn Leaf opened for a fork the module never names, as when the step that
     took the thread timed out or the module was reloaded, has lost its agent. It
-    counts for `STARTING_GRACE` from its opening, and then lapses: the thread is the
-    main thread's again."""
-    asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
-    opened_long_ago(taken["turn"], activity_model.STARTING_GRACE)
+    counts for `STARTING_GRACE` from the take, however long the line fork took to
+    judge, and then lapses: the thread is the main thread's again."""
+    asked = said(claimed, "Which Python does the project need?")
+    listed = basis(claimed, asked["id"], asked["id"])
+    opened_long_ago(listed["turn"], activity_model.STARTING_GRACE * 0.9)
+    taken = forks_model.route(
+        "s1", listed, answer=judged("looking", "take"), failed=None, work_forks=True
+    )
+    assert taken["outcome"] == "take", taken
+    opened_long_ago(taken["turn"], activity_model.STARTING_GRACE / 2)
+    assert holders(claimed)[1][asked["id"]]["state"] == "running"
+    opened_long_ago(taken["turn"], activity_model.STARTING_GRACE / 2)
     owed, threads = holders(claimed)
     assert (owed[asked["id"]], threads[asked["id"]]["state"]) == (
         {"kind": "main"},
@@ -2035,10 +2089,10 @@ def test_a_take_the_module_never_names_lets_its_thread_go_within_30_s(claimed, l
 def test_a_resumed_take_counts_for_30_s_until_its_start_is_confirmed(
     claimed, lane, confirmed
 ):
-    """A fork Leaf resumes is named as its line turn passes to it, but the turn counts
-    only for `STARTING_GRACE` until the module confirms the resume
-    (`forks.started`), so a resume whose step timed out leaves the thread to the main
-    thread within 30 s; once confirmed, the turn counts for the working grace."""
+    """A fork Leaf resumes is named as its turn opens, but its turn counts only for
+    `STARTING_GRACE` until the module confirms the resume (`forks.started`), so a
+    resume whose step timed out leaves the thread to the main thread within 30 s;
+    once confirmed, the turn counts for the working grace."""
     asked = answered_by_a_fork(claimed, "Which Python?", "agent-1")
     more = said(claimed, "And which uv?", parent=asked["id"])
     taken = taken_again(claimed, asked["id"], more)
@@ -2259,24 +2313,57 @@ def test_a_thread_the_session_owes_stays_with_it_and_a_follow_up_is_forked(
     leases_model.release_lease(lane)
 
 
-def test_the_session_taking_the_message_first_leaves_the_fork_nothing_to_write(
-    claimed, lane, capsys
-):
-    """A kept-back message the session picks up once its line turn has lapsed is the
-    session's: the line fork's later answer writes nothing."""
+def test_a_line_fork_answering_after_its_turn_lapsed_writes_nothing(claimed, lane):
+    """A message whose line turn lapsed is the main thread's, so the line fork's late
+    answer posts no line and takes nothing, though the lapsed turn was never
+    closed."""
     asked = said(claimed, "Which wins?")
     listed = basis(claimed, asked["id"], asked["id"])
-    lapse(listed["turn"])
-    with PageTransaction(claimed) as page:
-        [event] = [e for e in page.events if e["id"] == asked["id"]]
-        delivery_model.record_pickup(page, [event], session="s1", turn="t1")
+    opened_long_ago(listed["turn"], activity_model.STARTING_GRACE)
+    assert listed["turn"] in state_model.open_agent_turns("s1")
     assert kept_back(claimed) == []
+    assert deliverable(claimed) == [asked["id"]]
     assert forks_model.route(
         "s1",
         listed,
-        answer=judged("The fork."),
+        answer=judged("The fork.", "take"),
         failed=None,
-    ) == {"outcome": "dropped", "text": "The fork.", "work": "hand_over"}
+        work_forks=True,
+    ) == {
+        "outcome": "dropped",
+        "why": "its line turn no longer runs",
+        "text": "The fork.",
+        "work": "take",
+    }
+    assert not any(
+        event["kind"] == "reply" for event in events_model.read_events(claimed)
+    )
+    assert deliverable(claimed) == [asked["id"]]
+
+
+def test_a_line_fork_step_repeated_after_its_take_changes_nothing(claimed, lane):
+    """A take closes the line turn as it opens the working fork's, and each step of a
+    line fork acts only while its line turn runs. So a step a module reloaded mid-fork
+    repeats for the same thread, its question or a second answer, posts no second
+    line, leaves the fork's turn running and gives the main thread nothing."""
+    asked = said(claimed, "Which Python?")
+    listed = basis(claimed, asked["id"], asked["id"])
+    taken = forks_model.route(
+        "s1", listed, answer=judged("looking", "take"), failed=None, work_forks=True
+    )
+    assert taken["outcome"] == "take", taken
+    forks_model.started("s1", listed, taken["turn"], "agent-1")
+    events = events_model.read_events(claimed)
+
+    assert forks_model.ask("s1", listed, []) is None
+    assert forks_model.route("s1", listed, answer=judged("again"), failed=None)[
+        "outcome"
+    ] == ("dropped")
+    assert [e for e in events_model.read_events(claimed) if e["kind"] == "reply"] == [
+        e for e in events if e["kind"] == "reply"
+    ]
+    assert taken["turn"] in state_model.open_agent_turns("s1")
+    assert deliverable(claimed) == []
 
 
 def test_a_hold_ending_while_the_reply_goes_in_leaves_the_thread_to_the_session(

@@ -79,19 +79,18 @@ diagnostics (`fork_outcome`):
 
 With `--fork-work` (`LEAF_FORK_WORK=on`), `fork-idle`'s question goes to a fork that
 does the work: the line fork judges it a fork's, and a fork spawned from the
-conversation, in the line turn passed to it, which picked the comment up, answers it
-in the thread itself with `leaf thread reply` while the session stays idle. Then
+conversation, in a turn of its own that picked the comment up, answers it in the
+thread itself with `leaf thread reply` while the session stays idle. Then
 `fork-follow-up`: a question a fork takes and looks up in the page's source, and the
 user's further message in its thread sent as the fork starts, which the fork's next
 tool boundary hands it: the fork's turn picks it up and the fork answers it, while the
 session stays idle. Then `fork-resume`: once that fork's run has ended, a further
 message in its thread goes to the same fork, which Claude Code resumes under the same
-agent id in the message's line turn, passed to it, which picked the message up; the
-fork answers it while the session stays idle; the session then wakes for Claude
-Code's notice that the resumed fork finished, and doesn't answer the message again.
-Then `fork-todo`: a question a fork takes, whose rest the user leaves as work for
-later, which the fork answers with a to-do on the thread (`--todo`), ending its turn
-as `todo`; Leaf's wake for that
+agent id in a new turn of its own that picks the message up and answers it, while the
+session stays idle; the session then wakes for Claude Code's notice that the resumed
+fork finished, and doesn't answer the message again. Then `fork-todo`: a question a
+fork takes, whose rest the user leaves as work for later, which the fork answers with
+a to-do on the thread (`--todo`), ending its turn as `todo`; Leaf's wake for that
 to-do starts a turn of the idle session, whose prompt hook hands it the line naming
 the to-do, and the session does the work and ends the to-do or leaves it open on its
 list, as it judges. `fork-work` then checks

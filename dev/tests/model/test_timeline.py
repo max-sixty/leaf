@@ -20,13 +20,12 @@ def test_timeline_names_the_forks_turns_refusals_and_why_no_lane_took_a_message(
     tmp_path,
 ):
     state.prompt_turn("s1", "p1")
-    running = state.open_agent_turn("s1")
-    closed = state.open_agent_turn("s1")
-    lapsed = state.open_agent_turn("s1")
+    running = state.open_agent_turn("s1", "fork")
+    closed = state.open_agent_turn("s1", "fork")
+    lapsed = state.open_agent_turn("s1", "line")
     assert running and closed and lapsed
-    for turn, agent in ((running, "agent-1"), (closed, "agent-2")):
-        state.pass_agent_turn("s1", turn)
-        state.name_agent_turn("s1", turn, agent)
+    state.name_agent_turn("s1", running, "agent-1")
+    state.name_agent_turn("s1", closed, "agent-2")
     state.close_agent_turns("s1", turn=closed)
     turns = state.agent_turns("s1")
     long_ago = datetime.now().astimezone() - timedelta(hours=1)

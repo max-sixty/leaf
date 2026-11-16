@@ -124,16 +124,17 @@ background job's, outlive the harness instance.
 
 A session can run agents beside its main thread, and each run of one is a turn of
 its own, in the session's agent-turns record (`state.AGENT_TURNS`), which marks each
-turn's role. Admission opens a line turn for a thread message it keeps from the main
-thread while a line fork of a Claude Code session's conversation writes the agent's
-working line on it (`forks.py`). Nothing renews a line turn, so it lapses
-`activity.STARTING_GRACE` after it opened unless it closes first. A take passes the
-line turn to a working fork that does the thread's work, before the harness starts or
-resumes the agent, and names it with the agent's harness id: as it passes it to an
+turn's role, which never changes. Admission opens a line turn for a thread message it
+keeps from the main thread while a line fork of a Claude Code session's conversation
+writes the agent's working line on it (`forks.py`). Nothing renews a line turn, so
+it lapses `activity.STARTING_GRACE` after it opened unless it closes first, and a
+line turn that has ended keeps nothing. A take closes the line turn and opens a turn
+for the working fork that does the thread's work, before the harness starts or
+resumes the agent, and names it with the agent's harness id: as it opens it for an
 agent it resumes, and once the harness has started a new one. The harness confirms
-the start of either within `STARTING_GRACE` of the line turn's opening, or the turn
-lapses; the confirmation and the agent's tool boundaries renew it, and it closes as
-the harness says the run ended, or with the session's generation or instance. The
+the start of either within `STARTING_GRACE` of the opening, or the turn lapses; the
+confirmation and the agent's tool boundaries renew it, and it closes as the harness
+says the run ended, or with the session's generation or instance. The
 agent's `leaf` command acts in the turn where it names it (`leaf --turn`, which Leaf
 gives a fork with its task), is refused where it names a turn that isn't open, and
 acts as the main thread where it names none (`state.acting_agent_turn`). A pickup, a

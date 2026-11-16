@@ -1,6 +1,5 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
-from collections.abc import Callable
 from dataclasses import dataclass, replace
 from hashlib import sha256
 from pathlib import Path
@@ -423,18 +422,15 @@ class ProviderFinal:
 @dataclass(frozen=True)
 class Receipt:
     """A writer that answers only what is still owed: a harness's failure receipt,
-    or the reply of a fork of the agent's conversation (`forks`). An update that no
-    longer owes an answer takes none. With `only_if_unclaimed`, an update some turn
-    already picked up is left to the writer following that turn. With `fence`, the
-    receipt writes only while `fence` holds of the page under the lock its append
-    takes, as a fork's reply writes only while Leaf still holds its thread from the
-    session. A receipt's progress, such as the working line a fork posts as it hands
-    a thread to the session, takes nothing in hand: its writer is not the turn that
+    or the working line a line fork of the agent's conversation posts (`forks`). An
+    update that no longer owes an answer takes none. With `only_if_unclaimed`, an
+    update some turn already picked up is left to the writer following that turn. A
+    receipt's progress, such as the working line a line fork posts as it hands a
+    thread to the session, takes nothing in hand: its writer is not the turn that
     will answer, and a start would read as that turn's, renewing it and holding the
     update at Working before the session has it."""
 
     only_if_unclaimed: bool = False
-    fence: Callable[[PageTransaction], bool] | None = None
 
 
 Settlement = Refuse | ProviderFinal | Receipt
@@ -788,12 +784,10 @@ def _resolve_obligation(
                     )
                 ]
             )
-    if isinstance(settlement, Receipt) and (
-        (
-            settlement.only_if_unclaimed
-            and pickup_receipts(events, phase=None, input_id=responds)
-        )
-        or (settlement.fence is not None and not settlement.fence(page))
+    if (
+        isinstance(settlement, Receipt)
+        and settlement.only_if_unclaimed
+        and pickup_receipts(events, phase=None, input_id=responds)
     ):
         return None
     return _Obligation(parent, thread_id, None if ephemeral else responds, in_hand)

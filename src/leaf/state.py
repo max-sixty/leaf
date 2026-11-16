@@ -53,7 +53,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Generic, Literal, TypeVar, cast
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -771,9 +771,9 @@ AGENT_TURNS = Record(
     described(
         "The turns of the agents a session runs beside its main thread, in the state "
         "home's `sessions/<digest>.agent-turns` (`session_file`): by turn id, its "
-        "role, `line` while a line fork of the session's conversation writes the "
-        "agent's working line on a thread message, and `fork` once a working fork "
-        "does the thread's work in it, the agent's id in its harness (null until "
+        "role, `line` for the turn in which a line fork of the session's "
+        "conversation writes the agent's working line on a thread message, or "
+        "`fork` for a working fork's run, the agent's id in its harness (null until "
         "the harness starts it), the session generation it opened in, when it "
         "opened and was last renewed, when it closed, or null while it is open.",
         object_schema(
@@ -915,22 +915,37 @@ def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
     AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
 
 
-def open_agent_turn(session_id: str) -> str | None:
-    """Open a line turn, in which a line fork of the session's conversation writes
-    the agent's working line on a thread message admission keeps from the main
-    thread (`forks.py`), and return its id; None for a session that has ended. No
-    agent runs a line turn, and nothing renews it, so it lapses a `STARTING_GRACE`
-    after it opened unless a working fork takes it on (`pass_agent_turn`) and its
-    harness confirms that fork's start (`activity.agent_turn_end`). Each opening
-    mints a new id, so a closed turn never reopens. The turns of the session's
-    earlier generations go as it opens one, since their agents ended with them and
-    no reading of its pages asks for them (`agent_turn_stamps`)."""
+def open_agent_turn(
+    session_id: str, role: Literal["line", "fork"], agent: str | None = None
+) -> str | None:
+    """Open a turn of `role` and return its id; None for a session that has ended.
+    A `line` turn is a line fork's, which writes the agent's working line on a
+    thread message admission keeps from the main thread (`forks.py`); no agent runs
+    it and nothing renews it, so it lapses a `STARTING_GRACE` after it opened unless
+    it closes first. A `fork` turn is a working fork's run, which Leaf opens as the
+    fork takes a thread: a resumed fork, whose id Leaf already knows, runs it from
+    its opening (`agent`), and a new one's is named once its harness has started it
+    (`name_agent_turn`); either's start is confirmed within `STARTING_GRACE` of the
+    opening (`activity.agent_turn_end`). The agent's `leaf` commands name the turn
+    rather than the agent, so they act in it from its start (`acting_agent_turn`).
+    A turn's role never changes, and each opening mints a new id, so a closed turn
+    never reopens.
+
+    The opening drops the turns no reading needs: the session's earlier
+    generations', since their agents ended with them (`agent_turn_stamps`), and line
+    turns that have closed or lapsed. A thread such a line turn last held reads as
+    the main thread's whether its entry is there or not, so the record grows with
+    the working forks a generation runs rather than with every message Leaf kept
+    back."""
+    from .activity import agent_turn_end
+
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if not session_live(record):
             return None
         turn = secrets.token_hex(8)
         now = now_iso()
+        moment = datetime.fromisoformat(now)
         _write_agent_turns(
             session_id,
             {
@@ -938,10 +953,11 @@ def open_agent_turn(session_id: str) -> str | None:
                     id: entry
                     for id, entry in agent_turns(session_id).items()
                     if entry["generation"] == record["generation"]
+                    and (entry["role"] != "line" or moment < agent_turn_end(entry))
                 },
                 turn: {
-                    "role": "line",
-                    "agent": None,
+                    "role": role,
+                    "agent": agent,
                     "generation": record["generation"],
                     "opened": now,
                     "renewed": now,
@@ -952,29 +968,10 @@ def open_agent_turn(session_id: str) -> str | None:
         return turn
 
 
-def pass_agent_turn(session_id: str, turn: str, agent: str | None = None) -> bool:
-    """Pass the open line turn `turn` to the working fork that takes its thread's
-    work: its role becomes `fork`, and a resumed fork, whose id Leaf already knows,
-    runs it from now on (`agent`); a new one's is named once its harness has started
-    it (`name_agent_turn`). The fork's `leaf` commands name the turn rather than the
-    agent, so they act in it from its first command (`acting_agent_turn`). The turn
-    keeps its opening, so its harness confirms the fork's start within
-    `activity.STARTING_GRACE` of the line turn's opening, or it lapses. Whether
-    `turn` was still an open line turn to pass."""
-    return _update_agent_turns(
-        session_id,
-        lambda id, entry: (
-            {**entry, "role": "fork", "agent": agent}
-            if id == turn and entry["role"] == "line"
-            else None
-        ),
-    )
-
-
 def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
     """Record that the agent its harness names `agent` runs the open fork turn
     `turn`, as the harness confirms a spawn, which named no agent yet, or a resume,
-    which Leaf named as it passed the turn on (`pass_agent_turn`): and renew it, which
+    which Leaf named as it opened the turn (`open_agent_turn`): and renew it, which
     confirms its start, so the turn is believed for the working grace
     (`activity.agent_turn_end`); whether the turn was still open to name. A turn's
     agent never changes once named."""
@@ -1016,7 +1013,7 @@ def close_agent_turns(
     """Close the session's open agent turn `turn`, or, where no turn is named, every
     open turn of `agent`, as the harness says the agent's run ended or never
     started; the ids it closed. An end that names its turn closes only that one, so
-    a late end of an agent's earlier turn leaves the turn a resume passed to it
+    a late end of an agent's earlier turn leaves the turn a resume opened for it
     since. A turn no agent was named for yet, as when Leaf failed to record the
     start of an agent that runs on, is named for `agent` as it closes, so the main
     session hears which agent ran it, by the id that reaches it (`forks.ended`)."""

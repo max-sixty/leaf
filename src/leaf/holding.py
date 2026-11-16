@@ -31,7 +31,8 @@ the moment it takes the thread until another turn does (`Hold`).
   thread once its answer took the thread over.
 - A thread Leaf keeps back while a line fork judges its waiting messages is held by
   the line turn admission opened for it, by that turn's `held` pickup, which takes
-  nothing in, and by the working fork the turn passes to on a take (`forks.py`).
+  nothing in and keeps nothing once the turn ends. A take closes the line turn and
+  opens the working fork's, whose opened pickup takes the thread (`forks.py`).
 - An answered message is held by the turn that answered it, the one its thread's
   answer names, so an answer takes the thread as a pickup does. A fork may repeat its
   own answer, but not answer again a message the main thread answered over it.
@@ -210,7 +211,9 @@ class Hold(NamedTuple):
     # one that last took the thread, by a pickup of an earlier message or an
     # answer; None where no turn of the session took it.
     turn: str | None
-    # Whether `turn` holds the thread's waiting messages by a pickup of one of them.
+    # Whether `turn` holds the thread's waiting messages by an opened pickup of one
+    # of them, which keeps them its own after it ends (`Holding.keeper`); a line
+    # turn's `held` pickup holds them only while it runs.
     picked: bool
     # Who holds it, for a reader: `turn` named (`holder`).
     holder: dict
@@ -311,9 +314,12 @@ def reading(
     from its log `events`, for the claimant's `session`, whose agent turns are
     `stamps` and `running`, and which is `live`, as `Holding` holds them, where
     `found` is the log's `rounds`. A line turn's `held` pickup holds a thread as an
-    opened one does, but takes nothing in (`delivery.record_pickup`). Every reading
-    goes through `reading_of`."""
-    newest: dict[str, tuple[int, str]] = {}
+    opened one does while that turn runs, but takes nothing in
+    (`delivery.record_pickup`), so it leaves the thread's messages with no keeper
+    once the turn has ended (`Hold.picked`). Every reading goes through
+    `reading_of`."""
+    # Each input's newest pickup: its seq, its turn and whether it opened the input.
+    newest: dict[str, tuple[int, str, bool]] = {}
     picked: dict[str, dict[str, None]] = {}
     took: dict[str, set[str]] = {}
     taken: set[str] = set()
@@ -326,9 +332,10 @@ def reading(
             and event["session"] == session
             and event["turn"]
         ):
+            opened = event["phase"] == "opened"
             for input_id in event["events"]:
-                newest[input_id] = (event["seq"], event["turn"])
-                if event["phase"] == "opened":
+                newest[input_id] = (event["seq"], event["turn"], opened)
+                if opened:
                     picked.setdefault(event["turn"], {})[input_id] = None
                 if (thread := found.names.get(input_id)) is not None:
                     took.setdefault(event["turn"], set()).add(thread)
@@ -340,7 +347,7 @@ def reading(
         thread: (answer["seq"], answer.get("turn"))
         for thread, answer in found.answers.items()
     }
-    for input_id, (seq, turn) in newest.items():
+    for input_id, (seq, turn, _opened) in newest.items():
         thread = found.names.get(input_id)
         if thread is not None and seq > last.get(thread, (0, None))[0]:
             last[thread] = (seq, turn)
@@ -351,8 +358,11 @@ def reading(
             for event in found.waiting.get(thread, ())
             if event["id"] in newest
         ]
-        turn = max(pickups)[1] if pickups else last.get(thread, (0, None))[1]
-        threads[thread] = Hold(turn, bool(pickups), holder(turn, stamps, running))
+        if pickups:
+            _seq, turn, opened = max(pickups)
+        else:
+            turn, opened = last.get(thread, (0, None))[1], False
+        threads[thread] = Hold(turn, opened, holder(turn, stamps, running))
     return Holding(session, live, stamps, running, found, picked, taken, took, threads)
 
 

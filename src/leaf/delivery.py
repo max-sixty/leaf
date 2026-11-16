@@ -1243,16 +1243,15 @@ def deliverable(
         holding = None
     if holding is not None:
         if work is not None and holding.live:
-            # What an agent's turn picked up and then left owed, a line turn ending
-            # or lapsing, or a fork giving its thread back or ending without
-            # answering, is the main thread's input now; a message already pending
-            # or owed goes once.
+            # What a fork's turn picked up and then left owed, giving its thread back
+            # or ending without answering, is the main thread's input now; a message
+            # already pending or owed goes once.
             left = {
                 event["id"]
                 for event in holding.waiting(
                     lambda held: (
                         held.picked
-                        and held.holder["kind"] != "main"
+                        and held.holder["kind"] == "fork"
                         and held.holder["state"] != "running"
                     )
                 )

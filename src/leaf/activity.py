@@ -24,10 +24,10 @@ WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
 # How long an agent turn is believed before its start is confirmed (`agent_turn_end`).
 # Nothing confirms a line turn's start, so this bounds a line turn (`forks.py`), and a
-# line turn passed to a working fork keeps its opening, so the fork's start is
-# confirmed within this of the message's admission (`state.pass_agent_turn`). On this
-# machine's pages to 2026-11-15, 147 line forks answered within 20 s of the message
-# (median 2.4 s), and 77 working forks' starts were confirmed within 0.7 s of the take.
+# working fork's turn opens at the take, whose start its harness confirms within
+# this. On this machine's pages to 2026-11-15, 147 line forks answered within 20 s of
+# the message (median 2.4 s), and 77 working forks' starts were confirmed within
+# 0.7 s of the take.
 STARTING_GRACE = timedelta(seconds=30)
 # The steps a harness may report, whose home is the served state's `WorkKind`: the
 # browser words each one, and its type makes that table name every kind.

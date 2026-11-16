@@ -10,7 +10,7 @@ lf-text-document {
    --lf-pre-bg). A document that previews its text stands on the page's paper instead,
    since the preview is prose, so only its Source tab is code (below). */
 lf-text-document:not([preview]) {
-  color-scheme: var(--lf-code-scheme);
+  color-scheme: var(--lf-code-scheme, inherit);
 }
 /* The frame clips its rounded corners with `clip`, which makes no scroll container
    (base.css, at `--lf-top`), so the Preview/Source strip sticks against the page's
@@ -285,7 +285,7 @@ lf-text-document[preview]
   .lf-text-document-view
   > lf-tabs
   > lf-tab:has(> .lf-text-document-listing) {
-  color-scheme: var(--lf-code-scheme);
+  color-scheme: var(--lf-code-scheme, inherit);
   background: var(--lf-pre-bg);
 }
 /* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face

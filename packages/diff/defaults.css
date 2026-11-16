@@ -11,7 +11,7 @@
  * keeps code typography while its own shadow tree scrolls the evidence. */
 lf-diff,
 lf-call-diff {
-  color-scheme: var(--lf-code-scheme); /* tokens.css, at --lf-pre-bg */
+  color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
 }
 lf-diff {
   contain: inline-size;

@@ -310,7 +310,7 @@ dl.lf-facts dd {
     /* A pre and an hr take the room a draft edited in place gives a fence's and a
        rule's source lines (`.lf-msg-body hr` below says why). */
     pre {
-      color-scheme: var(--lf-code-scheme); /* tokens.css, at --lf-pre-bg */
+      color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
       background: var(--lf-pre-bg);
       border: 1px solid var(--lf-code-border);
       border-radius: var(--lf-r);

@@ -536,6 +536,7 @@ CODE_SURFACES = leaf_page(
     return "terrace" if weather == "rain" else "courtyard"
 </code></pre><lf-note at="1">Rain moves the party under cover.</lf-note></lf-code>
 <pre id="plain"><code class="language-python">limit = 2  # doubled</code></pre>
+<div style="color-scheme: dark"><pre id="panelled">limit = 3</pre></div>
 <lf-text-document id="doc" label="change.diff" class="language-diff"><pre>@@ -1,2 +1,2 @@
 -limit = 1
 +limit = 2
@@ -628,6 +629,9 @@ CODE_CONTRAST = """() => {
     return {
         canvases,
         copies,
+        // A block in a part of the page its author drew dark.
+        panelled: luminance(paint([
+            getComputedStyle(document.querySelector('#panelled')).backgroundColor])),
         read: readings.length,
         unread: readings.filter(([, ratio]) => ratio < 4.5),
     };
@@ -640,7 +644,8 @@ def test_a_theme_draws_its_code_in_the_scheme_it_names(request, serve, engine):
     dark code on a light page (package-themes.md, "Theme tokens"). Every code surface
     takes that scheme's branch of each token inside it, so every number, sign, note,
     caption, highlighted line and status ink reads at 4.5:1 or more against its ground,
-    and the syntax probe finds nothing. Unset, the code takes the page's scheme. While a
+    and the syntax probe finds nothing. Unset, the code takes the scheme of what holds
+    it, a part of the page its author drew dark included. While a
     theme could only restate the code tokens dark, the page's status inks, its muted
     words and the highlight's tint stayed light: a diff's changed line numbers read
     2.2:1, a note on a diff 1.1:1 and a highlighted line 1.2:1."""
@@ -657,6 +662,7 @@ def test_a_theme_draws_its_code_in_the_scheme_it_names(request, serve, engine):
         f"code took a scheme the page doesn't have: {light_canvases}"
     )
     assert light["unread"] == [], light["unread"]
+    assert light["panelled"] < 0.05, "code left the scheme the page set around it"
     page.evaluate(
         "() => document.documentElement.style.setProperty('--lf-code-scheme', 'dark')"
     )

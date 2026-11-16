@@ -146,8 +146,13 @@ export function proseRect(main = layoutBox()) {
 // would make `Pin`, `Row` and `Footprints` public and let a package seat a pin over a
 // control. The user chose a function a module registers over a side named in
 // `data-rail`, so the edge can stand beside a strip the page lays out itself
-// (2026-11-15). The thread card's side (annotation-overlay/comment-placement.js) and the
-// room `data-rail="right"` gives up (annotation-theme.css) still follow the default.
+// (2026-11-15). Leaf reads nothing about the room a placement names, so its rows stand
+// over whatever the page puts there but Leaf's own layout notes. Four things still
+// follow the default, right of the column: the side a thread's card and the comment box
+// take (annotation-overlay/comment-placement.js), so the comment box rests beside a
+// block only where that side is the rail's (composing/floating-response.js); the room
+// `data-rail="right"` gives up (annotation-theme.css); and the width at which a thread
+// opens as a card (`windowHoldsRail`).
 /** @typedef {{edge: number, side: "left" | "right"}} Rail
  * @typedef {{column: ProseBox, shell: {left: number, right: number}, width: number, hang: number}} RailRoom
  * @typedef {(room: RailRoom) => Rail | null} RailPlacement */

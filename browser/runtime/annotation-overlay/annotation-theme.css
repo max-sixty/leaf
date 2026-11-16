@@ -10,7 +10,8 @@
  * paint and presses to its visible band.
  *
  * Packing seats rows level with their target and pushes arrivals into free room.
- * A rail row hangs --lf-rail-hang beyond the column and unfolds rightward. A pin uses
+ * A rail row stands against the rail's edge (by default --lf-rail-hang beyond the
+ * column) and unfolds away from the column. A pin uses
  * the clear seat the geometry owner found near its target and unfolds leftward.
  * A target clipped out of its region withholds its row from paint and tab order. */
 .lf-margin-projection {

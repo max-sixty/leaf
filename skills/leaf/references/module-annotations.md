@@ -78,14 +78,15 @@ node. Use the focus query when retaining a focused entry while updating its read
 Leaf stands margin entries in the rail, a strip beside the column, and over their
 targets as pins where no rail stands beside them. By default the rail is right of the
 column, wherever the window leaves it room. A page or package whose layout keeps the
-margin somewhere else, such as left of the column or in a strip of its own, calls
+margin somewhere else, such as left of the column or beside a strip of its own, calls
 `placeMarginRail(place)`.
 
-Leaf calls `place({column, shell, width, hang})` whenever it lays out the margin, so
-keep it cheap. `column` is the box of the column's prose and `shell` holds the page's
-`left` and `right` edges, in window coordinates, as `getBoundingClientRect` gives them.
-`width` is the room a rail needs, and `hang` is the gap Leaf's own rail leaves between
-the column and its entries. Return `{edge, side}`, or `null` for no rail. `side` is the
+Leaf calls `place({column, shell, width, hang})` each time it lays out the margin or
+places a comment box, so keep it cheap. `column` is the box of the column's prose and
+`shell` holds the page's `left` and `right` edges, in window coordinates, as
+`getBoundingClientRect` gives them. `width` is the room a rail needs, and `hang` is the
+gap Leaf's own rail leaves between the column and its entries. Return `{edge, side}`, or
+`null` where the room is narrower than `width`, which Leaf doesn't check. `side` is the
 side of the column the rail is on, `"left"` or `"right"`, and `edge` is the line entries
 stand against on that side: a left rail's entries end at `edge`, and a right rail's
 start there. This placement mirrors Leaf's own on the column's left:
@@ -98,17 +99,23 @@ const withdraw = placeMarginRail(({ column, shell, width, hang }) =>
 );
 ```
 
-A page with a strip of its own returns an edge of the strip's box instead. `place` only
-reads layout. After your own code moves the strip, call `layoutChanged(strip)`, so Leaf
-asks again (`module-authoring.md`).
+Place the rail in room the page keeps empty. Leaf stands entries there over anything
+else the page puts in it, apart from Leaf's own `layout-note` asides, beside which an
+entry pins. `place` only reads layout, and looks up the elements it measures each time
+it runs, since a revision can replace them. After your own code moves that room, call
+`layoutChanged(element)` on what moved, so Leaf asks again (`module-authoring.md`).
 
 One placement stands at a time: a later call replaces it, and the function the call
 returns withdraws it, which restores the default. Leaf keeps every rule about a single
-entry. An entry still pins where its block reaches into the rail, beside a note hanging
-there, and inside a pane, and entries stack down the rail level with their targets. A
-thread's card and the comment box still open where Leaf's own placement puts them, which
-prefers the right of the commented text. `data-rail="none"` and
-`data-annotations="page"` on `body` leave a page with no rail, whatever is placed.
+entry: an entry still pins where its block reaches into the rail and inside a pane, and
+entries stack down the rail level with their targets.
+
+A thread's card and the comment box don't follow the rail. They open where Leaf's own
+placement puts them, which prefers the right of the commented text. The comment box
+that rests beside the block the user is on shows only where that side is the rail's, so
+on a centred column with a left rail the user presses `c` for it.
+`data-rail="none"` and `data-annotations="page"` on `body` leave a page with no rail,
+whatever is placed.
 
 ## Visual parts
 

@@ -571,6 +571,14 @@ const railMeasureEntry = offerActionElement(
 );
 railMeasureEntry.dataset.lfBehavior = "disclosure";
 railMeasureRow.append(railMeasureEntry);
+// Where across a rail row `width` wide stands: from the rail's edge on a right rail,
+// and ending at it on a left one. A row keeps room after its last entry for a focus ring
+// (annotation-theme.css, at .lf-margin-cluster), which a left rail would put between
+// its entries and the edge. So a row there stands past the edge by that room (`ring`,
+// read only then), and a rail's entries meet its edge on either side.
+/** @param {import("../content-layout.js").Rail} rail @param {number} width @param {() => number} ring */
+const railLeft = (rail, width, ring) =>
+  rail.side === "right" ? rail.edge : rail.edge + ring() - width;
 /** @param {Layer} layer */
 function restingRail(layer) {
   // A live single-entry row is already the native primitive we need. Multi-entry
@@ -629,8 +637,8 @@ export function marginSpot(target, point = null, passage = null) {
     }
   const rail = railStandsBeside(target);
   if (!layer || !rail) return null;
-  const width = restingRail(layer).row;
-  const left = rail.side === "right" ? rail.edge : rail.edge - width;
+  const { row: width, entry } = restingRail(layer);
+  const left = railLeft(rail, width, () => width - entry);
   return { left, right: left + width };
 }
 
@@ -1937,6 +1945,16 @@ function layoutMountedRows(layer) {
     );
     return (railEntry ??= nativeEntry?.offsetWidth || restingRail(layer).entry);
   };
+  // The room a rail row keeps for a focus ring, as a resting row measures it.
+  /** @type {number | undefined} */
+  let ringRead;
+  const ringRoom = () => {
+    if (ringRead === undefined) {
+      const { row, entry } = restingRail(layer);
+      ringRead = row - entry;
+    }
+    return ringRead;
+  };
   // The notes hanging in the margin the rail stands in (layouts.css, layout-note): a
   // marker level with one would be drawn over it.
   const notes = !rail
@@ -2152,13 +2170,10 @@ function layoutMountedRows(layer) {
     }
     const box = read.row.getBoundingClientRect();
     seatedFaces.set(read.row, { width: box.width, height: box.height });
-    // A rail row stands against the rail's edge, on the rail's side of it.
     const left =
       read.place === "pin" || !rail
         ? read.extent.right - pinInset - box.width
-        : rail.side === "right"
-          ? rail.edge
-          : rail.edge - box.width;
+        : railLeft(rail, box.width, ringRoom);
     return {
       key: read.row,
       rect: {

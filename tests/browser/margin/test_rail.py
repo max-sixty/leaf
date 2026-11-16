@@ -463,7 +463,8 @@ STRIP_RAIL = """
 import { layoutChanged, placeMarginRail } from "/runtime/widget-api.js";
 
 const strip = document.getElementById("notes-strip");
-const withdraw = placeMarginRail(() => {
+const withdraw = placeMarginRail((room) => {
+  window.railRoom = room;
   const box = strip.getBoundingClientRect();
   return box.width ? { edge: box.right, side: "left" } : null;
 });
@@ -479,10 +480,11 @@ Object.assign(window, {
 
 def test_a_page_stands_the_rail_in_a_strip_of_its_own(browser, serve):
     """A page that keeps its margin in a strip of its own, left of the column, says where
-    with `placeMarginRail`. Its rows then stand in the rail there, ending at the edge the
-    page names. They follow the strip when the page moves it and announces the move,
-    pin where the strip is gone, and stand right of the column again once the page
-    withdraws its placement."""
+    with `placeMarginRail`. Leaf asks it with the column, the shell and the rail's own
+    width and hang. Its entries then stand in the rail there, ending at the edge the page
+    names. They follow the strip when the page moves it and announces the move, pin where
+    the strip is gone, and stand right of the column again once the page withdraws its
+    placement."""
     page = open_page(
         browser,
         serve(
@@ -497,17 +499,40 @@ def test_a_page_stands_the_rail_in_a_strip_of_its_own(browser, serve):
       const box = (selector) => document.querySelector(selector).getBoundingClientRect();
       return {
         row: box('[data-lf-margin-for="p"]'),
+        entry: box('[data-lf-margin-for="p"] .lf-margin-entry'),
         strip: box('#notes-strip'),
         prose: box('#p'),
       };
     }"""
     ends_at_the_strip = f"""() => {{
-      const {{row, strip}} = ({edges})();
-      return Math.abs(row.right - strip.right) <= 1;
+      const {{entry, strip}} = ({edges})();
+      return Math.abs(entry.right - strip.right) <= 1;
     }}"""
     at = page.evaluate(edges)
     assert at["strip"]["right"] == 180, at
-    assert abs(at["row"]["right"] - 180) <= 1, at
+    assert abs(at["entry"]["right"] - 180) <= 1, at
+    room = page.evaluate(
+        """() => {
+          const length = (box, token) =>
+            parseFloat(getComputedStyle(box).getPropertyValue(token));
+          return {
+            given: window.railRoom,
+            width: length(document.querySelector('main'), '--lf-rail'),
+            hang: length(document.documentElement, '--lf-rail-hang'),
+            shell: document.body.getBoundingClientRect().toJSON(),
+          };
+        }"""
+    )
+    given = room["given"]
+    assert sorted(given) == ["column", "hang", "shell", "width"], given
+    assert (given["width"], given["hang"]) == (room["width"], room["hang"]), room
+    assert given["width"] > given["hang"] > 0, given
+    assert given["shell"] == {
+        "left": room["shell"]["left"],
+        "right": room["shell"]["right"],
+    }, room
+    assert given["column"]["left"] == pytest.approx(at["prose"]["left"], abs=1), room
+    assert given["column"]["right"] == pytest.approx(at["prose"]["right"], abs=1), room
 
     page.evaluate("() => window.moveStrip()")
     assert page.evaluate(edges)["strip"]["right"] == 220

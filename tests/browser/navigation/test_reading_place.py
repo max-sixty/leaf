@@ -1488,7 +1488,6 @@ def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests)
             '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
             '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
             '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
-            "html": True,
         },
     )
     page = open_page(browser, url)

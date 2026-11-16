@@ -1177,7 +1177,6 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
                 "parent": comment,
                 "revision": 1,
                 "text": f"Here it is:\n\n{markup}",
-                "html": True,
             },
         )
 

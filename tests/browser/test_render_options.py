@@ -2408,7 +2408,6 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
             "parent": "c-decision",
             "revision": 1,
             "text": SAMPLE_TEXT + "\n\n" + SAMPLE_MARKUP,
-            "html": True,
         },
     )
     page = open_page(browser, url)

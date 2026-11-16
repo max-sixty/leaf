@@ -47,8 +47,8 @@ def checked_text(
     asks that of a message's HTML and runs only where the message holds some; this
     asks it of the link and image destinations, which is where the runtime resolves
     one — a path quoted in a sentence stays the author's words. `html` reads the text
-    as a message drawing its HTML does (`thread.drawn_markup`), where Markdown inside
-    a `<code>` is words."""
+    as an agent's message, which draws its HTML (`thread.drawn_markup`), where
+    Markdown inside a `<code>` is words."""
     if text is None or not (text or allow_empty):
         raise Refused(f"empty text ({NO_BODY})")
     if errs := text_media_errors(text, page_dir, html=html):
@@ -151,11 +151,11 @@ def check_markup(
 ) -> SourceDocument:
     """The markup an agent's message holding HTML draws (`passages.message_markup`),
     validated against the registry it is published with — the discussion-side `page
-    check`, and the one gate of a message's `html`: the browser door refuses `html`
-    outright, so no HTML reaches the log unvalidated. Text without it needs no
-    vocabulary gate — the runtime renders it with every tag escaped, so it cannot
-    claim a widget — but its Markdown can still point at a file, which `checked_text`
-    asks about wherever a body arrives. `thread` is the thread a reply joins; a
+    check`, and the one gate of an agent's HTML: the browser door posts only the
+    user's words, which draw no HTML, so none reaches the log unvalidated. Text
+    without HTML needs no vocabulary gate, since it can't claim a widget, but its
+    Markdown can still point at a file, which `checked_text` asks about wherever a
+    body arrives. `thread` is the thread a reply joins; a
     comment opens one whose id is not yet assigned. Refuses with what's wrong.
 
     `publication` is the document and registry the message is stored with, which

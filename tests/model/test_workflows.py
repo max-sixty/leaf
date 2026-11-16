@@ -363,7 +363,6 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "id": "widget-thread",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "Which region?\n\n" + '<lf-options id="thread-region" choose>'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
@@ -474,7 +473,6 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
             "author": "agent",
             "parent": asked["id"],
             "responds": asked["id"],
-            "html": True,
             "text": "Here is the board.\n\n" + registry["lf-board"]["x-example"],
         },
     )
@@ -931,7 +929,6 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "Which region?\n\n" + '<lf-options id="region" choose>'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             '<lf-option id="west"><strong>West</strong></lf-option>'
@@ -993,7 +990,6 @@ def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "Which regions?\n\n" + '<lf-options id="regions" choose multiple>'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             '<lf-option id="west"><strong>West</strong></lf-option>'

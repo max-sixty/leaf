@@ -229,7 +229,6 @@ def build() -> dict:
                         "agent": "Agent",
                         "parent": "e1",
                         "responds": "e1",
-                        "html": True,
                         "text": "Here is the board. Which card goes first?\n\n"
                         + model_layer()["lf-board"]["x-example"],
                         "obligation": True,

@@ -901,7 +901,6 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which region?\n\n<lf-options id="thread-region" choose>'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
@@ -1363,7 +1362,6 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
                 "kind": "comment",
                 "author": "agent",
                 "revision": 1,
-                "html": True,
                 "text": f"Sort these follow-ups.\n\n{board}",
             },
         )

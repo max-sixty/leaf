@@ -72,7 +72,6 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
                 '<lf-proposed><p id="rq-next">Warm on first request.</p></lf-proposed>'
                 "</lf-trial>"
             ),
-            "html": True,
         },
     )
     append_command(

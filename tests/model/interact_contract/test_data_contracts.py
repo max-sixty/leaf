@@ -392,9 +392,10 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     events = [
         {
             "id": "frozen-feed",
+            "kind": "reply",
+            "author": "agent",
             "revision": 1,
             "text": '<lf-local-data id="reply-data" source="reply-feed"></lf-local-data>',
-            "html": True,
         }
     ]
 
@@ -464,7 +465,6 @@ def test_a_reply_publishing_saved_edits_checks_its_markup_under_their_registry(
             "Both views of one feed.\n\n"
             '<lf-test-data id="rows-view" source="shared"></lf-test-data>\n'
             '<lf-test-other id="other-view" source="shared"></lf-test-other>',
-            html=True,
             **publishing,
         )
     assert [finding.code for finding in refused.value.findings] == ["contract-conflict"]

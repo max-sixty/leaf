@@ -82,9 +82,11 @@ def browser_thread(
 
     A provisional reply joins its thread once it has words. Before then the input's
     workflow says the agent is replying, and an empty message would only reserve a
-    bubble with nothing in it."""
+    bubble with nothing in it. An agent's message whose Markdown holds HTML carries
+    `html` (`thread_context.logged_fragment`), which the browser draws as markup."""
     events, threads = work.events, work.threads
     reading, thread_obligations = work.thread, work.thread_obligations
+    fragments = reading.structure.fragments
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -110,7 +112,7 @@ def browser_thread(
             for item in thread_obligations["unanswered"]
             if item["thread"] == thread_id and item["source"]["kind"] == "widget"
         }
-        for message_id, fragment in reading.structure.fragments.items():
+        for message_id, fragment in fragments.items():
             if obligation_sources.intersection(fragment.by_id):
                 protected.add(message_id)
         summaries = summaries_for[thread_id]
@@ -122,6 +124,7 @@ def browser_thread(
             {
                 **_named(message),
                 **_answer_key(message, first_answers),
+                **({"html": True} if message["id"] in fragments else {}),
                 "content_version": content_version(message),
             }
             for message in thread["msgs"]

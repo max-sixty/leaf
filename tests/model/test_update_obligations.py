@@ -148,7 +148,6 @@ def test_a_widget_the_user_discusses_is_listed_once_through_the_comment():
         "author": "agent",
         "parent": "t",
         "responds": "t",
-        "html": True,
         "text": "Which route?\n\n" + OPTIONS.replace('id="', 'id="t-'),
     }
     later = {"kind": "reply", "id": "r", "author": "user", "parent": "t", "text": "C?"}
@@ -197,7 +196,6 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "Sort these follow-ups.\n\n" + '<lf-board id="triage">'
             '<lf-column id="queue" label="Queued">'
             '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'

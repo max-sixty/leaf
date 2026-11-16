@@ -56,10 +56,10 @@ let ready;
 // reads as a file.
 /** @param {string} text @param {boolean} [message] */
 export const renderMarkdown = (text, message = true) => render(text, message);
-// An agent's message holding HTML (`html` on its event) reads as a message that keeps
-// the raw HTML in it, as Python checked it (`leaf.passages.message_markup`). Every
-// other reading shows a tag as the words that spell it, since what the user types, or
-// a harness posts for the agent, is no markup Leaf checked.
+// An agent's message holding HTML (`html` on its served message) reads as a message
+// that keeps the raw HTML in it, as Python checked it (`leaf.passages.message_markup`).
+// Every other reading shows a tag as the words that spell it, since what the user
+// types is no markup Leaf checked.
 /** @param {string} text */
 export const renderAuthoredMarkdown = (text) => renderAuthored(text);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain

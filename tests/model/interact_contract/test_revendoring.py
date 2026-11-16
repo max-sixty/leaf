@@ -322,7 +322,7 @@ def test_message_markup_uses_the_current_layer(page_dir, in_sample):
     result = comment(page_dir, "--text", f"Try it:\n\n{markup}")
     assert result.exit_code == 0, result.output
     event = events_model.read_events(page_dir)[-1]
-    assert event["html"] is True and markup in event["text"]
+    assert markup in event["text"]
 
 
 def test_revendoring_can_change_frozen_thread_widget_vocabulary(
@@ -345,7 +345,6 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         page_dir,
         {"parent": "c1", "responds": "c1"},
         f"Pick one:\n\n{markup}",
-        html=True,
     )
 
     registry = vocabulary(page_dir)

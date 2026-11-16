@@ -904,7 +904,6 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
             '<lf-card id="fb-cache"><strong>Cache</strong></lf-card></lf-column>'
             '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
-            "html": True,
         },
     )
     page = open_page(browser, url)

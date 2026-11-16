@@ -5821,7 +5821,6 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
             + "The mounts come first. " * 300
             + "</p>"
             '<lf-local id="thread-local" choice="idle"></lf-local>',
-            "html": True,
         },
     )
     page.wait_for_function("""() => {

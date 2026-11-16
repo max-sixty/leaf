@@ -332,7 +332,6 @@ def test_instance_contracts_follow_the_widget_in_frozen_thread_markup(
             "author": "agent",
             "parent": "e1",
             "text": 'Choose here:\n\n<lf-input-box id="thread-input" shape="large"></lf-input-box>',
-            "html": True,
             "revision": 1,
         },
         {
@@ -968,7 +967,6 @@ def test_created_ids_cannot_collide_across_page_and_frozen_content():
             "author": "agent",
             "parent": "e1",
             "text": 'Seeds\n\n<lf-options id="thread-options" choose></lf-options>',
-            "html": True,
             "revision": 1,
         },
         {

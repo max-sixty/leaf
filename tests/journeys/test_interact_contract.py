@@ -430,7 +430,6 @@ def test_sample_fixture_accepts_native_message_markup(page_dir):
                 "id": "aabb0011",
                 "author": "agent",
                 "text": 'Results:\n\n<table id="results"><tr><td>Passed</td></tr></table>',
-                "html": True,
             },
             {
                 "kind": "reply",
@@ -438,7 +437,6 @@ def test_sample_fixture_accepts_native_message_markup(page_dir):
                 "author": "agent",
                 "revision": 1,
                 "text": 'Log:\n\n<pre id="log">Ready\nDone</pre>',
-                "html": True,
             },
         ]
     )
@@ -476,7 +474,6 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
             "author": "agent",
             "text": "A widget example\n\n"
             '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget" choose><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
-            "html": True,
         },
         {
             "kind": "comment",

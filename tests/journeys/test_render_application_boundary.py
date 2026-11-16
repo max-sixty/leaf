@@ -359,7 +359,6 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "parent": "frozen-widget-question",
             "text": "This widget prepares inside the thread.\n\n"
             '<lf-local id="thread-local" choice="idle"></lf-local>',
-            "html": True,
         },
     )
     append_command(
@@ -429,7 +428,6 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "parent": "failing-widget-question",
             "text": "This widget fails its preparation.\n\n"
             '<lf-local id="thread-failing" choice="idle"></lf-local>',
-            "html": True,
         },
     )
     page.wait_for_function(

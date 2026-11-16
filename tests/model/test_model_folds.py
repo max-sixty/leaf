@@ -648,7 +648,6 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "author": "agent",
                 "parent": "e1",
                 "responds": "e1",
-                "html": True,
                 "text": "Here is the board. Which card goes first?\n\n" + board,
                 "obligation": True,
             },
@@ -783,7 +782,6 @@ def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task(
         {
             "kind": "comment",
             "author": "agent",
-            "html": True,
             "text": "Choose a route.\n\n"
             + '<lf-options id="routes" choose><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },

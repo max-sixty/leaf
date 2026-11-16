@@ -129,7 +129,6 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "kind": "comment",
             "id": "thread",
             "author": "agent",
-            "html": True,
             "text": "Choose the first route.\n\n"
             + OPTIONS.format(attrs="choose").replace('id="', 'id="root-'),
         },
@@ -138,7 +137,6 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "id": "later",
             "author": "agent",
             "parent": "thread",
-            "html": True,
             "text": "Choose the later route too.\n\n"
             + OPTIONS.format(attrs="choose").replace('id="', 'id="later-'),
         },
@@ -265,7 +263,6 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
             {
                 "kind": "comment",
                 "author": "agent",
-                "html": True,
                 "text": "Ship it?\n\n"
                 + '<lf-value-ask id="typed" active></lf-value-ask>',
             },
@@ -671,7 +668,6 @@ def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_re
         "id": "obligation",
         "author": "agent",
         "parent": "t",
-        "html": True,
         "text": "Which route?\n\n"
         + OPTIONS.format(attrs="choose").replace('id="', 'id="t-'),
     }

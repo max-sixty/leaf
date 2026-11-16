@@ -1956,64 +1956,6 @@ textarea.lf-field {
   padding: 5px 8px;
   color: var(--lf-muted);
 }
-/* PROTOTYPE (resolved-threads-view): the candidates for a folded group's face
-   (floating-panel.js, `foldDesign`). All but `band` draw a folded group as a quiet
-   control the size of its words, off the band's ground and at the rows' weight, its
-   arrow where a row's mark stands and its name where a row's name starts: on a line of
-   its own, or for `line`, alone in its list, at the end of the list's empty line. The
-   keys' ring marks it without the row's wash, which under a ring read as a second
-   selected tab over the tabs. */
-.lf-rows-group > .lf-rows-head[data-lf-quiet] {
-  position: static;
-  justify-content: flex-start;
-  block-size: auto;
-  margin-inline: 0;
-  padding: 0 2px;
-  background: none;
-}
-/* First in its list, as `alone` leaves it, it keeps the room an empty line would. */
-.lf-rows > .lf-rows-group:first-child > .lf-rows-head[data-lf-quiet] {
-  margin-block-start: 6px;
-}
-.lf-rows-empty.lf-fp-empty-fold {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding-block: 0;
-  padding-inline-end: 2px;
-}
-.lf-rows-group > .lf-rows-head[data-lf-quiet] > .lf-row,
-.lf-fp-empty-fold > .lf-row.lf-fp-settled {
-  display: inline-flex;
-  flex: none;
-  align-items: center;
-  gap: 0;
-  inline-size: auto;
-  block-size: auto;
-  min-height: max(30px, var(--lf-aim-floor));
-  padding: 0 6px;
-  border: 0;
-  border-radius: var(--lf-r);
-  color: var(--lf-muted);
-  font: var(--lf-font-small);
-  white-space: nowrap;
-}
-:is(.lf-rows-head[data-lf-quiet], .lf-fp-empty-fold) > .lf-row[data-lf-focus-visible] {
-  background-image: none;
-}
-.lf-rows-group > .lf-rows-head[data-lf-quiet] > .lf-row::before {
-  position: static;
-  translate: none;
-  margin-inline-end: 8px;
-}
-.lf-rows-group > .lf-rows-head[data-lf-quiet] .lf-row-main {
-  flex: 0 1 auto;
-}
-:is(.lf-rows-head[data-lf-quiet], .lf-fp-empty-fold) > .lf-row .lf-row-end {
-  margin-inline-start: 6px;
-  color: inherit;
-}
 /* A time axis, drawn by every widget that has one (`axisTicks`, runtime/time-axis.js).
    Each thing placed on it, a ruler's tick (`.lf-axis-tick`), a gridline
    (`.lf-axis-gridline`) and a widget's own marks, labels and playhead (`.lf-on-axis`),

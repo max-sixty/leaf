@@ -1035,16 +1035,6 @@ export function createFloatingPanel({
   // The settled sections the user unfolded while the panel stands open
   // (`settledHeading`).
   const unfolded = new Set();
-  // PROTOTYPE (resolved-threads-view): the candidate the exploration page picks for a
-  // list holding only its settled fold, read off the root as a playground sets it:
-  // `band` (today), `row`, `line` or `alone`. The pick lands without this switch.
-  const foldDesign = () => document.documentElement.dataset.playgroundFold ?? "band";
-  // A playground's choice changes the root's attribute while a list stands open.
-  new MutationObserver(() => {
-    if (!trail.value.length) return;
-    refit();
-    paint();
-  }).observe(document.documentElement, { attributeFilter: ["data-playground-fold"] });
   /** @typedef {Parameters<import("./composing/target-picker.js").TargetPickerOptions["searchInPanel"]>[0]} PanelSearch */
   /** @type {PanelSearch | null} */
   let pageSearch = null;
@@ -2416,6 +2406,11 @@ export function createFloatingPanel({
     // Enter went nowhere seen. A list that declares a row it opens at, such as the
     // version the page shows in Versions, brings that row into view by either route, and
     // a key lands on it, as the user reopening the list from there expects to see it.
+    // A fold's heading (`settledHeading`) is a row the arrows reach and never a landing:
+    // a list holding only what was put away holds focus itself, with no ring
+    // (floating-panel.css, `.lf-fp-view:focus`), and ↓ enters the fold. The user asked
+    // for that on 15 November 2026, after `r` on the last open thread returned them to
+    // Threads with the ring on Resolved, which read as Resolved chosen.
     if (route.thread) {
       // A finger opening a thread reads it first, standing in the view, whose box
       // raises no keyboard; the keyboard rises when they tap in.
@@ -2434,11 +2429,10 @@ export function createFloatingPanel({
       rows.find((row) => threadByKey(row.getAttribute("data-lf-key"))?.id === stoodIn);
     const declared = viewOf(route).at;
     const at = declared ? view?.querySelector(declared) : null;
-    const target =
-      stoodRow ||
-      (pressLed()
-        ? view
-        : (at ?? rows[0] ?? view?.querySelector("button, input") ?? view));
+    const first =
+      rows.find((row) => !row.matches(".lf-fp-settled")) ??
+      (rows.length ? null : view?.querySelector("button, input"));
+    const target = stoodRow || (pressLed() ? view : (at ?? first ?? view));
     // The row of the thread the user was in takes them back where they came from.
     if (target) focusDestination(target, target === stoodRow ? "return" : "move");
     if (at) scrollIntoView(at, { block: "nearest", within: view });
@@ -3086,41 +3080,25 @@ export function createFloatingPanel({
   // with the rest behind a row, which put a second order in a list read in the page's,
   // and over resolved threads only searched for, which left them nothing to browse.
   /** @param {string} key @param {string} title @param {number} count */
-  function settledPress(key, title, count) {
-    const open = unfolded.has(key);
-    return html`<button
-      type="button"
-      ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
-      data-lf-band
-      aria-expanded=${open ? "true" : "false"}
-      @click=${() => {
-        if (open) unfolded.delete(key);
-        else unfolded.add(key);
-        refit();
-        paint();
-      }}
-    >
-      <span class="lf-row-main">${title}</span><span class="lf-row-end">${count}</span>
-    </button>`;
-  }
-  /** @param {string} key @param {string} title @param {number} count */
   function settledHeading(key, title, count) {
-    const quiet = !unfolded.has(key) && foldDesign() !== "band";
-    return html`<h3 class="lf-rows-head" ?data-lf-quiet=${quiet}>
-      ${settledPress(key, title, count)}
+    const open = unfolded.has(key);
+    return html`<h3 class="lf-rows-head">
+      <button
+        type="button"
+        ${offeredAction("row", "lf-fp-settled lf-disclosure-marker")}
+        data-lf-band
+        aria-expanded=${open ? "true" : "false"}
+        @click=${() => {
+          if (open) unfolded.delete(key);
+          else unfolded.add(key);
+          refit();
+          paint();
+        }}
+      >
+        <span class="lf-row-main">${title}</span
+        ><span class="lf-row-end">${count}</span>
+      </button>
     </h3>`;
-  }
-  // What a list says in its rows' place. PROTOTYPE: beside a fold, `line` stands the
-  // folded control at the sentence's end, and `alone` says no sentence at all.
-  /** @param {string} text @param {{key: string, title: string, count: number} | null} fold @param {string} [short] */
-  function emptyLine(text, fold, short = text) {
-    if (fold && foldDesign() === "alone") return nothing;
-    if (foldDesign() !== "line" || !fold)
-      return html`<p class="lf-rows-empty">${text}</p>`;
-    if (unfolded.has(fold.key)) return html`<p class="lf-rows-empty">${short}</p>`;
-    return html`<p class="lf-rows-empty lf-fp-empty-fold">
-      <span>${short}</span>${settledPress(fold.key, fold.title, fold.count)}
-    </p>`;
   }
   // Every message the user has started and not sent stands under Drafts, over the
   // threads, but the page's own, which the field under the list holds. A draft stays
@@ -3270,15 +3248,9 @@ export function createFloatingPanel({
       ${
         listed.length || (searched && drafts.length) || !inventoried()
           ? nothing
-          : searched
-            ? html`<p class="lf-rows-empty">Nothing matches.</p>`
-            : emptyLine(
-                `${NO_OPEN_THREADS}. Comment below to start one.`,
-                resolved.length
-                  ? { key: "resolved", title: "Resolved", count: resolved.length }
-                  : null,
-                `${NO_OPEN_THREADS}.`,
-              )
+          : html`<p class="lf-rows-empty">
+              ${searched ? "Nothing matches." : `${NO_OPEN_THREADS}. Comment below to start one.`}
+            </p>`
       }
       ${bandedGroups(groups, (thread) => thread.key, row)}
       ${
@@ -4268,8 +4240,6 @@ export function createFloatingPanel({
       (group) => {
         const count = group.count ?? group.items.length;
         const folded = group.folds && !unfolded.has(String(group.key));
-        // PROTOTYPE: `line` stands a lone fold on the list's empty line (`emptyLine`).
-        if (folded && groups.length === 1 && foldDesign() === "line") return nothing;
         return html`<section class="lf-rows-group">
           ${
             group.folds
@@ -4400,14 +4370,7 @@ export function createFloatingPanel({
     // Another grouping draws the list afresh: every card moves, and moving each keyed
     // node in turn would stand some back where they were.
     return html`${
-      items.length
-        ? nothing
-        : emptyLine(
-            emptyListText("me"),
-            finished.length
-              ? { key: "done:you", title: "Done", count: finished.length }
-              : null,
-          )
+      items.length ? nothing : html`<p class="lf-rows-empty">${emptyListText("me")}</p>`
     }${keyedBy(
       grouping,
       groupedItems(
@@ -4453,12 +4416,7 @@ export function createFloatingPanel({
         : html`${
             inHand.length || queued.length
               ? nothing
-              : emptyLine(
-                  emptyListText(agentName()),
-                  lists.done.length
-                    ? { key: "done:agent", title: "Done", count: lists.done.length }
-                    : null,
-                )
+              : html`<p class="lf-rows-empty">${emptyListText(agentName())}</p>`
           }${groupedItems(groups, (item, group) =>
             onItemCard(item, group.folds ? "done" : "agent"),
           )}`

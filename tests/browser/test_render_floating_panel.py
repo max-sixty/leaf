@@ -23,7 +23,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
-from render_cases_layout import page_at_rest, solid_png
+from render_cases_layout import page_at_rest, rings_drawn, solid_png
 from render_cases_navigation import UNDO_PAGE
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
@@ -510,7 +510,12 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
     with sending(page, "the last resolve"):
         page.keyboard.press("r")
-    expect(page.locator(panel_view("threads"))).to_be_visible()
+    threads = page.locator(panel_view("threads"))
+    expect(threads).to_be_visible()
+    # The user stands on the list itself, and nothing in it wears a ring: its only row
+    # is the folded Resolved, whose heading is no landing.
+    expect(threads).to_be_focused()
+    assert rings_drawn(page) == []
     # With no open thread left, the press takes the Resolve back.
     expect(press.locator(".lf-compose-press-word")).to_have_text("Undo")
     expect(press.locator("kbd")).to_have_text("z")

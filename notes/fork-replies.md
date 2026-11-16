@@ -346,9 +346,13 @@ them, `clerk` and the new `agent-turns`, start at 44.
    (`state.acting_agent_turn`). Until 2026-11-15 Leaf's PreToolUse hook marked the
    fork's commands instead, rewriting each to name the agent's id; it had to deny any
    `leaf` that didn't begin its Bash call, and every agent's `leaf` command while a new
-   fork's agent id was still unknown. The fork's PostToolBatch, which every other
-   subagent's still skips, renews its turn and hands it the thread's further messages
-   (`hook_transport.carry_agent_turn`).
+   fork's agent id was still unknown. In three runs of
+   `leaf-dev journey run claude-code --fork-work` on 2026-11-15, the forks ran 17
+   `leaf` commands (14 replies, 3 page states), and every one named its fork's turn,
+   each resumed fork its new one. 11 of them followed another command in their Bash
+   call, as `cd … && leaf …` does, which the hook had denied. The fork's PostToolBatch,
+   which every other subagent's still skips, renews its turn and hands it the thread's
+   further messages (`hook_transport.carry_agent_turn`).
 
    As the run of a fork it spawned ends, the module tells Leaf (`forks.ended`), which
    closes the fork's turn and judges each thread by the messages the turn picked up.

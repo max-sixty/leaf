@@ -70,14 +70,19 @@ A thread shows in a narrow card or panel, so a paragraph that reads fine in chat
 wall there. The user should take in at a glance what a message tells them and what it
 asks of them. A message is generally a sentence or two; where it has several points,
 such as the options a question weighs, give each a short paragraph or item, and a
-question a line of its own. The page carries the evidence. Record a decision, result,
+question a line of its own. The page carries the work. Record a decision, result,
 or deferred work on the page and link it from the reply with a fragment link such as
 `[the decision](#decision)`, which previews its target while the user points at it and
-opens any tab or group hiding it. To point
+opens any tab or group hiding it. The thread already reaches the passage or section it
+is on, as a card beside it or by Show on page in the panel, so a link to it takes the
+user nowhere new; say in words what changed in it. To point
 at lines of an `lf-code` block, put them after its id and a colon, in the grammar of
 its `hi` attribute: `[the retry](#client:12-18)`. Where
 the reasoning matters to someone using the result, keep the thread anchored to that
-section.
+section. Where a message rests on a source, such as a rule, a file or an earlier
+message, quote the whole passage it turns on, conditions included, so the user can
+check the message against it where they read; a passage longer than a few lines goes
+in a `<details>` in `--markup`.
 
 A reply renders as Markdown. Use `--text` for a one-liner, and `--file`, or a
 heredoc on stdin, for anything longer. A `math` fence holds a display formula; a

@@ -922,31 +922,46 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
         # Keep hover labels clear of the pixels whose ring thickness is measured.
         page.locator("h1").click()
         rendered(page)
-        ok = page.evaluate(
+        # Painted on a canvas, since the settled colours compute in the oklab their
+        # steps are written in, not as rgb().
+        ok, tint = page.evaluate(
             """() => {
-                 const probe = document.body.appendChild(document.createElement('i'));
-                 probe.style.color = 'var(--lf-settled)';
-                 const rgb = getComputedStyle(probe).color.match(/\\d+/g).slice(0, 3);
-                 probe.remove();
-                 return rgb.map(Number);
+                 const context = document.createElement('canvas')
+                   .getContext('2d', {willReadFrequently: true});
+                 return ['--lf-settled', '--lf-settled-tint'].map(name => {
+                   const probe = document.body.appendChild(document.createElement('i'));
+                   probe.style.color = `var(${name})`;
+                   context.fillStyle = getComputedStyle(probe).color;
+                   context.fillRect(0, 0, 1, 1);
+                   probe.remove();
+                   return [...context.getImageData(0, 0, 1, 1).data.slice(0, 3)];
+                 });
                }"""
         )
 
+        def distance(px, colour):
+            return sum(abs(a - b) for a, b in zip(px, colour, strict=True))
+
         def ok_run(clip):
             shot = Image.open(BytesIO(page.screenshot(clip=clip))).convert("RGB")
+            # A pixel is the ring's where it stands nearer the ring than half the way to
+            # the cell's ground, so the edge pixel the ring mostly covers counts.
             inked = [
-                sum(abs(a - b) for a, b in zip(px, ok, strict=True)) < 40
-                for px in rgb_pixels(shot)
+                distance(px, ok) < distance(tint, ok) / 2 for px in rgb_pixels(shot)
             ]
-            # The ring's two edges along this line: from the middle outward, the first run
-            # of ink each way, so a picked neighbour's edge past the hairline is its own.
-            half = len(inked) // 2
 
-            def first_run(line):
-                run = list(itertools.dropwhile(lambda inked: not inked, line))
-                return len(list(itertools.takewhile(bool, run)))
+            # The ring's two edges along this line: from each of the cell's edges, which
+            # stand 4px in from the clip's ends, inward, allowing the pixel an edge falls
+            # in. So a picked neighbour's ring past the hairline stays its own, and the
+            # cell's words, which the ring's colour now matches, stay inside the count.
+            def edge_run(line):
+                inward = line[3:]
+                start = next((i for i, ink in enumerate(inward[:3]) if ink), None)
+                if start is None:
+                    return 0
+                return len(list(itertools.takewhile(bool, inward[start:])))
 
-            return first_run(inked[half::-1]), first_run(inked[half:])
+            return edge_run(inked), edge_run(inked[::-1])
 
         for option in ("#c-redis", "#r-drill", "#r-rotate"):
             box = page.locator(option).bounding_box()

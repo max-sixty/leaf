@@ -139,7 +139,8 @@ def output_package(path, value):
         '<lf-output-proof id="proof">Output example.</lf-output-proof>'
     )
     registry_path.write_text(json.dumps(registry))
-    module = f"""import {{ LeafElement, html, publishOutput }} from "/runtime/widget-api.js";
+    module = f"""import {{ html }} from "/vendor/lit.js";
+    import {{ LeafElement, publishOutput }} from "/runtime/widget-api.js";
 customElements.define("lf-output-proof", class extends LeafElement {{
   setup() {{
     publishOutput(this, "count", {{count: 2}});

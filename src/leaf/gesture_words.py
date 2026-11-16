@@ -20,8 +20,8 @@ created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
-`name` is what the authoring contract calls it away from itself: the attribute its
-entry declares with `x-name`, else a leading `<summary>`, heading, or `<strong>`,
+`name` is what the authoring contract calls it away from itself: a widget's `label`
+attribute (the registry's `$attributes`), else a leading `<summary>`, heading, or `<strong>`,
 inside a leading `<header>` or `<hgroup>` too — the rule the browser's `addressableName` reads off
 the live page, read here off the document the gesture was made in.
 """
@@ -38,7 +38,7 @@ from .projection import (
     markup_value,
     state_projection,
 )
-from .registry.contract import event_spec
+from .registry.contract import NAME_ATTRIBUTE, event_spec, is_element_name
 from .revision_artifact import read_revision
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
@@ -78,12 +78,12 @@ def leading_title(node: dict) -> str:
 
 
 def element_name(node: dict, registry: dict) -> str:
-    """What the authoring contract calls an element away from itself: the attribute
-    its entry declares with `x-name`, else its leading title, in the words the author
-    wrote. The browser's `addressableName` reads the same rule off the live page;
-    `tests/name_cases.json` holds both to the same cases."""
-    attribute = registry.get(node["tag"], {}).get("x-name")
-    declared = (node["attrs"].get(attribute) or "").strip() if attribute else ""
+    """What the authoring contract calls an element away from itself: a widget's
+    `label` attribute (`contract.NAME_ATTRIBUTE`), else its leading title, in the
+    words the author wrote. The browser's `addressableName` reads the same rule off
+    the live page; `tests/name_cases.json` holds both to the same cases."""
+    widget = is_element_name(node["tag"]) and node["tag"] in registry
+    declared = (node["attrs"].get(NAME_ATTRIBUTE) or "").strip() if widget else ""
     return declared or leading_title(node)
 
 

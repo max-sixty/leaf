@@ -1,12 +1,14 @@
-import { pageScroller, regionScrollBehavior, TEXT_BOX } from "/runtime/widget-api.js";
+import { pageScroller } from "/runtime/widget-api.js";
 import {
   layoutBox,
   pageDocument,
   inPage,
   readingRegions,
+  regionScrollBehavior,
   shownBand,
   shownRegionBounds,
   skipped,
+  TEXT_BOX,
   uiInside,
   userScrollport,
 } from "/runtime/check-api.js";

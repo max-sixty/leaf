@@ -84,7 +84,7 @@ rule draws at once is drawn.
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
   scroll anchoring holds it while content above changes height, so a render keeps the
-  nodes it doesn't change, as a revision's patch, a widget declaring `x-patch: members`
+  nodes it doesn't change, as a revision's patch, a widget whose module declares `lfPatch`
   and a message's words (`setRenderedChildren` in `dom-children.js`) do, and Leaf turns
   anchoring off on no box the reader reads in. A revision then restores the reader's
   landmark (`version.js`). One Leaf hold, acting once, keeps what anchoring can't: the
@@ -715,6 +715,7 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
 | When a message was said, naming its day unless that is today                                          | `presence.js` `saidAt`                                                             |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                           |
+| The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                            |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
 | A thread's name, on every surface that names it                                                       | `thread/messages.js` `threadName` (`threadSummary(thread).topic` for packages)     |
 | The thread a name names: its key, its id, a message's, or this tab's attempt                          | `thread/state.js` `threadNamed`, `threadIdNamed`                                   |
@@ -767,7 +768,7 @@ keeps work off the presentation path and how held keys replay.
 5. Index passage fences and parent ids, then capture each widget's descriptor and
    typed authored state from the source DOM.
 6. Publish that document contract once.
-7. Import the modules `x-upgrade` declares for the tags present, and no others.
+7. Import the modules the layer holds (`$modules`) for the tags present, and no others.
 8. Run the dressing passes and wait for the presentation coordinator.
 9. Join the page-interface owners' reconciliation (`PAGE_INTERFACE`), separately
    from this document's own presentation check.

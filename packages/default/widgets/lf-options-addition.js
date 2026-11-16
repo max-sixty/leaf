@@ -1,16 +1,13 @@
 /* The option the author did not list: its draft, the `add` and `choose` bound to that
  * draft generation, and the option nodes each `add` in force puts in the group. */
+import { guard, html, render, repeat } from "/vendor/lit.js";
 import {
-  guard,
-  html,
   loadDraft,
   inlineMarkdownFragment,
   loadMarkdown,
   markdownReady,
   move,
   offer,
-  render,
-  repeat,
   saveDraft,
   sendDraft,
   TEXT_FIELD,

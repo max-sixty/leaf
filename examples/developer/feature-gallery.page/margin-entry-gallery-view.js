@@ -1,5 +1,5 @@
 /* Lit view for the margin-entry exhibit, constructed during widget setup. */
-import { html, ref } from "/runtime/widget-api.js";
+import { html, ref } from "/vendor/lit.js";
 import { offerActionElement, generatedElement } from "/runtime/widget-api.js";
 const GROUPS = [
   {

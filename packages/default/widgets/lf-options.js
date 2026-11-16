@@ -103,6 +103,7 @@
  * adds shows its words as inline Markdown (`OptionAddition`). */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
+import { nothing } from "/vendor/lit.js";
 import {
   addressableLabel,
   addressableWord,
@@ -113,7 +114,6 @@ import {
   keeps,
   keepsText,
   LeafElement,
-  nothing,
   landInThread,
   markdownWords,
   offer,
@@ -621,9 +621,12 @@ customElements.define(
       mark.classList.toggle("lf-ui", pressable);
       keeps(mark, "role", pressable ? "checkbox" : "img");
       keeps(mark, "data-lf-offer", pressable ? "checkbox" : null);
-      // The option's words stand beside the mark and its position is a listener's, so
-      // pointing at the mark reads only the word its shape stands for.
-      mark.lfPreview = () => ({ name: mark.textContent });
+      // Pointing at the mark reads nothing: its round or square corner says whether the
+      // group takes one option or any, the option's words stand beside it, and the digit
+      // drawn on its option while focus is in the group says its key. Its name stays a
+      // listener's. Until 15 November 2026 it previewed "choose one", the word its shape
+      // stands for.
+      mark.lfPreview = () => false;
       this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card
       // places its mark out of flow in the header and cannot see this, so one insertion

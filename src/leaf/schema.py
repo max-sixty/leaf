@@ -666,6 +666,8 @@ INTERACTIONS_FILE = "observations.jsonl"
 PREVIEW_FILE = "preview.json"
 USER_VIEWS_FILE = "user-views.json"
 USER_VIEWS_LOCK = "user-views.lock"
+DRAFTS_FILE = "drafts.json"
+DRAFTS_LOCK = "drafts.lock"
 RENDER_CHECKS_DIR = "checks"
 # How long a bare address stays authorized after the last handover link (`host_key`),
 # the lifetime Jupyter gives its login cookie.
@@ -683,6 +685,7 @@ SESSION_FILES = (
     WAITER_LOCK,
     USER_VIEWS_FILE,
     USER_VIEWS_LOCK,
+    DRAFTS_LOCK,
     SERVICE_FILE,
     SERVER_LOCK,
     PREVIEW_FILE,
@@ -696,6 +699,9 @@ PAGE_STATE_FILES = (
     EVENTS_FILE,
     INTERACTIONS_FILE,
     FILE_BINDINGS_FILE,
+    # The user's unsent words, which outlive the process serving them as the log does
+    # (`drafts.py`), though no reading of the page counts them (`reading.UNWATCHED`).
+    DRAFTS_FILE,
     *SESSION_FILES,
 )
 PAGE_OWNED_FILES = ("index.html", *PAGE_STATE_FILES)

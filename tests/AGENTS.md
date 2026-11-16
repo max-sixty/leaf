@@ -195,8 +195,7 @@ such as DOM a script changes after load, puts the page in
 that state and calls the probe through `leaf.render_checks.evaluate_probe`.
 
 Where the product already answers a question, use its answer: `root_overflow` for
-sideways scroll, `draft_key` and `stored_draft`
-for drafts, `event_log.read_events` for the log. Read the page through its public
+sideways scroll, `stored_draft` for drafts, `event_log.read_events` for the log. Read the page through its public
 entries (`window.__lfWidgetApi()`, `__lfCheckApi()`, `__lfClientApi()`, and
 `__lfOverlayApi()` for overlay geometry); tests can't import private source
 paths.
@@ -287,10 +286,11 @@ check a new held process, make the test fail right after starting it, then confi
 
 ### Browser storage
 
-Panel state and drafts live in `localStorage` and reading position in `sessionStorage`,
-so a reload keeps them;
-clear both for a first visit. Each `Browser.new_page` is its own context, so two tabs of
-one user share `one_user`.
+Panel state lives in `localStorage` and reading position in `sessionStorage`, so a
+reload keeps them; clear both for a first visit. Each `Browser.new_page` is its own
+context, so two tabs of one user share `one_user`. Drafts are the page's server's,
+which every context reaches (`stored_drafts`); another tab's or device's write is
+`write_draft_elsewhere`.
 
 ## Driving the browser
 

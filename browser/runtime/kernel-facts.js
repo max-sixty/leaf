@@ -15,7 +15,7 @@
    read it here. */
 import kernel from "./kernel-registry.json" with { type: "json" };
 
-const { collapse, blocks, context, phrasing } = kernel.$passages;
+const { collapse, blocks, context, phrasing, closing, opening } = kernel.$passages;
 // How a page turns into text (`leaf/passages.py`): a run of these characters is one
 // space, each of these tags is one block, and an anchor starts with this much context
 // on each side of its quote. Escaped, since a character class gives `]`, `\`, `^` and
@@ -30,6 +30,10 @@ export const TEXT_BLOCK = blocks.join(",");
 // The elements a line of words runs through (`$passages.phrasing`).
 export const PHRASING = new Set(phrasing);
 export const CONTEXT = context;
+// The marks no shown space stands before (`CLOSING`) or after (`OPENING`) at an edge
+// (`$passages.why-closing-and-opening`).
+export const CLOSING = new Set(closing);
+export const OPENING = new Set(opening);
 
 // A widget's tag, which tells a widget declaration from an idiom selector.
 export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);

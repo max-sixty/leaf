@@ -349,9 +349,14 @@ class _OwnedWords:
 JOINS_WORDS_TAGS = frozenset(kernel_passages()["phrasing"])
 # The tags whose words are prose: inside one, an edge between two runs of words shows as
 # nothing, as `set<em>up</em>` reads "setup"; outside any, where two elements meet it
-# shows as a space, as a chip beside its title does (`_write`, the runtime's
+# shows as a space, as a chip beside its title does, unless a closing mark follows it or
+# an opening one precedes it (`CLOSING`, `OPENING`; `_write`, the runtime's
 # `shownApart`). A quote of either spelling resolves the same.
 TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
+# The marks no shown space stands before (`CLOSING`) or after (`OPENING`) at an edge
+# (`$passages.why-closing-and-opening`).
+CLOSING = frozenset(kernel_passages()["closing"])
+OPENING = frozenset(kernel_passages()["opening"])
 # Text no anchor can reach: executable/style content and native field defaults.
 # head is outside the browser's tree altogether, which starts at document.body —
 # without it a page's <title> would be quotable and land nowhere.
@@ -437,8 +442,9 @@ class _PassageParser:
         """Text into the collapsed run, one space per whitespace run and none leading,
         and an edge where it runs on from the last text in its block with none. The edge
         shows as a space, a soft one, where `holder`, the key of the element or said
-        value's span holding the text, is not the one that held the last text and neither
-        stands in prose (a text block): the runtime's `shownApart`."""
+        value's span holding the text, is not the one that held the last text, neither
+        stands in prose (a text block), and no closing mark follows the edge or opening
+        one precedes it: the runtime's `shownApart`."""
         if data.strip():
             self.bearing.update(ids)
         edge = bool(self.chars) and block == self._block
@@ -457,7 +463,14 @@ class _PassageParser:
                 self.chars.append(" ")
                 self.owner.append(ids)
                 self._space = self._break = False
-            elif edge and not prose and holder is not None and holder != self._holder:
+            elif (
+                edge
+                and not prose
+                and holder is not None
+                and holder != self._holder
+                and ch not in CLOSING
+                and self.chars[-1] not in OPENING
+            ):
                 self.soft.add(len(self.chars))
                 self.chars.append(" ")
                 self.owner.append(ids)

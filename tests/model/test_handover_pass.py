@@ -62,7 +62,7 @@ def pass_page(claimed, monkeypatch):
     monkeypatch.setattr(
         handover_pass_model.HandoverPass,
         "_read",
-        lambda self: reads.append(self),
+        lambda self, _digest: reads.append(self),
     )
     return SimpleNamespace(
         dir=claimed, passes=handover_pass_model.HandoverPass(claimed), reads=reads
@@ -245,23 +245,34 @@ def test_a_reading_beside_another_of_its_version_tells_nothing_twice(
     assert [f["text"] for f in event["findings"]] == [FAILURE["text"]]
 
 
-def test_a_page_too_heavy_to_read_costs_its_deadline_once(claimed, monkeypatch):
-    """A reading its alarm ended stops its server's pass."""
+def test_a_reading_its_alarm_ended_is_told_as_a_failure_and_costs_it_once(
+    claimed, monkeypatch
+):
+    """A page whose script never stops is told it couldn't be read, its version isn't
+    read again, and its next version is."""
     ran = []
 
     def overran(*args, **_kwargs):
         ran.append(args)
         return subprocess.CompletedProcess(args, -signal.SIGALRM)
 
-    monkeypatch.delenv(handover_pass_model.VARIABLE)
-    monkeypatch.setattr(handover_pass_model, "LOOK_S", 0)
     monkeypatch.setattr(handover_pass_model, "QUIET_S", 0)
     monkeypatch.setattr(handover_pass_model.subprocess, "run", overran)
     state_model.prompt_turn("s1")
-    save(claimed, "heavy")
+    save(claimed, "loops")
     state_model.close_session_turn("s1")
-    handover_pass_model.HandoverPass(claimed).run()
+    handover_pass_model.HandoverPass(claimed).look()
+    handover_pass_model.HandoverPass(claimed).look()
     assert len(ran) == 1
+    [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
+    [finding] = event["findings"]
+    assert finding["severity"] == "error"
+    assert "after 30 minutes" in finding["text"]
+    state_model.prompt_turn("s1")
+    save(claimed, "fixed")
+    state_model.close_session_turn("s1")
+    handover_pass_model.HandoverPass(claimed).look()
+    assert len(ran) == 2
 
 
 def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir):

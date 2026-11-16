@@ -30,11 +30,13 @@ pages from 2026-11-10 to 11-14, none overlapped and at most 4 started within a l
 another ending. A server started again while its predecessor's reading still runs may
 read that version a second time. The first of the two to tell, inside the page's
 transaction, tells the version, and the other tells nothing and leaves its reading. A
-reading that runs past `DEADLINE_S` is ended by its own alarm, tells nobody anything and
-ends its server's pass, so a page too heavy to read costs that once. A handover right
-after the last save waits 10 to 15 s for the version to stand and the next look, then
-for the reading: on 2026-11-10 a page whose reading took 9 s told the agent 19 s after
-its turn ended, in each of 3 runs.
+reading that runs past `DEADLINE_S` is ended by its own alarm. Only a page whose own
+script never stops gets there, so its server tells the agent, as a failure, that the
+version couldn't be read, and keeps that as the version's reading, so the page costs the
+deadline once. Until the alarm, its server reads no later version of the page. A
+handover right after the last save waits 10 to 15 s for the version to stand and the
+next look, then for the reading: on 2026-11-10 a page whose reading took 9 s told the
+agent 19 s after its turn ended, in each of 3 runs.
 
 **What it costs**, measured 2026-11-10 on the shared 18-core Mac at load 3-33, on copies
 of 38 real pages. On the 23 that pass plain check, a reading took a median 12 s and 13
@@ -80,6 +82,7 @@ from datetime import datetime
 from pathlib import Path
 
 from leaf.event_log import read_events
+from leaf.findings import Finding
 from leaf.harness import detached_environment
 from leaf.presence import claimant_reading
 from leaf.revision_artifact import read_artifact
@@ -95,10 +98,11 @@ VARIABLE = "LEAF_RENDER_PASS"
 LOOK_S = 5
 # How long a version stands before anyone reads it.
 QUIET_S = 10
-# The whole reading, far past the 23 s of the slowest real page sampled. The heaviest
-# page the suite renders, the corpus, takes 384 s, so a server spends this on it once.
-# The reading's own alarm ends it, so a reading outlives its server by no more.
-DEADLINE_S = 180
+# The whole reading, which only a page whose own script never stops should reach: 47
+# times the 38 s of the slowest of 123 real readings (2026-11-10 to 11-14), and 5 times
+# the 384 s of the corpus, the heaviest page the suite renders. The reading's own alarm
+# ends it, so a reading outlives its server by no more.
+DEADLINE_S = 1800
 # Lower than the user's and other sessions' work, without the throttling of a background
 # QoS, which holds headless Chrome to about 10 fps and breaks a timed reading.
 NICENESS = 10
@@ -201,9 +205,7 @@ def cmd_read(page_dir: Path) -> None:
 
 
 def _read_and_tell(page_dir: Path) -> None:
-    from leaf.event_contracts import append_admitted
     from leaf.interaction_log import append_interactions
-    from leaf.presence import nudge_unwatched
     from leaf.validation.command import check_page
 
     started = time.monotonic()
@@ -211,33 +213,7 @@ def _read_and_tell(page_dir: Path) -> None:
     found = _finished(read[1]) if read is not None else None
     told = []
     if read is not None and found is not None:
-        digest = read[0]
-        with PageTransaction(page_dir) as page:
-            # The live version as of now, a save since the check froze the source
-            # included, as a tab would make it live.
-            live = activate_source(page_dir, transaction=page).revision
-            before = read_reading(page_dir)
-            # A reading of this version beside this one that told first, under this
-            # transaction, has told it.
-            if (
-                live is not None
-                and read_artifact(page_dir, live).digest == digest
-                and not _has_read(before, digest)
-            ):
-                told = untold(before, found)
-                if told:
-                    event, _ = append_admitted(
-                        page,
-                        {
-                            "kind": "render",
-                            "author": "page",
-                            "revision": live,
-                            "findings": told,
-                        },
-                    )
-                    if requires_agent_attention(event):
-                        nudge_unwatched(page)
-                _write(page_dir, digest, found)
+        told = _tell(page_dir, read[0], found)
     append_interactions(
         page_dir,
         [
@@ -250,6 +226,43 @@ def _read_and_tell(page_dir: Path) -> None:
             }
         ],
     )
+
+
+def _tell(page_dir: Path, digest: str, found: list[dict]) -> list[dict]:
+    """Tell the agent the findings `found` of the version `digest` that the page's
+    latest reading didn't hold, and leave them as its reading, where that version is
+    still live and no reading of it beside this one told first. The findings told."""
+    from leaf.event_contracts import append_admitted
+    from leaf.presence import nudge_unwatched
+
+    with PageTransaction(page_dir) as page:
+        # The live version as of now, a save since the check froze the source
+        # included, as a tab would make it live.
+        live = activate_source(page_dir, transaction=page).revision
+        before = read_reading(page_dir)
+        # A reading of this version beside this one that told first, under this
+        # transaction, has told it.
+        if (
+            live is None
+            or read_artifact(page_dir, live).digest != digest
+            or _has_read(before, digest)
+        ):
+            return []
+        told = untold(before, found)
+        if told:
+            event, _ = append_admitted(
+                page,
+                {
+                    "kind": "render",
+                    "author": "page",
+                    "revision": live,
+                    "findings": told,
+                },
+            )
+            if requires_agent_attention(event):
+                nudge_unwatched(page)
+        _write(page_dir, digest, found)
+    return told
 
 
 def _handed_over(present: dict, turn, saved: int) -> bool:
@@ -270,13 +283,14 @@ def _has_read(reading: dict | None, digest: str) -> bool:
     return reading is not None and reading["digest"] == digest
 
 
-def _unread(page_dir: Path) -> bool:
-    """Whether the page's live version, which this makes live where no tab has, is one
-    no reading has read."""
+def _unread(page_dir: Path) -> str | None:
+    """The digest of the page's live version, which this makes live where no tab has,
+    where no reading has read it."""
     revision = activate_source(page_dir).revision
-    return revision is not None and not _has_read(
-        read_reading(page_dir), read_artifact(page_dir, revision).digest
-    )
+    if revision is None:
+        return None
+    digest = read_artifact(page_dir, revision).digest
+    return None if _has_read(read_reading(page_dir), digest) else digest
 
 
 class HandoverPass:
@@ -320,13 +334,15 @@ class HandoverPass:
                 or time.time() - saved / 1e9 < QUIET_S
             ):
                 return
-            if _unread(page_dir):
-                self._read()
+            if (digest := _unread(page_dir)) is not None:
+                self._read(digest)
         self.settled = source
 
-    def _read(self) -> None:
-        """Read in a child that speaks for no harness session, so the claimant's command
-        diagnostics don't count its seconds as the agent's."""
+    def _read(self, digest: str) -> None:
+        """Read the version `digest` in a child that speaks for no harness session, so
+        the claimant's command diagnostics don't count its seconds as the agent's. A
+        child ended by its alarm told nothing, so this tells the agent that the version
+        couldn't be read."""
         ended = subprocess.run(
             [sys.executable, "-m", "leaf", "page", "_read", str(self.page_dir)],
             stdin=subprocess.DEVNULL,
@@ -335,4 +351,5 @@ class HandoverPass:
             check=False,
         ).returncode
         if ended == -signal.SIGALRM:
-            raise RuntimeError(f"a reading ran past {DEADLINE_S} s")
+            overran = Finding("reading-overran", values={"seconds": DEADLINE_S})
+            _tell(self.page_dir, digest, [overran.json()])

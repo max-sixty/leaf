@@ -146,37 +146,43 @@
 // composed effects receive no inferred translation credit.
 //
 // Runs of motion. Movement without input is judged from the sensor's own readings,
-// the same at any frame rate. A run of motion starts at a frame whose reading changed
-// while no input, typing or presentation owned it. It goes on while each frame's
-// reading changes or a box keeps moving on its own clock, as a running animation that
-// moves a box or a closing disclosure does. A frame that reads no change while nothing
-// moves ends it, and so does a frame that input, typing or presentation owns. Each
-// frame of a run compares every protected landmark with its reading in the frame
-// before the run, crediting the motion owned in any frame of the run (`audit`). So a
-// slow animation's steps, each under a pixel on a fast host, add up to the move a
-// starved host draws in one frame, and both fail. A landmark first read during the
-// run has no reading from before it, so each of its frames is compared with the one
-// before.
+// which add up a slow animation's steps, rather than from Chrome's layout-shift
+// entries. Chrome reports a shift only of layout, never of a transform, and only for a
+// box that moved at least 3 CSS px between two paints, so its report alone would judge
+// a slow animation by the frame rate that draws it. A run of motion starts at a frame
+// whose reading changed while no input, typing or presentation owned it. It goes on
+// while each frame's reading changes or a box keeps moving on its own clock, as a
+// running animation that moves a box or a closing disclosure does. A frame that reads
+// no change while nothing moves ends it, and so does a frame that input, typing or
+// presentation owns. Each frame of a run compares every protected landmark with its
+// reading in the frame before the run, crediting the motion owned in any frame of the
+// run (`audit`). So a slow animation's steps, each under a pixel on a fast host, add up
+// to the move a starved host draws in one frame, and both fail. A declaration's
+// permission (append growth, widening, reflow) is judged one frame's step at a time,
+// since two permitted transitions need not form one from the first frame to the last,
+// and the run's comparison takes away what each step permitted. A landmark first read
+// during the run is compared from the frame that first read it.
 //
 // A move fails where the next reading still finds the landmark away from where the run
-// began, since the frame between those two readings painted it (`standingMotion`).
-// Typing is judged the same way, from where the key found its field and the boxes
-// holding it to each reading of the key's rendering (`standingTyping`). The
-// sensor reads in an animation frame callback, and the page's own callbacks in that
-// frame can change layout before it paints, so a pose read only once may never have
-// been painted, as when a frame's callback undoes a task's write. Such a roundtrip
-// fails only where Chrome reports painting it: a layout-shift entry whose source moved
-// as far as the landmark did in its last frame. The ledger keeps the samples from
-// before the entry's frame until the entry is judged, so a late observer delivery
-// still finds them. Chrome reports a shift only of layout, never of a transform, and
-// only for a box that moved at least 3 CSS px between two paints, so its report alone
-// would judge a slow animation by the frame rate that draws it. The readings include
-// transforms, so a transform that carries reading or a control without input fails as
-// a layout move does: browser/AGENTS.md ("The page holds still under the user's aim")
-// keeps still what the user reads, whatever moves it. A roundtrip that Chrome doesn't
-// report, a transform's or one under 3 px a frame, still depends on the frame rate: a
-// fast host reads it in several frames and fails it, where a starved host may read it
-// in one frame only.
+// began (`standingMotion`). Typing is judged the same way, from where the key found its
+// field and the boxes holding it to each reading of the key's rendering
+// (`standingTyping`). The sensor reads in an animation frame callback, and the page's
+// own callbacks in that frame can change layout before it paints, so a pose read once
+// may never have been painted, as when a frame's callback undoes a task's write. Such a
+// roundtrip fails only where Chrome reports painting it: a layout-shift entry whose
+// source moved as far as the landmark did in its last frame. The ledger keeps the
+// samples from before the entry's frame until the entry is judged, so a late observer
+// delivery still finds them. A page that writes the same layout in a task before every
+// frame and undoes it in a callback before every paint shows a pose in every reading
+// that it never paints, and fails though it held still.
+//
+// The readings include transforms, so a transform that carries reading or a control
+// without input fails as a layout move does: browser/AGENTS.md ("The page holds still
+// under the user's aim") keeps still what the user reads, whatever moves it.
+//
+// One verdict still depends on the frame rate. A roundtrip that Chrome doesn't report,
+// a transform's or one under 3 px a frame, fails on a fast host, which reads it in
+// several frames, and may pass on a starved host, which reads it once.
 //
 // Unchanged frames. A reading appends to the ledger only where a node's reading
 // differs from its last, so a frame on which nothing could have changed keeps the
@@ -3770,18 +3776,38 @@
     if (!held) frameNodes.set(frame.nodes, (held = new Set(frame.nodes)));
     return held.has(node);
   };
-  // Compares each protected node of `nodes` at `around[2]` with its reading at
-  // `around[0]`, crediting `animations` across them, and keeps each uncredited move for
-  // admission. `step` is the frame before `around[2]`, whose reading Chrome's painted
-  // shift is measured from.
+  // A rect moved back by `by`.
+  const unmoved = (rect, by) => ({
+    left: rect.left - by.left,
+    right: rect.right - by.left,
+    top: rect.top - by.top,
+    bottom: rect.bottom - by.top,
+    width: rect.width,
+    height: rect.height,
+  });
+  // Compares each protected node read at frame `to` with its reading at the frame
+  // `from` gives it, crediting `animations` across them, less the displacement
+  // `permitted` holds for it, and keeps each uncredited move of a node `judged` accepts
+  // for admission. A move a declaration permits (append growth, widening, reflow) is
+  // added to `permits` instead, so a run takes away what each of its transitions
+  // permitted rather than asking whether its endpoints form one permitted transition.
+  // `step` is the frame before `to`, whose reading Chrome's painted shift is measured
+  // from.
   const protectedMotion = (
-    around,
-    animations = around.flatMap((frame) => frame.motion),
-    step = around[0],
-    nodes = new Set(around.flatMap((frame) => frame.nodes)),
+    to,
+    { from, animations, step, judged = () => true, permitted = null, permits = null },
   ) => {
-    const growth = appendGrowth(around);
-    for (const node of nodes) {
+    // Append growth is read once for each frame compared from, and only once a move
+    // asks for it.
+    const growths = new Map();
+    for (const node of to.nodes) {
+      const start = from(node);
+      if (!start || start === to) continue;
+      const around = [start, start, to];
+      const growth = () => {
+        if (!growths.has(start)) growths.set(start, appendGrowth(around));
+        return growths.get(start);
+      };
       const readings = around.map(({ at }) => readingAt(node, at));
       if (!readings.every(Boolean)) continue;
       if (!readings.some(({ paint }) => paint.reading || paint.control || paint.reflow))
@@ -3816,14 +3842,16 @@
           i++
         ) {
           const previousRect = prior.fragments[i],
-            currentRect = next.fragments[i];
+            drawnRect = next.fragments[i];
           if (
             !previousRect.width ||
             !previousRect.height ||
-            !currentRect.width ||
-            !currentRect.height
+            !drawnRect.width ||
+            !drawnRect.height
           )
             continue;
+          const shift = permitted?.get(node)?.[i] ?? { left: 0, top: 0 };
+          const currentRect = unmoved(drawnRect, shift);
           if (
             !carried(previousRect, currentRect, "top", "bottom") &&
             !carried(previousRect, currentRect, "left", "right")
@@ -3833,8 +3861,8 @@
             to = layoutAt(node, around[after].at);
           const layoutLeft = previousRect.left - prior.rect.left + from.left;
           const layoutTop = previousRect.top - prior.rect.top + from.top;
-          const nextLeft = currentRect.left - next.rect.left + to.left;
-          const nextTop = currentRect.top - next.rect.top + to.top;
+          const nextLeft = drawnRect.left - next.rect.left + to.left - shift.left;
+          const nextTop = drawnRect.top - next.rect.top + to.top - shift.top;
           const x =
             carried(previousRect, currentRect, "left", "right") &&
             Math.abs(layoutLeft - nextLeft) >= 1 &&
@@ -3847,36 +3875,49 @@
             Math.abs(currentRect.top - previousRect.top - scroll.top - motion.top) >= 1;
           if (!x && !y) continue;
           const fromPaint = paintState(node, previousRect, around[before].at);
-          const toPaint = paintState(node, currentRect, around[after].at);
+          const toPaint = paintState(node, drawnRect, around[after].at);
           if (
-            fromPaint.paintable &&
-            toPaint.paintable &&
-            (fromPaint.visible || toPaint.visible) &&
-            readIn(around[before], node) &&
-            readIn(around[after], node) &&
-            !permittedAppend(node, previousRect, currentRect, around, growth) &&
-            !permittedWidening(
-              {
-                node,
-                previousRect: fromPaint.painted,
-                currentRect: toPaint.painted,
-              },
-              around,
-            ) &&
-            !permittedReflow(
-              {
-                node,
-                previousRect: fromPaint.painted,
-                currentRect: toPaint.painted,
-              },
-              around,
-            )
+            !fromPaint.paintable ||
+            !toPaint.paintable ||
+            !(fromPaint.visible || toPaint.visible) ||
+            !readIn(around[before], node) ||
+            !readIn(around[after], node)
           )
+            continue;
+          const painted = {
+            node,
+            previousRect: fromPaint.painted,
+            currentRect: toPaint.painted,
+          };
+          if (
+            permittedAppend(node, previousRect, drawnRect, around, growth()) ||
+            permittedWidening(painted, around) ||
+            permittedReflow(painted, around)
+          ) {
+            if (!permits) continue;
+            const held = permits.get(node) ?? [];
+            const by = held[i] ?? { left: 0, top: 0 };
+            held[i] = {
+              left:
+                by.left +
+                currentRect.left -
+                previousRect.left -
+                scroll.left -
+                motion.left,
+              top:
+                by.top + currentRect.top - previousRect.top - scroll.top - motion.top,
+            };
+            permits.set(node, held);
+            continue;
+          }
+          if (judged(node))
             pendingMotion.push({
               node,
               fragment: i,
               previousRect,
               currentRect,
+              drawnRect,
+              permitted,
               stepAt: step.at,
               stepRect: readingAt(node, step.at)?.fragments[i] ?? previousRect,
               before: around[before].at,
@@ -3926,20 +3967,32 @@
       run = null;
       return;
     }
-    run ??= { from: before, motion: new Set(before.motion) };
+    run ??= {
+      from: before,
+      motion: new Set(before.motion),
+      permitted: new Map(),
+      arrived: new Map(),
+    };
     for (const animation of after.motion) run.motion.add(animation);
     if (!changed) return;
-    const motion = [...run.motion];
-    protectedMotion([run.from, run.from, after], motion, before);
-    // A node first read during the run has no reading from before it, so it is judged
-    // from one frame to the next.
-    if (run.from !== before)
-      protectedMotion(
-        [before, before, after],
-        motion,
-        before,
-        after.nodes.filter((node) => !readIn(run.from, node)),
-      );
+    const animations = [...run.motion];
+    const { from, permitted, arrived } = run;
+    // A node first read during the run is judged from the frame that first read it.
+    for (const node of after.nodes)
+      if (!arrived.has(node) && !readIn(from, node)) arrived.set(node, after);
+    const origin = (node) => (readIn(from, node) ? from : arrived.get(node));
+    // This frame's step records what a declaration permits. On the run's first frame
+    // it is the run's own comparison too.
+    protectedMotion(after, {
+      from: () => before,
+      animations,
+      step: before,
+      judged: () => from === before,
+      permits: permitted,
+    });
+    // The run's comparison judges each node from where it stood when the run began.
+    if (from !== before)
+      protectedMotion(after, { from: origin, animations, step: before, permitted });
   };
   // A move stands where the reading after it still finds the node away from where the
   // run began: the frame between the two readings painted it. Each move is judged so
@@ -3989,12 +4042,12 @@
           Math.abs(
             source.currentRect.left -
               source.previousRect.left -
-              (move.currentRect.left - move.stepRect.left),
+              (move.drawnRect.left - move.stepRect.left),
           ) < 1 &&
           Math.abs(
             source.currentRect.top -
               source.previousRect.top -
-              (move.currentRect.top - move.stepRect.top),
+              (move.drawnRect.top - move.stepRect.top),
           ) < 1
         );
       });
@@ -4003,7 +4056,12 @@
       for (const [fragment, chain] of fragments) {
         const first = chain[0],
           last = chain.at(-1);
-        const current = readingAt(node, next)?.fragments[fragment];
+        // Where the next reading finds the node, less what the run's transitions
+        // permitted it, as its moves are measured.
+        const drawn = readingAt(node, next)?.fragments[fragment];
+        const current =
+          drawn &&
+          unmoved(drawn, last.permitted?.get(node)?.[fragment] ?? { left: 0, top: 0 });
         const net =
           carried(first.previousRect, last.currentRect, "top", "bottom") ||
           carried(first.previousRect, last.currentRect, "left", "right");
@@ -4111,7 +4169,11 @@
       }
       const rendering = renderings.findLast(({ start }) => start <= at);
       if (observed && frame !== -1)
-        protectedMotion([frames[frame], frames[frame], observed]);
+        protectedMotion(observed, {
+          from: () => frames[frame],
+          animations: frames[frame].motion,
+          step: frames[frame],
+        });
       const typing = rendering?.typing;
       if (typing && at <= typing.until) {
         // A later frame may include the next gesture; typed() caps its reading at

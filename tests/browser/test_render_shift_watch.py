@@ -499,23 +499,35 @@ def test_a_shift_without_input_fails(browser):
 
 # Words under a box, and a button holding its label centred. A script animates the
 # box's height, carrying the words; the button's, re-centring its label; or the words'
-# own `translate`. `#press` begins the box's animation from a press instead.
+# own `translate`. `#press` begins the box's animation from a press instead. For
+# `arrives`, a spinner keeps the page moving while words arrive, and then slide.
 STEPPED_MOTION = """<!doctype html><body style="margin:0">
 <div id="box" style="height:24px"></div>
 <p id="below">Words under the box</p>
 <button id="centred" style="position:absolute;top:0;left:200px;height:24px">
 Centred</button>
 <button id="press" style="position:absolute;top:0;left:300px">Press</button>
+<div id="spinner" style="position:absolute;top:0;left:400px;width:10px;height:10px">
+</div>
 <script>
+  const late = document.createElement("p");
+  late.id = "late";
+  late.textContent = "Words that arrive";
   const motions = {
     grows: [box, [{height: "24px"}, {height: "40px"}]],
     centres: [centred, [{height: "24px"}, {height: "40px"}]],
     slides: [below, [{translate: "0 0"}, {translate: "0 16px"}]],
+    arrives: [late, [{translate: "0 0"}, {translate: "0 16px"}]],
   };
   // Draws `motion` to its end `step` px of the box's growth a frame, as a fast host
   // draws a slow animation in small steps and a starved host a fast one in large steps.
   window.animateBy = (motion, step) => new Promise((done) => {
     const [target, keyframes] = motions[motion];
+    if (motion === "arrives") {
+      spinner.animate([{rotate: "0deg"}, {rotate: "360deg"}],
+        {duration: 1000, iterations: Infinity});
+      document.body.append(late);
+    }
     const effect = target.animate(keyframes, {duration: 16, fill: "forwards"});
     effect.pause();
     let at = 0;
@@ -539,6 +551,7 @@ Centred</button>
         ("grows", 16, "p#below"),
         ("centres", 0.5, "button#centred"),
         ("slides", 0.5, "p#below"),
+        ("arrives", 0.5, "p#late"),
         ("press", 0.5, None),
     ],
 )
@@ -547,8 +560,9 @@ def test_motion_without_input_fails_at_any_frame_rate(browser, motion, step, mov
     16 px at a time. At 60 frames a second a slow animation moves the words less than
     the 3 px a frame Chrome reports as a layout shift, and less than a pixel, so the
     watch judges how far they have moved since the motion began rather than each
-    frame's step. It reads transforms too, which Chrome never reports. The same growth
-    begun by a press is credited across every one of its frames."""
+    frame's step, words that arrive while other motion goes on included. It reads
+    transforms too, which Chrome never reports. The same growth begun by a press is
+    credited across every one of its frames."""
     page = browser.new_page()
     page.goto("data:text/html," + quote(STEPPED_MOTION))
     paint(page)
@@ -906,6 +920,7 @@ def test_control_reflow_stays_inside_its_runtime_region(browser, fault, protecte
         ("", None),
         ("sticky_tail", None),
         ("tail_growth", None),
+        ("tail_then_arrival", None),
         ("undeclared_tail_growth", "button#reply"),
         ("tail_replaced", None),
         ("undeclared_tail_replaced", "button#reply"),
@@ -932,7 +947,9 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     """An arrival, or a last child declared the growing tail growing where none
     arrives or giving way to what arrives in its place, may move its reply and later
     cards, preserving the transcript; so may a port sized to what it holds that grows at
-    its foot with it, as a floating card does, and no further."""
+    its foot with it, as a floating card does, and no further. The tail growing and a
+    child arriving in the next frame are each permitted, though no one transition from
+    the first frame to the last would be."""
     # A floating port: nothing follows it in flow, so its foot is free to grow.
     floating = (
         "position:fixed;top:0;left:0;"
@@ -944,7 +961,13 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     tail = (
         " data-lf-append-tail"
         if fault
-        in {"tail_growth", "region_growth", "tail_and_region_growth", "tail_replaced"}
+        in {
+            "tail_growth",
+            "tail_then_arrival",
+            "region_growth",
+            "tail_and_region_growth",
+            "tail_replaced",
+        }
         else ""
     )
     hidden = (
@@ -999,6 +1022,13 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
           }
           else if (fault.endsWith('tail_growth'))
             document.getElementById('old').style.height = '80px';
+          else if (fault === 'tail_then_arrival') {
+            document.getElementById('old').style.height = '80px';
+            return new Promise((done) => requestAnimationFrame(() => {
+              source.append(next);
+              requestAnimationFrame(done);
+            }));
+          }
           else if (fault === 'region_growth') source.style.paddingBottom = '40px';
           else if (fault === 'tail_and_region_growth') {
             document.getElementById('old').style.height = '60px';
@@ -1018,7 +1048,7 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
     judge_watches()
     if not protected:
         grown = page.locator("#old").bounding_box()
-        if fault in {"tail_growth", "tail_replaced"}:
+        if fault in {"tail_growth", "tail_replaced", "tail_then_arrival"}:
             assert grown == {**before, "height": before["height"] + 40}
         else:
             assert grown == before
@@ -1028,7 +1058,10 @@ def test_append_reflow_credits_only_its_measured_suffix_growth(
                 port["y"] + port["height"] - 5 - reply_before["height"]
             )
         else:
-            assert page.locator("#reply").bounding_box()["y"] == reply_before["y"] + 40
+            carried = 80 if fault == "tail_then_arrival" else 40
+            assert page.locator("#reply").bounding_box()["y"] == (
+                reply_before["y"] + carried
+            )
     else:
         errors = consume_browser_errors(page, {"code": "moved-without-input"})
         assert names_move(errors, protected), errors

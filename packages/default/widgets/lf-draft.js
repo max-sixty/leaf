@@ -91,6 +91,7 @@ import {
   pressIsKeyboardActivation,
   reachedForWords,
   paintMarkdown,
+  dressCode,
   markdownSourceOffset,
   markdownWords,
   focusDestination,
@@ -180,6 +181,8 @@ customElements.define(
     #cancelSize = null;
     /** @type {ReturnType<typeof onPressAway> | null} */
     #stopPressAway = null;
+    /** @type {Promise<void> | undefined} */
+    #dressing;
 
     setup() {
       if (this.childNodes.length !== 1 || this.firstChild !== this.#body)
@@ -545,6 +548,19 @@ customElements.define(
           );
         }
       }
+    }
+
+    // The body `render` painted draws its code and formulas once it stands
+    // (module-state.md, "Rendering").
+    /** @param {Map<PropertyKey, unknown>} changed */
+    updated(changed) {
+      super.updated(changed);
+      this.#dressing = dressCode(this.#body);
+    }
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#dressing;
+      return result;
     }
 
     // A live editor owns its transient text; the complete state waits for it.

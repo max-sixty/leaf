@@ -480,8 +480,9 @@ def document_lines(n: int) -> str:
         "</lf-options></lf-ask>"
     )
     document = (
-        '<lf-text-document id="listing" label="steps.py" language="python">'
-        f"<pre>{steps(n * 32)}</pre></lf-text-document>"
+        '<lf-text-document id="listing" label="steps.py">'
+        f'<pre><code class="language-python">{steps(n * 32)}</code></pre>'
+        "</lf-text-document>"
     )
     return page("Document", question + document)
 
@@ -504,7 +505,7 @@ def side_documents(n: int) -> str:
     reads."""
     tabs = "".join(
         f'<lf-tab id="t{d}" label="Document {d}"><lf-text-document id="d{d}" '
-        f'source="s{d}" label="document_{d}.py" language="python"></lf-text-document>'
+        f'source="s{d}" label="document_{d}.py" class="language-python"></lf-text-document>'
         "</lf-tab>"
         for d in range(documents(n))
     )

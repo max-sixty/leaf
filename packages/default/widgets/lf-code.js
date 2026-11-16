@@ -3,7 +3,8 @@
  * remark at a line. Notes are moved, never rewritten, so their text stays quotable
  * — the annotated-walkthrough shape.
  *
- * `language` colors it. A token can span a newline (a docstring, a block comment)
+ * A `language-…` class colors it, on a `<code>` inside the `<pre>` as on any code
+ * block (`codeLanguage`). A token can span a newline (a docstring, a block comment)
  * and a line is the unit this widget numbers, so the tokens are cut at each
  * newline (tokenLines) rather than the source being colored a line at a time —
  * coloring line by line would restart the tokenizer inside the docstring and
@@ -52,6 +53,7 @@ import {
   setScroll,
   PendingTaskEvent,
   bodyText,
+  codeLanguage,
   commandsChanged,
   failSoft,
   layoutChanged,
@@ -159,7 +161,7 @@ customElements.define(
       ]);
       const source = bodyText(this);
       try {
-        const lang = this.getAttribute("language");
+        const lang = codeLanguage(this);
         // One representation either way: an uncolored block is the whole source as a
         // single unstyled token, so the line walk below has one shape to handle.
         const lines = tokenLines(

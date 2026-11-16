@@ -3,7 +3,7 @@
 import { html, keyed, noChange, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   ago,
-  highlightBlocks,
+  dressCode,
   keeps,
   LeafElement,
   loadMarkdown,
@@ -136,7 +136,7 @@ customElements.define(
       keeps(node, "data-lf-datum", identity);
       keeps(node, "data-lf-identity", record ? identity : null);
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value: record } }));
-      if (record) this.#work = highlightBlocks(this);
+      if (record) this.#work = dressCode(this);
     }
   },
 );

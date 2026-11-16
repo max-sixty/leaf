@@ -55,8 +55,9 @@
    settled that generation.
 
    Each write names the generation it replaces: the one this document last knew the
-   server held (`stored`), or none. The server takes it only over that one, and answers
-   with what it holds (`drafts.py`), so words another tab or device wrote in the
+   server held (`stored`), or none, and a page going away also names its own writes
+   still unanswered. The server takes it only over one it names, and answers with what
+   it holds (`drafts.py`), so words another tab or device wrote in the
    meantime come back in its place, and they own the draft: this document's words since
    then retire. Words written over a generation another tab sent start the draft again,
    since they are newer than anything sent. The server settles the generation an
@@ -318,15 +319,19 @@ function hearDrafts(version) {
 // it gives. An exported page has no server, so its drafts last as long as its tab.
 /** @type {Map<string, DraftRecord>} */
 const writing = new Map();
-/** @param {string} context @param {string | null} expect @param {DraftRecord} record
- * @param {boolean} [keepalive] */
+/** @param {string} context @param {(string | null)[]} expect the generations the write
+ * may replace, null for none @param {DraftRecord} record @param {boolean} [keepalive] */
 async function postDraft(context, expect, record, keepalive = false) {
   const response = await fetch(pageUrl("api/draft"), {
     method: "POST",
     // The runtime it names keeps a tab from before an update from writing a shape a
     // newer runtime reads (`_runtime_gate`).
     headers: layerHeaders({ "Content-Type": "application/json" }),
-    body: JSON.stringify({ context, expect, record }),
+    body: JSON.stringify({
+      context,
+      expect: expect.filter((attempt) => attempt !== null),
+      record,
+    }),
     keepalive,
   });
   if (!admitResponse(response))
@@ -342,7 +347,7 @@ function writeDraft(ctx) {
   const epoch = restores;
   writing.set(ctx, sent);
   draftCache.set(ctx, { ...copy, ours: new Set([...copy.ours, sent.attempt]) });
-  void postDraft(ctx, copy.stored, sent).then(
+  void postDraft(ctx, [copy.stored], sent).then(
     (answer) => {
       writing.delete(ctx);
       if (epoch === restores) heardWrite(ctx, sent, answer);
@@ -356,19 +361,20 @@ const writeWaiting = () => {
 };
 // A page going away sends the words still waiting again, in requests the browser
 // finishes after it (`keepalive`, which carries only a small body), since leaving may
-// cancel a write already out. Each names the generation the server most likely holds:
-// the one out, if that write is older than the words, else the one before it.
+// cancel a write already out, often before this listener runs. The server may have
+// taken that write all the same, or another whose answer never came back, so each
+// resend names every generation this document wrote since it last heard an answer
+// (`ours`) beside the one it knew the server held: whichever the server holds, the
+// newest words replace it.
 addEventListener("pagehide", () => {
   if (offlineInteractive) return;
   for (const [ctx, copy] of draftCache) {
     if (copy.durable) continue;
-    const out = writing.get(ctx);
-    const expect = out && out !== copy.record ? out.attempt : copy.stored;
     draftCache.set(ctx, {
       ...copy,
       ours: new Set([...copy.ours, copy.record.attempt]),
     });
-    void postDraft(ctx, expect, copy.record, true).catch(() => {});
+    void postDraft(ctx, [copy.stored, ...copy.ours], copy.record, true).catch(() => {});
   }
 });
 // How many drafts hold words the server hasn't taken yet, for a check that reads what

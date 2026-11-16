@@ -48,8 +48,13 @@ turn/start:
       Reply explicitly too for other widgets, work promised beyond this turn (`--todo`),
       a title or moving the thread (`references/threads.md`); an explicit reply
       posts at once, and your final message is then not posted.","h2":"Your reply
-      renders as Markdown in a narrow column: give each point its own short paragraph
-      or list item, link a page section as `[its name](#section-id)`, and fence
-      code or markup."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
+      renders as Markdown in a narrow card or panel. The thread already reaches
+      the passage or section it is on, as a card beside it or by Show on page, so
+      say in words what changed there, and link a page section elsewhere as `[its
+      name](#section-id)`. Give each point its own short paragraph or list item,
+      and fence code or markup. Where your answer rests on a source, such as a rule,
+      a file or a message, quote the whole passage it turns on, conditions included,
+      so the user can check your answer against it there; put a passage longer than
+      a few lines in a `<details>` in `--markup`."},"events":[{"attention":true,"kind":"comment","author":"user","text":"Use
       backfill first.","revision":1,"id":"user-event","ts":"2026-09-22T10:00:00-07:00","seq":1,"subject":{"kind":"thread","id":"user-event"},"threads":["user-event"],"handling":["h1","h2"],"answer":{"kind":"reply","parent":"user-event","responds":"user-event","ref":"00000001:0:user-event","writer":"turn"}}]}]}'
   turnTrigger: leaf

@@ -991,10 +991,11 @@ def held_frames(page):
 
     The page's frame clock, each frame's timestamp and `performance.now()`, stands still
     while held, so a motion a press sets off stands where it started however long the
-    hold lasts. The hold yields `step`, which runs the frames held so far in one real
-    frame, a frame's length (1/60 s) on, so a press after it meets the motion that far
-    along on a fast machine or a slow one. Leaving the hold rejoins real time and runs
-    the frames still held."""
+    hold lasts. The hold yields `step(frames=1)`. Each of its `frames` real frames runs
+    the callbacks held so far with the clock a frame's length (1/60 s) on, so a press
+    after it meets the motion that far along on a fast machine or a slow one, and a
+    reader sampling each frame sees the same frames of the motion on any host. Leaving
+    the hold rejoins real time and runs the frames still held."""
     page.evaluate(
         """() => {
           const frame = requestAnimationFrame.bind(window);
@@ -1027,7 +1028,10 @@ def held_frames(page):
         }"""
     )
     try:
-        yield lambda: page.evaluate("leafStepFrame()")
+        yield lambda frames=1: page.evaluate(
+            "async frames => { for (let i = 0; i < frames; i++) await leafStepFrame(); }",
+            frames,
+        )
     finally:
         page.evaluate("leafReleaseFrames()")
 
@@ -1411,6 +1415,16 @@ def heard_draft(page, ctx: str, text: str | None) -> None:
     )
 
 
+def heard_draft_settled(page, ctx: str) -> None:
+    """Wait until this tab holds no unsettled words for the draft at `ctx`, including
+    words it is sending, which `heard_draft` can't see: until it has heard another
+    tab's send there settle the generation (`draftHasContent`)."""
+    has = page.evaluate_handle(
+        "async () => (await window.__lfCheckApi()).draftHasContent"
+    )
+    page.wait_for_function("([has, ctx]) => !has(ctx)", arg=[has, ctx])
+
+
 def write_draft_elsewhere(page, ctx: str, text: str) -> str:
     """Write a new generation of the draft at `ctx` to the page's server, as another
     tab or device would, over the one the server holds; return its attempt."""
@@ -1421,7 +1435,7 @@ def write_draft_elsewhere(page, ctx: str, text: str) -> str:
         f"{origin.scheme}://{origin.netloc}/api/draft",
         data={
             "context": ctx,
-            "expect": current["attempt"] if current else None,
+            "expect": [current["attempt"]] if current else [],
             "record": {"attempt": attempt, "text": text},
         },
     )

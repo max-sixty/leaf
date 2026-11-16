@@ -91,7 +91,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 from leaf_dev.example_data import named_source
 
@@ -1215,7 +1215,7 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     )
     page = browser.new_page()
     page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
-    page.goto(url, wait_until="load")
+    page.goto(asked_again(url), wait_until="load")
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
@@ -1241,7 +1241,7 @@ def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
     url = serve(DIAGRAM_AND_RAIL_PAGE)
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
-    page.goto(url, wait_until="load")
+    page.goto(asked_again(url), wait_until="load")
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()

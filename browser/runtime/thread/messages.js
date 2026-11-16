@@ -66,7 +66,7 @@ import {
 } from "./workflow.js";
 import { agentSays, leafSays, voiced, wordsText } from "../voice.js";
 import { markDeclared, renderQuiet, renderSaid } from "../declared-words.js";
-import { highlightBlocks } from "../syntax.js";
+import { dressCode } from "../code-dressing.js";
 import { agePreview, ago, clockTime, saidAt } from "../presence.js";
 import { elementById } from "../passages.js";
 import { designName } from "../design-readings.js";
@@ -860,8 +860,9 @@ export class MessageView {
       renderQuiet(this.node);
       this.#dressed = true;
     }
-    // Markdown is an opaque property part: tokenization never rewrites Lit markers.
-    highlightBlocks(this.node);
+    // Markdown is an opaque property part: tokenization and typesetting never rewrite
+    // Lit markers.
+    dressCode(this.node);
     // The drawing these widgets left draws the way here instead.
     displaced?.present(displaced.model);
     if (!prior && (model.pending || arrived)) {

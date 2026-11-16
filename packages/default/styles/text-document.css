@@ -24,11 +24,19 @@ lf-text-document > .lf-text-document-view {
 /* A named document is framed whole, its name and the figure under it: the host draws
    the frame the figure draws alone, and the name heads it as the caption bar, as it does
    before the document draws (below). */
-lf-text-document:has(> strong:first-child + .lf-text-document-view) {
+lf-text-document:has(
+  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+    + .lf-text-document-view
+) {
   border: 1px solid var(--lf-code-border);
   border-radius: var(--lf-r);
   overflow: clip;
+  /* The caption bar stands on the figure's ground: code's, or the page's under a
+     preview's tabs (below). */
   background: var(--lf-pre-bg);
+  &[preview] {
+    background: var(--lf-paper);
+  }
   & > .lf-text-document-view {
     border: 0;
     border-radius: 0;
@@ -41,12 +49,31 @@ lf-text-document:has(> strong:first-child + .lf-text-document-view) {
    under the reading measure its rule stopped 53px short of a 795px frame. Before the
    document draws, the host stands in for its frame and caption (below). */
 lf-text-document figcaption,
-lf-text-document > strong:first-child:has(+ .lf-text-document-view),
+lf-text-document
+  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup):has(
+    + .lf-text-document-view
+  ),
 html[data-lf-interactive]
-  lf-text-document:not(:has(> :not(strong, pre, [data-lf-prepaint])))
-  > strong:first-child,
+  lf-text-document:not(
+    :has(
+      > :not(
+        :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+        pre,
+        [data-lf-prepaint]
+      )
+    )
+  )
+  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
 html[data-lf-interactive]
-  lf-text-document:not(:has(> :not(strong, pre, [data-lf-prepaint])))::before {
+  lf-text-document:not(
+    :has(
+      > :not(
+        :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+        pre,
+        [data-lf-prepaint]
+      )
+    )
+  )::before {
   display: block;
   max-inline-size: none;
   margin-block: 0;
@@ -219,14 +246,24 @@ lf-text-document .lf-text-document-run:only-child {
     --lf-bound-box: .lf-text-document-listing > pre;
   }
   html[data-lf-interactive]
-    lf-text-document:not(:has(> :not(strong, pre, [data-lf-prepaint]))) {
+    lf-text-document:not(
+      :has(
+        > :not(
+          :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup),
+          pre,
+          [data-lf-prepaint]
+        )
+      )
+    ) {
     border: 1px solid var(--lf-code-border);
     border-radius: var(--lf-r);
     background: var(--lf-pre-bg);
-    & > strong:first-child {
+    & > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
       display: block;
     }
-    &:not(:has(> strong:first-child))::before {
+    &:not(
+        :has(> :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup))
+      )::before {
       content: attr(source);
       display: block;
     }

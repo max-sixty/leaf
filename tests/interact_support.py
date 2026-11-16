@@ -1399,7 +1399,7 @@ def _report_undeclared_attr(registry):
 def _report_says_attr(registry):
     task = registry["lf-test-task"]
     task["required"].append("owner")
-    task["x-says"] = {"owner": "before"}
+    task["x-says"] = ["owner"]
     task["x-state"]["status"] = {
         "writer": "agent",
         "unit": "widget",
@@ -2529,7 +2529,7 @@ def declared_reading_package(tmp_path, monkeypatch):
     registry = json.loads(registry_path.read_text())
     reading = registry["lf-reading"]
     reading["properties"].update({"label": {"type": "string"}})
-    reading["x-says"] = {"label": "before"}
+    reading["x-says"] = ["label"]
     registry_path.write_text(json.dumps(registry))
     return "./.leaf"
 

@@ -1833,7 +1833,7 @@ def option_add_hover(page: Page) -> None:
 
 def options_in_pane(page: Page) -> None:
     """An option list in a workspace pane, under the paragraphs it answers."""
-    page.get_by_text("Checkout p99 latency", exact=True).click()
+    page.get_by_role("tab", name="Checkout p99 latency").click()
     page.locator("#ar-latency-decision > lf-options").scroll_into_view_if_needed()
 
 

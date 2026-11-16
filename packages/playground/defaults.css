@@ -240,7 +240,7 @@ lf-playground-control {
    the <strong> a control, choice or preset opens with stands hidden once it has. */
 lf-playground.lf-rendered
   :is(lf-playground-control, lf-playground-choice, lf-playground-preset)
-  > strong:first-child {
+  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   display: none;
 }
 

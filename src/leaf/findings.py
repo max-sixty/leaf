@@ -1018,8 +1018,9 @@ _TEXT = {
     "interactive-name": lambda at, v: (
         f"{_line(at, v)}: its name holds "
         + ", ".join(f"<{tag}>" for tag in v["found"])
-        + "; its tab shows a copy of its name and summary, and a tab is a control, so"
-        " they hold words and phrasing markup only"
+        + "; Leaf draws a widget's name in controls such as a tab, a radio's label or a"
+        " preset's button, so the name, and a tab's summary, hold words and phrasing"
+        " markup only"
     ),
     "parts-in-layout": lambda at, v: (
         f"{_line(at, v)}: stands in a <main> that carries {v['layout']}; a page of"

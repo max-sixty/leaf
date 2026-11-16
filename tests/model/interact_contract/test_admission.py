@@ -242,7 +242,7 @@ def test_instance_contracts_validate_complete_values_at_admission(
     unknown = structure_model.SourceDocument(
         '<lf-input-box id="unknown" shape="missing"></lf-input-box>'
     )
-    [finding] = widget_errors(unknown.lf_elements, registry)
+    [finding] = widget_errors(unknown, registry)
     assert finding.code == "instance-contract"
     assert finding.values["contract"] == "missing"
 

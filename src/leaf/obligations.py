@@ -66,7 +66,7 @@ from leaf.events import (
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.gesture_words import element_name
+from leaf.gesture_words import leading_title
 from leaf.page_memory import Slot
 from leaf.projection import (
     AuthoredOrders,
@@ -1006,7 +1006,7 @@ class _ObligationReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
-            text = element_name(self.nodes[surface["attrs"]["id"]])
+            text = leading_title(self.nodes[surface["attrs"]["id"]])
             records.append(
                 {
                     "id": "widget:" + unit,

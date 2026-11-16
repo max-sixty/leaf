@@ -530,7 +530,7 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
     registry["lf-audit-zone"]["x-state"]["choose"]["record"]["attr"] = "phase"
     registry_validation.validate_registry(registry, "reusable record declarations")
     reading = page.reading(1, registry)
-    findings = widget_errors(reading.document.lf_elements, registry)
+    findings = widget_errors(reading.document, registry)
     assert {finding.code for finding in findings} == {"member-record-slot"}
 
     # These declarations are valid until a move changes their actual composition.
@@ -554,7 +554,7 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
         '<lf-audit-zone id="two"></lf-audit-zone></lf-audit-right></lf-audit-board>',
         registry=registry,
     )
-    assert widget_errors(page.document(1).lf_elements, registry) == []
+    assert widget_errors(page.document(1), registry) == []
     with pytest.raises(events_model.EventRefused) as refused:
         model.reading(
             page.document(1).html,

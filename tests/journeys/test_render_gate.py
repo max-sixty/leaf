@@ -1884,7 +1884,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
         declarations[tag]["x-shadow"] = True
     veil = declarations["lf-veil"]
     veil["properties"]["label"] = {"type": "string"}
-    veil["x-says"] = {"label": "before"}
+    veil["x-says"] = ["label"]
     registry_path.write_text(json.dumps(declarations, indent=2))
     modules = {
         "lf-dusk": (

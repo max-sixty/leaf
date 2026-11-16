@@ -1332,6 +1332,30 @@ def test_revision_carries_apparatus_when_an_arriving_element_takes_focus(
     assert page.locator("#reading-inner").evaluate("el => el.scrollTop") == 220
 
 
+def test_a_pane_is_a_region_named_by_its_header_unless_its_author_named_it(
+    browser, serve
+):
+    """A pane is a region named as any element is, by the title its header opens with;
+    an `aria-label` its author gave names it instead."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Panes",
+                '<div class="layout-split">'
+                '<lf-pane id="named"><header><h2>Findings</h2></header>'
+                "<div><p>One.</p></div></lf-pane>"
+                '<lf-pane id="labelled" aria-label="Raw log"><header><h2>Log</h2>'
+                "</header><div><p>Two.</p></div></lf-pane></div>",
+            )
+        ),
+    )
+    expect(page.get_by_role("region", name="Findings", exact=True)).to_have_id("named")
+    expect(page.get_by_role("region", name="Raw log", exact=True)).to_have_id(
+        "labelled"
+    )
+
+
 @pytest.mark.parametrize("named", [False, True], ids=["unnamed-bodies", "named-bodies"])
 def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve, named):
     """A pane body is the region's scroller whether or not its author named it.

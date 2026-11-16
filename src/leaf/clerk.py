@@ -990,7 +990,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
                     document.offsets(location.end_tag)[0],
                 )
             )
-        for name in (registry.get(element.tag) or {}).get("x-says") or {}:
+        for name in (registry.get(element.tag) or {}).get("x-says") or ():
             if name in location.attrs:
                 start, end = document.offsets(location.attrs[name])
                 _, equals, value = source[start:end].partition("=")

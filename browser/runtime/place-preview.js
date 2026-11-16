@@ -63,8 +63,9 @@
    upgrades every widget in it. */
 import { html, nothing } from "/runtime/framework.js";
 import { fragmentTarget } from "./anchor-resolution.js";
-import { addressableWord, leadingTitle, ownNaming } from "./addressable-names.js";
+import { addressableWord, ownNaming } from "./addressable-names.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
+import { leadingTitle } from "./leading-title.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { readObligations } from "./obligations/model.js";
 import { hasObligationSource } from "./obligations/source.js";

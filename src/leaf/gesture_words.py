@@ -73,17 +73,34 @@ def leading_title_node(node: dict) -> dict | None:
     return None
 
 
-def leading_title(node: dict) -> str:
+def leading_title_holder(node: dict) -> dict | None:
+    """The child of `node` its leading title stands in: the title itself, or the
+    leading <header> or <hgroup> holding it, as a widget opens with its name."""
     title = leading_title_node(node)
-    return collapse(_text(title)) if title else ""
+    if title is None:
+        return None
+    return next(
+        child
+        for child in node["content"]
+        if not isinstance(child, str) and (child is title or _holds(child, title))
+    )
 
 
-def element_name(node: dict) -> str:
+def _holds(node: dict, inner: dict) -> bool:
+    return any(
+        child is inner or _holds(child, inner)
+        for child in node["content"]
+        if not isinstance(child, str)
+    )
+
+
+def leading_title(node: dict) -> str:
     """What the authoring contract calls an element away from itself: its leading
     title, in the words the author wrote. The browser's `addressableName` reads the
     same rule off the live page; `tests/name_cases.json` holds both to the same
     cases."""
-    return leading_title(node)
+    title = leading_title_node(node)
+    return collapse(_text(title)) if title else ""
 
 
 def _nodes(content: list):
@@ -118,7 +135,7 @@ class _Document:
         }
 
     def name(self, node: dict) -> str:
-        return element_name(node)
+        return leading_title(node)
 
     @cached_property
     def marks(self) -> dict:

@@ -12,7 +12,7 @@
  * It reads only the element's children, so it loads in any document (portable-api.js):
  * a widget that runs on a plain page names its parts by the same rule. On a Leaf page,
  * addressable-names.js keeps each answer with the page reading and reads the name's
- * words; the server reads the same rule off the document (`gesture_words.element_name`),
+ * words; the server reads the same rule off the document (`gesture_words.leading_title`),
  * and `tests/name_cases.json` holds both runtimes to the same cases.
  *
  * Replaced: a registry entry could declare one of its attributes as its element's

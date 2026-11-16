@@ -1765,14 +1765,15 @@ def test_tabs_reject_structural_violations(page_dir):
     assert found(findings, "loose-text", "<lf-tabs>")
 
 
-def test_a_widget_opens_with_its_name_and_no_control_stands_in_a_tab_s(page_dir):
-    """A widget opens with the element naming it under the content model it declares:
-    a column before its cards, a document before its <pre>. A view's tab, a control,
-    shows a copy of its whole header, so the header holds no link, control or widget;
-    a column's name is shown nowhere but where it stands, so a control there is the
-    column's own."""
+def test_a_widget_opens_with_its_name_and_its_name_holds_no_control(page_dir):
+    """A widget opens with the element its name stands in under the content model it
+    declares: a column before its cards, a document before its <pre>. A header with no
+    title names nothing, so it is no name. Leaf draws a name in controls such as a
+    preset's button, so a name holds no link, control or widget, and a view's tab copies
+    its whole header, so neither does the summary after its title."""
     named = """<lf-board id="b"><lf-column id="c"><strong><code>main</code></strong>
-  <lf-card id="k"><strong>Card</strong></lf-card></lf-column></lf-board>
+  <lf-card id="k"><strong>Card</strong></lf-card></lf-column>
+  <lf-column id="c3"><header><p>No title</p></header></lf-column></lf-board>
 <lf-text-document id="d"><strong>notes.md</strong><pre>Text</pre></lf-text-document>
 <lf-tabs id="t"><lf-tab id="t1"><header><strong>Files</strong>
   <p><a href="#k">see</a></p></header><p>x</p></lf-tab></lf-tabs>
@@ -1781,13 +1782,15 @@ def test_a_widget_opens_with_its_name_and_no_control_stands_in_a_tab_s(page_dir)
 <lf-options>"""
     (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", named))
     _, findings = check_findings(page_dir)
-    assert not [
-        f
+    assert [
+        (f.at, f.code)
         for f in findings
         if f.code in {"stray-members", "data-body", "loose-text", "unnamed-view"}
-    ]
+    ] == [("<lf-column>", "stray-members")]
+    assert found(findings, "stray-members", "<lf-column>", found=["header"])
     assert [(f.at, f.values["found"]) for f in found(findings, "interactive-name")] == [
         ("<lf-tab>", ["a"]),
+        ("<lf-column>", ["button"]),
     ]
 
 

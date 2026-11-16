@@ -88,9 +88,7 @@
     "additionalProperties": false,
     "x-content": "markup",
     "x-inline": true,
-    "x-says": {
-      "tip": "after"
-    },
+    "x-says": ["tip"],
     "x-upgrade": true,
     "x-verbatim": true,
     "x-example": "Deploy through a <lf-gloss tip=\"A thin, end-to-end path through the real system.\">walking skeleton</lf-gloss> before parallelizing."
@@ -517,7 +515,7 @@
   },
   "lf-tab": {
     "description": "One named view in a tab set, optionally summarized and grouped in a side-list queue.",
-    "x-instructions": "Open each tab with the `<strong>` that names it, or with a `<header>` holding that `<strong>` and, after it, a summary such as a `<p>`. The tab shows a copy of that markup, so a name can set a file in code type or colour a count, and the header stays at the top of the panel. In a side-list queue, write each tab's summary and `group` as `page-layout.md`, \"A workspace\", says. Keep ids distinct across tabs, which share the page's id space.",
+    "x-instructions": "Open each tab with the `<strong>` that names it, or with a `<header>` holding that `<strong>` and, after it, a summary such as a `<p>`. The tab shows a copy of that markup, so a name can set a file in code type or colour a count. A strip in a row shows the name, and the panel keeps its header as a label over its first heading; a side list shows the summary under the name, in place of the header. In a side-list queue, write each tab's summary and `group` as `page-layout.md`, \"A workspace\", says. Keep ids distinct across tabs, which share the page's id space.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },

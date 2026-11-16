@@ -551,7 +551,7 @@ export function silentWords(declarations) {
   const every = (/** @type {string} */ tag) =>
     all.flatMap((r) => [...r.querySelectorAll(tag)]);
   for (const [tag, entry] of Object.entries(declarations))
-    for (const attr of Object.keys(entry["x-says"] ?? {}))
+    for (const attr of entry["x-says"] ?? [])
       for (const el of every(tag)) {
         const value = el.getAttribute(attr);
         if (value !== null && !says(el.shadowRoot ?? el).includes(value))

@@ -364,42 +364,6 @@ CARRIED_PAGE = leaf_page(
 )
 
 
-# A widget whose declaration has the runtime say an attribute's words before its own
-# (`x-says`), as a gloss says its tip after its phrase. No bundled widget says one before
-# its words, so the tests of what such words take declare this one.
-SAID_VOCABULARY = {
-    "lf-said-label": {
-        "description": "Words with a label the runtime says before them.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-upgrade": False,
-        "x-says": {"label": "before"},
-        "x-example": '<lf-said-label id="example" label="Head">Words.</lf-said-label>',
-    }
-}
-# The words a widget renders from an attribute, with room around them, so a drag across
-# one is an ordinary drag and not a two-pixel feat. Both labels differ, so a quote can
-# only anchor where it was picked. Serve it with `SAID_VOCABULARY`.
-SAID_PAGE = leaf_page(
-    "said",
-    """
-<h1 id="h">This week</h1>
-<div class="layout-tiles" id="numbers">
-  <dl id="m-open" class="metric"><dt>Open sessions</dt><dd><strong>1,204</strong> <small>+18%</small></dd></dl>
-</div>
-<lf-said-label id="col-now" label="In flight">
-  <p id="c-importer"><strong>Wire the importer</strong> Half done.</p>
-</lf-said-label>
-<lf-said-label id="col-next" label="Queued">
-  <p id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</p>
-</lf-said-label>
-""",
-)
-
-
 # Short card titles, so the whole board fits in an expected ARIA snapshot and the
 # snapshot stays about structure. One column starts empty: a keyboard user has to
 # hear it to move a card into it.

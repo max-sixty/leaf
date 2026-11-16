@@ -44,13 +44,15 @@ the element holding the name, or null; `addressableName(element)` is its words, 
 place that takes only text, such as an `aria-label`, a native `<option>` or an
 announcement. To show the name away from its element, as a tab strip shows each panel's,
 draw `echoCopy(leadingTitle(element))`, a copy of its markup without ids or generated
-words, inside a box marked `generated({ says: "echo" })`, so a comment on the words
-anchors where the page says them. `echoCopy(header, title)` copies only what a header
-holds after its title, as a tab copies its panel's summary. A widget that draws a copy
-in place of the name keeps the name in its element, hidden if need be, so every reading
-of the name still finds it there. A copy inside a control nests whatever the name
-holds in it, so draw it only where the name is phrasing; `page check` refuses a link,
-control or widget in a view's header, which its tab copies.
+words. `echoCopy(header, title)` copies only what a header holds after its title, as a
+tab copies its panel's summary. The name stays in its element, so every reading of it
+finds it there. Where the element still shows it, draw the copy inside a box marked
+`generated({ says: "echo" })`, so a comment on the words anchors where the page says
+them. Where the copy stands in for it, as a side list's does for each panel's, hide the
+name in its element and mark the copy's box `generated({ says: true })`, so search and
+comments find the words where the user reads them. A copy inside a control nests
+whatever the name holds in it, so `page check` refuses a link, control or widget in a
+widget's name, and in a view's header, which its tab copies.
 
 `titledElement(heading)` is the element a heading titles: the outermost element whose
 first heading it is, such as its `hgroup`, the question it opens and a `section`

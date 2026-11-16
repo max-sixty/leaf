@@ -520,6 +520,30 @@ def test_a_removal_stands_in_the_part_of_the_page_it_left(browser, serve):
     assert tops[0] != tops[1], "both entries outline the same gap"
 
 
+def test_a_removal_that_empties_an_element_stands_in_it(browser, serve):
+    """A block that was the last of an element holding neither block beside its gap,
+    such as the only paragraph of a box with no name, stands in that element, found by
+    its id."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Emptied",
+                '<h1 id="t">Plan</h1><p id="a">Alpha stays.</p>'
+                '<div id="box" style="padding: 1rem"><p id="only">The only one goes.</p>'
+                '</div><p id="z">Zeta stays.</p>',
+            )
+        )
+    )
+    revise(serve.page_dir, ('<p id="only">The only one goes.</p>', ""))
+    page = open_page(browser, url)
+    compare_with(page, 1)
+    page.keyboard.press("Escape")
+    gap = page.locator('.lf-change-bar[data-lf-gap="in"][data-lf-for="box"]')
+    expect(gap).to_have_count(1)
+    box, bar = page.locator("#box").bounding_box(), gap.bounding_box()
+    assert box["y"] - 1 <= bar["y"] <= box["y"] + box["height"], (box, bar)
+
+
 def test_a_change_s_card_reads_it_in_order(browser, serve):
     """A change's card reads it in the order the reader met it: a paragraph the revision
     took out between two it edited stands struck between their word diffs, and a new

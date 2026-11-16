@@ -128,6 +128,7 @@ import {
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { registry, tagsDeclaring } from "./registry.js";
+import { leadingTitle } from "./leading-title.js";
 import { isElementName } from "./registry-contract.js";
 import {
   inlineMarkdownFragment,
@@ -564,14 +565,13 @@ registerPageControl({
 // Which blocks and which widgets is the registry's answer both times, so a widget added
 // to the vocabulary diffs on the strength of its declaration: a compound member whose content
 // model is prose is a block of the page's prose the same way a paragraph is.
-// The name a holder of other blocks opens with, the <strong> or the one its leading
-// <header> opens with (leading-title.js), is a block of its own: a view, whose panel
-// holds the page's blocks, or a widget holding members. So a renamed tab or column
-// marks, and a tab emptied of all but its name holds the gap its last paragraph left,
-// after its name. A titled member whose words are one block, such as a card, keeps its
-// <strong> in its own block's words.
-const widgetNames = () => {
-  const holders = [
+// The name a holder of other blocks opens with, its leading title (leading-title.js),
+// is a block of its own: a view, whose panel holds the page's blocks, or a widget
+// holding members. So a renamed tab or column marks, and a tab emptied of all but its
+// name holds the gap its last paragraph left, after its name. A titled member whose
+// words are one block, such as a card, keeps its title in its own block's words.
+const nameHolders = () =>
+  [
     ...tagsDeclaring((e) => e["x-content"] === "members"),
     ...tagsDeclaring((e) => Boolean(e["x-views"])).map(
       (tag) => registry[tag]?.["x-views"]?.members,
@@ -579,18 +579,10 @@ const widgetNames = () => {
   ]
     .filter((tag) => typeof tag === "string" && isElementName(tag))
     .join(", ");
-  return holders
-    ? [
-        `:is(${holders}) > strong:first-child`,
-        `:is(${holders}) > header:first-child > strong:first-child`,
-      ]
-    : [];
-};
 const diffBlockSel = () =>
   [
     TEXT_BLOCK,
     "aside",
-    ...widgetNames(),
     ...tagsDeclaring((e) => e["x-owners"] && (e["x-content"] ?? "markup") === "markup"),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule
     // below avoids counting nested blocks twice. One set among the words around it
@@ -713,20 +705,36 @@ function diffBlocks(root) {
     if (owner.closest(opaque)) continue;
     pairs.push([owner, `markdown:${body.dataset.lfSourceWords}`]);
   }
-  for (const b of root.querySelectorAll(blocks)) {
+  const holders = nameHolders();
+  const names = new Set(
+    holders
+      ? [...root.querySelectorAll(holders)].flatMap((holder) => {
+          const title = leadingTitle(holder);
+          return title && !title.closest(opaque) ? [title] : [];
+        })
+      : [],
+  );
+  // Each element holding a name, so a block around one is no leaf block.
+  /** @type {Set<Element>} */
+  const holdsName = new Set();
+  for (const name of names)
+    for (let up = name.parentElement; up && !holdsName.has(up); up = up.parentElement)
+      holdsName.add(up);
+  for (const b of new Set([...root.querySelectorAll(blocks), ...names])) {
     if (b.closest(opaque) || b.closest(".lf-markdown-body")) continue;
-    if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
+    if (
+      holdsName.has(b) ||
+      [...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque))
+    )
       continue; // leaf blocks only, excluding opaque children on both sides
     let key = diffWords(b, opaque);
-    // An x-says value is the page's words at the element's edge (renderSaid), so it
-    // belongs to what this block says: folded into the key at its declared edge, a
-    // version that moves a metric's number or an event's time marks though no prose
-    // changed. Both sources hold the attribute, so the key reads it on both sides.
-    for (const [attr, edge] of Object.entries(
-      registry[b.localName]?.["x-says"] ?? {},
-    )) {
+    // An x-says value is the page's words after the element's own (renderSaid), so
+    // it belongs to what this block says: folded into the key, a version that changes
+    // only the value marks though no prose changed. Both sources hold the attribute, so
+    // the key reads it on both sides.
+    for (const attr of registry[b.localName]?.["x-says"] ?? []) {
       const said = b.getAttribute(attr);
-      if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
+      if (said) key = `${key} ${said}`;
     }
     if (key) pairs.push([b, key]);
   }

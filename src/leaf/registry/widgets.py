@@ -189,7 +189,7 @@ def _validate_widget_structure(
             and run_schema.get("minLength", 0) >= 1
         ):
             raise registry_error("measured-run", path, tag, attr=run_attr)
-    said = set(entry.get("x-says", {}))
+    said = set(entry.get("x-says", ()))
     for role in ("x-awaits", "x-thread-seat"):
         if entry.get(role) is not None and not _typed(properties, "id", "string"):
             raise registry_error("addressable-id", path, tag, key=role)

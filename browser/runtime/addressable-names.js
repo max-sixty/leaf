@@ -6,7 +6,7 @@
  * (`addressableLabel`), and the word and label an anchor on it shows (`sectionLabel`).
  * Each reads authored words through the passage reader, so generated chrome never
  * names anything. */
-import { leadingTitle as readLeadingTitle } from "./leading-title.js";
+import { leadingTitle } from "./leading-title.js";
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
 import {
@@ -89,13 +89,6 @@ export function addressableSays(addressable) {
 // name, and generated chrome names nothing. A surface that shows the name away from its
 // element draws a copy of its markup (`echoCopy`). An element the contract gives no name
 // answers "".
-/** The element whose words name `container` (leading-title.js), or null. Finding it
- * reads the container's children, so the answer is kept as long as the page reading
- * stands (`keptAnswer`), as an element's words are: a label asked again on every pass,
- * or a preview climbing past a long run of paragraphs, reads them once.
- * @param {Element} container @returns {Element | null} */
-export const leadingTitle = (container) =>
-  keptAnswer(container, "leading title", () => readLeadingTitle(container));
 // A copy of an element's markup, for a surface that shows a name away from the element
 // it names, as a tab strip shows each panel's title (`echoCopy(leadingTitle(panel))`):
 // the element's child nodes cloned, leaving out what a widget generated in them, so the
@@ -262,10 +255,13 @@ const namingWords = (naming) =>
     : "words" in naming
       ? naming.words
       : elementReading(naming.by, naming.reading);
-// What `addressableName` reads, by the rule above: its leading title.
+// What `addressableName` reads, by the rule above: its leading title. Finding it reads
+// the element's children, so the answer is kept as long as the page reading stands
+// (`keptAnswer`), as an element's words are: a label climbing to the nearest named
+// element, asked again on every pass, reads them once.
 /** @param {Element} element @returns {Naming | null} */
 function addressableNaming(element) {
-  const title = leadingTitle(element);
+  const title = keptAnswer(element, "leading title", () => leadingTitle(element));
   return title && elementReading(title, "wrote")
     ? { by: title, reading: "wrote" }
     : null;

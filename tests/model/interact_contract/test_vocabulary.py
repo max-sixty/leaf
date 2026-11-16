@@ -231,7 +231,7 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
         (
             {
                 "lf-alpha": _faulty("lf-alpha", description=""),
-                "lf-beta": _faulty("lf-beta", **{"x-says": ["label"]}),
+                "lf-beta": _faulty("lf-beta", **{"x-says": {"label": "after"}}),
                 "$data": {
                     "contracts": {"bad": {"description": "x", "schema": {"type": 3}}}
                 },

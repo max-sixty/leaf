@@ -115,7 +115,7 @@ lf-sample > * {
 /* The sample's note takes the label font (base.css, `.lf-label`), stated here since
  * the author's name and a generated note can't wear the class. */
 lf-sample::before,
-lf-sample > strong:first-child {
+lf-sample > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   display: table-caption;
   margin-bottom: var(--lf-sp-1);
   font: var(--lf-font-label);
@@ -141,15 +141,20 @@ lf-sample:is([interactive], :has(> template[data-sample])) {
 lf-sample::before {
   content: var(--lf-sample-word);
 }
-lf-sample:has(> strong:first-child)::before {
+lf-sample:has(
+    > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+  )::before {
   content: none;
 }
-lf-sample > strong:first-child::before {
+lf-sample
+  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)::before {
   content: var(--lf-sample-prefix);
 }
 /* The caption stands outside the cell, so the exhibit's first block is the frame's
  * edge, which the trim follows down from (base.css). */
-lf-sample > strong:first-child + * {
+lf-sample
+  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup)
+  + * {
   margin-block-start: 0;
   --lf-frame-start: 1;
 }

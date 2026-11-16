@@ -12,7 +12,7 @@ from interact_support import (
 )
 
 from leaf import obligations as obligations_model
-from leaf.gesture_words import element_name
+from leaf.gesture_words import leading_title
 from leaf.passages import SourceReading
 from leaf.projection import page_reading
 from leaf.served_state.browser import browser_state
@@ -1063,7 +1063,7 @@ def test_an_element_is_named_as_the_browser_names_it(case):
     document = SourceDocument(model.leaf_page("Names", case["markup"]))
     node = _element(document.authoring.content, "it")
     assert node is not None
-    assert element_name(node) == case["name"]
+    assert leading_title(node) == case["name"]
 
 
 EXHIBITS = json.loads(

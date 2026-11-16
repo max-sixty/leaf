@@ -22,14 +22,13 @@ import {
   addressableLabel,
   addressableName,
   echoCopy,
-  leadingTitle,
   titledElement,
 } from "/runtime/addressable-names.js";
-import { leadingTitle as portableLeadingTitle } from "/runtime/leading-title.js";
+import { leadingTitle } from "/runtime/leading-title.js";
 import { renderSaid } from "/runtime/declared-words.js";
 import { registry } from "/runtime/registry.js";
 
-// The cases the server's `gesture_words.element_name` answers too.
+// The cases the server's `gesture_words.leading_title` answers too.
 const CASES = JSON.parse(
   readFileSync(new URL("../name_cases.json", import.meta.url), "utf8"),
 );
@@ -60,7 +59,7 @@ test("a name drawn elsewhere is a copy of the markup the author wrote", () => {
     </header><article><p>Body.</p></article></lf-part></main>`;
   const part = /** @type {Element} */ (document.getElementById("it"));
   const title = /** @type {Element} */ (leadingTitle(part));
-  assert.equal(title, portableLeadingTitle(part));
+  assert.equal(title.id, "title");
   const copy = echoCopy(title);
   const shown = document.createElement("span");
   shown.append(...copy);

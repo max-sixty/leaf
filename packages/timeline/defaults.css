@@ -8,7 +8,8 @@ lf-lane {
   display: block;
   margin-block: var(--lf-sp-2);
 }
-:is(lf-lane, lf-run) > strong:first-child {
+:is(lf-lane, lf-run)
+  > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   display: block;
 }
 lf-run > lf-lane {
@@ -21,7 +22,7 @@ lf-event {
 lf-event::before {
   content: attr(at) " ms: ";
 }
-lf-event > strong:first-child {
+lf-event > :nth-child(1 of summary, h1, h2, h3, h4, h5, h6, strong, header, hgroup) {
   font-weight: inherit;
 }
 

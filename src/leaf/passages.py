@@ -27,7 +27,7 @@ if TYPE_CHECKING:
 # can be declared, and a fence carries the rest:
 #
 #   x-says      attribute values the user sees. renderSaid puts them in the DOM, so
-#               they go in here too, at the edge the registry names.
+#               they go in here too, after the element's own words.
 #   x-verbatim  an upgraded element that preserves its own words around nested upgraded
 #               widget boundaries. The source and document-order occurrence identify
 #               every owner, including one with no authored id. Those descendants keep
@@ -550,22 +550,18 @@ class _PassageParser:
         }
         if frame["verbatim"]:
             self.verbatim[frame["verbatim"]] = _OwnedWords(frame["verbatim"])
-        # Each x-says value at the edge of the element's own words, in registry order,
-        # which is where renderSaid puts it and where a pseudo-element stood before it.
-        head = []
-        for attr, edge in (entry.get("x-says") or {}).items():
+        # Each x-says value after the element's own words, in registry order, which is
+        # where renderSaid puts it and where a pseudo-element stood before it.
+        for attr in entry.get("x-says") or ():
             value = attrs_d.get(attr)
-            if value is None:
-                continue
-            (head if edge == "before" else frame["tail"]).append(value)
+            if value is not None:
+                frame["tail"].append(value)
         if frame["fenced"]:
             self._fence()
         if retired_by and frame["id"]:
             self.retired[frame["id"]] = retired_by
         self.stack.append(frame)
-        if not frame["skip"]:
-            self._said(frame, head)
-        elif sub is not None:
+        if frame["skip"] and sub is not None:
             # The body's own write path, so a quote across the element's edge sees
             # the same adjacency the screen shows — no fence, nothing withheld.
             _verb, their_text = sub

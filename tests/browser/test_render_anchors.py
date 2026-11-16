@@ -54,8 +54,6 @@ from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     PANEL,
-    SAID_PAGE,
-    SAID_VOCABULARY,
     _traffic,
     compare_with,
     consume_browser_errors,
@@ -207,76 +205,6 @@ def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
     )
 
 
-def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, serve):
-    """The gesture itself, on the words a widget renders from an attribute: drag across
-    a widget's said label and the same button, quote, and mark come up as for a paragraph,
-    and the comment is still anchored a version later. A real drag, because the whole
-    class of bug here is text that looks selectable and isn't — a synthetic Range would
-    select what no pointer can.
-
-    Then the other half of the pair, which the same spans decide: the version diff reads
-    a block's *authored* text, and the base version it compares against is parsed
-    unupgraded, where these spans don't exist. Drop their data-lf-gen and every widget
-    holding a said attribute lights up as changed on every revision — a failure that
-    looks like a busy page rather than like a bug."""
-    page = open_page(
-        browser, live_url(serve(SAID_PAGE, layer_registry=SAID_VOCABULARY))
-    )
-
-    heading = page.locator('#col-now > [data-lf-said="label"]')
-    box = heading.bounding_box()
-    y = box["y"] + box["height"] / 2
-    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
-
-    # Focusing the immediate field collapses the browser Selection; the durable pending
-    # paint proves the drag selected the words the widget actually says. The release
-    # queues the capture rather than performing it, so the paint is what says the gesture
-    # has been read — reading the highlight straight off the mouseup reads the frame
-    # before it and reports every drag as a drag that selected nothing.
-    wait_for_pending_mark(page)
-    assert pending_text(page).strip() == "In flight", (
-        "a drag across the heading selected nothing — it is painted, not said"
-    )
-    page.locator(".lf-fab-input").click()
-    page.wait_for_function(
-        "() => document.querySelector('.lf-composer').hasAttribute('data-lf-open')"
-    )
-    quoted = composer_quote(page)["text"]
-    assert quoted.strip("“”") == "In flight"
-    write(page.locator(".lf-composer leaf-text"), "this label is wrong")
-    with sending(page, "the comment on the widget's said label"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-
-    quote = thread_head(page, comment_ids(serve.page_dir)[-1]).locator(
-        ".lf-thread-quote"
-    )
-    assert quote.text_content().strip() == "In flight"
-
-    # A second version reworking one card's prose and nothing else. The page follows it,
-    # and the anchor is on a word only the runtime puts there, so it has to be found
-    # again in the version the user now has.
-    d = serve.page_dir
-    stamp_page(
-        d,
-        SAID_PAGE.replace("Waiting on the importer.", "Unblocked; starting Thursday."),
-        "two",
-    )
-    wait_for_revision(page, 2)
-    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    assert stranded_quotes(page) == [], (
-        "the comment came loose from the heading when the version turned over"
-    )
-
-    compare_with(page)
-    page.wait_for_function(
-        "() => document.querySelectorAll('.lf-ins-block').length > 0"
-    )
-    assert page.evaluate(
-        "() => [...document.querySelectorAll('.lf-ins-block')].map(e => e.id)"
-    ) == ["c-backfill"], "the diff read the runtime's own spans as text the base lacked"
-
-
 @pytest.mark.parametrize("revision", [2, 3])
 def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     browser, serve, revision
@@ -289,9 +217,7 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
     itself, so that widget arrives alone into the page and its fence is read off the
     arriving root rather than off a page it is not yet in.
     """
-    page = open_page(
-        browser, live_url(serve(FENCED_CAPTURE_PAGE, layer_registry=SAID_VOCABULARY))
-    )
+    page = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
     source = FENCED_CAPTURE_PAGE
     if revision == 2:
         source = FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
@@ -299,11 +225,11 @@ def test_browser_and_file_captures_stop_at_the_same_widget_fences(
         source = FENCED_CAPTURE_PAGE.replace("week-1", "week-2")
     stamp_page(serve.page_dir, source, "Refresh the document")
     wait_for_revision(page, 2)
-    expect(page.locator('#gate-milestone [data-lf-said="label"]')).to_have_count(1)
+    expect(page.locator('#gate-milestone [data-lf-said="tip"]')).to_have_count(1)
     registry = registry_storage.read_page_registry(serve.page_dir).registry
     cases = [
         ("#gate-milestone strong", "Build feeders", "gate-milestone"),
-        ("#gate-milestone", "Two classic models.", "gate-milestone"),
+        ("#gate-milestone", "to start.", "gate-milestone"),
         ("#after-milestone", "Ready next.", "after-milestone"),
         # One chip out of a band of them: authored markup, so both readings hold it
         # for the same reason they hold the title beside it.
@@ -635,6 +561,48 @@ def test_a_tabs_name_takes_a_comment_where_its_panel_says_it(browser, serve):
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
     assert stranded_quotes(page) == [], (
         "the comment came loose from the tab's name when the version turned over"
+    )
+
+
+def test_a_side_lists_name_takes_a_comment_where_the_list_says_it(browser, serve):
+    """A list down beside its panels shows each name with its summary, so the panel
+    hides the name it opens with and the list's copy is where the page says it: a drag
+    across a name in the list selects it, and a comment there anchors."""
+    side = CONTROL_LABEL_PAGE.replace(
+        '<lf-tabs id="projects">', '<lf-tabs id="projects" list="side">'
+    )
+    page = open_page(browser, live_url(serve(side)))
+
+    expect(page.locator("#tab-feeders > strong")).to_be_hidden()
+    name = page.get_by_role("tab", name="Heated bird bath").locator(".lf-tab-name")
+    box = name.bounding_box()
+    y = box["y"] + box["height"] / 2
+    select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
+
+    wait_for_pending_mark(page)
+    assert pending_text(page).strip() == "Heated bird bath", (
+        "a drag across the list's name selected nothing"
+    )
+    page.locator(".lf-fab-input").click()
+    write(page.locator(".lf-composer leaf-text"), "call it the bath")
+    with sending(page, "the comment on the list's name"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    quote = thread_head(page, comment_ids(d := serve.page_dir)[-1]).locator(
+        ".lf-thread-quote"
+    )
+    expect(quote).to_have_text(re.compile(r"Heated bird bath"))
+
+    # The list draws the name afresh when a version turns over, so the anchor on its
+    # copy has to be found again in the version the user now has.
+    stamp_page(
+        d,
+        side.replace("the south pair waits on brackets", "the brackets arrived"),
+        "two",
+    )
+    wait_for_revision(page, 2)
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    assert stranded_quotes(page) == [], (
+        "the comment came loose from the list's name when the version turned over"
     )
 
 
@@ -6092,41 +6060,6 @@ def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
     page = open_page(request.getfixturevalue(engine), url)
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill("alphabetagamma")
-    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_page_search_reads_a_said_label_apart_from_its_elements_words(
-    engine, request, serve
-):
-    """A declared `x-says` label, drawn as its element's caption, reads apart from the
-    words the element holds, as the file's reading reads it: page search finds the two
-    with a space between them."""
-    url = serve(
-        leaf_page(
-            "Said label",
-            '<div id="pair"><lf-said-label id="said" label="Head">body words'
-            "</lf-said-label></div>" + "<p>More.</p>" * 4,
-        ),
-        layer_registry={
-            "lf-said-label": {
-                "description": "Words with a label the runtime says before them.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-upgrade": False,
-                "x-says": {"label": "before"},
-                "x-example": '<lf-said-label id="example" label="Head">Words.'
-                "</lf-said-label>",
-            }
-        },
-    )
-    page = open_page(request.getfixturevalue(engine), url)
-    page.wait_for_function("() => document.querySelector('#said > [data-lf-said]')")
-    page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill("Head body")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 

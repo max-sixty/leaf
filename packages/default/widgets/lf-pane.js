@@ -28,11 +28,17 @@ customElements.define(
     /** @type {(() => void) | null} */
     #stop = null;
     #children = new MutationObserver(() => this.#register());
+    // The `aria-label` this module wrote, told apart from one the author gave.
+    /** @type {string | null} */
+    #named = null;
 
     connectedCallback() {
       keeps(this, "role", "region");
-      const name = addressableName(this);
-      if (name) keeps(this, "aria-label", name);
+      const label = this.getAttribute("aria-label");
+      if (label === null || label === this.#named) {
+        this.#named = addressableName(this) || null;
+        keeps(this, "aria-label", this.#named);
+      }
       if (!once(this)) return;
       whileConnected(this, () => {
         this.#register();

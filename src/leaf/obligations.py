@@ -1101,14 +1101,25 @@ def thread_obligation_readings(
         answers = readings[record["thread"]]
         in_words = answered_in_words(record)
         asked = answers.seq(record["message"])
+        # The first closing in force after the message now asking ends the question,
+        # however the thread reopened since: a later message neither answers it nor
+        # brings it back.
+        closed = min(
+            (
+                place
+                for closing in thread["closings"]
+                if (place := closing.get("seq", inf)) > asked
+            ),
+            default=None,
+        )
         if record["status"] == "open" and in_words:
-            settle_by_words(record, answers.first_answer(record["message"]))
+            answer = answers.first_answer(record["message"])
+            if closed is None or (answer is not None and answer["seq"] < closed):
+                settle_by_words(record, answer)
         if record["next_actor"] is None:
             continue
         owed = answers.owed
-        # A closing in force after the message now asking ends the question, however
-        # the thread reopened since, so a later reply brings back nothing it ended.
-        if any(closing.get("seq", inf) > asked for closing in thread["closings"]):
+        if closed is not None:
             record["next_actor"] = None
         # Only the user's words answer a question asked in words, so a turn the agent
         # owes after it, such as one a user's edit up the thread opens, leaves it theirs.
@@ -1193,7 +1204,8 @@ def waiting_in_thread(
     for record in records:
         if record["source"]["kind"] != "widget" or record["status"] != "open":
             continue
-        if (thread := record["thread"]) is None:
+        # One a resolve ended waits on nobody.
+        if (thread := record["thread"]) is None or record["next_actor"] is None:
             continue
         if thread not in messages:
             messages[thread] = {m["id"]: m for m in threads[thread]["msgs"]}

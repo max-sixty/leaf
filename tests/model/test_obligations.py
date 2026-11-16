@@ -483,10 +483,11 @@ def test_a_reopened_question_keeps_its_id_and_words_and_stands_on_the_reply():
 
 
 def test_a_question_asked_again_after_a_resolve_stands_until_the_next():
-    """A resolve takes a question off the user's list as its thread then stood, so
-    asking it again in a reply, which reopens the thread, stands until the thread is
-    resolved again."""
+    """A resolve ends a question asked before it: the user's later message, which
+    reopens the thread, neither answers nor restores it, while asking it again in a
+    reply stands until the thread is resolved again."""
     resolved = {"kind": "resolve", "id": "first", "author": "agent", "parent": "t"}
+    later = {"kind": "reply", "id": "later", "author": "user", "parent": "t"}
     again = {
         "kind": "reply",
         "id": "again",
@@ -495,12 +496,13 @@ def test_a_question_asked_again_after_a_resolve_stands_until_the_next():
         "text": "Weekly or daily, after all?",
         "obligation": ["message:asking"],
     }
-    for later, actor in (
+    for events, actor in (
         ((resolved,), None),
+        ((resolved, {**later, "text": "Fix the heading's typo too."}), None),
         ((resolved, again), "user"),
         ((resolved, again, {**resolved, "id": "second"}), None),
     ):
-        state = model.reading(page(""), answered_in_words(*later))
+        state = model.reading(page(""), answered_in_words(*events))
         [item] = served_obligations(state)["all"]
         assert (item["status"], item["next_actor"]) == ("open", actor)
 

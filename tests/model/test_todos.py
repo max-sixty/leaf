@@ -1496,6 +1496,13 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     assert "widget:store" not in [item["id"] for item in state["queues"]["on_user"]]
     [record] = [item for item in state["obligations"] if item["id"] == "widget:store"]
     assert (record["status"], record["answer"]) == ("open", None)
+    # The user's next words there are delivered with no question waiting on them.
+    later = append_command(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": "Thanks."},
+    )
+    [delivered_later] = freeze_events(page_dir, [later])["batches"][0]["events"]
+    assert not delivered_later.get("waiting")
 
 
 def test_a_start_names_the_exact_move_and_covers_its_threads_answer(page_dir):

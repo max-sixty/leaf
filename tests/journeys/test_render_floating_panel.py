@@ -391,9 +391,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
     page.clock.set_fixed_time(now)
     ticked(page)
     assert peek.inner_text() == words
-    page.evaluate(
-        "async () => (await window.__lfCheckApi()).notice('Saved for later')"
-    )
+    page.evaluate("async () => (await window.__lfCheckApi()).notice('Saved for later')")
     expect(page.locator(".lf-fp-peek")).to_have_text("Saved for later")
 
 

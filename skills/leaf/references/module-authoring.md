@@ -349,6 +349,10 @@ page doesn't count as settled until this work runs, so motion that may run until
 user stops it, such as playback, uses `nextAnimation(callback)` and
 `cancelAnimation(id)` instead.
 
+`afterScript(callback)` runs a callback once when the current script finishes, for a
+paint two steps of one script would otherwise trigger twice; pass the same function each
+time, not a new arrow.
+
 Use `sizeObserver(callback)` in place of `new ResizeObserver`, so the page counts as
 unsettled while sizes change; pass `{counted: false}` for boxes that keep moving while
 the page plays.

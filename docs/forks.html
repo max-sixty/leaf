@@ -105,8 +105,8 @@
             <dd>
               A new thread message a line turn holds from the main thread while a line
               fork writes its working message and sorts it: an agent turn admission
-              opens with the message, which ends as the line fork answers or lapses a
-              minute after it opened.
+              opens with the message, which ends as the line fork answers or lapses 30 s
+              after it opened.
             </dd>
             <dt id="term-holds">Holds</dt>
             <dd>
@@ -186,7 +186,7 @@
             message against the conversation, writes the working message, and sorts the
             message by who should do the work. Leaf posts the line as the agent's and
             sends the message where the sort says. If no line comes, the line turn
-            lapses as any unconfirmed agent turn does
+            lapses 30 s after it opened, as any unconfirmed agent turn does
             (<code>activity.STARTING_GRACE</code>), and the message is the main
             thread's; Leaf ends the turn at once when the line fork fails or the newest
             message owes no reply.
@@ -363,10 +363,10 @@ sequenceDiagram
             (<code>state.AGENT_TURNS</code>). A fork's turn opens at the take, before
             Claude Code starts or resumes the fork, and closes when the hooks module
             reports that the fork's run ended. It also lapses when nothing has renewed
-            it within the working grace, 15 minutes, or within a minute of its opening
-            until the module confirms the fork it spawned or resumed runs, as when the
-            module lost the take; the confirmation and the fork's tool boundaries renew
-            it. <span class="tag ok">built</span>
+            it within the working grace, 15 minutes, or within 30 s of its opening until
+            the module confirms the fork it spawned or resumed runs, as when the module
+            lost the take; the confirmation and the fork's tool boundaries renew it.
+            <span class="tag ok">built</span>
             <span class="tag">only with the flag</span>
           </p>
           <p id="holding-newest">

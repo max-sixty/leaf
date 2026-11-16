@@ -2014,9 +2014,7 @@ def opened_long_ago(turn: str, by: timedelta) -> None:
     )
 
 
-def test_a_take_the_module_never_names_lets_its_thread_go_within_a_minute(
-    claimed, lane
-):
+def test_a_take_the_module_never_names_lets_its_thread_go_within_30_s(claimed, lane):
     """A turn Leaf opened for a fork the module never names, as when the step that
     took the thread timed out or the module was reloaded, has lost its agent. It
     counts for `STARTING_GRACE`, and then lapses: the thread is the main thread's
@@ -2060,7 +2058,7 @@ def test_the_reading_changes_when_a_turn_whose_start_is_unconfirmed_lapses(
     claimed, lane
 ):
     """The served reading says it next changes when a turn whose start nothing has
-    confirmed lapses, a minute after its opening, rather than at the working
+    confirmed lapses, 30 s after its opening, rather than at the working
     grace."""
     _asked, taken = taken_by_a_fork(claimed, "Which Python does the project need?")
     opened = datetime.fromisoformat(

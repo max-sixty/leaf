@@ -1171,14 +1171,16 @@ graph LR
     page.locator("#figure svg").click(modifiers=["Alt"])
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile(r"figure"))
-    write(field, "Carry this explicit draft.")
+    write(field, "Words about the figure.")
     page.evaluate("document.activeElement.blur()")
 
     control = page.get_by_role("button", name="Respond to Start request")
     control.focus()
     page.keyboard.press("Enter")
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", "Carry this explicit draft.")
+    expect(field).to_have_attribute("aria-label", re.compile(r"Start request"))
+    # The part's own draft opens; the figure's words stay with the figure.
+    expect(field).to_have_js_property("value", "")
     expect(start).to_have_class(re.compile(r"\blf-pending\b"))
     expect(page.locator("#flow")).not_to_have_class(re.compile(r"\blf-pending\b"))
     page.keyboard.press("Escape")

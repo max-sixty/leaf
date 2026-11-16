@@ -64,6 +64,7 @@ import {
   listWalkPosition,
   whileConnected,
   failSoft,
+  frameFor,
   inBaseLayer,
   measure,
   nextRender,
@@ -303,9 +304,10 @@ customElements.define(
       let stop = () => {};
       // A failed drawing ends the watch: the failure replaced the drawing, and a chart
       // that returns to the page keeps showing it rather than drawing again. The
-      // refusal is written in Leaf's next rendering pass, where a drawing settles too
-      // (below): a drawing fails inside the size delivery that measured its room, and
-      // the refusal's box, its words over the source, moves the boxes above the chart.
+      // refusal's box, its words over the source, is taller than the box the theme
+      // held, and a drawing can fail inside a size delivery, a redraw in the one that
+      // measured its room, so the refusal is written in Leaf's next rendering pass
+      // (below).
       /** @param {unknown} err @returns {Promise<void>} */
       const failed = (err) => {
         stop();
@@ -327,21 +329,29 @@ customElements.define(
         // is laid out once rather than once for each chart's read after another's
         // drawing. Only the width is watched, and only when it lands on a new whole
         // pixel; the height is the first drawing's and stays. A redraw is drawn during
-        // the delivery, so labels fit the new width in the same paint, and a width
-        // delivered while the first drawing was under way is drawn once it is in.
+        // the delivery, so labels fit the new width in the same paint: it writes only
+        // inside the drawing, whose height is fixed, so it moves no box the browser
+        // watches. Everything else the chart writes waits for Leaf's next rendering
+        // pass, since a box that moves above one the browser just delivered is a
+        // ResizeObserver loop error. The first drawing lets go of the box the theme
+        // held (x-height), which a row may stretch, and the page presents itself as
+        // the drawing settles, so the room's first delivery is heard in that pass, as
+        // the legend's measurement is (`paint`) and a refusal is written there. The
+        // drawing follows there, or once Plot has loaded if that comes later. A width
+        // delivered while it was under way is drawn once it is in.
         /** @type {DOMRectReadOnly | undefined} */
         let room;
-        /** @type {(value?: unknown) => void} */
-        let arrived = () => {};
-        const delivered = new Promise((resolve) => (arrived = resolve));
-        let resized = () => {};
+        /** @type {() => void} */
+        let heard = () => {};
+        const delivered = new Promise(
+          (resolve) => (heard = frameFor(this, () => resolve(undefined))),
+        );
         stop = whileConnected(this, () => {
           const watching = sizeObserver((entries) => {
             const rect = entries.at(-1)?.contentRect;
             if (!rect?.width) return;
             room = rect;
-            arrived();
-            resized();
+            heard();
           });
           watching.observe(this);
           return () => watching.disconnect();
@@ -360,16 +370,11 @@ customElements.define(
         this.replaceChildren(this.drawing);
         await this.paint(Math.round(width));
         this.classList.add("lf-rendered");
-        resized = () => {
+        heard = () => {
           const next = Math.round(room?.width ?? 0);
           if (next !== this.drawn) this.paint(next).catch(failed);
         };
-        resized();
-        // The drawing settles in Leaf's next rendering pass, never inside the size
-        // delivery that measured its room or its legend: the page presents itself in
-        // the reaction to this settling, and a box that moves above the one the browser
-        // just delivered is a ResizeObserver loop error.
-        await new Promise((done) => nextRender(done));
+        heard();
       } catch (err) {
         await failed(err);
       }
@@ -385,8 +390,9 @@ customElements.define(
     // draws again into the room the legend leaves, in the delivery that measured it, so
     // the frame that shows the new legend shows the drawing fitted to it; a chart with
     // none reads nothing. The drawing settles once its legend has the room it
-    // measures, and a failed redraw fails as the drawing does. A hidden drawing measures
-    // nothing.
+    // measures, in Leaf's next rendering pass rather than the delivery that measured it
+    // (`draw` says why). A failed redraw fails as the drawing does. A hidden drawing
+    // measures nothing.
     /** @param {number} width @returns {Promise<void>} */
     async paint(width) {
       const source = this.#source;
@@ -408,7 +414,7 @@ customElements.define(
             this.#legend = legend;
             this.paint(width).catch(source.failed);
           }
-          settled();
+          nextRender(settled);
         }));
         watch.observe(drawn.built);
       });

@@ -5,7 +5,8 @@ working tree, and with `--base` a `base` at the merge base or a ref, as
 `choose_arms(payload=True)` copies them), gives each provider a home of its own seeded
 with the harness's login, and expands the catalog's task/context addresses into
 Promptfoo tests.
-Native probes install the complete arm as a plugin and read it in fresh sessions;
+Native probes install the complete arm as a plugin and read it in fresh sessions,
+with an initialized page where the case declares `metadata.page`;
 short authoring cases use isolated tool-capable children and grade the saved page;
 Codex shares one server per provider home while starting fresh ephemeral, read-only
 threads for each test.
@@ -63,6 +64,7 @@ from leaf_dev.arms import (
     environment,
     install_codex_plugin,
     instruction_context,
+    run_leaf,
 )
 from leaf_dev.browser import WINDOWS
 from leaf_dev.eval_cases import DEFAULT_VIEWPORTS, definition
@@ -74,6 +76,7 @@ from leaf_dev.screenshot_judge import screenshot_judge
 PROMPTFOO = ROOT / "node_modules/.bin/promptfoo"
 RUNS = ROOT / ".tmp/eval"
 SKILL_PREFIX = definition("eval")["skill_prefix"]
+PAGE_PROMPT = definition("eval")["page_prompt"]
 NOW = definition("eval")["now"]
 
 
@@ -133,9 +136,21 @@ def select_cases(globs: tuple[str, ...]) -> list[str]:
 def native_provider(
     harness: str, payload: Path, work: Path, model: str | None = None
 ) -> tuple[dict, Path | None]:
-    """A read-only native agent and its explicitly invocable installed skill."""
+    """A read-only native agent and its explicitly invocable installed skill.
+
+    Besides reading, it can ask the arm's Leaf what a page's packages tell an author,
+    the route an author takes to a widget's instructions (`PAGE_PROMPT`): Claude Code
+    through `leaf page instructions` and `leaf page vocabulary` alone, Codex through the
+    plugin's `leaf` tool, which runs any `leaf` command outside its read-only sandbox."""
     if harness == ClaudeCodeHarness.name:
         child = claude_child(work)
+        reading = [
+            "Skill",
+            "Read",
+            "Bash(leaf page instructions:*)",
+            "Bash(leaf page vocabulary:*)",
+            "Bash(jq:*)",
+        ]
         return {
             "id": "anthropic:claude-agent-sdk",
             "config": {
@@ -145,12 +160,13 @@ def native_provider(
                 "persist_session": False,
                 "plugins": [{"type": "local", "path": str(payload)}],
                 "additional_directories": [str(payload)],
-                "tools": ["Skill", "Read"],
-                "custom_allowed_tools": ["Skill", "Read"],
+                "tools": ["Skill", "Read", "Bash"],
+                "custom_allowed_tools": reading,
                 "permission_mode": "dontAsk",
                 "max_turns": 24,
                 "settings": {"autoMemoryEnabled": False},
                 "env": {
+                    "PATH": environment(payload=payload)["PATH"],
                     "XDG_STATE_HOME": str(Path(child["env"]["HOME"]) / ".local/state"),
                     **{
                         key: child["env"][key]
@@ -166,7 +182,10 @@ def native_provider(
         }, None
     home = work.with_name(f"{work.name}-home")
     home.mkdir(mode=0o700)
-    config_home = codex_home(home / ".codex")
+    config_home = codex_home(
+        home / ".codex",
+        '[plugins."leaf@leaf".mcp_servers.leaf]\ndefault_tools_approval_mode = "approve"\n',
+    )
     codex = codex_program()
     temporary = work / "tmp"
     temporary.mkdir()
@@ -335,6 +354,7 @@ def prepare(
     """One test per selected address and condition, run on each column it applies to."""
     definitions = catalog()
     providers: dict[str, dict] = {}
+    payloads: dict[str, Path] = {}
     skills = {}
     tests = []
     # Judged screenshots sit apart from the rest of the evidence, for the judge.
@@ -364,6 +384,7 @@ def prepare(
                         + (f"/instructions:{instructions}" if instructions else "")
                     )
                     if label not in providers:
+                        payloads[label] = payload
                         if executor or authoring:
                             configured = workflow_provider(
                                 harness,
@@ -413,6 +434,23 @@ def prepare(
                 now = sample["vars"].pop("now", NOW)
                 if not authoring:
                     prompt = f"It is now {now}.\n\n{prompt}"
+                if not authoring and "page" in metadata:
+                    # Each column's probe finds the case's page at the same path
+                    # under its working directory, with the packages the case names.
+                    page = Path("pages") / address.replace("/", "--")
+                    for label in labels:
+                        config = providers[label]["config"]
+                        state = config.get("env", config.get("cli_env"))
+                        run_leaf(
+                            payloads[label],
+                            Path(state["XDG_STATE_HOME"]),
+                            "page",
+                            "init",
+                            *(f"--package={name}" for name in metadata["page"]),
+                            str(Path(config["working_dir"]) / page),
+                            check=True,
+                        )
+                    prompt = PAGE_PROMPT.format(prompt=prompt, page=page)
                 sample["vars"] = {
                     **sample["vars"],
                     "prompt": (

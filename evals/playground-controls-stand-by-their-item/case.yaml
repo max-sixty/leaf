@@ -11,11 +11,12 @@
 # Those scores used the historical sentence-count rubric. The revised premise
 # rubric grades useful context and task prominence. Both saved Codex answers passed
 # when regraded for context anywhere on the page rather than repeated in its intro.
-# The case now authors the page and names nothing to read; it hasn't run in this form.
+# Now a probe given a page with its packages, it passed Claude Code 1 of 2, Codex 0 of 2
+# (the budget control inside the preview) at b90df8d3a2.
 description: playground-controls-stand-by-their-item
 metadata:
   purpose: "Playground: a control that changes one item of several stands beside that item in the preview, and a setting shared by every item stays in the rail."
-  authoring: true
+  page: [playground]
   tags:
     - playground
     - layout

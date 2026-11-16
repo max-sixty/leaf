@@ -85,18 +85,26 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     z-index: var(--lf-z-margin-raised);
   }
   /* Placement fits the finished thread before typing: the frame reserves the card's
-     header and reply rows around the editor, and is as wide as the card, the measure
-     (`--lf-thread-card`) or its room where that is narrower, so the card Send opens
-     stands in the frame and grows out of the field (box-motion.js, `drawnAt`). Only the field paints; the
-     transparent rows neither take document flow nor intercept presses. Its tracks
-     shrink into that frame, and attached images hang outside it. */
+     header and reply rows around the editor, and starts where the card will, so the
+     card Send opens grows out of the field from that start (box-motion.js, `drawnAt`).
+     The frame stands at the card's least width (`--lf-thread-card-min`) however many
+     lines its words take, so typing never widens it; Send opens the card at the width
+     `size-width` gives its words. Where its start stands away from its text, it takes the card's width, the measure (`--lf-thread-card`) or its
+     room where that is narrower (`data-lf-card-width`; comment-placement.js,
+     `fromSubject`). Only the
+     field paints; the transparent rows neither take document flow nor intercept
+     presses. Its tracks shrink into that frame, and attached images hang outside it. */
   .lf-fab-bar:not([data-lf-target-only], [data-lf-presentation="inline"]) {
     box-sizing: border-box;
     /* An auto-height positioned box borrows its inset-modified available height.
        Intrinsic sizing keeps that inset from masquerading as content resize. */
     height: max-content;
     --lf-response-display: inline-grid;
-    width: min(var(--lf-float-w, calc(100vw - 16px)), var(--lf-thread-card));
+    --lf-comment-frame-max-width: min(
+      var(--lf-float-w, calc(100vw - 16px)),
+      var(--lf-thread-card)
+    );
+    width: min(var(--lf-thread-card-min), var(--lf-comment-frame-max-width));
     grid-template-columns: minmax(0, 1fr);
     grid-template-rows: minmax(var(--lf-response-height), 1fr);
     grid-auto-rows: auto;
@@ -105,6 +113,12 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     padding: var(--lf-comment-frame-top) var(--lf-comment-frame-inline)
       var(--lf-comment-frame-bottom);
     pointer-events: none;
+  }
+  .lf-fab-bar[data-lf-card-width]:not(
+      [data-lf-target-only],
+      [data-lf-presentation="inline"]
+    ) {
+    width: var(--lf-comment-frame-max-width);
   }
   /* Floating, the bar shows once its placement stands it, and not while it waits for room
      (floating-response.js). Inline, its outlet shows it. */
@@ -276,8 +290,9 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
     position: fixed;
     pointer-events: auto;
     z-index: var(--lf-z-margin-preview);
-    /* As wide as the measure, or the room its placement gives it, whatever its
-       thread holds (thread-preview.js, `measureThreadCard`). */
+    /* The bounds of a card no placement has sized yet; placement stands it at the
+       least width or the measure, capped by its room (thread-preview.js,
+       `measureThreadCard`). */
     width: min(var(--lf-thread-card), calc(100vw - 16px));
     max-height: calc(100vh - var(--lf-head-room) - 16px);
     box-sizing: border-box;

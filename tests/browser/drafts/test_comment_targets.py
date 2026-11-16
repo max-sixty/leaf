@@ -444,6 +444,108 @@ def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
     expect(page.locator(".lf-fp-draft")).to_have_count(1)
 
 
+def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
+    """A comment draft stands as a dashed margin entry at its passage, and a reply
+    draft beside its thread's entry; a press on one resumes it in its own box."""
+    page = open_page(browser, serve(LONG_PAGE, anchored=[("p41", "Paragraph 41.")]))
+    field = page.locator(".lf-fab-input")
+    drafts = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
+    ninth = "About the ninth paragraph."
+    choose_comment_target(page, "#p9")
+    write(field, ninth)
+    page.keyboard.press("Escape")
+    expect(drafts).to_have_count(1)
+    expect(drafts).to_have_css("border-top-style", "dashed")
+    expect(drafts).to_have_accessible_name(re.compile("^Draft.*Paragraph 9"))
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(reply).to_be_focused()
+    write(reply, "A reply to the anchored thread.")
+    page.keyboard.press("Escape")
+    page.keyboard.press("Escape")
+    expect(drafts).to_have_count(2)
+    thread = page.locator('.lf-margin-face[data-lf-kinds~="comment"]')
+    expect(thread).to_have_attribute("data-lf-kinds", "comment draft")
+
+    drafts.first.click()
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", ninth)
+
+
+def test_page_map_reads_a_listed_draft_as_it_now_stands(browser, serve):
+    """Words added to a draft already in the margin reach its Page Map row, though the
+    drafts list publishes no keystroke."""
+    page = open_page(browser, serve(LONG_PAGE))
+    field = page.locator(".lf-fab-input")
+    draft = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
+    choose_comment_target(page, "#p9")
+    write(field, "About the ninth paragraph.")
+    page.keyboard.press("Escape")
+    draft.click()
+    expect(field).to_be_focused()
+    field.press("End")
+    page.keyboard.type(" More words added later.")
+    page.keyboard.press("Escape")
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+p")
+    expect(page.locator(".lf-page-map-list")).to_contain_text("More words added later")
+
+
+def test_drafts_stand_by_their_own_passage_and_outlast_a_resolved_thread(
+    browser, serve
+):
+    """Drafts about two passages of one paragraph stand apart, each by its passage,
+    and a reply draft keeps its entry when its thread is resolved."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Two passages",
+                '<p id="two">The first passage stands here and the second passage'
+                " stands there.</p>",
+            ),
+            anchored=[("two", "The first passage")],
+        ),
+    )
+    field = page.locator(".lf-fab-input")
+    drafts = page.locator('.lf-margin-face[data-lf-kinds="draft"]')
+    for words in ("first passage", "second passage"):
+        page.evaluate(
+            """words => {
+              const text = document.getElementById('two').firstChild;
+              const at = text.data.indexOf(words);
+              const range = document.createRange();
+              range.setStart(text, at);
+              range.setEnd(text, at + words.length);
+              getSelection().removeAllRanges();
+              getSelection().addRange(range);
+            }""",
+            words,
+        )
+        page.keyboard.press("c")
+        expect(field).to_be_focused()
+        write(field, f"About the {words}.")
+        page.keyboard.press("Escape")
+    expect(drafts).to_have_count(2)
+    tops = drafts.evaluate_all(
+        "nodes => nodes.map(node => node.getBoundingClientRect().top)"
+    )
+    assert len(set(tops)) == 2
+
+    page.evaluate("() => document.activeElement?.blur()")
+    page.keyboard.press("t")
+    page.keyboard.press("c")
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    expect(reply).to_be_focused()
+    write(reply, "A reply left unsent.")
+    page.locator(".lf-margin-preview .lf-resolve").click()
+    expect(page.locator('.lf-margin-face[data-lf-kinds~="comment"]')).to_have_count(0)
+    expect(drafts).to_have_count(3)
+
+
 def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     """Returning editor focus cannot overwrite a real gesture made before that handoff."""
     page = open_page(

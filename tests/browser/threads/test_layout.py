@@ -313,12 +313,15 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
         page.context.close()
 
 
-def test_a_message_says_its_age_only_where_it_changes(browser, serve):
-    """A thread says each message's age only where that age, as displayed, differs
-    from the message above, the first always saying it: three messages written on one
-    day three days ago read one age, and a reply written now reads its own."""
+def test_every_message_says_when_it_was_said(browser, serve):
+    """Every message in a thread says when it was said, naming its day unless that is
+    today (presence.js, `saidAt`): replies hours apart three days ago each read their
+    own time, where an age read "3d ago" once over all of them."""
     url = serve(PANEL_PAGE)
-    then = datetime.now().astimezone() - timedelta(days=3)
+    # Local wall times, each with its own offset, so a change of daylight saving
+    # between them moves no clock reading.
+    now = datetime.now()
+    then = (now - timedelta(days=3)).replace(hour=15, minute=29, second=0).astimezone()
     root = append_carried_log_record(
         serve.page_dir,
         {
@@ -330,31 +333,36 @@ def test_a_message_says_its_age_only_where_it_changes(browser, serve):
             "anchor": {"section": "lede"},
         },
     )["id"]
-    for at, (author, text) in enumerate(
-        [("agent", "Yes, three tries."), ("user", "Then park it after.")], start=1
-    ):
+    for text, at in [
+        ("Yes, three tries; I'm parking it now.", then + timedelta(minutes=6)),
+        ("Parked after the third.", then + timedelta(hours=2, minutes=23)),
+        ("And the backoff doubles.", now.replace(hour=9, minute=10).astimezone()),
+    ]:
         append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "reply",
-                "author": author,
-                **({"agent": "Claude"} if author == "agent" else {}),
+                "author": "agent",
+                "agent": "Claude",
                 "parent": root,
                 "revision": 1,
                 "text": text,
-                "ts": (then + timedelta(minutes=at)).isoformat(),
+                "ts": at.isoformat(),
             },
         )
-    append_agent_reply(serve.page_dir, root, "Parked after the third.")
     page = open_page(browser, url)
     page.locator(".lf-margin-marker").first.click()
     card = page.locator(".lf-margin-preview .lf-page-thread")
     expect(card).to_be_visible()
-    ages = card.locator(".lf-msg-head")
-    expect(ages).to_have_count(4)
-    assert ages.evaluate_all(
-        "heads => heads.map((head) => head.querySelector('time')?.textContent ?? null)"
-    ) == ["3d ago", None, None, "just now"]
+    times = card.locator(".lf-msg-head > .lf-msg-meta > time")
+    expect(times).to_have_count(4)
+    day = f"{then.day} {then:%b}" + ("" if then.year == now.year else f" {then.year}")
+    assert times.all_text_contents() == [
+        f"{day} 15:29",
+        f"{day} 15:35",
+        f"{day} 17:52",
+        "09:10",
+    ]
 
 
 # Where a message's words may run to, and the thread's inset before its words.

@@ -2,6 +2,7 @@
 reply editor's growth, and what a sent or arriving turn leaves in view."""
 
 import base64
+from datetime import datetime
 from io import BytesIO
 
 import pytest
@@ -2392,8 +2393,10 @@ def test_next_unread_beside_previous_and_next_leaves_a_head_its_words(
     browser, serve, pointer
 ):
     """Beside Previous and Next, Next unread stands on its symbol, its words its name, so
-    the first head keeps its author and time, which its words cut to "Me ju". Under a
-    finger, where each press is a finger wide, a card draws none there (annotation-chrome.css)."""
+    the first head keeps its author and time, which its words cut to "Me ju". The time,
+    written on another day, keeps that day whole and gives up its clock whole, where a
+    cut read "18 Sep, …" (`saidTime`, thread/messages.js). Under a finger, where each
+    press is a finger wide, a card draws none there (annotation-chrome.css)."""
     second = {**LONG_THREAD_ROOT, "text": "A second question.", "id": "e" * 32}
     url = serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, LONG_THREAD[1], second])
     context = browser.new_context(
@@ -2415,8 +2418,15 @@ def test_next_unread_beside_previous_and_next_leaves_a_head_its_words(
     ).to_be_visible()
     assert press.bounding_box()["width"] == 24
     head = preview.locator(".lf-msg-head").first
-    for part in (head.locator(":scope > b"), head.locator(".lf-msg-meta > time")):
+    time = head.locator(".lf-msg-meta > time")
+    for part in (head.locator(":scope > b"), time, time.locator(":scope > span").first):
         assert part.evaluate("part => part.scrollWidth <= part.clientWidth")
+    # The day in the reader's zone, as the browser reads it.
+    said = datetime.fromisoformat(str(LONG_THREAD_ROOT["ts"])).astimezone()
+    year = "" if said.year == datetime.now().year else f" {said.year}"
+    expect(time.locator(":scope > span").first).to_have_text(
+        f"{said.day} {said:%b}{year}"
+    )
 
 
 def test_next_unread_never_shows_in_a_card_whose_opening_reads_its_reply(

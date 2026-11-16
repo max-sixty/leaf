@@ -206,7 +206,7 @@ def test_a_new_sent_message_does_not_hide_work_on_an_earlier_message(browser, se
     # is set larger (surfaces.css, the name's strut).
     baselines = workflow.evaluate(
         """node => [...node.closest('.lf-msg-head').querySelectorAll(
-          ':scope > b, :scope > .lf-msg-meta > time, [data-lf-voice]')].map(words => {
+          ':scope > b, :scope > .lf-msg-meta > time > *, [data-lf-voice]')].map(words => {
           const mark = words.appendChild(document.createElement('span'));
           mark.style.cssText = 'display: inline-block; block-size: 0';
           const y = mark.getBoundingClientRect().top;

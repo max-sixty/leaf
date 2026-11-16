@@ -258,18 +258,24 @@ Leaf derives these from the colours above, the neutrals as steps from `--lf-pape
 toward `--lf-ink`, so they follow a palette that sets those. A page's or package's
 rules read them, and a theme restates one it wants otherwise:
 
-| Token                                                | Draws                                                      |
-| ---------------------------------------------------- | ---------------------------------------------------------- |
-| `--lf-card`                                          | A raised surface: a card, a panel, a control               |
-| `--lf-field`                                         | A tinted ground: a field, a callout                        |
-| `--lf-chip`                                          | A neutral chip's ground                                    |
-| `--lf-rule`                                          | A hairline between rows or parts                           |
-| `--lf-border`                                        | A control's or a box's edge                                |
-| `--lf-muted`                                         | Words that qualify a line: a caption, a status, a hint     |
-| `--lf-ink-2`                                         | Secondary text, between the ink and `--lf-muted`           |
-| `--lf-accent-tint`                                   | The ground under an accented press, from `--lf-accent`     |
-| `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint` | A status's ground, from the paper and that status's colour |
-| `--lf-add-tint`, `--lf-del-tint`, `--lf-hi-tint`     | The ground of an added, a removed and a highlighted line   |
+| Token                                                   | Draws                                                                                  |
+| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `--lf-card`                                             | A raised surface: a card, a panel, a control                                           |
+| `--lf-field`                                            | A tinted ground: a field, a callout                                                    |
+| `--lf-chip`                                             | A neutral chip's ground                                                                |
+| `--lf-rule`                                             | A hairline between rows or parts                                                       |
+| `--lf-border`                                           | A control's or a box's edge                                                            |
+| `--lf-muted`                                            | Words that qualify a line: a caption, a status, a hint                                 |
+| `--lf-ink-2`                                            | Secondary text, between the ink and `--lf-muted`                                       |
+| `--lf-accent-tint`                                      | The ground under an accented press, from `--lf-accent`                                 |
+| `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint`    | A status's ground, from the paper and that status's colour                             |
+| `--lf-add-tint`, `--lf-del-tint`, `--lf-hi-tint`        | The ground of an added, a removed and a highlighted line                               |
+| `--lf-turn`, `--lf-turn-ink`, `--lf-turn-wash`          | Leaf's mark for the user's move: their turn in a thread, what is On me                 |
+| `--lf-thread`                                           | Leaf's mark for a thread                                                               |
+| `--lf-work`                                             | Leaf's mark for the agent at work: the leaf, the bar beside a block, a plan's progress |
+| `--lf-news`                                             | Leaf's mark for a reply the user hasn't read                                           |
+| `--lf-change`                                           | Leaf's mark for what changed since the version compared                                |
+| `--lf-settled`, `--lf-settled-ink`, `--lf-settled-tint` | Leaf's mark for what the user chose or finished                                        |
 
 Type, space and shape:
 

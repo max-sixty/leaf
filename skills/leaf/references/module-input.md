@@ -112,7 +112,10 @@ a widget's state or the threads. For any other state it reads, hold the value in
 ### How scopes compose
 
 A key goes first to the scope on the focused control, then to the widgets around it,
-then to the page. A scope takes only keys whose rows make a press, by a `run` or by
+then to the page. A key pressed inside an outlet Leaf fills with a Thread
+(`module-annotations.md`, "Widget-local Thread placement" and "Page annotation
+presentation") skips the widgets around the outlet: it goes to the scopes inside the
+outlet and on it, then to the page. A scope takes only keys whose rows make a press, by a `run` or by
 naming a `control` Leaf clicks, so other keys pass outward. A row keeps its key while unavailable, so the key never falls through to a
 different meaning further out; an unavailable Escape, though, passes on to the next
 Escape. Text fields keep their editing keys ahead of every widget scope. A key other
@@ -321,8 +324,8 @@ come back the same leave the preview as it is. It returns:
   lists presses the register can't see, each as the steps its chips draw, as a control's
   own activation keys a drag grip names. `detail` is lines under the name, each words or
   an `html` template; a falsy line is left out. `at` is where the preview stands, the
-  declaring element by default: another element, as a message's age stands its preview
-  by its `<time>`, or a box in client coordinates (`{left, top, right, bottom}`, such as
+  declaring element by default: another element, as a message stands its preview by
+  the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
   preview stands above and takes no pointer, so the pointer goes on reading the element
   beneath it. `about` is the element the preview is about, which Leaf leaves

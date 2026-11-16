@@ -271,9 +271,10 @@ import {
 import { agentSays, leafSays, voiceOf, voiced, wordsText } from "./voice.js";
 import {
   anchorLabel,
+  draftPreview,
+  draftWords,
   messageReading,
   messageText,
-  messageWords,
   PREVIEWED_LINE,
   threadHeading,
   threadName,
@@ -288,8 +289,10 @@ import { isComposerDraft } from "./composing/selection.js";
 import { dismissReply, releaseReplies } from "./thread/replies.js";
 import {
   PAGE_DRAFT,
+  draftAnchor,
+  draftSends,
+  draftsReading,
   loadDraft,
-  messageDrafts,
   mirrorDraft,
   saveDraft,
   sendMessage,
@@ -1555,9 +1558,9 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
-  // The drafts Threads lists (`draftRows`): every message draft but the page's own,
+  // The drafts Threads lists (`draftsListing`): every message draft but the page's own,
   // which the field holds.
-  const listedDrafts = () => messageDrafts().filter((draft) => draft.part !== "page");
+  const listedDrafts = () => draftsReading().filter((draft) => draft.part !== "page");
   // Where nothing has news, the On Me mark and the folded leaf wear the unread dot
   // grey for these, and the mark opens Threads on them. The user asked for it on 15
   // November 2026, so a draft put away stays in sight without opening Threads.
@@ -1568,7 +1571,7 @@ export function createFloatingPanel({
   // the On Me mark's dot counts it: the user chose (2026-10-25) that a resolved
   // thread's unread reply says nothing new. Rows name attention, and a resolved thread
   // says so with how long ago, as a Done line says its outcome and age. A reply the user
-  // is writing stands under Drafts (`draftRows`).
+  // is writing stands under Drafts (`draftsListing`).
   /** @param {ReturnType<typeof readThreads>["threads"][number]} thread */
   const threadStatus = (thread) => {
     const word = thread.resolved
@@ -1762,6 +1765,7 @@ export function createFloatingPanel({
    *     node: Element, at: number, height: number, holds: number, keep: () => void,
    *   } | null,
    *   drawnSections: Map<string, string> | null,
+   *   drawnDrafts: Set<string> | null,
    *   onPageSeat: boolean,
    *   openItem: string | null,
    *   seatHeights: Map<string, number>,
@@ -1777,6 +1781,7 @@ export function createFloatingPanel({
     rewriting: false,
     pressed: null,
     drawnSections: null,
+    drawnDrafts: null,
     onPageSeat: false,
     openItem: null,
     seatHeights: new Map(),
@@ -2307,8 +2312,9 @@ export function createFloatingPanel({
   // its room again in the next frame, once it stands at what it now fits.
   let refitting = false;
   // Each row standing Threads draws, by its thread's key, with its section
-  // (`drawnSections`); null while no list stands, so the next paint draws every row
-  // where it now belongs (`threadsListing`).
+  // (`drawnSections`), and each draft's row by its key (`drawnDrafts`); null while no
+  // list stands, so the next paint draws every row where it now belongs
+  // (`threadsListing`, `draftsListing`).
   // The keys of the rows a notice's press lands on, while its paint draws them
   // (`showJoined`).
   /** @type {Set<string> | null} */
@@ -2319,6 +2325,7 @@ export function createFloatingPanel({
   function refit() {
     opening.room = null;
     opening.drawnSections = null;
+    opening.drawnDrafts = null;
     viewMovingUntil = performance.now() + viewResizeMs();
     if (refitting) return;
     refitting = true;
@@ -2562,7 +2569,6 @@ export function createFloatingPanel({
         disabled: entry.disabled,
         row: entry.key,
         opens: Boolean(route && viewOf(route).over?.includes("menu")),
-        title: entry.title || null,
       },
     );
   }
@@ -2996,12 +3002,15 @@ export function createFloatingPanel({
   }
   // After a paint: what the standing list drew, which the next paint holds to.
   function noteDrawnSections() {
-    opening.drawnSections =
-      showing({ view: "threads" }) && inventoried()
-        ? new Map(
-            threadsListing().rows.map(({ thread, section }) => [thread.key, section]),
-          )
-        : null;
+    const stands = showing({ view: "threads" }) && inventoried();
+    opening.drawnSections = stands
+      ? new Map(
+          threadsListing().rows.map(({ thread, section }) => [thread.key, section]),
+        )
+      : null;
+    opening.drawnDrafts = stands
+      ? new Set(draftsListing().rows.map(({ key }) => key))
+      : null;
   }
   // What the notice says, a fact for each way a row joined.
   /** @param {ReturnType<typeof threadsListing>["joined"]} joined */
@@ -3028,15 +3037,24 @@ export function createFloatingPanel({
   // in the field, leaves focus where it is.
   function showJoined() {
     const { joined } = threadsListing();
-    const keys = new Set(joined.map(({ thread }) => thread.key));
+    const drafts = draftsListing().joined;
+    const keys = new Set([
+      ...drafts.map(({ key }) => key),
+      ...joined.map(({ thread }) => thread.key),
+    ]);
     const carried = focused() === joinedNotice.node || inList();
     // Where only resolved threads joined, the row it lands on stands under Resolved,
     // which unfolds to show it (`settledHeading`).
-    if (joined.every(({ now }) => now === "resolved") && !unfolded.has("resolved")) {
+    if (
+      !drafts.length &&
+      joined.every(({ now }) => now === "resolved") &&
+      !unfolded.has("resolved")
+    ) {
       unfolded.add("resolved");
       refit();
     }
     opening.drawnSections = null;
+    opening.drawnDrafts = null;
     // The paint stands the list's walk on the row it lands on: a rove after it would
     // take back the stop the paint first gave another row, a write that changes nothing.
     landingKeys = keys;
@@ -3055,10 +3073,14 @@ export function createFloatingPanel({
   function joinedTemplate() {
     if (!showing({ view: "threads" })) return nothing;
     const { joined } = threadsListing();
-    const facts = joinedFacts(joined);
+    const drafts = draftsListing().joined.length;
+    const facts = [
+      ...(drafts ? [counted(drafts, "new draft")] : []),
+      ...joinedFacts(joined),
+    ];
     if (!facts.length) return nothing;
     joinedNotice.set({
-      text: newsCount(joined.length),
+      text: newsCount(joined.length + drafts),
       label: facts.join(" · "),
       open: showJoined,
     });
@@ -3105,14 +3127,15 @@ export function createFloatingPanel({
   // on, or the thread a reply or rewrite is in. Its end says what Send makes of it, and
   // its preview reads both whole. The rows read in the page's order, each where the
   // thread it starts or joins stands, and a search reads their subjects and words.
-  // Each paint of the list reads the drafts afresh, and nothing paints it for draft
-  // news: while the user reads the list nothing in this tab writes a draft, and a
-  // draft another tab writes, or a refusal hands back, is a rare path that shows at
-  // the list's next paint rather than costing a paint per keystroke typed elsewhere. The
-  // user asked for this on 15 November 2026, in place of unsent words following the
-  // next Comment to another target; Drafts as a filter was rejected on 25 October with
-  // the other filters, which a second row of tabs would have had to hold.
-  function draftRows() {
+  // The list reads the drafts list (drafts.js, `draftsReading`), which repaints it when
+  // a draft starts or stops holding words, not per keystroke. While the list stands, a
+  // draft that joins it, as one another tab writes or a refusal hands back, waits
+  // behind the notice that holds new threads (`joinedTemplate`), and its press draws
+  // it. The user asked for Drafts on 15 November 2026, in place of unsent words
+  // following the next Comment to another target, and for its rows to hold still as
+  // Threads' do; Drafts as a filter was rejected on 25 October with the other filters,
+  // which a second row of tabs would have had to hold.
+  function draftsListing() {
     const words = query.trim().toLowerCase();
     const rows = listedDrafts().map((draft) => {
       const inThread = draft.part === "reply" || draft.part === "rewrite";
@@ -3121,16 +3144,12 @@ export function createFloatingPanel({
         draft.part === "comment" && isComposerDraft(draft.payload)
           ? draft.payload
           : null;
-      const anchor =
-        draft.part === "seat" ? { section: draft.name } : (composed?.anchor ?? null);
-      const kinds = {
-        comment: composed?.suggest ? "Suggestion" : "Comment",
-        seat: "Comment",
-        reply: "Reply",
-        rewrite: "Edit",
-      };
+      const anchor = draftAnchor(draft);
       return {
         context: draft.context,
+        // A row's key among Threads' rows, which hold focus and land a notice's press
+        // by it, apart from any thread's.
+        key: `draft:${draft.context}`,
         // A reply or rewrite whose thread the log no longer holds, as an undo takes
         // one back, says so in Leaf's voice; a press moves its words to the page.
         gone: inThread && !thread,
@@ -3139,33 +3158,33 @@ export function createFloatingPanel({
           : inThread
             ? "Thread gone"
             : anchorLabel(anchor, composed?.about) || "The page",
-        kind: kinds[draft.part],
-        said: messageWords({
-          attempt: `draft:${draft.context}`,
-          text: draft.text,
-          suggestion: Boolean(composed?.suggest),
-          drawing: composed?.drawing,
-        }),
+        kind: draftSends(draft),
+        said: draftWords(draft),
+        listed: draft,
         place: thread ?? { id: "", anchor },
       };
     });
-    return byRenderedOrder(
+    const listed = byRenderedOrder(
       words
         ? rows.filter((row) => `${row.about} ${row.said}`.toLowerCase().includes(words))
         : rows,
       (row) => threadPlace(row.place, placedAt),
     );
+    const drawn = opening.drawnDrafts;
+    return {
+      rows: drawn ? listed.filter(({ key }) => drawn.has(key)) : listed,
+      joined: drawn ? listed.filter(({ key }) => !drawn.has(key)) : [],
+    };
   }
-  /** @param {ReturnType<typeof draftRows>[number]} draft */
+  /** @param {ReturnType<typeof draftsListing>["rows"][number]} draft */
   const draftRow = (draft) =>
     html`<button
       type="button"
       ${offeredAction("row", "lf-fp-draft")}
+      data-lf-key=${draft.key}
       data-lf-draft=${draft.context}
-      .lfPreview=${() => ({
-        name: excerptWords(draft.about, PREVIEWED_LINE),
-        detail: [excerptWords(draft.said, PREVIEWED_LINE)],
-      })}
+      .lfPreview=${() =>
+        draftPreview([draft.listed], excerptWords(draft.about, PREVIEWED_LINE))}
       @click=${() => putAwayThen(() => resumeDraft(draft.context))}
     >
       <span class="lf-row-lead"></span>
@@ -3179,7 +3198,7 @@ export function createFloatingPanel({
     </button>`;
   function threadsView() {
     const { rows, searched } = threadsListing();
-    const drafts = draftRows();
+    const drafts = draftsListing().rows;
     const listed = rows
       .filter(({ section }) => section !== "resolved")
       .map(({ thread }) => thread);

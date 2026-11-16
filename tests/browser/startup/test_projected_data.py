@@ -39,6 +39,7 @@ from render_harness import (
 
 from browser.threads import (
     open_panel_thread,
+    thread_row,
 )
 from leaf import data as data_model
 from leaf import event_log as events_model
@@ -808,6 +809,7 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
     old reading forever asks for repair on every tick rather than aging paints.
     """
     url = serve(LONG_PAGE)
+    hour_ago = (datetime.now().astimezone() - timedelta(hours=1)).isoformat()
     append_carried_log_record(
         serve.page_dir,
         {
@@ -816,13 +818,17 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
             "author": "user",
             "revision": 1,
             "text": "An earlier question.",
-            "ts": (datetime.now().astimezone() - timedelta(hours=1)).isoformat(),
+            "ts": hour_ago,
         },
     )
+    # Its row in Threads says how long ago it was resolved.
+    append_carried_log_record(
+        serve.page_dir,
+        {"kind": "resolve", "author": "user", "parent": "earlier", "ts": hour_ago},
+    )
     page = open_page(browser, url)
-    view = open_panel_thread(page, "earlier")
-    timestamp = view.locator(".lf-msg-head time").first
-    expect(timestamp).to_have_text("1h ago")
+    timestamp = thread_row(page, "earlier").locator("time")
+    expect(timestamp).to_have_text("1h")
     stale = page.evaluate("async () => (await fetch('/api/state')).json()")
     stale["taken"] = 0
     stale["now"] = (datetime.now().astimezone() - timedelta(hours=3)).isoformat()
@@ -848,11 +854,11 @@ def test_a_stale_response_cannot_rewind_timestamp_aging(browser, serve):
         )
     ticked(page)
     assert len(crossed) == 1
-    expect(timestamp).to_have_text("1h ago")
-    # With no newer state at all, the panel's thread still ages by the clock.
+    expect(timestamp).to_have_text("1h")
+    # With no newer state at all, the thread's row still ages by the clock.
     page.clock.set_fixed_time(datetime.now().astimezone() + timedelta(hours=3))
     ticked(page)
-    expect(timestamp).to_have_text("4h ago")
+    expect(timestamp).to_have_text("4h")
 
 
 def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):

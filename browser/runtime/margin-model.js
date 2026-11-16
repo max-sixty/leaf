@@ -45,7 +45,7 @@ import { leafSays, wordsText } from "./voice.js";
  * carriesWorkflow?: boolean, state?: State, label?: string | null,
  * userAttention?: UserAttention | null, unread?: number, context?: import("./voice.js").Words | null,
  * mapContext?: import("./voice.js").Words | null, words?: import("./voice.js").Words, atWork?: boolean,
- * cardOpen?: boolean}} AnnotationBase
+ * cardOpen?: boolean, draft?: string}} AnnotationBase
  * @typedef {AnnotationBase & {kind: "comment", marker?: true, thread: import("./thread/workflow.js").ThreadRecord}} ThreadItem
  * @typedef {ThreadItem | (AnnotationBase & {kind: Exclude<Kind, "comment">, thread?: never}) | (AnnotationBase & {kind: "comment", marker: false, owner: string, thread?: never})} AnnotationItem
  */

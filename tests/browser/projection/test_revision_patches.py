@@ -1111,7 +1111,8 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     editor.evaluate("node => node.setSelectionRange(5, 9)")
     (serve.page_dir / "index.html").write_text(first)
     expect(page.locator("lf-ask")).to_have_count(0)
-    expect(door).to_have_attribute("aria-label", "On Me")
+    # With nothing on the user, the door names the comment they are writing.
+    expect(door).to_have_attribute("aria-label", "On Me, 1 draft unsent")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property(
         "value", "Keep this comment while questions change."
@@ -1142,13 +1143,17 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     # The row offers the latest, without a press that would end the hold.
     expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
     expect(page.locator("#subject p")).to_have_count(1)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
+        "aria-label", "On Me, 1 draft unsent"
+    )
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "This occurrence matters.")
 
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me: 1")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
+        "aria-label", "On Me: 1, 1 draft unsent"
+    )
 
 
 def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):

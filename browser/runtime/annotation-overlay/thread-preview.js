@@ -68,10 +68,9 @@
    user's request for one thread view, and the user did not pick it.
 
    A selection holds its placement side, and its width once widened. Beside its text a
-   card stands at the least width (`--lf-thread-card-min`) until a message it shows stands
-   taller than it is wide there, then at the measure (`size-width`; comment-placement.js,
-   `standsTall`), so it widens at most once, from its start, which placement keeps
-   room for. A long comment widens the card Send opens; a long answer widens it as it
+   card widens from the least width to the measure when a message outgrows the least
+   width (`size-width`; comment-placement.js, `standsTall`), so it widens at most once,
+   from its start, which placement keeps room for. A long comment widens the card Send opens; a long answer widens it as it
    arrives, carrying the controls at its far edge (`data-lf-widens`; browser/AGENTS.md,
    "Controls stay where the user aims"), or, while the user writes a reply, as they
    send it. The comment box keeps the least width however much is
@@ -82,9 +81,10 @@
    open, which wrapped every answer, however long, in a card 320px wide; a box and card at the
    measure, which stood a short comment in a mostly empty card; and a box as wide as its
    words, which widened under their typing, as they asked nothing should. They were
-   shown that the card's one widening moves its controls without a press. On 15
-   November 2026 they asked that it follow its aim, a big block of words, rather than
-   the four lines it first counted; the shape stands for that, untried by them.
+   shown that the card's one widening moves its controls without a press, and called
+   those controls secondary. On 15 November 2026 they chose where a message outgrows
+   the least width, a block taller than it is wide, over the four lines it first
+   counted, which widened a third of their comments at Send and nearly every answer.
    Another selection chooses afresh. Floating UI supplies room from the held edge; native
    grid tracks share it between transcript and reply, growing to their words before
    scrolling. Reply continuity retains removed turns as flexible space and lets the
@@ -843,8 +843,8 @@ export function createThreadPreview({
               transcript: session.transcript,
             };
             if (fresh) session.width = null;
-            // A card by its text stands at the least width until a message in it
-            // stands taller than it is wide there, then at the measure until another
+            // A card by its text widens to the measure once a message outgrows its
+            // least width (`size-width`), and stays at the measure until another
             // selection, so it widens at most once (the header's rule), and never while
             // the user writes words in its reply box: news that shows meanwhile, above
             // a card held by its foot, widens it once they send. One whose start stands

@@ -429,13 +429,10 @@ const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--lf-thread-card-min");
 export const cardMeasure = () => rootLength("--lf-thread-card");
-// A card by its text stands at the least width while each message it shows is no
-// taller than it is wide there, and at the measure from the first that stands taller
-// (`size-width`). A block of words wider than it is tall reads at a glance in the slim
-// card; a taller one reads as a column, which the measure's lines halve. The shape,
-// unlike a count of lines or characters, follows the card's width and face. Rejected
-// on 15 November 2026: past four lines, which widened a third of the user's comments
-// at Send and nearly every answer.
+// Where `size-width` widens a card by its text: a block of words wider than it is tall
+// reads at a glance at the least width; a taller one reads as a column, which the
+// measure's lines halve. The shape needs no constant, so it follows the card's width
+// and face (thread-preview.js records the choice).
 /** Whether any of `texts`, laid out at the width it stands at, stands taller than wide.
  * @param {Iterable<Element>} texts */
 export const standsTall = (texts) => {

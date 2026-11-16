@@ -88,9 +88,8 @@ body:is([data-lf-aiming], [data-lf-design-mode]) ~ .lf-chrome .lf-mark-el {
      header and reply rows around the editor, and starts where the card will, so the
      card Send opens grows out of the field from that start (box-motion.js, `drawnAt`).
      The frame stands at the card's least width (`--lf-thread-card-min`) however many
-     lines its words take, so typing never widens it, and Send opens the card at the
-     measure where they stand taller than they are wide (`size-width`). Where its start stands away
-     from its text, it takes the card's width, the measure (`--lf-thread-card`) or its
+     lines its words take, so typing never widens it; Send opens the card at the width
+     `size-width` gives its words. Where its start stands away from its text, it takes the card's width, the measure (`--lf-thread-card`) or its
      room where that is narrower (`data-lf-card-width`; comment-placement.js,
      `fromSubject`). Only the
      field paints; the transparent rows neither take document flow nor intercept

@@ -64,6 +64,11 @@ def test_thread_read_is_exact_and_paginated(page_dir):
         messages[1]["id"],
     ]
     assert [item["author"] for item in reading["content"]] == ["user", "agent"]
+    # When each was said, as the thread shows it beside the message.
+    assert [item["ts"] for item in reading["content"]] == [
+        messages[0]["ts"],
+        messages[1]["ts"],
+    ]
     assert reading["content"][1]["parent"] == messages[0]["id"]
     [move] = owed(reading)
     assert move["answer"] == {

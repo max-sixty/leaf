@@ -540,6 +540,7 @@ def page_state(
             }
             for key in (
                 "kind",
+                "ts",
                 "author",
                 "agent",
                 "session",

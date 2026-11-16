@@ -135,6 +135,11 @@ export function createAnnotationInventory({
       .replace(/[-_]+/g, " ")
       .trim();
 
+  // A target is named from the nearest element with an id, itself or one around it, and
+  // below that by each element's place among its authored siblings, so a name reads
+  // only the siblings between the target and that element. Named from `body`, each
+  // passage of a 1,024-section page read every section, and a collection naming them
+  // all spent 93 ms of its 103 there.
   /** @param {Element} target @returns {string} */
   function targetPath(target) {
     const host = shadowHost(target.getRootNode());
@@ -143,10 +148,13 @@ export function createAnnotationInventory({
     // while a live-version replacement at the same authored coordinate can still
     // retain its marker and preview focus.
     const prefix = host ? `${targetPath(host)}/shadow/` : "";
-    if (target.id) return `${prefix}id:${target.id}`;
     const steps = [];
     let from = "path:";
     for (let node = target; node;) {
+      if (node.id) {
+        from = `id:${node.id}${steps.length ? "/" : ""}`;
+        break;
+      }
       // A projected datum's node is generated, so it stands at no authored position
       // among its siblings; it is named by its projection and key, which also survive a
       // renderer replacing it (projection/data.js).

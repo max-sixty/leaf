@@ -318,7 +318,7 @@ import { obligationPlace } from "./obligations/place.js";
 import { ON_CARD } from "./obligations/view-elements.js";
 import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
-import { versionsReading } from "./version.js";
+import { comparisonBase, comparisonChanges, versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
 import {
   gestureReading,
@@ -1190,9 +1190,11 @@ export function createFloatingPanel({
   // Where the user stands on the page, which the page field's words say before the
   // status or the words selected on the page, and in a stance in the status's place,
   // each for as long as the user's own choice stands: the stance's name, the version
-  // the page shows where it is older than the latest (version.js, `shownBehind`), and
-  // that the user hid the annotation layer (`o`, annotation-layer.js), which a reload
-  // keeps, or a page whose marks are hidden would read as one with none. They stand in
+  // the page shows where it is older than the latest (version.js, `shownBehind`), how
+  // many changes the page marks since the version it compares with (`v`, version.js),
+  // whose bars say only that a block changed, and that the user hid the annotation
+  // layer (`o`, annotation-layer.js), which a reload keeps, or a page whose marks are
+  // hidden would read as one with none. They stand in
   // the field's words, so the field's width never follows them, and the status
   // changing after them leaves them where they stand. Each part but the last carries
   // its separator in its own speaker's face, so words all Leaf's keep the native
@@ -1202,9 +1204,16 @@ export function createFloatingPanel({
   /** @param {string | null} stance @param {boolean} [more] whether words follow */
   function standing(stance, more = false) {
     const { shown } = versionsReading().latest;
-    const parts = [stance, shown, annotationsHidden() ? leafSays(HIDDEN) : null].filter(
-      (part) => part !== null,
-    );
+    const base = comparisonBase();
+    const compared = base
+      ? `${counted(comparisonChanges().length, "change")} since ${base.name}`
+      : null;
+    const parts = [
+      stance,
+      shown,
+      compared,
+      annotationsHidden() ? leafSays(HIDDEN) : null,
+    ].filter((part) => part !== null);
     return parts.map((part, at) =>
       !more && at === parts.length - 1
         ? part

@@ -77,7 +77,7 @@
    (floating-panel.js, which records it); the margin card gained it on 4 November, so
    one mechanism serves both, and that mechanism's rule at its end, under the user's
    request for one thread view (thread-preview.js). */
-import { labelWords, REOPEN_HINT, REPLY_HINT } from "../words.js";
+import { REOPEN_HINT, REPLY_HINT } from "../words.js";
 import { nextRender, sizeObserver } from "../rendering.js";
 import {
   holdFocus,
@@ -137,7 +137,7 @@ import {
   workflowWord,
   hasWorkflowLine,
 } from "./workflow.js";
-import { agentSays, leafSays, voiced } from "../voice.js";
+import { leafSays, voiced } from "../voice.js";
 import { agentName, documentChanged } from "../semantic-state.js";
 import { growthIsSeen, shownRect } from "../geometry.js";
 import { ago, shortAgo } from "../presence.js";
@@ -360,21 +360,15 @@ export function threadReading(thread, surface, commands) {
   // stands: a question the user still owes words to, a to-do still open on the
   // thread. Once the agent ends a question it asked (`task end`), because the user
   // answered it elsewhere or it no longer applies, a line under the question says how
-  // it ended, in the words On Me's Done uses (`obligationEnding`), followed by the
-  // agent's note on where or why (`end.detail`), one line for each question the message
-  // asked. The thread then no longer reads as asking.
+  // it ended, in the words an opened Done card uses (`obligationEnding`), one line for each
+  // question the message asked. The thread then no longer reads as asking.
   /** @type {Map<string | null, import("../voice.js").Words[]>} */
   const ended = new Map();
   for (const item of thread.obligations)
     if (item.end && answeredInWords(item)) {
       const lines = ended.get(item.message) ?? [];
       ended.set(item.message, lines);
-      lines.push(
-        [
-          obligationEnding(item),
-          ...(item.end.detail ? [" · ", agentSays(labelWords(item.end.detail))] : []),
-        ].flat(),
-      );
+      lines.push(obligationEnding(item));
     }
   const asking = new Set(
     thread.obligations

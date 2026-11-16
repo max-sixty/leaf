@@ -898,7 +898,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     )
     expect(asking.locator(".lf-msg-leaves")).to_have_count(0)
     ending = asking.locator(".lf-msg-ending")
-    expect(ending).to_have_text(f"Answered elsewhere · {where}")
+    expect(ending).to_have_text(f"Settled · {where}")
     # Every box that clips, up to the card, holds the line's words whole.
     assert ending.evaluate(
         """(line) => {

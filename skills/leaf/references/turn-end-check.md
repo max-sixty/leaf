@@ -70,15 +70,11 @@ passed on. Name:
   background job or a subagent, that no page shows as owed or under way. Leave out
   servers, watchers and wait loops that only serve the agent's own checks. The
   agent decides whether it belongs on its list.
-- `overtaken`: an open thread whose agent messages the user would misread, in
-  either of two ways. Its latest message, such as a question or the state of some
-  work, says what the work or the conversation has since overtaken. Or, since the
-  user last wrote there, the agent added a reply that corrects, retracts or changes
-  the answer of its own earlier reply rather than editing that reply, so the user
-  returns to messages that correct one another, even where the latest one is
-  current. A reply bringing news the user waits on, such as a result it promised,
-  overtakes nothing. Say in the summary how the agent brings the thread current, as
-  Leaf's guidance for threads below says.
+- `overtaken`: an open thread that Leaf's guidance for threads below has the agent
+  bring current: one whose latest message, such as a question or the state of some
+  work, later work or the conversation has overtaken, or one where the agent
+  posted a correction as a new reply to its own unanswered one. Say in the summary
+  how that guidance has the agent bring it current.
 
 For each, give its `kind`, the `page`, a `summary` the agent can act on without
 rereading the conversation, as `quote` the words it rests on, the agent's or the

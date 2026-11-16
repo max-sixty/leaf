@@ -731,7 +731,7 @@ cases:
         id: r2
         parent: c1
         ts: "2026-11-03T09:01:40+00:00"
-        text: &warmup-right >-
+        text: >-
           Correction: the simulator skips the first 10,000 queries before it counts,
           so neither hit rate includes the warmup.
     conversation:
@@ -787,7 +787,9 @@ cases:
         id: r2
         parent: c1
         ts: "2026-11-03T09:01:40+00:00"
-        text: *warmup-right
+        text: >-
+          Neither hit rate includes the warmup. The simulator skips the first 10,000
+          queries before it counts.
     conversation:
       - from: cache
       - *cache-reply

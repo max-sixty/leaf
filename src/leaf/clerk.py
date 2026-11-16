@@ -92,10 +92,14 @@ where it should have fired catch it, a replay of ordinary recent turns stays nea
 today's noise, and the fork takes no longer. Two became `overtaken`, which applies the
 agent's own guidance for threads (`GUIDANCE`): a correction posted as a new reply to
 the agent's unanswered one rather than edited into it (#5724), and a thread question
-or state later work overtook (#5804). Replayed, it caught the pile in two of three
-#5724 sessions and missed the third; on 20 recent turns its one false finding was a
-thread the user had closed, which "open" then left out; and the fork took no
-measurably longer. The third, a section reporting a finding without the material it
+or state later work overtook (#5804). Replayed at the turn where three #5724
+sessions left such a pile, it named the pile in 2 of 2 runs on triager-health, 1 of 1
+on agent-launch-wait and 0 of 1 on package-interface, where the check before it named
+it in 0 of 1 replays and 1 of 4 live forks. The wording before this one, which
+differed only in how it phrased the two cases, named no `overtaken` on 15 ordinary
+recent turns, and only on 2 others whose timer the replay itself had stopped; the
+fork took 1.13 times as long as a base replay run hours earlier (95% interval
+0.94–1.34). The third, a section reporting a finding without the material it
 rests on (#5401), was dropped: it missed the one such case left to replay, and on
 other turns asked for the run or script behind a count far more often than the user
 asks for material.
@@ -285,6 +289,15 @@ GUIDANCE = (
 
 _WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
 
+# Each kind of finding, as the agent's line names it: the one list of kinds, which
+# the answer's schema and form read.
+FOUND = {
+    "stale": "the page saying what has since changed",
+    "settled": "an On Me item already settled",
+    "unshown": "work no page shows",
+    "overtaken": "a thread of yours the user would misread",
+}
+
 ANSWER = {
     "type": "object",
     "properties": {
@@ -314,7 +327,7 @@ ANSWER = {
             "items": {
                 "type": "object",
                 "properties": {
-                    "kind": {"enum": ["stale", "settled", "unshown", "overtaken"]},
+                    "kind": {"enum": list(FOUND)},
                     "page": {"type": "string", "minLength": 1},
                     "summary": _WORDS,
                     # The agent's or the user's words, which the agent finds the
@@ -359,20 +372,12 @@ def answer_form() -> str:
         '"<message>", "passage": "<the page\'s words, or empty>", "again": "<the '
         'id of the question it asks again, or empty>", "quote": "<the agent\'s '
         'words>"}], "findings": [{"kind": '
-        '"stale" or "settled" or "unshown" or "overtaken", "page": "<page path>", '
-        '"summary": '
-        '"<summary>", "quote": "<the words it rests on>", "edit": {"words": "<the '
-        'page\'s words>", "replacement": "<the new words>"} or null}]}'
+        + " or ".join(f'"{kind}"' for kind in FOUND)
+        + ', "page": "<page path>", "summary": "<summary>", "quote": "<the words it '
+        'rests on>", "edit": {"words": "<the page\'s words>", "replacement": "<the '
+        'new words>"} or null}]}'
     )
 
-
-# What each kind of finding is, as the agent's line names it.
-FOUND = {
-    "stale": "the page saying what has since changed",
-    "settled": "an On Me item already settled",
-    "unshown": "work no page shows",
-    "overtaken": "a thread of yours the user would misread",
-}
 
 QUEUED = Record(
     "clerk",
@@ -523,7 +528,12 @@ def guidance() -> list[str]:
 
     def paragraph(name: str, opening: str) -> str:
         text = (REFERENCES / name).read_text()
-        start = text.index(f"\n\n{opening}") + 2
+        start = text.find(f"\n\n{opening}") + 2
+        if start < 2:
+            raise ValueError(
+                f"{name} has no paragraph opening {opening!r}, which clerk.GUIDANCE "
+                "names"
+            )
         end = text.find("\n\n", start)
         return text[start:] if end < 0 else text[start:end]
 

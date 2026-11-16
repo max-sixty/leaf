@@ -103,9 +103,10 @@
             </dd>
             <dt id="term-kept-back">Kept back</dt>
             <dd>
-              A new thread message Leaf withholds from the main thread while a line fork
-              writes its working message and sorts it, until 30 s after the thread's
-              newest message, so a message that follows restarts the wait.
+              A new thread message a line turn holds from the main thread while a line
+              fork writes its working message and sorts it: an agent turn admission
+              opens with the message, which ends as the line fork answers or lapses 30 s
+              after it opened.
             </dd>
             <dt id="term-holds">Holds</dt>
             <dd>
@@ -116,14 +117,14 @@
             <dt id="term-take">Take</dt>
             <dd>
               The line fork's judgment that a working fork should do the work
-              (<code>take</code>), and the act that gives the thread to one: a turn Leaf
-              opens for the fork picks the thread's messages up.
+              (<code>take</code>), and the act that gives the thread to one: the line
+              turn goes on as the fork's.
             </dd>
             <dt id="term-hand-over">Hand over, hand back</dt>
             <dd>
               Leaf hands a kept-back message over to the main thread, as the line fork's
-              <code>hand_over</code> judgment asks or when keeping it back ends. A
-              working fork hands its thread back to the main thread, with
+              <code>hand_over</code> judgment asks or when its line turn ends. A working
+              fork hands its thread back to the main thread, with
               <code>HAND BACK:</code> or by ending unanswered (<code>hand_back</code>).
             </dd>
             <dt id="term-pages-follower">Pages follower</dt>
@@ -131,7 +132,7 @@
               The background process Leaf's hooks module runs for a session that holds a
               page. It lists the messages Leaf keeps back, and the module asks a line
               fork about each. While it runs it holds the session's fork lane, a lock
-              whose recorded start tells Leaf since when the follower has been running
+              that tells admission a follower will list what it keeps back
               (<code>forks.take_lane</code>), so the code says “lane” where this page
               says the follower is running.
             </dd>
@@ -176,19 +177,19 @@
         <section id="path" class="layout-flow">
           <h2>The path of one thread message</h2>
           <p id="path-kept">
-            When the user writes in a thread, none of whose waiting messages has reached
-            the main thread or been handed to it, all of them arrived while the
-            session's pages follower was running, and no running fork's turn took the
-            thread, Leaf keeps the new message back from the main thread and asks a line
-            fork for the working message. From then until the agent answers, the message
-            reads
+            When the user writes in a thread with no other waiting message, while the
+            session's pages follower runs, and no running fork's turn took the thread,
+            admission opens a line turn that picks the message up, which keeps it from
+            the main thread, and the module asks a line fork for the working message.
+            From then until the agent answers, the message reads
             <a href="/how-it-works/#stages-working">On it</a>. The line fork reads the
             message against the conversation, writes the working message, and sorts the
             message by who should do the work. Leaf posts the line as the agent's and
-            sends the message where the sort says. If no line comes within
-            <code>forks.BOUND_S</code>, 30 s, Leaf gives the message to the main thread
-            anyway, and it does so at once when the line fork fails, when the newest
-            message owes no reply, or when the pages follower stops.
+            sends the message where the sort says. If no line comes, the line turn
+            lapses 30 s after it opened, as any unconfirmed agent turn does
+            (<code>activity.STARTING_GRACE</code>), and the message is the main
+            thread's; Leaf ends the turn at once when the line fork fails or the newest
+            message owes no reply.
           </p>
           <figure id="path-figure" class="diagram-figure">
             <lf-diagram id="path-diagram" data-height="609" parts="all">
@@ -221,21 +222,14 @@ flowchart TD
           </figure>
 
           <p id="path-record">
-            Keeping a message back is the one state of a thread that Leaf reads partly
-            from outside the page log. A hand-over goes in the session's
-            <code>forks</code> file (<code>forks.HANDED</code>), and whether the pages
-            follower runs comes from its lease. Every reader asks one reading which
-            messages Leaf keeps back (<code>forks.kept_back_of</code>, which
-            <code>holding.reading_of</code> applies), so none disagrees. The log can't
-            hold this state: keeping back also ends when the follower stops, which
-            nothing writes, so a live lease decides it whatever the log says. A lost
-            hand-over record only has the follower hand the message over again at its
-            next look. Which turn holds a message is different: every reader has to
-            agree on it, it outlives the fork, and it decides whose writes stand, so a
-            take is a pickup in the log, and an answer is a reply there that names its
-            turn. Moving hand-overs into the log too would add an event to nearly every
-            thread message in a Claude Code session, and change the protocol, while the
-            lease still decided when keeping back ends.
+            Keeping a message back is a turn's pickup in the log, as every hold is: the
+            line turn's, which admission records with the message. Its ways out are an
+            agent turn's: the turn closing, which writes the session's agent turns, or
+            lapsing. The lane decides only whether admission opens one, since the line
+            fork runs in the hooks module rather than the follower. This adds a pickup
+            to each kept-back message, and an entry to the session's agent turns. Until
+            2026-11, keeping back was read from the follower's lease and a hand-over
+            file outside the log, because the lease ending had to end it.
           </p>
 
           <section id="sorting" class="layout-flow">
@@ -311,16 +305,14 @@ flowchart TD
             <h3>A working fork takes a message</h3>
             <p id="take-steps">
               When the line fork judges <code>take</code>, Leaf posts the working
-              message, then in one transaction under the page's lock opens a turn for a
-              working fork and records that turn's pickup of the thread's waiting
-              messages, with a delivery made for it (<code>forks._take</code>). The
-              message goes straight from kept back to held by the fork's turn, with no
-              moment in which neither has it. Leaf's hooks module then spawns the
-              working fork with that delivery and tells Leaf which agent runs the turn
-              (<code>forks.started</code>); or it resumes the fork that answered the
-              thread before, whose agent id Leaf already named the turn with as it
-              opened it (<a href="#follow-ups">Follow-ups and flurries</a>). The fork
-              works with the session's tools and answers with its own
+              message, then records the line turn's pickup again with a delivery made
+              for it (<code>forks._take</code>): the line turn goes on as the working
+              fork's, so the message never changes hands. Leaf's hooks module then
+              spawns the working fork with that delivery and tells Leaf which agent runs
+              the turn (<code>forks.started</code>); or it resumes the fork that
+              answered the thread before, whose agent id Leaf names the turn with at the
+              take (<a href="#follow-ups">Follow-ups and flurries</a>). The fork works
+              with the session's tools and answers with its own
               <code>leaf thread reply</code>, using the reply reference its delivery
               names, and the turn its task names (<a href="#acting-starting"
                 >Who a <code>leaf</code> command acts as</a
@@ -371,10 +363,10 @@ sequenceDiagram
             (<code>state.AGENT_TURNS</code>). A fork's turn opens at the take, before
             Claude Code starts or resumes the fork, and closes when the hooks module
             reports that the fork's run ended. It also lapses when nothing has renewed
-            it within the working grace, 15 minutes, or within a minute of its opening
-            until the module confirms the fork it spawned or resumed runs, as when the
-            module lost the take; the confirmation and the fork's tool boundaries renew
-            it. <span class="tag ok">built</span>
+            it within the working grace, 15 minutes, or within 30 s of its opening until
+            the module confirms the fork it spawned or resumed runs, as when the module
+            lost the take; the confirmation and the fork's tool boundaries renew it.
+            <span class="tag ok">built</span>
             <span class="tag">only with the flag</span>
           </p>
           <p id="holding-newest">
@@ -412,19 +404,18 @@ sequenceDiagram
           <p id="holding-shown">
             <code>leaf page state</code> names a <code>holder</code> on each thread and
             each answer the agent owes: the main thread, a fork by the agent id the main
-            thread reaches it by (<code>agent</code>, null in the second or so before
-            Claude Code has started it), or the <code>line</code> fork while Leaf keeps
-            the thread back for it. A thread's holder is the turn that holds it, with
-            whether that fork's turn is <code>running</code>, <code>closed</code> or
-            <code>lapsed</code>. An answer's holder is who owes it now: its thread's
-            holder while that is the line fork or a running fork, and otherwise the main
-            thread (<code>holding.owed_by</code>). Delivery, the Stop hook and the watch
-            read the same reading. A main thread recovering what it owes there, as after
-            a compaction, leaves a running fork's answer to the fork, and a message a
-            line fork is judging to it. No shipped instruction asks it to: the field
-            alone does it. On the eval <code>recovery-leaves-a-forks-answer</code>, the
-            agent left the fork's answer 3 times in 3 with <code>holder</code> and 0 in
-            3 without it.
+            thread reaches it by (<code>agent</code>, null while a line fork judges the
+            thread and in the second or so before Claude Code has started the fork). A
+            thread's holder is the turn that holds it, with whether that fork's turn is
+            <code>running</code>, <code>closed</code> or <code>lapsed</code>. An
+            answer's holder is who owes it now: its thread's holder while that is a
+            running turn, and otherwise the main thread (<code>holding.owed_by</code>).
+            Delivery, the Stop hook and the watch read the same reading. A main thread
+            recovering what it owes there, as after a compaction, leaves a running
+            fork's answer to the fork, and a message a line fork is judging to it. No
+            shipped instruction asks it to: the field alone does it. On the eval
+            <code>recovery-leaves-a-forks-answer</code>, the agent left the fork's
+            answer 3 times in 3 with <code>holder</code> and 0 in 3 without it.
             <span class="tag ok">built</span>
           </p>
           <figure id="holding-figure" class="diagram-figure">
@@ -432,13 +423,13 @@ sequenceDiagram
               <pre>
 flowchart TD
   accTitle: Who has a thread's waiting messages
-  accDescr: A new message is kept back for the line fork. A take gives it to a fork's turn, through the fork's pickup; a hand-over, a failed fork or the 30 s bound gives it to the main thread. If the fork's turn closes or lapses with a message still waiting, the main thread owes it. The fork's reply answers it, and so does the main thread's, whether the main thread owes it or answers over the running fork.
+  accDescr: A new message is kept back for the line fork. A take gives it to a fork's turn, through the fork's pickup; a hand-over, a failed fork or the line turn lapsing gives it to the main thread. If the fork's turn closes or lapses with a message still waiting, the main thread owes it. The fork's reply answers it, and so does the main thread's, whether the main thread owes it or answers over the running fork.
   kept["Kept back for the line fork"]
   fork["A running fork turn holds it"]
   main["The main thread owes it"]
   done["Answered"]
   kept -- take --&gt; fork
-  kept -- "hand_over,&lt;br/&gt;failure, 30 s" --&gt; main
+  kept -- "hand_over,&lt;br/&gt;failure, lapse" --&gt; main
   fork -- "turn closes&lt;br/&gt;or lapses" --&gt; main
   fork -- "fork&lt;br/&gt;replies" --&gt; done
   fork -- "main thread&lt;br/&gt;answers over it" --&gt; done
@@ -842,9 +833,8 @@ flowchart TD
               it, and Leaf keeps nothing back for a second fork in a thread a running
               fork took, by a pickup or an answer (<code>holding.Holding.took</code>). A
               message that arrives as the fork's run ends, after its last tool boundary,
-              is kept back once the turn has closed, and goes to the same fork, resumed:
-              no receipt passes a message no turn has taken in, so it is still waiting
-              for its first delivery when the turn closes.
+              goes to the main thread once the turn has closed, since keeping back is
+              decided as a message is admitted.
             </li>
             <li id="follow-up-same-fork">
               A message the line fork judges <code>take</code>, in a thread whose last

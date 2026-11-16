@@ -1154,11 +1154,10 @@ def deliverable(
     which it left owed, giving the thread back or ending without answering, and which
     the main thread now owes (`holding.owed_by`). Less, the waiting messages of each
     thread the main thread
-    doesn't owe: one Leaf keeps back while a line fork of the owner's conversation
-    writes its line (`forks.kept_back`), until the line fork hands it over or its
-    bound runs out, which keeps the watch from waking the session for it as it
-    arrives; and one a fork's running turn holds, whose further messages go to it at
-    its tool boundary.
+    doesn't owe: one an agent's running turn holds, a line turn Leaf opened as the
+    message arrived while a line fork of the owner's conversation writes its line
+    (`forks.kept_back`), which keeps the watch from waking the session for it, or a
+    working fork's, whose further messages go to it at its tool boundary.
 
     Which updates are owed is the page's fold, whose page model costs about 70 ms
     of CPU to import. A tool hook runs after every tool call, so Codex's passes
@@ -1177,7 +1176,7 @@ def deliverable(
     held = awaiting_receipt(page) if pending else ()
     if held:
         pending = [event for event in pending if event["id"] not in held]
-    from .forks import lane_since, page_holding
+    from .forks import page_holding
     from .holding import owed_by
     from .state import agent_turn_stamps
 
@@ -1193,7 +1192,7 @@ def deliverable(
         # The waiting messages of a thread the cursor passed while another held it
         # (`holding.not_awaited`), which the main thread owes now and no pickup ever
         # took in, are its input, as the fold's debt with no reference is where it
-        # reads, whether or not the fork that held them, or the lane, is still up: a
+        # reads, whether or not the fork that held them is still up: a
         # thread a turn took any of them in from is that turn's, which the fold hands
         # on if it ended with the thread owed. Such a message is input the cursor
         # passed that no pickup names: one a fork or a line fork held, which stays so
@@ -1217,10 +1216,7 @@ def deliverable(
             and event["id"] not in taken
             and requires_agent_attention(event)
         ]
-        forks = bool(pending) and (
-            bool(agent_turn_stamps(claim, page.events))
-            or lane_since(claim["id"]) is not None
-        )
+        forks = bool(pending) and bool(agent_turn_stamps(claim, page.events))
         holding = page_holding(page) if passed or forks else None
         if holding is not None and passed:
             pending += [

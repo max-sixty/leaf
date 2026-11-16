@@ -196,6 +196,18 @@ def band_lines(band, surface) -> list[tuple[str, ...]]:
     ]
 
 
+def admitted(page_dir, event: dict) -> dict:
+    """The user's message, admitted as the event endpoint admits it, which opens a
+    line turn for a message it keeps back (`forks.kept_from_main_at_admission`)."""
+    from leaf.forks import kept_from_main_at_admission
+    from leaf.service import PageTransaction
+
+    record = append_carried_log_record(page_dir, event)
+    with PageTransaction(page_dir) as page:
+        kept_from_main_at_admission(page, record)
+    return record
+
+
 def test_leaves_own_rows_in_the_conversation_stay_quiet(spawn, sessionless):
     """The watch's wake, a task notification under the summary `hooks.json` names,
     draws as nothing, and Leaf's nudge, another session's message, as one dim line.
@@ -546,7 +558,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
         failure="the band never showed the page",
     )
     main_thread_request(driven)
-    asked = append_carried_log_record(
+    asked = admitted(
         page_dir, {"kind": "comment", "author": "user", "text": "Why 2 s?"}
     )
     forked = driven.forks.get(timeout=STATED_TIMEOUT)
@@ -608,7 +620,7 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
         failure="the band never showed the page",
     )
     main_thread_request(driven)
-    asked = append_carried_log_record(
+    asked = admitted(
         page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
     )
     spawned = driven.spawned.get(timeout=STATED_TIMEOUT)
@@ -666,7 +678,7 @@ def test_a_fork_whose_run_ends_before_its_spawn_returns_still_ends_its_turn(
         failure="the band never showed the page",
     )
     main_thread_request(driven)
-    asked = append_carried_log_record(
+    asked = admitted(
         page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
     )
     driven.spawned.get(timeout=STATED_TIMEOUT)
@@ -716,7 +728,7 @@ def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
         failure="the band never showed the page",
     )
     main_thread_request(driven)
-    asked = append_carried_log_record(
+    asked = admitted(
         page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
     )
     driven.spawned.get(timeout=STATED_TIMEOUT)
@@ -770,7 +782,7 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
         failure="the band never showed the page",
     )
     main_thread_request(driven)
-    asked = append_carried_log_record(
+    asked = admitted(
         page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
     )
     assert driven.spawned.get(timeout=STATED_TIMEOUT)["subagentType"] == "fork"
@@ -782,7 +794,7 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
     ref = next(
         event["refs"][asked["id"]]["ref"]
         for event in events_model.read_events(page_dir)
-        if event["kind"] == "pickup"
+        if event["kind"] == "pickup" and "refs" in event
     )
     with state_model.acting_in(first):
         assert thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
@@ -794,7 +806,7 @@ def test_a_later_message_in_a_forks_thread_resumes_that_fork(
         failure="the fork's turn never closed",
     )
 
-    more = append_carried_log_record(
+    more = admitted(
         page_dir,
         {"kind": "reply", "parent": asked["id"], "author": "user", "text": "And uv?"},
     )

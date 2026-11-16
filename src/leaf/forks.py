@@ -22,22 +22,24 @@ the judgment and hands the thread over.
 
 A thread's waiting messages are the user's messages the agent still owes an answer
 in it while it stands open (`holding.rounds`). Each thread with
-waiting messages is in one of these states, which `kept_back` and `holding.py`
-compute from the page's log, the session's hand-overs (`HANDED`), its agents' turns
-and the forks' lane; nothing stores the state itself:
+waiting messages is in one of these states, which `holding.py` reads from the page's
+log and its session's agent turns; nothing stores the state itself:
 
 | State | Means | Entered by |
 | --- | --- | --- |
-| kept back | Leaf keeps the thread's waiting messages from the main thread while a line fork writes its line | a user message in a thread none of whose waiting messages any turn has picked up or the lane has handed over, and which no running fork turn took, while the session's lane is live and has been since the first of them arrived |
-| taken | a working fork does the work in a turn of its own, which picked the messages up and holds the thread until another turn takes it (`holding.py`) | the line fork judging `take`, where the module makes working forks (`_take`) |
-| with the session | delivered as any input is | a hand-over: the line posted, a failed line fork, or the lane's once `BOUND_S` has passed since the newest waiting message (`look`); the lane going down; a working fork's turn ending with the thread unanswered (`ended`); or the main thread's answer taking the thread from a working fork |
+| kept back | a line turn holds the thread's waiting messages while a line fork writes its line | a user message in a thread none of whose waiting messages any turn has picked up, and which no running fork turn took, while the session's lane is live: admission opens the line turn and records its pickup (`kept_from_main_at_admission`) |
+| taken | a working fork does the work in that same turn, which holds the thread until another turn takes it (`holding.py`) | the line fork judging `take`, where the module makes working forks (`_take`) |
+| with the session | delivered as any input is | the turn ending with the thread unanswered: the line posted, a failed line fork, a line turn no start confirmed lapsing (`activity.STARTING_GRACE`), a working fork's run ending (`ended`); or the main thread's answer taking the thread from either |
 
-A working fork runs a turn of its own (`state.AGENT_TURNS`), which Leaf opens at the
-take: named with the fork's agent id at once for a fork it resumes, and once the
-module says which agent it spawned for a new one (`started`). Leaf records
-the take as that turn's pickup of the thread's waiting messages, with their receipt,
-fenced to the thread still being kept back, so the messages go from kept back to held
-with no moment in which neither has them. As the fork's run ends the module says so
+Each thread message Leaf keeps back opens an agent turn of its own
+(`state.AGENT_TURNS`), the line turn, whose pickup of the thread's waiting messages
+admission records with the message, so the watch never sees one unheld. A line turn
+is one that has written nothing on the page (`kept_back`); its line, which it posts
+acting in the turn, ends that. Where the line fork judges `take`, the same turn goes
+on as the working fork's: named with the fork's agent id at once for a fork it
+resumes, and once the module says which agent it spawned for a new one
+(`started`). Leaf records the take as the turn's pickup again, with the delivery's
+references and its receipt. As the fork's run ends the module says so
 (`ended`), which closes the turn and judges each thread by what the turn picked up
 and wrote. The main session hears which fork took a thread once the module says the
 fork runs (`started`): as it says which agent it spawned for a new one, and once it
@@ -111,40 +113,32 @@ conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s where a l
 took a median 1 s, and low over none, for 0.85 times xhigh's time (0.75–0.95). So
 low removed the occasional line xhigh spent seconds thinking over.
 
-Another message while the thread is kept back keeps it back, with a line fork for the
-new set, and drops the earlier line fork's line (`route`); a thread with the session
-stays there until the session answers it, and a message after that answer is kept
-back again. Kept-back input is not `delivery.deliverable`, which the hooks, the watch
-and its nudges read, and admission doesn't nudge for it (`event_endpoint`), since
-keeping it back has to start before the watch would wake the session.
+Another message while the line turn holds the thread is the line turn's too, as any
+running turn's thread's further messages are, and goes where the thread goes: to the
+main thread with the line, or to the working fork at its tool boundary
+(`holding.to_carry`). A thread with the session stays there until the session answers
+it, and a message after that answer is kept back again. Admission opens the line turn
+in the transaction that appends the message, so the watch never reads it unheld, and
+doesn't nudge for it (`event_endpoint`).
 
-Each way out of keeping a thread back but the lane going down is a write the
-session's waiters already read, made under the page's lock: a hand-over in `HANDED`,
-which the watch's reading stamps (`served_state.reading`), and it nudges a session no
-watch follows, as admission would have. So the bound is the lane's to keep, for every
-page the session holds, and the state needs no clock. The lane going down writes
-nothing, so the page's presence reading names the lane (`presence.live_facts`), and a
-tab showing On it for a kept-back message re-reads within the reading's cache
-interval. Since the lane's lease decides when keeping back ends, the state stays
-outside the page log, while a take, which says which turn holds a message, is a
-pickup in it (`docs/forks.html`, "The path of one thread message").
+Each way out of a line turn is one every agent turn already has: closing it, which
+writes the session's agent turns that the watch's reading stamps
+(`served_state.reading`), and nudges a session no watch follows; or lapsing, a
+`STARTING_GRACE` after it opened, since nothing renews a line turn, which the reading's
+`next_transition_at` names. The lane only says, at admission, that a follower runs to
+list the line turn for the module; its line fork runs in the module, so the follower
+exiting or being killed ends nothing that was listed.
 
 The lane is the session's pages follower (`hooks.cmd_pages`) while it holds the
 lease at `lane_path`: the follower prints each kept-back thread with the session's
 pages (`look`), and the module asks a line fork about each one (`ask`), then hands
 its answer back (`route`). Python writes the prompt (`line_prompt`); the module only
 carries it and the line, and names the tool calls the session is running, which the
-line fork can't see: its last request predates them. A lane keeps back only what
-arrived while it ran, so a thread the lane going down gave to the session stays
-there when the next lane comes up, and a line fork of the old lane's writes nothing.
-A follower that gives up the lane with a thread kept back, as one exiting or finding
-a newer follower holding it does, then nudges what it kept back, as a watch does when
-it gives up its lease (`session.nudge_pending`); one killed outright nudges nothing,
-so after Escape, with no watch, its messages wait for the page's next change.
+line fork can't see: its last request predates them.
 
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
-fenced to the thread being kept back: it writes nothing once the thread is no longer
-kept back as the line fork was asked it, checked under the lock the append takes. The
+acting in the line turn, so it writes nothing once another turn holds the thread or
+the turn has closed (`holding.refuse_unheld`). The
 page's diagnostics (`interaction_log`) note why admission kept each thread message
 to a Claude Code session from the main thread, kept back or held by a running fork
 turn, and where neither, whether its lane was up (`fork_admission`); each question as Leaf gives it to the module (`fork_asked`), so a
@@ -163,8 +157,6 @@ line fork's prompt on a short constructed conversation for each kind of message
 
 import json
 import shlex
-import time
-from datetime import datetime
 from pathlib import Path
 from typing import Literal, NamedTuple
 
@@ -175,58 +167,17 @@ from .holding import (
     owed_by,
     reading_of,
 )
-from .leases import lease_speaks_here, release_lease, take_wait_lease
+from .leases import lease_speaks_here, take_wait_lease
 from .registry.kernel import kinds_declaring
 from .service import PageTransaction, owned_pages
 from .state import (
-    STRING,
-    Record,
     agent_turn_stamps,
     agent_turns,
     close_agent_turns,
-    described,
-    flocked,
     name_agent_turn,
     now_iso,
-    object_schema,
     open_agent_turn,
-    page_key,
     session_file,
-    session_lock_path,
-)
-
-# How long Leaf keeps a thread's waiting messages back from the session, counted
-# from the newest one's admission, before the lane hands them to it whatever the line
-# fork does (`look`). Forks on real pages decided in a median 3 s.
-BOUND_S = 30.0
-
-HANDED = Record(
-    "forks",
-    described(
-        "The thread messages a fork of a Claude Code session's conversation handed "
-        "to the session, in the state home's `sessions/<digest>.forks` "
-        "(`state.session_file`): for each page, by `state.page_key`, the ids of the "
-        "messages it handed over that no pickup has taken in yet (`forks`).",
-        object_schema(
-            {
-                "handed": {
-                    "type": "object",
-                    "additionalProperties": {"type": "array", "items": STRING},
-                }
-            }
-        ),
-    ),
-    since=37,
-)
-
-LANE_START = Record(
-    "fork-lane-start",
-    described(
-        "The admission cutoff of a session's fork lane. Its live lease alone "
-        "proves that lane is running (`forks.take_lane`).",
-        object_schema({"since": {"type": "number"}}),
-    ),
-    since=37,
 )
 
 # The words that open the line fork's question, which the transcript carries, and
@@ -252,13 +203,12 @@ ANSWER = {
 
 
 class KeptBack(NamedTuple):
-    """A thread whose waiting messages Leaf keeps back: its id, those messages in
-    log order, the last of which owes the answer, and when the lane hands them to the
-    session (POSIX seconds)."""
+    """A thread a line turn holds: its id, its waiting messages in log order, the
+    last of which owes the answer, and the line turn."""
 
     thread: str
     inputs: tuple[str, ...]
-    until: float
+    turn: str
 
     def basis(self, page_dir: Path) -> dict:
         """The thread as the module carries it between `ask` and `route`."""
@@ -266,6 +216,7 @@ class KeptBack(NamedTuple):
             "page": str(page_dir),
             "thread": self.thread,
             "inputs": list(self.inputs),
+            "turn": self.turn,
         }
 
 
@@ -273,109 +224,50 @@ def lane_path(session_id: str) -> Path:
     return session_file(session_id, "fork-lane")
 
 
-def lane_lock_path(session_id: str) -> Path:
-    return session_file(session_id, "fork-lane.lock")
-
-
 def take_lane(session_id: str):
-    """Hold the session's lane and record its cutoff after taking the name.
-
-    The lane lock serializes publication and readers' decisions, so an input is
-    never exposed to the session while waiting for a cutoff that would hold it.
-    It is innermost: neither this writer nor `lane_since` takes a page or session
-    lock while holding it. Filesystem timestamps cannot order the take against
-    the admission clock, since they may be coarser.
-    """
-    with flocked(lane_lock_path(session_id)):
-        lease = take_wait_lease(lane_path(session_id), supersede=True)
-        try:
-            LANE_START.write(
-                session_file(session_id, LANE_START.kind),
-                {"since": time.time()},
-            )
-        except BaseException:
-            release_lease(lease)
-            raise
-        return lease
+    """Hold the session's lane, which tells admission that a follower runs to list
+    each line turn it opens for the module (`kept_from_main_at_admission`)."""
+    return take_wait_lease(lane_path(session_id), supersede=True)
 
 
-def lane_since(session_id: str) -> float | None:
-    """The live lane's published admission cutoff, waiting for a take in progress.
-
-    Delivery can already hold the session lock, so publication has its own lock.
-    A crashed or ended writer's record is not live without its kernel lease.
-    """
-    with flocked(lane_lock_path(session_id)):
-        if not lease_speaks_here(lane_path(session_id)):
-            return None
-        start = LANE_START.read(session_file(session_id, LANE_START.kind))
-        return start["since"] if start is not None else None
+def lane_up(session_id: str) -> bool:
+    """Whether a follower holds the session's lane."""
+    return lease_speaks_here(lane_path(session_id))
 
 
-def _admitted(event: dict) -> float:
-    return datetime.fromisoformat(event["ts"]).timestamp()
-
-
-def handed_inputs(session_id: str, page_dir: Path) -> set[str]:
-    handed = HANDED.read(session_file(session_id, HANDED.kind))
-    return set((handed or {"handed": {}})["handed"].get(page_key(page_dir), []))
+def _lines(page: PageTransaction, holding: Holding) -> set[str]:
+    """The running agent turns of `holding` that have written nothing on `page`: line
+    turns whose line fork hasn't answered, since a line turn's line is its first
+    write, and a working fork's turn is a line turn that posted its line."""
+    wrote = {
+        event["turn"]
+        for event in page.events
+        if event["kind"] != "pickup" and event.get("turn")
+    }
+    return holding.running - wrote
 
 
 def kept_back(page: PageTransaction, holding: Holding | None = None) -> list[KeptBack]:
-    """The page's threads whose waiting messages Leaf keeps back (the module
-    header's table), by when the lane hands each over: those the line fork holds in
-    the page's reading (`page_holding`, or `holding` where the caller has it), which
-    derived them (`kept_back_of`)."""
+    """The page's threads a line turn holds (the module header's table), by the
+    page's reading (`page_holding`, or `holding` where the caller has it)."""
     held = page_holding(page) if holding is None else holding
-    found = [
-        KeptBack(
-            thread,
-            tuple(event["id"] for event in said),
-            _admitted(said[-1]) + BOUND_S,
-        )
+    lines = _lines(page, held)
+    return [
+        KeptBack(thread, tuple(event["id"] for event in said), turn)
         for thread, said in held.found.waiting.items()
-        if held.threads[thread].holder["kind"] == "line"
+        if (turn := held.threads[thread].turn) is not None and turn in lines
     ]
-    return sorted(found, key=lambda thread: thread.until)
 
 
-def kept_back_of(holding: Holding, since: float, handed: set[str]) -> set[str]:
-    """The threads Leaf keeps back on a page whose reading by its pickups and
-    answers is `holding`, for a lane of the claimant's line forks that came up at
-    `since` and has `handed` over the messages it lists (`HANDED`). The reading
-    derives them as it reads who holds each thread (`holding.reading_of`), from the
-    log alone, never the page's fold, since admission, every hook and every served
-    reading ask it, and `ask` hands over a message the fold says owes none.
-
-    It reads which messages any pickup names or the lane handed over
-    (`holding.Holding.taken`), not the page's cursor, which a receipt moves past a
-    message Leaf keeps back as the main thread takes in the input after it
-    (`holding.not_awaited`). A thread a running agent turn took, by a pickup or an
-    answer, is never kept back for another fork (`holding.Holding.took`), so one
-    fork works a thread at a time: its further messages go to that turn, which holds
-    them, or to the main thread where it took the thread over (`holding.py`). A
-    thread where the user's rewrite of a message waits stays with whoever holds
-    it."""
-    worked = {
-        thread for turn in holding.running for thread in holding.took.get(turn, ())
-    }
-    messages = kinds_declaring("message")
-    return {
-        thread
-        for thread, said in holding.found.waiting.items()
-        # A lane keeps back only what arrived while it ran, so a thread the lane
-        # going down gave to the session never comes back with the next lane; a
-        # message in the lane's own first millisecond may have come first, so it stays
-        # with the session.
-        if _admitted(said[0]) > since
-        and thread not in worked
-        and all(
-            event["kind"] in messages
-            and event["id"] not in holding.taken
-            and event["id"] not in handed
-            for event in said
-        )
-    }
+def _keeps(holding: Holding, thread: str, event: dict) -> bool:
+    """Whether the message `event`, just admitted in `thread`, opens a line turn: it
+    is the thread's only waiting message, so a message already with the session, or a
+    user's rewrite, stays with whoever holds it, and no running agent turn took the
+    thread, by a pickup or an answer (`holding.Holding.took`), so one fork works a
+    thread at a time."""
+    worked = {taken for turn in holding.running for taken in holding.took.get(turn, ())}
+    waiting = holding.found.waiting.get(thread, ())
+    return thread not in worked and [said["id"] for said in waiting] == [event["id"]]
 
 
 def page_holding(page: PageTransaction) -> Holding:
@@ -383,24 +275,20 @@ def page_holding(page: PageTransaction) -> Holding:
     (`holding.py`), from its log, its threads as the fold builds them with the
     page's containment (`events.build_threads`), and its claim
     (`holding.reading_of`, given the claim's facts as a presence reading carries
-    them): its session, which is live while the claim is active, its agent turns,
-    and its lane of line forks and what they handed over, with each thread Leaf
-    keeps back held by the line fork."""
+    them): its session, which is live while the claim is active, and its agent
+    turns."""
     from .events import build_threads
     from .revision_artifact import active_enclosing
 
     claim = page.claim
-    active = page.active_claim
     return reading_of(
         page.events,
         {
             "claim_session": claim["id"] if claim is not None else None,
             "agent_turns": agent_turn_stamps(claim, page.events) if claim else {},
-            "session_alive": active is not None if claim is not None else None,
-            "fork_lane": lane_since(active["id"]) if active else None,
-            "handed": sorted(handed_inputs(active["id"], page.page_dir))
-            if active
-            else [],
+            "session_alive": page.active_claim is not None
+            if claim is not None
+            else None,
         },
         now_iso(),
         build_threads(page.events, active_enclosing(page.page_dir)),
@@ -409,72 +297,70 @@ def page_holding(page: PageTransaction) -> Holding:
 
 def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
     """Whether the input `event`, just admitted, is one the main thread doesn't owe
-    (`holding.owed_by`), which keeps it from the main thread's deliveries: one in a
-    thread Leaf keeps back for a line fork (`kept_back`) or a running fork holds. For
-    a thread message to a Claude Code session, the page's diagnostics note why
-    (`fork_admission`): kept back, held by a running fork's turn (`held_by`), or
-    neither, with whether the session's lane was up, which is what says why no fork
-    took a message up."""
-    held = page_holding(page).of(event["id"])
-    owes = owed_by(held.holder)
+    (`holding.owed_by`), which keeps it from the main thread's deliveries: one a
+    running fork's turn holds, or a thread message to a Claude Code session whose
+    lane is up, in a thread `_keeps` gives a line turn, which this opens and records
+    the pickup of the thread's waiting messages for. For a thread message to a Claude
+    Code session, the page's diagnostics note why (`fork_admission`): kept back,
+    held by a running fork's turn (`held_by`), or neither, with whether the
+    session's lane was up, which is what says why no fork took a message up."""
+    from .delivery import record_pickup
+
+    holding = page_holding(page)
     claim = page.active_claim
-    if (
+    message = (
         claim is not None
         and claim["harness"] == "claude-code"
         and event["kind"] in kinds_declaring("message")
-    ):
+    )
+    lane = message and lane_up(claim["id"])
+    thread = holding.found.names.get(event["id"])
+    turn = None
+    if lane and thread is not None and _keeps(holding, thread, event):
+        turn = open_agent_turn(claim["id"])
+        if turn is not None:
+            record_pickup(
+                page,
+                holding.found.waiting[thread],
+                session=claim["id"],
+                turn=turn,
+            )
+    held = holding.of(event["id"])
+    owes = owed_by(held.holder)
+    if message:
         _note(
             page.page_dir,
             {
                 "type": "fork_admission",
                 "session": claim["id"],
                 "event": event["id"],
-                "kept_back": owes["kind"] == "line",
+                "kept_back": turn is not None,
                 "held_by": held.turn if owes["kind"] == "fork" else None,
-                "lane": lane_since(claim["id"]),
+                "lane": lane,
             },
         )
-    return owes["kind"] != "main"
+    return turn is not None or owes["kind"] != "main"
 
 
-def _still_kept_back(
-    page: PageTransaction, session_id: str, basis: dict, holding: Holding | None = None
-) -> bool:
-    """Whether the thread `basis` names is still the line fork's with the waiting
-    messages `basis` has, by the page's reading (`page_holding`, or `holding` where
-    the caller has it), while the page is `session_id`'s: a session the page has left
-    must write nothing on it."""
+def _in_line(page: PageTransaction, session_id: str, basis: dict) -> bool:
+    """Whether the line turn `basis` names still holds its thread and has written
+    nothing, while the page is `session_id`'s: a session the page has left must write
+    nothing on it."""
     claim = page.active_claim
     if claim is None or claim["id"] != session_id:
         return False
-    held = page_holding(page) if holding is None else holding
-    return (
-        held.hold(basis["thread"]).holder["kind"] == "line"
-        and [event["id"] for event in held.found.waiting.get(basis["thread"], ())]
-        == basis["inputs"]
+    held = page_holding(page)
+    return basis["turn"] in _lines(page, held) and (
+        held.hold(basis["thread"]).turn == basis["turn"]
     )
 
 
-def look(
-    session_id: str, page_dir: Path, *, now: float | None = None
-) -> list[KeptBack]:
-    """The page's kept-back threads for the lane's holder to fork, while the page is
-    its session's, after handing to the session each one whose `BOUND_S` has passed,
-    whatever its line fork is doing. `now` defaults to the clock."""
-    now = time.time() if now is None else now
+def look(session_id: str, page_dir: Path) -> list[KeptBack]:
+    """The page's kept-back threads for the lane's holder to list, while the page is
+    its session's."""
     with PageTransaction(page_dir) as page:
         claim = page.active_claim
-        threads = kept_back(page) if claim and claim["id"] == session_id else []
-        due = [thread for thread in threads if thread.until <= now]
-        for thread in due:
-            _hand_over_kept_back(page, session_id, thread.inputs)
-    for thread in due:
-        _record(
-            session_id,
-            thread.basis(page_dir),
-            {"outcome": "hand_over", "why": f"no answer within {BOUND_S:g} s"},
-        )
-    return [thread for thread in threads if thread.until > now]
+        return kept_back(page) if claim and claim["id"] == session_id else []
 
 
 def cmd_fork(session_id: str, payload: dict) -> dict | None:
@@ -518,12 +404,13 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
 
 def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
     """What to fork the conversation with for the thread `basis` names, as
-    `{"prompt", "thread"}`, or None once the thread is no longer kept back as
-    `basis` has it, or the page no longer the session's."""
+    `{"prompt", "thread"}`, or None once its line turn no longer holds it, or the page
+    is no longer the session's, which ends the turn."""
     page_dir = Path(basis["page"])
     try:
         with PageTransaction(page_dir) as page:
-            if not _still_kept_back(page, session_id, basis):
+            if not _in_line(page, session_id, basis):
+                close_agent_turns(session_id, turn=basis["turn"])
                 return None
             data = _thread_data(page, basis["inputs"])
     except FileNotFoundError:
@@ -729,9 +616,8 @@ def _note(page_dir: Path, record: dict) -> None:
 
 
 def _post(session_id: str, basis: dict, text: str) -> dict:
-    """The line fork's working line, posted as the agent's while the thread is still
-    kept back as `basis` has it, and the thread handed to the session after it; or why
-    nothing was."""
+    """The line fork's working line, posted as the agent's in its line turn, and the
+    thread handed to the session after it; or why nothing was."""
     posted = _line(session_id, basis, text)
     if "line" not in posted:
         return posted
@@ -739,26 +625,29 @@ def _post(session_id: str, basis: dict, text: str) -> dict:
 
 
 def _line(session_id: str, basis: dict, text: str) -> dict:
-    """Post `text` as the agent's working line, while the thread is still kept back
-    as `basis` has it: `{"text", "line"}` with the posted message's id, or the
-    outcome where Leaf posted nothing."""
+    """Post `text` as the agent's working line in the line turn `basis` names:
+    `{"text", "line"}` with the posted message's id, or the outcome where Leaf posted
+    nothing, which ends the turn."""
     from .delivery import ReceiptRefused
     from .findings import Rejected
     from .refusals import Refused
+    from .state import acting_in, open_agent_turns
     from .thread import Receipt, post_reply
 
+    if basis["turn"] not in open_agent_turns(session_id):
+        return {"outcome": "dropped", "text": text}
     try:
-        record = post_reply(
-            Path(basis["page"]),
-            {"responds": basis["inputs"][-1]},
-            text,
-            settlement=Receipt(
-                fence=lambda page: _still_kept_back(page, session_id, basis)
-            ),
-            claimed_session=session_id,
-            ephemeral=True,
-        )
+        with acting_in(basis["turn"]):
+            record = post_reply(
+                Path(basis["page"]),
+                {"responds": basis["inputs"][-1]},
+                text,
+                settlement=Receipt(),
+                claimed_session=session_id,
+                ephemeral=True,
+            )
     except (FileNotFoundError, ReceiptRefused):
+        close_agent_turns(session_id, turn=basis["turn"])
         return {"outcome": "dropped", "text": text}
     except (Rejected, Refused) as error:
         # The message's own checks refused it, so the thread goes to the session
@@ -766,6 +655,7 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
         why = f"the message was refused: {error}"
         return {**_hand_over(session_id, basis, why), "text": text, "refused": why}
     if record is None:
+        close_agent_turns(session_id, turn=basis["turn"])
         return {"outcome": "dropped", "text": text}
     return {"text": text, "line": record["id"]}
 
@@ -801,44 +691,44 @@ def _resumable(
 
 
 def _take(session_id: str, basis: dict, line: str) -> dict:
-    """Post the line fork's working line and give the thread to a working fork:
-    fenced to the thread still being kept back, open a turn for it
-    (`state.open_agent_turn`) and record that turn's pickup of the thread's waiting
-    messages, with their receipt, from a delivery frozen for it. Returns
+    """Post the line fork's working line and give the thread to a working fork in
+    the same turn: record that turn's pickup of the thread's waiting messages again,
+    with their references and receipt, from a delivery frozen for it. Returns
     `{"outcome": "take", "turn", "prompt"}`, the fork's turn and its task carrying
     that delivery, which the module spawns it with.
 
     Where a fork's turn gave the thread's last answer and has closed (`_resumable`),
-    the outcome adds `resume`, that fork's agent id, which runs the new turn from
-    its opening, and its `prompt` is the message that resumes it (`resume_prompt`),
-    so one fork works the thread however many messages the user sends it; a resume
-    that fails ends the turn (`ended`), which gives the thread to the main thread.
-    A new fork has no id until the module has spawned it, and its turn no agent runs
-    until the module says which agent that is (`started`). Either way the module
+    the turn takes that fork's agent id, unconfirmed, and the outcome adds `resume`,
+    that id, and its `prompt` is the message that resumes it (`resume_prompt`), so one
+    fork works the thread however many messages the user sends it; a resume that
+    fails ends the turn (`ended`), which gives the thread to the main thread. A new
+    fork has no id until the module has spawned it (`started`). Either way the module
     confirms the start once the fork runs (`started`), which tells the main session
-    which fork has the thread; a turn whose start nothing confirms lapses within a
-    minute (`activity.agent_turn_end`)."""
+    which fork has the thread; a turn whose start nothing confirms lapses
+    (`activity.agent_turn_end`)."""
     from .delivery import batch_refs, freeze_delivery, receive_passed, record_pickup
 
     page_dir = Path(basis["page"])
+    turn = basis["turn"]
     posted = _line(session_id, basis, line)
     if "line" not in posted:
         return posted
     try:
         with PageTransaction(page_dir) as page:
             holding = page_holding(page)
-            if not _still_kept_back(page, session_id, basis, holding):
+            if holding.hold(basis["thread"]).turn != turn:
                 return {"outcome": "dropped", **posted}
             data = _thread_data(page, basis["inputs"])
             if data is None:
                 # Only the session can settle what owes no reply in the thread.
-                _hand_over_kept_back(page, session_id, basis["inputs"])
+                close_agent_turns(session_id, turn=turn)
                 return {"outcome": "hand_over", **posted}
             claim = page.active_claim
             assert claim is not None
             resumed = _resumable(holding, claim, session_id, basis["thread"])
-            turn = open_agent_turn(session_id, resumed)
-            if turn is None:
+            if resumed is not None and not name_agent_turn(
+                session_id, turn, resumed, confirm=False
+            ):
                 return {"outcome": "dropped", **posted}
             delivery = freeze_delivery([data])
             by_id = {event["id"]: event for event in page.events}
@@ -1122,40 +1012,18 @@ def _answered(
 
 
 def _hand_over(session_id: str, basis: dict, why: str | None) -> dict:
-    """Hand the thread `basis` names to the session, while it is still kept back as
-    `basis` has it (`_hand_over_kept_back`); `why` is Leaf's reason, where the fork
-    didn't choose it."""
+    """Hand the thread `basis` names to the session by ending its line turn, which
+    leaves the thread's waiting messages the main thread's (`holding.owed_by`), and
+    nudge a session no watch follows, as admission would have; `why` is Leaf's
+    reason, where the fork didn't choose it."""
+    from .presence import nudge_unwatched
+
     reason = {} if why is None else {"why": why}
     try:
         with PageTransaction(Path(basis["page"])) as page:
-            if not _still_kept_back(page, session_id, basis):
+            if not close_agent_turns(session_id, turn=basis["turn"]):
                 return {"outcome": "dropped", **reason}
-            _hand_over_kept_back(page, session_id, basis["inputs"])
+            nudge_unwatched(page)
     except FileNotFoundError:
         return {"outcome": "dropped", **reason}
     return {"outcome": "hand_over", **reason}
-
-
-def _hand_over_kept_back(page: PageTransaction, session_id: str, inputs) -> None:
-    """Record in `HANDED` that the kept-back messages `inputs` go to the session, keeping
-    of those handed over before only the ids that still wait with no pickup naming
-    them, by the page's reading (`page_holding`): one a turn took in, or that settled
-    first, as when the user resolved its thread, goes. Nudge a session no watch
-    follows, as admission would have."""
-    from .presence import nudge_unwatched
-
-    held = page_holding(page)
-    owed = {
-        event["id"]
-        for said in held.found.waiting.values()
-        for event in said
-        if event["id"] not in held.taken
-    }
-    path = session_file(session_id, HANDED.kind)
-    key = page_key(page.page_dir)
-    with flocked(session_lock_path(session_id), deadline=page.deadline):
-        record = HANDED.read(path) or {"handed": {}}
-        kept = [i for i in record["handed"].get(key, []) if i in owed]
-        record["handed"][key] = list(dict.fromkeys([*kept, *inputs]))
-        HANDED.write(path, record)
-    nudge_unwatched(page)

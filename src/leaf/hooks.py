@@ -283,14 +283,13 @@ def cmd_pages(payload: dict) -> None:
     A payload asking for `forks`, from a hooks module this Leaf ships (its `module`,
     the digest of the module's source as it loaded, `session_runtime.module_current`),
     makes the follower the session's forks lane
-    (`forks.take_lane`) while it runs, and gives each page the threads Leaf keeps back
-    (`kept_back`), each as the `thread` and `inputs` the module asks a line fork about,
-    handing to the session those whose bound has passed (`forks.look`). Between presence reads it waits on each
-    page's subscription (`file_changes.page_changes`) and on the lane's name, so it
-    looks again as a message is admitted, as a later follower takes the lane, or as
-    the earliest bound runs out. It reads a page again only once its reading has
-    moved or a bound has run out, since Leaf starts keeping a thread back as its
-    message is admitted.
+    (`forks.take_lane`) while it runs, and gives each page the threads a line turn
+    holds (`kept_back`), each as the `thread`, `inputs` and `turn` the module asks a
+    line fork about (`forks.look`). Between presence reads it waits on each page's
+    subscription (`file_changes.page_changes`) and on the lane's name, so it looks
+    again as a message is admitted or as a later follower takes the lane. It reads a
+    page again only once its reading has moved, since admission opens the line
+    turn.
 
     It exits with `EX_TEMPFAIL`, without a last line, once the session's delivery
     runs another Leaf than its own (`_moved_on`), and the module starts it again,
@@ -382,13 +381,9 @@ def cmd_pages(payload: dict) -> None:
                     ),
                 ]
                 if forking and not still_named(lane.fileno(), named):
-                    # A later follower took the lane, which let go what this one
-                    # kept back, and forks what this one would.
+                    # A later follower took the lane, and lists what this one would.
                     forking = False
                     renamed.close()
-                    _let_go(sid, looked)
-                # Every page the session holds keeps its bounds, listed or not, as
-                # one whose server stopped is not.
                 kept = (
                     {page: _kept_back(sid, page, looked) for page in held}
                     if forking
@@ -411,12 +406,7 @@ def cmd_pages(payload: dict) -> None:
                     shown = listed
                 if not held:
                     return
-                bound = min(
-                    (looked[page][1] for page in held if page in looked),
-                    default=float("inf"),
-                )
-                remaining = presence_due - time.monotonic()
-                wait(marks, max(0.0, min(remaining, bound - time.time())))
+                wait(marks, max(0.0, presence_due - time.monotonic()))
                 if time.monotonic() >= presence_due:
                     break
     finally:
@@ -424,7 +414,6 @@ def cmd_pages(payload: dict) -> None:
         if forking:
             release_lease(lane)
             renamed.close()
-            _let_go(sid, looked)
 
 
 def _moved_on(sid: str) -> bool:
@@ -449,38 +438,23 @@ def _moved_on(sid: str) -> bool:
         return False
 
 
-def _let_go(sid: str, looked: dict) -> None:
-    """Nudge what a lane this follower gave up kept back, as a watch giving up its
-    lease nudges what it held back (`session.nudge_pending`): only where the follower
-    last listed a kept-back thread, since a nudge as a Stop hook's watch starts would
-    wake the session a second time."""
-    from .session import nudge_pending
-
-    keeping = any(requests for _stamp, _until, requests in looked.values())
-    looked.clear()
-    if keeping:
-        nudge_pending(sid)
-
-
 def _kept_back(sid: str, page_dir, looked: dict) -> list[dict]:
     """The page's kept-back threads (`forks.look`), read again only once the page's
-    reading has moved or the earliest bound `looked` kept for it has run out."""
+    reading has moved."""
     from .forks import look
     from .served_state.reading import page_reading
 
     try:
         stamp = page_reading(page_dir)
         kept = looked.get(page_dir)
-        if kept is not None and kept[0] == stamp and time.time() < kept[1]:
-            return kept[2]
+        if kept is not None and kept[0] == stamp:
+            return kept[1]
         threads = look(sid, page_dir)
     except FileNotFoundError:
-        # A page that is gone keeps nothing back, and no bound to wake for.
         looked.pop(page_dir, None)
         return []
     requests = [thread.basis(page_dir) for thread in threads]
-    until = min((thread.until for thread in threads), default=float("inf"))
-    looked[page_dir] = (stamp, until, requests)
+    looked[page_dir] = (stamp, requests)
     return requests
 
 

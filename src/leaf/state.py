@@ -948,17 +948,20 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
         return turn
 
 
-def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
+def name_agent_turn(
+    session_id: str, turn: str, agent: str, *, confirm: bool = True
+) -> bool:
     """Record that the agent its harness names `agent` runs the open turn `turn`, as
-    the harness confirms a spawn, which named no agent yet, or a resume, which named
-    it as it opened: and renew it, which confirms its start, so the turn is believed
-    for the working grace (`activity.agent_turn_end`); whether the turn was still open
-    to name. A turn's agent never changes once named."""
+    the harness confirms a spawn, which named no agent yet, or a resume, which Leaf
+    named as it gave the turn to the agent (`confirm` false): and, with `confirm`,
+    renew it, which confirms its start, so the turn is believed for the working grace
+    (`activity.agent_turn_end`); whether the turn was still open to name. A turn's
+    agent never changes once named."""
     now = now_iso()
     return _update_agent_turns(
         session_id,
         lambda id, entry: (
-            {**entry, "agent": agent, "renewed": now}
+            {**entry, "agent": agent, **({"renewed": now} if confirm else {})}
             if id == turn and entry["agent"] in (None, agent)
             else None
         ),

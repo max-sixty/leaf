@@ -22,8 +22,11 @@ if TYPE_CHECKING:
 
 WORKING_GRACE = timedelta(minutes=15)
 PICKUP_GRACE = timedelta(minutes=2)
-# How long an agent turn is believed before its start is confirmed (`agent_turn_end`).
-STARTING_GRACE = timedelta(minutes=1)
+# How long an agent turn is believed before its start is confirmed (`agent_turn_end`),
+# which also bounds a line turn, whose start nothing confirms (`forks.py`). On this
+# machine's pages to 2026-11-15, 77 fork starts were confirmed within 0.7 s of the
+# take, and 147 line forks answered within 20 s (median 2.4 s).
+STARTING_GRACE = timedelta(seconds=30)
 # The steps a harness may report, whose home is the served state's `WorkKind`: the
 # browser words each one, and its type makes that table name every kind.
 WORK_KINDS = frozenset(

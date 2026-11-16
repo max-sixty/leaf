@@ -28,15 +28,14 @@ the moment it takes the thread until another turn does (`Hold`).
   So a thread's further messages go to the fork working it, even once it has
   answered, rather than to a second fork or to the main thread; and to the main
   thread once its answer took the thread over.
-- A thread Leaf keeps back while a line fork judges its waiting messages
-  (`forks.kept_back`) is the line fork's.
+- A thread Leaf keeps back while a line fork judges its waiting messages is held by
+  the line turn admission opened for it, by its pickup (`forks.kept_back`).
 - An answered message is held by the turn that answered it, the one its thread's
   answer names, so an answer takes the thread as a pickup does. A fork may repeat its
   own answer, but not answer again a message the main thread answered over it.
 
 `reading_of` reads this once for a page, from its log, or the threads the fold built
-from it, the claimant's agent turns and the threads Leaf keeps back
-(`forks.page_holding`, `served_state.work`), and every rule asks that one
+from it, and the claimant's agent turns (`forks.page_holding`, `served_state.work`), and every rule asks that one
 `Holding` rather than reading the pickups and answers itself: delivery
 (`delivery.deliverable`) and admission (`forks.kept_from_main_at_admission`) keep
 from the main thread what it doesn't owe and hand it what a fork's ended turn left
@@ -49,9 +48,8 @@ writer's right to act on a thread (`authorize`, `pickable`) ask it too.
 
 A thread's holder, for a reader (`holder`), is the session's main thread, the fork
 that took it, by the agent id the main thread reaches it by, with whether its turn
-runs, closed or lapsed, or the line fork. Who owes the answer to its waiting messages
-now is that holder while it is the line fork or a fork whose turn runs, and otherwise
-the main thread (`owed_by`). `leaf page state` prints both: each thread's holder, and on
+runs, closed or lapsed. Who owes the answer to its waiting messages now is that
+holder while its turn runs, and otherwise the main thread (`owed_by`). `leaf page state` prints both: each thread's holder, and on
 each answer the agent owes the holder that owes it now. So a main thread recovering
 what it owes there can leave a running fork's work, and a message a line fork is
 judging, to them.
@@ -166,8 +164,6 @@ def rounds(events: list[dict], threads: dict[str, dict]) -> Rounds:
 
 
 MAIN = {"kind": "main"}
-# Who holds a thread Leaf keeps back while a line fork judges it.
-LINE = {"kind": "line"}
 
 
 def holder(turn: str | None, stamps: dict[str, dict], running: set[str]) -> dict:
@@ -197,9 +193,9 @@ def holder(turn: str | None, stamps: dict[str, dict], running: set[str]) -> dict
 
 def owed_by(held: dict) -> dict:
     """Who owes the answer to the waiting messages of a thread whose holder is `held`
-    (`holder`, `LINE`): that holder while it is the line fork or a fork whose turn
-    runs, and otherwise the main thread, which owes what a fork's ended turn left."""
-    return held if held["kind"] == "line" or held.get("state") == "running" else MAIN
+    (`holder`): that holder while its turn runs, and otherwise the main thread,
+    which owes what a fork's ended turn left."""
+    return held if held.get("state") == "running" else MAIN
 
 
 class Hold(NamedTuple):
@@ -212,8 +208,7 @@ class Hold(NamedTuple):
     turn: str | None
     # Whether `turn` holds the thread's waiting messages by a pickup of one of them.
     picked: bool
-    # Who holds it, for a reader: `turn` named (`holder`), or the line fork (`LINE`)
-    # for a thread Leaf keeps back.
+    # Who holds it, for a reader: `turn` named (`holder`).
     holder: dict
 
 
@@ -281,29 +276,14 @@ class Holding(NamedTuple):
             key=lambda event: event["seq"],
         )
 
-    def keeping(self, kept: set[str]) -> "Holding":
-        """This reading with each thread of `kept`, which Leaf keeps back while a line
-        fork judges its waiting messages (`forks.kept_back`), held by the line fork,
-        whichever turn last took it."""
-        if not kept:
-            return self
-        return self._replace(
-            threads={
-                **self.threads,
-                **{
-                    thread: self.threads[thread]._replace(holder=LINE)
-                    for thread in kept
-                },
-            }
-        )
-
     def forked(self) -> set[str]:
         """The waiting messages a fork has taken on, which read On it
-        (`served_state.work`): those of a thread the line fork holds, and those the
-        agent's working message came after, until the session answers."""
+        (`served_state.work`): those of a thread an agent's running turn holds, a
+        line turn's or a working fork's, and those the agent's working message came
+        after, until the session answers."""
         return {
             event["id"]
-            for event in self.waiting(lambda held: held.holder["kind"] == "line")
+            for event in self.waiting(lambda held: owed_by(held.holder) is not MAIN)
         } | {
             event["id"]
             for said in self.found.waiting.values()
@@ -324,8 +304,7 @@ def reading(
     """Who holds each thread of a page by its pickups and answers (the module header),
     from its log `events`, for the claimant's `session`, whose agent turns are
     `stamps` and `running`, and which is `live`, as `Holding` holds them, where
-    `found` is the log's `rounds`. The threads Leaf keeps back are the line fork's
-    (`Holding.keeping`). Every reading goes through `reading_of`, which reads both."""
+    `found` is the log's `rounds`. Every reading goes through `reading_of`."""
     newest: dict[str, tuple[int, str]] = {}
     picked: dict[str, dict[str, None]] = {}
     took: dict[str, set[str]] = {}
@@ -376,29 +355,19 @@ def reading_of(
     presence reading carries of its claim
     (`presence.presence_with_activity`): the claimant's session (`claim_session`)
     and its agent turns (`agent_turns`), which may run only while the session is
-    alive (`session_alive`) at `now_iso`, and, for a lane of its line forks
-    (`fork_lane`), the messages they handed over (`handed`), from which it reads the
-    threads Leaf keeps back for a line fork (`forks.kept_back_of`), which the line
-    fork holds. The fold reads it from the page's presence and the threads it built,
+    alive (`session_alive`) at `now_iso`. The fold reads it from the page's presence and the threads it built,
     and `forks.page_holding` from the claim it holds the page's transaction under."""
     from .activity import running_agent_turns
 
     live = present["session_alive"] is True
     stamps = present["agent_turns"]
-    held = reading(
+    return reading(
         events,
         present.get("claim_session"),
         stamps,
         running_agent_turns(stamps, live, datetime.fromisoformat(now_iso)),
         live=live,
         found=rounds(events, threads),
-    )
-    if not live or present["fork_lane"] is None:
-        return held
-    from .forks import kept_back_of
-
-    return held.keeping(
-        kept_back_of(held, present["fork_lane"], set(present["handed"]))
     )
 
 
@@ -459,7 +428,7 @@ def authorize(
     terminal or another session (`state.acting_turn`). It may write anywhere, and its
     answer may take the thread from the turn that held it, by the module header's
     rule. The user chose on 2026-11-14 that such a write goes through on a thread a
-    fork or a line fork holds, rather than being refused, and says so beside its
+    fork's or a line turn holds, rather than being refused, and says so beside its
     result: the advice this returns (`fork-holds-thread`), where the thread's holder
     owes its answer (`owed_by`), whose `answers`, whether the write took the thread,
     its writer sets once the write is in (`thread.post_reply`). `thread`, where
@@ -502,7 +471,7 @@ def pickable(
     acknowledgement of a pointer; a late acknowledgement of a thread another turn
     has since taken over is refused, and records nothing. Any other turn is the main
     thread's, which picks up only the waiting messages it owes (`owed_by`): one a
-    running fork or the line fork holds is theirs, and a pickup of it would take the
+    running fork's or a line turn holds is theirs, and a pickup of it would take the
     thread from them, so it leaves those messages out. The main thread's turn takes
     such a thread once its holder has let it go, or by answering it."""
     if not holding.live or holding.session != session:
@@ -524,14 +493,13 @@ def not_awaited(holding: Holding) -> set[str]:
     await, which whoever records a receipt passes beside what the main thread took
     in (`delivery.receive_passed`): each input a turn of an agent picked up, open or
     closed, which that turn received as it picked it up, and each waiting message of a
-    thread whose answer another owes now (`owed_by`), a running fork or the line fork,
-    picked up or not. The page keeps one cursor for all of them, so a message only
+    thread whose answer another owes now (`owed_by`), a running fork's or a line
+    turn, picked up or not. The page keeps one cursor for all of them, so a message only
     another holder has would otherwise keep every later input the main thread took
     in from its receipt, to be handed over again once its turn ends.
 
-    The cursor passing such a message hands it to nobody: it stays kept back while
-    a line fork judges it (`forks.kept_back`, which reads the pickups and hand-overs
-    rather than the cursor), and goes to the fork at its tool boundary (`to_carry`).
+    The cursor passing such a message hands it to nobody: it goes to the fork at its
+    tool boundary (`to_carry`).
     Once the main thread owes it, having never taken it in, it is the main thread's
     input again (`delivery.deliverable`)."""
     if not holding.live:

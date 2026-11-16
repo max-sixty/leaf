@@ -1958,17 +1958,16 @@ textarea.lf-field {
 }
 /* PROTOTYPE (resolved-threads-view): the candidates for a folded group's face
    (floating-panel.js, `foldDesign`). `row` and `line` draw a folded group as a quiet
-   row, off the band's ground, its count beside its name; `line` stands a lone fold at
-   the end of the list's empty line. */
+   press the size of its words, off the band's ground, its arrow and count inside it:
+   at the start of a row of its own, or for `line`, alone in its list, at the end of
+   the list's empty line. */
 .lf-rows-group > .lf-rows-head[data-lf-quiet] {
   position: static;
+  justify-content: flex-start;
+  block-size: auto;
+  margin-inline: 0;
+  padding: 0 2px;
   background: none;
-}
-.lf-rows-group > .lf-rows-head[data-lf-quiet] .lf-row-main {
-  flex: 0 1 auto;
-}
-.lf-rows-group > .lf-rows-head[data-lf-quiet] .lf-row-end {
-  margin-inline-start: 6px;
 }
 .lf-rows-empty.lf-fp-empty-fold {
   display: flex;
@@ -1976,20 +1975,33 @@ textarea.lf-field {
   justify-content: space-between;
   gap: 12px;
   padding-block: 0;
-  padding-inline-end: 0;
+  padding-inline-end: 2px;
 }
+.lf-rows-group > .lf-rows-head[data-lf-quiet] > .lf-row,
 .lf-fp-empty-fold > .lf-row.lf-fp-settled {
   display: inline-flex;
+  flex: none;
   align-items: center;
   gap: 0;
-  width: auto;
+  inline-size: auto;
+  block-size: auto;
   min-height: max(30px, var(--lf-aim-floor));
-  padding: 0 8px;
+  padding: 0 6px;
+  border: 0;
+  border-radius: var(--lf-r);
   color: var(--lf-muted);
   font: var(--lf-font-heading);
   white-space: nowrap;
 }
-.lf-fp-empty-fold > .lf-row.lf-fp-settled .lf-row-end {
+.lf-rows-group > .lf-rows-head[data-lf-quiet] > .lf-row::before {
+  position: static;
+  translate: none;
+  margin-inline-end: 0.4em;
+}
+.lf-rows-group > .lf-rows-head[data-lf-quiet] .lf-row-main {
+  flex: 0 1 auto;
+}
+:is(.lf-rows-head[data-lf-quiet], .lf-fp-empty-fold) > .lf-row .lf-row-end {
   margin-inline-start: 6px;
   color: inherit;
   font-weight: 400;

@@ -59,9 +59,10 @@ records the receipt of what its transcript shows entered the model's context
 Before it opens its turn, the prompt hook serves again each page the session still
 means to serve whose ownership or server is down, as a resumed session's are, and the
 turn hears only of a page that did not start (`reconnect`). A SessionStart opens no
-turn and claims nothing; after a compaction it has an agent holding a page read the
-leaf skill again (`reload_skill`). Claude Code runs Leaf's start hook only then
-(`hooks.json`), since a resumed session's first reply waits for its start hooks.
+turn and claims nothing; after a compaction it tells an agent holding a page which of
+Leaf's instructions the compaction removed (`reload_skill`). Claude Code runs Leaf's
+start hook only then (`hooks.json`), since a resumed session's first reply waits for
+its start hooks.
 
 Each harness's registrations name it (`--harness`) and its payload names the
 session; `harness.hook_harness` says why neither comes from the environment. A
@@ -349,24 +350,36 @@ def _awaits_agent(sid: str) -> bool:
 
 
 def reload_skill(session_id: str) -> str | None:
-    """What a compaction tells an agent holding pages: to read the leaf skill again,
-    which the compaction may have dropped from its context.
+    """What a compaction tells an agent holding pages: which of Leaf's instructions
+    it removed, and to read the skill again and, through it, what the work in progress
+    needs.
 
-    On 2026-10-25 five sessions left questions for the user only in their replies,
-    so On Me read empty and told the user nothing waited on them. Each had read the
-    skill hours or days before, four of them before compacting, while their
-    harness's own instructions for asking the user stayed in context. Restating one
-    rule on every prompt weighed on every turn and covered only that rule; the
-    skill is where every rule a page-holding agent follows lives."""
+    Claude Code keeps a model-written summary, the last few files read and the
+    skills loaded through its Skill tool. The rest of what the agent read is gone,
+    which takes the skill when it was read as a file, the references, and every
+    widget's instructions, which only `leaf page instructions` prints. The summary
+    paraphrases those rules, as in "settle the lf-options with `settled`", and the
+    page's own markup offers a pattern to copy, so an agent can believe it still has
+    them. On 2026-10-25 five sessions left questions for the user only in their
+    replies, four of them after compacting, so this hook first sent the agent back
+    to the skill alone. Over the two weeks to 2026-11-15 agents reread the skill
+    after 273 of 324 compactions, yet 34 of the 107 `lf-options` groups written
+    after a compaction had that widget's instructions in context, against 34 of 34
+    written before one. Restating a rule on every prompt weighed on every turn and
+    covered only that rule, so this message names what the compaction removed and
+    leaves the rules to the skill and its routes."""
     from .schema import SKILL_FILE
 
     pages = owned_pages(session_id)
     if not pages:
         return None
     return (
-        f"This session holds the Leaf page {', '.join(map(str, pages))}. A "
-        f"compaction may have dropped the leaf skill; read {SKILL_FILE} again "
-        "before you next reply or run a leaf command."
+        f"This session holds the Leaf page {', '.join(map(str, pages))}. The "
+        "compaction kept a summary of the Leaf instructions you had read, not their "
+        "text: the leaf skill's references and the widget instructions `leaf page "
+        "instructions` printed are gone, and the skill may be too. Before you next "
+        f"reply or run a leaf command, read {SKILL_FILE} again, then the references "
+        "and widget instructions your work in progress needs."
     )
 
 

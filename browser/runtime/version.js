@@ -77,7 +77,14 @@ import {
   sizeObserver,
 } from "./rendering.js";
 import { frameFor, watchScrollEnds } from "./arrivals.js";
-import { LIVE_ROOT, layerRoot, pageUrl, revisionLabel, runtime } from "./context.js";
+import {
+  LIVE_ROOT,
+  PAGE_ROOT,
+  layerRoot,
+  pageUrl,
+  revisionLabel,
+  runtime,
+} from "./context.js";
 import { servedExecutable } from "./document-identity.js";
 
 import { captureCarry, restoreCarry } from "./carry.js";
@@ -149,7 +156,6 @@ import {
   shownRegionBounds,
   watchReadingRegionTransitions,
 } from "./reading-regions.js";
-import { PAGE_SCOPE } from "./storage.js";
 import { tabStore } from "./tab-store.js";
 import { authoredBody } from "./widget-elements.js";
 import { alignInlineText } from "./text-alignment.js";
@@ -1737,7 +1743,7 @@ export function createVersionController({
       readAndApply();
       return;
     }
-    location.href = PAGE_SCOPE || "/";
+    location.href = PAGE_ROOT ?? "/";
   };
 
   // ---------- live revision activation ----------

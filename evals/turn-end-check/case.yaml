@@ -55,11 +55,11 @@ variants:
   stale-lead:
     metadata:
       scenario: stale-lead
-      purpose: A title and opening that still tell the finished stage as the page's news, while the question the work moved on to stands below them, are named stale.
+      purpose: Finished work the page still tells as news, while the question the work moved on to waits below it, is named stale.
   stale-lead-current:
     metadata:
       scenario: stale-lead-current
-      purpose: A page rewritten to lead with the new question, its finished stage folded into a record, has no stale lead.
+      purpose: A page rewritten around the new question, its finished work folded into a record, has nothing stale.
   settled:
     metadata:
       scenario: settled

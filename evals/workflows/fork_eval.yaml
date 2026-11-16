@@ -41,10 +41,10 @@ rubrics:
       shows. Each change makes the page say what the conversation shows now, in the
       page's own register. Each item not labelled is one the question asks for and
       the conversation clearly shows: an ask the agent left to the user that no On Me
-      item holds and the user hasn't answered since; a page passage the work or the
-      conversation has since contradicted; a title and opening that still present
-      finished work as the page's news while what the work moved on to stands further
-      down; an On Me item settled elsewhere; work
+      item holds and the user hasn't answered since; anything a page holds that no
+      longer fits the work as it now stands, such as words the work or the
+      conversation has since changed, or finished or dropped work the page still
+      presents as current; an On Me item settled elsewhere; work
       the agent promised or set running that no page shows; or an open thread whose
       agent messages the user would misread, since the work overtook its latest one
       or a later reply corrects an earlier one. An unlabelled item fails
@@ -591,8 +591,9 @@ cases:
           kind: stale
           page: "{page}"
           summary: >-
-            The lede still says the reindex is running with 2 of 5 shards rebuilt, but
-            all five shards rebuilt and staging now serves search-v7.
+            The lede still says the reindex is running with 2 of 5 shards rebuilt, and
+            the plan still lists the staging rebuild as work to do, but all five shards
+            rebuilt and staging now serves search-v7.
           quote: all 5 shards rebuilt; alias search -> search-v7
           edit: null
       - assistant: |-

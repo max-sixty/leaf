@@ -64,7 +64,7 @@ follow-up goes On Me is settled once, by that rule. On 2026-11-05 they chose the
 for how a question reads: the reference's own wording for it gave 47 of 47 recorded
 questions as one unbroken paragraph, and the agent's guidance now shapes both.
 Findings for the agent:
-a page that still says what the work or the conversation has since changed, an On Me
+anything a page still holds that no longer fits the work as it now stands, an On Me
 item already settled elsewhere, work promised or set running that no page shows,
 for which the fork sees the items the page shows started, and an open thread whose
 agent messages the user would misread (`overtaken`). A first version also wrote
@@ -103,19 +103,6 @@ fork took 1.13 times as long as a base replay run hours earlier (95% interval
 rests on (#5401), was dropped: it missed the one such case left to replay, and on
 other turns asked for the run or script behind a count far more often than the user
 asks for material.
-
-On 2026-11-16 `stale` gained a page's opening: a title and opening that still present
-finished work as the page's news while the question the work moved on to stands
-further down. A session holding margin-open-cost added each new request's results as a
-section at the page's end, and its title and opening went on telling of a change
-merged hours before while the question waiting on the user stood last. The fork read
-that page at the turn end and named nothing, since each sentence still held. Replayed
-at that turn end, the earlier wording named nothing in 2 of 2 runs and this one named
-the opening each time; at two other such turn ends it named the opening, and at eight
-ordinary recent turn ends, four of them on this wording and all on a draft that
-differed only in phrasing, it named no opening, with output and time near the earlier
-wording's. Its findings still reach the agent at its next step, which after a turn
-that leaves the session idle is the user's return.
 
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),

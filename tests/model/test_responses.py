@@ -303,11 +303,11 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
         )
 
 
-def test_a_done_answer_after_a_todo_answer_on_one_ref_delivers_the_todo(page_dir):
+def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_dir):
     """An agent answers with `--todo` while the work runs, then with `--done` on the
-    same reference once it finishes. Both go in: the second posts in the thread,
-    answers nothing, and ends the to-do the first opened, and the command says so.
-    Repeated word for word it adds nothing."""
+    same reference once it finishes. Both go in: the second posts in the thread and
+    answers nothing, and the command names the to-do the first opened, still open,
+    with the command that ends it. Repeated word for word it adds nothing."""
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Rebuild the chart."}
     )
@@ -325,20 +325,22 @@ def test_a_done_answer_after_a_todo_answer_on_one_ref_delivers_the_todo(page_dir
     assert delivered["parent"] == asked["id"]
     assert "responds" not in delivered
     [noted] = delivered.pop("findings")
-    assert (noted["code"], noted["values"]) == (
-        "todo-delivered",
-        {"event": asked["id"], "todo": promise["id"], "title": "Rebuild the chart"},
+    assert noted["code"] == "promised-todo"
+    assert (
+        f'`leaf task end {page_dir} {promise["id"]} done --text "<where the result'
+        in noted["text"]
     )
     events = events_model.read_events(page_dir)
-    assert events[-1]["kind"] == "todo_end"
-    [ended] = todos_model.TodoReading(events).todos
-    assert (ended["id"], ended["state"]) == (promise["id"], "done")
-    assert ended["outcome"]["detail"] == f"reply {delivered['id']}"
+    assert events[-1] == delivered
+    assert [todo["id"] for todo in todos_model.TodoReading(events).owed] == [
+        promise["id"]
+    ]
     assert thread_model.successful_replies(events, asked["id"]) == [promise]
 
     assert reply("--done", "--text", "Rebuilt it.") == delivered
     assert events_model.read_events(page_dir) == events
-    # With the to-do ended, another answer to the update has nothing to deliver.
+    # With the to-do ended, another answer to the update is refused.
+    todos_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
     [refused] = command_findings(
         "thread", "reply", reference, "--done", "--text", "Rebuilt it again."
     )

@@ -111,7 +111,8 @@ leaf thread reply <page> <message> --text "The monitoring window has ended."
 
 Use the whole `answer.ref` when answering a delivered update or posting progress on
 it. The reference identifies the page, thread and exact input being answered.
-Use the page and message id to add a message when the thread owes no reply.
+A message posted by page and message id answers nothing, so an answer its thread
+owes stays owed.
 While the session an update was delivered to holds the page,
 `leaf page state` shows the same `ref` on the update's `answer`. A reply on a `ref`
 delivered before the user's newer correction does not answer that correction.
@@ -174,7 +175,9 @@ Every answer declares whose move it leaves:
 
 - `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
   that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
-  ([Long-running work](conversation-loop.md#long-running-work)).
+  ([Long-running work](conversation-loop.md#long-running-work)). A later `--done` on
+  the same reference posts its reply in the thread, and Leaf names the to-do still
+  open for `leaf task end`.
 - `--done`: nobody's. It delivers what the message asked for and leaves the user
   nothing to decide.
 

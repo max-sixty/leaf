@@ -2094,17 +2094,19 @@ _TEXT = {
         + (v.get("held") or "read the current delivery or thread state")
     ),
     # What `thread.post_reply` notes beside a message that answers nothing: progress
-    # on an update no longer owed, which takes nothing in hand; an answer that
-    # delivers the to-do an earlier answer to its update promised; and an answer
-    # the thread it joins still owes.
+    # on an update no longer owed, which takes nothing in hand; an answer to an
+    # update whose earlier answer promised a to-do still open; and an answer the
+    # thread it joins still owes.
     "superseded-progress": lambda at, v: (
         f"event {v['event']!r} no longer requires a reply, so this progress takes"
         " nothing in hand; "
         + (v.get("held") or "read the current delivery or thread state")
     ),
-    "todo-delivered": lambda at, v: (
-        f"event {v['event']!r} was already answered by {v['todo']!r}, which promised"
-        f" {v['title']!r}; this reply ends that to-do done and answers nothing new"
+    "promised-todo": lambda at, v: (
+        f"event {v['event']!r} was already answered by {v['todo']!r}, whose to-do"
+        f" {v['title']!r} is still open, so this reply answers nothing new;"
+        f' `leaf task end {v["page"]} {v["todo"]} done --text "<where the result is>"`'
+        " ends the to-do"
     ),
     "owed-response": lambda at, v: (
         f"thread {v['thread']!r} still owes the user an answer, which this message"

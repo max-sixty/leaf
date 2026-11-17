@@ -24,11 +24,8 @@ outcome, `done`, `failed` or `dropped`, with a detail saying where the result is
 why there is none, or until a stamped version naming its widget with `--completes`
 ends it `done`. A reply, a resolution, another version, or the end of the session
 that opened it leaves it open; that is what a to-do adds over an update, which its
-answer settles. The one reply that ends one is an answer declaring nothing further
-to the update whose answer promised the to-do, which writes its `todo_end` beside
-it (`thread.post_reply`). An open to-do keeps its thread `waiting`
-(`served_state.browser`), counts under `queues.on_agent` in `page state`, and shows
-in the page's status.
+answer settles. An open to-do keeps its thread `waiting` (`served_state.browser`),
+counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../skills/leaf/references/conversation-loop.md` tells the agent which work gets a to-do.
 
 A `todo_end` names only a to-do. A question the agent asked in a thread, which the

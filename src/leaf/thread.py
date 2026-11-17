@@ -34,6 +34,7 @@ from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.structure import SourceDocument
 from leaf.thread_context import logged_fragment, thread_message, thread_names
+from leaf.todos import TodoReading
 from leaf.validation.admission import (
     check_markup,
     checked_text,
@@ -396,13 +397,7 @@ def ask_again(
     name = f"message:{message}"
     try:
         addressed = _resolve_obligation(
-            page,
-            {"parent": message},
-            REFUSE,
-            identity["session"],
-            False,
-            None,
-            done=False,
+            page, {"parent": message}, REFUSE, identity["session"], False, None
         )
     except Rejected:
         return None
@@ -476,8 +471,9 @@ def successful_replies(events: list[dict], responds: str) -> list[dict]:
 
 @dataclass(frozen=True)
 class Refuse:
-    """An ordinary writer's settlement: a stale or settled response address is
-    refused, with what the log holds instead."""
+    """An ordinary writer's settlement: an answer at a stale or settled response
+    address is refused, with what the log holds instead (`post_reply` names the
+    writes that post there all the same)."""
 
 
 @dataclass(frozen=True)
@@ -522,8 +518,6 @@ class _Obligation(NamedTuple):
     responds: str | None
     # The update a progress reply takes in hand, if it owes one.
     in_hand: str | None
-    # The to-dos the reply delivers, which it ends done.
-    ends: tuple[str, ...] = ()
     # What the command notes beside the reply once it is in.
     advice: tuple[Finding, ...] = ()
 
@@ -556,7 +550,7 @@ def post_reply(
     when `settlement` leaves nothing to write.
 
     ``address`` takes the fields of a response address (`delivery.response_address`):
-    ``responds`` fences the write to that exact current obligation, and ``parent``
+    ``responds`` fences an answer to that exact current obligation, and ``parent``
     names the message it threads under (`obligations.response_address`). ``parent``
     alone posts a new agent message, and the event then carries no ``responds``: it
     answers nothing, so an answer its thread owes stays owed, which the command
@@ -565,11 +559,11 @@ def post_reply(
 
     A ``responds`` that no longer names the update owed refuses an answer, which
     would mark an unread newer message answered (`superseded-reply`), with two
-    exceptions that answer nothing. Progress posts in the thread, taking nothing in
-    hand, and the command notes what the log holds the event as. An answer that
+    exceptions that post in the thread and answer nothing. Progress takes nothing
+    in hand, and the command notes what the log holds the event as. An answer that
     declares nothing further, to an update whose earlier answer promised a to-do
-    still open, delivers that to-do: it posts in the thread and ends the to-do done,
-    so `--todo` and then `--done` on one reference both go in.
+    still open, is noted with the `leaf task end` that ends that to-do, so `--todo`
+    and then `--done` on one reference both go in.
 
     A repeated ``attempt`` returns the reply it appended, matched by kind,
     progress, failure receipt or answer, and response address rather than by the
@@ -686,18 +680,6 @@ def post_reply(
             detach=detach,
             title=title,
         )
-        for delivered in addressed.ends:
-            append_admitted(
-                page,
-                {
-                    "kind": "todo_end",
-                    "author": "agent",
-                    **posting_identity,
-                    "todo": delivered,
-                    "outcome": "done",
-                    "detail": f"reply {record['id']}",
-                },
-            )
         if beside is not None and addressed.responds is not None:
             # Whether the answer took the thread, by the reading once it is in: one to
             # an older message, or to a widget frozen there, leaves a message the fork
@@ -772,24 +754,11 @@ def _repeated_reply(
         or bool(existing.get("ephemeral")) != ephemeral
         or ("failure" in existing) != failed
         or (parent is not None and existing["parent"] != parent)
-        # Progress, and an answer that delivered a to-do, answer nothing.
+        # Progress, and an answer after one that promised a to-do, answer nothing.
         or existing.get("responds") not in (None, responds)
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
     return existing
-
-
-def _promised(events: list, responds: str) -> list[dict]:
-    """The open to-dos that earlier answers to `responds` opened
-    (`todos.todo_reading`)."""
-    from .todos import TodoReading
-
-    opened = {
-        answer["id"]
-        for answer in successful_replies(events, responds)
-        if "todo" in answer
-    }
-    return [todo for todo in TodoReading(events).owed if todo["id"] in opened]
 
 
 def _resolve_obligation(
@@ -799,8 +768,7 @@ def _resolve_obligation(
     session: str | None,
     ephemeral: bool,
     failure: str | None,
-    *,
-    done: bool,
+    done: bool = False,
 ) -> _Obligation | None:
     """Check `address` against the obligations the log holds now; where the reply
     goes and what the command notes beside it, or None where `settlement` says to
@@ -829,7 +797,6 @@ def _resolve_obligation(
     thread_id, parent = thread_addressed(page_dir, events, parent)
     in_hand = None
     answers = None if ephemeral else responds
-    ends: tuple[str, ...] = ()
     advice: list[Finding] = []
     if responds is not None:
         if (
@@ -841,7 +808,25 @@ def _resolve_obligation(
                 return None
             if not isinstance(settlement, ProviderFinal):
                 held = logged_id(page_dir, events, responds, responses)
-                promised = _promised(events, responds) if done else []
+                # The to-dos earlier answers to it opened that are still open.
+                opened = {reply["id"] for reply in successful_replies(events, responds)}
+                promised = [
+                    {"todo": todo["id"], "title": todo["title"]}
+                    for todo in TodoReading(events).owed
+                    if done and todo["id"] in opened
+                ]
+                if not (ephemeral or promised):
+                    found = {"event": responds, "parent": parent, "held": held}
+                    raise Rejected([Finding("superseded-reply", values=found)])
+                answers = None
+                advice += [
+                    Finding(
+                        "promised-todo",
+                        values={"event": responds, "page": str(page_dir), **todo},
+                        severity="advice",
+                    )
+                    for todo in promised
+                ]
                 if ephemeral:
                     advice.append(
                         Finding(
@@ -849,34 +834,6 @@ def _resolve_obligation(
                             values={"event": responds, "held": held},
                             severity="advice",
                         )
-                    )
-                elif promised:
-                    answers = None
-                    ends = tuple(todo["id"] for todo in promised)
-                    advice.extend(
-                        Finding(
-                            "todo-delivered",
-                            values={
-                                "event": responds,
-                                "todo": todo["id"],
-                                "title": todo["title"],
-                            },
-                            severity="advice",
-                        )
-                        for todo in promised
-                    )
-                else:
-                    raise Rejected(
-                        [
-                            Finding(
-                                "superseded-reply",
-                                values={
-                                    "event": responds,
-                                    "parent": parent,
-                                    "held": held,
-                                },
-                            )
-                        ]
                     )
         elif ephemeral and not isinstance(settlement, Receipt):
             in_hand = responds
@@ -906,8 +863,9 @@ def _resolve_obligation(
                         )
                     ]
                 )
-    if responds is None or ends:
-        # A message that answers nothing leaves what its thread owes owed.
+    if answers is None and not (ephemeral and responds):
+        # A message that answers nothing, other than progress on an update, leaves
+        # what its thread owes owed.
         owed = thread_obligation(events, responses, thread_id)
         if owed is not None:
             advice.append(
@@ -928,7 +886,7 @@ def _resolve_obligation(
         or (settlement.fence is not None and not settlement.fence(page))
     ):
         return None
-    return _Obligation(parent, thread_id, answers, in_hand, ends, tuple(advice))
+    return _Obligation(parent, thread_id, answers, in_hand, tuple(advice))
 
 
 def _compose_and_append(
@@ -957,8 +915,7 @@ def _compose_and_append(
     still checks saved source. Return the appended record and any checked
     publication for `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
-    parent, thread_id = obligation.parent, obligation.thread
-    responds, in_hand = obligation.responds, obligation.in_hand
+    parent, thread_id, responds, in_hand, _advice = obligation
     markup = drawn_markup(text, html)
     event = {
         "kind": "reply",
@@ -1125,9 +1082,10 @@ def post_response(
     """Author a complete reply at the delivery's exact captured response address.
 
     The reference chooses page, input and frozen thread destination. All rich reply
-    options belong to the durable writer. A direct write refuses a superseded input;
-    a provider's final (`reservation`, `ProviderFinal`) preserves its captured
-    destination after user settlement but yields to another successful answer.
+    options belong to the durable writer. A direct answer refuses a superseded
+    input, except where `post_reply` says; a provider's final (`reservation`,
+    `ProviderFinal`) preserves its captured destination after user settlement but
+    yields to another successful answer.
     Explicit addressed replies commit immediately; reservations prevent competing
     provider finals and failure receipts.
 

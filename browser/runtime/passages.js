@@ -523,6 +523,10 @@ const GEN = "[data-lf-gen]";
 const ISLAND = "[data-lf-markdown-words]";
 const MARKS = [UI_MARKS, GENERATED, ISLAND].join(", ");
 const BLOCK_TAGS = new Set(TEXT_BLOCK.split(","));
+// A named group's title, the label it draws at its start (base.css), is the group's
+// first block, as the heading a section opens with is, so the reader can be at it.
+// Its words stay in the group's prose for joining (`textBlock`), as Python reads them.
+const GROUP_TITLE = '[data-lf-reading-role="group"] > [data-lf-said="label"]';
 // A projected datum is independently addressable, even when its rows share one pre.
 // A closer paragraph or other text block still supplies the datum's reading grain.
 const BLOCKS = `${TEXT_BLOCK}, ${DATUM}`;
@@ -589,7 +593,7 @@ export const phrasing = (element) =>
 function enter(ctx, el, inFrame = true) {
   const marked = el.hasAttributes() && el.matches(MARKS);
   const textBlock = BLOCK_TAGS.has(el.localName);
-  const block = textBlock || el.matches(DATUM);
+  const block = textBlock || el.matches(DATUM) || el.matches(GROUP_TITLE);
   const editing = editingBoundary(el);
   const cell = opaque(el) || editing || (marked && el.matches(GEN) && unmodelled(el));
   const silent = !ctx.silenced && silences(el);

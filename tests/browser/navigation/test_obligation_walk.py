@@ -562,7 +562,7 @@ def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
     panel_settled(page, view="threads")
     page.locator("h1").focus()
     page.keyboard.press("m")
-    expect(page.locator(f"{CARD} section[data-lf-obligation]")).to_be_focused()
+    expect(page.locator(f"{CARD} lf-group[data-lf-obligation]")).to_be_focused()
 
 
 def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
@@ -572,7 +572,7 @@ def test_an_obligation_walk_leaves_the_card_it_reached_through(browser, serve):
     leaving the user beside the passage."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.keyboard.press("m")
-    item = page.locator(f"{CARD} section[data-lf-obligation]")
+    item = page.locator(f"{CARD} lf-group[data-lf-obligation]")
     expect(item).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
     page.keyboard.press("Escape")

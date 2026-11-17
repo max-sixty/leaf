@@ -282,7 +282,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("m")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator("section[data-lf-obligation]")).to_be_focused()
+    expect(card.locator("lf-group[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")

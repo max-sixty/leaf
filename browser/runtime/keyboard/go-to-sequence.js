@@ -19,8 +19,7 @@
    its card at an edge of the list; `g p` returns focus to the page while leaving open
    surfaces in place. Uppercase mnemonics remain named
    global destinations: `g T` Threads, `g M` On Me, `g L` All pages, `g P` the
-   searchable Page Map, `g V` Versions, and from an older version `g N` the latest
-   (version.js, `LATEST`). `g T`, `g M` and `g L` open the floating
+   searchable Page Map and `g V` Versions. `g T`, `g M` and `g L` open the floating
    panel's view of that name, and `g V` its Versions, through the panel's own doors
    (`doors`, floating-panel.js), as its marks and menu rows open them. Completing one that
    opens a surface leaves the user in that surface, whose own Escape step is the way out

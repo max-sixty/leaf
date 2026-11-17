@@ -10,7 +10,9 @@
    (controls.css); a seat with one face for all its words, such as the field's native
    placeholder, wears the run's one voice (`voiceOf`, floating-panel.css). A
    string is said by no one: a name, such as a thread's title or a mode's, or where the
-   user stands in a walk, which the interface states in its own face. An empty box's
+   user stands in a walk, which the interface states in its own face, but for a seat
+   that also carries the agent's words, where Leaf says them (glossary.md,
+   "Reader-facing words"; floating-panel.js, `fieldReading`). An empty box's
    words are Leaf's, each ending in an ellipsis: a comment box's Reply… or Comment…, as
    the user chose on 5 November 2026 (words.js), and a search's prompt, such as Find
    text…, which every search box marks as Leaf's (control-labels.js, `searchField`).

@@ -453,8 +453,8 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     before the status, and its end offers Open latest in Comment's place, so nothing in
     the row moves and the On Me mark keeps its seat; the press opens the latest, and the
     words and the press go with it: in place on a tab the agent has since revised, and
-    from a version the user travelled back to, where the press wears its keys, `g N`,
-    which make it too."""
+    from a version the user travelled back to, where the press wears its keys, Versions'
+    `g V` and then its `l`, which make it too, leaving Versions."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
     latest = latest_press(page)
@@ -483,10 +483,12 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     expect(page).to_have_url(re.compile(r"/versions/v1\b"))
     expect(field(page)).to_have_attribute("placeholder", re.compile(r"^v1 of 2 · "))
     expect(latest).to_be_visible()
-    expect(latest.locator("kbd")).to_have_text(["g", "N"])
+    expect(latest.locator("kbd")).to_have_text(["g", "V", "l"])
     page.locator("body").focus()
     page.keyboard.press("g")
-    page.keyboard.press("Shift+n")
+    page.keyboard.press("Shift+v")
+    panel_settled(page, view="versions")
+    page.keyboard.press("l")
     expect(page).not_to_have_url(re.compile(r"/versions/"))
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
     expect(latest).to_have_count(0)

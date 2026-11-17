@@ -113,7 +113,6 @@ const PAGE_COMMANDS = [
   "navigation.panel.leaves",
   "navigation.page-map",
   "version.open",
-  "version.latest",
   "history.undo",
   // Below the walks that reach one list at a time, because `g` opens a door to all of
   // them: a second way to somewhere the user can already get to.

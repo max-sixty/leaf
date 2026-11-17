@@ -122,7 +122,7 @@ owes the user a reply, is taken as one naming none, since the fork has no next
 attempt.
 
 An action the agent takes once the user agrees, such as a merge waiting on their
-approval, is asked as a choice the user presses, as the user asked, rather than as a
+approval, is usually asked as a choice the user presses, as the user asked, rather than as a
 step in words asking for a reply, which users answer with "yes" or the command the
 agent told them to run. So whether an action asks for permission or is a step depends
 on who takes it once the user agrees, a rule the fork reads in the agent's guidance

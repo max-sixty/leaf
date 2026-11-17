@@ -91,21 +91,19 @@ event over as logged, with no handling clause. So a new kind declares `skippable
 that leaves an older Leaf's reading right, and bumps otherwise.
 
 `build/browser/protocol-baseline.json` keeps `$events`, each `state.Record` schema and
-the composer's draft as they stood at the current number, and
-`build/browser/protocol.mjs` compares each build against it (its header says in which
-direction for each schema). It refuses a change to an event record, or a new kind not
-declared `skippable`, until the change takes what it took or the number moves.
+the composer's draft as they stood at the current number, and the build
+(`build/browser/protocol.mjs`) refuses any change to an event record beyond its
+annotations, or a new kind not declared `skippable`, until the number moves.
 
 The number also versions each record Leaf keeps outside a page's log and document:
 every `state.Record` in a page directory or the state home, the layer record among
 them, and the composer's draft (`$events.draft`). Each carries `leaf-<kind>/<since>` in
 its `format`, where `since` is the protocol at which that record's shape last changed,
 so a bump for another change leaves it readable. A new kind starts at the current
-protocol without a bump, since no earlier Leaf reads it. A shape change that a reader at
-the same format would misread sets `since` to the current protocol, bumping the
-protocol first where `since` already names it. The build refuses a change at the same
-`since` that a reader at either end would misread, and a `since` moved anywhere but the
-current protocol. A reader treats a record at another format as absent, except a layer
+protocol without a bump, since no earlier Leaf reads it. A shape change sets `since` to
+the current protocol, bumping the protocol first where `since` already names it, and the
+build refuses a shape change at the same `since` or a `since` moved anywhere else. A
+reader treats a record at another format as absent, except a layer
 record at a later shape than its own, which refuses the page as a newer Leaf's
 (`registry.storage.layer_record`): read as absent, it would have `page init` replace
 the page's selection.

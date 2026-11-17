@@ -68,19 +68,19 @@
     syntax: "*";
     inherits: false;
   }
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *):is(
-    .layout-column,
-    .layout-sidebar,
-    .layout-workspace
-  ) {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column,
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar,
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
     --lf-layout-box: 1;
     --lf-block-frame: trim;
     container-name: lf-content-frame;
   }
-  :is(
-    main:not(.layout-column, .layout-sidebar, .layout-workspace),
-    main > [data-lf-views="parts"] > *
-  ):has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
+  main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+      > :is(.layout-column, .layout-sidebar, .layout-workspace)
+    ),
+  main
+    > [data-lf-views="parts"]
+    > :has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
     container-type: inline-size;
     --lf-layout-shell: 1;
   }
@@ -414,22 +414,26 @@
   /* A flow is a box whose blocks stand in the flow around it, so they share its room:
    * a section, an article or a disclosure (`details`), as HTML writes a document's
    * parts, and a widget that draws no box of its own around its blocks (`x-flow`). One
-   * carrying a Layout of its own arranges what it holds, and one carrying a width of
-   * its own (`data-width`) is a block that takes the room itself, so its children use
-   * the room inside it; neither is a flow. A flow shares the room of the column's flow
-   * it stands in, at any depth; one in any other box has none to share. Only a block
-   * standing directly in a column or flow reads the room, so every other box sets it
-   * back to zero, and a flow inside a plain wrapper, such as a `div`, stays within the
-   * wrapper rather than breaking out as one standing in the column does. A section that
-   * draws a frame is a flow all the same: its box grows round a wide block in it (the
-   * reach, below), which runs over the frame's border and padding, as the render check
-   * reports (`outside-frame`).
+   * carrying a Layout of its own, a `layout-` class, arranges what it holds, and one
+   * carrying a width of its own (`data-width`) is a block that takes the room itself, so
+   * its children use the room inside it; neither is a flow. A flow shares the room of
+   * the column's flow it stands in, at any depth; one in any other box has none to
+   * share. Only a block standing directly in a column or flow reads the room, so every
+   * other box sets it back to zero, and a flow inside a plain wrapper, such as a `div`,
+   * stays within the wrapper rather than breaking out as one standing in the column
+   * does. A section that draws a frame is a flow all the same: its box grows round a
+   * wide block in it (the reach, below), which runs over the frame's border and
+   * padding, as the render check reports (`outside-frame`).
    *
-   * The rules name the flows by their tags with the exceptions in `:where()`, which
-   * weighs nothing, so a rule naming a flow weighs a class, as one naming the column
-   * does: the reset below must not outweigh the room the column states for itself
-   * (`:is(main, …).layout-column`, above). A flow says it is one (`--lf-flow`), which
-   * the render check reads rather than the selector (`containedSpace`). */
+   * A rule whose subject is a flow names each kind as a selector of its own, the
+   * exceptions in a `:where()` that weighs nothing, and a rule nested under them names
+   * its kind again at no weight, as `&:where(section)`, so each is filed under its tag
+   * (browser/AGENTS.md, "A rule costs only the elements it could style"). Inside
+   * `:not()`, as in the reset below, the flows weigh their heaviest kind, a class's
+   * weight, as the column does, so the reset doesn't outweigh the room the column
+   * states for itself (`:is(main, …).layout-column`, above). A flow says it is one
+   * (`--lf-flow`), which the render check reads rather than the selector
+   * (`containedSpace`). */
   @property --lf-flow {
     syntax: "<integer>";
     inherits: false;
@@ -437,16 +441,10 @@
   }
   :not(
       .layout-column,
-      :is(section, article, details, [data-lf-flow]):where(
-        :not(
-          .layout-column,
-          .layout-sidebar,
-          .layout-workspace,
-          .layout-tiles,
-          .layout-track,
-          [data-lf-space]
-        )
-      )
+      :is(section, article, details):where(
+        :not([class^="layout-"], [class*=" layout-"], [data-lf-space])
+      ),
+      [data-lf-flow]
     )
     > * {
     --lf-free-start: 0px;
@@ -466,32 +464,44 @@
     --lf-free-left: var(--lf-free-end);
     --lf-free-right: var(--lf-free-start);
   }
-  :is(section, article, details, [data-lf-flow]):where(
-    :not(
-      .layout-column,
-      .layout-sidebar,
-      .layout-workspace,
-      .layout-tiles,
-      .layout-track,
-      [data-lf-space]
-    )
-  ) {
+  section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+  article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+  details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+  [data-lf-flow] {
     --lf-flow: 1;
-    &:dir(ltr) {
+    &:where(section):dir(ltr),
+    &:where(article):dir(ltr),
+    &:where(details):dir(ltr),
+    &:where([data-lf-flow]):dir(ltr) {
       --lf-free-start: var(--lf-free-left);
       --lf-free-end: var(--lf-free-right);
     }
-    &:dir(rtl) {
+    &:where(section):dir(rtl),
+    &:where(article):dir(rtl),
+    &:where(details):dir(rtl),
+    &:where([data-lf-flow]):dir(rtl) {
       --lf-free-start: var(--lf-free-right);
       --lf-free-end: var(--lf-free-left);
     }
     /* A flow's box holds the blocks standing in it, so a flow that otherwise keeps the
      * measure, as a question does, gives it up once one of them, or one in a flow in
      * it, asks for more room, in a column or in a sidebar page's wider body. */
-    &:has(
-      > :is([data-lf-space], .layout-sidebar),
-      & > :is([data-lf-space], .layout-sidebar)
-    ) {
+    &:where(section):has(
+        > :is([data-lf-space], .layout-sidebar),
+        & > :is([data-lf-space], .layout-sidebar)
+      ),
+    &:where(article):has(
+        > :is([data-lf-space], .layout-sidebar),
+        & > :is([data-lf-space], .layout-sidebar)
+      ),
+    &:where(details):has(
+        > :is([data-lf-space], .layout-sidebar),
+        & > :is([data-lf-space], .layout-sidebar)
+      ),
+    &:where([data-lf-flow]):has(
+        > :is([data-lf-space], .layout-sidebar),
+        & > :is([data-lf-space], .layout-sidebar)
+      ) {
       max-inline-size: none;
     }
   }
@@ -529,27 +539,17 @@
    * Each rule below is about a block standing in the column or in a flow. */
   :is(
     .layout-column,
-    :is(section, article, details, [data-lf-flow]):where(
-      :not(
-        .layout-column,
-        .layout-sidebar,
-        .layout-workspace,
-        .layout-tiles,
-        .layout-track,
-        [data-lf-space]
-      )
+    :is(
+      :is(section, article, details):where(
+        :not([class^="layout-"], [class*=" layout-"], [data-lf-space])
+      ),
+      [data-lf-flow]
     )
   ) {
-    > :is(section, article, details, [data-lf-flow]):where(
-        :not(
-          .layout-column,
-          .layout-sidebar,
-          .layout-workspace,
-          .layout-tiles,
-          .layout-track,
-          [data-lf-space]
-        )
-      ) {
+    > section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+    > article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+    > details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+    > [data-lf-flow] {
       --lf-prose-measure: inherit;
     }
     /* Only a Layout that states a measure hands out room: in a workspace every block
@@ -575,16 +575,19 @@
           max-inline-size: none;
           --lf-breakout: 1;
         }
-        > :is([data-lf-space="available"], .layout-sidebar) {
+        > [data-lf-space="available"],
+        > .layout-sidebar {
           position: relative;
           inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
           max-inline-size: none;
           --lf-breakout: 1;
         }
-        &:dir(ltr) > :is([data-lf-space="available"], .layout-sidebar) {
+        &:dir(ltr) > [data-lf-space="available"],
+        &:dir(ltr) > .layout-sidebar {
           margin-left: calc(-1 * var(--lf-free-start));
         }
-        &:dir(rtl) > :is([data-lf-space="available"], .layout-sidebar) {
+        &:dir(rtl) > [data-lf-space="available"],
+        &:dir(rtl) > .layout-sidebar {
           margin-right: calc(-1 * var(--lf-free-start));
         }
         > table[data-lf-space] {
@@ -615,33 +618,57 @@
          * where it stands directly in a flow, so a flow counts its own children and
          * those of the flows standing in it, and not a block a plain wrapper keeps in
          * the column. */
-        > :is(section, article, details, [data-lf-flow]):where(
-            :not(
-              .layout-column,
-              .layout-sidebar,
-              .layout-workspace,
-              .layout-tiles,
-              .layout-track,
-              [data-lf-space]
-            )
-          ) {
+        > section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+        > article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+        > details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+        > [data-lf-flow] {
           --lf-wide-reach: 0px;
           --lf-reach-start: 0px;
           --lf-reach-end: min(var(--lf-wide-reach) - 100%, var(--lf-free-end));
-          &:has(> [data-lf-space="wide"], & > [data-lf-space="wide"]) {
+          &:where(section):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
+          &:where(article):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
+          &:where(details):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
+          &:where([data-lf-flow]):has(
+              > [data-lf-space="wide"],
+              & > [data-lf-space="wide"]
+            ) {
             --lf-wide-reach: var(--lf-wide);
           }
-          &:has(
-            > :is([data-lf-space="available"], .layout-sidebar),
-            & > :is([data-lf-space="available"], .layout-sidebar)
-          ) {
+          &:where(section):has(
+              > :is([data-lf-space="available"], .layout-sidebar),
+              & > :is([data-lf-space="available"], .layout-sidebar)
+            ),
+          &:where(article):has(
+              > :is([data-lf-space="available"], .layout-sidebar),
+              & > :is([data-lf-space="available"], .layout-sidebar)
+            ),
+          &:where(details):has(
+              > :is([data-lf-space="available"], .layout-sidebar),
+              & > :is([data-lf-space="available"], .layout-sidebar)
+            ),
+          &:where([data-lf-flow]):has(
+              > :is([data-lf-space="available"], .layout-sidebar),
+              & > :is([data-lf-space="available"], .layout-sidebar)
+            ) {
             --lf-reach-start: var(--lf-free-start);
             --lf-reach-end: var(--lf-free-end);
           }
-          &:has(
-            > :is([data-lf-space], .layout-sidebar),
-            & > :is([data-lf-space], .layout-sidebar)
-          ) {
+          &:where(section):has(
+              > :is([data-lf-space], .layout-sidebar),
+              & > :is([data-lf-space], .layout-sidebar)
+            ),
+          &:where(article):has(
+              > :is([data-lf-space], .layout-sidebar),
+              & > :is([data-lf-space], .layout-sidebar)
+            ),
+          &:where(details):has(
+              > :is([data-lf-space], .layout-sidebar),
+              & > :is([data-lf-space], .layout-sidebar)
+            ),
+          &:where([data-lf-flow]):has(
+              > :is([data-lf-space], .layout-sidebar),
+              & > :is([data-lf-space], .layout-sidebar)
+            ) {
             margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
               calc(-1 * max(0px, var(--lf-reach-end)));
             padding-inline: max(0px, var(--lf-reach-start))
@@ -843,7 +870,8 @@
       --lf-top-outer: var(--lf-top);
     }
     @container not style(--lf-track-scroll-behavior: flow) {
-      :is(.layout-track, [data-lf-track]) {
+      .layout-track,
+      [data-lf-track] {
         position: sticky;
         top: calc(var(--lf-top-outer) + var(--lf-sp-4));
         --lf-top: 0px;

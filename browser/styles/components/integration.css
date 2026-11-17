@@ -220,7 +220,8 @@
 .lf-video-controls {
   --lf-icon-action-face: calc(var(--lf-video-bar-h) - 2px);
 }
-:is(.lf-video-play, .lf-video-full-screen) {
+.lf-video-play,
+.lf-video-full-screen {
   flex: none;
   /* Flush with the bar's edge, the ring stays inside the press. */
   --lf-ring-at: var(--lf-focus-ring-inset);

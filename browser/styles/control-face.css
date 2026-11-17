@@ -24,12 +24,16 @@
  * among them, and the properties it leaves out are stated beside it, since any declared
  * value beats an inherited one: a page that sets its body bold, italic, small-capped,
  * spaced or in capitals leaves its controls in that font. */
-:where(
-  :is(:root, :host) .lf-ui-face,
-  :is(:root, :host) .lf-btn,
-  :root body :is(button, input, select, textarea):not(.lf-chrome *),
-  :host :is(button, input, select, textarea)
-) {
+:where(:is(:root, :host) .lf-ui-face),
+:where(:is(:root, :host) .lf-btn),
+:where(:root body button:not(.lf-chrome *)),
+:where(:root body input:not(.lf-chrome *)),
+:where(:root body select:not(.lf-chrome *)),
+:where(:root body textarea:not(.lf-chrome *)),
+:where(:host button),
+:where(:host input),
+:where(:host select),
+:where(:host textarea) {
   font: var(--lf-font-ui);
   font-feature-settings: normal;
   font-variation-settings: normal;

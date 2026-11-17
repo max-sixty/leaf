@@ -146,11 +146,13 @@ lf-playground:has(> .lf-playground-split) {
       scroll-padding-block-end: var(--lf-end-room);
     }
 
-    :is(.lf-playground-preview-body, .lf-playground-controls-region > aside) {
+    .lf-playground-preview-body,
+    .lf-playground-controls-region > aside {
       contain: size;
     }
 
-    :is(.lf-playground-split, .lf-playground-rail) {
+    .lf-playground-split,
+    .lf-playground-rail {
       min-block-size: 0;
       --lf-full-height: inherit;
     }
@@ -207,7 +209,8 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
  * small capitals. Only a playground draws these regions, so the rules name no scope
  * root: `:scope` would weigh a class, and the presets band's rule below would lose its
  * bottom rule and padding to the generic header's. */
-:is(.lf-playground-controls-region, .lf-playground-instruction-region) {
+.lf-playground-controls-region,
+.lf-playground-instruction-region {
   --lf-ground: var(--lf-card);
   border-color: var(--lf-rule);
   background: var(--lf-ground);
@@ -254,11 +257,8 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   gap: var(--lf-sp-1);
   font-weight: 600;
 }
-:where(
-  .lf-playground-controls-region
-    > aside
-    :is(input:not([type="checkbox"], [type="radio"]), select, textarea)
-) {
+:where(.lf-playground-controls-region > aside)
+  :where(input:not([type="checkbox"], [type="radio"]), select, textarea) {
   box-sizing: border-box;
   inline-size: 100%;
   margin: 0;

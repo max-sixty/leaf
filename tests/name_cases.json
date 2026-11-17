@@ -182,7 +182,7 @@
     "registry": {
       "lf-option": {}
     },
-    "markup": "<lf-option id=\"it\" label=\"Flag first\">Ship dark.</lf-option>",
+    "markup": "<lf-option id=\"it\"><strong>Flag first</strong> Ship dark.</lf-option>",
     "name": ""
   }
 ]

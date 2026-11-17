@@ -116,12 +116,13 @@ the same way; neither does yet.
 The fork can't author the page, so each ask is the agent's message in a thread,
 written as the agent's guidance has it write one (`threads.md`), and Leaf posts its
 text as the agent's `leaf thread` command does, drawing the HTML in it. Where the
-agent offered answers the user picks among, the message holds an `lf-options choose`
+agent offered answers the user picks among, or left them the go-ahead for an action
+it takes once they agree, such as a merge, the message holds an `lf-options`
 group, as "Ask for a pick" has the agent write it, so the pick shows as the group's
 state, `1`–`9` answer it, and a reply in words leaves it open, passing it to the
-agent until the agent answers. Any other ask, a step the user takes included, is the
-message with an obligation: On Me lists it until the user replies or settles it, and
-their reply reaches the agent as any reply does. Where Leaf refuses the HTML
+agent until the agent answers. Any other ask, a step only the user can take included,
+is the message with an obligation: On Me lists it until the user replies or settles
+it, and their reply reaches the agent as any reply does. Where Leaf refuses the HTML
 (`check_markup`), the fork has no next attempt, so the message asks in words with an
 obligation and shows the HTML as text, and the agent hears why. An ask that asks an
 earlier question again, such as a step the user took that didn't work or a choice
@@ -134,6 +135,14 @@ otherwise on the page as a whole, which is also where words the page doesn't sho
 once leave it. An ask Leaf can't put in its question's thread, as where that thread
 owes the user a reply, is taken as one naming none, since the fork has no next
 attempt.
+
+Until 2026-11-16 the fork's reference had it ask a merge waiting on the user's
+approval as a step, in words asking for a reply. On 44 real pages from 2026-11-01 to
+11-16, none of 88 asks to merge or land work, 72 of them the fork's, was a choice,
+and 17 of the 21 the user answered in words said "yes" or the merge command the agent
+had told them to run. The user asked for a single press, so whether an action asks
+for permission or is a step now depends on who takes it once the user agrees, a rule
+the fork reads in the agent's guidance (`conversation-loop.md`).
 
 The fork once opened every ask in a new thread. On 2026-11-11 the user closed a
 thread asking them to run `/reload-plugins`, having run it in the wrong session; the
@@ -269,6 +278,7 @@ from html import escape
 from itertools import chain, islice
 from pathlib import Path
 
+from .registry.contract import declared_fact
 from .registry.kernel import title_limit
 from .schema import SKILL_FILE
 from .state import (
@@ -287,12 +297,13 @@ REFERENCES = SKILL_FILE.parent / "references"
 REFERENCE = REFERENCES / "turn-end-check.md"
 # The agent's own guidance the fork follows for its asks and its overtaken threads,
 # each a paragraph of a reference named by the words that open it: what goes On Me,
-# what a question holds, how HTML in a message draws, when it asks with a choice,
-# how a message reads in a thread's narrow card, what it links, where a correction
-# to an unanswered reply goes, and the reply a thread is owed once the work it
-# discusses is done.
+# which action asks for permission and which is a step, what a question holds, how
+# HTML in a message draws, when it asks with a choice, how a message reads in a
+# thread's narrow card, what it links, where a correction to an unanswered reply
+# goes, and the reply a thread is owed once the work it discusses is done.
 GUIDANCE = (
     ("conversation-loop.md", "The user's **On Me** list holds"),
+    ("conversation-loop.md", "For an action you take once the user agrees"),
     ("authoring-on-me.md", "Make each question self-contained"),
     ("threads.md", "A message is Markdown, and HTML in it draws"),
     ("threads.md", "When a message asks the user to choose among answers"),
@@ -1045,7 +1056,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
     """Where `document`'s source writes the `words` the user reads at `target` in
     `passages`, its page's reading, as the match, whether it stands in an attribute
     and whether in a `<pre>`; or None. Each place the source may write them, in its text or in
-    the value of an attribute a widget shows (`x-says`), gets a character of its
+    the value of an attribute a widget shows (`words.says`), gets a character of its
     own just before it, and the marked page's reading (`read`) says which mark
     stands at `target`. A copy in a script, a style, the head, a comment or a body
     the user rewrote shows nowhere, so it is never the one found.
@@ -1075,7 +1086,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
                     document.offsets(location.end_tag)[0],
                 )
             )
-        for name in (registry.get(element.tag) or {}).get("x-says") or {}:
+        for name in declared_fact(registry.get(element.tag) or {}, "words.says") or {}:
             if name in location.attrs:
                 start, end = document.offsets(location.attrs[name])
                 _, equals, value = source[start:end].partition("=")

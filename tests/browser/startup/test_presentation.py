@@ -22,6 +22,7 @@ from render_harness import (
 from browser.startup import _hold_startup
 from leaf import data as data_model
 from leaf import user_views as user_views_model
+from leaf.registry.contract import declared_fact
 from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -234,17 +235,27 @@ def test_reduced_motion_reaches_declared_shadow_stages(
     """
     entry = {
         "description": "A package motion control.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
     }
     registry = {
         tag: {
             **entry,
-            **({"x-shadow": True} if tree == "shadow" else {}),
-            "x-example": f'<{tag} id="{tree}-example"></{tag}>',
+            **(
+                {
+                    "words": {
+                        "shadow": True,
+                    },
+                }
+                if tree == "shadow"
+                else {}
+            ),
+            "author": {"example": f'<{tag} id="{tree}-example"></{tag}>'},
         }
         for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
     }
@@ -271,7 +282,7 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
     for tag, declaration in registry.items():
         stage = (
             "shadowStage(this, nodes)"
-            if declaration.get("x-shadow")
+            if declared_fact(declaration, "words.shadow")
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
@@ -352,19 +363,24 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
     async work finishes after the first dress, and declared shadow words live beyond it."""
     entry = {
         "description": "A project-supplied link.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
+        "content": "empty",
     }
-    settled = {**entry, "x-example": '<lf-settled-link id="settled"></lf-settled-link>'}
+    settled = {
+        **entry,
+        "author": {"example": '<lf-settled-link id="settled"></lf-settled-link>'},
+    }
     shadow = {
         **entry,
-        "x-shadow": True,
-        "x-example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
+        "words": {"shadow": True},
+        "author": {"example": '<lf-shadow-link id="shadow"></lf-shadow-link>'},
     }
     authored = leaf_page(
         "late links",

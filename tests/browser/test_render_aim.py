@@ -1108,7 +1108,7 @@ TALL_OBLIGATION_PAGE = leaf_page(
     + "".join(
         f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
     )
-    + '<lf-options id="route" choose><lf-option id="north">North</lf-option>'
+    + '<lf-options id="route"><lf-option id="north">North</lf-option>'
     '<lf-option id="south">South</lf-option></lf-options></lf-ask><p>After.</p>',
 )
 # Every margin row by what it stands for: the rows about `target`, each as its top
@@ -1394,7 +1394,7 @@ POINTED_WITHIN = {
     # it joins that row, an obligation's marker's, rather than standing pushed below it.
     "first line": (
         (
-            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route" choose>'
+            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route">'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
             "</lf-option></lf-options></lf-ask>"
         ),
@@ -1767,7 +1767,7 @@ def test_a_margin_preview_stands_clear_of_the_target_trace(browser, serve, monke
     """A margin marker's preview is about its target, so it stands clear of the target
     and of the trace it summons around it, rather than painting over that trace."""
     single = OBLIGATION_PAGE.replace(
-        '<lf-options id="jobs" choose multiple>', '<lf-options id="jobs" choose>'
+        '<lf-options id="jobs" multiple>', '<lf-options id="jobs">'
     )
     page = open_page(browser, live_url(serve(single)))
     page_dir = serve.page_dir
@@ -1817,7 +1817,7 @@ def test_an_aim_at_a_seam_promises_the_element_its_press_takes(
     The outline hit-tests the pointer record the runtime keeps, and the press takes the
     target the browser resolved for it. `mousemove` carries the pointer's place rounded to
     a whole pixel, so a record kept from one is an answer about a place the pointer is
-    not, and within a pixel of a seam that place is a different item: ⌥ over a choose
+    not, and within a pixel of a seam that place is a different item: ⌥ over an option
     group outlined the option above the seam and the press commented on the one below it.
     So the aim is put within a quarter pixel of a seam, where the true point and its
     rounded twin name different items, and the item it is held to is read off the point,
@@ -2045,7 +2045,7 @@ def test_a_key_still_reaches_its_control_after_an_aimed_press(browser, serve):
     page.locator("#opt-shim .lf-pick").focus()
     with sending(page, "the pick"):
         page.keyboard.press(" ")
-    expect(page.locator("#approach > lf-option[chosen]")).to_have_count(1)
+    expect(page.locator("#approach > lf-option[selected]")).to_have_count(1)
     assert [
         e["action"] for e in events_model.read_events(serve.page_dir) if "action" in e
     ] == ["choose"]
@@ -2168,7 +2168,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     )
     # The press did nothing to the page: not a pick, not a focus, nothing in the markup
     # but the composer's own outline on the element it is about.
-    expect(page.locator("#approach > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#approach > lf-option[selected]")).to_have_count(0)
     assert (
         page.evaluate(PAGE_MARKUP).replace(' class="lf-mark-el lf-pending"', "")
         == before
@@ -3305,7 +3305,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
 ):
     """A generated SVG node still names the authored widget when no parts are declared.
 
-    The registry's x-visual contract makes the drawing one item rather than exposing
+    The registry's words.visual contract makes the drawing one item rather than exposing
     renderer internals, so both the aim and the legend stop at the widget.
     """
     page = open_page(browser, serve(PICTURE_PAGE))
@@ -3465,16 +3465,14 @@ def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
     page = open_page(browser, url)
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
-    expect(page.locator("#inner")).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    expect(page.locator("#outer")).not_to_have_class(
-        re.compile(r"\blf-projected-mark\b")
-    )
+    expect(page.locator("#inner")).to_have_attribute("data-lf-projected-mark", "")
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-projected-mark", "")
 
     page.keyboard.press("Escape")
     page.locator("#html-surface").click(modifiers=["Alt"])
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator('[data-lf-mark~="pending"]')).to_have_id("html-surface")
-    expect(page.locator("#html")).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(page.locator("#html")).to_have_attribute("data-lf-projected-mark", "")
 
 
 def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
@@ -3534,7 +3532,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
             '.lf-margin-preview .lf-page-thread[data-lf-thread="outer-comment"]'
         )
     ).to_be_visible()
-    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(outer).to_have_attribute("data-lf-projected-mark", "")
     expect(page.locator("[data-lf-mark]")).to_have_id("outer-surface")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -3572,7 +3570,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     surface = page.locator("#html-surface")
 
     surface.click()
-    expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(semantic).to_have_attribute("data-lf-projected-mark", "")
     expect(page.locator("[data-lf-mark]")).to_have_id("html-surface")
     marked = surface.evaluate(MARK)
     assert marked and marked["style"] == "solid", marked
@@ -3827,7 +3825,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
 <p><label for="name">Name</label> <input id="name" type="text" value="Ada"></p>
-<lf-options id="ship" choose>
+<lf-options id="ship">
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
 </lf-options>""",
@@ -3919,7 +3917,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     expect(private).to_have_css("outline-width", "2px")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
-    expect(private).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(private).not_to_have_attribute("data-lf-projected-mark", "")
 
     page.keyboard.press("Tab")
     choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)

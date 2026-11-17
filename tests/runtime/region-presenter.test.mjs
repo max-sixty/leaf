@@ -301,7 +301,11 @@ test("an optimistic cyclic move cannot deadlock widget DOM before its refusal", 
     id,
     tag: "lf-cycle-box",
     document: { kind: "page", revision: 1 },
-    declaration: { "x-state": {} },
+    declaration: {
+      state: {
+        verbs: {},
+      },
+    },
     parent: parent && { id: parent, tag: "lf-cycle-box" },
     ancestors: [],
     quoted: false,
@@ -309,14 +313,22 @@ test("an optimistic cyclic move cannot deadlock widget DOM before its refusal", 
   const board = {
     ...descriptor("board", null),
     tag: "lf-cycle-board",
-    declaration: { "x-state": { move } },
+    declaration: {
+      state: {
+        verbs: { move },
+      },
+    },
   };
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
     registry: {
       [board.tag]: board.declaration,
-      "lf-cycle-box": { "x-state": {} },
+      "lf-cycle-box": {
+        state: {
+          verbs: {},
+        },
+      },
       $states: {
         [board.tag]: {
           move: {

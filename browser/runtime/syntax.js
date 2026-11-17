@@ -14,7 +14,7 @@ import { codeLanguage, synNodes, syntax } from "./syntax-tokens.js";
 // the run of characters it read before. That is what lets this run over the document
 // without the file's reading of the same page needing to know it happened.
 const BLOCK = "pre > code[class]";
-export const DATA_BODY = `[${marks["x-content"].paint}="data"] > pre`;
+export const DATA_BODY = `[${marks.content.paint}="data"] > pre`;
 // The language a block declares that Leaf can colour, or none: one the registry
 // colours, in a block of the page's that holds text and inline annotations.
 //

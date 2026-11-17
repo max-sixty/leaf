@@ -5,9 +5,9 @@
    versions were observed, not a second account of what the page currently means.
 
    The agent's activity is no news here: the page's status says it in the same seat a
-   notice would take, and page-status.js announces a change of its kind. Removed on 26
-   October 2026: "Claude active on this page", which stood for four seconds in front of
-   the status line that named the agent's work.
+   notice would take, and page-status.js announces a change of its kind. Rejected:
+   "Claude active on this page", which stands for four seconds in front of
+   the status line that names the agent's work.
 
    New agent content is the server's `unread` reading, the same one the floating panel
    paints: a version is news the first time this tab sees it unread, and
@@ -19,7 +19,7 @@
    On Me emptying is news, in the words its empty view says, whoever emptied it: the
    user's last answer, one from another tab, or a revision that took the last
    obligation away. The list is the one the panel's badge counts (queue-api.js,
-   `onUserCount`). The user asked on 5 November 2026 to be told when they finish
+   `onUserCount`). The user asked to be told when they finish
    what waits on them, taking words over a flash of the panel's colour for now. */
 import { moved } from "./thread/model.js";
 import { NOT_ANSWERED } from "./thread/workflow.js";

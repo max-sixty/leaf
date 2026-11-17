@@ -61,9 +61,10 @@ COMMENTS = {
         "How many cards does this page's source hold? Count them in the file.",
     ),
     # A question a fork takes, whose rest the user leaves as work for later, which
-    # the fork answers with a to-do on the thread for the session. Asking for the
-    # change itself, even after the session's current work, the line fork judged
-    # the session's on 11 Nov, as a change to the page is.
+    # the fork answers with a to-do on the thread for the session. The message asks
+    # only for the list and leaves the change for later, since the line fork can
+    # judge a request for the change itself, even after the session's current work,
+    # the session's, as a change to the page is.
     "fork-todo": (
         "triage-lede",
         "Which cards on this page mention customers or partners? List them here. "

@@ -1,12 +1,9 @@
-# From Claude Code session d9c4e332-b148-460f-b88f-eb43bc09cb7d: an overnight
-# work page linked a pull request where it led a table row or was newly
-# introduced, and left it bare text in the decision sections and the prose that
-# came back to it, so the user could not open the PRs a decision named. Across
-# 138 recent pages on that machine, 1526 of 3642 `#N` mentions were bare.
-# At 41fc9bbcc this case passed 3/3 on the base and 3/3 with the rule moved into
-# page-authoring.md, as did a variant with no URLs and earlier bare-number chat
-# updates: in a fresh context agents link per section, so the case guards that
-# behavior rather than reproducing the late-session failure.
+# A Claude Code agent's overnight work page linked a pull request where it led a
+# table row or was newly introduced, and left it bare text in the decision sections
+# and the prose that came back to it, so the user could not open the PRs a decision
+# named. The rule is in page-authoring.md. In a fresh context agents can link per
+# section, so the case guards that behavior rather than reproducing the
+# late-session failure.
 description: named-work-is-linked-everywhere
 metadata:
   purpose:

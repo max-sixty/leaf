@@ -123,9 +123,11 @@ the one implementation the command and the `tests/*/test_render_*.py` modules ca
 over the shipped examples, and `_render_version_attempt`'s docstring lists what it
 reads. Its desktop is the window of the browser that last reported viewing the page,
 or a fixed laptop window (`render_gate.command.desktop_viewport`), and the sweep and
-screens use that window's height.
-The suite uses Chromium's headless shell; the end-to-end render-check tests cover the
-launches the command uses.
+screens use that window's height. It draws in that browser's engine where the host has
+it, Firefox, and in Chromium otherwise (`render_gate.command.user_engine`).
+The suite uses Chromium's headless shell, and for the Firefox launch, Playwright's own
+Firefox driven as an installed one; the end-to-end render-check tests cover the launches
+the command uses.
 
 The page's server runs the same check on a version the agent hands over, and tells the
 agent what is new in a `render` event (`render_gate/handover_pass.py`).

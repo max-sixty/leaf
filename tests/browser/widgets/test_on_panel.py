@@ -15,6 +15,7 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
+    PANEL,
     expect_obligations_answered,
     expect_preview_words,
     holding,
@@ -37,11 +38,24 @@ from browser.navigation import expect_walk_position
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import open_on_me, panel_tab
+from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 ON_ME = panel_view("queue")
+
+
+def open_on_me(page):
+    """Open On Me by its mark, unless it stands open, and return its view; another
+    view standing open is put away first, by the ✕ in the mark's seat."""
+    shown = page.locator(PANEL).get_attribute("data-lf-open")
+    if shown not in (None, "queue"):
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
+    if shown != "queue":
+        page.locator(".lf-fp-on-user").click()
+    panel_settled(page, view="queue")
+    return page.locator(ON_ME)
 
 
 def on_card(page, at):
@@ -50,9 +64,9 @@ def on_card(page, at):
 
 
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
-    """On Me lists every open obligation, in document order, and every answered one
-    folded under Done with its current answer, so the user can review and revise. A
-    twelfth widget joins by declaring state.awaits.
+    """The panel's On Me mark lists every open obligation under On Me, in document order, and
+    every answered one folded under Done with its current answer, so the user can review
+    and revise. A twelfth widget joins by declaring state.awaits.
 
     A closed view holds no cards at all: they are the open view's rendering, the mark's
     count is the closed view's, and a hidden list of buttons is a set of controls no
@@ -62,7 +76,9 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     resized(page, 1920, 900)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view holds no cards"
 
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").focus()
+    page.keyboard.press("Enter")
+    panel_settled(page, view="queue")
     show_done(page)
     cards = page.evaluate(ON_ITEM_SAYS)
     assert [(c["id"], c["list"]) for c in cards] == [
@@ -823,8 +839,7 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     in the message that asks it. With the card focused, digits pick its options, and
     the pick is the same action a pick in the thread records. Done then names the
     option, after the view is put away and after a reload, while the thread stays
-    undrawn. Until 15 November 2026 the card offered only Discuss and Show, and Done
-    said a bare Answered."""
+    undrawn."""
     url = serve(leaf_page("ship plan", '<h1 id="title">Ship plan</h1>'))
     # As `leaf thread create` writes a message holding HTML.
     append_carried_log_record(
@@ -839,7 +854,6 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -889,8 +903,7 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
     """Where the page shows the thread asking a choice, as a thread on a diff's line
     does, opening On Me leaves the choice in that thread, so nothing below it moves.
     The card draws the message's words and answers with the choice's options, and `1`
-    there picks in the thread. Until 15 November 2026 the card took the choice out of
-    the thread, and the paragraph after the diff rose by the choice's height."""
+    there picks in the thread."""
     url = serve(
         leaf_page(
             "diff choice",
@@ -922,7 +935,6 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -953,9 +965,9 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
     """While On Me stands open, a margin card opening on the thread that asks a choice
     takes the choice from On Me's card, and closing it may leave the choice there. The
     card shows the choice once throughout: the options themselves while its drawing of
-    the message holds them, else its choices, never both and never neither. Firefox
-    kept the choices hidden after the choice left the card under a rule asking where the
-    choice stands (notes/browser-support.md, "A `:has()` subject left unrestyled when
+    the message holds them, else its choices, never both and never neither. Firefox can
+    keep the choices hidden after the choice leaves the card under a rule asking where
+    the choice stands (notes/browser-support.md, "A `:has()` subject left unrestyled when
     its match moves out, in Firefox")."""
     url = serve(
         leaf_page(
@@ -977,7 +989,6 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
-            "html": True,
         },
     )
     page = open_page(request.getfixturevalue(engine), url)
@@ -1101,7 +1112,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
+    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
@@ -1112,7 +1123,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
         ["widget:ship", []],
         ["widget:timeline", [f"message:{reply}"]],
     ]
-    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
+    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
     held[0].continue_()
     page.unroute("**/api/event")
 

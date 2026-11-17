@@ -1,4 +1,4 @@
-# From an issue-triage page whose progress table was unreadable (2026-10-25): its
+# From an issue-triage page whose progress table was unreadable: its
 # author kept the first column of every `.issue-list` table on one line with page CSS,
 # written for cells holding an issue number, and later reused the class on a table
 # whose first column was prose. That column held its full 559px, the table scrolled

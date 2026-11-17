@@ -1,5 +1,4 @@
-# Added with typed Thread actions for packages (#1288). Base at a47182f22 made no
-# typed action calls (0 of 3); the change 3 of 3.
+# Packages have typed Thread actions; the failure makes no typed action calls.
 description: thread-widget-actions
 metadata:
   purpose: A package gives its own Thread controls the same typed actions as Leaf's controls.

@@ -72,7 +72,7 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
-from leaf_dev.browser import open_on_me, panel_tab
+from leaf_dev.browser import panel_tab
 from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, settled
 
 OBLIGATION_PAGE = leaf_page(
@@ -458,7 +458,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     thread, focused on its view, so a second `r` resolves that one, while the row says
     which thread was resolved, by name, beside the press that matters most next: the
     next open thread, with `t`, while one stands open, and once none does, the Undo
-    that takes the Resolve back. The field's "Resolved the thread" read as the thread
+    that takes the Resolve back. A bare "Resolved the thread" would read as the thread
     now open. `z` returns the user to the thread they resolved; with none left, the
     user is back at Threads and the field says that every thread is resolved. Escape
     there puts the view away and returns the user to the page."""
@@ -534,9 +534,9 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     leaves no thread open says so and offers the Undo that takes it back. The log refusing that Resolve takes
     the notice away with it, and its press takes back that Resolve even once another
     gesture of the user's is the newest, the one `z` would take: a press that ran `z`
-    took back an earlier gesture once its own was refused. The agent having picked
+    would take back an earlier gesture once its own was refused. The agent having picked
     that Resolve up changes nothing: the press still takes that Resolve, not the
-    newest gesture (#5320)."""
+    newest gesture."""
     url = serve(LONG_PAGE)
     roots = {
         text: panel_comment(serve.page_dir, text)
@@ -634,11 +634,11 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
 def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
     """The next thread Resolve opens is a view of its own, as tall as what it holds, by
     a press on ✓ and by `r` alike: a longer one grows the view to show it whole and a
-    shorter one shrinks it, its ✓ standing where that height puts it. It once opened at
-    the height the resolved one stood at, so ✓ stayed under the pointer, which showed a
+    shorter one shrinks it, its ✓ standing where that height puts it. Opening at the
+    height the resolved one stood at, so ✓ stayed under the pointer, would show a
     longer thread cut off behind a scroll until the user's next turn. Each thread holds
     a reply the user reads as it opens, which gives the reading a new record of the
-    thread: Resolve once went back to Threads there, its thread no longer found among
+    thread: Resolve must not go back to Threads there, its thread no longer found among
     the open ones."""
     url = serve(LONG_PAGE)
     roots = [
@@ -864,7 +864,7 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
         obligation=True,
     )
     page = floating(browser, url)
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
     card = page.locator(".lf-fp-on-item", has_text="Which build should ship?")
     expect(card.locator(".lf-msg")).to_have_count(1)
     expect(card.locator("li")).to_have_count(2)
@@ -1422,8 +1422,8 @@ def test_page_search_stands_with_its_controls_at_the_panel(browser, serve):
 def test_whatever_the_field_holds_the_row_keeps_its_line(browser, serve, touch):
     """Page search, Threads' search and a thread's reply take turns with the page's
     comment field in one seat, so each stands in the one line the theme reserves for
-    the row rather than sizing it. Page search's box once brought its vendor's own
-    control height and stood the row 6px taller than the comment field it replaced."""
+    the row rather than sizing it. A page search box that brought its vendor's own
+    control height would stand the row taller than the comment field it replaced."""
     url = serve(AGENDA_PAGE)
     agenda_threads(serve.page_dir)
     context = browser.new_context(
@@ -1934,7 +1934,6 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick"><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
-        html=True,
     )
     summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
@@ -2011,7 +2010,7 @@ THREAD_FIT = """() => {
     height: box.height,
     scrolls: view.scrollHeight > view.clientHeight + 1,
     below: box.bottom - messages.at(-1).getBoundingClientRect().bottom,
-    room: parseFloat(getComputedStyle(view).paddingBottom),
+    gap: parseFloat(getComputedStyle(view).getPropertyValue('--lf-msg-gap')),
     first: messages[0].getBoundingClientRect().top,
     panel: document.querySelector('.lf-fp-card').getBoundingClientRect().top,
     window: window.innerHeight,
@@ -2047,8 +2046,8 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     settled(page)
     short = page.evaluate(THREAD_FIT)
     assert not short["scrolls"]
-    # Nothing stands under its message but the view's padding.
-    assert short["below"] - short["room"] < 10, short
+    # Nothing stands under its message but a message's gap over the field.
+    assert short["below"] - short["gap"] < 10, short
 
     page.keyboard.press("Escape")
     open_threads(page)
@@ -2537,6 +2536,8 @@ FOOT = """([parts, fromEnd]) => {
   const press = view.querySelector('.lf-new-reply')?.getBoundingClientRect();
   return {
     below: box.bottom - part.bottom - parseFloat(getComputedStyle(view).paddingBottom),
+    pad: parseFloat(getComputedStyle(view).paddingBottom),
+    gap: parseFloat(getComputedStyle(view).getPropertyValue('--lf-msg-gap')),
     press: press && {over: press.top - part.bottom, under: box.bottom - press.bottom},
     said: [...document.querySelectorAll('.lf-fp-peek')]
       .filter((node) => node.checkVisibility())
@@ -3897,7 +3898,8 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     # Its mark is its own: the question mark is help's, as `?` and the menu's
     # Keyboard shortcuts row say.
     expect(chip.locator("svg")).not_to_have_attribute("data-lf-icon", "question")
-    view = open_on_me(page)
+    chip.click()
+    view = page.locator(panel_view("queue"))
     # While the view stands, its On Me tab carries the count the mark gave up its seat
     # with.
     owed = panel_tab(page, "On Me").locator(".lf-fp-count")
@@ -3952,7 +3954,8 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     )
     assert written.exit_code == 0, written.output
     page = floating(browser, url)
-    view = open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
+    view = page.locator(panel_view("queue"))
     expect(page.get_by_role("combobox", name="Group On Me")).to_have_value("plan")
     # Each goal holds one item under its band, and each card says its place, and no
     # kind.
@@ -4601,7 +4604,7 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
         ".map(n => { const r = n.getBoundingClientRect(); return [r.top, r.height]; })"
     )
     before = page.evaluate(boxes)
-    page.wait_for_timeout(600)  # Let Chrome's recent-input grace expire before news.
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     for line in (
         "Drafting the rollout plan for the schema migration across every cluster",
         "Checking",
@@ -4621,24 +4624,25 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
 
 def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     """Threads and On are walked as the leaf's menu is: one stop for Tab, which the
-    arrows, Home and End move, and Go-to stands the user on the view's first row.
-    Threads' rows leave out the open state every row there shares, its tab counts the
-    open threads, and the On Me mark names the Next On Me it presses."""
+    arrows, Home and End move, and from the view the mark's press or Go-to opened, ↓
+    enters its first row. Threads' rows leave out the open state every row there
+    shares, its tab counts the open threads, and the mark that opens On names itself on
+    hover."""
     url = serve(OBLIGATION_PAGE)
     for text in ("Is the window long enough?", "Who watches the weekend?"):
         panel_comment(serve.page_dir, text)
     page = floating(browser, url)
     on_mark = page.locator(".lf-fp-on-user")
-    expect(on_mark).to_have_attribute("aria-label", "Next On Me, 2 waiting on me")
+    expect(on_mark).to_have_attribute("aria-label", "On Me: 2")
 
-    page.locator("body").focus()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    on_mark.click()
     queue = page.locator(panel_view("queue"))
+    expect(queue).to_be_focused()
     expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
     expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
+    page.keyboard.press("ArrowDown")
     expect(cards.first).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(cards.nth(1)).to_be_focused()
@@ -4746,8 +4750,8 @@ ROW_CENTRES = """() => {
 def test_a_long_draft_leaves_an_open_view_its_head(browser, serve):
     """A long draft and an open view share the window: the view takes what the field
     leaves and scrolls inside it, so its name, over it, stays in the window, and its
-    controls stand between it and the field. The two once stacked at their own full
-    heights, the view's head above the window's top."""
+    controls stand between it and the field. Stacked at their own full heights, the
+    two would put the view's head above the window's top."""
     url = serve(LONG_PAGE)
     for n in range(30):
         panel_comment(serve.page_dir, f"Page comment {n}")
@@ -4836,8 +4840,8 @@ def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
 ):
     """The theme reserves the panel's row at the window's foot, with the gap it stands
     above the window's edge again above it, so the page's last line scrolls clear of the
-    row and no further. The reserve was a number of its own, 4px taller than the row
-    under a mouse and under a finger alike."""
+    row and no further. A reserve stated as a number of its own can stand taller than
+    the row, under a mouse and under a finger alike."""
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
     )
@@ -4859,8 +4863,8 @@ def test_the_page_end_stops_as_far_above_the_row_as_the_row_stands_up(
 def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, touch):
     """A line of answers holding only words is already a press tall, so the Undo a
     reading brings later moves nothing beside it. Under a finger the panel's presses
-    are the row's 34px line, and the line kept the mouse's 28px, so a press arriving
-    grew it by 6px."""
+    are the row's 34px line, so a line keeping the mouse's 28px would grow as a press
+    arrived."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Should the rollout wait?")
     thread_model.post_reply(
@@ -4870,13 +4874,13 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
-        html=True,
     )
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
     )
     page = open_page(browser, url, context=context)
-    answers = open_on_me(page).locator(".lf-fp-answers").first
+    page.locator(".lf-fp-on-user").click()
+    answers = page.locator(f"{panel_view('queue')} .lf-fp-answers").first
     expect(answers).to_be_visible()
     heights = answers.evaluate("""line => {
       line.replaceChildren('Answered.');
@@ -4895,8 +4899,8 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
 def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     """Each mark keeps its count's room whether or not it has a number, under a finger
     as under a mouse, so a question arriving in a reply puts On Me's count in that room
-    and moves nothing beside it. The finger's larger aim floor once stood in place of
-    that room, so the mark widened by the digit as the count came."""
+    and moves nothing beside it. Were the finger's larger aim floor to stand in place of
+    that room, the mark would widen by the digit as the count came."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Should the rollout wait?")
     context = browser.new_context(
@@ -4915,7 +4919,6 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
-        html=True,
     )
     told(page)
     expect(on_me.locator(".lf-fp-num")).to_have_text("1")
@@ -4961,7 +4964,7 @@ def test_a_thread_the_page_draws_nowhere_opens_in_the_panel(browser, serve):
     """On a page that draws no margin (`data-annotations="page"`), a thread about a
     passage has nowhere on the page to open, so the panel is its home: `m` arrives at
     the agent's question there, as `t` does at a thread, drawn by Leaf's reader in the
-    panel's thread view (#91)."""
+    panel's thread view."""
     url = serve(PAGE_ANNOTATED)
     panel_comment(
         serve.page_dir,
@@ -5000,7 +5003,6 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        html=True,
     )
     page = floating(browser, url)
     page.locator("body").focus()
@@ -5041,8 +5043,8 @@ def test_a_page_comment_sent_before_the_first_reading_stands_in_the_panel(
     """A page comment sent while the page still waits for its saved state is the thread
     the user opened: its view draws it at once, Threads lists it above the line saying
     the saved threads are still loading, and `t` walks to it once the view is put away.
-    The panel once read threads only from a settled reading, so its view said the
-    thread was not on the page, Threads listed nothing, and `t` was dropped."""
+    A panel that read threads only from a settled reading would have its view say the
+    thread was not on the page, Threads list nothing, and `t` dropped."""
     held = []
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -5411,10 +5413,10 @@ def test_the_field_s_words_and_mark_keep_to_its_top_edge_both_ways(browser, serv
     words and the more-room mark with it, as a textarea's would; a line removed carries
     the words down with that edge over the tween, the mark riding its corner (box-
     motion.js, "Whose change it is"). The mark fades in with the fourth line and out
-    with it. The words used to jump to their place on removal while the edge
-    travelled, and the mark stood still while the rising edge uncovered it. The
-    removal's first frame shows the field's words where they stood, so no line is cut
-    off where the field's box no longer reaches."""
+    with it. The words don't jump to their place on removal while the edge travels,
+    nor does the mark stand still while the rising edge uncovers it. The removal's
+    first frame shows the field's words where they stood, so no line is cut off where
+    the field's box no longer reaches."""
     from io import BytesIO
 
     from PIL import Image
@@ -5481,8 +5483,8 @@ def test_the_field_s_words_and_mark_keep_to_its_top_edge_both_ways(browser, serv
 def test_a_send_s_reply_field_takes_the_row_s_seat_where_it_stands(browser, serve):
     """Sending a page comment of several lines opens its thread above the row, and the
     thread's reply field takes the page field's seat in the row from the tween's first
-    frame. It used to rise from below the window with the box's top edge, so the row
-    showed no field until the tween's last frames."""
+    frame. A field that rose from below the window with the box's top edge would leave
+    the row showing no field until the tween's last frames."""
     page = floating(browser, serve(LONG_PAGE))
     page.emulate_media(reduced_motion="no-preference")
     field(page).click()
@@ -5775,7 +5777,7 @@ def test_writing_reaches_the_field_however_the_panel_stands(browser, serve):
 def test_the_comment_box_seated_in_the_row_keeps_its_line(browser, serve):
     """The comment box that stands in the field's place on a page drawing its own
     annotations takes turns with the field, so it is the row's line tall too. Its own
-    resting height, the pointer's floor, once stood the row 10px taller under a
+    resting height, the pointer's floor, would stand the row taller under a
     finger."""
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=True
@@ -5825,7 +5827,6 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
             + "The mounts come first. " * 300
             + "</p>"
             '<lf-local id="thread-local" choice="idle"></lf-local>',
-            "html": True,
         },
     )
     page.wait_for_function("""() => {

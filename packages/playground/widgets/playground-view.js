@@ -12,8 +12,7 @@
  * inspection setting's, is no field. The browser's value sanitization decides which
  * values a field can hold. An `<output for="NAME">` shows field NAME's value.
  * Rejected: Leaf's own control tags, whose kind, bounds, step and unit the view copied
- * into the native inputs it drew, and whose values it checked again itself
- * (2026-11-16).
+ * into the native inputs it drew, and whose values it checked again itself.
  *
  * A press on the body of the box that holds one radio, and no other of its group, such
  * as a candidate's card, selects that radio, as a press on its label does; the browser

@@ -44,8 +44,8 @@
 
    Only what the user sees decides which: what the agent has received or done with the
    gesture doesn't, so `z` works the same before and after the agent reads it (the
-   user's decision, 3 November 2026). Rejected: showing a gesture the agent had picked
-   up first wherever it stood, part of the design chosen on 21 October, which made `z`
+   user's decision). Rejected: showing a gesture the agent has picked
+   up first wherever it stands, which makes `z`
    depend on delivery the user can't see happen.
 
    Showing is a navigation step, so Back returns to where the user pressed. The rule is

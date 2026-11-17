@@ -794,7 +794,7 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
 
     Every one of them parametrized rather than three, because it is one rule
     (ATTRIBUTE_KEYS) and the case that would go wrong is a key left off the tuple —
-    which no test of the three that were written by hand could ever see. The shapes
+    which three tests written by hand could never see. The shapes
     differ and the rule does not: a mapping keyed by the names, or one name."""
     registry = vocabulary(page_dir)
     declare_fact(registry[tag], key, value)

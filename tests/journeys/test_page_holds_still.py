@@ -54,7 +54,7 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import go_to_threads, open_on_me, settle
+from leaf_dev.browser import go_to_threads, settle
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -774,7 +774,7 @@ def put_pane(page, built):
 def put_on_me_row(page, built):
     """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
     rows = page.locator(".lf-fp-on-item")
     expect(rows).to_have_count(ASKS)
     rows.first.evaluate(
@@ -799,7 +799,7 @@ def put_on_me_turned_back(page, built):
     scrolled with the wheel past its first cards, the pointer resting on one in sight.
     Nothing the user does after the tab press repaints the panel, and no card holds a
     message for Leaf's reader to draw, so the list's next paint is the news's."""
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
     cards = page.locator(".lf-fp-on-item")
     expect(cards).to_have_count(ASKS)
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")
@@ -1726,7 +1726,7 @@ DIFF_READING = (
 )
 GROWN_AFTER_GLIDE = (
     "the gist read moves 199.7-199.8px down as the 200px image above it loads after "
-    "the glide; Chromium held it before #5397"
+    "the glide"
 )
 
 # The cases the runtime fails today, with what each measured: a fix flips one to a
@@ -1761,12 +1761,12 @@ MOVES_ON_MAIN = {
 EMPTY_REPLY = (
     "a card grows down past the empty reply box a send or an opening left the caret "
     "in, 239px, so the answer shows under the words read (thread-preview.js, the "
-    "user's choices of 5 and 9 November 2026)"
+    "user's choices)"
 )
 # News that grows a thread's box may carry its secondary controls from under a resting
 # pointer, while the words the user is writing and their Send stay (browser/AGENTS.md,
 # "News moves what the reader reads only in the thread they are in").
-SECONDARY = " (browser/AGENTS.md, the user's choice of 14 November 2026)"
+SECONDARY = " (browser/AGENTS.md, the user's choice)"
 RESOLVE_IN_PANEL = (
     "the panel's view grows from its top edge for the answer the user waits for and "
     "carries Resolve 216px up from under the pointer resting on it, where a message's "

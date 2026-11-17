@@ -1389,7 +1389,6 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "author": "agent",
             "revision": 1,
             "text": 'Choose a route.\n\n<lf-options id="frozen"><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
-            "html": True,
         },
     )
     append_command(
@@ -2030,11 +2029,9 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
 def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     """One door, so a rule is stated once and holds for whoever appends.
 
-    The `leaf` writers used to append with whatever contract each of them
-    remembered: four with none at all, and the two that checked reaching two
-    different homes. Nothing between them and the log read the event's own
-    record schema, so a shape the browser door has always refused could still
-    land — and stay, because `page init` re-reads every stored record before it
+    A writer that appends with whatever contract it remembers, with nothing between it
+    and the log reading the event's own record schema, lets a shape the browser door
+    refuses land — and stay, because `page init` re-reads every stored record before it
     will replace a layer, and refuses the re-vendor rather than the event.
 
     Each arm below is a writer that reaches the log by a different route: a reply
@@ -2520,7 +2517,6 @@ def test_stamp_checks_events_that_arrive_as_it_reads_the_log(monkeypatch, page_d
                     "author": "agent",
                     "revision": 1,
                     "text": 'Keep this message address distinct.\n\n<p id="arriving-message">A concurrent reply.</p>',
-                    "html": True,
                 },
             )
         return events
@@ -2925,7 +2921,6 @@ def test_a_source_bound_only_by_frozen_reply_html_can_be_set(page_dir):
         page_dir,
         {"parent": "data-question", "responds": "data-question"},
         'Here it is.\n\n<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
-        html=True,
     )
     assert reply["revision"] == 1
 
@@ -2981,10 +2976,8 @@ def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
         page_dir,
         {"parent": "data-question", "responds": "data-question"},
         'Here it is.\n\n<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-        html=True,
     )
 
-    assert reply["html"] is True
     assert (
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>'
         in reply["text"]
@@ -3377,7 +3370,6 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which mitigations?\n\n<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
             '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
@@ -3795,11 +3787,10 @@ def _palette(theme, look, half):
 
 def test_the_series_palette_clears_the_floors_it_claims_to():
     """The theme's comment beside these tokens tells the next editor to check them rather
-    than look at them, and until this test there was nothing to check them with — the
-    syntax roles have UNREAD_SYNTAX in the render gate and the series steps had the
-    honour system. What made the argument was the first attempt at the line, chosen by
-    eye: its blue and its plum came out 0.3 apart under simulated deuteranopia, which is
-    one colour to a user who has no way to tell us.
+    than look at them, and this test checks the series steps, as UNREAD_SYNTAX in the
+    render gate checks the syntax roles. A line chosen by eye can put two steps, such as
+    a blue and a plum, close enough under simulated deuteranopia to be one colour to a
+    user who has no way to tell us.
 
     Every pair rather than the neighbours, because a stacked bar puts any two of them
     edge to edge, and both palettes, because the dark steps are stepped against a
@@ -4075,7 +4066,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
 ):
     """A retry or new version reuses completed historical registration work.
 
-    A history larger than the parse cache used to parse every predecessor on every
+    A history larger than the parse cache doesn't parse every predecessor on every
     read. Count parses rather than time, so contention cannot change the result.
     """
     from leaf.work_reading import WorkReading
@@ -4175,7 +4166,6 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
             "revision": 1,
             "author": "agent",
             "text": 'The captured feed.\n\n<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
-            "html": True,
         },
     )
     events = events_model.read_events(page_dir)
@@ -4371,7 +4361,6 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "parent": "c-scope",
             "revision": 1,
             "text": f"Here it is:\n\n{frozen}",
-            "html": True,
             "seq": 2,
         },
         action("page-draft", "Page future.", 3),
@@ -4601,9 +4590,9 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
     """An action admitted by an earlier Leaf stays in force, and keeps its obligation
     answered, under a Leaf that records the same operation's definition with other
-    fields. Before #2329 the definition carried `update`, the verb flag now
-    named `text`; matching every recorded field dropped each decision on a page
-    that Leaf version had served."""
+    fields. An earlier Leaf's definition carries `update` where this one names the
+    verb flag `text`; matching every recorded field would drop each decision on a
+    page that Leaf version served."""
     source = page_dir / "index.html"
     source.write_text(
         PAGE.replace(

@@ -134,8 +134,8 @@ def pytest_runtest_teardown(item):
 
 
 # `wait_for_function` takes an async predicate's promise as a truthy answer and returns
-# at once, so a wait written that way passes without waiting; about twenty did. Refuse
-# one where it is written, and wait on a synchronous predicate instead
+# at once, so a wait written that way passes without waiting. Refuse one where it is
+# written, and wait on a synchronous predicate instead
 # (render_harness.wait_for_check_api).
 def _refusing_async_predicates(wait_for_function):
     def wait(self, expression, *args, **kwargs):
@@ -157,14 +157,12 @@ Frame.wait_for_function = _refusing_async_predicates(Frame.wait_for_function)
 pytest_plugins = ("interact_support", "render_harness")
 
 
-# The layer a page carries is the same bytes in every fixture, and the file it
-# is made of is what a copy costs. Historically, copying an initialized page's
-# 146 files per test made a complete run 2,272 pages and 393,473
-# directory entries, which is the number a filesystem event watcher charges for
-# — hard links share the bytes but not the entry. So the layer is written once
-# per shape and lent, and only what a test actually changed is put back. A
-# stamped revision's bundle is immutable too, so a shape's revisions are linked
-# like its layer.
+# The layer a page carries is the same bytes in every fixture, and the file it is made
+# of is what a copy costs. Copying an initialized page's files per test fills a complete
+# run with directory entries, which is the number a filesystem event watcher charges for
+# — hard links share the bytes but not the entry. So the layer is written once per shape
+# and lent, and only what a test actually changed is put back. A stamped revision's
+# bundle is immutable too, so a shape's revisions are linked like its layer.
 LENT_LINKED_DIRS = frozenset({"runtime", "vendor", "revisions"})
 
 
@@ -475,9 +473,8 @@ def pytest_collection_modifyitems(config, items):
     Accounting for these precisely would need dependency tracking (fixture graphs, call
     graphs, data references). A coarser rule, such as running every test in a changed
     module, would catch some of them at the price of selecting far more, and every miss
-    still runs once the change lands, in the push run or the daily one. The user judged (2026-10-14) that catching these before landing is
-    not worth that complication, after a fixture edit let a `browser` test's failure
-    reach `main`."""
+    still runs once the change lands, in the push run or the daily one. The user judged
+    that catching these before landing is not worth that complication."""
     selected = (
         config.getoption("keyword")
         or config.getoption("markexpr")
@@ -599,8 +596,7 @@ def isolated_session(tmp_path_factory, monkeypatch):
 
     The directories are named by a count rather than by `mktemp`'s numbering, which
     finds the next number by reading every entry in the worker's base directory: a
-    run's tests fill it, so each test's three lookups grew with the tests before it,
-    1.3 worker-minutes of a push run in October 2026."""
+    run's tests fill it, so each test's three lookups grow with the tests before it."""
     home = tmp_path_factory.mktemp(f"session{next(_SESSIONS)}", numbered=False)
     for name in ("state", "config", "codex", "claude"):
         (home / name).mkdir()
@@ -919,6 +915,23 @@ def firefox_browser(_playwright, request):
     from render_harness import WatchedBrowser, clean_browser
 
     firefox = _playwright.firefox.launch(firefox_user_prefs=FIREFOX_PREFS)
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(firefox)
+    finally:
+        firefox.close()
+
+
+@pytest.fixture
+def bidi_firefox(_playwright, request):
+    """Playwright's own Firefox, driven over WebDriver BiDi as `page check` drives a
+    reader's installed Firefox (`render_gate.browser.launch_browser`): a route there is
+    handed no post's body, and no DevTools session opens."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    firefox = _playwright.firefox.launch(
+        channel="moz-firefox", executable_path=_playwright.firefox.executable_path
+    )
     try:
         with clean_browser(request.node):
             yield WatchedBrowser(firefox)

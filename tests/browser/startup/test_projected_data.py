@@ -378,9 +378,7 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
     lines follows them across updates: while the lines read as they did, they stay
     marked and the thread's margin entry stands beside them. A line the document holds
     twice is told apart by the lines around each copy. Once an update rewrites a
-    commented line, its comment stands nowhere on the page. Each comment used to come
-    off its lines on the first update, every margin entry collecting at the document's
-    top, and a comment on a repeated line stood there from the start."""
+    commented line, its comment stands nowhere on the page."""
     lines = [f"line {i} " + "words " * (i % 9) for i in range(1, 401)]
     # Row 128 ends the listing's first run of rows; row 310 repeats row 300.
     lines[127] = "the last row of the first run"
@@ -1036,7 +1034,6 @@ customElements.define(TAG, class extends LeafElement {
         {"responds": "question"},
         "Frozen feed.\n\n"
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
-        html=True,
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)

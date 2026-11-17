@@ -379,8 +379,8 @@ cases:
           choice: true
     assert:
       - *items
-  # From a real closeout (2026-11-16), whose fork asked the user in words to run the
-  # command, so they typed it as a reply.
+  # A closeout whose fork would ask the user in words to run the command, so they would
+  # type it as a reply.
   ask-permission:
     fork: turn-end
     page: turn-end-check/pages/cache-chosen.html

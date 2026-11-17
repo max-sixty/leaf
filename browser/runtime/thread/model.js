@@ -149,7 +149,7 @@ const hasUnread = (thread) => thread.unread.length > 0;
 /**
  * Whether a thread is news: still open and holding words the user hasn't read. A
  * resolved thread's unread words aren't, so the news the panel counts never outnumbers
- * the open threads; a reply reopens its thread, and the user chose on 21 October to
+ * the open threads; a reply reopens its thread, and the user chose to
  * leave what reaches a closed one unannounced.
  * @param {Pick<Thread, "resolved"> & Unread} thread */
 export const isNews = (thread) => !thread.resolved && hasUnread(thread);

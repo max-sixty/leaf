@@ -272,11 +272,11 @@ def reference_relation_problem(
 class RegistryError(Rejected):
     """A registry that is not a vocabulary, raised rather than exited because two doors
     read one. The CLI prints the message and stops; the page server owes the browser an
-    answer, and `sys.exit` inside its request handler killed the connection mid-POST
-    while every other rejection beside it returned a 400 — so a page whose
-    stamp had fallen behind the running layer met the user's click with a dead socket
-    and no words. The CLI renders it with Click's standard Error prefix, while the
-    server catches the same rejection and answers the request.
+    answer, and `sys.exit` inside its request handler would kill the connection mid-POST
+    while every other rejection beside it returns a 400 — so a page whose stamp has
+    fallen behind the running layer would meet the user's click with a dead socket and
+    no words. The CLI renders it with Click's standard Error prefix, while the server
+    catches the same rejection and answers the request.
 
     It carries the first finding in each unit the check holds independent of the
     others (`gathering`), which `page check` and `package check` report as they are,
@@ -591,10 +591,10 @@ def state_definition(
 def same_state_operation(recorded, current) -> bool:
     """The same fold destination and construction, independent of payload domain.
 
-    The operation is the fields `state_definition` writes now, `detail` aside. A
-    field an earlier Leaf recorded beside them, such as the verb flag it recorded
-    as `update` and then `report`, is how that version wrote the definition, not
-    part of the operation, so it never retracts a decision. A missing field still
+    The operation is the fields `state_definition` writes, `detail` aside. A field
+    another Leaf version recorded beside them, such as a verb flag, is how that version
+    wrote the definition, not part of the operation, so it never retracts a decision. A
+    missing field still
     fails."""
     return (
         isinstance(recorded, dict)

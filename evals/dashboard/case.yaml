@@ -1,6 +1,5 @@
 # Complete task; diagnostic contexts retain the original fixed checks.
-# healthy-release contrasts an automatic rollout with a rollback decision: Codex
-# base 0/2, conditional rollback guidance 2/2 with the same snapshot time and rubric.
+# healthy-release contrasts an automatic rollout with a rollback decision.
 description: Release rollout dashboard
 metadata:
   purpose: Compose and revise a dashboard; inspect its rendered output against the
@@ -79,18 +78,16 @@ variants:
           requirement created merely because rollback is available fails.
           Judge the information and decisions offered, not the Layout or widgets
           used for the status and supporting evidence.
-  # From TODO.md, "Test the Layouts on agents": after its comment and decision, the
-  # rollout dashboard also carries the incident write-up, so a live surface and a
-  # document share one page.
+  # After its comment and decision, the rollout dashboard also carries the incident
+  # write-up, so a live surface and a document share one page.
   write-up:
     metadata:
       scenario: dashboard-write-up
       purpose: Add a document to a live dashboard, keeping both usable and the comment thread.
       tags: [workflow, layout]
       conditions: [leaf]
-  # From TODO.md, "Test the Layouts on agents": a cold request for "a dashboard",
-  # with mixed material and no stated arrangement, the likeliest trigger for tiling
-  # everything.
+  # A cold request for "a dashboard", with mixed material and no stated
+  # arrangement, the likeliest trigger for tiling everything.
   cold:
     description: dashboard/cold
     metadata:

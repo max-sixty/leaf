@@ -132,7 +132,7 @@ lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi]::before {
    code's structure. It wears the gutter's ground and the frame's line, the code block's
    own chrome, rather than a colour of its own. The gutter runs on beside it, so the block reads as one piece. Its
    words are a size smaller than the code's, so the code leads. The maintainer chose
-   this from a side-by-side comparison over a full-width row between rules across the
+   this over a full-width row between rules across the
    frame, which copied a code review's inline comment and cut a block into as many
    boxes as it had notes; over notes in a column beside their lines, which drift from
    their lines where notes crowd and narrow the code; and over notes listed after the

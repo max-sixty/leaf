@@ -42,20 +42,12 @@ returns the words that describe it. A
 widget whose title is an attribute holds it in `label`, as a column does, which names
 its element on every widget that takes it (the registry's `$attributes`).
 
-`titledElement(heading)` is the element a heading titles: the outermost element whose
-first heading it is, such as its `hgroup`, the question it opens and a `section`
-wrapping that question; where it titles no element, the heading itself. A `section`,
-`article`, `aside` or `nav` takes its first heading whatever else it holds, past any
-wrapper; any other element only where every other heading inside ranks below it, no
-words stand before it outside a `header` or `hgroup`, and each element between them
-takes it too. An element its `label` attribute names, such as a tab, is not titled by a
-heading inside it. Every element between the two is titled by the heading too. `lf-toc`
-links each heading to one of them, and a heading's link preview counts a thread about
-any of them. The headings that count are those the reading of its document lists, the
-page's or a message's, Leaf's chrome aside, and "first" means first in reading order,
-which the slots of a widget declaring `words.shadow` can reorder. A heading the reading
-doesn't read, such as one among such a widget's children that none of its slots shows,
-titles only itself.
+`titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
+or `article` that opens with it, alone or in that `hgroup`, and a widget it leads, such
+as a card, unless the widget's `label` names it; where it titles no element, the heading
+itself. A heading after other content, or opening any other element, titles only
+itself. `lf-toc` links each heading to one of them, and a heading's
+link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.

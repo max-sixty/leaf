@@ -263,10 +263,9 @@ export function conversationsAbout(place) {
 }
 // The heading that heads `element`, the later in the page of two: the first heading met
 // climbing the parts over it (`partOver`), and the heading titling the nearest element
-// around it that a heading titles (`titlingHeading`). So a thread about a question, or
-// about the section wrapping it, is its heading's, though `partOver` puts the question
-// in the part around it, and a sub-heading inside a titled section still heads what
-// follows it there.
+// around it that a heading titles (`titlingHeading`). So a thread about a question is
+// its heading's, though `partOver` puts the question in the part around it, and a
+// sub-heading inside a titled section still heads what follows it there.
 /** @param {Element} element @returns {Element | null} */
 function headingOf(element) {
   let over = element.matches(HEADING) ? element : partOver(element);

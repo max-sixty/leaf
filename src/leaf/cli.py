@@ -7,8 +7,8 @@ ending the command, `{"error", "findings"}` (`LeafGroup`), which its exit status
 marks. stdout is the one stream only Leaf writes. stderr also carries whatever the
 launcher, the interpreter and Leaf's dependencies print, such as a warning, a
 traceback or a library's log record, so Leaf puts nothing a reader parses there.
-Findings went on stderr until a library's log line broke the suite's parse of it; a
-reader piping stdout alone now meets them in the pipe rather than beside it.
+Findings stay off stderr, where a library's log line breaks a parse of them; a
+reader piping stdout alone meets them in the pipe rather than beside it.
 `--help`, `--version` and `--root` print text.
 
 A command returns its result and never prints it: `LeafGroup.main` prints what it

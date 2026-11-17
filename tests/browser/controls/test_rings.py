@@ -68,7 +68,7 @@ def test_the_ring_rule_reading_uses_browser_serialization(browser):
 def test_diff_focus_distinguishes_pointer_and_keyboard_and_survives_shaded_rows(
     request, serve, engine
 ):
-    """The reported diff click drew a ring below its positioned addition rows.
+    """A diff click can draw a ring below its positioned addition rows.
 
     Real Tab arrival must paint all four viewport edges before and after sideways
     scrolling; pointer arrival must preserve focus without painting a keyboard cue.
@@ -484,8 +484,8 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
     request, serve, engine
 ):
     """A joined option group clips its cells to its frame, so the brackets of the thread
-    the user is in, drawn flush outside a cell, lost their sides and left stubs across
-    the neighbouring cells. A cell states its marks one band inside its edge
+    the user is in, drawn flush outside a cell, would lose their sides and leave stubs
+    across the neighbouring cells. A cell states its marks one band inside its edge
     (options.css), and the brackets stand there; a paragraph with room around it is the
     control that keeps them outside."""
     url = serve(
@@ -633,7 +633,7 @@ def test_the_ring_reading_distinguishes_target_brackets_from_focus(browser, serv
 
 
 def test_the_ring_reading_sees_and_measures_a_ring_cast_as_a_shadow(browser, serve):
-    """The band has two carriers, and a reading that knew one was blind to the other.
+    """The band has two carriers, and a reading that knows one is blind to the other.
 
     Most of the layer's rules draw the ring as an outline. A target hint the keyboard
     is browsing casts it as a shadow, on a chip in a layer nothing can focus. To a user
@@ -729,9 +729,7 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
     outline is painted by its control at its control's level while an outline's pixels
     are not hit-testable — so a sample outside the control's box returns whatever is
     beneath. That is sound while the control's surface takes hits and unsound inside one
-    that does not, where the answer comes back inverted: the old shortcut bar stood over
-    the page at z-index 8940 with `pointer-events: none`, and the code under its More
-    button read as standing over it.
+    that does not, where the answer comes back inverted.
 
     So the reading declines inside such a surface, and that is a way for it to go quiet
     everywhere by accident. The plant is the population assertion: thin enough to lie
@@ -772,17 +770,17 @@ def test_the_ring_reading_still_sees_what_is_painted_over_a_ring(browser, serve)
 def test_the_ring_reading_passes_over_a_neighbour_the_control_paints_across(
     browser, serve
 ):
-    """The same half held to the other order, which it read backwards. An outline is
-    painted by its control at its control's level, so a box the control stands in front
-    of cannot stand over the ring around it — but the hit test that answers this half
-    samples the band outside the control's box, where whatever is beneath comes back.
+    """The same half held to the other order, which a reading can read backwards. An
+    outline is painted by its control at its control's level, so a box the control
+    stands in front of cannot stand over the ring around it — but the hit test that
+    answers this half samples the band outside the control's box, where whatever is
+    beneath comes back.
 
-    The side panel's edge grip was the shape that made that matter: it floated over the
-    threads at z-index 1, so its band crossed their own lines at every width and scroll
-    position, and the reading named whichever line it happened to land on. A two-pixel
-    change to a card's padding (#374) put a receipt under the grip's foot and took a
-    resize test down with nothing about the page wrong. The plant keeps that shape: a
-    control at z-index 1 in a positioned holder.
+    A side panel's edge grip is the shape that makes that matter: floating over the
+    threads at z-index 1, its band crosses their own lines at every width and scroll
+    position, and a reading that trusted the hit test would name whichever line it
+    happened to land on, taking a test down with nothing about the page wrong. The plant
+    keeps that shape: a control at z-index 1 in a positioned holder.
 
     So: one neighbour under the grip's band and clear of its box, planted three times —
     where the grip paints across it, where a z-index of its own lifts it past the grip,
@@ -1006,15 +1004,15 @@ def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
     transition. An animation is declared and named, and the layer reads `animationend`
     to know one has run, so the guard's near-zero duration keeps that event and spends
     no time on it. A transition is declared by nobody — `transition-property` is `all`
-    until something says otherwise — so the same duration over every element made a
-    transition out of every property that changed on any of them.
+    until something says otherwise — so the same duration over every element would make
+    a transition out of every property that changed on any of them.
 
-    None of which anybody wrote or listened for, and none of which was free: a ring is
+    None of which anybody wrote or listened for, and none of which is free: a ring is
     `outline-width`, `outline-offset` and `outline-color` all changing at once, so a
-    user who asked for no motion got a medium currentColor ring at offset nought
+    user who asked for no motion would get a medium currentColor ring at offset nought
     animating into the real one, on every focus, on every page. It is also what a
-    computed-style reading of a ring taken in those frames was told, which is how
-    `RINGS_DRAWN` came to invent one.
+    computed-style reading of a ring taken in those frames would be told, so
+    `RINGS_DRAWN` would invent one.
 
     So this asks the user's own question — is anything moving — of the control they
     just landed on, in the one setting where the answer has to be no."""
@@ -1057,16 +1055,16 @@ def test_a_user_who_asked_for_no_motion_gets_a_ring_that_does_not_arrive(
 def test_the_ring_reading_sees_a_neighbour_paint_over_a_ring_drawn_inside_its_box(
     browser, serve
 ):
-    """The same half asked of the other shape of ring, and the shape it was quiet about.
+    """The same half asked of the other shape of ring.
     A cover is excused where the control is under the same thing — a control put under a
     fixed bar is where it was put, not a ring leaving its box — and how far in the
     reading looks to ask that is the ring's own band.
 
     Which is inside the box when the ring is. The test above plants over a ring drawn
     outside its control, where the band is outside too and any step in clears it; asked
-    one pixel in, as it was, the same question over an inset ring lands on the ring
-    rather than past it, so every covered inset ring answered that the control was under
-    the same thing and the reading returned what it returns when nothing is wrong.
+    one pixel in, the same question over an inset ring lands on the ring rather than
+    past it, so every covered inset ring would answer that the control was under the
+    same thing and the reading would return what it returns when nothing is wrong.
 
     So: a control drawing the layer's ring inside itself, as a thread title does, under a
     band exactly as deep as that ring. The control case first, because a reading that

@@ -163,12 +163,13 @@ export const dragging = (el, on) => {
 // one aimed at what it holds. This is the second: the nearest thing between `node` and
 // `container` that has a use for the gesture, or null where the container is the aim.
 //
-// It exists because an option's case is now argued inside the option — a screenshot pair
+// It exists because an option's case is argued inside the option — a screenshot pair
 // to flip, a disclosure to open, tabs to walk — while the whole card is what takes the
-// pick. Reading the evidence then cast a vote: a click on a tab chose that option, and one
-// on a shot's `after` radio chose it and cleared it again, two decisions the user never
-// made and only the log to show for them. Fail closed, because a pick is sent the moment
-// it is made: a gesture nobody can prove was a choice is not one.
+// pick. Without it, reading the evidence would cast a vote: a click on a tab would choose
+// that option, and one on a shot's `after` radio would choose it and clear it again, two
+// decisions the user never made and only the log to show for them. Fail closed, because
+// a pick is sent the moment it is made: a gesture nobody can prove was a choice is not
+// one.
 //
 // Two vocabularies, because a container holds two kinds of thing. A widget it merely
 // contains is its own world, and that is every lf-* tag bar the parts the registry says
@@ -180,7 +181,7 @@ export const dragging = (el, on) => {
 //
 // `data-lf-offer` then catches the controls that belong to no widget — the runtime's own
 // hidden line saying how many comments a block holds, which a screen reader reaches by
-// Tab and which used to cast a vote on the way into the thread. It catches the container's
+// Tab and which would otherwise cast a vote on the way into the thread. It catches the container's
 // own apparatus too, which no rule here could tell from the rest; a container excludes
 // its own, being the only thing that can name them.
 /** @param {Element} node @param {Element} container */
@@ -276,15 +277,15 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // button came up. Asking instead whether the selection contains the control is a
 // question about the DOM, and it answers yes for any selection running over the
 // control: a suggestion's row is the column's own child, in flow between the block
-// holding the change and the next one, so a user who read across the change and
-// then reached for Accept pressed a control that had gone dead — and stayed dead,
+// holding the change and the next one, so a user who reads across the change and
+// then reaches for Accept would press a control that has gone dead — and stays dead,
 // because a press that refuses a drag (`user-select: none`) never collapses the
 // selection that deadened it either.
 // Which is a reading rather than this listener's own business, because the same press
 // reaches things `offer` never made: the panel's quote, whose press travels the page to
-// the passage, and the list's landing, which moves the card the words are on. Each was
-// the same complaint in its own place — the user drew across the words to take them
-// and the page went somewhere.
+// the passage, and the list's landing, which moves the card the words are on. Each is
+// the same complaint in its own place — the user draws across the words to take them
+// and the page goes somewhere.
 // It asks only where the selection stopped, and not whether a press happened at all:
 // which presses can be a drag is each caller's own question. A click carries the answer
 // in `detail`, and a `pointerup` is a pointer by construction and carries no detail to

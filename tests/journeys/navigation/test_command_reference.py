@@ -20,8 +20,7 @@ def test_the_reference_runs_available_commands_and_explains_the_rest(browser, se
     stays selectable, but explains the scope it needs instead of closing and doing
     nothing. Stable command IDs are exposed on the results so words can change without
     breaking this route or tooling built on it."""
-    # Go-to's kind filters need a visible page target; the page's old skip button
-    # used to supply one implicitly.
+    # Go-to's kind filters need a visible page target.
     page_with_target = NOTED_PAGE.replace(
         '<p id="p2">', '<a href="#p1">Jump to the first passage</a><p id="p2">'
     )

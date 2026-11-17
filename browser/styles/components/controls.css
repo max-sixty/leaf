@@ -154,8 +154,8 @@
    first pixels; nothing re-lays out or moves. The room's margin takes back the head's
    gap before it, since a control's face stands inside its box. Neither takes height,
    so a control taller than the head's line stands over its edges rather than growing
-   it. Holding the room whole for controls nobody could see cut a queued message's
-   receipt to "Qu…". Rejected (the user's choice, 28 October 2026): the words giving
+   it. Holding the room whole for controls nobody could see would cut a queued
+   message's receipt short. Rejected (the user's choice): the words giving
    the room back, cut with their ellipsis, while the controls show, which kept every
    word clear of them but changed the words' size under the pointer. */
 .lf-msg-control-room {
@@ -249,8 +249,9 @@ svg[data-lf-icon] {
 /* Every icon is 16px square unless its place asks for another size. The rule weighs
    nothing, so any class a caller sizes an icon by outranks it, and an icon whose class
    says nothing of size still draws at 16px rather than at the 300px an unsized SVG
-   takes. Each class once restated the 16px, and a place that wanted another size had
-   to know which. The page's rule for its own pictures (base.css) leaves these alone. */
+   takes. Rejected: each class restating the 16px, so a place that wanted another size
+   had to know which. The page's rule for its own pictures (base.css) leaves these
+   alone. */
 :where(svg[data-lf-icon]) {
   inline-size: 16px;
   block-size: 16px;
@@ -428,10 +429,10 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    head. It stands with the time rather than among the head's annotations, so where a
    sticky head carries a long reply it stays in view until the reply has shown whole
    (thread/read.js); a margin card, whose gutter has room, hangs it before the name
-   (annotation-chrome.css). The user chose New in the head on 23 October over a rail
-   down the reply's edge, which broke where the words fade under a sticky head, a
-   divider above the first unread reply, and a tinted ground; and on 25 October the
-   dot over a filled New pill, a face no other label wore, a tag chip and the word. */
+   (annotation-chrome.css). The user chose New in the head over a rail down the reply's
+   edge, which broke where the words fade under a sticky head, a divider above the
+   first unread reply, and a tinted ground; and the dot over a filled New pill, a face
+   no other label wore, a tag chip and the word. */
 .lf-msg-new {
   flex: none;
   align-self: center;
@@ -449,8 +450,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * surface owner opts into the shared primitive): across it, and down
  * a reading region (reachReadingScroller). Scrolling is the honest answer when the room
  * ran short, and on a platform drawing overlay scrollbars it is an answer the user is
- * never given: a flowchart cut 356px of 1026 inside a tab panel read as a finished graph
- * at every width from 1200 to 1920. A cut line of code announces itself by being a line;
+ * never given: a flowchart cut inside a tab panel reads as a finished graph. A cut
+ * line of code announces itself by being a line;
  * a drawing announces nothing, so the box says it.
  *
  * The visible content fades at each edge that has more beyond it. The fade follows the
@@ -458,9 +459,9 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * at the end; the block end until the end is reached. Masking the box makes the content
  * itself recede instead of casting an unexplained shadow behind it. That is right for
  * text, where a word fading at the edge reads as cut, and it is the only paint that
- * shows over any content: an inset shadow, which the block end once wore, paints under
- * its descendants, so a playground's preview, whose cards fill it to the edge, showed
- * none of it. A widget whose content reads otherwise states how wide the fade is
+ * shows over any content: an inset shadow paints under its descendants, so a
+ * playground's preview, whose cards fill it to the edge, shows none of it. A widget
+ * whose content reads otherwise states how wide the fade is
  * (--lf-more-fade, 24px) and how much of the content is left at the edge
  * (--lf-more-fade-to, none); lf-diagram's theme does, for a drawing. A box whose start
  * stands still while the rest scrolls under it, as a table's row names do (reading.css),
@@ -471,8 +472,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * scroller fades only where it is cut itself, and one rule intersects the two gradients,
  * so a box cut both ways fades on both. Focus within removes the mask so the scroller's
  * complete ring and controls painted outside its box remain visible, and so does a
- * control focused at the edge: Tab left a playground's radio 3px past its region's end
- * in Firefox, faded to nothing. The user there already has the platform's
+ * control focused at the edge: Tab in Firefox can leave a control just past its
+ * region's end, faded to nothing. The user there already has the platform's
  * scroll affordance. The focus-within mark reads it, since it follows focus out of a
  * vendor control's tree, which `:has()` can't see into.
  *
@@ -567,8 +568,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    opens what follows it (`.lf-disclosure-marker`, for a row whose layout draws no
    marker): Leaf's chevron (icon-paths.js, `next`), drawn as its icons are, pointing
    along the text when closed and turned down when open. It replaces the browser's
-   marker, which each engine draws its own way: Firefox drew a triangle a few pixels
-   wide that read as a dot beside a 12px label (the user, 27 October 2026). It floats
+   marker, which each engine draws its own way: Firefox draws a triangle a few pixels
+   wide that the user read as a dot beside a 12px label. It floats
    before the words, centred on their first line with a space's room after it, so a
    summary's leading white space still collapses as it did beside the native marker;
    a flex or grid row's own rules place it and colour it. Paper draws it no more than
@@ -665,7 +666,7 @@ summary,
  *
  * A word keeps Leaf's muted ink and its ui weight, the library's quiet ink and action
  * weight being darker and heavier than controls that stay secondary to the work
- * should be (the user's direction, 3 November 2026). Its label is a line of inline
+ * should be (the user's direction). Its label is a line of inline
  * content, as an arrow after "Next unchecked" is, where the library's flex box would
  * set the arrow apart as an item and drop the space before it, and it wraps as the
  * words around it do, where the library's stands a line tall on one line; controls
@@ -678,10 +679,10 @@ summary,
  * layer lays under an offered control's pointer (surfaces.css), so a press built by a
  * widget looks as an authored one does. Visible focus wears the layer's band
  * (surfaces.css), which the library's own ring would duplicate. Rejected: Leaf's
- * own faces, drawn in the chip under a hovering pointer or visible focus, kept until
- * the user preferred a reasonable design from a UI library to looks of Leaf's own
- * (3 November 2026); before them a word framed on the card ground, a second look
- * for the same press, until the user chose the quiet one on 25 October. */
+ * own faces, drawn in the chip under a hovering pointer or visible focus, since the
+ * user preferred a reasonable design from a UI library to looks of Leaf's own; and a
+ * word framed on the card ground, a second look for the same press, which the user
+ * rejected for the quiet one. */
 /* #region Face: Word */
 .lf-btn,
 .lf-icon-action {
@@ -731,9 +732,9 @@ summary,
  * whichever mark is checked. A page or package changes the room around the mark
  * through `--lf-choice-pad` and `--lf-choice-gap` (tokens.css), since the start
  * padding also holds the mark. In a taller target, as under a finger, the label centres its
- * content. Rejected: a flex row of mark and words (21 October to 15 November 2026),
- * which took the mark's baseline for the choice's, so its words stood about 4px
- * above those beside them and a choice dropped 1px as it was checked; then a grid
+ * content. Rejected: a flex row of mark and words, which took the mark's baseline
+ * for the choice's, so its words stood above those beside them and a choice dropped
+ * as it was checked; and a grid
  * of the label's children, which made each run of words and each element in them
  * a cell of its own, so a label holding markup wrapped each part apart, and which
  * fought a package's own grid of a choice's parts. */
@@ -759,11 +760,10 @@ summary,
  * tokens (webawesome.css). The mark is 1.25em of the label's own type, as the library
  * sizes it beside its value text, and `--lf-choice-gap` spaces it from its words. Its outline is the
  * library's default control border, since Leaf's field border, which the token takes
- * elsewhere, left an unchosen mark under 1.5:1 against a card. A disabled choice
+ * elsewhere, leaves an unchosen mark too faint against a card. A disabled choice
  * fades as a whole, as the library's own label does. In forced colours the platform
  * draws the control, whose checked state the library paints as a background those
- * modes replace. Rejected (the user's direction, 3 November 2026, after comparing
- * marks, chosen faces and arrangements live): the browser's own mark, small, filled
+ * modes replace. Rejected (the user's direction): the browser's own mark, small, filled
  * white on the page's cream and different in each browser; a mark Leaf draws itself;
  * no mark, with the chosen label tinted; framed or joined buttons. The user preferred
  * a reasonable design from a UI library to a look of Leaf's own. */
@@ -809,7 +809,7 @@ summary,
  * with an ellipsis, so the control never widens when its words change. Rejected: the
  * room as a least width, which let a long label widen its control and shift the
  * controls beside it, too often and in too many places to oversee (the user's
- * decision, 2026-10-14). Rejected too: a page-facing `data-room` twin, which no page
+ * decision). Rejected too: a page-facing `data-room` twin, which no page
  * used; a page holds room for changing text with a grid stack (`page-layout.md`,
  * "Space for changing text"). Cut words stay whole in the element's text and
  * accessible name; generated content is in neither. The room wraps at its spaces, so
@@ -837,8 +837,8 @@ summary,
 }
 /* The symbol face: one of Leaf's icons on a square face, `--lf-icon-action-face` tall
  * and as wide as its hit box (response.css), the library's plain button as a word is
- * (above). A symbol once also came on the word face's bordered card in some widgets, a
- * second look for the same press, until the two merged here. A control that draws its
+ * (above). Rejected: a symbol on the word face's bordered card in some widgets, a
+ * second look for the same press. A control that draws its
  * state in its own ink, such as Send or Resolve (response.css), states that ink after
  * this rule, at least as heavily. Its grid lays out what it holds, such as the On Me
  * mark's symbol and count, which the library's centring would pack together. */
@@ -1108,9 +1108,9 @@ wa-copy-button.lf-icon-action {
    of its own, as lf-trace's canvas and the media viewer do, or a page whose figure
    should have no edge, such as a transparent logo, sets the face's radius, shadow
    and forced-colours outline in its own rule, which outranks this one. The user chose
-   this on 25 October over leaving each page to frame its own captures, which most
-   pages never did. A picture in markup wears it with the reading face (reading.css);
-   a box that declares `.lf-media-frame` wears it on any page. */
+   this over leaving each page to frame its own captures, which most pages never did.
+   A picture in markup wears it with the reading face (reading.css); a box that
+   declares `.lf-media-frame` wears it on any page. */
 .lf-media-frame,
 .lf-picture[data-lf-frame] {
   border-radius: var(--lf-r);
@@ -1186,11 +1186,11 @@ wa-copy-button.lf-icon-action {
    interactive constant that makes unlike verbs read as one family. The margin's
    modules find an entry by `.lf-margin-entry` and never by this face's class.
 
-   Here with the other faces, page-side rather than in chrome.css, where it once was,
-   because a margin entry stands in the page's own margin and a package contributes to
-   it: adopted after the theme, its face beat the rules beside it by nothing better
-   than arriving last, which is why the `…` never took the ink its own rule asked for
-   on hover. The states below stay in document order, each reading the one above it.
+   Here with the other faces, page-side rather than in chrome.css, because a margin
+   entry stands in the page's own margin and a package contributes to it: adopted
+   after the theme, its face in chrome.css would beat the rules beside it by nothing
+   better than arriving last, so the `…` would never take the ink its own rule asks
+   for on hover. The states below stay in document order, each reading the one above it.
    A surface supplying --lf-entry-ink or --lf-entry-tint, as the user's turn does
    (base.css), keeps that ink and ground through the shared states without competing
    with their selector specificity. */
@@ -1237,8 +1237,8 @@ wa-copy-button.lf-icon-action {
   box-shadow: none;
 }
 /* A change's entry opens its card, a disclosure, but wears an action's raised face, so
-   the one press beside a change reads as a press (margin-bars.js); the user chose it on
-   3 November over the flatter disclosure face. */
+   the one press beside a change reads as a press (margin-bars.js); the user chose it
+   over the flatter disclosure face. */
 .lf-margin-face[data-lf-behavior="disclosure"][data-lf-kinds="change"] {
   border-width: 2px;
   border-color: var(--lf-border);
@@ -1278,10 +1278,11 @@ wa-copy-button.lf-icon-action {
    never reaches this rule, because inert status takes an interactive accent from
    neither pointer nor keyboard.
 
-   The ink was stated in base.css, on `.lf-margin-marker` and `.lf-margin-more`, and
-   reached the first and not the second: the marker's selector carried one class more
-   than the resting rule here, and the `…` carried exactly as many, so it lost on this
-   sheet being adopted. One home for the state, and both say the same thing. */
+   The ink stands here rather than in base.css, on `.lf-margin-marker` and
+   `.lf-margin-more`, where it would reach the first and not the second: the marker's
+   selector carries one class more than the resting rule here, and the `…` carries
+   exactly as many, so it loses on this sheet being adopted. One home for the state,
+   and both say the same thing. */
 .lf-margin-face[data-lf-behavior="disclosure"]:is(button, [role="button"]):is(
     :hover,
     [data-lf-focus],
@@ -1321,7 +1322,7 @@ wa-copy-button.lf-icon-action {
    projection its glyph, unread dot and count share its one grid cell, the dot and count
    standing in its corner by alignment as their insets stand them elsewhere, so no face
    is a positioned box: Chromium's hit test visits every positioned box on every call,
-   and a page of 512 questions held a face for each. */
+   and a page holds a face for each question. */
 .lf-margin-projection .lf-margin-face {
   position: static;
   display: inline-grid;
@@ -1430,9 +1431,8 @@ wa-copy-button.lf-icon-action {
    On paper the pin keeps what a rail marker says: an annotation on the user stands on
    the user's turn's wash with a green glyph, a suggestion's Accept and Reject keep
    their green check and red cross, and an interactive pin takes the chip on hover.
-   The user chose paper on 5 November 2026 over the filled blue face every pin wore
-   since #2111, comparing both with smaller faces on a phone, where the fill's white
-   glyphs told Accept from Reject only by their shape.
+   The user chose paper over a filled blue face, whose white glyphs, on a phone's
+   smaller faces, told Accept from Reject only by their shape.
    The pin is where the row stands, which margin-layout.js writes on it
    (`data-lf-place`), rather than a look an entry chooses.
    Shape and face identify placement, not whether a press acts, opens context, or does
@@ -1463,8 +1463,8 @@ wa-copy-button.lf-icon-action {
 /* A draft's entry, words the user wrote here and hasn't sent (the `draft` kind,
    contribution-model.js), wears the muted grey the On Me mark's dot wears for a draft
    (`.lf-unread-dot[data-lf-drafts]`), in the rail and as a pin, so it reads apart from
-   a thread's entry in the thread's colour. The user chose the grey on 16 November 2026
-   over the dashed contour the entry first wore (#6091). */
+   a thread's entry in the thread's colour. The user chose the grey over a dashed
+   contour. */
 .lf-margin-face[data-lf-kinds="draft"] {
   --lf-entry-ink: var(--lf-muted);
 }
@@ -1548,10 +1548,10 @@ wa-copy-button.lf-icon-action {
    removal and a drawing's Undo last stroke do, or stands in a toolbar inside its
    block's corner (`.lf-mark-bar`, integration.css), as a code block's Copy and a
    draft's Edit, Save and Discard do. Every mark wears this one face at one size: the
-   face the user chose on 22 October from the panel's fold, its icon in the dim ink and
-   full ink under the pointer, at the fold's 20px (`--lf-mark-size`, tokens.css). On 25
-   October the user gave it to the toolbars' marks as well, which had been 26px with a
-   quiet wash under the pointer, a second look for the same kind of press. A seat gives
+   face the user chose from the panel's fold, its icon in the dim ink and full ink
+   under the pointer, at the fold's 20px (`--lf-mark-size`, tokens.css). The user gave
+   it to the toolbars' marks as well, over 26px with a quiet wash under the pointer, a
+   second look for the same kind of press. A seat gives
    its marks only a place and a ground: a corner mark a patch of its own, a toolbar's
    marks the toolbar. The icon says the meaning (icons.js): `subtract` folds, `cross`
    removes. The focus ring lies on the mark's edge, which on a corner is where its
@@ -1599,8 +1599,9 @@ wa-copy-button.lf-icon-action {
   background: var(--lf-card);
 }
 /* A corner mark stands on a patch of the ground the thing it rides stands on, set off
-   by that ground's ring and a lift. An attachment's marks were a dark disc with a
-   light cross, which read as a second kind of control for the same gesture. A surface
+   by that ground's ring and a lift. Rejected: a dark disc with a light cross for an
+   attachment's marks, which read as a second kind of control for the same gesture. A
+   surface
    whose ground is not the paper sets `--lf-ground` and `--lf-ring` for what it raises;
    each surface places its marks and says when they show. */
 .lf-mark-action[data-lf-corner] {
@@ -1624,11 +1625,11 @@ wa-copy-button.lf-icon-action {
    property wins. The compact response field is excluded because it shares its complete
    control geometry with the response buttons (chrome.css). The box grows with its
    words — a textarea through field-sizing, a text field through its own content — so
-   no script measures one: the JS that did had to reset height to auto to re-measure,
-   which made the box briefly too small for its own text on every keystroke — and a
+   no script measures one. Rejected: a script that resets height to auto to re-measure,
+   which makes the box briefly too small for its own text on every keystroke — and a
    box that overflows, however briefly, flashes a scrollbar. Past max-height the
    scrollbar is real and stays — and the ceiling is the viewport's share, not a count
-   of lines: 200px stopped a long comment at ten lines with the screen mostly empty.
+   of lines: a fixed height can stop a long comment with the screen mostly empty.
    Both selectors: the panel's boxes sit inside .lf-ui, a widget's own box wears the
    class itself. */
 .lf-ui :is(textarea, leaf-text):where(:not(.lf-fab-input)),
@@ -1651,9 +1652,9 @@ wa-copy-button.lf-icon-action {
    since it sits in a row beside presses, where the library's fills its form's width,
    and a line tall wherever a surface sets its line. At a class's weight, so a
    component rule naming its own field still wins by coming later.
-   With no face the browser drew its own: a 2px inset border and square corners, 21px
-   tall beside 30px buttons; Leaf drew a frame and chevron of its own until the user
-   preferred a reasonable design from a UI library (3 November 2026). */
+   With no face the browser draws its own, which can be an inset border and square
+   corners, shorter than the buttons beside it. Rejected: a frame and chevron of
+   Leaf's own, since the user preferred a reasonable design from a UI library. */
 /* #region Face: Field */
 :where(
   select,
@@ -1713,15 +1714,15 @@ wa-copy-button.lf-icon-action {
    unread or a quote's Full quote. Its words take the accent ink at weight 600 and the
    line's own size, with no chip, fill or border, and an underline under a hovering
    pointer. One announcing news waiting (`data-lf-news`) keeps the accent the
-   unread dot wears, as the user chose on 31 October over the danger ink, which read
+   unread dot wears, as the user chose over the danger ink, which read
    as an error. One whose words say a warning (`data-lf-tone="warn"`), as a file
-   editor's conflict does, takes the warning's ink. The
-   four drew four faces (held news bold at 10px, the feed's notice underlined at rest,
+   editor's conflict does, takes the warning's ink. The user chose this one face over
+   a face for each (held news bold at 10px, the feed's notice underlined at rest,
    Next unread at the body's weight and Full quote muted, those two washed under the
-   pointer) until the user chose this one on 28 October. Words a press says in a
+   pointer). Words a press says in a
    speaker's voice take that speaker's face instead (`span[data-lf-voice]`, above), so
    held news, which is Leaf's, is regular italic and stands apart by its ink: the user
-   kept that over bold news on 31 October. A generated control in the document takes
+   kept that over bold news. A generated control in the document takes
    the chrome's size (control-face.css, `.lf-ui-face`), so the face inherits its line's; a
    press whose box stands beside its line rather than in it states the line's size
    where it is placed. */
@@ -1741,7 +1742,7 @@ wa-copy-button.lf-icon-action {
 /* One standing among a box's empty words (`data-lf-hint`), as a passing notice's Undo
    does at the floating panel field's end, wears their face, as the word and key that
    enter the box do, and says by its pointer alone that it takes a press: the user chose
-   on 5 November 2026 that the right side of a box holds its shortcut in one format. */
+   that the right side of a box holds its shortcut in one format. */
 .lf-inline-action[data-lf-hint] {
   color: inherit;
   font: inherit;
@@ -1749,7 +1750,7 @@ wa-copy-button.lf-icon-action {
 }
 /* It declines the wash every generated press takes under the pointer (surfaces.css),
    which a finger's tap leaves behind too, and so does one among a box's empty words,
-   which the user chose to read as those words do (5 November 2026). */
+   which the user chose to read as those words do. */
 :where(button).lf-inline-action:hover,
 .lf-inline-action[data-lf-hint]:hover {
   box-shadow: none;
@@ -1771,10 +1772,10 @@ wa-copy-button.lf-icon-action {
    room as a transparent border, so marking the current row moves no words, and the
    wash, an image under the border, never hides the stripe. A row is square in every
    state, as the striped box must be, so a washed row meets the current row beside it
-   edge to edge; rounded washes left a notch where they met it. Rows were
-   drawn six ways, two hovers and four current rows (weight in Versions, an ink wash
-   and underline in a visual review, accent words on the tint for a recording's
-   moments), until the user chose this one on 28 October. What a list adds is one of
+   edge to edge; rounded washes left a notch where they met it. The user chose this
+   one over six ways of drawing rows, two hovers and four current rows (weight in
+   Versions, an ink wash and underline in a visual review, accent words on the tint
+   for a recording's moments). What a list adds is one of
    the row's variants (below): a thread's row lit with its passage under the pointer,
    a step still ahead muted, and a thread on the user's turn tinted. Rows meeting
    edge to edge leave no room outside one for its ring, so the ring stands inside its
@@ -1841,8 +1842,7 @@ wa-copy-button.lf-icon-action {
 
    The rows of a list (`.lf-rows`) share its columns through subgrid, wrappers included,
    so names start and are cut on one edge, and rows meet edge to edge. The gaps are the
-   parts' margins, so a list without a lead or an end keeps no room for one. Seven lists
-   drew seven layouts until they shared this one. */
+   parts' margins, so a list without a lead or an end keeps no room for one. */
 .lf-row:where(:has(> .lf-row-main)),
 .lf-row-plain:where(:has(> .lf-row-main)) {
   display: grid;
@@ -1901,9 +1901,7 @@ wa-copy-button.lf-icon-action {
    end how many they are (`.lf-row-end`). It is the sans at weight 600 in the muted
    ink, a step smaller than the rows so it never reads as one of them, in its author's
    capitalization, since a group is often named in the page's own words, a heading or
-   a goal, which small capitals would mangle ("IOS"). Lists drew their headings four
-   ways, in small capitals, bold in the ink, muted at the rows' weight and with counts
-   short of the rows' ends, until they shared this one. It is no row of the list's
+   a goal, which small capitals would mangle ("IOS"). It is no row of the list's
    columns, since a count there would size the column the rows' ends share, and a list
    whose ends stand inside their names' column, as On Me's lines do, would see every
    end step back. Outside a group's box, as a tab strip's group or a trace's Moments
@@ -1946,11 +1944,11 @@ wa-copy-button.lf-icon-action {
    with its arrow hanging in the band's start padding, so its name starts where every
    other band's does.
 
-   The user chose the bands for On Me on 3 November 2026, asking for a group heading
-   that sticks as a thread's author line does, and on 4 November for every list's groups
-   to wear them. Rejected: a rule under each heading and faint rules between items,
-   which tied the first item to the heading and not the rest; groups parted by space
-   alone, as these lists' headings stood until then; each group in a bordered box, the
+   The user chose the bands for On Me, asking for a group heading that sticks as a
+   thread's author line does, and for every list's groups to wear them. Rejected: a
+   rule under each heading and faint rules between items, which tied the first item to
+   the heading and not the rest; groups parted by space alone; each group in a
+   bordered box, the
    closest but too noisy, and in a tinted well, the same box in other clothes; and every
    group folding under its band, which hid what the user still owes and which people
    seldom open. */
@@ -2023,9 +2021,8 @@ wa-copy-button.lf-icon-action {
 /* What a list says in its rows' place when it has none, such as that nothing matches
    a search or that its rows are still to come (`.lf-rows-empty`): a muted line where
    the first row would stand, starting where the rows' marks do, so it reads as the
-   list's one line rather than a notice about it. Lists that take the height of their
-   rows set it three ways, centred in a dialog and inset in the panel, until they
-   shared this one; a box of fixed height, as a file tree's is, centres it instead. */
+   list's one line rather than a notice about it, in every list that takes the height
+   of its rows; a box of fixed height, as a file tree's is, centres it instead. */
 .lf-rows-empty {
   margin: 0;
   padding: 5px 8px;

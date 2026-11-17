@@ -1,4 +1,4 @@
-# Added while making an eyebrow and heading one navigation destination with hgroup.
+# An eyebrow and heading make one navigation destination with hgroup.
 # Measures whether shipped authoring instructions express a complete title boundary
 # rather than relying on a pixel offset or making eyebrow text part of the heading.
 description: grouped-title-address
@@ -29,8 +29,8 @@ assert:
       id and only the `h1` or another wrapper carries one.
 
 variants:
-  # A handover used a plain paragraph for its status above the title. With the
-  # default theme supplied, the discovery repair distinguished baseline and fix.
+  # A handover used a plain paragraph for its status above the title. The default
+  # theme is supplied.
   status-label:
     description: grouped-title-address/status-label
     metadata:

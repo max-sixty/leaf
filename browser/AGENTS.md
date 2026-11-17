@@ -74,12 +74,12 @@ rule draws at once is drawn.
   settlement (resolving or reopening) in their own thread, a thread keeps what it drew
   behind a fixed-size control until the reader goes to it. A thread not drawn yet, one
   the agent starts or one a reply reopens out of a closed Resolved disclosure, draws at
-  once, the rare path the user chose to let move what follows it (2026-11-04). An
+  once, the rare path the user chose to let move what follows it. An
   exception the user chose stays with its owner, as the floating panel's growth for an
   answer the user waits for (`floating-panel.js`) does. Where news grows a thread's own
   box, the panel's view or a margin card, the growth may carry the box's secondary
   controls, such as Resolve or a message's pencil, from under a pointer resting on one;
-  the words the user is writing and their Send stay (the user's choice, 2026-11-14).
+  the words the user is writing and their Send stay (the user's choice).
   Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
@@ -486,7 +486,7 @@ attribute (`test_a_has_leads_only_to_a_subject_naming_an_element`), and it reach
 only the root's subtree, never its later siblings.
 
 No `:has()` reads where focus is, by `:focus`, `:focus-visible` or a mark `focus.js`
-writes: each made every focus move restyle much of the page
+writes: each can make every focus move restyle much of the page
 (`test_no_has_reads_where_focus_is`). A rule for focus anywhere in a box reads the box's
 `data-lf-focus-within` or `data-lf-focus-visible-within` in the box's own compound.
 Chromium answers a change to a state that a compound before the subject reads by

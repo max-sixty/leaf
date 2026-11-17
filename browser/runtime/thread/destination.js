@@ -12,7 +12,7 @@
    nothing else will show the thread, so the floating panel takes any thread then; a
    second refusal leaves the thread unopened. That is every thread about a passage on a
    window with no room for the rail, where no margin card stands (margin-projection.js,
-   the user's choice of 31 October 2026). The primary holds such a thread only until
+   the user's choice). The primary holds such a thread only until
    the page can draw it again, as when a wider window brings the rail, or shows the
    passage a narrow one hid: once a thread pass has drawn every surface, it goes back to
    the page, and the user in it goes with it, a reply they are writing carried with its
@@ -29,8 +29,8 @@
    A route shows one thread at a time: the primary taking a thread closes the page's
    card, and the page drawing one has the floating panel put away its view of any
    thread as it declines (floating-panel.js, `reveal`), so the reply the field holds
-   and a walk's position name the thread the user arrived at. The user chose this on
-   23 October 2026, after a `t` walk left the panel's thread open under a card.
+   and a walk's position name the thread the user arrived at. The user chose this,
+   so a `t` walk doesn't leave the panel's thread open under a card.
    The optional preview supplies physical
    opening, placement proof, current focus node and target accompaniment; it owns
    no destination policy. A command retains its original intent through placement

@@ -1056,9 +1056,8 @@ def test_the_payload_is_text():
 def test_every_skill_file_reads_in_one_command():
     """An agent reads a skill file with `cat` as often as with Read, and Claude Code
     hands a Bash output over 30,000 characters back as a 2 KB preview with the rest
-    saved to a file the agent rarely opens. page-authoring.md at 48 KB reached
-    authoring sessions that way until it was split, so each skill's files stay
-    under that cap."""
+    saved to a file the agent rarely opens, so each skill's files stay under that
+    cap."""
     oversized = {
         path.relative_to(ROOT).as_posix(): size
         for root in (ROOT / "skills", ROOT / ".claude" / "skills")
@@ -1424,9 +1423,9 @@ def test_leaf_writes_its_own_marks_under_its_prefix():
     """A class or data attribute Leaf writes on an element is `lf-` or `data-lf-`, the
     names `page check` refuses an author, so a page's CSS for its own names never
     reaches Leaf's elements (browser/AGENTS.md, "Leaf's elements wear only Leaf's
-    names"). Before #5050, a page rule for `.hi` turned lf-code's highlighted line blue,
-    and one for `.away` the panel's away leaf red; a rule for `.choice` once outlined a
-    playground's own choices the same way.
+    names"). Unprefixed, a page rule for `.hi` would turn lf-code's highlighted line
+    blue, and one for `.away` the panel's away leaf red; a rule for `.choice` would
+    outline a playground's own choices the same way.
 
     The names Leaf writes without its prefix are a library's, on an element Leaf draws
     for that library to read or style: Pierre's row attributes on lf-diff's own rows,
@@ -1548,12 +1547,12 @@ def test_the_kernel_styles_no_class_a_page_coins():
     """The kernel reaches a page's element by a class only where that class is one of
     Leaf's own names (browser/AGENTS.md, "Leaf's elements wear only Leaf's names"): an
     `lf-` class, which a page writes only where a kernel idiom lets it, as `lf-scroll`
-    does, or a Layout's. Before this check it styled a page's own `.button`, `.field`,
-    `.choice` and `.scroll`, so a plain page's `<label class="choice">` took Leaf's aim
-    floor and grew its form (tests/fixtures/plain/form.html). A kernel sheet's selectors and `@scope` preludes, and the
-    selectors the runtime hands a DOM query, name no other class but a library's on the
-    elements Leaf draws for it: PhotoSwipe's in the chrome's lightbox, and CodeMirror's
-    in a text field's closed tree."""
+    does, or a Layout's. A kernel that styles a page's own `.button`, `.field`,
+    `.choice` and `.scroll` gives a plain page's `<label class="choice">` Leaf's aim
+    floor and grows its form (tests/fixtures/plain/form.html). A kernel sheet's
+    selectors and `@scope` preludes, and the selectors the runtime hands a DOM query,
+    name no other class but a library's on the elements Leaf draws for it: PhotoSwipe's
+    in the chrome's lightbox, and CodeMirror's in a text field's closed tree."""
     authored = ("lf-", "layout-", "density-")
     libraries = ("pswp", "cm-")
 
@@ -1826,27 +1825,22 @@ def test_a_has_leads_only_to_a_subject_naming_an_element():
     `.a:has(> b) > *` and `.a:has(> b) :first-child` do, makes every write to an
     attribute another `:has()` reads restyle everything under the element whose `:has()`
     the write may change, whether or not the rule matched anything there: a pointer's
-    hover and a margin row's selection are such states, and focus marks were until no
+    hover and a margin row's selection are such states, as focus marks would be if a
     `:has()` read them (`test_no_has_reads_where_focus_is`). A pseudo-element
     Chromium draws in the element's own shadow tree, such as `::details-content`,
     `::placeholder` or `::file-selector-button`, names no element either; `::before`,
-    `::after` and `::marker` stand for their element. Measured on 11 November 2026 by
-    toggling `data-lf-focus-within` on a paragraph of `pr-walkthrough`, with each probe
-    rule added alone to the two rules that read that mark: 16–20 ms a toggle with such
-    a rule, 0.3–1.4 ms with `> .q`, `> p` or `> :where(p, li)`, and four shipped rules
-    (base.css's pane end room, layouts.css's workspace end room, reading.css's sticky
-    row names, disclosure.css's instant keyboard closing) restyled the page's 7,276
-    elements on every focus move. The same holds for a `:has()` alone in its
-    compound: toc.css's `@scope (:has(> lf-toc))`, under a container query that a page
-    without a sidebar never meets, made each of the 16 style recalcs in a Tab on a page
-    of 64 questions restyle the whole page (938 ms against 26 ms).
+    `::after` and `::marker` stand for their element. A subject such as `> .q`, `> p`
+    or `> :where(p, li)` names one. The same holds for a `:has()` alone in its
+    compound: `@scope (:has(> lf-toc))`, even under a container query that a page
+    without a sidebar never meets, can make each style recalc in a Tab restyle the whole
+    page.
 
     A scope's root names its element by a class, id or attribute, not by a type alone.
     Chromium tests the root's `:has()` on every element of that type, and adding or
-    removing a node inside any of them restyled the page: with `@scope (div:has(>
-    lf-toc))`, a heading's link moving into the chrome restyled 20,255 of the 28,335
-    elements of the 512-section asks page of `leaf-dev bench`, against 58 with
-    toc.css's rule for the block after the map, which asks no `:has()` at all."""
+    removing a node inside any of them can restyle the page: with
+    `@scope (div:has(> lf-toc))`, a heading's link moving into the chrome can restyle
+    most of the asks page of `leaf-dev bench`, where toc.css's rule for the block after
+    the map, which asks no `:has()` at all, restyles far fewer."""
     found = []
 
     def keyed(compound):
@@ -1913,13 +1907,12 @@ def test_no_has_reads_where_focus_is():
     """No `:has()` in Leaf's sheets reads where focus is: a focus mark, a box's
     `data-lf-control-focus` marks, or a focus pseudo-class. A box that shows the focus of
     a control inside it is named by the control (`--lf-focus-box`, base.css), and
-    focus.js marks the box. In Chromium, a `:has()` reading a focus mark made each focus
-    move restyle what lay under every element whose `:has()` the move might change, and
-    the whole page wherever any rule, an author's included, put a `:has()` before a
-    subject naming no element. Measured on 12 November 2026 on `pr-walkthrough`, moving
-    focus between two links in main: with the 25 such rules Leaf had, a move restyled
-    1,419 elements (5.5 ms), and 7,345 (22 ms) with an authored `.zz:has(> .yy) > *`
-    added; without them it restyled 18, with that rule or without it."""
+    focus.js marks the box. In Chromium, a `:has()` reading a focus mark makes each focus
+    move restyle what lies under every element whose `:has()` the move might change, and
+    the whole page wherever any rule, an author's included, puts a `:has()` before a
+    subject naming no element, as an authored `.zz:has(> .yy) > *` does. Without such
+    reads, a focus move between two links in `pr-walkthrough`'s main restyles a few
+    elements, with that rule or without it."""
     reads_focus = re.compile(r"data-lf-[\w-]*focus|:focus")
     found = []
     for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
@@ -1959,12 +1952,11 @@ def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
     each element it asks such a `:has()` of, and on each write to an attribute some
     `:has()` reads walks back from a flagged element through every earlier sibling and
     restyles each one some `:has()` names as its subject.
-    Asked of every child of `main`, by `:where(main > *):has(~ [data-lf-views="parts"])`
-    in layouts.css, it made each focus move restyle every block before the focused one:
-    1,131 elements a move near the end of a page of 1,024 sections in a plain `main`,
-    and 108 once `main` answered with a style query instead (Chromium 158, a trace's
-    restyled-element count, 11 November 2026). `.layout-sidebar > aside:has(~ …)` asked
-    it of every `aside` in the page's content."""
+    Asked of every child of `main`, as by
+    `:where(main > *):has(~ [data-lf-views="parts"])`, it makes each focus move restyle
+    every block before the focused one, and far fewer where `main` answers with a style
+    query instead (Chromium 158). `.layout-sidebar > aside:has(~ …)` asks it of every
+    `aside` in the page's content."""
 
     def rare(compound):
         return any(
@@ -2032,18 +2024,18 @@ def test_a_rule_s_subject_names_a_key():
     """No subject in the sheets a page composes is keyed only through a list, as
     `:is(.a, .b)`, `:where(p, li)` or a nested `&` under two selectors are, unless a
     compound before it names a key (browser/AGENTS.md, "A rule costs only the
-    elements it could style"). Chromium matched each such rule against every element
-    it restyled: about 120 of them raised its style of 20,000 plain rows from 20 ms to
-    76 ms (Chromium 158, 16 November 2026), where Firefox, which files a list under
-    each member, took 5 ms either way. A subject that can name no key, as `*` and a
-    frame's edge trims, has no list to split, so the test leaves it alone.
+    elements it could style"). Chromium 158 matches each such rule against every
+    element it restyles, so a hundred of them can multiply the cost of styling a long
+    page's rows, where Firefox, which files a list under each member, pays nothing
+    for them. A subject that can name no key, as `*` and a frame's edge trims, has no
+    list to split, so the test leaves it alone.
 
     Chromium's selector stats, not this test, measure what a rule costs: its ancestor
     filter is a Bloom filter, so an ancestor's key passes over a rule only where its
-    hash misses the bits the element's ancestors set. On a Leaf page's rows,
-    `[data-lf-turn="user"]` alone matched those bits and its rule was matched in full
-    on every row, and naming `.lf-margin-face` beside it let the filter reject it
-    (Chromium 158, 16 November 2026)."""
+    hash misses the bits the element's ancestors set. A key can match those bits on
+    every row of a Leaf page and leave its rule matched in full, as
+    `[data-lf-turn="user"]` alone can, where naming `.lf-margin-face` beside it lets
+    the filter reject the rule (Chromium 158)."""
 
     def keys(compound):
         """The parts of the compound that name a key: a type, class, id or attribute,
@@ -2202,9 +2194,8 @@ def test_every_press_is_built_by_role():
     control wears its role's face"). `js_facts.mjs presses` reads the presses and says
     what they are and how a role dresses them.
 
-    Before this check only a role's classes were watched, so a press drawn with a face
-    of its own passed: the floating panel's symbols and a message's Edit and Add
-    reaction each drew a 26px face beside the thread's 28px symbols. Drawing a press's
+    Watching only a role's classes passes a press drawn with a face of its own, such as
+    a 26px face beside the thread's 28px symbols. Drawing a press's
     symbol from its action gives it no face, so a press that does only that still needs
     a role."""
     reached, unbuilt = set(), []
@@ -2428,10 +2419,9 @@ def test_a_press_wears_its_role_s_face_alone():
     is; so is a press a selector names by a tag other than `button` or a custom
     element, such as the margin's `span.lf-margin-marker`.
 
-    Before this check a sheet could restyle a press it placed: Send and Dictate drew
-    a disc of their own in response.css, a margin entry's face lived in base.css, the
-    floating panel and a package each inked a row or a word their own way. A runtime
-    census of computed looks, grouped by face, grew with every state it sampled; keyed
+    Without this check a sheet can restyle a press it placed, as by drawing Send and
+    Dictate a disc of their own or inking a row or a word its own way. A runtime
+    census of computed looks, grouped by face, grows with every state it samples; keyed
     by role, the question has one answer per role and needs no browser."""
     faces, placed = _role_classes()
     assert {"lf-icon-action", "lf-btn", "lf-row"} <= faces, faces
@@ -2641,10 +2631,9 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     other says — and nothing catches it, because no test and no browser gate can read a
     rule that never applied.
 
-    The chip and the thread mark's note were written that way on purpose, restated in
-    base.css for the shadow roots the adopted sheet cannot reach, and the two copies
-    had drifted: base.css's chip cleared the platform's button face and chrome.css's
-    did not, so in the light DOM that reset had never once run.
+    A selector restated in base.css on purpose, for the shadow roots the adopted sheet
+    cannot reach, still drifts: a reset base.css's copy states and chrome.css's does not
+    never runs in the light DOM.
 
     Only chrome.css's top level is asked here. A rule inside its `@layer` loses to any
     unlayered choice whatever its specificity, and a rule inside its `@scope` wins

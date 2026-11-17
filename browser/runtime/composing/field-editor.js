@@ -630,7 +630,7 @@ function fieldEditor(
   // A box takes the lines that start in its range, including one starting at its end,
   // so it ends on its last line's break. CodeMirror carries a box on into a later one
   // that equals it, so each names its level, and a container is ranked outside its
-  // contents. Rejected: a class on each line (until October 2026), which CodeMirror
+  // contents. Rejected: a class on each line, which CodeMirror
   // merges, so every level of a nested quote drew one rule at one inset and a code
   // block's frame replaced its quote's; and boxes for quotes alone, which put a quote's
   // rule outside the item holding it, and the item's bullet inside the quote.
@@ -1296,7 +1296,7 @@ function fieldEditor(
   // empty. With the caret among the markers, in no container, or on a line it would
   // leave as it stands, the press is a plain new line. The numbers of the items after a
   // new one stay as typed, since the message numbers a list from its first. Rejected:
-  // CodeMirror's Markdown continuation (until October 2026), whose grammar, a second
+  // CodeMirror's Markdown continuation, whose grammar, a second
   // beside the renderer's, read the whole draft again on every key, ended a quote or
   // item at a fence inside it, and took three presses to leave a list.
   const CHECKBOX = "[ ] ";

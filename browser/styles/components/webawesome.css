@@ -43,9 +43,8 @@ wa-comparison::part(lf-focus-visible) {
    dial's depth, is a radio group of buttons (`appearance="button"`) that a widget
    offers in the word role (controls.css): words in a faint pill, the chosen one
    wearing a toggle's selected face. The pill stands on the ground beneath it, so a
-   group the page scrolls under stays opaque. The user chose it on 5 November 2026,
-   comparing it in a dial, an image pair and a recording with bare words, upstream's
-   framed and joined segments, and an underline, when only the dial wore it. Their
+   group the page scrolls under stays opaque. The user chose it over bare words,
+   upstream's framed and joined segments, and an underline. Their
    words take the choice type and the word role's height, which that face leaves
    alone; the row wraps where it runs out of room, and a long name wraps inside its
    radio. */
@@ -115,8 +114,8 @@ wa-slider[range]::part(lf-focus-visible) {
 }
 
 /* A slider's unfilled track is the scale the value is read against, so it carries a
-   contour's weight rather than a hover's: at --lf-chip it read as empty paper, and a value
-   of 4 of 6 looked like the limit. */
+   contour's weight rather than a hover's: at --lf-chip it reads as empty paper, and a
+   value short of the end looks like the limit. */
 wa-slider::part(track) {
   background: var(--lf-border);
 }

@@ -1,4 +1,4 @@
-"""Display widgets on a plain HTML page, which runs none of Leaf's runtime (#3833).
+"""Display widgets on a plain HTML page, which runs none of Leaf's runtime.
 
 The page maps Leaf's rooted module paths to a Leaf install with an import map of its
 own, as a Leaf page does (`layer_import_map`), links the layer's portable.css for the

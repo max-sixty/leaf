@@ -9,7 +9,7 @@
    agent's plan whose steps name them, those no goal names last. Until the user picks, a
    plan that gives the user a step groups By <agent>, else By place. The walk steps
    through the groups' items in the list's one order (`onMeGroups`), so successive
-   presses reach successive rows. The user chose these groupings (2026-10-21) over Leaf
+   presses reach successive rows. The user chose these groupings over Leaf
    ordering by what the plan waits on, an agent's note with picks, and a priority on
    every obligation, each needing a new contract or a guess. A step from where the user
    reads goes to the first item in that order after their place (`stepFrom`), which
@@ -43,7 +43,7 @@
    With nothing waiting on the user, a press of `m` or Shift+`m` says so in the panel's
    seat (notifications.js, `notice`), as every walk with nothing to step through does
    (keyboard/AGENTS.md, "Page grammar"); the reading that empties the list says it
-   unasked (semantic-news.js). The user asked for both on 5 November 2026, taking the
+   unasked (semantic-news.js). The user asked for both, taking the
    words over a flash of the panel's colour for now.
 
    The walk opens what answers each item it reaches: a thread opens, and a widget's

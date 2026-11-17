@@ -54,12 +54,8 @@ def test_page_init_restarts_a_served_page_under_the_sessions_wait(
     page_dir, tmp_path, spawn, changed
 ):
     """`page init` on a served page restarts its server itself, so the session's
-    `leaf wait` carries on watching it.
-
-    Re-vendoring a served page used to be three commands, and the first,
-    `server stop`, disabled the service: a wait watching the page read that as a
-    page it had lost, and ended. The comment after the re-vendor is the proof: only
-    a wait still watching delivers it.
+    `leaf wait` carries on watching it. The comment after the re-vendor is the
+    proof: only a wait still watching delivers it.
     """
     publish(page_dir)
     session = os.environ["CLAUDE_CODE_SESSION_ID"]

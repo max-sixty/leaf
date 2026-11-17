@@ -1,6 +1,6 @@
-# Added for #1491: a grid can satisfy the same-dimensions table rule while its
-# purpose is a pattern across measurements. Compare the earlier instructions with the
-# explicit chart priority; the exact-value request checks the secondary table route.
+# A grid can satisfy the same-dimensions table rule while its purpose is a pattern
+# across measurements. Scores the explicit chart priority; the exact-value request
+# checks the secondary table route.
 description: numeric-grid-shows-shape
 metadata:
   purpose: "Numeric comparisons: show a shared trend as a chart, with exact values available for lookup."
@@ -27,16 +27,13 @@ assert:
       omits a group or the five-week sequence.
 variants:
   experiment-comparison:
-    # From #4662: a page reporting a prompt A/B copied the grid its analysis script
-    # printed, one column per wording and model, so each wording sat two or four
-    # columns from its baseline, and quoted the tested sentences only in another
-    # section. The prompt carries that printout and the agent's earlier reply that
-    # repeated it. On Claude Code, base 2a9d00dc5 failed effect-against-baseline in
-    # 14 of 14 runs and change-beside-effect in 11 of 11; with the experiment sentence
-    # in page-authoring.md, "Composing a page", 4 of 4 passed both. Asked plainly,
-    # with the grid and no earlier turns, base failed effect-against-baseline in 15 of
-    # 15 and passed it in 4 of 4 with the sentence, but base already quoted the added
-    # sentences beside its table in 10 of 12, so that form was dropped.
+    # A page reporting a prompt A/B copied the grid its analysis script printed, one
+    # column per wording and model, so each wording sat two or four columns from its
+    # baseline, and quoted the tested sentences only in another section. The prompt
+    # carries that printout and the agent's earlier reply that repeated it, since
+    # asked plainly, with the grid and no earlier turns, agents can already quote the
+    # tested sentences beside their table. The experiment sentence in
+    # page-authoring.md, "Composing a page", addresses it.
     metadata:
       purpose: "Experiment results: each variant's effect reads against its baseline, beside what the variant changed."
       tags:
@@ -104,13 +101,10 @@ variants:
           analysis printed, and any difference shown is computed correctly from them.
           Fail on an omitted or misread count.
   traffic-mix:
-    # Added after ordinary Leaf reports repeatedly described useful experiences
-    # without showing them. Unlike the complete configuration tasks, this request
-    # names an exploratory goal but no control or presentation form. Native page
-    # authoring tests the result; the source rubric cannot prove browser operation,
-    # which was checked separately on the retained samples. On 2026-10-24 both HEAD
-    # and an experimental authoring frame passed 1/1, choosing calculators and charts
-    # without a requested form; live probes confirmed the meaningful controls worked.
+    # An ordinary Leaf report can describe a useful experience without showing it.
+    # Unlike the complete configuration tasks, this request names an
+    # exploratory goal but no control or presentation form. Native page authoring
+    # tests the result; the source rubric cannot prove browser operation.
     metadata:
       authoring: true
       purpose: "Choose a useful way to explore changing assumptions in an ordinary decision page."

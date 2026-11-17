@@ -59,11 +59,11 @@ for comparison.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). For more room in a reading
-column, put `data-width="available"` on the playground, in its section or alone
-(`references/page-layout.md`, "Bounds and widths"). A workspace
-gives it the window. Candidates the user
-compares fit the window together, each picture sized as
-`references/authoring-on-me.md` says.
+column, put `data-width="available"` on the playground, which widens it inside the
+`<section>` of its question's group (`references/page-layout.md`, "Bounds and
+widths"). A workspace gives it the window, with its group as the workspace's body
+(`references/page-layout.md`, "A workspace"). Candidates the user compares fit the
+window together, each picture sized as `references/authoring-on-me.md` says.
 
 Keep the premise focused on what the user is setting and why, so the preview, controls
 and submission remain easy to reach. Leave facts already visible in the preview there.

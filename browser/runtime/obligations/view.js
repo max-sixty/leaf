@@ -455,9 +455,9 @@ export function createObligationView({
   // block for a region, since the author declares the region of anything else that
   // asks: the heading over the change, or the block before it, would be a region Leaf
   // inferred, and a block before a change can be another question's.
-  /** @param {Element} item @param {Element | null} frame @param {Element} currentLocation */
-  function arrivalRegion(item, frame, currentLocation) {
-    if (frame && frame === currentLocation) return frame;
+  /** @param {Element} item @param {Element | null} group @param {Element} currentLocation */
+  function arrivalRegion(item, group, currentLocation) {
+    if (group && group === currentLocation) return group;
     // A region has to be somewhere the user can be taken, beginning at or above the
     // obligation: an element generating no box measures (0,0) at the document's origin,
     // which is not a degenerate answer but a wrong one naming the top of the page
@@ -477,7 +477,7 @@ export function createObligationView({
         target.bottom - start.top <= landingRoom(region, item).height
       );
     };
-    return [frame, closestAcross(item, TEXT_BLOCK)].find(fits) ?? item;
+    return [group, closestAcross(item, TEXT_BLOCK)].find(fits) ?? item;
   }
 
   // The arrival the user already has. The press then moves the ring and the focus and
@@ -495,7 +495,7 @@ export function createObligationView({
   // will leave it (`scrollGoal`).
   /** @param {Obligation} record @param {Element} region @param {Element} item
    * @param {Element} source @param {Element} box @param {(node: Element) => boolean} readable */
-  function framed(record, region, item, source, box, readable) {
+  function alreadyArrived(record, region, item, source, box, readable) {
     const band = landingBand(box);
     return (
       !!band &&
@@ -545,7 +545,7 @@ export function createObligationView({
     // A page obligation starts at the window's head so its context comes before its control, and
     // what counts as its context is arrivalRegion's answer: the group holding it, or the
     // block holding a change set among words. Whether this
-    // press moves the page is `framed`'s answer, and travel's departure owns what follows
+    // press moves the page is `alreadyArrived`'s answer, and travel's departure owns what follows
     // from it: clearing a surface that hides the obligation, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
     // Capture the outgoing place before reveal can reshape it; only a successful
@@ -554,7 +554,7 @@ export function createObligationView({
     // navigation step. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
     // A context other than the widget itself is the group the author declared round it.
-    const inFrame = next.source.id !== next.prompt.target;
+    const inGroup = next.source.id !== next.prompt.target;
     const destination = () => {
       const { node: target, source, context } = obligationPlace(next);
       // A widget is arrived at once its source is drawn.
@@ -565,7 +565,7 @@ export function createObligationView({
             target,
             source,
             box,
-            region: arrivalRegion(source, inFrame ? context : null, target),
+            region: arrivalRegion(source, inGroup ? context : null, target),
           }
         : { target, source, box: null, region: null };
     };
@@ -577,7 +577,7 @@ export function createObligationView({
       initialBox &&
       departure.plan(initial.target, {
         there: (readable) =>
-          framed(
+          alreadyArrived(
             next,
             initialRegion,
             initial.target,
@@ -594,11 +594,12 @@ export function createObligationView({
         const { target, source, box, region } = here;
         return {
           where: target,
-          reveal: inFrame ? [sourceNode(next)].filter((node) => node !== null) : [],
+          reveal: inGroup ? [sourceNode(next)].filter((node) => node !== null) : [],
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
           // Reveal the obligation's source through its own inner scrollports before
           // aligning its region, which may stand outside them, as a group round a card
-          // that scrolls its answer does. A framed obligation requests no motion.
+          // that scrolls its answer does. An obligation already arrived at requests no
+          // motion.
           scroll: !box
             ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
             : moving

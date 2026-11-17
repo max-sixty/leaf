@@ -764,6 +764,53 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     }
 
 
+def test_a_playground_in_a_short_page_tab_keeps_its_actions_clear_of_the_panel(
+    browser, serve
+):
+    """A page tab that is one block, a playground's question group, passes the window's
+    height to the playground, and where the window is shorter than the playground's
+    stage and bar the tab keeps the playground's height, so the tab set scrolls to the
+    panel's room after the bar. Tab reaches each action clear of the floating panel.
+    Were the tab to shrink to the window, the group would run past it, the set would
+    scroll only to the window's foot, and the panel would stand over Reset."""
+    source = leaf_page(
+        "Alert tabs",
+        '<header><h1 id="tabs-h">Tune alert policies</h1></header>'
+        '<lf-tabs id="views" flow="page"><lf-tab id="t-tune" label="Tune">'
+        '<section id="tune" role="group" aria-labelledby="tune-q">'
+        '<h2 id="tune-q">Which latency window?</h2>'
+        '<lf-playground id="tab-config" data-width="available">'
+        '<lf-playground-preset id="tab-preset" label="Suggested window">'
+        '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
+        "</lf-playground-preset>"
+        "<p>The last incident lasted seven minutes.</p>"
+        '<label id="latency">Latency window, min <input type="range" name="latency"'
+        ' min="1" max="15" value="5" /></label>'
+        '<lf-playground-output>Use a <output for="latency"></output> minute window.'
+        "</lf-playground-output></lf-playground></section></lf-tab>"
+        '<lf-tab id="t-notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>',
+        layout="workspace",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 900, 500)
+    playground = page.locator("#tab-config")
+    slider = playground.get_by_role("slider", name="Latency window")
+    slider.press("ArrowRight")
+    for target in [
+        playground.get_by_role("button", name="Reset", exact=True),
+        playground.get_by_role("button", name="Show instruction"),
+        playground.get_by_role("button", name="Use these settings"),
+    ]:
+        page.keyboard.press("Tab")
+        expect(target).to_be_focused()
+        assert target.evaluate("""node => {
+          const box = node.getBoundingClientRect();
+          return [box.left + box.width / 4, box.right - box.width / 4].every(x =>
+            [box.top + box.height / 4, box.bottom - box.height / 4].every(y =>
+              node.contains(document.elementFromPoint(x, y))));
+        }"""), f"{target.get_attribute('aria-label')} stands under the panel"
+
+
 @pytest.mark.parametrize("over", ["stage", "presets"])
 def test_the_wheel_takes_a_short_workspace_to_its_playgrounds_send(
     browser, serve, over

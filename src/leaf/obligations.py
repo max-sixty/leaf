@@ -3,7 +3,7 @@
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
 A widget source owns identity; the group the author declares round it contributes
-only prompt words and arrival (`framed_widgets`). A `records` declaration expands a
+only prompt words and arrival (`widget_groups`). A `records` declaration expands a
 widget's bound external input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
@@ -106,7 +106,7 @@ def _is_group(node: dict) -> bool:
     )
 
 
-def framed_widgets(content: list, registry: dict):
+def widget_groups(content: list, registry: dict):
     """Each widget in `content` that can ask, as its authoring node and its question:
     the innermost element round it that the author declares a group (`_is_group`), or
     None. The group's name (`gesture_words.element_name`) is the widget's prompt, and the
@@ -454,23 +454,26 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
-    every obligation whose prompt target (its group, `framed_widgets`) is the innermost
+    every obligation whose prompt target (its group, `widget_groups`) is the innermost
     to enclose it. So a note on one obligation's option, or on a part of a group
-    holding one obligation, leaves its sibling in the group out, while one on the
-    group's name or on a section holding the group is about them all. `within` is the document's
-    containment (`Passages.enclosing`). A datum identity narrows an owning widget's
-    record obligations to the exact case being discussed.
+    holding one obligation, leaves its sibling in the group out, while one on anything
+    else in the group, such as the heading naming it where the group holds that
+    heading, or on a section holding the group, is about them all. A note on a name
+    that stands outside its group, as a workspace header's heading can, is about none
+    of the group's obligations. `within` is the document's containment
+    (`Passages.enclosing`). A datum identity narrows an owning widget's record
+    obligations to the exact case being discussed.
 
     The records are indexed once by source, prompt target and each id enclosing
     their source, so a caller asking for every thread on the page reads each
     thread's anchor against the indexes rather than every record again.
     """
     items: dict[str, list[dict]] = {}
-    framed: dict[str, list[dict]] = {}
+    grouped: dict[str, list[dict]] = {}
     enclosed: dict[str, list[dict]] = {}
     for record in records:
         items.setdefault(record["source"]["id"], []).append(record)
-        framed.setdefault(record["prompt"]["target"], []).append(record)
+        grouped.setdefault(record["prompt"]["target"], []).append(record)
         for around in set(within.get(record["source"]["id"], ())):
             enclosed.setdefault(around, []).append(record)
 
@@ -482,7 +485,7 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
             item
             if item is not None
             else enclosed.get(section)
-            or next((framed[i] for i in reversed(chain) if i in framed), [])
+            or next((grouped[i] for i in reversed(chain) if i in grouped), [])
         )
         datum = anchor.get("identity", anchor.get("datum"))
         return [
@@ -680,7 +683,7 @@ class ObligationSources(NamedTuple):
     `asking` holds each declared widget, with whether it stands inside an exhibit
     (`shown_in`).
     `prompts` maps each one's id to its prompt: `text`, the words naming it, its group's
-    name (`framed_widgets`) or else its own, and `target`, the id of the element going
+    name (`widget_groups`) or else its own, and `target`, the id of the element going
     to it starts at, its group or else itself.
 
     These depend on the document and the vocabulary alone, and finding them is most
@@ -709,7 +712,7 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
     prompts = {}
     for document in documents:
         nodes = document.authoring.by_id
-        for node, group in framed_widgets(document.authoring.content, registry):
+        for node, group in widget_groups(document.authoring.content, registry):
             if not (identity := node["attrs"].get("id")):
                 continue
             text = element_name(group, registry, nodes) if group else ""
@@ -1231,7 +1234,8 @@ def waiting_in_thread(
     """The agent's questions frozen as widgets in a thread, asked before a seq, that
     still wait on the user's pick, as a function of the thread and that seq: the
     user's words there may or may not answer them. Each is its `id` and the words
-    that asked it: the widget's framing heading, else the message holding it.
+    that asked it: its prompt, the name of the group the message writes round the
+    widget or else the widget's own (`obligation_sources`), else the message holding it.
 
     The open questions are grouped by thread once, so a batch asking for each of
     the user's words reads the records once rather than once per message."""

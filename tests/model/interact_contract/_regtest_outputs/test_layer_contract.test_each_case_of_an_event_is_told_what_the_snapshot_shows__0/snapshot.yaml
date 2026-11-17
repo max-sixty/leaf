@@ -1202,7 +1202,7 @@ pick on the page:
         `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
         do it and write the answer into the markup. Once the work is done, make
         the question a record of the decision (`references/authoring-revisions.md`,
-        "Keep the current page current"), such as a choice group marked `settled`
+        "Keep the current page current"), such as an `lf-options` marked `settled`
         with what came of it beside it, and stamp a version. An option the user
         added needs no writing in; the page keeps it where the user put it.
 
@@ -1282,7 +1282,7 @@ pick a thread's open question is about:
         `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
         do it and write the answer into the markup. Once the work is done, make
         the question a record of the decision (`references/authoring-revisions.md`,
-        "Keep the current page current"), such as a choice group marked `settled`
+        "Keep the current page current"), such as an `lf-options` marked `settled`
         with what came of it beside it, and stamp a version. An option the user
         added needs no writing in; the page keeps it where the user put it.
 
@@ -1313,7 +1313,7 @@ decided suggestion:
         `leaf task start <page> <event-id> --text "<the work, in a line>"`; then
         do it and write the answer into the markup. Once the work is done, make
         the question a record of the decision (`references/authoring-revisions.md`,
-        "Keep the current page current"), such as a choice group marked `settled`
+        "Keep the current page current"), such as an `lf-options` marked `settled`
         with what came of it beside it, and stamp a version. An option the user
         added needs no writing in; the page keeps it where the user put it.
 

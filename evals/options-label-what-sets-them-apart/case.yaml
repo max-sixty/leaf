@@ -34,6 +34,7 @@ vars:
       def dec(i, q, ctx, opts):
           o=''.join(opt(f"{i}-{k}", *v) for k,v in opts)
           return f'''  <lf-group id="{i}-ask" label="{E(q)}">
+          <h3 id="{i}-ask-h">{E(q)}</h3>
           {ctx}
           <lf-options id="{i}">
       {o}    </lf-options>

@@ -123,7 +123,10 @@
               </p>
 
               <lf-group id="ask-venue" label="Reply to the venue about Friday's room?">
-                <p>Email · from the inbox pass</p>
+                <hgroup id="venue-head">
+                  <p>Email · from the inbox pass</p>
+                  <h2 id="ask-venue-h">Reply to the venue about Friday's room?</h2>
+                </hgroup>
                 <p id="venue-context">
                   The Example Hall asked whether 40 seats is still right. The calendar
                   invite has 46 accepted.
@@ -148,7 +151,10 @@ Max</pre>
               </lf-group>
 
               <lf-group id="ask-numbers" label="Send the team this week's numbers?">
-                <p>Report · from the weekly numbers pass</p>
+                <hgroup id="numbers-head">
+                  <p>Report · from the weekly numbers pass</p>
+                  <h2 id="ask-numbers-h">Send the team this week's numbers?</h2>
+                </hgroup>
                 <table id="numbers-table">
                   <thead>
                     <tr>
@@ -184,7 +190,10 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 id="ask-ci"
                 label="Main went red overnight. What should happen?"
               >
-                <p>CI · from the overnight pass</p>
+                <hgroup id="ci-head">
+                  <p>CI · from the overnight pass</p>
+                  <h2 id="ask-ci-h">Main went red overnight. What should happen?</h2>
+                </hgroup>
                 <p id="ci-context">
                   One commit broke <code>test_parser</code>. Nothing else landed after
                   it.
@@ -340,6 +349,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
 
         <section id="choose-first">
           <lf-group id="ask-first-build" label="Which feed should Leaf try first?">
+            <h2 id="ask-first-build-h">Which feed should Leaf try first?</h2>
             <p id="first-build-premise">
               Both options use items as the cards. They differ in where the cards come
               from and where you read them. They compose: a feed page from A would
@@ -455,6 +465,9 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
           id="ask-offers"
           label="Should agents turn the offers in their replies into cards?"
         >
+          <h2 id="ask-offers-h">
+            Should agents turn the offers in their replies into cards?
+          </h2>
           <p id="offers-premise">
             This is the tweet's discovery argument applied to one page. Agents end
             replies with offers like "say the word and I'll open the PR", and those go

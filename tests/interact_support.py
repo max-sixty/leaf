@@ -593,6 +593,7 @@ PAGE = f"""<!doctype html>
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
   <lf-group id="plan-choice-decision" label="Which plan should lead?">
+    <h3 id="plan-choice-question">Which plan should lead?</h3>
     {PAGE_GROUP}
       <lf-option id="flag-first" label="Flag first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
         Ship dark.
@@ -1207,6 +1208,7 @@ def _board(todo, done):
 X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
 OPTIONS = """<lf-group id="g1-decision" label="Which migration should lead?">
+  <h3 id="g1-decision-h">Which migration should lead?</h3>
   <lf-options id="g1">
     <lf-option id="o-shim" label="Shim it"{a}>{shim}</lf-option>
     <lf-option id="o-stage" label="Migrate in stages"{b}>{stage}</lf-option>

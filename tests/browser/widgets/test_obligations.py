@@ -51,7 +51,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 ACROSS_OBLIGATION = """
   <lf-group id="{id}" label="How long should logs be kept?">
-    <p>Retention</p>
+    <hgroup><p>Retention</p><h3 id="{id}-h">How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
@@ -91,6 +91,7 @@ ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
 
 PICTURED_OBLIGATION = """
   <lf-group id="{id}" label="Should each item say where it sits in the plan?">
+    <h3 id="{id}-h">Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice"{width}>
       <lf-option id="{id}-yes" label="Show the goal and step">A line over each item.
         <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
@@ -147,19 +148,19 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
     + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
-    + '<lf-group id="plated" label="Which latency?"><lf-options id="plated-choice">'
+    + '<lf-group id="plated" label="Which latency?"><h3 id="plated-h">Which latency?</h3><lf-options id="plated-choice">'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
     + "</lf-options></lf-group>"
-    + '<lf-group id="captured" label="Which panel?"><lf-options id="captured-choice">'
+    + '<lf-group id="captured" label="Which panel?"><h3 id="captured-h">Which panel?</h3><lf-options id="captured-choice">'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
     + "</lf-options></lf-group>"
-    + '<lf-group id="rowed" label="Which route?"><lf-options id="rowed-choice">'
+    + '<lf-group id="rowed" label="Which route?"><h3 id="rowed-h">Which route?</h3><lf-options id="rowed-choice">'
     + ROWED_OPTION.format(side="yes", title="Along the fence")
     + ROWED_OPTION.format(side="no", title="Under the lawn")
     + "</lf-options></lf-group>"
-    + '<lf-group id="worded" label="Which order?"><lf-options id="worded-choice">'
+    + '<lf-group id="worded" label="Which order?"><h3 id="worded-h">Which order?</h3><lf-options id="worded-choice">'
     + '<lf-option id="worded-yes" label="By owner">Grouped.</lf-option>'
     + '<lf-option id="worded-no" label="By age">As today.</lf-option>'
     + "</lf-options></lf-group>",
@@ -282,7 +283,7 @@ def chipped_obligation(id, cards):
         for n, (chips, title, attributes) in enumerate(cards)
     )
     return (
-        f'<lf-group id="{id}" label="Which fix first?">'
+        f'<lf-group id="{id}" label="Which fix first?"><h3 id="{id}-h">Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
         f'<lf-options id="{id}-choice" across>{options}</lf-options></lf-group>'
@@ -415,7 +416,8 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
     html = leaf_page(
         "obligation after a cleared pick",
         """
-<lf-group id="release-decision" label="Ship this release?">  <lf-options id="release-options">
+<lf-group id="release-decision" label="Ship this release?"><h1 id="release-decision-h">Ship this release?</h1>
+  <lf-options id="release-options">
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
@@ -1686,6 +1688,7 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
         leaf_page(
             "seated eligibility",
             '<h1 id="heading">Choose</h1><lf-group id="pick-decision" label="Cap the retries?">'
+            '<h2 id="pick-decision-h">Cap the retries?</h2>'
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
             "</lf-group>",
         ),

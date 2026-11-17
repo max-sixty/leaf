@@ -89,8 +89,8 @@ Make each question answerable where On Me takes the user: pressing `m` selects t
 whole question and brings its start to the top of the window, leaving earlier content
 out of view. Write each question as an `lf-group` holding the question and its case,
 with an id and a `label` that asks the question on its own, without leaning on the
-prose around it. The group draws its label as its title, so write no heading of your
-own at its start. The label's words are the question's words on On Me and in the
+prose around it. The group draws none of its label, so give it the heading the page
+needs, as for any part of the page. The label's words are the question's words on On Me and in the
 answer you receive; Leaf reads the region and its name from that markup, so
 `page check` refuses a widget that asks with no group round it.
 
@@ -104,6 +104,7 @@ widget in the group that asks is its own question with its own answer.
 
 ```html
 <lf-group id="material-q" label="Which material for the housing?">
+  <h2 id="material-h">Which material for the housing?</h2>
   <p>Aluminium costs three times as much and halves the weight.</p>
   <table id="material-weights">
     …
@@ -147,6 +148,7 @@ action and the evidence the user needs in the question's heading and prose:
   id="publish-report-question"
   label="Publish this report to the team workspace?"
 >
+  <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
     <lf-option id="publish-report-keep" label="Keep it private"></lf-option>

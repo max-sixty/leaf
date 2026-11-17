@@ -345,6 +345,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
         "</main>",
         """
         <lf-group id="second-ask" label="A second question">
+          <h2 id="second-ask-h">A second question</h2>
           <lf-options id="second-options">
             <lf-option id="second-one">First answer</lf-option>
             <lf-option id="second-two">Second answer</lf-option>
@@ -2057,13 +2058,15 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
         "label focus",
         """
 <h1 id="frames">Choose a frame</h1>
-<lf-group id="first-question-decision" label="Which first frame?"><lf-options id="first-question">
+<lf-group id="first-question-decision" label="Which first frame?"><h2 id="first-question-decision-h">Which first frame?</h2>
+<lf-options id="first-question">
   <lf-option id="first-frame" label="First">    <label><input id="first" type="radio" name="first-frame">
       <span>first state</span></label>
   </lf-option>
   <lf-option id="neither-first-frame" label="Neither"></lf-option>
 </lf-options></lf-group>
-<lf-group id="frame-question-decision" label="Which next frame?"><lf-options id="frame-question">
+<lf-group id="frame-question-decision" label="Which next frame?"><h2 id="frame-question-decision-h">Which next frame?</h2>
+<lf-options id="frame-question">
   <lf-option id="after-frame" label="After">    <div id="label-thread" tabindex="-1">
     <label id="frame-label"><input id="frame" type="radio" name="frame">
       <span>after state</span></label>

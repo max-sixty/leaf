@@ -19,6 +19,7 @@
       </p>
       <lf-deck id="deck-catch-up">
         <lf-group id="deck-store-ask" label="Which session store ships in 2.4?">
+          <h3 id="deck-store-ask-h">Which session store ships in 2.4?</h3>
           <p>
             Postgres removed the Redis hop in load tests (p99 41 ms to 29 ms) but needs
             the migration in the runbook. Redis is what production runs today.
@@ -49,6 +50,7 @@
           </lf-suggestion>
         </section>
         <lf-group id="deck-beta-ask" label="Which platforms get the 2.4 beta?">
+          <h3 id="deck-beta-ask-h">Which platforms get the 2.4 beta?</h3>
           <p>Each platform adds a day of smoke testing.</p>
           <lf-options id="deck-beta-choice" multiple>
             <lf-option id="deck-beta-mac">macOS</lf-option>
@@ -60,6 +62,9 @@
           id="deck-support-ask"
           label="Send this reply to the support thread about slow logins?"
         >
+          <h3 id="deck-support-ask-h">
+            Send this reply to the support thread about slow logins?
+          </h3>
           <p>It goes out under your name, with any edit you make to it.</p>
           <lf-draft id="deck-support-draft">
             <pre>
@@ -74,6 +79,7 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
           id="deck-publish-ask"
           label="Post the release notes to #eng on Friday?"
         >
+          <h3 id="deck-publish-ask-h">Post the release notes to #eng on Friday?</h3>
           <p>Posts the notes, with the upgrade note as you leave it.</p>
           <lf-options id="deck-publish-choice">
             <lf-option id="deck-publish-hold" label="Keep them as a draft"></lf-option>

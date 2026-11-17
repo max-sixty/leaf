@@ -970,7 +970,8 @@ FRAMED_WIDE_PAGE = leaf_page(
     <lf-column id="q2" label="Done"></lf-column>
   </lf-board>
 </lf-sample>
-<lf-group id="pick-decision" label="Should the option include evidence?"><lf-options id="pick">
+<lf-group id="pick-decision" label="Should the option include evidence?"><h2 id="pick-decision-h">Should the option include evidence?</h2>
+<lf-options id="pick">
   <lf-option id="opt-a" label="With evidence">    <lf-diagram id="in-card"><pre>
 graph LR
   A[request] --> B[queue]
@@ -979,7 +980,8 @@ graph LR
   </lf-option>
   <lf-option id="opt-b" label="Without"></lf-option>
 </lf-options></lf-group>
-<lf-group id="row-pick-decision" label="Where should the cable run?"><lf-options id="row-pick">
+<lf-group id="row-pick-decision" label="Where should the cable run?"><h2 id="row-pick-decision-h">Where should the cable run?</h2>
+<lf-options id="row-pick">
   <lf-option id="row-a">Along the fence line
     <lf-diagram id="in-row"><pre>
 graph LR

@@ -297,7 +297,8 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
 
 COLD_OBLIGATION = leaf_page(
     "Cold decisions",
-    """<h1>Cold decisions</h1><lf-group id="cold-ask" label="What now?"><lf-options id="cold-choice">
+    """<h1>Cold decisions</h1><lf-group id="cold-ask" label="What now?"><h2 id="cold-ask-h">What now?</h2>
+<lf-options id="cold-choice">
 <lf-option id="cold-a">A</lf-option><lf-option id="cold-b">B</lf-option>
 </lf-options></lf-group>""",
 )

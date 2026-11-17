@@ -19,7 +19,8 @@ LIVE_SAMPLES_PAGE = leaf_page(
 <lf-sample id="first-practice" label="First practice">
   <template id="first-source" data-sample>
     <h1 id="child-heading">A practice decision</h1>
-    <lf-group id="child-ask" label="Which approach?">      <lf-options id="child-options">
+    <lf-group id="child-ask" label="Which approach?"><h2 id="child-ask-h">Which approach?</h2>
+      <lf-options id="child-options">
         <lf-option id="child-a">First approach</lf-option>
         <lf-option id="child-b">Second approach</lf-option>
       </lf-options>
@@ -29,7 +30,8 @@ LIVE_SAMPLES_PAGE = leaf_page(
 <lf-sample id="second-practice" label="Second practice">
   <template id="second-source" data-sample>
     <h1 id="child-heading">Another practice decision</h1>
-    <lf-group id="child-ask" label="Which approach?">      <lf-options id="child-options">
+    <lf-group id="child-ask" label="Which approach?"><h2 id="child-ask-h">Which approach?</h2>
+      <lf-options id="child-options">
         <lf-option id="child-a">First approach</lf-option>
         <lf-option id="child-b">Second approach</lf-option>
       </lf-options>

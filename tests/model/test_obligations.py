@@ -25,7 +25,7 @@ OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-op
 def page(attrs="", context=None):
     content = OPTIONS.format(attrs=attrs)
     if context:
-        content = f'<lf-group id="{context}" label="Which route?">{content}</lf-group>'
+        content = f'<lf-group id="{context}" label="Which route?"><h2 id="{context}-h">Which route?</h2>{content}</lf-group>'
     return model.leaf_page("Questions", content)
 
 
@@ -650,7 +650,7 @@ def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
 FRAMED = model.leaf_page(
     "Questions",
     '<p id="intro">Context.</p><section id="case">'
-    '<lf-group id="frame" label="Two routes"><div id="first">'
+    '<lf-group id="frame" label="Two routes"><h2 id="head">Two routes</h2><div id="first">'
     + OPTIONS.format(attrs="")
     + "</div>"
     + OPTIONS.format(attrs="").replace('id="', 'id="y-')
@@ -663,7 +663,7 @@ FRAMED = model.leaf_page(
     ("anchor", "held"),
     [
         ({"section": "a", "quote": "A"}, ["widget:choice"]),
-        ({"section": "frame", "quote": "Two"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "head", "quote": "Two"}, ["widget:choice", "widget:y-choice"]),
         ({"section": "shown-a", "quote": "A"}, ["widget:choice", "widget:y-choice"]),
         ({"section": "first"}, ["widget:choice"]),
         ({"section": "case"}, ["widget:choice", "widget:y-choice"]),
@@ -1310,7 +1310,7 @@ def test_data_record_requests_keep_conditional_registration_and_their_group():
         return model.leaf_page(
             "Review",
             '<lf-group id="frame" label="Review this">'
-            '<lf-visual-review id="review"'
+            '<h2 id="frame-h">Review this</h2><lf-visual-review id="review"'
             f' source="gallery-visual-run" {attrs}></lf-visual-review></lf-group>',
         )
 

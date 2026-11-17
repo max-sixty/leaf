@@ -174,7 +174,7 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
             "revision": 1,
             "text": (
                 "Depends what you want to keep:\n\n"
-                '<lf-group id="ps-decision-region" label="Which store should I write up?">\n'
+                '<lf-group id="ps-decision-region" label="Which store should I write up?">\n<h3 id="ps-decision-region-h">Which store should I write up?</h3>'
                 '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
@@ -205,9 +205,7 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     open_panel_thread(page, "c-store")
-    assert "Which store" in drag(
-        page.locator('#ps-decision-region > [data-lf-said="label"]')
-    )
+    assert "Which store" in drag(page.locator("#ps-decision-region > h3"))
     # The release raises the button from the rendering it queues (`nextRender`).
     rendered(page)
     expect(page.locator(".lf-fab-input")).to_be_hidden()
@@ -388,7 +386,7 @@ def thread_on_a_sent_widget(serve):
             "revision": 1,
             "text": (
                 "Depends what you want to keep:\n\n"
-                '<lf-group id="ps-decision-region" label="Which store should I write up?">\n'
+                '<lf-group id="ps-decision-region" label="Which store should I write up?">\n<h3 id="ps-decision-region-h">Which store should I write up?</h3>'
                 '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'

@@ -440,10 +440,10 @@ QUIET = "2026-09-19T11:30:00+00:00"
 
 OBLIGATION_PAGE = leaf_page(
     "Served queues",
-    '<lf-group id="pick-ask" label="Which one?"><lf-options id="pick">'
+    '<lf-group id="pick-ask" label="Which one?"><h2 id="pick-ask-h">Which one?</h2><lf-options id="pick">'
     '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
     "</lf-options></lf-group>"
-    '<lf-group id="ship-ask" label="Ship it?"><lf-options id="ship">'
+    '<lf-group id="ship-ask" label="Ship it?"><h2 id="ship-ask-h">Ship it?</h2><lf-options id="ship">'
     '<lf-option id="ship-now">Now</lf-option><lf-option id="ship-later">Later</lf-option>'
     "</lf-options></lf-group>",
 )
@@ -697,10 +697,10 @@ def gesture_sequence() -> dict:
 TAIL_PAGE = leaf_page(
     "Served tails",
     '<p id="p">Two questions.</p>'
-    '<lf-group id="kinds-ask" label="Which kinds?"><lf-options id="kinds" multiple>'
+    '<lf-group id="kinds-ask" label="Which kinds?"><h2 id="kinds-ask-h">Which kinds?</h2><lf-options id="kinds" multiple>'
     '<lf-option id="red">Red</lf-option><lf-option id="blue">Blue</lf-option>'
     "</lf-options></lf-group>"
-    '<lf-group id="ship-ask" label="Ship it?"><lf-options id="ship">'
+    '<lf-group id="ship-ask" label="Ship it?"><h2 id="ship-ask-h">Ship it?</h2><lf-options id="ship">'
     '<lf-option id="now">Now</lf-option><lf-option id="later">Later</lf-option>'
     "</lf-options></lf-group>",
 )

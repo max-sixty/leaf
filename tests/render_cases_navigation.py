@@ -61,13 +61,15 @@ BINDING_BADGE_PAGE = leaf_page(
     "binding badges",
     """
 <h1 id="h">Two questions, two forms</h1>
-<lf-group id="cards-decision" label="How should the bath be heated?"><lf-options id="cards">
+<lf-group id="cards-decision" label="How should the bath be heated?"><h2 id="cards-decision-h">How should the bath be heated?</h2>
+<lf-options id="cards">
   <lf-option id="c-heater" label="Immersion heater">Drops into the basin.</lf-option>
   <lf-option id="c-cable" label="Heated cable">A cord across the base.</lf-option>
   <lf-option id="c-hand" label="Break the ice">Someone goes out each morning.</lf-option>
 </lf-options></lf-group>
 <p id="plan">The camera mount is the part nobody has costed.</p>
-<lf-group id="rows-decision" label="When should it be costed?"><lf-options id="rows">
+<lf-group id="rows-decision" label="When should it be costed?"><h2 id="rows-decision-h">When should it be costed?</h2>
+<lf-options id="rows">
   <lf-option id="r-now" for="plan">Cost it now</lf-option>
   <lf-option id="r-later" for="plan">Leave it for the spring</lf-option>
 </lf-options></lf-group>
@@ -272,7 +274,8 @@ enough that it runs past the end of one line and carries on onto the next</a>, a
 <details id="dsc"><summary id="dsc-head">What the store costs</summary>
 <p id="dsc-body">A replica in each region, and a read on every request that carries a
 session.</p></details>
-<lf-group id="opts-decision" label="How should sessions work?"><lf-options id="opts">
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-options id="opts">
   <lf-option id="opt-a" label="Keep the store">Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b" label="Signed tokens">No store at all, until revocation
@@ -438,7 +441,8 @@ First line of the note.
 
 Second paragraph of the note.
 </pre></lf-draft>
-<lf-group id="picks-decision" label="Should we keep the mounts?"><lf-options id="picks">
+<lf-group id="picks-decision" label="Should we keep the mounts?"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
+<lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
   <lf-option id="opt-b" selected>Replace the mounts</lf-option>
 </lf-options></lf-group>
@@ -454,7 +458,7 @@ NESTED_SUGGESTION = (
     SUGGESTION_PAGE.replace(
         "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
         "<lf-new>Switch the north feeder to thistle in autumn."
-        '<lf-group id="blend-decision" label="Which seed blend?">'
+        '<lf-group id="blend-decision" label="Which seed blend?"><h2 id="blend-decision-h">Which seed blend?</h2>'
         '<lf-options id="blend">'
         '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
         '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
@@ -833,7 +837,8 @@ KEYS_PAGE = leaf_page(
     "keys",
     """
 <h1 id="h">Session store</h1>
-<lf-group id="opts-decision" label="How should sessions work?"><lf-options id="opts">
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-options id="opts">
   <lf-option id="opt-keep" label="Keep the store">Sessions stay where they are.</lf-option>
   <lf-option id="opt-token" label="Signed tokens">No store at all.</lf-option>
 </lf-options></lf-group>

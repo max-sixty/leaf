@@ -268,6 +268,7 @@ variants:
         </main>
       question: |
         <lf-group id="next-touch-question" label="Should #59 be the next extraction scope?">
+          <h3 id="next-touch-question-h">Should #59 be the next extraction scope?</h3>
           <p>Tapping a discussion should select it even when an older message still has
           focus. I recommend this independent fix next; extraction and verification are
           my work, and choosing a scope does not authorize landing it.</p>

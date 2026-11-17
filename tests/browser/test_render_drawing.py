@@ -89,6 +89,7 @@ MAP_CHOICE_PAGE = leaf_page(
     + FILLER.replace("filler-", "before-")
     + """
 <lf-group id="map-ask" label="Which map should the sample team carry?">
+  <h3 id="map-ask-h">Which map should the sample team carry?</h3>
   <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
@@ -926,7 +927,7 @@ def test_draw_mode_captures_widget_controls(browser, serve):
             leaf_page(
                 "Drawing over a choice",
                 '<lf-group id="route-q" label="Choose a route">'
-                '<lf-options id="route">'
+                '<h1 id="route-h">Choose a route</h1><lf-options id="route">'
                 '<lf-option id="trail">Trail</lf-option>'
                 '<lf-option id="street">Street</lf-option></lf-options></lf-group>',
             )

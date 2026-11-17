@@ -58,6 +58,7 @@ STATED_KIT = """<!doctype html>
   </lf-options>
 </lf-sample>
 <lf-group id="kit-decision" label="Which navigation kit this year?">
+  <h2 id="kit-decision-h">Which navigation kit this year?</h2>
   <lf-options id="live-pick">
     <lf-option id="live-paper" label="Paper maps">Nothing to charge.</lf-option>
     <lf-option id="live-gps" label="Dedicated GPS">Offline maps.</lf-option>

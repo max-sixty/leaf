@@ -155,6 +155,7 @@ vars:
             </lf-sample>
 
             <lf-group id="scope-question" label="Which widgets should work off a Leaf page?">
+              <h3 id="scope-question-h">Which widgets should work off a Leaf page?</h3>
               <p>
                 I'd make the display widgets portable. The issue's case is another app
                 showing the same data, which is what they do. The interaction widgets, such
@@ -263,6 +264,7 @@ vars:
             </p>
 
             <lf-group id="chart-land-question" label="Land the portable entry for lf-chart?">
+              <h3 id="chart-land-question-h">Land the portable entry for <code>lf-chart</code>?</h3>
               <p>
                 This adds a public module, not a simplification, so it's outside the
                 <code>/gpk</code> authorization. Landing makes <code>portable-api.js</code> a
@@ -309,6 +311,7 @@ vars:
             </p>
 
             <lf-group id="keys-question" label="How should a portable widget declare its keys?">
+              <h3 id="keys-question-h">How should a portable widget declare its keys?</h3>
               <p>
                 I'd have the widget declare its rows as data. It matches how Leaf already
                 reads settling and failures from a widget, keeps the register the one place
@@ -388,6 +391,7 @@ vars:
             </p>
 
             <lf-group id="diff-filter-question" label="Should find-in-page reach diff files the filter hides?">
+              <h3 id="diff-filter-question-h">Should find-in-page reach diff files the filter hides?</h3>
               <p>
                 Since #4500 a filtered-out file is <code>hidden="until-found"</code>. Find
                 (⌘F), a fragment link or Leaf's target search can land in it, which clears
@@ -406,6 +410,7 @@ vars:
             </lf-group>
 
             <lf-group id="transcript-question" label="Should find-in-page reach folded thread messages?">
+              <h3 id="transcript-question-h">Should find-in-page reach folded thread messages?</h3>
               <p>
                 A thread folds older messages with plain <code>hidden</code>, which find
                 can't see, and unfolds one for Leaf's travel through an internal hook,
@@ -578,6 +583,7 @@ variants:
                 </p>
 
                 <lf-group id="scope-question" label="Which widgets should work off a Leaf page?">
+                  <h3 id="scope-question-h">Which widgets should work off a Leaf page?</h3>
                   <p>
                     I'd make the display widgets portable. The issue's case is another app
                     showing the same data, which is what they do. The interaction widgets, such
@@ -648,6 +654,7 @@ variants:
                 </p>
 
                 <lf-group id="diff-filter-question" label="Should find-in-page reach diff files the filter hides?">
+                  <h3 id="diff-filter-question-h">Should find-in-page reach diff files the filter hides?</h3>
                   <p>
                     Since #4500 a filtered-out file is <code>hidden="until-found"</code>. Find
                     (⌘F), a fragment link or Leaf's target search can land in it, which clears
@@ -666,6 +673,7 @@ variants:
                 </lf-group>
 
                 <lf-group id="transcript-question" label="Should find-in-page reach folded thread messages?">
+                  <h3 id="transcript-question-h">Should find-in-page reach folded thread messages?</h3>
                   <p>
                     A thread folds older messages with plain <code>hidden</code>, which find
                     can't see, and unfolds one for Leaf's travel through an internal hook,

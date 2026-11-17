@@ -1281,7 +1281,7 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
     pick settles; a question in a thread elsewhere stays out."""
     source = PAGE.replace(
         "</section>",
-        '</section><lf-group id="ship-ask" label="Ship on Friday?">'
+        '</section><lf-group id="ship-ask" label="Ship on Friday?"><h2 id="ship-ask-h">Ship on Friday?</h2>'
         '<lf-options id="permit"><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options></lf-group>'
         '<p id="aside">An aside.</p>',

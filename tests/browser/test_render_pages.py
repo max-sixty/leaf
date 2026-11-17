@@ -1883,7 +1883,7 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     table += f"<tbody>{row * 2}</tbody></table>"
     body = (
         "<h1>Tables of prose</h1>"
-        '<lf-group id="asked" label="Which copy should a session read?">'
+        '<lf-group id="asked" label="Which copy should a session read?"><h2 id="asked-h">Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice">'
         '<lf-option id="asked-reload" label="Reload">Ask for a reload.</lf-option>'

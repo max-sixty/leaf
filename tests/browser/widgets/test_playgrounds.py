@@ -40,7 +40,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 CONTRIBUTOR_PAGE = leaf_page(
     "query configuration",
     """
-<lf-group id="query-ask" label="Choose the alert query"><lf-playground id="query-config">
+<lf-group id="query-ask" label="Choose the alert query"><h1 id="query-ask-h">Choose the alert query</h1>
+<lf-playground id="query-config">
   <aside>
   <fieldset id="stream"><legend>Event stream</legend><label id="stream-checkout"><input type="radio" name="stream" value="checkout" checked /> Checkout</label><label id="stream-billing"><input type="radio" name="stream" value="billing" /> Billing</label></fieldset>
   </aside>
@@ -364,7 +365,8 @@ def test_keyboard_can_take_a_range_while_the_preview_preserving_press_is_held(
             leaf_page(
                 "Keyboard during a range press",
                 """
-<lf-group id="ring-ask" label="Choose a ring"><lf-playground id="ring">
+<lf-group id="ring-ask" label="Choose a ring"><h1 id="ring-ask-h">Choose a ring</h1>
+<lf-playground id="ring">
   <aside><label id="width">Width <input type="range" name="width" min="1" max="4" value="2" /></label></aside>
   <label>Candidate<input value="Focus treatment"></label>
   <lf-playground-output>Width <output for="width"></output></lf-playground-output>
@@ -784,6 +786,7 @@ def test_a_playground_in_a_short_page_tab_keeps_its_actions_clear_of_the_panel(
         '<header><h1 id="tabs-h">Tune alert policies</h1></header>'
         '<lf-tabs id="views" flow="page"><lf-tab id="t-tune" label="Tune">'
         '<lf-group id="tune" label="Which latency window?">'
+        '<h2 id="tune-q">Which latency window?</h2>'
         '<lf-playground id="tab-config" data-width="available">'
         '<lf-playground-preset id="tab-preset" label="Suggested window">'
         '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
@@ -845,7 +848,7 @@ def test_a_playground_followed_by_a_note_keeps_its_actions_off_the_note(browser,
     # at 900px.
     source = leaf_page(
         "Alert workspace with a note",
-        '<lf-group id="noted-ask" label="Tune alert policies">'
+        '<lf-group id="noted-ask" label="Tune alert policies"><h1 id="noted-ask-h">Tune alert policies</h1>'
         '<lf-playground id="noted-config" data-width="available">'
         + "<p>Checkout latency fired seven times last month.</p>"
         * 12
@@ -906,7 +909,7 @@ def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
     than what stands on it."""
     source = leaf_page(
         "Stage",
-        '<lf-group id="stage-ask" label="Choose a density">'
+        '<lf-group id="stage-ask" label="Choose a density"><h1 id="stage-ask-h">Choose a density</h1>'
         '<lf-playground id="stage-playground">'
         '<aside><label id="rows">Rows <input type="range" name="rows" min="1" max="8" value="4" /></label>'
         '<fieldset id="mode"><legend>Mode</legend>'
@@ -1115,7 +1118,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     source = leaf_page(
         "Instruction popover",
         '<button id="outside">Before playground</button>'
-        '<lf-group id="fold-ask" label="Choose a density">'
+        '<lf-group id="fold-ask" label="Choose a density"><h1 id="fold-ask-h">Choose a density</h1>'
         '<lf-playground id="fold-playground" data-width="available">'
         '<aside><label id="rows">Rows <input type="range" name="rows" min="1" max="8" value="4" /></label></aside>'
         "<p>Rows of the report.</p>"
@@ -1392,7 +1395,8 @@ PAGE_ACTIONS_PAGE = leaf_page(
     "page-drawn playground",
     """
 <style>tile-tool button { font-size: 19px; }</style>
-<lf-group id="tile-ask" label="Choose the tile size"><lf-playground id="tile-config">
+<lf-group id="tile-ask" label="Choose the tile size"><h1 id="tile-ask-h">Choose the tile size</h1>
+<lf-playground id="tile-config">
   <tile-tool><button type="submit" class="tile-save">Keep this size</button>
     <button type="reset">Reset</button></tile-tool>
   <lf-playground-output>Keep the tile size.</lf-playground-output>
@@ -1651,7 +1655,8 @@ def test_a_comment_names_the_playground_member_it_points_at(browser, serve, subt
     comment records the id and names the member."""
     source = leaf_page(
         "Pick a word",
-        """<lf-group id="word-ask" label="Which word should a box say?"><lf-playground id="word-playground">
+        """<lf-group id="word-ask" label="Which word should a box say?"><h2 id="word-ask-h">Which word should a box say?</h2>
+<lf-playground id="word-playground">
   <lf-playground-preset id="start-today" label="Start from today">
     <lf-playground-setting for="word" value="today"></lf-playground-setting>
   </lf-playground-preset>

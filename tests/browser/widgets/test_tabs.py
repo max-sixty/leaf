@@ -908,7 +908,7 @@ def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve)
         serve.page_dir,
         source.replace(
             '<p id="last-words">Nothing yet.</p>',
-            '<lf-group id="ask" label="Go?">'
+            '<lf-group id="ask" label="Go?"><h3 id="ask-h">Go?</h3>'
             '<lf-options id="pick"><lf-option id="pick-a">Go</lf-option></lf-options></lf-group>',
         ),
         "Ask the first question",
@@ -930,7 +930,8 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "a late queue",
             """<lf-tabs id="queue" list="side">
 <lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
-  <lf-group id="ask-a" label="What happens to a?">    <lf-options id="o-a">
+  <lf-group id="ask-a" label="What happens to a?"><h3 id="q-a">What happens to a?</h3>
+    <lf-options id="o-a">
       <lf-option id="o-a-fix" label="Fix">Ship the patch.</lf-option>
       <lf-option id="o-a-close" label="Escalate to engineering">Send the logs.</lf-option>
       <lf-option id="o-a-long" label="Escalate to the international engineering incident response team">Send all logs.</lf-option>

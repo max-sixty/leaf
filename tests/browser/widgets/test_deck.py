@@ -12,7 +12,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def card(name, question):
-    return f"""<lf-group id="{name}-ask" label="{question}">      <lf-options id="{name}-choice">
+    return f"""<lf-group id="{name}-ask" label="{question}"><h3 id="{name}-ask-h">{question}</h3>
+      <lf-options id="{name}-choice">
         <lf-option id="{name}-yes" label="Yes"></lf-option>
         <lf-option id="{name}-no" label="No"></lf-option>
       </lf-options></lf-group>"""
@@ -113,7 +114,7 @@ def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
 DRAFT_DECK_PAGE = leaf_page(
     "Deck with a draft",
     '<h1>Before the release</h1><lf-deck id="deck">'
-    '<lf-group id="reply-ask" label="Send this reply?">'
+    '<lf-group id="reply-ask" label="Send this reply?"><h3 id="reply-ask-h">Send this reply?</h3>'
     '<lf-draft id="reply-draft"><pre>\nThanks for the report.</pre></lf-draft>'
     '<lf-options id="reply-choice">'
     '<lf-option id="reply-send" label="Send it"></lf-option>'

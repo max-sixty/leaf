@@ -14,6 +14,7 @@ vars:
 
     ```html
     <lf-group id="rollout" label="Which region should take the first rollout of the new billing service?">
+      <h2 id="rollout-h">Which region should take the first rollout of the new billing service?</h2>
       <lf-options id="region">...</lf-options>
     </lf-group>
     ```

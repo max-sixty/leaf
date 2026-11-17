@@ -475,6 +475,9 @@ leaf server start ./review</code></pre>
                   id="queue-question"
                   label="When the queue fills, what should happen?"
                 >
+                  <h3 id="queue-question-h">
+                    When the queue fills, what should happen?
+                  </h3>
                   <lf-options id="queue-policy">
                     <lf-option id="block-producer" label="Pause the producer"
                       >Keep every queued record; wait for space before accepting
@@ -1871,6 +1874,7 @@ flowchart TD
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
               <lf-group id="ship-ask" label="When should this ship?">
+                <h2 id="ship-ask-h">When should this ship?</h2>
                 <lf-options id="ship">
                   <lf-option id="ship-now" label="Now"
                     >Today, behind the flag.</lf-option
@@ -2289,6 +2293,9 @@ flowchart TD
                 id="sample-publish-report-decision"
                 label="Publish the sample report?"
               >
+                <h2 id="sample-publish-report-decision-h">
+                  Publish the sample report?
+                </h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
                   <lf-option

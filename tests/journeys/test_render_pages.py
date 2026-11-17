@@ -891,7 +891,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
-        '<lf-group id="{id}" label="Ship it?">{table}'
+        '<lf-group id="{id}" label="Ship it?"><h3 id="{id}-h">Ship it?</h3>{table}'
         '<lf-options id="{id}-o">'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-group>'
     )
@@ -975,7 +975,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     assert at["holds-t"]["width"] == wide, at
     assert at["holds-t"]["left"] == at["prose"]["left"], at
     assert at["holds"] == at["holds-t"], at
-    heading = column.locator('#holds > [data-lf-said="label"]').bounding_box()
+    heading = column.locator("#holds h3").bounding_box()
     assert round(heading["x"]) == at["prose"]["left"], (heading, at)
     assert at["ask"] == at["prose"], at
     assert at["contained-c"]["width"] == at["prose"]["width"], at

@@ -126,7 +126,8 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             '<lf-old><a id="startup-link" href="#after">Continue reading</a>',
         ).replace(
             "</main>",
-            """<lf-group id="startup-decision" label="Startup choice"><lf-options id="startup-choice">
+            """<lf-group id="startup-decision" label="Startup choice"><h2 id="startup-decision-h">Startup choice</h2>
+<lf-options id="startup-choice">
   <lf-option id="startup-a">First</lf-option>
   <lf-option id="startup-b">Second</lf-option>
 </lf-options></lf-group>

@@ -287,6 +287,7 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
     def ask(choice, label):
         return (
             '<lf-group id="stream-reply-ask" label="Use this answer?">\n'
+            '<h3 id="stream-reply-ask-h">Use this answer?</h3>'
             f'<lf-options id="{choice}">'
             f'<lf-option id="{choice}-now">{label}</lf-option>'
             "</lf-options></lf-group>"

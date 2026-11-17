@@ -362,7 +362,7 @@ def test_keyboard_first_unread_exposes_authored_reply(browser, serve, origin):
         None,
         None,
         "Choose the next step.\n\n"
-        '<lf-group id="read-decision" label="Which way?">\n'
+        '<lf-group id="read-decision" label="Which way?">\n<h3 id="read-decision-h">Which way?</h3>'
         '<lf-options id="read-choice">'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'

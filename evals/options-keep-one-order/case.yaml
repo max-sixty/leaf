@@ -23,6 +23,7 @@ vars:
 
     ```html
     <lf-group id="ask-resolve-glyph" label="Resolve and Reopen are a bare ✓: one press hides the thread, and reopening looks like a status">
+      <h3 id="resolve-glyph">Resolve and Reopen are a bare ✓: one press hides the thread, and reopening looks like a status</h3>
       <p>
         A card's Resolve is a ✓ beside ✕. One press closes the card, removes the
         marker and the passage underline, and ends the thread's open questions. The
@@ -44,6 +45,7 @@ vars:
     </lf-group>
 
     <lf-group id="ask-answer-control" label="A question asked in words shows no way to answer it">
+      <h3 id="answer-control">A question asked in words shows no way to answer it</h3>
       <p>
         A question asked in words renders as an ordinary paragraph, and the only
         sign it is a question is a <code>?</code> in the rail. On Me has the same
@@ -137,6 +139,7 @@ variants:
 
         ```html
         <lf-group id="d43" label="#43 How strong should the window-height requirements be?">
+          <h3 id="d43-h">#43 How strong should the window-height requirements be?</h3>
           <p>
             Clipped controls and sideways scroll stay refusals, now also at the new height.
             The question is the two that aren't checked: a workspace's decision in view, and a
@@ -234,6 +237,7 @@ variants:
 
         ```html
         <lf-group id="skill-ask" label="Should the grind workflow become a skill?">
+          <h2 id="skill-ask-h">Should the grind workflow become a skill?</h2>
           <p>
             Every agent tonight read the same brief, and three of its rules came from
             friction an agent hit. No skill covers a batch of agents over the TODO

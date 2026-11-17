@@ -3309,6 +3309,7 @@ FRAMED_TABLES_PAGE = leaf_page(
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
 <lf-group id="figure-asked" label="Which session ends?">
+<h2 id="figure-asked-h">Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
 <lf-options id="figure-asked-choice">
 <lf-option id="figure-asked-early" label="Early">End it at 16:00.</lf-option>
@@ -3317,6 +3318,7 @@ FRAMED_TABLES_PAGE = leaf_page(
 </lf-group>
 </figure>
 <lf-group id="asked" label="Which session moves?">
+<h2 id="asked-h">Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
 <lf-options id="asked-choice">
 <lf-option id="asked-early" label="Early">Move it to 8:00.</lf-option>
@@ -3842,7 +3844,8 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     column, and a box pulled off the leading edge, which no scroll reaches, is also
     clipped out. A box sized past only the trailing edge is reached by the root's
     sideways scroll, so it is not clipped out."""
-    item = """<lf-group id="{id}" label="Which one?">  <figure data-width="wide"><p>Evidence the room holds.</p></figure>
+    item = """<lf-group id="{id}" label="Which one?"><h2 id="{id}-h">Which one?</h2>
+  <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o"><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-group>"""
     source = leaf_page(

@@ -15,6 +15,7 @@ PAGE = """<!doctype html>
 <body>
 <main>
 <lf-group id="control" label="Control page">
+<h1 id="control-h">Control page</h1>
 <lf-playground id="pg">
   <aside><label id="radius">Corner radius <input type="range" name="radius" min="0" max="24" value="12"></label></aside>
   <lf-playground-preset id="preset-wide" label="Wide">

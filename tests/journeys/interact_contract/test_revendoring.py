@@ -60,7 +60,7 @@ def test_init_allows_a_log_holding_a_token_the_incoming_layer_dropped(
 def test_init_allows_changed_generated_child_semantics(page_dir):
     registry = vocabulary(page_dir)
     options = (
-        '<lf-group id="route-decision" label="Which route?">'
+        '<lf-group id="route-decision" label="Which route?"><h2 id="route-decision-h">Which route?</h2>'
         '<lf-options id="route">'
         '<lf-option id="route-authored">Authored route</lf-option>'
         "</lf-options></lf-group>"

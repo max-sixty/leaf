@@ -618,6 +618,7 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
             leaf_page(
                 "Draft in an Ask",
                 '<h1>Release note</h1><lf-group id="note-decision" label="How should the note read?">'
+                '<h2 id="note-decision-h">How should the note read?</h2>'
                 f'<lf-draft id="note" required><pre>{original}</pre></lf-draft></lf-group>',
             )
         ),

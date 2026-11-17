@@ -1994,7 +1994,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-group id="delivery-decision" label="When should this ship?">'
+            '<lf-group id="delivery-decision" label="When should this ship?"><h3 id="delivery-decision-h">When should this ship?</h3>'
             '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             "</lf-options></lf-group></section>",
@@ -2047,7 +2047,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-group id="delivery-decision" label="When should this ship?">'
+            '<lf-group id="delivery-decision" label="When should this ship?"><h3 id="delivery-decision-h">When should this ship?</h3>'
             '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
@@ -2102,7 +2102,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-group id="delivery-decision" label="When should this ship?">'
+            '<lf-group id="delivery-decision" label="When should this ship?"><h3 id="delivery-decision-h">When should this ship?</h3>'
             '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
@@ -2253,13 +2253,13 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     """
     old_page = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">').replace(
         "</section>",
-        '<lf-group id="kept-decision" label="Kept"><lf-options id="kept">'
+        '<lf-group id="kept-decision" label="Kept"><h3 id="kept-decision-h">Kept</h3><lf-options id="kept">'
         '<lf-option id="kept-one">One</lf-option></lf-options></lf-group>'
-        '<lf-group id="gone-decision" label="Gone"><lf-options id="gone">'
+        '<lf-group id="gone-decision" label="Gone"><h3 id="gone-decision-h">Gone</h3><lf-options id="gone">'
         '<lf-option id="gone-one">One</lf-option></lf-options></lf-group></section>',
     )
     new_page = re.sub(
-        r'<lf-group id="gone-decision" label="Gone">.*?</lf-group>',
+        r'<lf-group id="gone-decision" label="Gone"><h3 id="gone-decision-h">Gone</h3>.*?</lf-group>',
         "",
         old_page,
         flags=re.DOTALL,
@@ -2387,7 +2387,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-group id="delivery-decision" label="When should this ship?">'
+            '<lf-group id="delivery-decision" label="When should this ship?"><h3 id="delivery-decision-h">When should this ship?</h3>'
             '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
@@ -2703,7 +2703,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "--text",
             (
                 "Pick one:\n\n"
-                '<lf-group id="thread-pick-decision" label="Which option?">\n'
+                '<lf-group id="thread-pick-decision" label="Which option?">\n<h3 id="thread-pick-decision-h">Which option?</h3>'
                 '<lf-options id="thread-pick">'
                 '<lf-option id="thread-a" label="A"></lf-option>'
                 "</lf-options></lf-group>"
@@ -2768,7 +2768,7 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-group id="worker-decision" label="What next?">'
+            '<lf-group id="worker-decision" label="What next?"><h3 id="worker-decision-h">What next?</h3>'
             '<lf-options id="worker">'
             '<lf-option id="worker-restart">Restart the worker</lf-option>'
             '<lf-option id="worker-park">Park it</lf-option>'
@@ -5083,7 +5083,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "revision": 27,
         },
     ]
-    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-group id="route-ask" label="Route"><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-group>'
+    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-group id="route-ask" label="Route"><h2 id="route-ask-h">Route</h2><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-group>'
 
     def template(identity):
         return f'<template id="{identity}" data-sample data-sample-events="fixture">{child_content}</template>'

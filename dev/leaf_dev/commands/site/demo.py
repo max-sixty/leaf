@@ -204,6 +204,7 @@ new version as the checks finish.</p>
 </lf-board>
 </section>
 <lf-group id="migration-approval-decision" label="Approve the migration plan?">
+<h2 id="migration-approval-decision-h">Approve the migration plan?</h2>
 <p>The rollout sequence and acceptance criteria described above.</p>
 <lf-options id="migration-approval">
 <lf-option id="migration-hold" label="Hold the rollout"></lf-option>

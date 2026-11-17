@@ -24,17 +24,6 @@ DOCUMENT = """
 """
 
 
-# The inline extent of each element in `main` with an id, by its id, and of each group's
-# drawn title, as `<group id>-title`.
-BOXES = """() => Object.fromEntries(
-  [...document.querySelectorAll('main [id], main [id] > [data-lf-said="label"]')]
-    .map(el => {
-      const box = el.getBoundingClientRect();
-      const name = el.id || `${el.parentElement.id}-title`;
-      return [name, [Math.round(box.left), Math.round(box.right)]];
-    }))"""
-
-
 def test_native_sidebar_is_placed_before_widget_activation(browser, serve):
     source = leaf_page("native startup", DOCUMENT, layout="sidebar")
     url = serve(source)
@@ -68,7 +57,7 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
     )
     question = (
-        '<lf-group id="{id}" label="Ship it?">'
+        '<lf-group id="{id}" label="Ship it?"><h2 id="{id}-head">Ship it?</h2>'
         '<p id="{id}-premise">Because it fits.</p>{held}' + options + "</lf-group>"
     )
     evidence = '<div id="{id}-evidence" data-width="available">Evidence.</div>'
@@ -88,11 +77,16 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     )
     page = open_page(browser, serve(source))
     resized(page, 1728, 900)
-    boxes = page.evaluate(BOXES)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('[id]')].filter(el => el.closest('main'))
+        .map(el => {
+          const box = el.getBoundingClientRect();
+          return [el.id, [Math.round(box.left), Math.round(box.right)]];
+        }))""")
     column = boxes["prose"]
     assert column == [504, 1224]
     for question_id in ("plain", "holds", "wrapped", "kept"):
-        for part in ("title", "premise", "options"):
+        for part in ("head", "premise", "options"):
             assert boxes[f"{question_id}-{part}"] == column, (question_id, part, boxes)
     assert boxes["plain"] == column, boxes
     # The block takes the room and the question's box, which its marks stand on, holds it.
@@ -120,6 +114,7 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     options = '<lf-options id="{id}-o"><lf-option id="{id}-y">Yes</lf-option>'
     question = (
         f'<lf-group id="{{id}}" dir="{other}" label="Ship it?">'
+        '<h3 id="{id}-h">Ship it?</h3>'
         '<div id="{id}-block" data-width="{width}">Evidence.</div>'
         + options
         + "</lf-options></lf-group>"
@@ -138,7 +133,11 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">', 1)
     page = open_page(browser, serve(source))
     resized(page, 1726, 900)
-    boxes = page.evaluate(BOXES)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      [...document.querySelectorAll('main [id]')].map(el => {
+        const box = el.getBoundingClientRect();
+        return [el.id, [Math.round(box.left), Math.round(box.right)]];
+      }))""")
     prose, room = boxes["prose"], boxes["room"]
     assert room != prose and 0 <= room[0] and room[1] <= 1726, boxes
     for block in ("reaches-block", "reaches", "section-block"):
@@ -146,7 +145,7 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     widens, start = boxes["widens-block"], 0 if other == "ltr" else 1
     assert widens != prose and room[0] <= widens[0] and widens[1] <= room[1], boxes
     assert widens[start] == prose[start] and boxes["widens"] == widens, boxes
-    for held in ("reaches-title", "widens-title"):
+    for held in ("reaches-h", "widens-h"):
         assert boxes[held] == prose, (held, boxes)
 
 
@@ -190,7 +189,8 @@ def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
     source = leaf_page(
         "Question in a workspace",
         """<header><h1>Question in a workspace</h1></header>
-        <div id="region"><lf-group id="asked" label="Ship it?">          <div id="wide-evidence" data-width="wide">Evidence.</div>
+        <div id="region"><lf-group id="asked" label="Ship it?"><h2 id="asked-h">Ship it?</h2>
+          <div id="wide-evidence" data-width="wide">Evidence.</div>
           <lf-options id="choice"><lf-option id="yes">Yes</lf-option></lf-options>
         </lf-group></div>""",
         layout="workspace",

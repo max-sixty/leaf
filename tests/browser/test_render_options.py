@@ -324,6 +324,7 @@ def test_a_questions_options_own_their_digit_bindings(browser, serve, cards):
                 "standalone options",
                 '<button id="outside">Outside</button>'
                 '<lf-group id="apply" label="Which apply?">'
+                '<h1 id="apply-h">Which apply?</h1>'
                 '<lf-options id="choices" multiple>'
                 f'<lf-option id="one"{one}</lf-option>'
                 f'<lf-option id="two"{two}</lf-option>'
@@ -372,7 +373,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
         serve(
             leaf_page(
                 "stable option numbers",
-                '<h1>Stable numbers</h1><lf-group id="question" label="Which apply?">'
+                '<h1>Stable numbers</h1><lf-group id="question" label="Which apply?"><h2 id="question-h">Which apply?</h2>'
                 '<lf-options id="choices" multiple>'
                 '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
                 "</lf-options></lf-group>",
@@ -939,25 +940,28 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
 def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_sample(
     browser, serve
 ):
-    """An obligation's title begins at the edge of the frame that holds it, and a later
-    one keeps a third-level heading's room above it."""
+    """An obligation's heading begins at the edge of the frame that holds it."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "First Ask",
-                """<lf-group id="page-ask" label="Choose the route"><lf-options id="page-options"><lf-option id="page-route">Route A</lf-option></lf-options>
+                """<lf-group id="page-ask" label="Choose the route"><h2 id="page-ask-h">Choose the route</h2>
+<lf-options id="page-options"><lf-option id="page-route">Route A</lf-option></lf-options>
 </lf-group>
 <p id="between-asks">Context before another question.</p>
-<lf-group id="later-ask" label="Choose the backup">  <lf-options id="later-options"><lf-option id="later-route">Route B</lf-option></lf-options>
+<lf-group id="later-ask" label="Choose the backup"><h2 id="later-ask-h">Choose the backup</h2>
+  <lf-options id="later-options"><lf-option id="later-route">Route B</lf-option></lf-options>
 </lf-group>
 <div id="own-frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
-  <lf-group id="framed-ask" label="Choose the route">    <lf-options id="framed-options"><lf-option id="framed-route">Route A</lf-option></lf-options>
+  <lf-group id="framed-ask" label="Choose the route"><h2 id="framed-ask-h">Choose the route</h2>
+    <lf-options id="framed-options"><lf-option id="framed-route">Route A</lf-option></lf-options>
   </lf-group>
 </div>
 <lf-sample id="sample" label="a first Ask">
   <template id="sample-page" data-sample>
-    <lf-group id="sample-ask" label="Choose the route">      <lf-options id="sample-options"><lf-option id="sample-route">Route A</lf-option></lf-options>
+    <lf-group id="sample-ask" label="Choose the route"><h2 id="sample-ask-h">Choose the route</h2>
+      <lf-options id="sample-options"><lf-option id="sample-route">Route A</lf-option></lf-options>
     </lf-group>
   </template>
 </lf-sample>""",
@@ -968,17 +972,17 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     for root in (page, page.frame_locator("#sample iframe")):
         gap = root.locator("main").evaluate(
             """main => {
-                const heading = main.querySelector('lf-group > [data-lf-said="label"]');
+                const heading = main.querySelector('lf-group > h2');
                 return heading.getBoundingClientRect().top
                   - main.getBoundingClientRect().top
                   - parseFloat(getComputedStyle(main).paddingTop);
             }"""
         )
-        assert abs(gap) < 1, f"the first question leaves {gap}px above its title"
+        assert abs(gap) < 1, f"the first question leaves {gap}px above its heading"
 
     framed_gap = page.locator("#own-frame").evaluate(
         """frame => {
-            const heading = frame.querySelector('lf-group > [data-lf-said="label"]');
+            const heading = frame.querySelector('lf-group > h2');
             const style = getComputedStyle(frame);
             return heading.getBoundingClientRect().top
               - frame.getBoundingClientRect().top
@@ -987,14 +991,14 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
         }"""
     )
     assert abs(framed_gap) < 1, (
-        f"a framed question leaves {framed_gap}px above its title"
+        f"a framed question leaves {framed_gap}px above its heading"
     )
-    later_gap = page.locator('#later-ask > [data-lf-said="label"]').evaluate(
+    later_gap = page.locator("#later-ask > h2").evaluate(
         """heading => heading.getBoundingClientRect().top
           - document.querySelector('#between-asks').getBoundingClientRect().bottom"""
     )
-    assert abs(later_gap - 32) < 1, (
-        f"a question later in the page keeps {later_gap}px rather than 32px above its title"
+    assert abs(later_gap - 48) < 1, (
+        f"a question later in the page keeps {later_gap}px rather than 48px above its heading"
     )
 
 
@@ -1008,12 +1012,14 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<lf-group id="cell-decision" label="Where should a session live?"><p>{WIDE_PROSE}</p>
+<lf-group id="cell-decision" label="Where should a session live?"><h2 id="cell-decision-h">Where should a session live?</h2>
+<p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" data-width="available">
   <lf-option id="cc-redis" label="Redis">A store we already run.</lf-option>
   <lf-option id="cc-pg" label="Postgres">One fewer moving part.</lf-option>
 </lf-options></lf-group>
-<lf-group id="rows-decision" label="Which jobs are worth starting?"><p>{WIDE_PROSE}</p>
+<lf-group id="rows-decision" label="Which jobs are worth starting?"><h2 id="rows-decision-h">Which jobs are worth starting?</h2>
+<p>{WIDE_PROSE}</p>
 <lf-options id="cell-rows" multiple data-width="available">
   <lf-option id="cr-drill">A revocation drill</lf-option>
   <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
@@ -1021,7 +1027,8 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<lf-group id="page-decision" label="Who owns the migration?"><p>{WIDE_PROSE}</p>
+<lf-group id="page-decision" label="Who owns the migration?"><h2 id="page-decision-h">Who owns the migration?</h2>
+<p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" data-width="available">
   <lf-option id="pc-platform" label="Platform">They run the store.</lf-option>
   <lf-option id="pc-accounts" label="Accounts">They own the table.</lf-option>
@@ -1655,7 +1662,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
             leaf_page(
                 "ten routes",
                 '<h1 id="h">Ten routes</h1>'
-                '<lf-group id="routes-decision" label="Which routes survive?">'
+                '<lf-group id="routes-decision" label="Which routes survive?"><h2 id="routes-decision-h">Which routes survive?</h2>'
                 f'<lf-options id="routes" multiple>{options}</lf-options>'
                 "</lf-group>",
             )

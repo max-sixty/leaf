@@ -66,7 +66,8 @@ MOTION_SAMPLE_CONTENT = """
 <lf-sample id="card-sample" label="Current sample">
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
-    <lf-group id="sample-choice-ask" label="Choose a sample">      <lf-options id="sample-choice">
+    <lf-group id="sample-choice-ask" label="Choose a sample"><h3 id="sample-choice-ask-h">Choose a sample</h3>
+      <lf-options id="sample-choice">
         <lf-option id="sample-alpha" label="Alpha"></lf-option>
         <lf-option id="sample-beta" label="Beta"></lf-option>
       </lf-options>
@@ -103,7 +104,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         return f"""
 <lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
-  <lf-group id="ask-{key}" label="What happens to {key}?">    <lf-options id="o-{key}">
+  <lf-group id="ask-{key}" label="What happens to {key}?"><h3 id="q-{key}">What happens to {key}?</h3>
+    <lf-options id="o-{key}">
       <lf-option id="o-{key}-fix" label="Fix">Ship the patch.</lf-option>
       <lf-option id="o-{key}-close" label="Close">Explain and close.</lf-option>
     </lf-options>
@@ -293,6 +295,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
         "Session-store follow-ups",
         """<h1>Session-store follow-ups</h1>
 <lf-group id="session-triage-decision" label="Which follow-ups should we keep?">
+  <h2 id="session-triage-decision-h">Which follow-ups should we keep?</h2>
   <lf-options id="session-triage" multiple>
     <lf-option id="rolling-expiry">Rolling expiry</lf-option>
     <lf-option id="bounded-fallback">Bounded fallback</lf-option>
@@ -304,7 +307,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     item = page.locator("#session-triage-decision")
     assert item.evaluate("node => getComputedStyle(node).display") == "block"
     assert (
-        item.locator(':scope > [data-lf-said="label"]').evaluate(
+        item.locator(":scope > h2").evaluate(
             "heading => getComputedStyle(heading).marginTop"
         )
         != "0px"
@@ -1789,6 +1792,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
 <h1>Tone playground</h1>
 <p id="host-note">The page around the playground.</p>
 <lf-group id="tone-ask" label="Which tone?">
+  <h2 id="tone-ask-h">Which tone?</h2>
   <lf-playground id="tone-playground">
     <aside><fieldset id="tone"><legend>Tone</legend>
       <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
@@ -1888,6 +1892,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
         """
 <h1>Ring playground</h1>
 <lf-group id="ring-ask" label="Which ring?">
+  <h2 id="ring-ask-h">Which ring?</h2>
   <lf-playground id="ring-playground">
     <lf-playground-preset id="preset-wide" label="Wide">
       <lf-playground-setting for="width" value="4"></lf-playground-setting>

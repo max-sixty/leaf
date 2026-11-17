@@ -111,7 +111,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         leaf_page(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
-            "<div id='body'><lf-group id='ship-ask' label='Ship now?'>"
+            "<div id='body'><lf-group id='ship-ask' label='Ship now?'><h2 id='ship-ask-h'>Ship now?</h2>"
             "<lf-options id='ship'><lf-option id='ship-now'>Now</lf-option>"
             "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-group>"
             f"<div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
@@ -119,7 +119,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
                 f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
             )
             + "".join(
-                f"<lf-group id='ask-{i}' label='Ship part {i}?'>"
+                f"<lf-group id='ask-{i}' label='Ship part {i}?'><h2 id='ask-{i}-h'>Ship part {i}?</h2>"
                 f"<lf-options id='o-{i}'><lf-option id='o-{i}-y'>Yes</lf-option>"
                 f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></lf-group>"
                 for i in range(2)

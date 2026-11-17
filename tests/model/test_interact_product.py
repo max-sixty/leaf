@@ -533,7 +533,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
         return [
             (e.code, e.values["keyword"], e.values["path"])
             for e in fragment_errors(
-                '<lf-group id="kind-ask" label="Choose a route">'
+                '<lf-group id="kind-ask" label="Choose a route"><h2 id="kind-ask-h">Choose a route</h2>'
                 '<lf-options id="kind-options">'
                 f'<lf-option id="route" {attributes}>Page</lf-option>'
                 '<lf-option id="other">Ticket</lf-option>'
@@ -567,7 +567,7 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
 
     def playground(preset):
         return (
-            '<lf-group id="ask" label="Which?"><lf-playground id="a">'
+            '<lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2><lf-playground id="a">'
             '<aside><input type="range" name="size" max="4" value="2" /></aside>'
             f"{preset}"
             "<lf-playground-output>Use it.</lf-playground-output>"
@@ -785,7 +785,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--text",
             (
                 "Pick:\n\n"
-                '<lf-group id="pick-decision" label="Pick?">\n'
+                '<lf-group id="pick-decision" label="Pick?">\n<h2 id="pick-decision-h">Pick?</h2>'
                 '<lf-options id="lf-pick">'
                 '<lf-option id="o1" label="A"></lf-option>'
                 "</lf-options></lf-group>"

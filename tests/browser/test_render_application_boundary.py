@@ -482,7 +482,8 @@ document.documentElement.dataset.pageModule = `${label}:${state.loads}`;
 ACTIVATION_READING = f"""\
 <p id="live-reading">{LIVE_READING}</p>
 <button id="focused-control" type="button">Inspect continuity</button>
-<lf-group id="activation-decision" label="Activate the revision?"><lf-options id="activation-choice">
+<lf-group id="activation-decision" label="Activate the revision?"><h2 id="activation-decision-h">Activate the revision?</h2>
+<lf-options id="activation-choice">
   <lf-option id="activation-go">Continue</lf-option>
   <lf-option id="activation-wait">Wait</lf-option>
 </lf-options></lf-group>
@@ -623,7 +624,8 @@ def test_waiting_projection_settles_before_ready_state_reopens_it(browser, serve
 OBLIGATION_PAGE = leaf_page(
     "obligations wait for admission",
     """
-<lf-group id="release-decision" label="Ship this release?">  <lf-options id="release-options">
+<lf-group id="release-decision" label="Ship this release?"><h1 id="release-decision-h">Ship this release?</h1>
+  <lf-options id="release-options">
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
@@ -681,7 +683,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     source = LIVE_V1.replace(
         '<h1 id="live-title">Live first</h1>',
         '<h1 id="live-title">Live first</h1>'
-        '<lf-group id="package-ask" label="Package choice">'
+        '<lf-group id="package-ask" label="Package choice"><h2 id="package-ask-h">Package choice</h2>'
         '<lf-options id="package-options">'
         '<lf-option id="package-a">A</lf-option>'
         '<lf-option id="package-b">B</lf-option>'
@@ -1984,7 +1986,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
             "author": "agent",
             "revision": 1,
             "text": "Which channel?\n\n"
-            '<lf-group id="channel-ask" label="Channel">\n<lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-group>',
+            '<lf-group id="channel-ask" label="Channel">\n<h3 id="channel-ask-h">Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-group>',
         },
     )
     page = open_page(browser, url)

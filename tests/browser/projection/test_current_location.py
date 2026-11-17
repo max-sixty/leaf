@@ -577,6 +577,7 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
                 "Release",
                 """<h1 id="h">Release</h1>
 <lf-group id="release" label="When and where does it ship?">
+<h2 id="release-h">When and where does it ship?</h2>
 <lf-options id="ship">
   <lf-option id="ship-monday" label="Ship Monday"></lf-option>
   <lf-option id="ship-thursday" label="Ship Thursday"></lf-option>
@@ -741,7 +742,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
 STORE_ASK_PAGE = leaf_page(
     "Session store",
     '<h1 id="h">Where sessions live</h1>'
-    '<lf-group id="store-ask" label="Which store should hold sessions?">'
+    '<lf-group id="store-ask" label="Which store should hold sessions?"><h3 id="store-ask-h">Which store should hold sessions?</h3>'
     '<lf-options id="store">'
     '<lf-option id="store-redis">Redis</lf-option>'
     '<lf-option id="store-cookie">Signed cookie</lf-option>'

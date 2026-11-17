@@ -815,7 +815,8 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     first = leaf_page(
         "Widgets first",
         """
-<lf-group id="wd-store-ask" label="Which store?"><lf-options id="wd-store">
+<lf-group id="wd-store-ask" label="Which store?"><h2 id="wd-store-ask-h">Which store?</h2>
+<lf-options id="wd-store">
   <lf-option id="wd-keep">Keep the store
   <img src="/page/held.svg" alt="Leaf" data-evidence="/media/051bee487bfb5d13.png">
   <svg width="16" height="16"><image width="16" height="16" xlink:href="/page/held.svg"></image></svg>
@@ -825,7 +826,8 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
 </lf-option>
   <lf-option id="wd-drop">Drop the store</lf-option>
 </lf-options></lf-group>
-<lf-group id="wd-when-ask" label="Which schedule?"><lf-options id="wd-when">
+<lf-group id="wd-when-ask" label="Which schedule?"><h2 id="wd-when-ask-h">Which schedule?</h2>
+<lf-options id="wd-when">
   <lf-option id="wd-now">Start now</lf-option>
   <lf-option id="wd-later">Start later</lf-option>
 </lf-options></lf-group>
@@ -903,6 +905,7 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
   <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
   <lf-tab id="tp-ask-tab" label="Ask">
     <lf-group id="tp-store-ask" label="Which store?">
+    <h2 id="tp-store-ask-h">Which store?</h2>
     <lf-options id="tp-store">
       <lf-option id="tp-keep">Keep the store</lf-option>
       <lf-option id="tp-drop">Drop the store</lf-option>
@@ -1012,7 +1015,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
         '<p id="served-selection">A passage with a saved caret.</p></section>'
         '<div style="height:1600px"></div>'
         '<h2 id="destination">Destination</h2>'
-        '<lf-group id="question" label="A decision?">'
+        '<lf-group id="question" label="A decision?"><h2 id="question-h">A decision?</h2>'
         '<lf-options id="answer"><lf-option id="yes">Yes</lf-option>'
         "</lf-options></lf-group>",
     )
@@ -1075,7 +1078,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     )
     first = leaf_page("Questions arriving", '<h1 id="h">Decisions</h1>' + reading)
     questions = "".join(
-        f'<lf-group id="question-{i}" label="Decision {i}?">'
+        f'<lf-group id="question-{i}" label="Decision {i}?"><h2 id="question-{i}-h">Decision {i}?</h2>'
         f'<lf-options id="options-{i}">'
         f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></lf-group>'
         for i in range(3)
@@ -1135,7 +1138,7 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     )
     second = first.replace("</section>", paragraph + "</section>").replace(
         "</main>",
-        '<lf-group id="question" label="Decision?">'
+        '<lf-group id="question" label="Decision?"><h2 id="question-h">Decision?</h2>'
         '<lf-options id="options"><lf-option id="yes">Yes</lf-option>'
         "</lf-options></lf-group></main>",
     )
@@ -1197,7 +1200,8 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     owner."""
 
     def question(identity, label):
-        return f"""<lf-group id="{identity}-ask" label="{label}?">  <lf-options id="{identity}-options">
+        return f"""<lf-group id="{identity}-ask" label="{label}?"><h2 id="{identity}-ask-h">{label}?</h2>
+  <lf-options id="{identity}-options">
     <lf-option id="{identity}-yes">Yes</lf-option>
   </lf-options>
 </lf-group>"""

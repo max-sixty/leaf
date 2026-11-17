@@ -1184,9 +1184,9 @@
       }
       /* A named group (`reading-role: group`), such as a question's, told it has a
        * definite height, as one that is the workspace's body or a page tab's one block
-       * is, gives its answer, the last of its children, what its title and context
+       * is, gives its answer, the last of its children, what its heading and context
        * leave, and tells it so, so a widget composing its own regions there, such as a
-       * playground, fills the window below a premise or straight under the title. Any
+       * playground, fills the window below a premise or straight under the heading. Any
        * other section keeps its document flow: on
        * every section, the rule would stretch a body of prose's last block to the
        * window's foot and tell each widget in it to fill the window.

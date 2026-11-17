@@ -127,7 +127,7 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     user leaves goes at once, and the obligation's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
     item = (
-        '<lf-group id="work" label="Choose"><lf-options id="options">'
+        '<lf-group id="work" label="Choose"><h2 id="work-h">Choose</h2><lf-options id="options">'
         '<lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option>'
         "</lf-options></lf-group>"
     )
@@ -863,6 +863,8 @@ SEATED_PANE_PAGE = leaf_page(
     * 2
     + '<lf-group id="seat-ask" label="Should the nightly export keep writing one file per'
     ' tenant or roll every tenant up into one archive tonight">'
+    '<h3 id="seat-ask-h">Should the nightly export keep writing one file per'
+    " tenant or roll every tenant up into one archive tonight</h3>"
     '<lf-options id="seat-choice">'
     '<lf-option id="sa" label="One file per tenant"></lf-option>'
     '<lf-option id="sb" label="One archive"></lf-option>'

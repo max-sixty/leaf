@@ -88,7 +88,8 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 # a parked pointer and back.
 OBLIGATION_IN_LONG_PAGE = LONG_PAGE.replace(
     "<p id='p20'>",
-    """<lf-group id="route-ask" label="Which route should the walk follow?"><lf-options id="route">
+    """<lf-group id="route-ask" label="Which route should the walk follow?"><h2 id="route-ask-h">Which route should the walk follow?</h2>
+<lf-options id="route">
   <lf-option id="route-garden">Through the garden</lf-option>
   <lf-option id="route-river">Along the river</lf-option>
 </lf-options></lf-group>

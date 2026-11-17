@@ -239,7 +239,7 @@ def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-group id="tv-decision-region" label="Which store should I write up?">\n'
+        '<lf-group id="tv-decision-region" label="Which store should I write up?">\n<h3 id="tv-decision-region-h">Which store should I write up?</h3>'
         '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-group>",
@@ -320,7 +320,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     )
     seed_reply(
         serve.page_dir,
-        '<lf-group id="tv-decision-region" label="Which store should I write up?">\n'
+        '<lf-group id="tv-decision-region" label="Which store should I write up?">\n<h3 id="tv-decision-region-h">Which store should I write up?</h3>'
         '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-group>",
@@ -385,7 +385,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     expect(page.locator(".lf-fp-view #tv-decision-region")).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
-    heading = middle('.lf-fp-view #tv-decision-region > [data-lf-said="label"]', 20)
+    heading = middle(".lf-fp-view #tv-decision-region h3", 20)
     chrome = [seen(heading)]
     page.keyboard.down("Alt")
     chrome.append(seen(heading))

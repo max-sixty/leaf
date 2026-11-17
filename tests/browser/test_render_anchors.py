@@ -499,6 +499,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     quotation islands."""
     content = """<div id="split">
       <lf-pane id="decision-pane" label="Decision"><lf-group id="decision" label="Which plan should lead?">
+        <h2 id="question">Which plan should lead?</h2>
         <lf-options id="plans">
           <lf-option id="steady">Keep the steady plan.</lf-option>
           <lf-option id="fast">Try the faster plan.</lf-option>
@@ -521,7 +522,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     page.evaluate(
         """() => {
           const start = document.querySelector('#context').firstChild;
-          const end = document.querySelector('#decision > [data-lf-said="label"]').firstChild;
+          const end = document.querySelector('#question').firstChild;
           const range = document.createRange();
           range.setStart(start, 0);
           range.setEnd(end, end.length);

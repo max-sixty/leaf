@@ -208,7 +208,8 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
 
 
 # Option cards whose picks Done completes.
-FEEDERS = """<lf-group id="ask" label="Which feeders should we refill?"><lf-options id="feeders" multiple>
+FEEDERS = """<lf-group id="ask" label="Which feeders should we refill?"><h2 id="ask-h">Which feeders should we refill?</h2>
+<lf-options id="feeders" multiple>
 <lf-option id="feeder-porch" label="The porch feeder">Seen from the kitchen.
 </lf-option>
 <lf-option id="feeder-oak" label="The oak feeder">Out of the wind.</lf-option>
@@ -793,7 +794,8 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 <section id="stall"><hgroup><p>offline editing</p><h2>iOS reconnect stall</h2></hgroup>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
-<lf-group id="decision" label="Patch decision"><lf-options id="decision-options">
+<lf-group id="decision" label="Patch decision"><h3 id="decision-h">Patch decision</h3>
+<lf-options id="decision-options">
   <lf-option id="decision-ship" selected>Ship with the resend.</lf-option>
   <lf-option id="decision-hold">Hold the patch.</lf-option>
 </lf-options></lf-group>

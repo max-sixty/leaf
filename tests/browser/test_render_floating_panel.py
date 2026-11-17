@@ -78,11 +78,13 @@ from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, settled
 OBLIGATION_PAGE = leaf_page(
     "obligation",
     """<h1 id="t">Ask</h1>
-<lf-group id="schema-decision" label="How should the schema migrate?"><lf-options id="schema">
+<lf-group id="schema-decision" label="How should the schema migrate?"><h3 id="schema-decision-h">How should the schema migrate?</h3>
+<lf-options id="schema">
   <lf-option id="shim" label="Shim the old schema">Fastest to ship.</lf-option>
   <lf-option id="stage" label="Migrate in stages">Table by table.</lf-option>
 </lf-options></lf-group>
-<lf-group id="queue-decision" label="Which queue takes the retries?"><lf-options id="queues">
+<lf-group id="queue-decision" label="Which queue takes the retries?"><h3 id="queue-decision-h">Which queue takes the retries?</h3>
+<lf-options id="queues">
   <lf-option id="fast" label="The fast queue">Shared.</lf-option>
   <lf-option id="slow" label="The slow queue">Its own.</lf-option>
 </lf-options></lf-group>""",
@@ -1929,7 +1931,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         serve.page_dir,
         {"responds": root},
         "The **room** photo.\n\n"
-        '<lf-group id="crop" label="Should I reshoot it wider?">\n'
+        '<lf-group id="crop" label="Should I reshoot it wider?">\n<h3 id="crop-h">Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick"><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-group>',
     )
@@ -1944,9 +1946,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
     rows.click()
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-summary-text")).to_have_text("A wider view would help.")
-    expect(view.locator('#crop > [data-lf-said="label"]')).to_have_text(
-        "Should I reshoot it wider?"
-    )
+    expect(view.locator("#crop h3")).to_have_text("Should I reshoot it wider?")
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):
@@ -4871,7 +4871,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<lf-group id="week" label="Which week?">\n<lf-options id="week-choice">'
+        '<lf-group id="week" label="Which week?">\n<h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-group>',
     )
@@ -4916,7 +4916,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<lf-group id="week" label="Which week?">\n<lf-options id="week-choice">'
+        '<lf-group id="week" label="Which week?">\n<h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-group>',
     )
@@ -4998,7 +4998,7 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Choose the first job.\n\n"
-        '<lf-group id="first-job-decision" label="Which job first?">\n'
+        '<lf-group id="first-job-decision" label="Which job first?">\n<h3 id="first-job-decision-h">Which job first?</h3>'
         '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'

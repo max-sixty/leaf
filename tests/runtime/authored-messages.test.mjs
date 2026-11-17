@@ -186,6 +186,7 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
         '<lf-chart id="held-chart"></lf-chart>' +
         '<figcaption id="held-latency-caption">Latency by day</figcaption></figure>\n\n' +
         '<lf-group id="held-ask" label="Roll back now?">' +
+        '<h3 id="held-ask-h">Roll back now?</h3>' +
         '<lf-options id="held-choice"><lf-option id="held-yes">Yes</lf-option>' +
         "</lf-options></lf-group>",
     },
@@ -198,18 +199,18 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
   assert.equal(drawn.textContent.includes("Roll back now?"), false);
 });
 
-// A group holding no question is a named part of the message, so a drawing that holds
-// none of its widgets keeps its label and its prose.
+// A group holding no question is a part of the message, so a drawing that holds none of
+// its widgets keeps what the group holds, its heading and its prose.
 test("a drawing that doesn't hold a message's widgets keeps a group that asks nothing", async () => {
   adoptRegistry({
     $layer: { generation: "message-group-kept" },
-    "lf-group": { "reading-role": "group", says: { label: "before" } },
+    "lf-group": { "reading-role": "group" },
   });
   assert.equal(await loadMarkdown(), true);
   const prepared = await prepareAuthoredMessage(
     {
       id: "kept-message",
-      text: 'Intro.\n\n<lf-group id="kept-evidence" label="Evidence">\n<p>Two runs agree.</p>\n</lf-group>',
+      text: 'Intro.\n\n<lf-group id="kept-evidence" label="Evidence">\n<h3>Evidence</h3>\n<p>Two runs agree.</p>\n</lf-group>',
     },
     "kept-thread",
   );

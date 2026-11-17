@@ -832,7 +832,7 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
             f'<a id="handoff" href="{urls[handoff]}#result">Open handoff</a>'
             '<a id="external" href="https://example.com/">External</a>'
             f'<p id="quoted">The original address was {urls[handoff]}</p>'
-            '<lf-group id="question" label="Keep this decision?">'
+            '<lf-group id="question" label="Keep this decision?"><h2 id="question-h">Keep this decision?</h2>'
             '<lf-options id="answer"><lf-option id="keep">Keep</lf-option>'
             "</lf-options></lf-group></main></body></html>"
         )

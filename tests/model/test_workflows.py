@@ -584,7 +584,7 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     the submission and while the agent works on it, recording the settings asks for no
     attention and leaves the submission the agent's one input on the widget."""
     page = ModelPage(
-        '<lf-group id="ask" label="Which tone?"><lf-playground id="tone-playground">'
+        '<lf-group id="ask" label="Which tone?"><h2 id="ask-h">Which tone?</h2><lf-playground id="tone-playground">'
         '<aside><fieldset id="tone"><legend>Tone</legend>'
         '<label id="tone-calm"><input type="radio" name="tone" value="calm" checked /> Calm</label>'
         '<label id="tone-urgent"><input type="radio" name="tone" value="urgent" /> Urgent</label>'

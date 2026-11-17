@@ -181,7 +181,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     """Presentation is not a state answer; every Decision route needs the same reading."""
     source = leaf_page(
         "Slow decision",
-        '<h1>Slow decision</h1><lf-group id="decision" label="Proceed?">'
+        '<h1>Slow decision</h1><lf-group id="decision" label="Proceed?"><h2 id="decision-h">Proceed?</h2>'
         '<lf-options id="pick"><lf-option id="yes">Proceed</lf-option>'
         '<lf-option id="no">Wait</lf-option></lf-options></lf-group>',
     )

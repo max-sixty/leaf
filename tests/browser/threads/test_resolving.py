@@ -1017,6 +1017,7 @@ ATTACHED_THREAD_PAGE = leaf_page(
     """<h1>Cache review</h1>
 <p id="passage" tabindex="0">The budget note covers latency budgets for the cache.</p>
 <lf-group id="cache-ask" label="Which cache should we keep?">
+  <h2 id="cache-ask-h">Which cache should we keep?</h2>
   <lf-options id="cache">
     <lf-option id="cache-disk">Keep the disk cache</lf-option>
     <lf-option id="cache-memory">Keep the memory cache</lf-option>

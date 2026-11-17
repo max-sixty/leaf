@@ -172,6 +172,7 @@ one of them, the comment records its id, which tells you which one they mean.
   }
 </style>
 <lf-group id="notification-ask" label="Which deployment notification should we build?">
+  <h2 id="notification-ask-h">Which deployment notification should we build?</h2>
   <lf-playground
     id="notification-playground"
     submit-label="Create notification"

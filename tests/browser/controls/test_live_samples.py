@@ -34,7 +34,8 @@ ACCENT = """() => {
 REPLY_SAMPLE = """<lf-sample id="reply-practice" label="Practice in a reply">
   <template id="reply-practice-source" data-sample>
     <h1 id="reply-child-heading">Practice from a reply</h1>
-    <lf-group id="reply-child-ask" label="Which approach?">      <lf-options id="reply-child-options">
+    <lf-group id="reply-child-ask" label="Which approach?"><h2 id="reply-child-ask-h">Which approach?</h2>
+      <lf-options id="reply-child-options">
         <lf-option id="reply-child-a">First approach</lf-option>
         <lf-option id="reply-child-b">Second approach</lf-option>
       </lf-options>

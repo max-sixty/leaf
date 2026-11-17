@@ -228,7 +228,8 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     host = REPLY_HOST_PAGE.replace(
         "</main>",
         """
-<lf-group id="delivery" label="Which delivery?">  <lf-options id="delivery-choice">
+<lf-group id="delivery" label="Which delivery?"><h2 id="delivery-h">Which delivery?</h2>
+  <lf-options id="delivery-choice">
     <lf-option id="delivery-now">Now</lf-option>
     <lf-option id="delivery-later">Later</lf-option>
   </lf-options>

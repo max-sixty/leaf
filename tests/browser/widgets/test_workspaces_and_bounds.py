@@ -310,7 +310,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
     def item(key):
         return (
             f'<lf-tab id="t-{key}" label="{key}"><lf-group id="{key}-decision" label="Pick the {key}">'
-            f'<div style="height: 900px"></div>'
+            f'<h2 id="{key}-decision-h">Pick the {key}</h2><div style="height: 900px"></div>'
             f'<lf-options id="{key}"><lf-option id="{key}-a">Alpha</lf-option>'
             "</lf-options></lf-group></lf-tab>"
         )
@@ -481,6 +481,7 @@ THREE_PART_OBLIGATION_PAGE = leaf_page(
     "a three-part obligation as the workspace",
     """
   <lf-group id="workspace-ask" label="Which release should go out?">
+    <h2 id="workspace-ask-h">Which release should go out?</h2>
     <div id="ask-context" style="height: 900px">The context the user weighs.</div>
     <lf-options id="workspace-options">
       <lf-option id="workspace-ship">Ship it</lf-option>
@@ -747,7 +748,8 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
     elif container == "pane":
         reading = reading.replace(
             '<button id="reading-end">',
-            """<lf-group id="release-ask" label="What should the review record?">              <p>Comment on the code before making your final call. A selection records
+            """<lf-group id="release-ask" label="What should the review record?"><h2 id="release-ask-h">What should the review record?</h2>
+              <p>Comment on the code before making your final call. A selection records
                 your review decision; it does not deploy code or mark tests as passed.</p>
               <p>Ship with changes keeps the retry budget within the deadline.
                 Update the acceptance checks before beginning rollout.</p>

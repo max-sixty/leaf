@@ -1177,7 +1177,8 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
             leaf_page(
                 "Decision",
                 """
-      <lf-group id="decision" label="Ready?">        <p>Review the evidence before choosing.</p>
+      <lf-group id="decision" label="Ready?"><h2 id="decision-h">Ready?</h2>
+        <p>Review the evidence before choosing.</p>
         <lf-options id="answer">
           <lf-option id="yes">Approve</lf-option>
           <lf-option id="no">Hold</lf-option>

@@ -34,6 +34,7 @@
           summary="0 of 47 pages real"
         >
           <lf-group id="ar-canary-decision" label="How should the canary probe page?">
+            <h4 id="ar-canary-decision-h">How should the canary probe page?</h4>
             <dl class="facts">
               <dt>Rule</dt>
               <dd><code>payments_canary_probe_failed</code></dd>
@@ -112,6 +113,7 @@
             id="ar-latency-decision"
             label="What should the latency alert page on?"
           >
+            <h4 id="ar-latency-decision-h">What should the latency alert page on?</h4>
             <p>Checkout's latency objective is 1.2 seconds at p99 over ten minutes.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -159,6 +161,7 @@
             id="ar-webhooks-decision"
             label="What should the webhook alert measure?"
           >
+            <h4 id="ar-webhooks-decision-h">What should the webhook alert measure?</h4>
             <p>Depth tracks partner traffic; age tracks whether we are keeping up.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -203,6 +206,9 @@
             id="ar-export-decision"
             label="What should happen during the nightly batch?"
           >
+            <h4 id="ar-export-decision-h">
+              What should happen during the nightly batch?
+            </h4>
             <p>Finance reads the export at 07:00 UTC.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -275,6 +281,7 @@
             id="ar-disk-decision"
             label="Should the 80% disk alert page at all?"
           >
+            <h4 id="ar-disk-decision-h">Should the 80% disk alert page at all?</h4>
             <p>The 95% alert has not fired this quarter.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -312,6 +319,9 @@
             id="ar-settlement-decision"
             label="Should a settlement failure wait for its retry?"
           >
+            <h4 id="ar-settlement-decision-h">
+              Should a settlement failure wait for its retry?
+            </h4>
             <p>The scheduler retries once, five minutes after a failure.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -350,6 +360,7 @@
           summary="1 of 3 pages real"
         >
           <lf-group id="ar-3ds-decision" label="Should one issuer's outage page us?">
+            <h4 id="ar-3ds-decision-h">Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -414,6 +425,9 @@
             id="ar-cert-decision"
             label="Who should hear about the sandbox certificate?"
           >
+            <h4 id="ar-cert-decision-h">
+              Who should hear about the sandbox certificate?
+            </h4>
             <p>It expires in six days.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -452,6 +466,7 @@
             id="ar-kafka-decision"
             label="Who should hear about ledger consumer lag?"
           >
+            <h4 id="ar-kafka-decision-h">Who should hear about ledger consumer lag?</h4>
             <p>Lag that outlasts a rebalance does delay the ledger export.</p>
             <dl class="facts">
               <dt>Rule</dt>

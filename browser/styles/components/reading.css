@@ -597,11 +597,7 @@ dl.lf-facts dd {
       margin: var(--lf-h2-start) 0 12px;
       text-wrap: balance;
     }
-    /* A named group's title (base.css) is a heading of the page at the third level,
-     * where a group usually stands. */
-    h3,
-    [data-lf-reading-role="group"] > [data-lf-said="label"],
-    [data-lf-reading-role="group"]:not(:has(> [data-lf-said="label"]))::before {
+    h3 {
       font-size: var(--lf-t-3);
       line-height: 1.3;
       margin: var(--lf-h3-start) 0 8px;
@@ -815,8 +811,7 @@ leaf-text.lf-fab-input,
 .lf-msg-body th[scope="row"] :is(code, samp) {
   max-inline-size: calc(var(--lf-thread-card-min) / 3);
 }
-.lf-msg-body
-  :is(h1, h2, h3, h4, h5, h6, [data-lf-reading-role="group"] > [data-lf-said="label"]) {
+.lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
   margin: 8px 0 4px;
   font-size: inherit;
   line-height: inherit;
@@ -927,10 +922,7 @@ details::details-content {
  * the frame's query holds, and once it has evaluated `:nth-child()` for a parent's
  * children, it restyles all of them whenever a child is inserted or removed. The
  * margin's rows are `.lf-ui` siblings, so without the check, sending a comment
- * restyled every row (test_sending_a_comment_restyles_only_the_rows_it_changes).
- * A named group's title is generated words (base.css), but it is the group's first
- * block, so it takes the start edge and the block under it keeps its margin; the
- * exception sits in :where(), so the rule weighs what it did. */
+ * restyled every row (test_sending_a_comment_restyles_only_the_rows_it_changes). */
 @layer lf-reading-face {
   @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
     * {
@@ -939,19 +931,7 @@ details::details-content {
   }
 }
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
-  :where(
-    :not(
-      .lf-ui,
-      [data-lf-gen]:where(:not([data-lf-reading-role="group"] > [data-lf-said]))
-    )
-  ):nth-child(
-    1
-      of
-      :not(
-        .lf-ui,
-        [data-lf-gen]:where(:not([data-lf-reading-role="group"] > [data-lf-said]))
-      )
-  ) {
+  :where(:not(.lf-ui, [data-lf-gen])):nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }

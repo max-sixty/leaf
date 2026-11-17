@@ -130,6 +130,7 @@ variants:
 
         ```html
         <lf-group id="sample-clipboard-decision" label="Should Copy inside a live sample write your clipboard?">
+          <h2 id="sample-clipboard-decision-h">Should Copy inside a live sample write your clipboard?</h2>
           <p>A live sample's frame delegates no clipboard permission, so a message's Copy
           inside a sample falls back to selectable text.</p>
           <lf-options id="sample-clipboard">

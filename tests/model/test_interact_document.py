@@ -2236,7 +2236,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread",
             "create",
             "--text",
-            'Which store?\n\n<lf-group id="t-ask" label="Store?">\n<lf-options id="t-store">'
+            'Which store?\n\n<lf-group id="t-ask" label="Store?">\n<h3 id="t-ask-h">Store?</h3>\n<lf-options id="t-store">'
             '<lf-option id="t-sqlite" label="sqlite"></lf-option>'
             "</lf-options></lf-group>",
         ).output.splitlines()
@@ -3357,7 +3357,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Which mitigations?\n\n<lf-group id="gm-decision" label="Which mitigations?">\n'
+            "text": 'Which mitigations?\n\n<lf-group id="gm-decision" label="Which mitigations?">\n<h2 id="gm-decision-h">Which mitigations?</h2>\n'
             '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap" label="Cap retries"></lf-option>'
             '<lf-option id="m-alert" label="Alert"></lf-option>'
@@ -3413,6 +3413,7 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
       <lf-test-task id="future" status="active"><strong>Future review</strong>
         <lf-group id="future-decision" label="Review it now?">
+          <h3 id="future-decision-h">Review it now?</h3>
           <lf-options id="future-review">
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
@@ -3420,6 +3421,7 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       </lf-test-task>
       <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
         <lf-group id="decision-decision" label="Which way out?">
+          <h3 id="decision-decision-h">Which way out?</h3>
           <lf-options id="decision-options">
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
@@ -3598,7 +3600,7 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
         '<lf-sample id="sample"><lf-options id="example">'
         '<lf-option id="example-a" label="Example only"></lf-option>'
         "</lf-options></lf-sample>"
-        '<lf-group id="real-decision" label="What next?">'
+        '<lf-group id="real-decision" label="What next?"><h3 id="real-decision-h">What next?</h3>'
         '<lf-options id="real"><lf-option id="real-a">A</lf-option>'
         '<lf-option id="real-b">B</lf-option></lf-options></lf-group>'
         "</lf-test-task></lf-test-plan>"
@@ -3624,7 +3626,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
     for nothing, and the pick wakes no agent."""
     markup = (
         '<lf-sample id="practice" interactive>'
-        '<lf-group id="practice-ask" label="Which queue policy?">'
+        '<lf-group id="practice-ask" label="Which queue policy?"><h3 id="practice-ask-h">Which queue policy?</h3>'
         '<lf-options id="practice-policy">'
         '<lf-option id="practice-a">A</lf-option>'
         '<lf-option id="practice-b">B</lf-option></lf-options></lf-group>'

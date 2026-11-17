@@ -113,7 +113,7 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
         None,
         None,
         "Choose an option.\n\n"
-        '<lf-group id="thread-ask" label="Choose one">\n'
+        '<lf-group id="thread-ask" label="Choose one">\n<h2 id="thread-ask-h">Choose one</h2>'
         '<lf-options id="thread-picks"><lf-option id="thread-option">'
         "Thread option</lf-option></lf-options></lf-group>",
     )

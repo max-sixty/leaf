@@ -1102,7 +1102,7 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
 
 TALL_OBLIGATION_PAGE = leaf_page(
     "A tall Ask",
-    '<h1>Route</h1><lf-group id="way" label="Which way?">'
+    '<h1>Route</h1><lf-group id="way" label="Which way?"><h2 id="way-h">Which way?</h2>'
     + "".join(
         f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
     )

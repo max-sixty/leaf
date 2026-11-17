@@ -293,7 +293,8 @@ INLINE_PAGE = leaf_page(
     "inline",
     """
 <h1 id="t">Inline</h1>
-<lf-group id="opts-decision" label="How should sessions work?"><lf-options id="opts">
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-options id="opts">
   <lf-option id="opt-a" label="Keep the store">Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b" label="Signed tokens">No store at all, until revocation
@@ -443,11 +444,13 @@ SAMPLE_PAGE = leaf_page(
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
 </lf-sample>
-<lf-group id="live-group-decision" label="How should the schema migrate?"><lf-options id="live-group">
+<lf-group id="live-group-decision" label="How should the schema migrate?"><h2 id="live-group-decision-h">How should the schema migrate?</h2>
+<lf-options id="live-group">
   <lf-option id="l-shim" label="Shim the old schema">Fastest to ship.</lf-option>
   <lf-option id="l-stage" label="Migrate in stages" >Table by table.</lf-option>
 </lf-options></lf-group>
-<lf-group id="live-rows-decision" label="What should happen to the nightly job?"><lf-options id="live-rows">
+<lf-group id="live-rows-decision" label="What should happen to the nightly job?"><h2 id="live-rows-decision-h">What should happen to the nightly job?</h2>
+<lf-options id="live-rows">
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
 </lf-options></lf-group>
@@ -489,6 +492,7 @@ SAMPLE_TEXT = (
     "record, the framing it replaces:"
 )
 SAMPLE_MARKUP = """<lf-group id="rp-live-decision" label="How should the schema migrate?">
+<h3 id="rp-live-decision-h">How should the schema migrate?</h3>
 <lf-options id="rp-live">
   <lf-option id="rp-shim" label="Shim the old schema">Fastest to ship.</lf-option>
   <lf-option id="rp-stage" label="Migrate in stages" >Table by table.</lf-option>
@@ -508,7 +512,8 @@ REPLAYED_PAGE = leaf_page(
     "replayed",
     f"""
 <h1 id="t">Rollout</h1>
-<lf-group id="approach-decision" label="How should the schema migrate?"><lf-options id="approach">
+<lf-group id="approach-decision" label="How should the schema migrate?"><h2 id="approach-decision-h">How should the schema migrate?</h2>
+<lf-options id="approach">
   <lf-option id="opt-shim" label="Shim the old schema">Fastest to ship.</lf-option>
   <lf-option id="opt-stage" label="Migrate in stages">Table by table.</lf-option>
 </lf-options></lf-group>

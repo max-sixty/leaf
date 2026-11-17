@@ -122,7 +122,7 @@
                 Three things are ready for you. Everything here is made up.
               </p>
 
-              <section id="ask-venue" role="group" aria-labelledby="ask-venue-h">
+              <lf-group id="ask-venue" label="Reply to the venue about Friday's room?">
                 <hgroup id="venue-head">
                   <p>Email · from the inbox pass</p>
                   <h2 id="ask-venue-h">Reply to the venue about Friday's room?</h2>
@@ -141,16 +141,16 @@ Thanks,
 Max</pre>
                 </lf-draft>
                 <lf-options id="venue-choice">
-                  <lf-option id="venue-send"
-                    ><strong>Send</strong> Sends the draft as it reads now.</lf-option
+                  <lf-option id="venue-send" label="Send" recommended
+                    >Sends the draft as it reads now.</lf-option
                   >
-                  <lf-option id="venue-later"
-                    ><strong>Not now</strong> Brings it back tomorrow.</lf-option
+                  <lf-option id="venue-later" label="Not now"
+                    >Brings it back tomorrow.</lf-option
                   >
                 </lf-options>
-              </section>
+              </lf-group>
 
-              <section id="ask-numbers" role="group" aria-labelledby="ask-numbers-h">
+              <lf-group id="ask-numbers" label="Send the team this week's numbers?">
                 <hgroup id="numbers-head">
                   <p>Report · from the weekly numbers pass</p>
                   <h2 id="ask-numbers-h">Send the team this week's numbers?</h2>
@@ -181,16 +181,15 @@ Max</pre>
 Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 </lf-draft>
                 <lf-options id="numbers-choice">
-                  <lf-option id="numbers-send"
-                    ><strong>Send to the team</strong></lf-option
-                  >
-                  <lf-option id="numbers-skip"
-                    ><strong>Skip this week</strong></lf-option
-                  >
+                  <lf-option id="numbers-send" label="Send to the team"></lf-option>
+                  <lf-option id="numbers-skip" label="Skip this week"></lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
 
-              <section id="ask-ci" role="group" aria-labelledby="ask-ci-h">
+              <lf-group
+                id="ask-ci"
+                label="Main went red overnight. What should happen?"
+              >
                 <hgroup id="ci-head">
                   <p>CI · from the overnight pass</p>
                   <h2 id="ask-ci-h">Main went red overnight. What should happen?</h2>
@@ -200,18 +199,17 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                   it.
                 </p>
                 <lf-options id="ci-choice">
-                  <lf-option id="ci-revert"
-                    ><strong>Revert it</strong> Opens a revert PR now.</lf-option
+                  <lf-option id="ci-revert" label="Revert it"
+                    >Opens a revert PR now.</lf-option
                   >
-                  <lf-option id="ci-fix"
-                    ><strong>Draft a fix</strong> Investigates and comes back with a
-                    PR.</lf-option
+                  <lf-option id="ci-fix" label="Draft a fix"
+                    >Investigates and comes back with a PR.</lf-option
                   >
-                  <lf-option id="ci-leave"
-                    ><strong>Leave it</strong> Someone else owns it.</lf-option
+                  <lf-option id="ci-leave" label="Leave it"
+                    >Someone else owns it.</lf-option
                   >
                 </lf-options>
-              </section>
+              </lf-group>
             </template>
           </lf-sample>
           <p id="sample-gaps">
@@ -350,11 +348,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
         </section>
 
         <section id="choose-first">
-          <section
-            id="ask-first-build"
-            role="group"
-            aria-labelledby="ask-first-build-h"
-          >
+          <lf-group id="ask-first-build" label="Which feed should Leaf try first?">
             <h2 id="ask-first-build-h">Which feed should Leaf try first?</h2>
             <p id="first-build-premise">
               Both options use items as the cards. They differ in where the cards come
@@ -362,11 +356,12 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
               become one source in B's list.
             </p>
             <lf-options id="first-build">
-              <lf-option id="build-today-page">
+              <lf-option
+                id="build-today-page"
+                label='A. A "Today" page owned by one background session'
+              >
                 <small class="tag">Leaf code: almost none</small
-                ><small class="tag">proactive: yes</small
-                ><small class="tag ok">recommended</small>
-                <strong>A. A "Today" page owned by one background session</strong>
+                ><small class="tag">proactive: yes</small>
                 A launchd job resumes one standing Claude Code session each morning. It
                 checks the sources you name and writes a card for each action. Your
                 press resumes it to carry the action out.
@@ -403,10 +398,9 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                   source's context, and cards from your other sessions don't reach it.
                 </p>
               </lf-option>
-              <lf-option id="build-cross-page">
+              <lf-option id="build-cross-page" label="B. On Me across every page">
                 <small class="tag">Leaf code: rows, a view, persistence</small
                 ><small class="tag">proactive: no</small>
-                <strong>B. On Me across every page</strong>
                 Each page's row publishes its On Me items. All pages becomes one feed of
                 every page's items. Simple items are answered inline, and the rest open
                 their page at the item.
@@ -451,7 +445,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 </p>
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
           <details id="first-build-why">
             <summary>
               A first, because the experience is the open question and A tests it
@@ -467,7 +461,10 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
           </details>
         </section>
 
-        <section id="ask-offers" role="group" aria-labelledby="ask-offers-h">
+        <lf-group
+          id="ask-offers"
+          label="Should agents turn the offers in their replies into cards?"
+        >
           <h2 id="ask-offers-h">
             Should agents turn the offers in their replies into cards?
           </h2>
@@ -483,14 +480,10 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
             is over-asking, which the same research found destroys the signal.
           </p>
           <lf-options id="offers-choice">
-            <lf-option id="offers-yes"
-              ><strong>Yes, try it with an eval</strong></lf-option
-            >
-            <lf-option id="offers-no"
-              ><strong>No, leave offers in prose</strong></lf-option
-            >
+            <lf-option id="offers-yes" label="Yes, try it with an eval"></lf-option>
+            <lf-option id="offers-no" label="No, leave offers in prose"></lf-option>
           </lf-options>
-        </section>
+        </lf-group>
 
         <section id="differ">
           <h2>Leaf's feed should drain, not scroll forever</h2>

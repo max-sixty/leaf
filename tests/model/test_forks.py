@@ -8,6 +8,7 @@ import json
 import os
 import re
 import shlex
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from threading import Condition, Thread
 from types import SimpleNamespace
@@ -71,6 +72,17 @@ FOLLOWER = {
 def take_lane():
     """Take session s1's forks lane, as its pages follower does."""
     return forks_model.take_lane("s1")
+
+
+@contextmanager
+def lane_held():
+    """Session s1's forks lane, held through the block as its pages follower holds
+    it."""
+    held = take_lane()
+    try:
+        yield held
+    finally:
+        leases_model.release_lease(held)
 
 
 @pytest.fixture
@@ -209,29 +221,149 @@ def test_a_kept_back_message_gets_the_forks_working_line_and_goes_to_the_session
     assert forked(claimed) == []
 
 
+def long_thread(page_dir) -> tuple[dict, list[dict]]:
+    """A thread of twelve answered messages, opened before the session's lane came
+    up, so none was kept back: its opening comment, and the messages after it."""
+    state_model.close_session_turn("s1")
+    opened = said(page_dir, "Which TTL should the quote cache use?")
+    later = [thread_model.post_reply(page_dir, {"responds": opened["id"]}, "Ten.")]
+    for n in range(1, 6):
+        asked = said(page_dir, f"Follow-up {n}?", parent=opened["id"])
+        later += [
+            asked,
+            thread_model.post_reply(
+                page_dir, {"responds": asked["id"]}, f"Answer {n}."
+            ),
+        ]
+    return opened, later
+
+
+def asked_in(page_dir, opened: dict, text: str) -> tuple[dict, dict]:
+    """The user's newest message in the thread `opened` began, kept back while the
+    lane is up, and what Leaf asks the module to fork for it (`forks.ask`)."""
+    newest = said(page_dir, text, parent=opened["id"])
+    question = forks_model.ask("s1", basis(page_dir, opened["id"], newest["id"]), [])
+    assert question is not None
+    return newest, question
+
+
 def test_a_line_fork_reads_the_whole_of_a_long_thread(claimed):
     """A delivery to the session shows a long thread's opening and latest messages and
     leaves the middle to `leaf page state`, which a line fork can't run, so the fork's
     prompt carries every message of the thread."""
-    state_model.close_session_turn("s1")
-    opened = said(claimed, "Which TTL should the quote cache use?")
-    thread_model.post_reply(claimed, {"responds": opened["id"]}, "Ten minutes.")
-    for n in range(1, 6):
-        asked = said(claimed, f"Follow-up {n}?", parent=opened["id"])
-        thread_model.post_reply(claimed, {"responds": asked["id"]}, f"Answer {n}.")
-    held = take_lane()
-    try:
-        newest = said(claimed, "And the newest?", parent=opened["id"])
-        question = forks_model.ask("s1", basis(claimed, opened["id"], newest["id"]), [])
-    finally:
-        leases_model.release_lease(held)
+    opened, _ = long_thread(claimed)
+    with lane_held():
+        newest, question = asked_in(claimed, opened, "And the newest?")
     with PageTransaction(claimed) as page:
         [bounded] = delivery_model.batch_data(claimed, page, [newest])["threads"]
     assert bounded["elided"]["messages"] == 4
     assert "Follow-up 1?" not in json.dumps(bounded)
-    assert question is not None
     assert "Follow-up 1?" in question["prompt"]
     assert '"messages": 0' in question["prompt"]
+
+
+def summary_beside(page_dir) -> tuple[dict, list[dict], dict, dict]:
+    """A long thread, the user's newest message in it kept back, and the summary fork
+    Leaf asks for beside its line fork: the thread's opening, its later messages, the
+    newest message, and the summary fork's `{"prompt", "basis"}`."""
+    opened, later = long_thread(page_dir)
+    with lane_held():
+        newest, question = asked_in(page_dir, opened, "And the newest?")
+    [summary] = question["beside"]
+    return opened, later, newest, summary
+
+
+def summarized(summary: dict, answer: dict) -> dict:
+    """What Leaf did with the summary fork's `answer`."""
+    outcome = forks_model.cmd_fork(
+        "s1", {"beside": summary["basis"], "answer": json.dumps(answer)}
+    )
+    assert outcome is not None
+    return outcome
+
+
+def summaries_written(page_dir) -> list[tuple]:
+    """Each summary the page's log holds, as its range and text."""
+    with PageTransaction(page_dir) as page:
+        return [
+            (event["from"], event["through"], event["text"])
+            for event in page.events
+            if event["kind"] == "summary"
+        ]
+
+
+def test_a_long_thread_is_summarized_by_a_fork_beside_its_line_fork(claimed):
+    """A message Leaf keeps back in a thread long enough to suggest a range to
+    summarize gets a second fork beside the line fork, asked to summarize that range
+    from the whole thread by the agent's guidance. Its answer goes in as the agent's
+    summary of the range, which the agent hears of as its own. That message's delivery
+    leaves the suggestion out, since the fork has it, while the delivery of one Leaf
+    didn't keep back still carries it."""
+    _, later, newest, summary = summary_beside(claimed)
+    with PageTransaction(claimed) as page:
+        [forked] = delivery_model.batch_data(claimed, page, [newest])["threads"]
+        [unforked] = delivery_model.batch_data(claimed, page, [later[-2]])["threads"]
+    hint = unforked["summary_hint"]
+    assert "summary_hint" not in forked
+    assert (summary["basis"]["from"], summary["basis"]["through"]) == (
+        hint["from"],
+        hint["through"],
+    )
+    assert summary["prompt"].startswith("<leaf-summary-fork>")
+    assert "Follow-up 1?" in summary["prompt"]
+    assert "> A summary gives the range's decisions" in summary["prompt"]
+
+    outcome = summarized(summary, {"text": "The TTL went to ten, then five."})
+    assert outcome["outcome"] == "summarized"
+    assert summaries_written(claimed) == [
+        (hint["from"], hint["through"], "The TTL went to ten, then five.")
+    ]
+    with PageTransaction(claimed) as page:
+        [written] = [event for event in page.events if event["kind"] == "summary"]
+    assert (written["id"], written["author"]) == (outcome["summary"], "agent")
+    [told] = clerk_model.queued("s1")
+    assert outcome["summary"] in told and "> The TTL went to ten, then five." in told
+    [noted] = read_interactions(claimed, types=("summary_fork",))
+    assert noted["outcome"] == "summarized"
+
+
+def test_a_failed_summary_fork_hands_the_range_to_the_agent(claimed):
+    """An answer Leaf can't take writes nothing, and the agent is told the range to
+    summarize, so the thread's summary still has an owner."""
+    *_, summary = summary_beside(claimed)
+    outcome = summarized(summary, {"summary": "Not the answer's form."})
+    assert outcome["outcome"] == "failed"
+    [handed] = clerk_model.queued("s1")
+    basis_ = summary["basis"]
+    assert f"`summary_hint` of {basis_['from']} through {basis_['through']}." in handed
+    assert summaries_written(claimed) == []
+
+
+@pytest.mark.parametrize("meanwhile", ["summary", "edit"])
+def test_a_change_in_its_range_meanwhile_drops_the_forks_summary(claimed, meanwhile):
+    """The fork summarizes the range as it read when Leaf asked, so Leaf writes nothing
+    where that summary would no longer be in force by the rules that cancel any
+    summary: one written in the thread since replaces it, and the user's edit of a
+    message in its range cancels it."""
+    _, later, _, summary = summary_beside(claimed)
+    if meanwhile == "summary":
+        basis_ = summary["basis"]
+        thread_model.cmd_summarize(
+            claimed, basis_["from"], basis_["through"], "The agent's."
+        )
+    else:
+        append_command(
+            claimed,
+            {
+                "kind": "edit",
+                "author": "user",
+                "message": later[1]["id"],
+                "text": "Follow-up 1, put another way?",
+            },
+        )
+    assert summarized(summary, {"text": "The fork's."}) == {"outcome": "dropped"}
+    assert "The fork's." not in [text for *_, text in summaries_written(claimed)]
+    assert clerk_model.queued("s1") == []
 
 
 def taken_by_a_fork(page_dir, text: str) -> tuple[dict, dict]:
@@ -693,7 +825,7 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
             "author": "agent",
             "revision": 1,
             "text": 'Which region?\n\n<lf-options id="thread-region">'
-            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            '<lf-option id="thread-east" label="East"></lf-option>'
             "</lf-options>",
         },
     )

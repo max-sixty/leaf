@@ -1194,9 +1194,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     as the user sees it without a second copy of the document."""
     markup = PAGE.replace(
         "</main>",
-        OPTIONS.format(
-            a=" selected", b="", chip="", shim="Keep the shim.", stage="Stage it."
-        )
+        OPTIONS.format(a=" selected", b="", shim="Keep the shim.", stage="Stage it.")
         + '<lf-draft id="summary"><pre>Ship on Friday.</pre></lf-draft>'
         + _board([X, Y], [])
         + '<p id="explanation"><strong>Keep</strong> <em>spaces</em>.</p></main>',
@@ -1369,7 +1367,7 @@ def test_sample_templates_bind_the_parents_producer_sources(page_dir):
     ]
 
 
-def test_thread_read_reads_frozen_construction(page_dir):
+def test_thread_read_reads_message_construction(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(
@@ -1378,7 +1376,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Choose a route.\n\n<lf-options id="frozen"><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
+            "text": 'Choose a route.\n\n<lf-options id="route"><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
         },
     )
     append_command(
@@ -1387,7 +1385,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "kind": "action",
             "author": "user",
             "revision": 1,
-            "widget": "frozen",
+            "widget": "route",
             "action": "choose",
             "detail": {"value": ["second"]},
         },
@@ -1400,9 +1398,9 @@ def test_thread_read_reads_frozen_construction(page_dir):
     [message] = reading["content"]
     assert message["text"].startswith("Choose a route.\n\n<lf-options")
     assert message["content"][0]["content"] == ["Choose a route."]
-    frozen = construction_nodes(message["content"])
-    assert "selected" in frozen["second"]["attrs"]
-    assert frozen["frozen"]["edit"] == {
+    nodes = construction_nodes(message["content"])
+    assert "selected" in nodes["second"]["attrs"]
+    assert nodes["route"]["edit"] == {
         "kind": "thread",
         "thread": root["id"],
     }
@@ -1489,7 +1487,7 @@ def test_check_rejects_widget_violations(page_dir):
             "<figure/>"
             "<lf-bogus></lf-bogus>"
             '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
-            '<lf-option id="stray"><strong>S</strong></lf-option>'
+            '<lf-option id="stray" label="S"></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
         ).replace('<lf-option id="flag-first"', "<lf-option")
@@ -1655,7 +1653,8 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
   <footer><p>Finish</p></footer>"""
     version.write_text(
         PAGE.replace("<main>", '<main class="layout-workspace">').replace(
-            PAGE[PAGE.index('<section id="plan"') : PAGE.index("</main>")], regions
+            PAGE[PAGE.index('<lf-group id="plan-questions"') : PAGE.index("</main>")],
+            regions,
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
@@ -1835,7 +1834,7 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     registry["lf-options"]["attributes"]["properties"]["resolves"] = {"type": "string"}
     markup = (
         '<lf-options id="answer" resolves="plan">'
-        '<lf-option id="approve"><strong>Approve</strong></lf-option></lf-options>'
+        '<lf-option id="approve" label="Approve"></lf-option></lf-options>'
     )
     page = structure_model.SourceDocument(PAGE)
 
@@ -2110,9 +2109,9 @@ def test_check_accepts_authored_body_content_beside_main(page_dir):
         "</main>",
         '</main><footer id="footer">Footer words</footer>Authored tail'
         '<aside id="aside">Aside words</aside>'
-        '<section id="tail-q" role="group" aria-label="Which tail?">'
+        '<lf-group id="tail-q" label="Which tail?">'
         '<lf-options id="tail-choice"><lf-option id="tail">A sibling option</lf-option>'
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
     )
     (page_dir / "index.html").write_text(source)
 
@@ -2178,8 +2177,8 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
     has a thread to move; the version has to be refused before it goes out."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '<section id="plan" role="group" aria-label="Plan">',
-            '<section id="plan" role="group" aria-label="Plan"><svg viewBox="0 0 10 10">'
+            '<section id="plan">',
+            '<section id="plan"><svg viewBox="0 0 10 10">'
             '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
         )
     )
@@ -2189,11 +2188,11 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
 
 
 def test_any_id_names_one_subject_for_every_command(page_dir):
-    """A page widget names itself, and a message, a widget frozen into one, or any
+    """A page widget names itself, and a message, a widget in one, or any
     other event a thread holds names that thread, for `page state`, `status --on`
     and the thread commands alike. Narrowed to a widget, the reading holds what
     stands inside it: the obligation carries the pick on its choice."""
-    live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
     )
@@ -2237,9 +2236,9 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread",
             "create",
             "--text",
-            'Which store?\n\n<section id="t-ask" role="group" aria-labelledby="t-ask-h">\n<h3 id="t-ask-h">Store?</h3><lf-options id="t-store">'
-            '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
-            "</lf-options></section>",
+            'Which store?\n\n<lf-group id="t-ask" label="Store?">\n<h3 id="t-ask-h">Store?</h3>\n<lf-options id="t-store">'
+            '<lf-option id="t-sqlite" label="sqlite"></lf-option>'
+            "</lf-options></lf-group>",
         ).output.splitlines()
     ]
     [renamed] = json.loads(run("thread", "edit", "t-store", "--title", "Store").output)[
@@ -2561,9 +2560,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     the current state replay paints, as one queryable
     object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""
-    opts = OPTIONS.format(
-        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
-    )
+    opts = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Table by table.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
@@ -2888,7 +2885,7 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
     assert data_model.source_file(page_dir, "project-feed").exists()
 
 
-def test_a_source_bound_only_by_frozen_reply_html_can_be_set(page_dir):
+def test_a_source_bound_only_by_reply_html_can_be_set(page_dir):
     """A widget sent by an agent is still a data consumer. Its binding enters the
     page-lifetime index even though no authored version contains its seat."""
     declare_data_input(
@@ -2931,7 +2928,7 @@ def test_a_source_bound_only_by_frozen_reply_html_can_be_set(page_dir):
 
 
 def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
-    """A later frozen thread does not redirect the active page's producer contract.
+    """A later thread message does not redirect the active page's producer contract.
     Its incompatible reading cannot become the page's valid payload.
     """
     declare_data_input(
@@ -3062,8 +3059,8 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
     """An obligation retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1">
-      <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
-      <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
+      <lf-option id="o-shim" label="Shim it">Fastest to ship.</lf-option>
+      <lf-option id="o-stage" label="Migrate in stages">Table by table.</lf-option>
     </lf-options>"""
     item = (
         '<section id="plan-decision"><h2>Plan</h2>'
@@ -3103,7 +3100,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     """A version that honors a pick in its markup reads as answered with no log
     at all — the shipped examples arrive that way."""
-    opts = OPTIONS.format(a=" selected", b="", chip="", shim="s.", stage="t.")
+    opts = OPTIONS.format(a=" selected", b="", shim="s.", stage="t.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
@@ -3360,11 +3357,11 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h">\n<h2 id="gm-decision-h">Which mitigations?</h2>'
+            "text": 'Which mitigations?\n\n<lf-group id="gm-decision" label="Which mitigations?">\n<h2 id="gm-decision-h">Which mitigations?</h2>\n'
             '<lf-options id="gm" multiple>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
-            "</lf-options></section>",
+            '<lf-option id="m-cap" label="Cap retries"></lf-option>'
+            '<lf-option id="m-alert" label="Alert"></lf-option>'
+            "</lf-options></lf-group>",
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -3415,18 +3412,20 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-test-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-test-task>
       <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
       <lf-test-task id="future" status="active"><strong>Future review</strong>
-        <section id="future-decision" role="group" aria-labelledby="future-decision-h"><h3 id="future-decision-h">Review it now?</h3>
+        <lf-group id="future-decision" label="Review it now?">
+          <h3 id="future-decision-h">Review it now?</h3>
           <lf-options id="future-review">
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
-        </section>
+        </lf-group>
       </lf-test-task>
       <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
-        <section id="decision-decision" role="group" aria-labelledby="decision-decision-h"><h3 id="decision-decision-h">Which way out?</h3>
+        <lf-group id="decision-decision" label="Which way out?">
+          <h3 id="decision-decision-h">Which way out?</h3>
           <lf-options id="decision-options">
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
-        </section>
+        </lf-group>
       </lf-test-task>
       <lf-test-task id="release" status="review"><strong>Release review</strong>
         <lf-test-task id="release-build" status="done"><strong>Build release</strong></lf-test-task>
@@ -3599,11 +3598,11 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
         '<lf-sample id="sample"><lf-options id="example">'
-        '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
+        '<lf-option id="example-a" label="Example only"></lf-option>'
         "</lf-options></lf-sample>"
-        '<section id="real-decision" role="group" aria-labelledby="real-decision-h"><h3 id="real-decision-h">What next?</h3>'
+        '<lf-group id="real-decision" label="What next?"><h3 id="real-decision-h">What next?</h3>'
         '<lf-options id="real"><lf-option id="real-a">A</lf-option>'
-        '<lf-option id="real-b">B</lf-option></lf-options></section>'
+        '<lf-option id="real-b">B</lf-option></lf-options></lf-group>'
         "</lf-test-task></lf-test-plan>"
     )
     (page_dir / "index.html").write_text(
@@ -3627,10 +3626,10 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
     for nothing, and the pick wakes no agent."""
     markup = (
         '<lf-sample id="practice" interactive>'
-        '<section id="practice-ask" role="group" aria-labelledby="practice-ask-h"><h3 id="practice-ask-h">Which queue policy?</h3>'
+        '<lf-group id="practice-ask" label="Which queue policy?"><h3 id="practice-ask-h">Which queue policy?</h3>'
         '<lf-options id="practice-policy">'
         '<lf-option id="practice-a">A</lf-option>'
-        '<lf-option id="practice-b">B</lf-option></lf-options></section>'
+        '<lf-option id="practice-b">B</lf-option></lf-options></lf-group>'
         "</lf-sample>"
     )
     (page_dir / "index.html").write_text(
@@ -4150,7 +4149,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
         page_dir,
         {
             "kind": "comment",
-            "id": "frozen-data",
+            "id": "thread-data",
             "revision": 1,
             "author": "agent",
             "text": 'The captured feed.\n\n<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
@@ -4184,7 +4183,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
                 "project-feed"
             ]
             for records, label, captured in documents
-            if label in {"revision r1", "revision r4", "event 'frozen-data' markup"}
+            if label in {"revision r1", "revision r4", "event 'thread-data' markup"}
         ] == ["rows", "rows", "current-rows"]
         expected = {
             "project-feed": {
@@ -4300,7 +4299,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
     }
     with_modules(registry, "lf-draft")
     page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
-    frozen = '<lf-draft id="frozen-draft">\n<pre>Frozen authored.</pre></lf-draft>'
+    reply = '<lf-draft id="reply-draft">\n<pre>Reply authored.</pre></lf-draft>'
 
     def action(identity, text, seq):
         return {
@@ -4331,7 +4330,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "id": "c-scope",
             "author": "user",
             "revision": 1,
-            "text": "Keep the frozen answer current.",
+            "text": "Keep the reply's answer current.",
             "seq": 1,
         },
         {
@@ -4340,18 +4339,18 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "author": "agent",
             "parent": "c-scope",
             "revision": 1,
-            "text": f"Here it is:\n\n{frozen}",
+            "text": f"Here it is:\n\n{reply}",
             "seq": 2,
         },
         action("page-draft", "Page future.", 3),
-        action("frozen-draft", "Frozen current.", 4),
+        action("reply-draft", "Reply current.", 4),
     ]
 
     expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
 
     assert expected == {
         ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Frozen current."}],
+        ("event", "r-scope", 0): [{"text": "Reply current."}],
     }
 
 
@@ -4532,7 +4531,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     page_dir,
 ):
     """Edits remain free while the original user action keeps its recorded meaning."""
-    live = OPTIONS.format(a="", b="", chip="", shim="Fastest to ship.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Two.")
     source = page_dir / "index.html"
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live))
     publish(page_dir)
@@ -4575,8 +4574,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     source.write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            "<h2>Plan</h2>"
-            + OPTIONS.format(a="", b="", chip="", shim="Fast.", stage="Two."),
+            "<h2>Plan</h2>" + OPTIONS.format(a="", b="", shim="Fast.", stage="Two."),
         )
     )
     publish(page_dir)
@@ -4628,7 +4626,7 @@ def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_di
 
 def test_revisions_can_move_rewrite_or_remove_authored_generated_children(page_dir):
     added = "g1-option-user-route"
-    live = OPTIONS.format(a="", b="", chip="", shim="Fastest to ship.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Two.")
     source = page_dir / "index.html"
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live))
     publish(page_dir)

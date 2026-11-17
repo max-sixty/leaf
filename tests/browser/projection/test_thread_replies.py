@@ -1,4 +1,4 @@
-"""Text and widgets inside thread messages: Markdown and suggestion text, frozen
+"""Text and widgets inside thread messages: Markdown and suggestion text, thread
 widgets' initial state and replay, undo, refusals and the Done press."""
 
 import re
@@ -124,7 +124,7 @@ def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
 def test_thread_body_initial_state_comes_from_source_before_upgrade(
     browser, serve, asynchronous
 ):
-    """Frozen widgets undo to source even when presentation rewrites its body."""
+    """Thread widgets undo to source even when presentation rewrites its body."""
     tag = "lf-delayed-body" if asynchronous else "lf-draft"
     layer = {}
     if asynchronous:
@@ -223,17 +223,17 @@ customElements.define('lf-delayed-body', class extends LeafElement {
     assert original.evaluate("node => node === document.getElementById('reply-body')")
 
 
-def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve):
+def test_crossed_responses_wait_for_the_same_thread_widget_module(browser, serve):
     """A later POST must join the reply's import before mounting or capturing it."""
     host = REPLY_HOST_PAGE.replace(
         "</main>",
         """
-<section id="delivery" role="group" aria-labelledby="delivery-h"><h2 id="delivery-h">Which delivery?</h2>
+<lf-group id="delivery" label="Which delivery?"><h2 id="delivery-h">Which delivery?</h2>
   <lf-options id="delivery-choice">
     <lf-option id="delivery-now">Now</lf-option>
     <lf-option id="delivery-later">Later</lf-option>
   </lf-options>
-</section></main>""",
+</lf-group></main>""",
     )
     url = serve(host)
     page = open_page(browser, live_url(url))
@@ -264,9 +264,9 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
                 "</pre></lf-draft></div>",
             },
         )
-    holding(page, held, 1, "the frozen draft module")
+    holding(page, held, 1, "the reply's draft module")
     assert len(held) == 1
-    frozen_reading = """async () => {
+    reply_reading = """async () => {
       const {readApplication} = await window.__lfCheckApi();
       const root = readApplication();
       return {
@@ -276,7 +276,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         mounted: Boolean(document.getElementById('crossed-draft')),
       };
     }"""
-    assert page.evaluate(frozen_reading) == {
+    assert page.evaluate(reply_reading) == {
         "descriptor": False,
         "authored": False,
         "body": None,
@@ -293,7 +293,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     told(page)
     # The reply's widget mounts where its thread is drawn, which is the panel's view
     # once the user opens it there.
-    reading = page.evaluate(frozen_reading)
+    reading = page.evaluate(reply_reading)
     assert {key: reading[key] for key in ("descriptor", "authored", "body")} == {
         "descriptor": True,
         "authored": True,
@@ -334,9 +334,9 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     a poll, after that render, and an action naming a widget it doesn't find is
     one no version will ever hold (an honored suggestion, whose id the honoring
     version dropped) rather than one to look for again on the next poll. Its authored
-    record is captured from frozen source before the reply is admitted, so withdrawing
-    the action restores that baseline without authored version markup for the chrome
-    widget."""
+    record is captured from the reply's source before the reply is admitted, so
+    withdrawing the action restores that baseline without authored version markup for
+    the chrome widget."""
     url = serve(REPLY_HOST_PAGE)
     d = serve.page_dir
     append_carried_log_record(

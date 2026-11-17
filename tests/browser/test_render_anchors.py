@@ -498,13 +498,13 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     """Neither a pane nor the obligation inside it turns visible prose into separate
     quotation islands."""
     content = """<div id="split">
-      <lf-pane id="decision-pane" label="Decision"><section id="decision" role="group" aria-labelledby="question">
+      <lf-pane id="decision-pane" label="Decision"><lf-group id="decision" label="Which plan should lead?">
         <h2 id="question">Which plan should lead?</h2>
         <lf-options id="plans">
           <lf-option id="steady">Keep the steady plan.</lf-option>
           <lf-option id="fast">Try the faster plan.</lf-option>
         </lf-options>
-      </section></lf-pane>
+      </lf-group></lf-pane>
       <lf-pane id="evidence-pane" label="Evidence"><p>Supporting evidence.</p></lf-pane>
     </div>"""
     markup = leaf_page(
@@ -3635,19 +3635,19 @@ def test_a_state_only_version_change_does_not_offer_an_empty_card(browser, serve
         <h1>Board</h1>
         <lf-board id='board'>
           <lf-column id='left' label='Left'>
-            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>
+            <lf-card id='card' label='Review'>Keep these words.</lf-card>
           </lf-column>
           <lf-column id='right' label='Right'></lf-column>
         </lf-board>
         """,
     )
     second = first.replace(
-        "<lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "<lf-card id='card' label='Review'>Keep these words.</lf-card>\n"
         "          </lf-column>\n"
         "          <lf-column id='right' label='Right'></lf-column>",
         "</lf-column>\n"
         "          <lf-column id='right' label='Right'>\n"
-        "            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "            <lf-card id='card' label='Review'>Keep these words.</lf-card>\n"
         "          </lf-column>",
     )
     page = open_page(browser, live_url(serve(first)))
@@ -5974,11 +5974,11 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
             "Status Ready",
         ),
         (
-            '<section id="pick-q" role="group" aria-label="What should a full store do?">'
+            '<lf-group id="pick-q" label="What should a full store do?">'
             '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
             "recommended</small><strong>Drop the oldest documents</strong> Editing "
             'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
-            "</strong> Nothing leaves.</lf-option></lf-options></section>",
+            "</strong> Nothing leaves.</lf-option></lf-options></lf-group>",
             "recommended Drop",
         ),
     ],
@@ -6001,16 +6001,16 @@ def test_page_search_finds_words_css_draws_apart_with_nothing_between_them(
 def test_page_search_finds_a_shipped_options_chip_and_title_apart(
     engine, request, serve
 ):
-    """The default package's lf-options example, as shipped, puts a chip and the option's
-    title it stands beside apart, as the theme draws them: page search finds
-    "recommended Status"."""
+    """The default package's lf-options example, as shipped, puts an option's title and
+    the chip that follows it apart, as the theme draws them: page search finds
+    "list effort", the title's last word and the chip's first."""
     registry = json.loads(
         (Path(__file__).parents[2] / "packages/default/registry.json").read_text()
     )
     url = serve(leaf_page("Ask", registry["lf-options"]["example"]))
     page = open_page(request.getfixturevalue(engine), url)
     page.keyboard.press("/")
-    page.get_by_role("searchbox", name="Search page text").fill("recommended Status")
+    page.get_by_role("searchbox", name="Search page text").fill("list effort")
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
 
 

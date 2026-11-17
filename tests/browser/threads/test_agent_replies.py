@@ -286,12 +286,11 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     def ask(choice, label):
         return (
-            '<section id="stream-reply-ask" role="group"'
-            ' aria-labelledby="stream-reply-ask-h">\n'
+            '<lf-group id="stream-reply-ask" label="Use this answer?">\n'
             '<h3 id="stream-reply-ask-h">Use this answer?</h3>'
             f'<lf-options id="{choice}">'
             f'<lf-option id="{choice}-now">{label}</lf-option>'
-            "</lf-options></section>"
+            "</lf-options></lf-group>"
         )
 
     reply = thread_model.post_reply(
@@ -924,7 +923,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             "responds": root,
             "text": "Here is the board.\n\n"
             '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
-            '<lf-card id="fb-cache"><strong>Cache</strong></lf-card></lf-column>'
+            '<lf-card id="fb-cache" label="Cache"></lf-card></lf-column>'
             '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
         },
     )

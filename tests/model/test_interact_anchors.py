@@ -227,8 +227,8 @@ def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
     # row — the runtime writes controls between options, words this reading doesn't
     # hold. The runtime reads its side back the same way, and only a full match counts.
     assert (
-        anchor["prefix"] == "risk: low Backfill first"
-    )  # the option's own chip band, then its title
+        anchor["prefix"] == "st effort: med risk: low"
+    )  # the end of the option's title, then its chip band
     assert anchor["suffix"] == ". My take: do this first"
 
 
@@ -459,7 +459,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     """A message is not the only id an agent is handed. A user's press on a widget
-    frozen into a reply is answered through its exact delivery reference. The
+    in a reply is answered through its exact delivery reference. The
     diagnostic must name that response route for the action rather than treating
     its event id as a page element or a proactive thread destination."""
     publish(page_dir)
@@ -467,10 +467,10 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
     )
-    frozen = (
-        '<section id="thread-ask" role="group" aria-labelledby="thread-ask-h">\n<h2 id="thread-ask-h">Choose one</h2>'
+    ask = (
+        '<lf-group id="thread-ask" label="Choose one">\n<h2 id="thread-ask-h">Choose one</h2>'
         '<lf-options id="thread-picks"><lf-option id="thread-option">'
-        "Thread option</lf-option></lf-options></section>"
+        "Thread option</lf-option></lf-options></lf-group>"
     )
     answered = CliRunner().invoke(
         cli_model.cli,
@@ -480,7 +480,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            f"Which?\n\n{frozen}",
+            f"Which?\n\n{ask}",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1456,7 +1456,7 @@ def test_a_widgets_said_attribute_is_quotable_like_any_other_passage(page_dir):
     )
     published(page_dir)
     for quote, section in (
-        ("risk: low Backfill first", "backfill-first"),
+        ("Backfill first effort: med", "backfill-first"),
         ("Traffic 312 daily visits", "k-visits"),
     ):
         result = comment(page_dir, "--quote", quote, "--text", "x")
@@ -1729,11 +1729,11 @@ def test_a_closed_thread_stops_asking(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h">\n<h3 id="gm-decision-h">Which mitigations?</h3>'
+            "text": 'Which mitigations?\n\n<lf-group id="gm-decision" label="Which mitigations?">\n<h3 id="gm-decision-h">Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm">'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            "</lf-options></section>",
+            '<lf-option id="m-cap" label="Cap retries"></lf-option>'
+            "</lf-options></lf-group>",
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -1765,10 +1765,10 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "revision": 1,
                     "text": (
                         f"Choose {suffix}\n\n"
-                        f'<section id="group-{suffix}-decision" role="group" aria-labelledby="group-{suffix}-decision-h">\n<h3 id="group-{suffix}-decision-h">Choose {suffix}</h3>'
+                        f'<lf-group id="group-{suffix}-decision" label="Choose {suffix}">\n<h3 id="group-{suffix}-decision-h">Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}">'
-                        f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
-                        "</lf-options></section>"
+                        f'<lf-option id="option-{suffix}" label="{suffix}"></lf-option>'
+                        "</lf-options></lf-group>"
                     ),
                 },
             )
@@ -1884,8 +1884,8 @@ def test_message_html_may_not_dress_the_document_it_is_put_into(page_dir, native
     Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
-        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h">\n<h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
-        '<lf-option id="d1-a">A</lf-option></lf-options></section>'
+        '<lf-group id="d1-decision" label="Choose one">\n<h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-group>'
     )
     if native:
         widget = '<pre id="native-log">Ready</pre>'
@@ -1923,11 +1923,11 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
         comment(
             page_dir,
             "--text",
-            'Pick one:\n\n<section id="ps-decision" role="group" aria-labelledby="ps-decision-h">\n<h3 id="ps-decision-h">Which store?</h3>'
+            'Pick one:\n\n<lf-group id="ps-decision" label="Which store?">\n<h3 id="ps-decision-h">Which store?</h3>'
             '<lf-options id="ps-q">'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-group>",
         ).exit_code
         == 0
     )
@@ -1958,8 +1958,8 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
     author's to write, as in the page itself."""
     published(page_dir)
     widget = (
-        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h">\n<h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
-        '<lf-option id="d1-a">A</lf-option></lf-options></section>'
+        '<lf-group id="d1-decision" label="Choose one">\n<h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
+        '<lf-option id="d1-a">A</lf-option></lf-options></lf-group>'
     )
     if native:
         widget = '<table id="native-checks"><tr><td>Passed</td></tr></table>'

@@ -18,19 +18,18 @@ Each option is a result the user can pick, so its title says what choosing it do
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
 handwritten types”, rather than “Accept” and “Not now”. Where the options differ only
 in a value, such as how long captures are kept, say once above them what that value
-costs, and each title can be the whole option. The user should be able to compare the
-options down the list without reading their prose, as through `small.tag` labels for
-the facts they weigh, such as effort or risk. Keep each label to a word or two, such as
-“2 days” rather than “about two days of work”, so a card's labels fit on one line
-beside its pick mark. Where cards stand side by side (`across`), labels that wrap push
-that card's title below its neighbours'. Add words only for a consequence that no title
-or label shows.
+costs, and each title can be the whole option. A card's title is its `label`
+attribute. The user should be able to compare the options down the list without
+reading their prose, as through `small.tag` chips for the facts they weigh, such as
+effort or risk. Keep each chip to a word or two, such as “2 days” rather than “about
+two days of work”, so a card's chips fit on the line under its title. Add words only
+for a consequence that no title or chip shows.
 Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the question lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
-position. The recommended option stays where that order puts it;
-`<small class="tag ok">recommended</small>` marks your advice, and its `ok` draws it
-green. Prose that recommends or discusses an option names it by its title, as in
+position. The recommended option stays where that order puts it; `recommended` on it
+marks your advice, which draws a green chip beside its title. Prose that recommends or
+discusses an option names it by its title, as in
 “I'd keep handwritten types”, never by its position or by a letter from an earlier
 list, since the options' order can change after you write it.
 
@@ -88,15 +87,12 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 Make each question answerable where On Me takes the user: pressing `m` selects the
 whole question and brings its start to the top of the window, leaving earlier content
-out of view. Write each question as a group you name: the `<section>` holding the
-question and its case, with an id, `role="group"` and `aria-labelledby` naming the id
-of the heading that asks the question on its own, without leaning on the prose around
-it. That is usually the group's opening heading, with any eyebrow beside it in an
-`<hgroup>`; where the page's own heading asks the question, as a workspace's header
-does over a playground, the group names that heading (`page-layout.md`, "A
-workspace"). The words the group is named by are the question's words on On Me and in
-the answer you receive; Leaf reads the region and its name from that markup, so
-`page check` refuses a widget that asks with no named group round it.
+out of view. Write each question as an `lf-group` holding the question and its case,
+with an id and a `label` that asks the question on its own, without leaning on the
+prose around it. The group draws none of its label, so give it the heading the page
+needs, as for any part of the page. The label's words are the question's words on On Me and in the
+answer you receive; Leaf reads the region and its name from that markup, so
+`page check` refuses a widget that asks with no group round it.
 
 The group is the region `m` selects, so it holds everything the user judges: why the
 question arises, the current state and its evidence, such as a capture of today or a
@@ -107,14 +103,14 @@ and options, after the evidence, leaves the evidence outside what `m` selects. E
 widget in the group that asks is its own question with its own answer.
 
 ```html
-<section id="material-q" role="group" aria-labelledby="material-h">
+<lf-group id="material-q" label="Which material for the housing?">
   <h2 id="material-h">Which material for the housing?</h2>
   <p>Aluminium costs three times as much and halves the weight.</p>
   <table id="material-weights">
     …
   </table>
   <lf-options id="material">…</lf-options>
-</section>
+</lf-group>
 ```
 
 On a quick-answer page, open with the question and put optional detail in a disclosure after
@@ -148,20 +144,20 @@ things as they are and take the action, so declining is an answer too. Put the e
 action and the evidence the user needs in the question's heading and prose:
 
 ```html
-<section
+<lf-group
   id="publish-report-question"
-  role="group"
-  aria-labelledby="publish-report-heading"
+  label="Publish this report to the team workspace?"
 >
   <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
-    <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
-    <lf-option id="publish-report-publish"
-      ><strong>Publish it to the team workspace</strong></lf-option
-    >
+    <lf-option id="publish-report-keep" label="Keep it private"></lf-option>
+    <lf-option
+      id="publish-report-publish"
+      label="Publish it to the team workspace"
+    ></lf-option>
   </lf-options>
-</section>
+</lf-group>
 ```
 
 Other unanswered questions do not block it. When permission depends on an earlier

@@ -1,11 +1,13 @@
 /* The chip, the compact face a small fact rides in (tokens.css, `--lf-chip-r`), on the
- * labels this package's widgets draw (`.lf-chip`) and on the chips an author writes in
- * an option (`small.tag`, as lf-option's instructions ask). The package states it
+ * labels this package's widgets draw (`.lf-chip`), on the chips an author writes in an
+ * option (`small.tag`), and on the `recommended` chip options.css draws. The package states it
  * itself, so its widgets keep their chips on a page that takes no theme. At a class's
  * weight, as the reading theme's `.tag` is, so the two agree wherever both apply, and
  * first in the package, so a widget's own rule for where its chip sits wins a tie. */
 .lf-chip,
-:where(lf-option) > .tag {
+:where(lf-option) > .tag,
+:where(lf-option[recommended]) > [data-lf-said="label"]::after,
+:where(lf-option[recommended]:not([label]))::before {
   display: inline-block;
   font: var(--lf-font-chip);
   padding: var(--lf-chip-pad);
@@ -20,7 +22,9 @@
   align-self: center;
 }
 .lf-chip[data-lf-tone="ok"],
-:where(lf-option) > .tag.ok {
+:where(lf-option) > .tag.ok,
+:where(lf-option[recommended]) > [data-lf-said="label"]::after,
+:where(lf-option[recommended]:not([label]))::before {
   --lf-tone-tint: var(--lf-ok-tint);
   --lf-tone-ink: var(--lf-ok-ink);
 }
@@ -35,7 +39,9 @@
   --lf-tone-ink: var(--lf-danger-ink);
 }
 .lf-chip[data-lf-tone],
-:where(lf-option) > .tag:is(.ok, .warn, .danger) {
+:where(lf-option) > .tag:is(.ok, .warn, .danger),
+:where(lf-option[recommended]) > [data-lf-said="label"]::after,
+:where(lf-option[recommended]:not([label]))::before {
   background: var(--lf-tone-tint);
   color: var(--lf-tone-ink);
 }

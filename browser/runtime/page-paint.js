@@ -53,7 +53,7 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   proxied: "data-lf-proxied",
   location: "data-lf-projected-location",
   // The cursor's paint, on the element under the pointer, which the margin likewise does
-  // not hear: the hand over a thread's mark (annotation-overlay/anchor-paint.js,
+  // not hear: the hand over a thread's mark (anchor-paint.js,
   // annotation-chrome.css), and the aim's hand where it has an item and the crosshair of
   // Draw mode and Capture area (page-geometry.js).
   overMark: "data-lf-over-mark",
@@ -66,7 +66,7 @@ export const RUNTIME_PAINT_ATTRIBUTE = Object.freeze({
   // code's face round it and round a display formula's `<pre>` (formulas.js).
   formula: "data-lf-formula",
   // An element holding words a passage highlight paints, which the highlights' rules
-  // name (annotation-overlay/anchor-paint.js, `holdWords`; annotation-marks.css).
+  // name (anchor-paint.js, `holdWords`; marks.css).
   markedWords: "data-lf-marked-words",
 });
 

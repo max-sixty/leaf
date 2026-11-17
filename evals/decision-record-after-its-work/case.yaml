@@ -154,7 +154,7 @@ vars:
     &lt;/lf-chart&gt;</code></pre>
             </lf-sample>
 
-            <section id="scope-question" role="group" aria-labelledby="scope-question-h">
+            <lf-group id="scope-question" label="Which widgets should work off a Leaf page?">
               <h3 id="scope-question-h">Which widgets should work off a Leaf page?</h3>
               <p>
                 I'd make the display widgets portable. The issue's case is another app
@@ -164,30 +164,26 @@ vars:
                 export, read from each module's imports.
               </p>
               <lf-options id="portable-scope">
-                <lf-option id="portable-scope-none">
+                <lf-option id="portable-scope-none" label="Keep widgets Leaf-only">
                   <small class="tag">0 names</small>
-                  <strong>Keep widgets Leaf-only</strong>
                   #3833 closes with what has landed, and widgets keep importing any runtime
                   helper.
                 </lf-option>
-                <lf-option id="portable-scope-display" selected>
+                <lf-option id="portable-scope-display" label="Make the display widgets portable" recommended selected>
                   <small class="tag">41 names</small>
                   <small class="tag">6 widgets</small>
-                  <small class="tag ok">recommended</small>
-                  <strong>Make the display widgets portable</strong>
                   <code>lf-chart</code>, <code>lf-tally</code>, <code>lf-code</code>,
                   <code>lf-diagram</code>, <code>lf-timeline</code> and
                   <code>lf-motion</code> load on a plain page, checked in CI.
                 </lf-option>
-                <lf-option id="portable-scope-all">
+                <lf-option id="portable-scope-all" label="Make every package widget portable">
                   <small class="tag">204 names</small>
                   <small class="tag">36 modules</small>
-                  <strong>Make every package widget portable</strong>
                   Every package module loads on a plain page, interaction widgets
                   included, checked in CI.
                 </lf-option>
               </lf-options>
-            </section>
+            </lf-group>
           </section>
 
           <section id="chart-slice">
@@ -267,7 +263,7 @@ vars:
               and I'll do it with the next widget.
             </p>
 
-            <section id="chart-land-question" role="group" aria-labelledby="chart-land-question-h">
+            <lf-group id="chart-land-question" label="Land the portable entry for lf-chart?">
               <h3 id="chart-land-question-h">Land the portable entry for <code>lf-chart</code>?</h3>
               <p>
                 This adds a public module, not a simplification, so it's outside the
@@ -279,19 +275,16 @@ vars:
                 reviewer gate the merge.
               </p>
               <lf-options id="chart-land">
-                <lf-option id="chart-land-hold">
-                  <strong>Keep it on its branch</strong>
+                <lf-option id="chart-land-hold" label="Keep it on its branch">
                   Nothing lands, and the next widget waits on this question.
                 </lf-option>
-                <lf-option id="chart-land-merge" selected>
+                <lf-option id="chart-land-merge" label="Open a PR and land it" recommended selected>
                   <small class="tag">+1 public module</small>
-                  <small class="tag ok">recommended</small>
-                  <strong>Open a PR and land it</strong>
                   With the review fixes, and <code>portable-api.js</code> named in root
                   <code>AGENTS.md</code>.
                 </lf-option>
               </lf-options>
-            </section>
+            </lf-group>
           </section>
 
           <section id="keys">
@@ -317,7 +310,7 @@ vars:
               (<a href="https://github.com/max-sixty/leaf/blob/6c6ce9b43/browser/runtime/keyboard/bindings.js#L106"><code>bindings.js</code></a>).
             </p>
 
-            <section id="keys-question" role="group" aria-labelledby="keys-question-h">
+            <lf-group id="keys-question" label="How should a portable widget declare its keys?">
               <h3 id="keys-question-h">How should a portable widget declare its keys?</h3>
               <p>
                 I'd have the widget declare its rows as data. It matches how Leaf already
@@ -329,31 +322,27 @@ vars:
                 register's output for the rest: one attribute with two directions.
               </p>
               <lf-options id="keys-route">
-                <lf-option id="keys-route-calls">
+                <lf-option id="keys-route-calls" label="Keep the call; make the keyboard modules load anywhere">
                   <small class="tag">keyboard graph portable</small>
-                  <strong>Keep the call; make the keyboard modules load anywhere</strong>
                   <code>commands(…)</code> stays. Leaf's keyboard modules stop reading the page
                   at load. Off Leaf the call does nothing, so <code>w</code> does nothing.
                 </lf-option>
-                <lf-option id="keys-route-data">
+                <lf-option id="keys-route-data" label="Declare the rows as data that Leaf reads" recommended>
                   <small class="tag">register stays owner</small>
-                  <small class="tag ok">recommended</small>
-                  <strong>Declare the rows as data that Leaf reads</strong>
                   The widget exposes the same rows as a property, for example
                   <code>this.commands = [{ id: "code.wrap", keys: ["w"], … }]</code>, and
                   fires an event when they change. Leaf binds them as it does today. Off Leaf
                   nothing reads them.
                 </lf-option>
-                <lf-option id="keys-route-markup">
+                <lf-option id="keys-route-markup" label="Declare keys in markup on a button">
                   <small class="tag">attribute both ways</small>
-                  <strong>Declare keys in markup on a button</strong>
                   The block draws
                   <code>&lt;button commandfor="…" command="--wrap" aria-keyshortcuts="w"&gt;Wrap&lt;/button&gt;</code>.
                   Leaf binds <code>w</code> from the attribute. Off Leaf the button still
                   works by click and touch.
                 </lf-option>
               </lf-options>
-            </section>
+            </lf-group>
           </section>
 
           <section id="then">
@@ -401,7 +390,7 @@ vars:
               <code>revealedBy</code>, and find keeps reaching filtered diff files.
             </p>
 
-            <section id="diff-filter-question" role="group" aria-labelledby="diff-filter-question-h">
+            <lf-group id="diff-filter-question" label="Should find-in-page reach diff files the filter hides?">
               <h3 id="diff-filter-question-h">Should find-in-page reach diff files the filter hides?</h3>
               <p>
                 Since #4500 a filtered-out file is <code>hidden="until-found"</code>. Find
@@ -410,20 +399,17 @@ vars:
                 treats other folded content, so I'd keep it.
               </p>
               <lf-options id="diff-filter">
-                <lf-option id="diff-filter-reach" selected>
+                <lf-option id="diff-filter-reach" label="Find reaches filtered files" recommended selected>
                   <small class="tag">today</small>
-                  <small class="tag ok">recommended</small>
-                  <strong>Find reaches filtered files</strong>
                   A match in a hidden file clears the filter and lands on it.
                 </lf-option>
-                <lf-option id="diff-filter-skip">
-                  <strong>Find skips filtered files</strong>
+                <lf-option id="diff-filter-skip" label="Find skips filtered files">
                   The filter hides files from find and links, as before #4500.
                 </lf-option>
               </lf-options>
-            </section>
+            </lf-group>
 
-            <section id="transcript-question" role="group" aria-labelledby="transcript-question-h">
+            <lf-group id="transcript-question" label="Should find-in-page reach folded thread messages?">
               <h3 id="transcript-question-h">Should find-in-page reach folded thread messages?</h3>
               <p>
                 A thread folds older messages with plain <code>hidden</code>, which find
@@ -435,21 +421,18 @@ vars:
                 where a reply lands). I'd make the change.
               </p>
               <lf-options id="transcript-folds">
-                <lf-option id="transcript-folds-hidden">
+                <lf-option id="transcript-folds-hidden" label="Find skips folded messages">
                   <small class="tag">today</small>
-                  <strong>Find skips folded messages</strong>
                   Folds stay out of find; Leaf's travel unfolds them through
                   <code>revealedBy</code>.
                 </lf-option>
-                <lf-option id="transcript-folds-findable" selected>
+                <lf-option id="transcript-folds-findable" label="Find reaches folded messages" recommended selected>
                   <small class="tag">−1 mechanism</small>
-                  <small class="tag ok">recommended</small>
-                  <strong>Find reaches folded messages</strong>
                   ⌘F unfolds the message it matches, and <code>revealedBy</code> is
                   deleted.
                 </lf-option>
               </lf-options>
-            </section>
+            </lf-group>
           </section>
         </article>
         </main>
@@ -599,7 +582,7 @@ variants:
                   import 204 of <code>widget-api.js</code>'s 250 exports.
                 </p>
 
-                <section id="scope-question" role="group" aria-labelledby="scope-question-h">
+                <lf-group id="scope-question" label="Which widgets should work off a Leaf page?">
                   <h3 id="scope-question-h">Which widgets should work off a Leaf page?</h3>
                   <p>
                     I'd make the display widgets portable. The issue's case is another app
@@ -609,30 +592,26 @@ variants:
                     export, read from each module's imports.
                   </p>
                   <lf-options id="portable-scope">
-                    <lf-option id="portable-scope-none">
+                    <lf-option id="portable-scope-none" label="Keep widgets Leaf-only">
                       <small class="tag">0 names</small>
-                      <strong>Keep widgets Leaf-only</strong>
                       #3833 closes with what has landed, and widgets keep importing any runtime
                       helper.
                     </lf-option>
-                    <lf-option id="portable-scope-display" selected>
+                    <lf-option id="portable-scope-display" label="Make the display widgets portable" recommended selected>
                       <small class="tag">41 names</small>
                       <small class="tag">6 widgets</small>
-                      <small class="tag ok">recommended</small>
-                      <strong>Make the display widgets portable</strong>
                       <code>lf-chart</code>, <code>lf-tally</code>, <code>lf-code</code>,
                       <code>lf-diagram</code>, <code>lf-timeline</code> and
                       <code>lf-motion</code> load on a plain page, checked in CI.
                     </lf-option>
-                    <lf-option id="portable-scope-all">
+                    <lf-option id="portable-scope-all" label="Make every package widget portable">
                       <small class="tag">204 names</small>
                       <small class="tag">36 modules</small>
-                      <strong>Make every package widget portable</strong>
                       Every package module loads on a plain page, interaction widgets
                       included, checked in CI.
                     </lf-option>
                   </lf-options>
-                </section>
+                </lf-group>
               </section>
 
               <section id="then">
@@ -674,7 +653,7 @@ variants:
                   places came out differently, and both are yours to reverse.
                 </p>
 
-                <section id="diff-filter-question" role="group" aria-labelledby="diff-filter-question-h">
+                <lf-group id="diff-filter-question" label="Should find-in-page reach diff files the filter hides?">
                   <h3 id="diff-filter-question-h">Should find-in-page reach diff files the filter hides?</h3>
                   <p>
                     Since #4500 a filtered-out file is <code>hidden="until-found"</code>. Find
@@ -683,20 +662,17 @@ variants:
                     treats other folded content, so I'd keep it.
                   </p>
                   <lf-options id="diff-filter">
-                    <lf-option id="diff-filter-reach" selected>
+                    <lf-option id="diff-filter-reach" label="Find reaches filtered files" recommended selected>
                       <small class="tag">today</small>
-                      <small class="tag ok">recommended</small>
-                      <strong>Find reaches filtered files</strong>
                       A match in a hidden file clears the filter and lands on it.
                     </lf-option>
-                    <lf-option id="diff-filter-skip">
-                      <strong>Find skips filtered files</strong>
+                    <lf-option id="diff-filter-skip" label="Find skips filtered files">
                       The filter hides files from find and links, as before #4500.
                     </lf-option>
                   </lf-options>
-                </section>
+                </lf-group>
 
-                <section id="transcript-question" role="group" aria-labelledby="transcript-question-h">
+                <lf-group id="transcript-question" label="Should find-in-page reach folded thread messages?">
                   <h3 id="transcript-question-h">Should find-in-page reach folded thread messages?</h3>
                   <p>
                     A thread folds older messages with plain <code>hidden</code>, which find
@@ -708,21 +684,18 @@ variants:
                     where a reply lands). I'd make the change.
                   </p>
                   <lf-options id="transcript-folds">
-                    <lf-option id="transcript-folds-hidden">
+                    <lf-option id="transcript-folds-hidden" label="Find skips folded messages">
                       <small class="tag">today</small>
-                      <strong>Find skips folded messages</strong>
                       Folds stay out of find; Leaf's travel unfolds them through
                       <code>revealedBy</code>.
                     </lf-option>
-                    <lf-option id="transcript-folds-findable" selected>
+                    <lf-option id="transcript-folds-findable" label="Find reaches folded messages" recommended selected>
                       <small class="tag">−1 mechanism</small>
-                      <small class="tag ok">recommended</small>
-                      <strong>Find reaches folded messages</strong>
                       ⌘F unfolds the message it matches, and <code>revealedBy</code> is
                       deleted.
                     </lf-option>
                   </lf-options>
-                </section>
+                </lf-group>
               </section>
             </article>
             </main>

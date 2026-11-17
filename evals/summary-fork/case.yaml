@@ -1,0 +1,13 @@
+# The fork that summarizes a long thread's earlier discussion beside the line fork
+# (`src/leaf/summary_fork.py`), replayed on a short conversation and a thread whose
+# range takes in an earlier summary. Run it with `uv run leaf-dev eval run
+# summary-fork --harness claude-code`; the thread and rubric are in
+# workflows/fork_eval.yaml.
+description: Summary fork
+metadata:
+  purpose: A long thread's earlier discussion, an earlier summary's range included, becomes one summary that keeps every decision and answers nothing.
+  tags: [workflow, forks, threads]
+  harnesses: [claude-code]
+  conditions: [leaf]
+  executor: leaf_dev.fork_eval
+  scenario: summary

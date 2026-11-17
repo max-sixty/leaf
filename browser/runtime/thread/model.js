@@ -430,7 +430,7 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    A reader made by `threadRecordReader` keeps each thread's record (`kept.js`), and
    reads it again only where the thread or something it holds has changed: the served
    thread, its unread versions, workflows, obligations and to-dos, and the state of the
-   widgets frozen into its messages. Within a thread it reads again, it keeps each
+   widgets in its messages. Within a thread it reads again, it keeps each
    message's reading in turn, so a reply to a long thread reads one message and the
    reactions it touches. A message's captured words (`messageBodies`) are prepared from
    the message itself, so the message stands for them. A workflow stands in the thread
@@ -489,7 +489,7 @@ export function threadRecordReader() {
     const markingIn = grouped(markingRead, (item) => item.message);
     const tokens = document.registry.$reactions?.tokens ?? NO_TOKENS;
     const reacts = ready && Object.keys(tokens).length > 0;
-    // The widgets frozen into each message, and into each thread, with their state.
+    // The widgets in each message, and in each thread, with their state.
     /** @type {Map<string | undefined, Unit[]>} */
     const unitsByMessage = new Map();
     /** @type {Map<string | undefined, Unit[]>} */
@@ -525,7 +525,7 @@ export function threadRecordReader() {
     const obligationsIn = grouped(obligations, (obligation) => obligation.thread);
     const todosIn = grouped(todos, (todo) => todo.thread);
     // The message's own inputs, its first words and each rewrite of them, and the
-    // actions on widgets frozen into it, in the published order `strongestWorkflow`
+    // actions on widgets in it, in the published order `strongestWorkflow`
     // reads.
     /** @param {Message} message */
     const messageWorkflows = (message) => {

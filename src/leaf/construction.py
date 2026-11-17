@@ -1,4 +1,4 @@
-"""The construction reading of a thread's frozen markup, derived from the canonical
+"""The construction reading of a thread's markup, derived from the canonical
 state fold.
 
 `leaf page state <page> <message>` prints it for each message that carries markup:

@@ -394,25 +394,6 @@ def _reference_contract(at: str, v: dict) -> str:
     )
 
 
-def _question_group(at: str, v: dict) -> str:
-    """What a group holding a question lacks, each part with how to give it: a
-    fieldset is named by its legend, any other group by the heading its
-    `aria-labelledby` names."""
-    needs = {
-        "id": "an id, the place the question stands",
-        "name": "a name: "
-        + (
-            "a <legend> that asks the question"
-            if v["tag"] == "fieldset"
-            else "aria-labelledby naming the id of the heading that asks the question"
-        ),
-    }
-    return (
-        f"{_line(at, v)}: the group holding {' and '.join(v['widgets'])} needs "
-        + ", and ".join(needs[need] for need in v["lacks"])
-    )
-
-
 def _unservable_layer(v: dict, why: str, action: str) -> str:
     """Why this Leaf can neither serve a page nor write its log (`layer`)."""
     return (
@@ -916,6 +897,10 @@ _TEXT = {
             else f"one of {', '.join(v['allowed'])}"
         )
     ),
+    "title-in-strong": lambda at, v: (
+        f"{_line(at, v)}: leads with a <strong>, which names nothing and draws as bold"
+        ' words; give the title in label="…" and keep the rest as its words'
+    ),
     "inert-allocation": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has no effect: "
         + {
@@ -1039,11 +1024,11 @@ _TEXT = {
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
     "ungrouped-question": lambda at, v: (
-        f"{_line(at, v)}: asks the user, but no group holds its question; write the"
-        ' question, its heading, premise and this widget as <section id="…"'
-        ' role="group" aria-labelledby="…">, naming the heading that asks it by its id'
+        f"{_line(at, v)}: asks the user, but no group holds its question; write its"
+        " premise and this widget in "
+        + " or ".join(f'<{tag} id="…" label="…">' for tag in v["groups"])
+        + ", its label asking the question"
     ),
-    "question-group": _question_group,
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
         f" {v['first_line']} in the same <{v['scope']}>"
@@ -1115,7 +1100,7 @@ _TEXT = {
         f" {_seat(v['then'])}; use a new source id for the new meaning"
     ),
     # Message markup, which no version settles.
-    "frozen-settlement": lambda at, v: (
+    "message-settlement": lambda at, v: (
         f"{at} is a settlement holder, but a version settles only the page's markup,"
         " never a message's; put the change in the next version instead"
     ),
@@ -1755,8 +1740,8 @@ _TEXT = {
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
         f"unknown report widget {v['widget']!r} in revision r{v['revision']} — reports"
-        " name page widgets only, since no version can answer a report in frozen"
-        " thread markup"
+        " name page widgets only, since no version can answer a report in thread"
+        " markup"
         if v["kind"] == "report"
         else f"unknown action widget {v['widget']!r} in revision r{v['revision']} or"
         " agent-authored thread markup"

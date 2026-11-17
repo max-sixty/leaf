@@ -309,10 +309,10 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
 
     def item(key):
         return (
-            f'<lf-tab id="t-{key}" label="{key}"><section id="{key}-decision" role="group" aria-labelledby="{key}-decision-h">'
+            f'<lf-tab id="t-{key}" label="{key}"><lf-group id="{key}-decision" label="Pick the {key}">'
             f'<h2 id="{key}-decision-h">Pick the {key}</h2><div style="height: 900px"></div>'
             f'<lf-options id="{key}"><lf-option id="{key}-a">Alpha</lf-option>'
-            "</lf-options></section></lf-tab>"
+            "</lf-options></lf-group></lf-tab>"
         )
 
     page = open_page(
@@ -480,14 +480,14 @@ SECTIONED_PANE_PAGE = leaf_page(
 THREE_PART_OBLIGATION_PAGE = leaf_page(
     "a three-part obligation as the workspace",
     """
-  <section id="workspace-ask" role="group" aria-labelledby="workspace-ask-h">
+  <lf-group id="workspace-ask" label="Which release should go out?">
     <h2 id="workspace-ask-h">Which release should go out?</h2>
     <div id="ask-context" style="height: 900px">The context the user weighs.</div>
     <lf-options id="workspace-options">
       <lf-option id="workspace-ship">Ship it</lf-option>
       <lf-option id="workspace-hold">Hold it</lf-option>
     </lf-options>
-  </section>
+  </lf-group>
 """,
     layout="workspace",
 )
@@ -748,20 +748,17 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
     elif container == "pane":
         reading = reading.replace(
             '<button id="reading-end">',
-            """<section id="release-ask" role="group" aria-labelledby="release-ask-h"><h2 id="release-ask-h">What should the review record?</h2>
+            """<lf-group id="release-ask" label="What should the review record?"><h2 id="release-ask-h">What should the review record?</h2>
               <p>Comment on the code before making your final call. A selection records
                 your review decision; it does not deploy code or mark tests as passed.</p>
               <p>Ship with changes keeps the retry budget within the deadline.
                 Update the acceptance checks before beginning rollout.</p>
               <lf-options id="release-options" closed>
-              <lf-option id="ship-written"><strong>Ship as written</strong>
-                <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
-              <lf-option id="ship-changes"><strong>Ship with changes</strong>
-                <p>Reduce the retry budget and update acceptance checks before rollout.</p></lf-option>
-              <lf-option id="hold-release"><strong>Hold</strong>
-                <p>Keep the proposal unapproved and do not begin rollout. Resolve deadline
+              <lf-option id="ship-written" label="Ship as written">                <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
+              <lf-option id="ship-changes" label="Ship with changes">                <p>Reduce the retry budget and update acceptance checks before rollout.</p></lf-option>
+              <lf-option id="hold-release" label="Hold">                <p>Keep the proposal unapproved and do not begin rollout. Resolve deadline
                 or exception-contract concerns and gather test evidence before revisiting.</p></lf-option>
-            </lf-options></section><button id="reading-end">""",
+            </lf-options></lf-group><button id="reading-end">""",
         )
         reading = reading.replace(
             "<p>Start</p>", '<p><a href="#release-ask">Record decision</a></p>'

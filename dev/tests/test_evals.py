@@ -238,12 +238,12 @@ REPLAYED = {
                     "text": "Both regions pass the preflight. When should I run the "
                     "production rebuild?\n\n"
                     '<lf-options id="rebuild-when">\n'
-                    '<lf-option id="rebuild-tonight"><small class="tag ok">'
-                    "recommended</small> <strong>Rebuild tonight</strong></lf-option>\n"
-                    '<lf-option id="rebuild-now"><strong>Rebuild now</strong> p95 up '
+                    '<lf-option id="rebuild-tonight" label="Rebuild tonight" '
+                    "recommended></lf-option>\n"
+                    '<lf-option id="rebuild-now" label="Rebuild now">p95 up '
                     "30%</lf-option>\n"
-                    '<lf-option id="rebuild-saturday"><strong>Rebuild on Saturday'
-                    "</strong></lf-option>\n</lf-options>",
+                    '<lf-option id="rebuild-saturday" label="Rebuild on Saturday">'
+                    "</lf-option>\n</lf-options>",
                     "passage": "",
                     "again": "",
                     "quote": "I'd go tonight.",
@@ -832,9 +832,9 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch):
             f'<a id="handoff" href="{urls[handoff]}#result">Open handoff</a>'
             '<a id="external" href="https://example.com/">External</a>'
             f'<p id="quoted">The original address was {urls[handoff]}</p>'
-            '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Keep this decision?</h2>'
+            '<lf-group id="question" label="Keep this decision?"><h2 id="question-h">Keep this decision?</h2>'
             '<lf-options id="answer"><lf-option id="keep">Keep</lf-option>'
-            "</lf-options></section></main></body></html>"
+            "</lf-options></lf-group></main></body></html>"
         )
         with headless_shell() as browser, tab(browser) as view:
             load(view, urls[main])

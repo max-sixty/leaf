@@ -183,14 +183,14 @@ def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
 
 
 PLAYGROUND_SETTINGS = (
-    '<section id="pg-q" role="group" aria-label="How many pages?">'
+    '<lf-group id="pg-q" label="How many pages?">'
     '<lf-playground id="pg"><aside><label id="budget">Page budget'
     ' <input type="range" name="budget" min="0" max="30" value="10"></label>'
     '<label id="finance"><input type="checkbox" name="finance"'
     ' role="switch"> Count finance pages</label></aside><p>The budget.</p>'
     "<lf-playground-output>Budget"
     ' <output for="budget"></output></lf-playground-output>'
-    "</lf-playground></section>"
+    "</lf-playground></lf-group>"
 )
 
 
@@ -208,12 +208,12 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
 
 
 # Option cards whose picks Done completes.
-FEEDERS = """<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which feeders should we refill?</h2>
+FEEDERS = """<lf-group id="ask" label="Which feeders should we refill?"><h2 id="ask-h">Which feeders should we refill?</h2>
 <lf-options id="feeders" multiple>
-<lf-option id="feeder-porch"><strong>The porch feeder</strong> Seen from the kitchen.
+<lf-option id="feeder-porch" label="The porch feeder">Seen from the kitchen.
 </lf-option>
-<lf-option id="feeder-oak"><strong>The oak feeder</strong> Out of the wind.</lf-option>
-</lf-options></section>"""
+<lf-option id="feeder-oak" label="The oak feeder">Out of the wind.</lf-option>
+</lf-options></lf-group>"""
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -794,11 +794,11 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 <section id="stall"><hgroup><p>offline editing</p><h2>iOS reconnect stall</h2></hgroup>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
-<section id="decision" role="group" aria-labelledby="decision-h"><h3 id="decision-h">Patch decision</h3>
+<lf-group id="decision" label="Patch decision"><h3 id="decision-h">Patch decision</h3>
 <lf-options id="decision-options">
   <lf-option id="decision-ship" selected>Ship with the resend.</lf-option>
   <lf-option id="decision-hold">Hold the patch.</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 <section id="meeting"><h3>Where should the group meet?</h3>
 <lf-options id="meeting-options" settled>
   <lf-option id="meeting-door">At the door</lf-option>
@@ -1663,14 +1663,14 @@ def _held(page, cdp, selector, words):
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
     '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
-    '<section id="opts-q" role="group" aria-label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1"><small class="tag">small cohort'
-    "</small> <strong>Start small</strong> Then widen.</lf-option>"
-    '<lf-option id="o2"><strong>Start wide</strong> Then '
-    '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options></section>'
+    '<lf-group id="opts-q" label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1" label="Start small"><small class="tag">small cohort'
+    "</small> Then widen.</lf-option>"
+    '<lf-option id="o2" label="Start wide">Then '
+    '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options></lf-group>'
     '<lf-suggestion id="sug"><lf-old><p id="old">Refill every feeder each morning.'
     "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"
     "</lf-new></lf-suggestion>"
-    '<section id="pg-q" role="group" aria-label="Which tone?">'
+    '<lf-group id="pg-q" label="Which tone?">'
     '<lf-playground id="pg"><aside><fieldset id="tone"><legend>Tone</legend>'
     '<label id="tone-quiet"><input type="radio" name="tone"'
     ' value="quiet" checked> Quiet</label><label id="tone-bold">'
@@ -1678,7 +1678,7 @@ WIDGET_WORDS = (
     '<p id="pg-words">The candidate banner reads well.</p>'
     "<lf-playground-output>Use"
     ' <output for="tone"></output></lf-playground-output>'
-    "</lf-playground></section>"
+    "</lf-playground></lf-group>"
     + "<p>More words.</p>"
     * 4
     + '<section id="destination"><h2>Destination details</h2>'

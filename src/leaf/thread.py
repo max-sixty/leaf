@@ -657,7 +657,7 @@ def post_reply(
         )
         if beside is not None and addressed.responds is not None:
             # Whether the answer took the thread, by the reading once it is in: one to
-            # an older message, or to a widget frozen there, leaves a message the fork
+            # an older message, or to a widget in one, leaves a message the fork
             # picked up waiting, and the thread with the fork.
             took = owed_by(page_holding(page).hold(thread).holder)["kind"] == "main"
             beside = replace(beside, values={**beside.values, "answers": took})
@@ -1055,7 +1055,7 @@ def post_response(
 ) -> dict | None:
     """Author a complete reply at the delivery's exact captured response address.
 
-    The reference chooses page, input and frozen thread destination. All rich reply
+    The reference chooses page, input and thread destination. All rich reply
     options belong to the durable writer. A direct answer refuses a superseded
     input, except where `post_reply` says; a provider's final (`reservation`,
     `ProviderFinal`) preserves its captured destination after user settlement but
@@ -1334,13 +1334,18 @@ def cmd_summarize(
     text,
     *,
     label: str | None = None,
-) -> dict:
+    fence=None,
+) -> dict | None:
     """Append a presentation summary over one contiguous message range, in the
-    thread its first message sits in."""
+    thread its first message sits in; or nothing, where `fence`, given the page
+    under its lock, says the writer no longer should, as a fork that summarizes a
+    thread for the agent (`summary_fork`)."""
     from leaf.registry.storage import require_registry
 
     body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:
+        if fence is not None and not fence(page):
+            return None
         require_registry(page_dir)
         record, _ = append_admitted(
             page,

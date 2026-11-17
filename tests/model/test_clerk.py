@@ -61,9 +61,9 @@ def caches(group: str = "cache") -> str:
     page."""
     return (
         f'<lf-options id="{group}">\n'
-        f'<lf-option id="{group}-lru"><small class="tag ok">recommended</small> '
-        "<strong>Use the LRU cache</strong> 81% hits</lf-option>\n"
-        f'<lf-option id="{group}-ttl"><strong>Use the TTL cache</strong></lf-option>\n'
+        f'<lf-option id="{group}-lru" label="Use the LRU cache" recommended>'
+        "81% hits</lf-option>\n"
+        f'<lf-option id="{group}-ttl" label="Use the TTL cache"></lf-option>\n'
         "</lf-options>"
     )
 
@@ -491,9 +491,9 @@ def test_a_widget_in_a_message_reads_as_its_own_question(claimed, capsys):
             "revision": 1,
             "title": "Next steps",
             "text": "The benchmark is complete. Please answer below.\n\n"
-            '<section id="ask-cache" role="group" aria-labelledby="ask-cache-h">\n<h3 id="ask-cache-h">Which cache should we use?</h3>\n'
+            '<lf-group id="ask-cache" label="Which cache should we use?">\n<h3 id="ask-cache-h">Which cache should we use?</h3>\n'
             '<lf-options id="cache"><lf-option id="lru">LRU</lf-option>'
-            '<lf-option id="ttl">TTL</lf-option></lf-options>\n</section>',
+            '<lf-option id="ttl">TTL</lf-option></lf-options>\n</lf-group>',
         },
     )
     assert (
@@ -651,7 +651,7 @@ def _fixed(capsys, page_dir, words: str, replacement: str) -> dict:
             "Ship behind a flag.",
             "dark.",
             "behind a flag.",
-            "Flag first Ship behind a flag.",
+            "risk: med Ship behind a flag.",
         ),
         # The quote crosses a link and a code span; the word that changes doesn't.
         (

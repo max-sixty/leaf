@@ -15,40 +15,36 @@
         ship on its own. Choose none if none merit the work. Press Done to send the
         implementation set.
       </p>
-      <section id="ideas-decision" role="group" aria-labelledby="ideas-decision-h">
+      <lf-group id="ideas-decision" label="Which ideas should we implement?">
         <h2 id="ideas-decision-h">Which ideas should we implement?</h2>
         <lf-options id="ideas-shortlist" multiple>
-          <lf-option id="idea-shared-filters">
-            <strong>Keep filters in shared links</strong>
+          <lf-option id="idea-shared-filters" label="Keep filters in shared links">
             <p>
               Shared analytics links currently reopen unfiltered. Put the existing team,
               date, and status filters in the URL. Frontend only; about half a day.
             </p>
           </lf-option>
-          <lf-option id="idea-draft-warning">
-            <strong>Protect unsaved drafts</strong>
+          <lf-option id="idea-draft-warning" label="Protect unsaved drafts">
             <p>
               Closing the editor can silently discard local text. Warn only when the
               draft differs from the saved version. Frontend only; about half a day.
             </p>
           </lf-option>
-          <lf-option id="idea-csv-export">
-            <strong>Export the filtered table</strong>
+          <lf-option id="idea-csv-export" label="Export the filtered table">
             <p>
               Operations copies this view into a spreadsheet each Friday. Export the
               visible rows and columns with the current permission checks. One API
               endpoint; about two days.
             </p>
           </lf-option>
-          <lf-option id="idea-report-prefetch">
-            <strong>Preload the next report</strong>
+          <lf-option id="idea-report-prefetch" label="Preload the next report">
             <p>
               After a report opens, fetch the next one in the list during browser idle.
               The next switch is faster, but one request may go unused; about one day.
             </p>
           </lf-option>
         </lf-options>
-      </section>
+      </lf-group>
     </main>
   </body>
 </html>

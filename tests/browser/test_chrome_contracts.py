@@ -392,9 +392,9 @@ def questions_page(sections: int) -> str:
         + "".join(
             f'<section id="s{g}"><h2>Section {g}</h2>'
             f'<p id="p{g}">Some words about section {g}.</p>'
-            f'<section id="q{g}" role="group" aria-labelledby="q{g}-h"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}">'
+            f'<lf-group id="q{g}" label="Question {g}"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}">'
             f'<lf-option id="o{g}-1">One</lf-option>'
-            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></section></section>'
+            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-group></section>'
             for g in range(1, sections + 1)
         )
         + "</article>",
@@ -1012,8 +1012,9 @@ def test_script_region_moves_reload_without_leaving_duplicate_nodes(browser, ser
 def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve, mode):
     """Delivered sheets parse like their captured files in document and shadow stages.
 
-    Page mode carries and constructs no physical annotation sheet, while shared paint
-    still reaches both trees. The selected overlay adds its actual annotation sheets.
+    Page mode carries and constructs no physical annotation sheet, while shared paint,
+    the passage marks among it, still reaches both trees. The selected overlay adds its
+    actual annotation sheet.
     """
     page = open_page(
         browser, serve(LONG_PAGE.replace("<body>", f'<body data-annotations="{mode}">'))
@@ -1027,7 +1028,7 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     files = {}
     names = ["chrome", "marks"]
     if mode == "overlay":
-        names.extend(["annotation-chrome", "annotation-marks"])
+        names.append("annotation-chrome")
     for name in names:
         directory = (
             "runtime/annotation-overlay"
@@ -1046,18 +1047,16 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
             sheet.replaceSync(text);
             return rules(sheet);
           };
-          const { chromeSheet: chrome, marksSheet: marks, annotationSheets,
-            annotationMarkSheets } =
+          const { chromeSheet: chrome, marksSheet: marks, annotationSheets } =
             await window.__lfCheckApi();
           if (![chrome, marks, ...annotationSheets].every(sheet => document.adoptedStyleSheets.includes(sheet)))
             throw new Error("The document did not adopt its chrome and marks sheets");
           const {shadowStage}=await window.__lfWidgetApi();
           const host=document.createElement('div'); document.querySelector('main').append(host);
           const root=shadowStage(host,[document.createTextNode('A declared shadow stage')]);
-          if (![marks,...annotationMarkSheets].every(sheet=>root.adoptedStyleSheets.includes(sheet)))
-            throw new Error('The shadow stage did not adopt its selected marks');
-          if (annotationSheets.length !== (files['annotation-chrome'] ? 2 : 0) ||
-              annotationMarkSheets.length !== (files['annotation-marks'] ? 1 : 0))
+          if (!root.adoptedStyleSheets.includes(marks))
+            throw new Error('The shadow stage did not adopt the marks');
+          if (annotationSheets.length !== (files['annotation-chrome'] ? 1 : 0))
             throw new Error('The document constructed an unselected annotation sheet');
           const answer = {
             chrome: {delivered: rules(chrome), file: fromFile(files.chrome)},
@@ -1065,7 +1064,6 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
           };
           if (annotationSheets.length) {
             answer['annotation-chrome']={delivered:rules(annotationSheets[0]),file:fromFile(files['annotation-chrome'])};
-            answer['annotation-marks']={delivered:rules(annotationMarkSheets[0]),file:fromFile(files['annotation-marks'])};
           }
           return answer;
         }""",
@@ -1083,8 +1081,8 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
     if mode == "page":
         assert ".lf-margin-cluster" not in carrier
         assert ".lf-mark-el {" not in carrier
-        assert "::highlight(lf-mark)" not in carrier
         assert ".lf-margin-preview { position: fixed" not in carrier
+    assert "::highlight(lf-mark)" in selected["marks"]
     assert ".lf-inspect {" in selected["chrome"]
     assert ".lf-drawing-mark path" in selected["chrome"]
     assert ".lf-change-card {" in selected["chrome"]

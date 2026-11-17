@@ -388,13 +388,13 @@ def ask(g: int, options: int = 4) -> str:
     """Section `g`: a heading, a paragraph and a question section of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<section id="q{g}" role="group" aria-labelledby="q{g}-h"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" multiple>'
+        f'<lf-group id="q{g}" label="Question {g}"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
-            f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
+            f'<lf-option id="o{g}-{i}" label="Option {i}">a short description.'
             "</lf-option>"
             for i in range(1, options + 1)
         )
-        + "</lf-options></section></section>"
+        + "</lf-options></lf-group></section>"
     )
 
 
@@ -428,8 +428,7 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
         return (
             f'<lf-column id="b{b}-{name}" label="{name.title()}">'
             + "".join(
-                f'<lf-card id="b{b}-{name}{j}"><strong>Card {j}</strong> of board {b}.'
-                "</lf-card>"
+                f'<lf-card id="b{b}-{name}{j}" label="Card {j}">of board {b}.</lf-card>'
                 for j in range(1, count + 1)
             )
             + "</lf-column>"
@@ -451,9 +450,9 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></section>"
+        "</lf-options></lf-group>"
     )
     sections = "".join(
         f'<section id="s{g}"><h2>Section {g}</h2>'
@@ -478,9 +477,9 @@ def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></section>"
+        "</lf-options></lf-group>"
     )
     document = (
         '<lf-text-document id="listing" label="steps.py">'
@@ -544,9 +543,9 @@ def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></section>"
+        "</lf-options></lf-group>"
     )
     rows = "".join(
         f"<tr><td>Row {r}</td><td><code>branch-{r}</code></td><td>{r} days</td>"

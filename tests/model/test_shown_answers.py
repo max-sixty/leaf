@@ -30,7 +30,7 @@ def board(columns: dict[str, list[str]], open_column: bool = True) -> str:
     `open_column`, every column holds a value."""
     cards = {
         column: "".join(
-            f'<lf-card id="card-{group}" shows="{group}"><strong>{group}</strong></lf-card>'
+            f'<lf-card id="card-{group}" label="{group}" shows="{group}"></lf-card>'
             for group in groups
         )
         for column, groups in columns.items()
@@ -49,7 +49,7 @@ def board(columns: dict[str, list[str]], open_column: bool = True) -> str:
         )
         + '<lf-column id="col-mine" label="Mine"'
         + ("" if open_column else ' value="drop"')
-        + '><lf-card id="card-own"><strong>Own</strong></lf-card></lf-column>'
+        + '><lf-card id="card-own" label="Own"></lf-card></lf-column>'
         + "</lf-board>"
     )
 
@@ -161,7 +161,7 @@ def test_a_card_shows_only_a_widget_whose_answer_names_a_value():
 
 
 def test_a_card_in_a_reply_shows_widgets_of_the_same_reply():
-    """Frozen markup's answers are its own widgets', in the thread that holds them; a
+    """Thread markup's answers are its own widgets', in the thread that holds them; a
     card in a reply naming a widget on the page would read state from another
     document."""
     page = SourceDocument(PAGE)

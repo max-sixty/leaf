@@ -12,7 +12,10 @@ block boundaries, explicit line breaks and preformatted whitespace. Read a conne
 element so its computed styles supply these boundaries; a closed popover is supported.
 Inline values stay in their sentence, and ordinary HTML source indentation collapses. To
 name one of the widget's own parts, use `wrote(element)`, which returns only the words
-the author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims
+the author wrote. `phrasing(element)` says whether an element stands within a line of
+words, as HTML's phrasing content does, rather than starting a block of its own, so a
+widget can take a sentence's words up to the first block without reading styles. Read a
+widget's `<pre>` body with `bodyText(this)`, which trims
 leading blank lines and trailing whitespace. A widget that also declares an input
 (`inputs`) reads that input's property instead, which Leaf sets to the `<pre>`'s
 text when the markup binds nothing (`package-data.md`, "External or derived data").
@@ -39,16 +42,16 @@ from an `lfWord()` method where the word depends on the element, as `lf-suggesti
 says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
 returns the words that describe it. A
-widget whose title is an attribute holds it in `label`, as a column does, which names
-its element on every widget that takes it (the registry's `$attributes`).
+widget's title is its `label` attribute, as an option card's, a board card's or a
+column's is, which names its element on every widget that takes it (the registry's
+`$attributes`).
 `authoredTitle()` is the page's own `<title>`, which `document.title` doesn't give
 while the tab's title counts what waits on the user in front of it.
 
 `titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
-or `article` that opens with it, alone or in that `hgroup`, and a widget it leads, such
-as a card, unless the widget's `label` names it; where it titles no element, the heading
-itself. A heading after other content, or opening any other element, titles only
-itself. `lf-toc` links each heading to one of them, and a heading's
+or `article` that opens with it, alone or in that `hgroup`, and a heading inside a
+widget titles only itself. A heading after other content, or opening any other
+element, titles only itself. `lf-toc` links each heading to one of them, and a heading's
 link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
@@ -239,10 +242,9 @@ A widget's obligation takes its answer and completion from its `awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
 show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
 is `null` for authored state. `prompt.target` is where the user goes to answer: the
-group the author declares round the widget, `role="group"` or a `<fieldset>`, or else
-the widget itself; `prompt.text` is that group's name, from its `aria-labelledby`, its
-`aria-label` or a fieldset's legend, else the widget's own name, and `null` for an
-update. `thread` and `message` name the Thread and message of a widget inside a Thread. A user's answer
+innermost named group round the widget, an element whose registry entry declares
+`reading-role: group` such as an `lf-group`, or else the widget itself; `prompt.text`
+is that group's `label`, else the widget's own name, and `null` for an update. `thread` and `message` name the Thread and message of a widget inside a Thread. A user's answer
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:
 

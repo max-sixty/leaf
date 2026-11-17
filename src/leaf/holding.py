@@ -451,7 +451,7 @@ def authorize(
     owes its answer (`owed_by`), whose `answers`, whether the write took the thread,
     its writer sets once the write is in (`thread.post_reply`). `thread`, where
     given, names the write's thread, as a reply's parent or a to-do's subject does,
-    which an answer to a widget frozen in a thread names by no message of its own;
+    which an answer to a thread widget names by no message of its own;
     otherwise each of `input_ids` names its own."""
     from .state import acting_agent_turn
 

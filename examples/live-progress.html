@@ -114,26 +114,24 @@
             <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
             sooner if a customer guardrail fails.
           </p>
-          <section
+          <lf-group
             id="lp-rollback-region"
-            role="group"
-            aria-labelledby="lp-rollback-region-h"
+            label="Roll back now, or hold for Ledger's trace?"
           >
             <h3 id="lp-rollback-region-h">
               Roll back now, or hold for Ledger's trace?
             </h3>
             <lf-options id="lp-rollback">
-              <lf-option id="lp-rollback-now">
-                <strong>Roll back to checkout-v1</strong> Returns all traffic from
-                checkout-v2 to the stable release without repairing the missing finance
-                row.
+              <lf-option id="lp-rollback-now" label="Roll back to checkout-v1">
+                Returns all traffic from checkout-v2 to the stable release without
+                repairing the missing finance row.
               </lf-option>
-              <lf-option id="lp-rollback-hold">
-                <strong>Hold at 25% until 14:32</strong> Keeps canary traffic on
-                checkout-v2 while Ledger traces the partial-refund fixture.
+              <lf-option id="lp-rollback-hold" label="Hold at 25% until 14:32">
+                Keeps canary traffic on checkout-v2 while Ledger traces the
+                partial-refund fixture.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </aside>
         <section class="panel" id="lp-traffic">
           <h2>Candidate traffic since deploy</h2>

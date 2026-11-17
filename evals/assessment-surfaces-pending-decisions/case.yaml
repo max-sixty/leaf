@@ -267,7 +267,7 @@ variants:
         </article>
         </main>
       question: |
-        <section id="next-touch-question" role="group" aria-labelledby="next-touch-question-h">
+        <lf-group id="next-touch-question" label="Should #59 be the next extraction scope?">
           <h3 id="next-touch-question-h">Should #59 be the next extraction scope?</h3>
           <p>Tapping a discussion should select it even when an older message still has
           focus. I recommend this independent fix next; extraction and verification are
@@ -276,7 +276,7 @@ variants:
             <lf-option id="next-touch-keep" value="keep-priority">Keep the current priorities</lf-option>
             <lf-option id="next-touch-next" value="next-scope">Make #59 the next extraction scope</lf-option>
           </lf-options>
-        </section>
+        </lf-group>
       prompt: |
         We have been splitting a large UI branch into independently reviewable changes.
         I asked for a Leaf explaining the work that is left and what we should do next.
@@ -538,17 +538,17 @@ variants:
 
         <lf-board id="refactor-board">
           <lf-column id="col-clear" label="Clear: do it">
-            <lf-card id="card-zindex"><strong>Delete z-index from top-layer menus</strong> Landed as #2799.</lf-card>
-            <lf-card id="card-grid-stack"><strong>Replace reserve() with the grid stack</strong> All ten call sites in one change: about 107 lines out and 60 in. I recommend it.</lf-card>
-            <lf-card id="card-detector"><strong>One change detector per page</strong> The polled token and the watched files from one list of page inputs. I recommend it.</lf-card>
+            <lf-card id="card-zindex" label="Delete z-index from top-layer menus">Landed as #2799.</lf-card>
+            <lf-card id="card-grid-stack" label="Replace reserve() with the grid stack">All ten call sites in one change: about 107 lines out and 60 in. I recommend it.</lf-card>
+            <lf-card id="card-detector" label="One change detector per page">The polled token and the watched files from one list of page inputs. I recommend it.</lf-card>
           </lf-column>
           <lf-column id="col-measure" label="Measure first">
-            <lf-card id="card-transport"><strong>Price the polling</strong> Measured: about 1% of a core per visible tab; push is not worth it.</lf-card>
+            <lf-card id="card-transport" label="Price the polling">Measured: about 1% of a core per visible tab; push is not worth it.</lf-card>
           </lf-column>
           <lf-column id="col-decide" label="Needs your decision">
-            <lf-card id="card-cover"><strong>May a page paint over Leaf's panels?</strong> Saying no lets main become a stacking context; a page could still rise above Leaf through a dialog or popover.</lf-card>
-            <lf-card id="card-restyle"><strong>How a page restyles Leaf's interface</strong> A stylesheet the page declares, custom properties only, or named ::parts.</lf-card>
-            <lf-card id="card-kernel"><strong>Deliver the compiled kernel to installs</strong> CI commits it to main after each runtime merge, or an npm package per commit.</lf-card>
+            <lf-card id="card-cover" label="May a page paint over Leaf's panels?">Saying no lets main become a stacking context; a page could still rise above Leaf through a dialog or popover.</lf-card>
+            <lf-card id="card-restyle" label="How a page restyles Leaf's interface">A stylesheet the page declares, custom properties only, or named ::parts.</lf-card>
+            <lf-card id="card-kernel" label="Deliver the compiled kernel to installs">CI commits it to main after each runtime merge, or an npm package per commit.</lf-card>
           </lf-column>
         </lf-board>
 

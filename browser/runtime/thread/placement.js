@@ -112,10 +112,9 @@ export function headingAfter(heading) {
 // leading heading or disclosure's summary, its caption, or the `aria-label` or <label>
 // its author gave it. So a <section> the author wrote names what stands in it before
 // its heading, a sub-heading inside it heads what follows the sub-heading, a captioned
-// figure or table names what it holds, and a region the author labelled is a part. A
-// <strong> makes no part: in plain markup it names nothing, and where it titles a
-// widget, as an option's does, it names that widget and no place a reader groups by, so
-// On Me's bands and a preview's name go on to the part holding it. The contract stops
+// figure or table names what it holds, a region the author labelled is a part, and so is
+// a widget its `label` names, such as an option card or a tab. A <strong> names nothing,
+// so it makes no part. The contract stops
 // short of the document the node stands in and the page's column, whose leading heading
 // titles the page, and passes a slot, whose own children are the fallback its
 // assignment replaces, and what Leaf generates in the document, whose labels are
@@ -154,10 +153,10 @@ export function partOver(node) {
     if (!namesWhatItHolds(container, scope)) continue;
     const naming = ownNaming(container);
     if (!naming) continue;
-    // A heading that titles its container heads what the container holds, a widget's
-    // <strong> names the widget alone, and any other name makes the container the part.
+    // A heading that titles its container heads what the container holds, and any other
+    // name makes the container the part.
     if (!("by" in naming)) return container;
-    if (naming.by === node || naming.by.localName === "strong") continue;
+    if (naming.by === node) continue;
     return naming.by.matches(HEADING) ? naming.by : container;
   }
   return null;

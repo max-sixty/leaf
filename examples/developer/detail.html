@@ -115,10 +115,9 @@ cart:{user_id}            →  cart:{user_id}:{currency}
           Rolling back fixed Tuesday; shipping multi-currency carts again needs either a
           dual-read migration or a cache warmed before the switch.
         </p>
-        <section
+        <lf-group
           id="detail-fix-ask"
-          role="group"
-          aria-labelledby="detail-fix-ask-h"
+          label="How should 4.3 change the cache key?"
           class="gist"
         >
           <h3 id="detail-fix-ask-h">How should 4.3 change the cache key?</h3>
@@ -127,16 +126,16 @@ cart:{user_id}            →  cart:{user_id}:{currency}
             effort.
           </p>
           <lf-options id="detail-fix-choice">
-            <lf-option id="detail-fix-dual"
-              ><strong>Read both keys for a week</strong> Two days of work; old entries
-              keep hitting while new ones fill.</lf-option
+            <lf-option id="detail-fix-dual" label="Read both keys for a week"
+              >Two days of work; old entries keep hitting while new ones
+              fill.</lf-option
             >
-            <lf-option id="detail-fix-warm"
-              ><strong>Warm the new keys before switching</strong> Half a day; one
-              backfill job, but a slow backfill delays the release.</lf-option
+            <lf-option id="detail-fix-warm" label="Warm the new keys before switching"
+              >Half a day; one backfill job, but a slow backfill delays the
+              release.</lf-option
             >
           </lf-options>
-        </section>
+        </lf-group>
         <p id="detail-fix-1">
           Either way, the canary alert should compare against the previous release
           rather than a fixed threshold, so a 2× jump fires whatever the absolute

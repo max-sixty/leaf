@@ -141,10 +141,9 @@
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <section
+              <lf-group
                 id="decision-dedupe-region"
-                role="group"
-                aria-labelledby="decision-dedupe-region-h"
+                label="What should the host do with the stalled work?"
               >
                 <h3 id="decision-dedupe-region-h">
                   What should the host do with the stalled work?
@@ -154,22 +153,24 @@
                   stalled process.
                 </p>
                 <lf-options id="decision-dedupe">
-                  <lf-option id="dedupe-restart">
-                    <small class="tag ok">recommended</small>
-                    <strong>Restart with a fresh worker</strong> Preserve tree-w-5
-                    (atlas/dedupe-attempt), its commits, and comments; reap w-5 and
-                    start a new worker on it.
+                  <lf-option
+                    id="dedupe-restart"
+                    label="Restart with a fresh worker"
+                    recommended
+                  >
+                    Preserve tree-w-5 (atlas/dedupe-attempt), its commits, and comments;
+                    reap w-5 and start a new worker on it.
                   </lf-option>
-                  <lf-option id="dedupe-park">
-                    <strong>Park it for tomorrow</strong> Keep tree-w-5
-                    (atlas/dedupe-attempt) and take the goal out of today's plan.
+                  <lf-option id="dedupe-park" label="Park it for tomorrow">
+                    Keep tree-w-5 (atlas/dedupe-attempt) and take the goal out of
+                    today's plan.
                   </lf-option>
-                  <lf-option id="dedupe-drop">
-                    <strong>Drop it</strong> Archive tree-w-5 (atlas/dedupe-attempt);
-                    corpus storage stays at 40 GB for this rewrite.
+                  <lf-option id="dedupe-drop" label="Drop it">
+                    Archive tree-w-5 (atlas/dedupe-attempt); corpus storage stays at 40
+                    GB for this rewrite.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task
               id="parser-zero"
@@ -178,10 +179,9 @@
             >
               <strong>Choose the zero-row behavior</strong> This policy is consequential
               enough to wait for an explicit choice.
-              <section
+              <lf-group
                 id="decision-zero-region"
-                role="group"
-                aria-labelledby="decision-zero-region-h"
+                label="What should happen when a nightly imports zero rows?"
               >
                 <h3 id="decision-zero-region-h">
                   What should happen when a nightly imports zero rows?
@@ -191,17 +191,19 @@
                   proved otherwise.
                 </p>
                 <lf-options id="decision-zero">
-                  <lf-option id="zero-alert" for="parser-zero">
-                    <small class="tag ok">recommended</small>
-                    <strong>Fail and page</strong> Preserve the export and stop the
-                    downstream publish.
+                  <lf-option
+                    id="zero-alert"
+                    label="Fail and page"
+                    recommended
+                    for="parser-zero"
+                  >
+                    Preserve the export and stop the downstream publish.
                   </lf-option>
-                  <lf-option id="zero-warn" for="parser-zero">
-                    <strong>Warn and continue</strong> Record the empty import but
-                    publish no data.
+                  <lf-option id="zero-warn" label="Warn and continue" for="parser-zero">
+                    Record the empty import but publish no data.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </lf-atlas-task>
           </lf-atlas-task>
 
@@ -230,29 +232,26 @@
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <section
+              <lf-group
                 id="decision-schema-region"
-                role="group"
-                aria-labelledby="decision-schema-region-h"
+                label="What should the host do with the schema branch?"
               >
                 <h3 id="decision-schema-region-h">
                   What should the host do with the schema branch?
                 </h3>
                 <p>I recommend landing it now, while the evidence is current.</p>
                 <lf-options id="decision-schema">
-                  <lf-option id="schema-land">
-                    <small class="tag ok">recommended</small>
-                    <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
-                    Tests are green, it unblocks the dependent work, and shadow reads
-                    begin before anything depends on it.
+                  <lf-option id="schema-land" label="Land it now" recommended>
+                    Merge tree-w-8 (atlas/schema) from w-8. Tests are green, it unblocks
+                    the dependent work, and shadow reads begin before anything depends
+                    on it.
                   </lf-option>
-                  <lf-option id="schema-hold">
-                    <strong>Hold for the backfill</strong> Keep tree-w-8 (atlas/schema)
-                    unmerged, leave the dependent work idle, and take one larger review
-                    tomorrow.
+                  <lf-option id="schema-hold" label="Hold for the backfill">
+                    Keep tree-w-8 (atlas/schema) unmerged, leave the dependent work
+                    idle, and take one larger review tomorrow.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
               <strong>Backfill reconciliation fields</strong>
@@ -267,10 +266,9 @@
               below, paste its CSV output into the draft, and remove
               <code>customer_name</code> and <code>billing_email</code> before saving.
               Saving the draft tells the orchestrator that w-8 can resume.
-              <section
+              <lf-group
                 id="decision-ledger-fixture-region"
-                role="group"
-                aria-labelledby="decision-ledger-fixture-region-h"
+                label="Which replica-only ledger fixture should the worker use?"
               >
                 <h3 id="decision-ledger-fixture-region-h">
                   Which replica-only ledger fixture should the worker use?
@@ -281,7 +279,7 @@
                   <pre>
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
-              </section>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task
               id="ledger-variance"
@@ -318,31 +316,29 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <section
+              <lf-group
                 id="decision-api-region"
-                role="group"
-                aria-labelledby="decision-api-region-h"
+                label="What should the host do with atlas/public-api?"
               >
                 <h3 id="decision-api-region-h">
                   What should the host do with atlas/public-api?
                 </h3>
                 <p>I recommend landing it, since the public contract is ready.</p>
                 <lf-options id="decision-api">
-                  <lf-option id="api-land">
-                    <small class="tag ok">recommended</small>
-                    <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.
-                    The compatibility suite is green.
+                  <lf-option id="api-land" label="Land" recommended>
+                    Merge tree-w-3 (atlas/public-api) from w-3. The compatibility suite
+                    is green.
                   </lf-option>
-                  <lf-option id="api-revise">
-                    <strong>Request changes</strong> Restate this card and start a fresh
-                    revision worker on tree-w-3; the request remains in the record.
+                  <lf-option id="api-revise" label="Request changes">
+                    Restate this card and start a fresh revision worker on tree-w-3; the
+                    request remains in the record.
                   </lf-option>
-                  <lf-option id="api-land-as-is">
-                    <strong>Land as-is — discard revision</strong> Merge tree-w-3
-                    (atlas/public-api) over an open change request and reap its reviser.
+                  <lf-option id="api-land-as-is" label="Land as-is — discard revision">
+                    Merge tree-w-3 (atlas/public-api) over an open change request and
+                    reap its reviser.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
               <strong>Map structured failures</strong>

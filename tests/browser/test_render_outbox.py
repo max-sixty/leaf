@@ -526,11 +526,11 @@ FAR_CHOICE_PAGE = leaf_page(
     """
 <h1 id="h">Far</h1>
 {paras}
-<section id="picks-decision" role="group" aria-labelledby="picks-decision-h"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
+<lf-group id="picks-decision" label="Should we keep the mounts?"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
 <lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
   <lf-option id="opt-b" selected>Replace the mounts</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 """,
 ).format(
     paras="\n".join(
@@ -715,11 +715,11 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
 
     d = serve.page_dir
     carried = BOARD_PAGE.replace(
-        '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n', ""
+        '<lf-card id="card-baffle" label="Squirrel baffle"></lf-card>\n', ""
     ).replace(
         '<lf-column id="col-done" label="Done">',
         '<lf-column id="col-done" label="Done">'
-        '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
+        '<lf-card id="card-baffle" label="Squirrel baffle"></lf-card>',
     )
     stamp_page(d, carried, "carried")
     wait_for_revision(page, 2)
@@ -1338,9 +1338,9 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     refused move must derive the complete order from authored siblings and surviving
     winners before moving nodes; the rejected DOM cannot supply that order."""
     three_cards = BOARD_PAGE.replace(
-        '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>',
-        '<lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>\n'
-        '    <lf-card id="card-third"><strong>Third card</strong></lf-card>',
+        '<lf-card id="card-baffle" label="Squirrel baffle"></lf-card>',
+        '<lf-card id="card-baffle" label="Squirrel baffle"></lf-card>\n'
+        '    <lf-card id="card-third" label="Third card"></lf-card>',
     )
     url = serve(three_cards)
     append_command(
@@ -1419,7 +1419,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     outer["content"] = "members"
     outer["example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
-        '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
+        '<lf-card id="x-card" label="Card"></lf-card></lf-column>'
         "</lf-outer-board>"
     )
     outer["verbs"] = {
@@ -1455,9 +1455,8 @@ customElements.define("lf-outer-board", class extends LeafElement {
         """
 <h1 id="h">Nested owners</h1>
 <lf-outer-board id="outer">
-  <lf-column id="outer-todo" label="Todo"><lf-card id="outer-card"><strong>Outer</strong>
-    <lf-board id="inner"><lf-column id="inner-todo" label="Todo">
-      <lf-card id="inner-card"><strong>Inner</strong></lf-card></lf-column>
+  <lf-column id="outer-todo" label="Todo"><lf-card id="outer-card" label="Outer">    <lf-board id="inner"><lf-column id="inner-todo" label="Todo">
+      <lf-card id="inner-card" label="Inner"></lf-card></lf-column>
       <lf-column id="inner-done" label="Done"></lf-column></lf-board>
   </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
 </lf-outer-board>""",
@@ -2455,7 +2454,7 @@ def test_a_move_on_a_version_a_newer_one_replaced_is_refused_and_restored(
         BOARD_PAGE.replace(
             '<lf-column id="col-done" label="Done"></lf-column>',
             '<lf-column id="col-done" label="Done">'
-            '<lf-card id="card-feeder"><strong>Feeder</strong></lf-card></lf-column>',
+            '<lf-card id="card-feeder" label="Feeder"></lf-card></lf-column>',
         ),
         "v2",
     )

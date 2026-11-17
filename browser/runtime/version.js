@@ -2136,7 +2136,7 @@ export function createVersionController({
     for (const [id, value] of sourceAuthored) nextAuthored.set(id, value);
     // The incoming source owns page order. Retained controllers keep the descriptor
     // identity captured with their live node; new or rewritten nodes use the incoming
-    // source's capture. Frozen thread documents follow the page in log order.
+    // source's capture. Thread documents follow the page in log order.
     const descriptors = new Map();
     for (const [id, incoming] of sourceDescriptors.descriptors)
       descriptors.set(

@@ -210,7 +210,7 @@ export function unmarkableElements() {
 // many comments a block carries: that one is about the document rather than of it,
 // which is the same reason it wears .lf-ui at all, and it lands inside a widget
 // whenever a comment does. The thread chrome around a message is out of scope: a widget
-// in a reply is markup frozen in the event log, not the document; its own chrome is not.
+// in a reply is markup the event log holds, not the document; its own chrome is not.
 export function unreachableWords() {
   const found = [];
   // The lf-* element something stands in, if any. A .lf-ui is a widget's own

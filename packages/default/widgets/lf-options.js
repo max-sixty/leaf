@@ -3,9 +3,9 @@
  * and nothing here is load-bearing on the look.
  *
  * Which form a group takes is a fact about its options, decided in CSS and never here:
- * an option leading with a <strong> title argues its own case and is a card on a row of
- * its own, and a group whose options are bare labels is an obligation *about* the page,
- * drawn as compact rows.
+ * an option with a `label` argues its own case and is a card on a row of its own, which
+ * draws its label as its title (`says`), and a group whose options are bare labels
+ * is an obligation *about* the page, drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
  * the row names, rendered as a reference the user can follow where the group's rows
  * name different blocks. Rows that all name one block draw none, since that block
@@ -112,6 +112,7 @@ import {
   addressableWord,
   authoredScope,
   elementById,
+  generatedElement,
   threadInput,
   inChrome,
   keeps,
@@ -121,6 +122,7 @@ import {
   markdownWords,
   offer,
   offerAction,
+  phrasing,
   placePreview,
   pressIsKeyboardActivation,
   quoted,
@@ -133,30 +135,31 @@ import {
   commandsChanged,
 } from "/runtime/widget-api.js";
 
-// What an option is called, in either form: its title where it leads with one, and its
-// own words where the label is all it has. `wrote` rather than `says`, because a picked
-// option's mark is the page speaking and belongs to what the user can point at — not
-// to the option's name, which is what every caller here wants. A settled title's answer
-// to an option with neither is to say "Settled" rather than name an id nobody wrote.
+// What an option is called, in either form: a card's `label`, and a compact option's
+// own words, which are all it has. `wrote` rather than `says`, because a picked option's
+// mark is the page speaking and belongs to what the user can point at — not to the
+// option's name, which is what every caller here wants. A settled title's answer to an
+// option with neither is to say "Settled" rather than name an id nobody wrote.
 /** @param {Element} option */
-const label = (option) => wrote(option.querySelector(":scope > strong") ?? option);
+const label = (option) => option.getAttribute("label")?.trim() || wrote(option);
 
-// What choosing an option gives the user: the sentence after a card's title, as the
-// registry's card shape lays it out, written inline or as the paragraph that follows the
-// title, up to any picture or other block below it. A label-only option says nothing
-// beyond its name. On Me shows these words under the option's name, where the user
-// answers away from the card. The command row reads them only when a surface shows
-// them: the computed display below forces a layout in Firefox, which taken between the
-// render's own insertions leaves a row of cards off their shared title baseline
-// (`notes/browser-support.md`, "Baseline content-alignment").
+// What choosing an option gives the user, which On Me shows under the option's name,
+// where the user answers away from the card: a card's sentence, its words up to the
+// first element HTML sets apart from a line of words (`phrasing`), less the side
+// comments HTML's <small> marks, such as its chips, and any SVG or MathML drawn among
+// them; or, where the card opens with a paragraph, that paragraph's words. A compact
+// option says nothing beyond its name.
+const HTML_NS = "http://www.w3.org/1999/xhtml";
 /** @param {Element} option */
 const consequence = (option) => {
-  const title = option.querySelector(":scope > strong");
+  if (!option.hasAttribute("label")) return "";
   let words = "";
-  for (let node = title?.nextSibling; node; node = node.nextSibling) {
+  for (const node of option.childNodes) {
     if (node instanceof Text) words += node.data;
-    else if (!(node instanceof Element)) continue;
-    else if (getComputedStyle(node).display === "inline") {
+    else if (!(node instanceof Element) || node.matches(".lf-ui, [data-lf-gen]"))
+      continue;
+    else if (node.localName === "small" || node.namespaceURI !== HTML_NS) continue;
+    else if (phrasing(node)) {
       // `wrote` trims the element's own edges, which may be the spaces between words,
       // as where emphasis splits a sentence.
       const text = node.textContent;
@@ -169,13 +172,10 @@ const consequence = (option) => {
   return words.replace(/\s+/g, " ").trim();
 };
 
-// The option the page advises wears the `recommended` tag the registry's card shape
-// names, and the group says so wherever the option is answered away from its card.
+// The option the page advises is `recommended`, and the group says so wherever the
+// option is answered away from its card.
 /** @param {Element} option */
-const recommended = (option) =>
-  [...option.querySelectorAll(":scope > small.tag")].some(
-    (tag) => wrote(tag).trim() === "recommended",
-  );
+const recommended = (option) => option.hasAttribute("recommended");
 
 // The offer, and how many of the group it takes. A group's prose stays deliberately silent,
 // while the control states arity in the two registers it has: corner shape for the eye and
@@ -636,6 +636,18 @@ customElements.define(
       // The mark stands where the user starts reading the label, not at the line's
       // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);
+      // A card's title follows its mark, which floats beside it as the card's state
+      // seat and must come first to stand on the title's line. The words pass puts a
+      // `says` title before chrome it finds at the start, so the title is written
+      // here, after the mark, wherever this runs first; the pass then keeps its words.
+      const title = option.getAttribute("label");
+      if (title !== null && !option.querySelector(':scope > [data-lf-said="label"]')) {
+        const said = document.createElement("span");
+        said.dataset.lfSaid = "label";
+        generatedElement(said, { says: true });
+        said.textContent = title;
+        mark.after(said);
+      }
       return mark;
     }
 

@@ -97,7 +97,7 @@ def board_markup(board: dict[str, list[str]]) -> str:
     return "\n".join(
         f'  <lf-column id="{column}" label="{label}">\n'
         + "".join(
-            f'    <lf-card id="{card}"><strong>{CARDS[card]}</strong></lf-card>\n'
+            f'    <lf-card id="{card}" label="{CARDS[card]}"></lf-card>\n'
             for card in board[column]
         )
         + "  </lf-column>"
@@ -203,14 +203,14 @@ new version as the checks finish.</p>
 {board_markup(board or BOARD)}
 </lf-board>
 </section>
-<section id="migration-approval-decision" role="group" aria-labelledby="migration-approval-decision-h">
+<lf-group id="migration-approval-decision" label="Approve the migration plan?">
 <h2 id="migration-approval-decision-h">Approve the migration plan?</h2>
 <p>The rollout sequence and acceptance criteria described above.</p>
 <lf-options id="migration-approval">
-<lf-option id="migration-hold"><strong>Hold the rollout</strong></lf-option>
-<lf-option id="migration-approve"><strong>Approve the plan</strong></lf-option>
+<lf-option id="migration-hold" label="Hold the rollout"></lf-option>
+<lf-option id="migration-approve" label="Approve the plan"></lf-option>
 </lf-options>
-</section>
+</lf-group>
 </main>
 </body>
 </html>

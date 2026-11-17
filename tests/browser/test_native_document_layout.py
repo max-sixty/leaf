@@ -57,9 +57,8 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
     )
     question = (
-        '<section id="{id}" role="group" aria-labelledby="{id}-head">'
-        '<h2 id="{id}-head">Ship it?</h2>'
-        '<p id="{id}-premise">Because it fits.</p>{held}' + options + "</section>"
+        '<lf-group id="{id}" label="Ship it?"><h2 id="{id}-head">Ship it?</h2>'
+        '<p id="{id}-premise">Because it fits.</p>{held}' + options + "</lf-group>"
     )
     evidence = '<div id="{id}-evidence" data-width="available">Evidence.</div>'
     source = leaf_page(
@@ -114,11 +113,11 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     other = "rtl" if direction == "ltr" else "ltr"
     options = '<lf-options id="{id}-o"><lf-option id="{id}-y">Yes</lf-option>'
     question = (
-        f'<section id="{{id}}" dir="{other}" role="group" aria-labelledby="{{id}}-h">'
+        f'<lf-group id="{{id}}" dir="{other}" label="Ship it?">'
         '<h3 id="{id}-h">Ship it?</h3>'
         '<div id="{id}-block" data-width="{width}">Evidence.</div>'
         + options
-        + "</lf-options></section>"
+        + "</lf-options></lf-group>"
     )
     source = leaf_page(
         "Flows written the other way",
@@ -190,10 +189,10 @@ def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
     source = leaf_page(
         "Question in a workspace",
         """<header><h1>Question in a workspace</h1></header>
-        <div id="region"><section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Ship it?</h2>
+        <div id="region"><lf-group id="asked" label="Ship it?"><h2 id="asked-h">Ship it?</h2>
           <div id="wide-evidence" data-width="wide">Evidence.</div>
           <lf-options id="choice"><lf-option id="yes">Yes</lf-option></lf-options>
-        </section></div>""",
+        </lf-group></div>""",
         layout="workspace",
     )
     page = open_page(browser, serve(source))

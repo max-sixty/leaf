@@ -39,13 +39,13 @@
             suggestion rows in that panel exercise Accept, Reject, and Undo later in
             this gallery.
           </p>
-          <section id="bg-choice-ask" role="group" aria-labelledby="bg-choice-ask-h">
+          <lf-group id="bg-choice-ask" label="Which map should the sample team carry?">
             <h3 id="bg-choice-ask-h">Which map should the sample team carry?</h3>
             <lf-options id="bg-choice">
               <lf-option id="bg-choice-street">Street map</lf-option>
               <lf-option id="bg-choice-trail">Trail map</lf-option>
             </lf-options>
-          </section>
+          </lf-group>
           <section id="bg-task-on-you">
             <h3>A task on you</h3>
             <p>
@@ -73,25 +73,17 @@
               questions can stay unanswered. The pick stays through unrelated page edits
               until its author explicitly restates the request.
             </p>
-            <section
-              id="bg-picnic-decision"
-              role="group"
-              aria-labelledby="bg-picnic-decision-h"
-            >
+            <lf-group id="bg-picnic-decision" label="Book the covered picnic shelter?">
               <h4 id="bg-picnic-decision-h">Book the covered picnic shelter?</h4>
               <p>
                 Reserve the park's covered shelter for the sample group's Saturday
                 lunch.
               </p>
               <lf-options id="bg-picnic">
-                <lf-option id="bg-picnic-skip"
-                  ><strong>Leave it unbooked</strong></lf-option
-                >
-                <lf-option id="bg-picnic-book"
-                  ><strong>Book the shelter</strong></lf-option
-                >
+                <lf-option id="bg-picnic-skip" label="Leave it unbooked"></lf-option>
+                <lf-option id="bg-picnic-book" label="Book the shelter"></lf-option>
               </lf-options>
-            </section>
+            </lf-group>
           </section>
 
           <section id="bg-design-comments">
@@ -273,13 +265,13 @@ Write a different invitation here. Try a few lines to see the editor grow.</pre>
             choice has an Outcome instead of a question. Open it to inspect the recorded
             choice. It only changes the sample page.
           </p>
-          <section id="bg-outcome-ask" role="group" aria-labelledby="bg-outcome-ask-h">
+          <lf-group id="bg-outcome-ask" label="Where should the sample group meet?">
             <h3 id="bg-outcome-ask-h">Where should the sample group meet?</h3>
             <lf-options id="bg-outcome">
               <lf-option id="bg-outcome-door">At the door</lf-option>
               <lf-option id="bg-outcome-desk">At reception</lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </section>
 
         <section id="bg-external-data">
@@ -464,19 +456,18 @@ gallery/
             </lf-tabs>
           </section>
 
-          <section
+          <lf-group
             id="bg-quoted-and-visual"
-            role="group"
-            aria-labelledby="bg-quoted-and-visual-h"
+            label="Quoted sample and before/after shot"
           >
             <h3 id="bg-quoted-and-visual-h">Quoted sample and before/after shot</h3>
             <lf-sample id="bg-sample" label="an inert multiple-pick decision">
               <lf-options id="bg-sample-options" multiple>
-                <lf-option id="bg-sample-paper">
-                  <strong>Paper signs</strong> Nothing to charge.
+                <lf-option id="bg-sample-paper" label="Paper signs">
+                  Nothing to charge.
                 </lf-option>
-                <lf-option id="bg-sample-screen">
-                  <strong>Display signs</strong> Easy to update.
+                <lf-option id="bg-sample-screen" label="Display signs">
+                  Easy to update.
                 </lf-option>
               </lf-options>
             </lf-sample>
@@ -490,7 +481,7 @@ gallery/
               before="/media/051bee487bfb5d13.png"
               after="/media/a99a1b63048502d0.png"
             ></lf-shot>
-          </section>
+          </lf-group>
         </section>
 
         <section id="bg-version-changes">
@@ -515,8 +506,7 @@ gallery/
           </p>
           <lf-board id="bg-work-board">
             <lf-column id="bg-work-ready" label="Ready">
-              <lf-card id="bg-work"
-                ><strong>Check the sample route</strong>
+              <lf-card id="bg-work" label="Check the sample route">
                 Drag this card to Tried, or use its grip with Enter and the arrows. An
                 agent’s live work claim can put an Active Button here.
               </lf-card>

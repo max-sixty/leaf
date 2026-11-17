@@ -132,10 +132,9 @@
 verify counts
 switch readers
 expire old keys</code></pre>
-              <section
+              <lf-group
                 id="review-cache-decision"
-                role="group"
-                aria-labelledby="review-cache-decision-h"
+                label="What should happen if post-switch verification fails?"
               >
                 <h4 id="review-cache-decision-h">
                   What should happen if post-switch verification fails?
@@ -145,16 +144,19 @@ expire old keys</code></pre>
                   checked.
                 </p>
                 <lf-options id="review-cache-rollback">
-                  <lf-option id="review-cache-auto">
-                    <strong>Switch readers back automatically</strong> Mirror writes for
-                    24 hours, then return to the old keys if counts diverge.
+                  <lf-option
+                    id="review-cache-auto"
+                    label="Switch readers back automatically"
+                  >
+                    Mirror writes for 24 hours, then return to the old keys if counts
+                    diverge.
                   </lf-option>
-                  <lf-option id="review-cache-hold">
-                    <strong>Stop for operator review</strong> Keep readers on the new
-                    keys until an operator inspects the mismatch.
+                  <lf-option id="review-cache-hold" label="Stop for operator review">
+                    Keep readers on the new keys until an operator inspects the
+                    mismatch.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </section>
             <section id="review-email">
               <h3>Receipt email</h3>
@@ -220,10 +222,9 @@ expire old keys</code></pre>
                   corrected ledger entry.
                 </p>
               </div>
-              <section
+              <lf-group
                 id="review-billing-decision"
-                role="group"
-                aria-labelledby="review-billing-decision-h"
+                label="Where should the legacy invoice be reconciled?"
               >
                 <h4 id="review-billing-decision-h">
                   Where should the legacy invoice be reconciled?
@@ -233,16 +234,21 @@ expire old keys</code></pre>
                   reporting migration.
                 </p>
                 <lf-options id="review-billing-path">
-                  <lf-option id="review-billing-legacy">
-                    <strong>Keep it on the old reporting path</strong> Close the current
-                    run without changing the historical ledger entry.
+                  <lf-option
+                    id="review-billing-legacy"
+                    label="Keep it on the old reporting path"
+                  >
+                    Close the current run without changing the historical ledger entry.
                   </lf-option>
-                  <lf-option id="review-billing-correct">
-                    <strong>Correct the ledger entry</strong> Move the invoice into the
-                    new path after finance approves the adjustment.
+                  <lf-option
+                    id="review-billing-correct"
+                    label="Correct the ledger entry"
+                  >
+                    Move the invoice into the new path after finance approves the
+                    adjustment.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </section>
             <section id="review-webhook">
               <h3>Webhook delivery</h3>

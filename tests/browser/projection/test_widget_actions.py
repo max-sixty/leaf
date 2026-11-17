@@ -874,12 +874,12 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
     first = leaf_page(
         "Carried decision",
         """<h1>Plan</h1>
-<section id="cz-ask" role="group" aria-labelledby="cz-ask-h"><h2 id="cz-ask-h">Which comes first?</h2>
+<lf-group id="cz-ask" label="Which comes first?"><h2 id="cz-ask-h">Which comes first?</h2>
   <lf-options id="cz-options">
     <lf-option id="cz-flag">Flag</lf-option>
     <lf-option id="cz-backfill">Backfill</lf-option>
   </lf-options>
-</section>""",
+</lf-group>""",
     )
     page = open_page(browser, live_url(serve(first)))
     page.locator("#cz-flag .lf-pick").click()

@@ -1,5 +1,5 @@
 /* The physical annotation renderer: pins, contextual floating placement, posted
- * drawing paint, marks and annotation visibility.
+ * drawing paint.
  * Boot imports this entry only for overlay presentation, so a page that presents its
  * own annotations (`data-annotations=page`) loads none of this closure; no other
  * runtime owner reaches it (`.dependency-cruiser.mjs`, `core-independent-of-overlay`).
@@ -12,14 +12,7 @@
  * special case for this directory. The dynamic import above, not the package, is what
  * keeps a page-owned presentation from loading it. */
 export { createMarginProjection } from "./margin-projection.js";
-export { createAnchorPaint } from "./anchor-paint.js";
-export { createVisualMarkPaint } from "./visual-mark-paint.js";
 export { createFloatingResponsePlacement } from "./composing/floating-response.js";
 export { postedDrawings } from "./composing/drawing-paint.js";
 export { syncMarginContentLayout } from "./margin-layout.js";
-export {
-  annotationsHidden,
-  mountAnnotationControls,
-  restoreAnnotations,
-} from "./annotation-layer.js";
 export { floatingSelections } from "./floating.js";

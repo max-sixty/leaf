@@ -232,8 +232,8 @@ that needs JavaScript or saved state waits only for its own behavior or reading;
 native disclosures, links and authored content need no such wait.
 
 - Return a widget's complete view from `LeafElement.render()`. The same rendering
-  root handles fresh mounts, frozen messages and later updates; do not add a second initial
-  renderer or transfer generated nodes between renderers.
+  root handles fresh mounts, thread messages and later updates; do not add a second
+  initial renderer or transfer generated nodes between renderers.
 - Size the widget in the package theme, including its initial authored drawing.
   A shadow template uses native slots for authored children, keeping their nodes and
   browser state in the light DOM.

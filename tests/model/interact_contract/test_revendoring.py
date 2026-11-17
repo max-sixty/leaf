@@ -327,10 +327,10 @@ def test_message_markup_uses_the_current_layer(page_dir, in_sample):
     assert markup in event["text"]
 
 
-def test_revendoring_can_change_frozen_thread_widget_vocabulary(
+def test_revendoring_can_change_thread_widget_vocabulary(
     page_dir,
 ):
-    """Re-vendoring can change a frozen widget's current declaration."""
+    """Re-vendoring can change a thread widget's current declaration."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     append_carried_log_record(
@@ -338,10 +338,10 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
-        '<section id="thread-choice-decision" role="group" aria-labelledby="thread-choice-decision-h">\n<h3 id="thread-choice-decision-h">Which option?</h3>'
+        '<lf-group id="thread-choice-decision" label="Which option?">\n<h3 id="thread-choice-decision-h">Which option?</h3>'
         '<lf-options id="thread-choice">'
         '<lf-option id="thread-a">A</lf-option>'
-        "</lf-options></section>"
+        "</lf-options></lf-group>"
     )
     thread_model.post_reply(
         page_dir,

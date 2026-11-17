@@ -396,7 +396,7 @@ FACTS: dict[str, dict] = {
         },
     },
     "refers": REFERENCE_SCHEMA,
-    "reading-role": {"enum": ["pane"]},
+    "reading-role": {"enum": ["pane", "group"]},
     "says": {
         "type": "object",
         "propertyNames": {"pattern": f"^{HTML_NAME}$"},

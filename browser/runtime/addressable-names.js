@@ -74,55 +74,41 @@ export function addressableSays(addressable) {
 }
 
 // What names an element, where the authoring contract gives it a name
-// (`skills/leaf/references/module-reading.md`, "Naming elements"): a widget's `label`
-// attribute (the registry's `$attributes`), else the element its title or caption is.
-// A widget the registry registers, such as an option or a card, is titled by a leading
-// heading, summary or <strong>, looked for inside a leading <header> or <hgroup> too;
-// leading means no words come before it, though elements may, as a titled member's
-// comparison chips stand in the band above its title. Plain markup is named by the
-// caption HTML gives it: a disclosure by its <summary>, an <hgroup> by its heading, and
-// a `section` or `article` by the heading it opens with, alone or in an <hgroup>. That
+// (`skills/leaf/references/module-reading.md`, "Naming elements"): the name its author
+// declares, else the caption HTML gives it. A widget the registry registers declares
+// its name in its `label` attribute (the registry's `$attributes`), as an option, a
+// card, a tab or a column does, and takes none from its markup. Plain markup is named
+// by its caption: a disclosure by its <summary>, an <hgroup> by its heading, and a
+// `section` or `article` by the heading it opens with, alone or in an <hgroup>. That
 // last is a reading of position the maintainer agreed to (root AGENTS.md, "Read what
 // the page states"): HTML calls h1–h6 "headings for their sections" without saying
 // which element is the section, and an element that opens with its heading is the case
 // where the two agree. No other element is named by a heading inside it, and a <strong>
-// in plain markup names nothing. The words are the ones the author wrote (the `wrote`
-// reading), so a gloss's tip the page draws beside its phrase is no part of a heading's
-// name, and generated chrome names nothing: chrome inside the element, asked about the
-// element's own insides, since a widget an agent sent in a reply stands inside the
-// floating panel's chrome and its heading is still its name. An element the contract
-// gives no name answers "". The server names an obligation's element by the same rule
-// off the document (`gesture_words.element_name`), and `tests/name_cases.json` holds
-// both to the same cases.
+// names nothing. The words are the ones the author wrote (the `wrote` reading), so a
+// gloss's tip the page draws beside its phrase is no part of a heading's name, and
+// generated chrome names nothing: chrome inside the element, asked about the element's
+// own insides, since a section an agent sent in a reply stands inside the floating
+// panel's chrome and its heading is still its name. An element the contract gives no
+// name answers "". The server names an obligation's element by the same rule off the
+// document (`gesture_words.element_name`), and `tests/name_cases.json` holds both to
+// the same cases.
 //
 // Rejected: naming any element by a leading heading, looked for inside a <header> or
-// past an eyebrow, which names a `div` by where a heading happens to stand; and a
-// leading <strong> on any element, which names a paragraph by how its first words
-// look.
-const WIDGET_TITLES = `summary, ${HEADING}, strong`;
+// past an eyebrow, which names a `div` by where a heading happens to stand; and titling
+// a widget by its leading heading, summary or <strong>, which names an option by how its
+// first words look.
 const SECTIONS = "section, article";
-/** The element whose words name `container` by that rule, or null. Finding a widget's
- * reads the container's children, so the answer is kept as long as the page reading
- * stands (`keptAnswer`), as an element's words are: a label asked again on every pass,
- * or a preview climbing past a long run of paragraphs, reads them once.
+/** The caption that names plain markup by that rule, or null: a disclosure's first
+ * <summary>, an hgroup's heading, or the heading a section or article opens with, alone
+ * or in an <hgroup>. Finding it reads the element's children, so the answer is kept as
+ * long as the page reading stands (`keptAnswer`), as an element's words are: a label
+ * asked again on every pass, or a preview climbing past a long run of paragraphs, reads
+ * them once.
  * @param {Element} container @returns {Element | null} */
 export const leadingTitle = (container) =>
-  keptAnswer(container, "leading title", () =>
-    registered(container) ? widgetTitle(container) : openingTitle(container),
-  );
-/** @param {Element} container @returns {Element | null} */
-function widgetTitle(container) {
-  for (const node of container.childNodes) {
-    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
-    if (!(node instanceof Element) || uiInside(node, container)) continue;
-    if (node.matches(WIDGET_TITLES)) return node;
-    if (["header", "hgroup"].includes(node.localName)) return widgetTitle(node);
-  }
-  return null;
-}
-// The caption HTML gives plain markup, by the rule above: a disclosure's first
-// <summary>, an hgroup's heading, or the heading a section or article opens with, alone
-// or in an <hgroup>.
+  registered(container)
+    ? null
+    : keptAnswer(container, "leading title", () => openingTitle(container));
 /** @param {Element} element @returns {Element | null} */
 function openingTitle(element) {
   const child = (/** @type {string} */ selector) =>
@@ -144,10 +130,9 @@ function openingTitle(element) {
 /** @param {Element} element */
 const registered = (element) =>
   isElementName(element.localName) && Object.hasOwn(registry, element.localName);
-// The element a heading titles: the outermost one it names by the rule above, such as
-// its hgroup and the section or article that opens with it, or a card it leads, past a
-// leading header; short of a widget its `label` attribute names; or else the heading
-// itself. `lf-toc` starts each row's stretch of the page at it, a heading's link takes
+// The element a heading titles: the outermost one it names by the rule above, its
+// hgroup and the section or article that opens with it; or else the heading itself.
+// `lf-toc` starts each row's stretch of the page at it, a heading's link takes
 // its address, and a heading's link preview counts the conversations about it
 // (thread/placement.js, `conversationsAbout`). `titlingHeading` reads it the other way
 // round.
@@ -161,19 +146,16 @@ const registered = (element) =>
 export function titledElement(heading) {
   let titled = heading;
   for (let at = heading.parentElement; at; at = at.parentElement)
-    if (titleOf(at) === heading) titled = at;
-    else if (!at.matches("header, hgroup")) break;
+    if (leadingTitle(at) === heading) titled = at;
+    else break;
   return titled;
 }
 /** The heading that titles `element` (`titledElement`), or null.
  * @param {Element} element @returns {Element | null} */
 export function titlingHeading(element) {
-  const title = titleOf(element);
+  const title = leadingTitle(element);
   return title?.matches(HEADING) ? title : null;
 }
-// The element whose words title `element` by the rule above, short of a `label`.
-/** @param {Element} element */
-const titleOf = (element) => (declaredName(element) ? null : leadingTitle(element));
 // The title a widget's `label` attribute holds, such as a tab's: the one attribute
 // that names its element on every widget that takes it (`$attributes`, Python's
 // `registry.contract.NAME_ATTRIBUTE`).

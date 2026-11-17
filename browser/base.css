@@ -1084,6 +1084,11 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   border-top: 1px solid var(--lf-rule);
   --lf-block-frame: 1;
 }
+/* A named group (`reading-role: group`) is a block that draws nothing of its own: its
+ * label is data, and what it holds, any heading included, is the author's. */
+:where([data-lf-reading-role="group"]) {
+  display: block;
+}
 /* A framed box that holds authored content is an inline-size container, so a widget
  * inside it that caps its minimum at `100cqi` is capped by the box rather than the page:
  * a board in a pane scrolls its columns inside the pane instead of running out of it. A

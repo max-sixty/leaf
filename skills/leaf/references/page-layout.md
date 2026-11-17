@@ -222,17 +222,17 @@ grid of panes:
 
 A widget that asks, such as a playground, stands in its question's group
 (`authoring-on-me.md`, "On the page"), and that group is the body. Where the header's
-heading asks the question, the group names that heading:
+heading asks the question, the group's label asks it too:
 
 ```html
 <main class="layout-workspace density-working">
   <header>
-    <h1 id="tune-h">Which latency window should checkout alert on?</h1>
+    <h1>Which latency window should checkout alert on?</h1>
     <p>…</p>
   </header>
-  <section id="tune" role="group" aria-labelledby="tune-h">
+  <lf-group id="tune" label="Which latency window should checkout alert on?">
     <lf-playground id="tune-config">…</lf-playground>
-  </section>
+  </lf-group>
 </main>
 ```
 
@@ -329,10 +329,11 @@ comment there shows as a pin on its block.
 
 ## Page-owned annotations
 
-By default Leaf draws comment markers, passage highlights and threads over the page.
+By default Leaf draws comment markers and threads over the page.
 `data-annotations="page"` on `body` turns these off for a page that shows comments in
 its own layout; comments, On Me obligations, Undo and live revisions still work, and comments open
-in the Leaf panel. To show conversations in the page's own layout, register a
+in the Leaf panel. Leaf still marks commented words on such a page: pointing at them
+previews their thread, and a press opens it. To show conversations in the page's own layout, register a
 presentation as `module-annotations.md`, "Page annotation presentation", describes,
 rather than rebuilding the event log in page code.
 

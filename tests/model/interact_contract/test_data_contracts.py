@@ -400,7 +400,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
     registry = registry_storage.require_registry(page_dir)
     events = [
         {
-            "id": "frozen-feed",
+            "id": "feed-reply",
             "kind": "reply",
             "author": "agent",
             "revision": 1,
@@ -415,7 +415,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
         {
             "widget": "reply-data",
             "input": "document",
-            "document": "event 'frozen-feed' markup",
+            "document": "event 'feed-reply' markup",
         }
     ]
     bootstrap = data_contracts_model.page_data_binding_inventory(
@@ -428,7 +428,7 @@ def test_data_binding_inventory_keeps_each_documents_captured_registry(
                 {
                     "widget": "reply-data",
                     "input": "renamed",
-                    "document": "event 'frozen-feed' markup",
+                    "document": "event 'feed-reply' markup",
                 }
             ],
         }

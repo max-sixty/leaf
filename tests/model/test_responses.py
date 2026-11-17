@@ -56,7 +56,7 @@ class ResponseOptions(TypedDict, total=False):
 
 
 QUESTION = (
-    '<lf-options id="question"><lf-option id="question-a"><strong>A</strong>'
+    '<lf-options id="question"><lf-option id="question-a" label="A">'
     "</lf-option></lf-options>"
 )
 
@@ -387,7 +387,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     assert not any(
         event["kind"] == "thread_title" for event in events_model.read_events(page_dir)
     )
-    markup = '<lf-options id="response-options"><lf-option id="response-yes"><strong>Yes</strong></lf-option></lf-options>'
+    markup = '<lf-options id="response-options"><lf-option id="response-yes" label="Yes"></lf-option></lf-options>'
     posted = CliRunner().invoke(
         cli_model.cli,
         [
@@ -420,7 +420,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "detail": {"value": ["response-yes"]},
         },
     )
-    # A widget input is answered on its frozen message, not on its own event id.
+    # A widget input is answered on the message holding it, not on its own event id.
     selected_ref = response_reference(page_dir, selected)
     destination = delivery_model.response_address(selected_ref)
     assert destination["parent"] == asked["id"]
@@ -802,7 +802,7 @@ def test_provider_response_commits_full_content_before_reconnect(
         "message_identity",
         lambda: {"session": author, "agent": "Worker"},
     )
-    markup = '<lf-options id="provider-choice"><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
+    markup = '<lf-options id="provider-choice"><lf-option id="provider-yes" label="Yes"></lf-option></lf-options>'
     shown = QUESTION if rich == "question" else markup
     flags = {
         "question": [

@@ -445,7 +445,7 @@ def test_recordless_requests_wake_without_user_obligations(
         events_model.read_events(page_dir), first["seq"]
     ) == [repeated, undone, fresh]
 
-    # The same declaration belongs to a widget frozen into a thread message.
+    # The same declaration belongs to a widget in a thread message.
     thread = append_command(
         page_dir,
         {
@@ -456,9 +456,9 @@ def test_recordless_requests_wake_without_user_obligations(
             + '<lf-archive id="thread-row">Archive this</lf-archive>',
         },
     )
-    frozen = action("archive", "thread-row")
-    assert frozen["attention"]
-    assert "answer" not in frozen["meaning"]
+    thread_move = action("archive", "thread-row")
+    assert thread_move["attention"]
+    assert "answer" not in thread_move["meaning"]
     assert owed_answers(page_dir) == []
     append_command(
         page_dir,
@@ -469,7 +469,7 @@ def test_recordless_requests_wake_without_user_obligations(
             "text": "Archived.",
         },
     )
-    assert not any(item["input"] == frozen["id"] for item in work().workflows)
+    assert not any(item["input"] == thread_move["id"] for item in work().workflows)
     assert action("archive", "thread-row")["attention"]
 
 
@@ -659,7 +659,7 @@ def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
 
 
 def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsys):
-    """An action names a widget, and a widget an agent sent lives in frozen
+    """An action names a widget, and a widget an agent sent lives in
     thread markup rather than in any version. Neither the id nor the option it
     chose means anything without the message that asked, so the envelope
     resolves the widget to its thread and brings the markup along. An undo
@@ -682,7 +682,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "author": "agent",
             "revision": 1,
             "text": "And which region first?\n\n" + '<lf-options id="rg">'
-            '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
+            '<lf-option id="r-eu" label="EU"></lf-option>'
             "</lf-options>",
         },
     )
@@ -694,9 +694,9 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?\n\n"
             + '<lf-options id="gm">\n'
-            '<lf-option id="m-cap"><small class="tag">recommended</small>'
-            "<strong>Cap retries</strong> Bound retry load.</lf-option>"
-            '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
+            '<lf-option id="m-cap" label="Cap retries" recommended>'
+            "Bound retry load.</lf-option>"
+            '<lf-option id="m-alert" label="Alert"></lf-option>'
             "</lf-options>",
         },
     )
@@ -720,9 +720,9 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert thread["id"] == asked["id"]
     # The HTML, because `m-cap` is a word only the question spells out.
     assert 'id="m-cap"' in thread["messages"][0]["text"]
-    # And the pick in words, read from that frozen message: the group is left
+    # And the pick in words, read from that message: the group is left
     # out because it only encloses the option chosen in it.
-    assert shown[0]["says"] == {"m-cap": "recommended Cap retries Bound retry load."}
+    assert shown[0]["says"] == {"m-cap": "Cap retries Bound retry load."}
     assert shown[0]["names"] == {"m-cap": "Cap retries"}
 
     # In force, so a later delivery in this thread carries what the user
@@ -830,7 +830,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     assert session_model.cmd_wait(page_dir) == 0
     _, _, [undone] = delivered(capsys)
     assert undone["says"] == {
-        "flag-first": "effort: low risk: med Flag first Ship dark."
+        "flag-first": "Flag first effort: low risk: med Ship dark."
     }
     assert undone["names"] == {"flag-first": "Flag first"}
 
@@ -972,8 +972,8 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             message["revision"] = 1
             message["text"] += (
                 '\n\n<lf-options id="thread-commands">'
-                '<lf-option id="restart"><strong>Restart</strong></lf-option>'
-                '<lf-option id="park"><strong>Park</strong></lf-option>'
+                '<lf-option id="restart" label="Restart"></lf-option>'
+                '<lf-option id="park" label="Park"></lf-option>'
                 "</lf-options>"
             )
         sent = append_carried_log_record(page_dir, message)
@@ -1108,7 +1108,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "author": "agent",
             "parent": root["id"],
             "text": "Which mitigations?\n\n" + '<lf-options id="gm" multiple>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-cap" label="Cap retries"></lf-option>'
             "</lf-options>",
         },
     )
@@ -1281,9 +1281,9 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
     pick settles; a question in a thread elsewhere stays out."""
     source = PAGE.replace(
         "</section>",
-        '</section><section id="ship-ask" role="group" aria-labelledby="ship-ask-h"><h2 id="ship-ask-h">Ship on Friday?</h2>'
+        '</section><lf-group id="ship-ask" label="Ship on Friday?"><h2 id="ship-ask-h">Ship on Friday?</h2>'
         '<lf-options id="permit"><lf-option id="publish">Publish</lf-option>'
-        '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
+        '<lf-option id="hold">Keep it private</lf-option></lf-options></lf-group>'
         '<p id="aside">An aside.</p>',
     )
     (page_dir / "index.html").write_text(source)
@@ -1350,13 +1350,13 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
 
     def playground(ident, card):
         return (
-            f'<section id="{ident}-q" role="group" aria-label="Which radius?">'
+            f'<lf-group id="{ident}-q" label="Which radius?">'
             f'<lf-playground id="{ident}">'
             f'<aside><label id="{ident}-radius">Radius <input type="range" name="radius" '
             'value="8" max="20" /></label></aside>'
             f'<p id="{card}">Deployed.</p>'
             "<lf-playground-output>Build it.</lf-playground-output></lf-playground>"
-            "</section>"
+            "</lf-group>"
         )
 
     (page_dir / "index.html").write_text(

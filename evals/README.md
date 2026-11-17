@@ -294,13 +294,13 @@ flowchart TD
           file="/absolute/path/to/change.diff"
           label="Exact retained change"
         ></lf-eval-cite>
-        <section id="keyboard-review" role="group" aria-labelledby="keyboard-review-h">
+        <lf-group id="keyboard-review" label="Keep the keyboard change?">
           <h4 id="keyboard-review-h">Keep the keyboard change?</h4>
           <lf-options id="keyboard">
-            <lf-option id="keyboard-approve"><strong>Approve change</strong></lf-option>
-            <lf-option id="keyboard-revisit"><strong>Revisit change</strong></lf-option>
+            <lf-option id="keyboard-approve" label="Approve change"></lf-option>
+            <lf-option id="keyboard-revisit" label="Revisit change"></lf-option>
           </lf-options>
-        </section>
+        </lf-group>
       </section>
     </section>
     <section id="experiments-rejected">

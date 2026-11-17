@@ -106,7 +106,8 @@ def test_a_reference_names_any_element_the_page_holds(page_dir, target):
     naming no element."""
     (page_dir / "index.html").write_text(
         PAGE.replace('<section id="plan"', '<section id="Plan_Notes"').replace(
-            '<lf-option id="flag-first">', f'<lf-option id="flag-first" for="{target}">'
+            '<lf-option id="flag-first" label="Flag first">',
+            f'<lf-option id="flag-first" label="Flag first" for="{target}">',
         )
     )
     _status, findings = check_findings(page_dir)
@@ -138,9 +139,9 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
     """An allocation means something only where the kernel's `$marks` say it does,
     and delivery paints none elsewhere, so the page would show no sign of it: a width
     on `main`, which would size the page, and a stated height on a block no module
-    draws into. `page check` names each so the author can move it. A width on the
-    question's section or on the table inside it, and a height on a chart, mean what
-    they say. A tab set draws no box of its own only where
+    draws into. `page check` names each so the author can move it. A width on a table
+    in the question's group, and a height on a chart, mean what they say. A tab set
+    draws no box of its own only where
     it is written `flow="page"`, so a width there means nothing and on a boxed set it
     holds."""
     tabs = (
@@ -155,19 +156,14 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
             + tabs.format(id="page-tabs", flow=' flow="page"')
             + tabs.format(id="boxed-tabs", flow=""),
         )
-        .replace(
-            '<div id="plan-choice-decision" role="group" aria-labelledby="plan-choice-question">',
-            '<section id="plan-choice-decision" role="group"'
-            ' aria-labelledby="plan-choice-question" data-width="available">',
-        )
         .replace(PAGE_GROUP, '<lf-options id="plan-choice">')
         .replace(
-            "</lf-options>\n  </div>",
+            "</lf-options>\n  </lf-group>",
             "</lf-options>\n"
             '<table id="kept" data-width="wide"><tr><td>A</td></tr></table>\n'
             '<div id="sized" data-height="200">box</div>\n'
             '<lf-chart id="c" data-height="240"><pre>{ariaLabel: "x", marks: []}</pre>'
-            "</lf-chart>\n  </section>",
+            "</lf-chart>\n  </lf-group>",
         )
     )
     status, findings = check_findings(page_dir)
@@ -179,6 +175,25 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
         ("<main>", "data-width", "content", "advice"),
         ("<div id=sized>", "data-height", "declared", "advice"),
         ("<lf-tabs id=page-tabs>", "data-width", "flow", "advice"),
+    ]
+
+
+def test_check_advises_a_label_where_a_card_leads_with_a_strong(page_dir):
+    """An option or card leading with a <strong>, past any chips, draws as bold words
+    rather than a titled card, so `page check` advises its title in `label`. Bold words
+    after words of the option's own, or an option with a label, draw no advice."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice">').replace(
+            '<lf-option id="flag-first" label="Flag first">',
+            '<lf-option id="old"><small class="tag">x</small> <strong>Old</strong> w.'
+            '</lf-option><lf-option id="bare">Keep <strong>it</strong></lf-option>'
+            '<lf-option id="flag-first" label="Flag first">',
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert [(f.at, f.severity) for f in found(findings, "title-in-strong")] == [
+        ("<lf-option id=old>", "advice")
     ]
 
 
@@ -227,10 +242,10 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     """Child documents keep their own ids, widgets, passages, and validation reading."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template id="practice" data-sample><section id="nested-ask" role="group" aria-labelledby="nested-ask-h">'
+        '<template id="practice" data-sample><lf-group id="nested-ask" label="Hidden question">'
         '<h2 id="nested-ask-h">Hidden question</h2><lf-options id="nested-options">'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
-        "</lf-options></section></template></main>"
+        "</lf-options></lf-group></template></main>"
     )
     parser = structure_model.SourceDocument(html)
 

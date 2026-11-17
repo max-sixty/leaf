@@ -50,7 +50,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 ACROSS_OBLIGATION = """
-  <section id="{id}" role="group" aria-labelledby="{id}-h">
+  <lf-group id="{id}" label="How long should logs be kept?">
     <hgroup><p>Retention</p><h3 id="{id}-h">How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
@@ -58,17 +58,17 @@ ACROSS_OBLIGATION = """
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
     <lf-options id="{id}-choice"{across}{width}>
-      <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
+      <lf-option id="{id}-7" label="7 days">The cheapest.
         <lf-options id="{id}-nested">
-          <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
-          <lf-option id="{id}-both"><strong>Both tiers</strong> Keep warm a week.</lf-option>
+          <lf-option id="{id}-hot" label="Hot only">Drop warm at once.</lf-option>
+          <lf-option id="{id}-both" label="Both tiers">Keep warm a week.</lf-option>
         </lf-options>
       </lf-option>
-      <lf-option id="{id}-30"><strong>30 days</strong> Covers every incident review.</lf-option>
-      <lf-option id="{id}-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
+      <lf-option id="{id}-30" label="30 days">Covers every incident review.</lf-option>
+      <lf-option id="{id}-90" label="90 days">Covers a quarter's audit.</lf-option>
     </lf-options>
     <p>Whichever you pick, the hot tier keeps a day.</p>
-  </section>
+  </lf-group>
 """
 
 
@@ -90,22 +90,22 @@ ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
 
 
 PICTURED_OBLIGATION = """
-  <section id="{id}" role="group" aria-labelledby="{id}-h">
+  <lf-group id="{id}" label="Should each item say where it sits in the plan?">
     <h3 id="{id}-h">Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice"{width}>
-      <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
+      <lf-option id="{id}-yes" label="Show the goal and step">A line over each item.
         <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
           aria-label="Items under their step">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
-      <lf-option id="{id}-no"><strong>Leave the list as it is</strong> Items as today.
+      <lf-option id="{id}-no" label="Leave the list as it is">Items as today.
         <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img" aria-label="Items as today">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
     </lf-options>
-  </section>
+  </lf-group>
 """
 
 
@@ -125,14 +125,12 @@ PLATE_PACKAGE = {
 
 
 PLATED_OPTION = """
-      <lf-option id="plated-{side}"><strong>{title}</strong>
-        <lf-plate id="plated-{side}-picture"><p>{title} by week</p></lf-plate>
+      <lf-option id="plated-{side}" label="{title}">        <lf-plate id="plated-{side}-picture"><p>{title} by week</p></lf-plate>
       </lf-option>"""
 
 
 CAPTURED_OPTION = """
-      <lf-option id="captured-{side}"><strong>{title}</strong>
-        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
+      <lf-option id="captured-{side}" label="{title}">        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
       </lf-option>"""
 
 
@@ -150,22 +148,22 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
     + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
-    + '<section id="plated" role="group" aria-labelledby="plated-h"><h3 id="plated-h">Which latency?</h3><lf-options id="plated-choice">'
+    + '<lf-group id="plated" label="Which latency?"><h3 id="plated-h">Which latency?</h3><lf-options id="plated-choice">'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
-    + "</lf-options></section>"
-    + '<section id="captured" role="group" aria-labelledby="captured-h"><h3 id="captured-h">Which panel?</h3><lf-options id="captured-choice">'
+    + "</lf-options></lf-group>"
+    + '<lf-group id="captured" label="Which panel?"><h3 id="captured-h">Which panel?</h3><lf-options id="captured-choice">'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
-    + "</lf-options></section>"
-    + '<section id="rowed" role="group" aria-labelledby="rowed-h"><h3 id="rowed-h">Which route?</h3><lf-options id="rowed-choice">'
+    + "</lf-options></lf-group>"
+    + '<lf-group id="rowed" label="Which route?"><h3 id="rowed-h">Which route?</h3><lf-options id="rowed-choice">'
     + ROWED_OPTION.format(side="yes", title="Along the fence")
     + ROWED_OPTION.format(side="no", title="Under the lawn")
-    + "</lf-options></section>"
-    + '<section id="worded" role="group" aria-labelledby="worded-h"><h3 id="worded-h">Which order?</h3><lf-options id="worded-choice">'
-    + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
-    + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
-    + "</lf-options></section>",
+    + "</lf-options></lf-group>"
+    + '<lf-group id="worded" label="Which order?"><h3 id="worded-h">Which order?</h3><lf-options id="worded-choice">'
+    + '<lf-option id="worded-yes" label="By owner">Grouped.</lf-option>'
+    + '<lf-option id="worded-no" label="By age">As today.</lf-option>'
+    + "</lf-options></lf-group>",
 )
 
 
@@ -224,7 +222,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
     # Apart or joined changes only the frame: a pick fills and rings a card as it does
     # a cell, so it reads among pictures as plainly as among words.
     for id in ("pictured", "worded"):
-        page.locator(f"#{id}-yes > strong").click()
+        page.locator(f'#{id}-yes > [data-lf-said="label"]').click()
         expect(page.locator(f"#{id}-yes")).to_have_attribute("selected", "")
     page.mouse.move(0, 0)
     face = """el => { const s = getComputedStyle(el);
@@ -279,16 +277,16 @@ def chipped_obligation(id, cards):
     """An obligation framing a drawing, its titled cards laid across; each card is
     (chips, title, attributes)."""
     options = "".join(
-        f'<lf-option id="{id}-{n}"{attributes}>'
+        f'<lf-option id="{id}-{n}" label="{title}"{attributes}>'
         + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
-        + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
+        + "<p>Its consequence.</p></lf-option>"
         for n, (chips, title, attributes) in enumerate(cards)
     )
     return (
-        f'<section id="{id}" role="group" aria-labelledby="{id}-h"><h3 id="{id}-h">Which fix first?</h3>'
+        f'<lf-group id="{id}" label="Which fix first?"><h3 id="{id}-h">Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
-        f'<lf-options id="{id}-choice" across>{options}</lf-options></section>'
+        f'<lf-options id="{id}-choice" across>{options}</lf-options></lf-group>'
     )
 
 
@@ -298,7 +296,7 @@ CHIPPED_CARDS_PAGE = leaf_page(
     + chipped_obligation(
         "some",
         [
-            (["recommended"], "Seal the hatch", ""),
+            ([], "Seal the hatch", " recommended"),
             ([], "Glaze the bay", ""),
             (["risky"], "Insulate the floor", " selected"),
         ],
@@ -307,9 +305,9 @@ CHIPPED_CARDS_PAGE = leaf_page(
         "all",
         [
             (
-                ["recommended", "£180", "one afternoon", "needs the installer"],
+                ["£180", "one afternoon", "needs the installer"],
                 "Seal the hatch",
-                "",
+                " recommended",
             ),
             (["£1,180"], "Glaze the bay", ""),
             (["risky"], "Insulate the floor", ""),
@@ -322,15 +320,12 @@ CHIPPED_CARDS_PAGE = leaf_page(
     ("engine", "rows"),
     [("browser", ("some",)), ("firefox_browser", ("some", "all"))],
 )
-def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
+def test_cards_laid_across_align_their_titles_whatever_chips_follow_them(
     request, serve, engine, rows
 ):
-    """Cards side by side read as one comparison, so each title, and the sentence under
-    it, stands on one line across the row whether its card opens with chips, with
-    none, or with the "selected" state beside them. A card whose chips wrap to several
-    lines moves its neighbours' contents down with it, which needs baseline
-    content-alignment: Chromium lacks it, so there only chips that fit beside the
-    state seat keep the row aligned (`notes/browser-support.md`)."""
+    """Cards side by side read as one comparison, so each title stands on one line
+    across the row whatever chips follow it, with the "selected" state or the
+    recommended badge beside it."""
     page = open_page(request.getfixturevalue(engine), serve(CHIPPED_CARDS_PAGE))
     resized(page, 1440, 900)
     at = page.evaluate(
@@ -340,8 +335,7 @@ def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
             Math.round(card.querySelector(`:scope > ${part}`).getBoundingClientRect().top);
           return [id, {
             cards: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
-            titles: cards.map((card) => top(card, 'strong')),
-            sentences: cards.map((card) => top(card, 'p')),
+            titles: cards.map((card) => top(card, '[data-lf-said="label"]')),
           }];
         }))""",
         list(rows),
@@ -350,7 +344,6 @@ def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
         row = at[id]
         assert len(set(row["cards"])) == 1, f"{id}: the cards share a row: {row}"
         assert len(set(row["titles"])) == 1, f"{id}: titles misaligned: {row}"
-        assert len(set(row["sentences"])) == 1, f"{id}: sentences misaligned: {row}"
 
 
 def test_options_laid_across_fill_the_wide_measure_they_ask_for(browser, serve):
@@ -423,12 +416,12 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
     html = leaf_page(
         "obligation after a cleared pick",
         """
-<section id="release-decision" role="group" aria-labelledby="release-decision-h"><h1 id="release-decision-h">Ship this release?</h1>
+<lf-group id="release-decision" label="Ship this release?"><h1 id="release-decision-h">Ship this release?</h1>
   <lf-options id="release-options">
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
-</section>
+</lf-group>
 """,
     )
     page = open_page(browser, serve(html))
@@ -1694,10 +1687,10 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     url = serve(
         leaf_page(
             "seated eligibility",
-            '<h1 id="heading">Choose</h1><section id="pick-decision" role="group" aria-labelledby="pick-decision-h">'
+            '<h1 id="heading">Choose</h1><lf-group id="pick-decision" label="Cap the retries?">'
             '<h2 id="pick-decision-h">Cap the retries?</h2>'
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
-            "</section>",
+            "</lf-group>",
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,

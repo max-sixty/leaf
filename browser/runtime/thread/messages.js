@@ -397,25 +397,33 @@ const keptElements = new Map();
 // (`authoredHolders`): the message less what a second copy would duplicate, each id
 // and each custom element, which a module upgrades once. A widget set among words
 // (`inline`) leaves its words, and any other goes whole, as a choice the drawing
-// asks in its own controls does. The innermost group the author declares round a widget
-// that asks, `role="group"` or a `<fieldset>` (`obligations.widget_groups` in Python),
-// is its question, so it goes whole with it rather than leaving the question's words
-// with nothing to answer them. Any other group stays, less its widgets, as a figure
-// keeps its caption when its chart goes.
+// asks in its own controls does. The innermost named group round a widget that asks,
+// an element whose declaration's `reading-role` is `group` (`obligations.widget_groups`
+// in Python), is its question, so it goes whole with it rather than leaving the
+// question's words with nothing to answer them. Any other group leaves what it holds,
+// less its widgets, as a figure keeps its caption when its chart goes.
+/** The innermost named group holding `element`, or null.
+ * @param {Element} element @returns {Element | null} */
+function groupRound(element) {
+  for (let at = element.parentElement; at; at = at.parentElement)
+    if (declarationFor(at)?.["reading-role"] === "group") return at;
+  return null;
+}
 /** @param {DocumentFragment} message */
 function heldElsewhere(message) {
   const copy = document.createElement("template");
   copy.content.append(message.cloneNode(true));
   for (const element of copy.content.querySelectorAll("*")) {
     const declaration = declarationFor(element);
-    if (declaration?.awaits && !declaration.inline)
-      element.parentElement?.closest('[role~="group"], fieldset')?.remove();
+    if (declaration?.awaits && !declaration.inline) groupRound(element)?.remove();
   }
-  for (const element of copy.content.querySelectorAll("*"))
+  for (const element of copy.content.querySelectorAll("*")) {
+    const declaration = declarationFor(element);
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declarationFor(element)?.inline)
+    else if (declaration?.inline || declaration?.["reading-role"] === "group")
       element.replaceWith(...element.childNodes);
     else element.remove();
+  }
   return copy.innerHTML;
 }
 
@@ -433,39 +441,39 @@ function* islandElements(island) {
  * from, against the reading adopted before it: `retired`, the widget ids an island
  * held that its message's island in this reading doesn't, as when an edit rewrote
  * the message or left it no HTML; and `commit`, which makes this reading's islands
- * the adopted ones once the page adopts it. `frozen` is null for a message drawn
+ * the adopted ones once the page adopts it. `prepared` is null for a message drawn
  * as Markdown alone. A message whose island is unchanged costs one lookup.
  * @param {readonly {message: {id: string, attempt?: string | null},
- *   frozen: PreparedAuthoredMessage | null | undefined}[]} entries
+ *   prepared: PreparedAuthoredMessage | null | undefined}[]} entries
  */
 export function islandChange(entries) {
   /** @type {[string, PreparedAuthoredMessage | null, PreparedAuthoredMessage | null][]} */
   const changed = [];
   /** @type {string[]} */
   const retired = [];
-  for (const { message, frozen = null } of entries) {
+  for (const { message, prepared = null } of entries) {
     const key = message.attempt ?? message.id;
     const prior = adoptedIslands.get(key) ?? null;
-    if (prior === frozen) continue;
-    changed.push([key, prior, frozen]);
+    if (prior === prepared) continue;
+    changed.push([key, prior, prepared]);
     for (const id of prior?.descriptors.descriptors.keys() ?? [])
-      if (!frozen?.descriptors.descriptors.has(id)) retired.push(id);
+      if (!prepared?.descriptors.descriptors.has(id)) retired.push(id);
   }
   return {
     retired,
     commit() {
-      for (const [key, prior, frozen] of changed) {
+      for (const [key, prior, prepared] of changed) {
         for (const element of prior ? islandElements(prior) : [])
           if (keptElements.get(element.id)?.element === element)
             keptElements.delete(element.id);
-        if (!frozen) {
+        if (!prepared) {
           adoptedIslands.delete(key);
           continue;
         }
-        adoptedIslands.set(key, frozen);
-        for (const element of islandElements(frozen))
+        adoptedIslands.set(key, prepared);
+        for (const element of islandElements(prepared))
           if (!keptElements.has(element.id))
-            keptElements.set(element.id, { element, document: frozen.body.document });
+            keptElements.set(element.id, { element, document: prepared.body.document });
       }
     },
   };
@@ -507,9 +515,12 @@ export function prepareAuthoredMessage(message, thread) {
     rememberPassageParts(template.content, ["event", message.id]);
     // The message's words as the page reading says them (`says`). `says` refuses text
     // with no element over it, and a message may open with bare text, so it reads a
-    // copy inside a <div> of the template's inert document, where nothing upgrades.
+    // copy inside a <div> of the template's inert document, where nothing upgrades; the
+    // copy writes its declared labels as the drawn message does (`renderSaid`), so an
+    // option's title is among its words.
     const body = template.content.ownerDocument.createElement("div");
     body.append(template.content.cloneNode(true));
+    renderSaid(body);
     const text = says(body);
     const nodes = Object.freeze([...template.content.childNodes]);
     prepared = {

@@ -1102,12 +1102,12 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
 
 TALL_OBLIGATION_PAGE = leaf_page(
     "A tall Ask",
-    '<h1>Route</h1><section id="way" role="group" aria-labelledby="way-h"><h2 id="way-h">Which way?</h2>'
+    '<h1>Route</h1><lf-group id="way" label="Which way?"><h2 id="way-h">Which way?</h2>'
     + "".join(
         f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
     )
     + '<lf-options id="route"><lf-option id="north">North</lf-option>'
-    '<lf-option id="south">South</lf-option></lf-options></section><p>After.</p>',
+    '<lf-option id="south">South</lf-option></lf-options></lf-group><p>After.</p>',
 )
 # Every margin row by what it stands for: the rows about `target`, each as its top
 # measured from the target's, and whether it holds a comment. Rows are read by their
@@ -1394,9 +1394,9 @@ POINTED_WITHIN = {
     # group rather than being a target of its own.
     "first line": (
         (
-            '<section id="within" role="group" aria-label="Which way?"><h2>Which way?</h2><lf-options id="route">'
+            '<lf-group id="within" label="Which way?"><h2>Which way?</h2><lf-options id="route">'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
-            "</lf-option></lf-options></section>"
+            "</lf-option></lf-options></lf-group>"
         ),
         ["#within h2"],
         0,
@@ -3828,10 +3828,10 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
 <p><label for="name">Name</label> <input id="name" type="text" value="Ada"></p>
-<section id="ship-q" role="group" aria-label="When to ship?"><lf-options id="ship">
-  <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
-  <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
-</lf-options></section>""",
+<lf-group id="ship-q" label="When to ship?"><lf-options id="ship">
+  <lf-option id="ship-monday" label="Ship Monday">soon</lf-option>
+  <lf-option id="ship-thursday" label="Ship Thursday">later</lf-option>
+</lf-options></lf-group>""",
             )
         ),
     )

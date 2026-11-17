@@ -50,7 +50,6 @@ import {
   offerAction,
   generatedElement,
   quoted,
-  says,
   announce,
   labelOf,
   layoutChanged,
@@ -293,8 +292,7 @@ customElements.define(
 
     /** @param {Element} card */
     #title(card) {
-      const strong = card.querySelector(":scope > strong");
-      return (strong && says(strong)) || card.id;
+      return card.getAttribute("label")?.trim() || card.id;
     }
     /** @returns {NodeListOf<HTMLElement>} */
     #columns() {

@@ -1,7 +1,7 @@
 """Canonical obligations from messages, widgets and updates.
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
-and exact owning message locate frozen sources without depending on a live renderer.
+and exact owning message locate thread sources without depending on a live renderer.
 A widget source owns identity; the group the author declares round it contributes
 only prompt words and arrival (`widget_groups`). A `records` declaration expands a
 widget's bound external input using its data contract's record list and key. Each record owns the stable
@@ -42,8 +42,8 @@ asking is, an `obligation` naming the questions, rather than a second one beside
 
 A record's `status` is one of three, and this module is their one producer: `open`;
 `answered`, its typed answer in the record; and `withdrawn`, an obligation the document
-no longer makes. A question asked in a thread message, in words or by a widget frozen in
-it, also ends when either side resolves its thread after the message now asking it: it
+no longer makes. A question asked in a thread message, in words or by a widget in it,
+also ends when either side resolves its thread after the message now asking it: it
 stays `open` with nobody's move, though a later reply reopens the thread, until a
 message asks it again under its id (`question_ids`) or the resolve is taken back. That
 is how the agent ends one the user answered on another surface, or that no longer
@@ -69,12 +69,12 @@ from leaf.events import (
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.gesture_words import element_name, group_name
+from leaf.gesture_words import element_name
 from leaf.page_memory import Slot
 from leaf.projection import (
     AuthoredOrders,
-    FrozenThreadReading,
     StateProjection,
+    ThreadMarkupReading,
     attribute_marks,
     enclosing_widgets,
     folded_value,
@@ -97,33 +97,35 @@ def local_obligation_entry(entry: dict) -> bool:
     return entry.get("awaits") is not None
 
 
-def _is_group(node: dict) -> bool:
-    """Whether the author declares `node` a group: `role="group"`, or a `<fieldset>`,
-    which is one natively."""
-    return (
-        node["tag"] == "fieldset"
-        or "group" in (node["attrs"].get("role") or "").split()
+def group_tags(registry: dict) -> list[str]:
+    """The tags the vocabulary declares a named group (`reading-role: group`), such as
+    the default package's `lf-group`."""
+    return sorted(
+        tag
+        for tag, entry in registry.items()
+        if isinstance(entry, dict) and entry.get("reading-role") == "group"
     )
 
 
 def widget_groups(content: list, registry: dict):
     """Each widget in `content` that can ask, as its authoring node and its question:
-    the innermost element round it that the author declares a group (`_is_group`), or
-    None. The group's name (`gesture_words.group_name`) is the widget's prompt, and the
-    group is where the obligation stands and going to it starts while it holds no
-    other (`obligations/place.js` in the browser), so the group needs an id to be a
-    place, as `page check` requires. Python reads only the authored source, so a group
-    the runtime draws, such as a control's own, holds no question. A widget set among
-    words (`inline`), such as a suggestion, has none: its sentence and its own words
-    name it.
+    the innermost named group round it (`group_tags`), or None. The group's `label`
+    (`gesture_words.element_name`) is the widget's prompt, and the group is where the
+    obligation stands and going to it starts while it holds no other
+    (`obligations/place.js` in the browser); the registry requires both its id and its
+    label. Python reads only the authored source, so a group the runtime draws holds no
+    question. A widget set among words (`inline`), such as a suggestion, has none: its
+    sentence and its own words name it.
 
-    The author declares the question's region and name, and Leaf reads no heading to
-    find them: the user chose data the author writes over a reading of the page's
-    headings. Finding the section a heading opens round the widget is the alternative a
+    The author declares the question's region and name on an element of Leaf's own,
+    and Leaf reads no heading and no ARIA to find them: the user chose one Leaf element
+    whose `label` names any group of things, questions among them, over HTML's group
+    named by `aria-labelledby` or a fieldset's legend, which gave a question several
+    ways to be written and leaned on accessibility attributes for one of Leaf's own
+    facts. Finding the section a heading opens round the widget is the alternative a
     later change might reach for; it fails because it infers a region the author never
-    marked, so a section of prose round several questions would become their region.
-    A widget of Leaf's own round the question is the other; it fails because a group in
-    plain HTML already says what such a tag would."""
+    marked, so a section of prose round several questions would become their region."""
+    groups = set(group_tags(registry))
 
     def walk(nodes: list, group: dict | None):
         for node in nodes:
@@ -132,7 +134,7 @@ def widget_groups(content: list, registry: dict):
             entry = registry.get(node["tag"]) or {}
             if local_obligation_entry(entry):
                 yield node, None if entry.get("inline") else group
-            yield from walk(node["content"], node if _is_group(node) else group)
+            yield from walk(node["content"], node if node["tag"] in groups else group)
 
     yield from walk(content, None)
 
@@ -262,7 +264,7 @@ def update_obligation(
 def response_address(record: dict) -> dict:
     """The operation that answers an update: a thread reply or a stamped page revision.
     Reply addresses use the logged event's `parent` (message) and `responds` (exact
-    input), which differ for edits and widget actions in frozen markup.
+    input), which differ for edits and widget actions in thread markup.
     """
     source = record["source"]
     if record["thread"] is None:
@@ -690,7 +692,7 @@ class ObligationSources(NamedTuple):
 
 
 def obligation_sources(source, registry: dict) -> ObligationSources:
-    """Read `ObligationSources` from a page document or a frozen thread's structure,
+    """Read `ObligationSources` from a page document or a thread structure,
     whose fragments each hold one message's markup."""
     documents = (
         list(source.fragments.values()) if hasattr(source, "fragments") else [source]
@@ -704,17 +706,11 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
     ]
     prompts = {}
     for document in documents:
-        nodes = {
-            node["attrs"]["id"]: node
-            for node in document.authoring.nodes
-            if node["attrs"].get("id")
-        }
         for node, group in widget_groups(document.authoring.content, registry):
             if not (identity := node["attrs"].get("id")):
                 continue
-            text = group_name(group, nodes) if group else ""
             prompts[identity] = {
-                "text": text or element_name(node, registry),
+                "text": element_name(group or node, registry),
                 "target": (group["attrs"].get("id") if group else None) or identity,
             }
     return ObligationSources(
@@ -723,7 +719,7 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
 
 
 class _ObligationReducer:
-    """One page or frozen-thread obligation fold over a shared state projection."""
+    """One page or thread-markup obligation fold over a shared state projection."""
 
     def __init__(
         self,
@@ -1073,10 +1069,10 @@ def thread_obligation_readings(
     threads: dict,
     log: "TodoReading",
     *,
-    reading: FrozenThreadReading,
+    reading: ThreadMarkupReading,
     data: dict | None = None,
 ) -> dict:
-    """Message and frozen widget obligations retain inventory when their thread closes,
+    """Message and thread widget obligations retain inventory when their thread closes,
     with no next actor. While the thread is open, a user turn after the message
     that asks hands the obligation to the agent until the agent answers that turn, and
     until the work a reply after it promised ends, as a thread anchored on a page
@@ -1228,7 +1224,7 @@ def answered_in_words(record: dict) -> bool:
 def waiting_in_thread(
     records: list[dict], threads: dict
 ) -> Callable[[str, int], list[dict]]:
-    """The agent's questions frozen as widgets in a thread, asked before a seq, that
+    """The agent's questions that widgets in a thread asked before a seq and that
     still wait on the user's pick, as a function of the thread and that seq: the
     user's words there may or may not answer them. Each is its `id` and the words
     that asked it: its prompt, the name of the group the message writes round the

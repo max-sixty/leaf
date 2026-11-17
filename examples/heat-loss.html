@@ -52,11 +52,7 @@
         </lf-chart>
       </section>
 
-      <section
-        id="heat-first-decision"
-        role="group"
-        aria-labelledby="heat-first-decision-h"
-      >
+      <lf-group id="heat-first-decision" label="Which measure should be booked first?">
         <h2 id="heat-first-decision-h">Which measure should be booked first?</h2>
         <p id="heat-decision-basis">
           The three jobs below have current installer access and quotes. Rank their
@@ -64,20 +60,17 @@
           savings.
         </p>
         <lf-options id="heat-first">
-          <lf-option id="heat-opt-hatch">
-            <strong>Seal and insulate the loft hatch</strong>
+          <lf-option id="heat-opt-hatch" label="Seal and insulate the loft hatch">
             <small class="tag">£180</small>
             <small class="tag ok">one afternoon</small>
             <p>Estimated loss: 265 W. The installer can do it next week.</p>
           </lf-option>
-          <lf-option id="heat-opt-window">
-            <strong>Add secondary glazing to the bay</strong>
+          <lf-option id="heat-opt-window" label="Add secondary glazing to the bay">
             <small class="tag">£1,180</small>
             <small class="tag">three-week lead</small>
             <p>Estimated loss: 410 W. The internal panel leaves the sash untouched.</p>
           </lf-option>
-          <lf-option id="heat-opt-floor">
-            <strong>Insulate under the floorboards</strong>
+          <lf-option id="heat-opt-floor" label="Insulate under the floorboards">
             <small class="tag">£2,100</small>
             <small class="tag warn">room closed for a week</small>
             <p>
@@ -85,7 +78,7 @@
             </p>
           </lf-option>
         </lf-options>
-      </section>
+      </lf-group>
 
       <section id="heat-weather">
         <h2>The January draught-proofing may already be helping</h2>

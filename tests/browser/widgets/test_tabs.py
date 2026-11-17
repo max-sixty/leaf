@@ -859,10 +859,10 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
         '<lf-tab id="only" label="Only withdrawn">'
-        '<section id="only-options-q" role="group" aria-label="Keep it?"><lf-options id="only-options"><lf-option id="only-pick">Only</lf-option></lf-options></section>'
+        '<lf-group id="only-options-q" label="Keep it?"><lf-options id="only-options"><lf-option id="only-pick">Only</lf-option></lf-options></lf-group>'
         '</lf-tab><lf-tab id="mixed" label="Answer and withdrawal">'
-        '<section id="answered-options-q" role="group" aria-label="Keep it?"><lf-options id="answered-options"><lf-option id="answered-pick" selected>Keep</lf-option></lf-options></section>'
-        '<section id="withdrawn-options-q" role="group" aria-label="Retire it?"><lf-options id="withdrawn-options"><lf-option id="withdrawn-pick">Retire</lf-option></lf-options></section>'
+        '<lf-group id="answered-options-q" label="Keep it?"><lf-options id="answered-options"><lf-option id="answered-pick" selected>Keep</lf-option></lf-options></lf-group>'
+        '<lf-group id="withdrawn-options-q" label="Retire it?"><lf-options id="withdrawn-options"><lf-option id="withdrawn-pick">Retire</lf-option></lf-options></lf-group>'
         "</lf-tab></lf-tabs>",
     )
     page = open_page(browser, live_url(serve(source)))
@@ -908,8 +908,8 @@ def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve)
         serve.page_dir,
         source.replace(
             '<p id="last-words">Nothing yet.</p>',
-            '<section id="ask" role="group" aria-labelledby="ask-h"><h3 id="ask-h">Go?</h3>'
-            '<lf-options id="pick"><lf-option id="pick-a">Go</lf-option></lf-options></section>',
+            '<lf-group id="ask" label="Go?"><h3 id="ask-h">Go?</h3>'
+            '<lf-options id="pick"><lf-option id="pick-a">Go</lf-option></lf-options></lf-group>',
         ),
         "Ask the first question",
     )
@@ -930,13 +930,13 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "a late queue",
             """<lf-tabs id="queue" list="side">
 <lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
-  <section id="ask-a" role="group" aria-labelledby="q-a"><h3 id="q-a">What happens to a?</h3>
+  <lf-group id="ask-a" label="What happens to a?"><h3 id="q-a">What happens to a?</h3>
     <lf-options id="o-a">
-      <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
-      <lf-option id="o-a-close"><strong>Escalate to engineering</strong> Send the logs.</lf-option>
-      <lf-option id="o-a-long"><strong>Escalate to the international engineering incident response team</strong> Send all logs.</lf-option>
+      <lf-option id="o-a-fix" label="Fix">Ship the patch.</lf-option>
+      <lf-option id="o-a-close" label="Escalate to engineering">Send the logs.</lf-option>
+      <lf-option id="o-a-long" label="Escalate to the international engineering incident response team">Send all logs.</lf-option>
     </lf-options>
-  </section>
+  </lf-group>
 </lf-tab>
 <lf-tab id="t-b" label="Ticket b"><p id="p-b">Nothing to decide.</p></lf-tab>
 </lf-tabs>""",

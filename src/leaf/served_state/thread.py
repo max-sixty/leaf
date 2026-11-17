@@ -10,7 +10,7 @@ from ..events import (
     turn_message,
     unanswered_agent_turn,
 )
-from ..projection import FrozenThreadReading
+from ..projection import ThreadMarkupReading
 from ..read_state import content_version, unread_content
 from ..schema import agent_name
 from .wire import browser_projection
@@ -75,8 +75,8 @@ def thread_counts(threads: list[dict]) -> dict:
 
 def browser_thread(
     work, live_reply: dict | None = None
-) -> tuple[dict, FrozenThreadReading]:
-    """Serialize the shared frozen-thread work reading, adding presentation only.
+) -> tuple[dict, ThreadMarkupReading]:
+    """Serialize the shared thread-markup work reading, adding presentation only.
     Messages and closing events carry their canonical display name; provisional
     replies and unread/summary protection never become durable work authority.
 

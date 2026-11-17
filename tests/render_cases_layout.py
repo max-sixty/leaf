@@ -563,11 +563,11 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 )
 # One obligation, so a page has something On Me.
 ONE_OBLIGATION = (
-    '<section id="go-decision" role="group" aria-labelledby="go-decision-h"><h2 id="go-decision-h">Ship it?</h2>'
+    '<lf-group id="go-decision" label="Ship it?"><h2 id="go-decision-h">Ship it?</h2>'
     '<lf-options id="go">'
-    '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
-    '<lf-option id="go-no"><strong>No</strong></lf-option>'
-    "</lf-options></section>"
+    '<lf-option id="go-yes" label="Yes"></lf-option>'
+    '<lf-option id="go-no" label="No"></lf-option>'
+    "</lf-options></lf-group>"
 )
 
 
@@ -963,16 +963,16 @@ AIM_PAINT_PAGE = leaf_page(
     "aim paint",
     """
 <h1 id="t">Aim paint</h1>
-<section id="cards-decision" role="group" aria-labelledby="cards-decision-h"><h2 id="cards-decision-h">Which card?</h2>
+<lf-group id="cards-decision" label="Which card?"><h2 id="cards-decision-h">Which card?</h2>
 <lf-options id="cards">
-  <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
-  <lf-option id="card-star" ><strong>Starred</strong> A border already the accent.</lf-option>
-</lf-options></section>
-<section id="rows-decision" role="group" aria-labelledby="rows-decision-h"><h2 id="rows-decision-h">Should we ship?</h2>
+  <lf-option id="card-plain" label="Plain">The first card's argument.</lf-option>
+  <lf-option id="card-star" label="Starred" >A border already the accent.</lf-option>
+</lf-options></lf-group>
+<lf-group id="rows-decision" label="Should we ship?"><h2 id="rows-decision-h">Should we ship?</h2>
 <lf-options id="rows">
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 """,
 )
 # Two items meeting at a seam the browser puts between two whole pixels, held there by a
@@ -1395,15 +1395,15 @@ SHORT_CHIP_PAGE = leaf_page(
 <p id="p">The bracket order goes in on Friday and there is room in it. Change the
 rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
 before it ships.</p>
-<section id="extras-decision" role="group" aria-labelledby="extras-decision-h"><h2 id="extras-decision-h">Which extras should we add?</h2>
+<lf-group id="extras-decision" label="Which extras should we add?"><h2 id="extras-decision-h">Which extras should we add?</h2>
 <lf-options id="extras" multiple>
-<lf-option id="x-tray"><lf-gloss tip="Price">£9</lf-gloss>
-<strong>Seed tray</strong> Catches the spill under the south pair.
+<lf-option id="x-tray" label="Seed tray"><lf-gloss tip="Price">£9</lf-gloss>
+Catches the spill under the south pair.
 </lf-option>
-<lf-option id="x-dome"><lf-gloss tip="Price">£15</lf-gloss>
-<strong>Weather dome</strong> Keeps the seed dry through a wet week.
+<lf-option id="x-dome" label="Weather dome"><lf-gloss tip="Price">£15</lf-gloss>
+Keeps the seed dry through a wet week.
 </lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 """,
 )
 

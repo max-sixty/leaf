@@ -605,6 +605,9 @@ CARD_ROUTES = {
 def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, subtests):
     """A card's reply wears `c`; closing the card hands `c` to the page comment.
 
+    While On Me lists anything the panel's row offers Next On Me rather than `c`, so
+    once the card closes no box wears `c`, and `c` still enters the page comment.
+
     Escape from a reply returns to its thread; Escape from the thread closes the card.
     The badge and the press must agree in both states. The box's placeholder is the
     runtime's own record of the hint, even while it is not drawn. Each route writes
@@ -646,9 +649,7 @@ def test_c_lands_where_its_badge_is_and_in_the_card_on_screen(browser, serve, su
                 assert box.evaluate("box => box === document.activeElement")
             else:
                 expect(card).to_be_hidden()
-                # The panel's page comment wears `c` now.
-                expect(badged).to_have_count(1)
-                expect(badged).to_have_attribute("name", "comment")
+                expect(badged).to_have_count(0)
                 page.keyboard.press("c")
                 rendered(page)
                 expect(

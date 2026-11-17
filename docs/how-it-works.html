@@ -466,25 +466,24 @@ leaf server start ./review</code></pre>
                   The importer receives bursts of records faster than it can process
                   them. Its queue has room for 1,000 records.
                 </p>
-                <section
+                <lf-group
                   id="queue-question"
-                  role="group"
-                  aria-labelledby="queue-question-h"
+                  label="When the queue fills, what should happen?"
                 >
                   <h3 id="queue-question-h">
                     When the queue fills, what should happen?
                   </h3>
                   <lf-options id="queue-policy">
-                    <lf-option id="block-producer"
-                      ><strong>Pause the producer</strong> Keep every queued record;
-                      wait for space before accepting more.</lf-option
+                    <lf-option id="block-producer" label="Pause the producer"
+                      >Keep every queued record; wait for space before accepting
+                      more.</lf-option
                     >
-                    <lf-option id="drop-oldest"
-                      ><strong>Drop the oldest record</strong> Accept the newest record
-                      immediately; discard the oldest queued one.</lf-option
+                    <lf-option id="drop-oldest" label="Drop the oldest record"
+                      >Accept the newest record immediately; discard the oldest queued
+                      one.</lf-option
                     >
                   </lf-options>
-                </section>
+                </lf-group>
                 <h3>Recorded actions</h3>
                 <lf-activity id="queue-activity"></lf-activity>
               </lf-sample>
@@ -510,10 +509,10 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                 A comment needs a thread reply. A widget that asks, any widget whose
                 registry entry declares <code>awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
-                answer, and lifecycle; the group the author names around it, with
-                <code>role="group"</code> and <code>aria-labelledby</code>, supplies the
-                prompt. The widget owns the value, and the agent records the decision in
-                a stamped revision. The browser fetches the revised HTML and state.
+                answer, and lifecycle; the <code>lf-group</code> the author puts around
+                it supplies the prompt in its <code>label</code>. The widget owns the
+                value, and the agent records the decision in a stamped revision. The
+                browser fetches the revised HTML and state.
               </p>
               <details id="decision-example">
                 <summary>Example: answer a page choice</summary>
@@ -1869,17 +1868,17 @@ flowchart TD
               The three undos return the choices to their starting state.
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
-              <section id="ship-ask" role="group" aria-labelledby="ship-ask-h">
+              <lf-group id="ship-ask" label="When should this ship?">
                 <h2 id="ship-ask-h">When should this ship?</h2>
                 <lf-options id="ship">
-                  <lf-option id="ship-now"
-                    ><strong>Now</strong> Today, behind the flag.</lf-option
+                  <lf-option id="ship-now" label="Now"
+                    >Today, behind the flag.</lf-option
                   >
-                  <lf-option id="ship-later"
-                    ><strong>Later</strong> Next week, after the load test.</lf-option
+                  <lf-option id="ship-later" label="Later"
+                    >Next week, after the load test.</lf-option
                   >
                 </lf-options>
-              </section>
+              </lf-group>
               <lf-activity id="sample-feed"></lf-activity>
             </lf-sample>
           </section>
@@ -2285,24 +2284,25 @@ flowchart TD
               label="Permission for a sample report"
               interactive
             >
-              <section
+              <lf-group
                 id="sample-publish-report-decision"
-                role="group"
-                aria-labelledby="sample-publish-report-decision-h"
+                label="Publish the sample report?"
               >
                 <h2 id="sample-publish-report-decision-h">
                   Publish the sample report?
                 </h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
-                  <lf-option id="sample-publish-report-keep"
-                    ><strong>Keep it private</strong></lf-option
-                  >
-                  <lf-option id="sample-publish-report-publish"
-                    ><strong>Publish the report</strong></lf-option
-                  >
+                  <lf-option
+                    id="sample-publish-report-keep"
+                    label="Keep it private"
+                  ></lf-option>
+                  <lf-option
+                    id="sample-publish-report-publish"
+                    label="Publish the report"
+                  ></lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
               <lf-activity id="sample-permission-history"></lf-activity>
             </lf-sample>
           </section>
@@ -3446,6 +3446,16 @@ flowchart TD
               </figcaption>
             </figure>
 
+            <p id="path-beside">
+              Where the thread has grown long enough that Leaf would suggest a range of
+              it to <a href="#summaries">summarize</a>, the module starts a second fork
+              beside the line fork. It folds the thread's earlier discussion into one
+              summary, which Leaf writes as the agent's and tells the main thread of. It
+              answers on its own, so neither the line nor the handover waits for it. The
+              message's delivery to the main thread leaves the suggestion out, and if
+              the fork fails, Leaf tells the main thread the range it suggested.
+            </p>
+
             <section id="sorting">
               <h3>How the line fork sorts a message</h3>
               <table id="sorting-table">
@@ -3855,6 +3865,12 @@ flowchart TD
                 thread, and the rules for a take (<code>_take</code>) and a run's end
                 (<code>ended</code>); <code>work_prompt</code> and
                 <code>resume_prompt</code> write the fork's task.
+              </li>
+              <li id="source-summary-fork">
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/summary_fork.py"
+                  ><code>src/leaf/summary_fork.py</code></a
+                >: the fork beside the line fork that summarizes a long thread.
               </li>
               <li id="source-holding">
                 <a

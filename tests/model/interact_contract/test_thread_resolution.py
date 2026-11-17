@@ -102,7 +102,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     assert threads["question"]["resolved"]["id"] == closed["id"]
 
 
-def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation(
+def test_late_answer_to_a_thread_widget_reopens_without_repeating_its_obligation(
     server, page_dir
 ):
     """Reopening restores the thread while its completed choice stays answered."""
@@ -113,9 +113,9 @@ def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation
         None,
         None,
         "Choose an option.\n\n"
-        '<section id="thread-ask" role="group" aria-labelledby="thread-ask-h">\n<h2 id="thread-ask-h">Choose one</h2>'
+        '<lf-group id="thread-ask" label="Choose one">\n<h2 id="thread-ask-h">Choose one</h2>'
         '<lf-options id="thread-picks"><lf-option id="thread-option">'
-        "Thread option</lf-option></lf-options></section>",
+        "Thread option</lf-option></lf-options></lf-group>",
     )
     status, body = fetch(
         f"{server}/api/event",

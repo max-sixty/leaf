@@ -53,17 +53,17 @@ STATED_KIT = """<!doctype html>
 <main>
 <lf-sample id="last-year" label="the kit we took last year">
   <lf-options id="quoted-pick">
-    <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
-    <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
+    <lf-option id="quoted-paper" label="Paper maps">Nothing to charge.</lf-option>
+    <lf-option id="quoted-gps" label="Dedicated GPS">Offline maps.</lf-option>
   </lf-options>
 </lf-sample>
-<section id="kit-decision" role="group" aria-labelledby="kit-decision-h">
+<lf-group id="kit-decision" label="Which navigation kit this year?">
   <h2 id="kit-decision-h">Which navigation kit this year?</h2>
   <lf-options id="live-pick">
-    <lf-option id="live-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
-    <lf-option id="live-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
+    <lf-option id="live-paper" label="Paper maps">Nothing to charge.</lf-option>
+    <lf-option id="live-gps" label="Dedicated GPS">Offline maps.</lf-option>
   </lf-options>
-</section>
+</lf-group>
 </main>
 </body>
 </html>
@@ -323,7 +323,7 @@ def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_re
     ]
 
 
-def test_instance_contracts_follow_the_widget_in_frozen_thread_markup(
+def test_instance_contracts_follow_the_widget_in_thread_markup(
     instance_input_registry,
 ):
     commands: list[dict] = [
@@ -366,8 +366,8 @@ STATED_QUEUE = """<!doctype html>
   <h2>Which follow-ups should we keep?</h2>
   <lf-board id="triage">
     <lf-column id="queue" label="Queued">
-      <lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>
-      <lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>
+      <lf-card id="card-a" label="Rolling expiry"></lf-card>
+      <lf-card id="card-b" label="Bounded fallback"></lf-card>
     </lf-column>
     <lf-column id="keep" label="Kept"></lf-column>
   </lf-board>
@@ -422,30 +422,19 @@ def test_a_pick_names_only_options_its_group_holds():
     assert admit([*STATED_LOG, added], pick)["detail"] == {"value": ["live-mine"]}
 
 
-@pytest.mark.parametrize(
-    "option_title",
-    [
-        "<strong>Fast path</strong>",
-        "<hgroup><p>Quick delivery</p><h2>Fast path</h2></hgroup>",
-        "<header><hgroup><p>Quick delivery</p><h2>Fast path</h2></hgroup></header>",
-    ],
-    ids=["strong", "hgroup", "header-hgroup"],
-)
-def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
-    option_title,
-):
+def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
     """The served history words a pick from the document it was made in.
 
     A later version that removes the question leaves the row naming the option the
-    user picked, by its title rather than its eyebrow or description, and a withdrawn
-    pick stays a row marked undone. A page whose markup holds no widget declaring
-    `history` is not served the reading.
+    user picked, by its label rather than its words, and a withdrawn pick stays a row
+    marked undone. A page whose markup holds no widget declaring `history` is not
+    served the reading.
     """
     question = model.leaf_page(
         "Route",
-        f"""<h1>Route</h1>
+        """<h1>Route</h1>
 <lf-options id="route">
-  <lf-option id="fast">{option_title} ships on Friday.</lf-option>
+  <lf-option id="fast" label="Fast path">Ships on Friday.</lf-option>
   <lf-option id="slow">Slow path</lf-option>
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",
@@ -482,7 +471,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
         "Route",
         """<h1>Route</h1>
 <lf-options id="route">
-  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+  <lf-option id="fast" label="Fast path">ships on Friday.</lf-option>
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",
     )
@@ -957,7 +946,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     )
 
 
-def test_created_ids_cannot_collide_across_page_and_frozen_content():
+def test_created_ids_cannot_collide_across_page_and_thread_content():
     markup = '<p id="reserved">Page</p><lf-options id="page-options"></lf-options>'
     commands: list[dict] = [
         {"kind": "comment", "text": "Pick a seed."},

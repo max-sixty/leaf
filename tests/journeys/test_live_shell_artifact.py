@@ -44,12 +44,11 @@ def test_a_browser_executes_the_published_capture_with_live_api_routes(
     (authored / "nested" / "theme.css").write_text("#result { color: rgb(1, 2, 3); }")
     source = leaf_page(
         "Published module",
-        '<section id="study" role="group" aria-labelledby="study-h">'
-        '<h1 id="study-h">Published module</h1>'
+        '<lf-group id="study" label="Published module"><h1 id="study-h">Published module</h1>'
         '<button id="read" type="button">Read captured value</button>'
         '<output id="result">Waiting</output><output id="module">Waiting</output>'
         '<lf-options id="choice"><lf-option id="only">Only choice</lf-option>'
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
         head='<script type="module" src="./page/app.js"></script>'
         '<link rel="stylesheet" href="./page/style.css">',
     )

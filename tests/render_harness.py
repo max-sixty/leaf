@@ -293,13 +293,13 @@ INLINE_PAGE = leaf_page(
     "inline",
     """
 <h1 id="t">Inline</h1>
-<section id="opts-decision" role="group" aria-labelledby="opts-decision-h"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
 <lf-options id="opts">
-  <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
+  <lf-option id="opt-a" label="Keep the store">Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
-  <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
+  <lf-option id="opt-b" label="Signed tokens">No store at all, until revocation
   quietly puts one back.</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 <p id="p">A paragraph carrying <strong>bold text</strong> and <em>emphasis</em> inside it,
 so that a selection across the middle of it lands in more than one text node.</p>
 <p id="p2">A neighbouring block, so a selection reaching across the boundary between
@@ -331,11 +331,11 @@ SETTLED_PAGE = leaf_page(
 <p id="lede">Decided last week; open the row for the alternatives.</p>
 <section id="transport-decision"><h2>How should sessions travel?</h2>
 <lf-options id="transport" settled>
-  <lf-option id="opt-lax" selected><strong>Lax cookie</strong> Host-only, set by the auth
+  <lf-option id="opt-lax" label="Lax cookie" selected>Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
-  <lf-option id="opt-strict"><strong>Strict cookie</strong> Tighter, but a session
+  <lf-option id="opt-strict" label="Strict cookie">Tighter, but a session
   started from an emailed link arrives logged out.</lf-option>
-  <lf-option id="opt-bearer"><strong>Bearer header</strong> Suits the mobile client;
+  <lf-option id="opt-bearer" label="Bearer header">Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options></section>
 """,
@@ -348,9 +348,9 @@ SETTLED_PAGE = leaf_page(
 # passage nobody has ever doubted was quotable.
 CARRIED_DECISION = """<lf-sample id="carried-record" label="the decision on record">
 <lf-options id="carried">
-  <lf-option id="c-lax" selected><strong>Lax cookie</strong> Host-only, set by the auth
+  <lf-option id="c-lax" label="Lax cookie" selected>Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
-  <lf-option id="c-bearer"><strong>Bearer header</strong> Suits the mobile client;
+  <lf-option id="c-bearer" label="Bearer header">Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options>
 </lf-sample>"""
@@ -376,10 +376,10 @@ SAID_PAGE = leaf_page(
 </div>
 <lf-board id="board">
   <lf-column id="col-now" label="In flight">
-    <lf-card id="c-importer"><strong>Wire the importer</strong> Half done.</lf-card>
+    <lf-card id="c-importer" label="Wire the importer">Half done.</lf-card>
   </lf-column>
   <lf-column id="col-next" label="Queued">
-    <lf-card id="c-backfill"><strong>Backfill the index</strong> Waiting on the importer.</lf-card>
+    <lf-card id="c-backfill" label="Backfill the index">Waiting on the importer.</lf-card>
   </lf-column>
 </lf-board>
 """,
@@ -395,8 +395,8 @@ BOARD_PAGE = leaf_page(
 <h1 id="h">Sprint</h1>
 <lf-board id="sprint">
   <lf-column id="col-todo" label="Todo">
-    <lf-card id="card-heater"><strong>Heated perch</strong></lf-card>
-    <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
+    <lf-card id="card-heater" label="Heated perch"></lf-card>
+    <lf-card id="card-baffle" label="Squirrel baffle"></lf-card>
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
@@ -415,18 +415,18 @@ SAMPLE_PAGE = leaf_page(
 <h1 id="h">What a decision looks like</h1>
 <lf-sample id="spec" label="a decision">
   <lf-options id="quoted-group">
-    <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
-    <lf-option id="q-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
+    <lf-option id="q-shim" label="Shim the old schema">Fastest to ship.</lf-option>
+    <lf-option id="q-stage" label="Migrate in stages" >Table by table.</lf-option>
   </lf-options>
   <lf-board id="quoted-board">
     <lf-column id="q-col" label="Doing">
-      <lf-card id="q-card"><strong>Wire the importer</strong></lf-card>
+      <lf-card id="q-card" label="Wire the importer"></lf-card>
     </lf-column>
     <lf-column id="q-col-next" label="Next">
-      <lf-card id="q-card-backfill"><strong>Backfill last month</strong></lf-card>
+      <lf-card id="q-card-backfill" label="Backfill last month"></lf-card>
     </lf-column>
     <lf-column id="q-col-done" label="Done">
-      <lf-card id="q-card-tokens"><strong>Tokenize the palette</strong></lf-card>
+      <lf-card id="q-card-tokens" label="Tokenize the palette"></lf-card>
     </lf-column>
   </lf-board>
   <lf-options id="quoted-rows">
@@ -434,9 +434,9 @@ SAMPLE_PAGE = leaf_page(
     <lf-option id="q-row-drop">Drop it and poll on demand</lf-option>
   </lf-options>
   <lf-options id="quoted-settled" settled>
-    <lf-option id="q-lax" selected><strong>Lax cookie</strong> Host-only.</lf-option>
-    <lf-option id="q-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
-    <lf-option id="q-signed" ><strong>Signed token</strong> No store.</lf-option>
+    <lf-option id="q-lax" label="Lax cookie" selected>Host-only.</lf-option>
+    <lf-option id="q-bearer" label="Bearer header">Suits mobile.</lf-option>
+    <lf-option id="q-signed" label="Signed token" >No store.</lf-option>
   </lf-options>
   <p id="q-prose">Refill rules:
     <lf-suggestion id="quoted-suggestion">
@@ -444,25 +444,25 @@ SAMPLE_PAGE = leaf_page(
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
 </lf-sample>
-<section id="live-group-decision" role="group" aria-labelledby="live-group-decision-h"><h2 id="live-group-decision-h">How should the schema migrate?</h2>
+<lf-group id="live-group-decision" label="How should the schema migrate?"><h2 id="live-group-decision-h">How should the schema migrate?</h2>
 <lf-options id="live-group">
-  <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
-  <lf-option id="l-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></section>
-<section id="live-rows-decision" role="group" aria-labelledby="live-rows-decision-h"><h2 id="live-rows-decision-h">What should happen to the nightly job?</h2>
+  <lf-option id="l-shim" label="Shim the old schema">Fastest to ship.</lf-option>
+  <lf-option id="l-stage" label="Migrate in stages" >Table by table.</lf-option>
+</lf-options></lf-group>
+<lf-group id="live-rows-decision" label="What should happen to the nightly job?"><h2 id="live-rows-decision-h">What should happen to the nightly job?</h2>
 <lf-options id="live-rows">
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 <section id="live-settled-decision"><h2>How should sessions travel?</h2>
 <lf-options id="live-settled" settled>
-  <lf-option id="l-lax" selected><strong>Lax cookie</strong> Host-only.</lf-option>
-  <lf-option id="l-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
-  <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
+  <lf-option id="l-lax" label="Lax cookie" selected>Host-only.</lf-option>
+  <lf-option id="l-bearer" label="Bearer header">Suits mobile.</lf-option>
+  <lf-option id="l-signed" label="Signed token" >No store.</lf-option>
 </lf-options></section>
 <lf-board id="live-board">
   <lf-column id="l-col" label="Doing">
-    <lf-card id="l-card"><strong>Wire the importer</strong></lf-card>
+    <lf-card id="l-card" label="Wire the importer"></lf-card>
   </lf-column>
 </lf-board>
 <p id="l-prose">Refill rules:
@@ -491,37 +491,35 @@ SAMPLE_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SAMPLE_MARKUP = """<section id="rp-live-decision" role="group" aria-labelledby="rp-live-decision-h">
+SAMPLE_MARKUP = """<lf-group id="rp-live-decision" label="How should the schema migrate?">
 <h3 id="rp-live-decision-h">How should the schema migrate?</h3>
 <lf-options id="rp-live">
-  <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
-  <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></section>
+  <lf-option id="rp-shim" label="Shim the old schema">Fastest to ship.</lf-option>
+  <lf-option id="rp-stage" label="Migrate in stages" >Table by table.</lf-option>
+</lf-options></lf-group>
 <lf-sample id="rp-spec" label="the April thread">
   <lf-options id="rp-quoted">
-    <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
-    <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
+    <lf-option id="rp-memory" label="App memory">Nothing to build.</lf-option>
+    <lf-option id="rp-sticky" label="Sticky sessions">Until an instance recycles.</lf-option>
   </lf-options>
 </lf-sample>
 """
 
 # Two decisions for a user to take and a later version to honor, carry, or
 # contradict: a pick and a move.
-IMPORTER_CARD = (
-    '<lf-card id="card-importer"><strong>Wire the importer</strong></lf-card>'
-)
+IMPORTER_CARD = '<lf-card id="card-importer" label="Wire the importer"></lf-card>'
 REPLAYED_PAGE = leaf_page(
     "replayed",
     f"""
 <h1 id="t">Rollout</h1>
-<section id="approach-decision" role="group" aria-labelledby="approach-decision-h"><h2 id="approach-decision-h">How should the schema migrate?</h2>
+<lf-group id="approach-decision" label="How should the schema migrate?"><h2 id="approach-decision-h">How should the schema migrate?</h2>
 <lf-options id="approach">
-  <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
-  <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></section>
+  <lf-option id="opt-shim" label="Shim the old schema">Fastest to ship.</lf-option>
+  <lf-option id="opt-stage" label="Migrate in stages">Table by table.</lf-option>
+</lf-options></lf-group>
 <lf-board id="work">
   <lf-column id="col-doing" label="Doing">{IMPORTER_CARD}</lf-column>
-  <lf-column id="col-done" label="Done"><lf-card id="card-notes"><strong>Draft the notes</strong></lf-card></lf-column>
+  <lf-column id="col-done" label="Done"><lf-card id="card-notes" label="Draft the notes"></lf-card></lf-column>
 </lf-board>
 """,
 )

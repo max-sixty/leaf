@@ -257,11 +257,12 @@ class PageReading(NamedTuple):
         return page_passages(self.document, self.registry, **self.logged_words)
 
 
-class FrozenThreadReading(NamedTuple):
-    """The panel's frozen markup and durable state as one document.
+class ThreadMarkupReading(NamedTuple):
+    """The panel's thread markup and durable state as one document.
 
     No revision window or retraction floor bounds this projection. The markup
-    was frozen into the log, so its actions read the whole thread window.
+    lives in the log rather than in a revision, so its actions read the whole
+    thread window.
     """
 
     structure: ThreadStructure
@@ -284,7 +285,7 @@ class FrozenThreadReading(NamedTuple):
 
     def subject_thread(self, subject: dict) -> str | None:
         """The thread a workflow or report subject stands in: a thread subject is
-        its own, a widget frozen into a message is its thread's, and a page widget
+        its own, a widget in a message is its thread's, and a page widget
         stands in none."""
         if subject["kind"] == "thread":
             return subject["id"]
@@ -432,17 +433,17 @@ def with_action(
     )
 
 
-def frozen_thread_reading(
+def thread_markup_reading(
     events: list, registry: dict, *, withdrawn: set | None = None
-) -> FrozenThreadReading:
-    """Project every frozen message fragment through one shared reading."""
+) -> ThreadMarkupReading:
+    """Project every message fragment through one shared reading."""
     structure = thread_structure(events)
     by_name = thread_names(events)
     spk = {}
     for fragment in structure.fragments.values():
         spk.update(SourceReading(fragment, registry).spoken)
     by_widget = thread_widgets(structure, by_name)
-    return FrozenThreadReading(
+    return ThreadMarkupReading(
         structure,
         spk,
         by_name,

@@ -159,8 +159,8 @@ variants:
       - type: llm-rubric
         metric: arrival-context
         value: |
-          Treat each decision's named group (the element with `role="group"` round
-          its answering widget, or the widget itself if none) as the arrival
+          Treat each decision's named group (the `lf-group` round its answering
+          widget, or the widget itself if none) as the arrival
           destination; everything before it is out of view. Pass only if
           each proposal has its issue and checked evidence inside the decision that
           covers it. A shared decision for clear-cut proposals must explain each. For

@@ -61,18 +61,18 @@ BINDING_BADGE_PAGE = leaf_page(
     "binding badges",
     """
 <h1 id="h">Two questions, two forms</h1>
-<section id="cards-decision" role="group" aria-labelledby="cards-decision-h"><h2 id="cards-decision-h">How should the bath be heated?</h2>
+<lf-group id="cards-decision" label="How should the bath be heated?"><h2 id="cards-decision-h">How should the bath be heated?</h2>
 <lf-options id="cards">
-  <lf-option id="c-heater"><strong>Immersion heater</strong> Drops into the basin.</lf-option>
-  <lf-option id="c-cable"><strong>Heated cable</strong> A cord across the base.</lf-option>
-  <lf-option id="c-hand"><strong>Break the ice</strong> Someone goes out each morning.</lf-option>
-</lf-options></section>
+  <lf-option id="c-heater" label="Immersion heater">Drops into the basin.</lf-option>
+  <lf-option id="c-cable" label="Heated cable">A cord across the base.</lf-option>
+  <lf-option id="c-hand" label="Break the ice">Someone goes out each morning.</lf-option>
+</lf-options></lf-group>
 <p id="plan">The camera mount is the part nobody has costed.</p>
-<section id="rows-decision" role="group" aria-labelledby="rows-decision-h"><h2 id="rows-decision-h">When should it be costed?</h2>
+<lf-group id="rows-decision" label="When should it be costed?"><h2 id="rows-decision-h">When should it be costed?</h2>
 <lf-options id="rows">
   <lf-option id="r-now" for="plan">Cost it now</lf-option>
   <lf-option id="r-later" for="plan">Leave it for the spring</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 """,
 )
 
@@ -274,13 +274,13 @@ enough that it runs past the end of one line and carries on onto the next</a>, a
 <details id="dsc"><summary id="dsc-head">What the store costs</summary>
 <p id="dsc-body">A replica in each region, and a read on every request that carries a
 session.</p></details>
-<section id="opts-decision" role="group" aria-labelledby="opts-decision-h"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
 <lf-options id="opts">
-  <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
+  <lf-option id="opt-a" label="Keep the store">Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
-  <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
+  <lf-option id="opt-b" label="Signed tokens">No store at all, until revocation
   quietly puts one back.</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 <p id="p2">A short second passage.</p>
 {tail}
 """,
@@ -441,11 +441,11 @@ First line of the note.
 
 Second paragraph of the note.
 </pre></lf-draft>
-<section id="picks-decision" role="group" aria-labelledby="picks-decision-h"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
+<lf-group id="picks-decision" label="Should we keep the mounts?"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
 <lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
   <lf-option id="opt-b" selected>Replace the mounts</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 """,
 )
 
@@ -458,11 +458,11 @@ NESTED_SUGGESTION = (
     SUGGESTION_PAGE.replace(
         "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
         "<lf-new>Switch the north feeder to thistle in autumn."
-        '<section id="blend-decision" role="group" aria-labelledby="blend-decision-h"><h2 id="blend-decision-h">Which seed blend?</h2>'
+        '<lf-group id="blend-decision" label="Which seed blend?"><h2 id="blend-decision-h">Which seed blend?</h2>'
         '<lf-options id="blend">'
         '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
         '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
-        "</lf-options></section></lf-new>",
+        "</lf-options></lf-group></lf-new>",
     )
     .replace('<p id="insert">', '<div id="insert">')
     .replace("</lf-suggestion></p>\n<lf-board", "</lf-suggestion></div>\n<lf-board")
@@ -473,11 +473,11 @@ FENCED_CAPTURE_PAGE = leaf_page(
 <h1 id="h">Roadmap</h1>
 <lf-sample id="gate-milestone" label="active · week-1 · wood · solar"><strong>Build feeders</strong> Two classic models.</lf-sample>
 <p id="after-milestone">Ready next.</p>
-<section id="fence-q" role="group" aria-label="Which fence?"><lf-options id="fence-options">
-  <lf-option id="fence-option"><small class="tag">effort: low</small><small class="tag">risk: high</small>
-    <strong>Classic feeder</strong> Easy to clean.
+<lf-group id="fence-q" label="Which fence?"><lf-options id="fence-options">
+  <lf-option id="fence-option" label="Classic feeder"><small class="tag">effort: low</small><small class="tag">risk: high</small>
+    Easy to clean.
   </lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 """,
 )
 # A label a widget renders into a control it also built. The tab strip is the case with
@@ -750,7 +750,7 @@ JOURNEY_SCAFFOLD = leaf_page(
 {before}
 <lf-board id="board">
   <lf-column id="col-todo" label="Todo">
-    <lf-card id="card-x"><strong>Guard the session delete</strong> One line.</lf-card>
+    <lf-card id="card-x" label="Guard the session delete">One line.</lf-card>
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
@@ -828,8 +828,8 @@ DISCLOSED_PAGE = leaf_page(
 session.</p></details>
 <section id="settled-decision"><h2>Should we keep it?</h2>
 <lf-options id="settled" settled>
-  <lf-option id="st-keep" selected><strong>Keep it</strong> Decided last week.</lf-option>
-  <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
+  <lf-option id="st-keep" label="Keep it" selected>Decided last week.</lf-option>
+  <lf-option id="st-drop" label="Drop it">The alternative.</lf-option>
 </lf-options></section>
 """,
 )
@@ -837,11 +837,11 @@ KEYS_PAGE = leaf_page(
     "keys",
     """
 <h1 id="h">Session store</h1>
-<section id="opts-decision" role="group" aria-labelledby="opts-decision-h"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
 <lf-options id="opts">
-  <lf-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
-  <lf-option id="opt-token"><strong>Signed tokens</strong> No store at all.</lf-option>
-</lf-options></section>
+  <lf-option id="opt-keep" label="Keep the store">Sessions stay where they are.</lf-option>
+  <lf-option id="opt-token" label="Signed tokens">No store at all.</lf-option>
+</lf-options></lf-group>
 <lf-draft id="draft-ops"><pre>Run the migration before deploying.</pre></lf-draft>
 """,
 )
@@ -879,9 +879,7 @@ FIRST_PRESENTATION = """
   };
   requestAnimationFrame(sample);
 """
-_CARD = (
-    '<lf-card id="card-x"><strong>Guard the session delete</strong> One line.</lf-card>'
-)
+_CARD = '<lf-card id="card-x" label="Guard the session delete">One line.</lf-card>'
 
 
 def _card_done(html):

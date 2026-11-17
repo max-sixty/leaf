@@ -35,7 +35,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
     registry = registry_storage.load_registry(page_dir)
     assert found(
         fragment_errors(
-            '<lf-options settled><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options settled><lf-option id="o1" label="A"></lf-option></lf-options>',
             registry,
         ),
         "attribute-schema",
@@ -43,13 +43,11 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
     )
 
     group = (
-        '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h">'
+        '<lf-group id="pick-decision" label="Which one?">'
         '<h2 id="pick-decision-h">Which one?</h2><lf-options id="pick"{}>'
     )
-    group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
-    group += (
-        '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></section>'
-    )
+    group += '<lf-option id="opt-a" label="A"{}></lf-option>'
+    group += '<lf-option id="opt-b" label="B"></lf-option></lf-options></lf-group>'
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
     )
@@ -109,11 +107,11 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     """A hand-written seed is the one markup in the product no gate has read.
 
     Markup reaches a page two ways. A version goes through `page check`. An
-    event's `markup` goes through `leaf thread reply`, which validates it and then freezes
-    it in an append-only log, so that door is the last moment anything about it can
-    be fixed. An example's companion log is neither: it is written into the
-    repository by hand, and the append door it goes through reads the event, not
-    its markup. From there `leaf-dev site build` publishes it to
+    event's `markup` goes through `leaf thread reply`, which validates it before it
+    joins the append-only log, so that door is the last moment anything about it can
+    be fixed before the user reads it. An example's companion log is neither: it is
+    written into the repository by hand, and the append door it goes through reads
+    the event, not its markup. From there `leaf-dev site build` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `leaf-dev preview`
     serves it live. `page check` reads such a log only for ids colliding
     with the version's.

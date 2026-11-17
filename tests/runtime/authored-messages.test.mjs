@@ -34,7 +34,7 @@ test("overlapping message reads share preparation and retain it through surface 
     await globalThis.messagePreparation.released.promise;
   `)}`;
   adoptRegistry({
-    $layer: { generation: "frozen-message-preparation" },
+    $layer: { generation: "message-preparation" },
     "lf-message-preparation": {},
     $modules: { "lf-message-preparation": "widgets/lf-message-preparation.js" },
   });
@@ -90,7 +90,7 @@ test("adopting an edit's island retires the widgets the wording before it held",
     { ...message, text: sentText },
     "edited-thread",
   );
-  islandChange([{ message, frozen: sent }]).commit();
+  islandChange([{ message, prepared: sent }]).commit();
   assert.equal(messageHolding("edited-first-a")?.message, "edited-message");
 
   const rewritten = await prepareAuthoredMessage(
@@ -104,15 +104,15 @@ test("adopting an edit's island retires the widgets the wording before it held",
     await prepareAuthoredMessage({ ...message, text: sentText }, "edited-thread"),
     sent,
   );
-  const edit = islandChange([{ message, frozen: rewritten }]);
+  const edit = islandChange([{ message, prepared: rewritten }]);
   assert.deepEqual(edit.retired, ["edited-first", "edited-first-a"]);
   assert.equal(messageHolding("edited-first-a")?.message, "edited-message");
   edit.commit();
   assert.equal(messageHolding("edited-first-a"), null);
   assert.equal(messageHolding("edited-second-a")?.message, "edited-message");
-  assert.deepEqual(islandChange([{ message, frozen: rewritten }]).retired, []);
+  assert.deepEqual(islandChange([{ message, prepared: rewritten }]).retired, []);
 
-  const withdrawn = islandChange([{ message, frozen: null }]);
+  const withdrawn = islandChange([{ message, prepared: null }]);
   assert.deepEqual(withdrawn.retired, ["edited-second", "edited-second-a"]);
   withdrawn.commit();
   assert.equal(messageHolding("edited-second-a"), null);
@@ -142,29 +142,53 @@ test("a message's words part its blocks, as the page reading does", async () => 
   assert.equal(prepared.body.text, "Pick one: Open it now Hold it");
 });
 
+// An option's title is its label, which the message writes as words where it draws, so
+// the message's words hold it too.
+test("a message's words hold its options' labels", async () => {
+  adoptRegistry({
+    $layer: { generation: "message-labels" },
+    "lf-options": {},
+    "lf-option": { says: { label: "before" } },
+  });
+  assert.equal(await loadMarkdown(), true);
+  const prepared = await prepareAuthoredMessage(
+    {
+      id: "labelled-message",
+      text:
+        'Pick one:\n\n<lf-options id="labelled-choice">\n' +
+        '<lf-option id="labelled-now" label="Open it now">Today.</lf-option>\n' +
+        '<lf-option id="labelled-hold" label="Hold it"></lf-option>\n' +
+        "</lf-options>",
+    },
+    "labelled-thread",
+  );
+  assert.equal(prepared.body.text, "Pick one: Open it now Today. Hold it");
+});
+
 // A drawing that doesn't hold the message's widgets, such as a margin card while the
-// panel holds them, draws the message less its widgets. The group round a widget that
-// asks is that widget's question and goes with it; a group round a widget that asks
-// nothing, as a figure round a chart, keeps its caption.
+// panel holds them, draws the message less its widgets. The named group round a widget
+// that asks is that widget's question and goes with it; an element round a widget that
+// asks nothing, as a figure round a chart, keeps its caption.
 test("a drawing that doesn't hold a message's widgets drops only a question's group", async () => {
   adoptRegistry({
     $layer: { generation: "message-held-elsewhere" },
     "lf-options": { awaits: { value: "choose" } },
     "lf-option": {},
     "lf-chart": {},
+    "lf-group": { "reading-role": "group" },
   });
   assert.equal(await loadMarkdown(), true);
   const prepared = await prepareAuthoredMessage(
     {
       id: "held-message",
       text:
-        '<figure id="held-latency" role="group" aria-labelledby="held-latency-caption">' +
+        '<figure id="held-latency">' +
         '<lf-chart id="held-chart"></lf-chart>' +
         '<figcaption id="held-latency-caption">Latency by day</figcaption></figure>\n\n' +
-        '<section id="held-ask" role="group" aria-labelledby="held-ask-h">' +
+        '<lf-group id="held-ask" label="Roll back now?">' +
         '<h3 id="held-ask-h">Roll back now?</h3>' +
         '<lf-options id="held-choice"><lf-option id="held-yes">Yes</lf-option>' +
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
     },
     "held-thread",
   );
@@ -175,12 +199,38 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
   assert.equal(drawn.textContent.includes("Roll back now?"), false);
 });
 
+// A group holding no question is a part of the message, so a drawing that holds none of
+// its widgets keeps what the group holds, its heading and its prose.
+test("a drawing that doesn't hold a message's widgets keeps a group that asks nothing", async () => {
+  adoptRegistry({
+    $layer: { generation: "message-group-kept" },
+    "lf-group": { "reading-role": "group" },
+  });
+  assert.equal(await loadMarkdown(), true);
+  const prepared = await prepareAuthoredMessage(
+    {
+      id: "kept-message",
+      text: 'Intro.\n\n<lf-group id="kept-evidence" label="Evidence">\n<h3>Evidence</h3>\n<p>Two runs agree.</p>\n</lf-group>',
+    },
+    "kept-thread",
+  );
+  const drawn = document.createElement("div");
+  drawn.innerHTML = prepared.body.heldElsewhere;
+  assert.deepEqual(
+    [...drawn.querySelectorAll("h3")].map((h) => h.textContent),
+    ["Evidence"],
+  );
+  assert.equal(drawn.querySelector("p:last-child")?.textContent, "Two runs agree.");
+  assert.equal(drawn.querySelector("lf-group, [id]"), null);
+  assert.equal(prepared.body.text, "Intro. Evidence Two runs agree.");
+});
+
 test("failed message preparation reaches every waiting state read and later reads", async (t) => {
   const initializer = `data:text/javascript,${encodeURIComponent(
     'throw new Error("message initializer failed");',
   )}`;
   adoptRegistry({
-    $layer: { generation: "failed-frozen-message-preparation" },
+    $layer: { generation: "failed-message-preparation" },
     "lf-message-failure": {},
     $modules: { "lf-message-failure": "widgets/lf-message-failure.js" },
   });

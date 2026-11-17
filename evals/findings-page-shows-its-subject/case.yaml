@@ -120,7 +120,16 @@ variants:
     # a count over the reader's key names separated by commas. The user: "this seems
     # like a bad way to show information ... a table seems like it would be much
     # better?" The notes below are the session's inventory as it held it when it
-    # wrote the page, grouped by reader as its own reply grouped them.
+    # wrote the page, grouped by reader as its own reply grouped them, and the prompt
+    # quotes the user's standing instructions the session carried. On Opus 5.5 with
+    # them, base 48ee07f1ed kept a 32-row table in 5 of 6 pages but sorted the key
+    # names into boxes or chips in 6 of 6; the plain HTML control kept no table and
+    # drew name chips in 3 of 3. With "Show the subject"'s table bullet and figure
+    # test, 6 of 6 kept the table and 2 sorted names into boxes, but 4 of 6 still
+    # drew a figure that restates the readers, as the quoted "draw a design rather
+    # than describing it" asks; without that sentence none did (3 of 3) and the HTML
+    # control kept its table in 2 of 3. With no standing instructions base sorted
+    # names into boxes in 3 of 6 and the HTML control in 0 of 3.
     metadata:
       conditions: [leaf, html]
       purpose:
@@ -128,6 +137,11 @@ variants:
         it, aligned for scanning, rather than its names grouped in boxes."
     vars:
       prompt: |
+        The user's standing instructions, from their CLAUDE.md, include: "Reading what you
+        hand him takes his time too. To him a page of 3,000 words is a long one, however
+        much work lies behind it. On a page, draw a design rather than describing it, and
+        count the words the page shows on arrival before you hand it over."
+
         Earlier the user asked:
 
         "for the x-name issue: look at the recent discussion and reversion. I think we

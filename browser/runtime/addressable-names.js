@@ -74,19 +74,20 @@ export function addressableSays(addressable) {
 }
 
 // What names an element, where the authoring contract gives it a name
-// (`skills/leaf/references/module-reading.md`, "Naming elements"): a widget's `label`
-// attribute (the registry's `$attributes`), else the element its title or caption is.
-// A widget the registry registers, such as an option or a card, is titled by a leading
-// heading, summary or <strong>, looked for inside a leading <header> or <hgroup> too;
-// leading means no words come before it, though elements may, as a titled member's
-// comparison chips stand in the band above its title. Plain markup is named by the
-// caption HTML gives it: a disclosure by its <summary>, an <hgroup> by its heading, and
-// a `section` or `article` by the heading it opens with, alone or in an <hgroup>. That
-// last is a reading of position the maintainer agreed to (root AGENTS.md, "Read what
-// the page states"): HTML calls h1–h6 "headings for their sections" without saying
-// which element is the section, and an element that opens with its heading is the case
-// where the two agree. No other element is named by a heading inside it, and a <strong>
-// in plain markup names nothing. The words are the ones the author wrote (the `wrote`
+// (`skills/leaf/references/module-reading.md`, "Naming elements"): the name its author
+// declares, else the element its title or caption is. A widget the registry registers
+// declares its name in its `label` attribute (the registry's `$attributes`); else it is
+// titled by a leading heading, summary or <strong>, looked for inside a leading <header>
+// or <hgroup> too; leading means no words come before it, though elements may, as a
+// titled member's comparison chips stand in the band above its title. Plain markup
+// declares its name as ARIA does (`ariaNaming`); else it is named by the caption HTML
+// gives it: a disclosure by its <summary>, an <hgroup> by its heading, and a `section`
+// or `article` by the heading it opens with, alone or in an <hgroup>. That last is a
+// reading of position the maintainer agreed to (root AGENTS.md, "Read what the page
+// states"): HTML calls h1–h6 "headings for their sections" without saying which element
+// is the section, and an element that opens with its heading is the case where the two
+// agree. No other element is named by a heading inside it, and a <strong> in plain
+// markup names nothing. The words are the ones the author wrote (the `wrote`
 // reading), so a gloss's tip the page draws beside its phrase is no part of a heading's
 // name, and generated chrome names nothing: chrome inside the element, asked about the
 // element's own insides, since a widget an agent sent in a reply stands inside the
@@ -144,10 +145,14 @@ function openingTitle(element) {
 /** @param {Element} element */
 const registered = (element) =>
   isElementName(element.localName) && Object.hasOwn(registry, element.localName);
-// The element a heading titles: the outermost one it names by the rule above, such as
-// its hgroup and the section or article that opens with it, or a card it leads, past a
-// leading header; short of a widget its `label` attribute names; or else the heading
-// itself. `lf-toc` starts each row's stretch of the page at it, a heading's link takes
+// The element a heading titles: the outermost one it titles by position under the rule
+// above, such as its hgroup, the section or article that opens with it, or a card it
+// leads, past a leading header; short of an element its author names otherwise, as a
+// widget's `label` or a section's `aria-label` does; or else the heading itself. A
+// declared name can withdraw a heading's title but never give one: a section whose
+// `aria-labelledby` names its opening heading is still that heading's, and one naming a
+// later heading is no heading's, so which heading heads which part stays the order the
+// page reads in. `lf-toc` starts each row's stretch of the page at it, a heading's link takes
 // its address, and a heading's link preview counts the conversations about it
 // (thread/placement.js, `conversationsAbout`). `titlingHeading` reads it the other way
 // round.
@@ -171,15 +176,58 @@ export function titlingHeading(element) {
   const title = titleOf(element);
   return title?.matches(HEADING) ? title : null;
 }
-// The element whose words title `element` by the rule above, short of a `label`.
+// The element that titles `element` by position (`leadingTitle`), or null where its
+// author names it otherwise.
 /** @param {Element} element */
-const titleOf = (element) => (declaredName(element) ? null : leadingTitle(element));
+const titleOf = (element) => {
+  const title = leadingTitle(element);
+  if (!title) return null;
+  const naming = addressableNaming(element);
+  return !naming || ("by" in naming && naming.by === title) ? title : null;
+};
 // The title a widget's `label` attribute holds, such as a tab's: the one attribute
 // that names its element on every widget that takes it (`$attributes`, Python's
 // `registry.contract.NAME_ATTRIBUTE`).
 /** @param {Element} element */
 function declaredName(element) {
   return (registered(element) && element.getAttribute("label")?.trim()) || "";
+}
+// The name ARIA gives plain markup whose author names it, as the browser's
+// accessibility tree computes it (HTML-AAM): the words of the elements its
+// `aria-labelledby` names, else its `aria-label`, else a fieldset's first <legend>. A
+// question's group takes its name this way, which the server reads by the same rule
+// (`gesture_words.aria_name`) to require one of a question's group and to name it. A
+// registered widget declares its name in `label` instead, so ARIA names none.
+/** @param {Element} element @returns {Naming | null} */
+function ariaNaming(element) {
+  if (registered(element)) return null;
+  const named = labelledBy(element);
+  const [only] = named;
+  if (named.length === 1 && only && elementReading(only, "wrote"))
+    return { by: only, reading: "wrote" };
+  const words = named.map((node) => elementReading(node, "wrote")).filter(Boolean);
+  if (words.length) return { words: words.join(" ") };
+  const label = element.getAttribute("aria-label")?.replace(/\s+/g, " ").trim();
+  if (label) return { words: label };
+  if (element.localName !== "fieldset") return null;
+  const legend = keptAnswer(element, "legend", () =>
+    [...element.children].find((child) => child.localName === "legend"),
+  );
+  return legend && elementReading(legend, "wrote")
+    ? { by: legend, reading: "wrote" }
+    : null;
+}
+/** The elements an element's `aria-labelledby` names, found by id in its tree. Not its
+ * `ariaLabelledByElements`: Firefox's content process crashes once the page and an
+ * isolated world, such as Playwright's role locator, have both read that property
+ * (https://bugzilla.mozilla.org/show_bug.cgi?id=2090055).
+ * @param {Element} element @returns {Element[]} */
+export function labelledBy(element) {
+  const ids = element.getAttribute("aria-labelledby")?.trim();
+  if (!ids) return [];
+  const root = /** @type {Document | ShadowRoot} */ (element.getRootNode());
+  if (!("getElementById" in root)) return [];
+  return ids.split(/\s+/).flatMap((id) => root.getElementById(id) ?? []);
 }
 // Where a name comes from: an attribute's words, or an element whose words are the name,
 // read by the reading the rule names. A reader that reads names as something else draws
@@ -192,10 +240,12 @@ const namingWords = (naming) =>
     : "words" in naming
       ? naming.words
       : elementReading(naming.by, naming.reading);
-// What `addressableName` reads, by the rule above: its declared attribute, else its
-// leading title.
+// What `addressableName` reads, by the rule above: its declared name, else its leading
+// title.
 /** @param {Element} element @returns {Naming | null} */
 function addressableNaming(element) {
+  const aria = ariaNaming(element);
+  if (aria) return aria;
   const declared = declaredName(element);
   if (declared) return { words: declared };
   const title = leadingTitle(element);
@@ -229,12 +279,13 @@ const captionNaming = (element) => {
   );
   return caption && elementReading(caption) ? { by: caption, reading: "says" } : null;
 };
-// A form control's caption is its <label>.
+// The name a reader who can't see the page hears for an element: its ARIA name, a form
+// control's <label>, or an image's `alt`.
 /** @param {Element & Partial<Pick<HTMLInputElement, "labels" | "alt">>} element
  * @returns {Naming | null} */
 function accessibleNaming(element) {
-  const label = element.getAttribute("aria-label")?.trim();
-  if (label) return { words: label };
+  const aria = ariaNaming(element);
+  if (aria) return aria;
   const labelled = element.labels?.[0];
   if (labelled && elementReading(labelled)) return { by: labelled, reading: "says" };
   const alt = element.alt?.trim();

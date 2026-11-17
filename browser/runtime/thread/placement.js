@@ -10,6 +10,7 @@
 import {
   addressableLabel,
   addressableWord,
+  leadingTitle,
   ownNaming,
   titlingHeading,
 } from "../addressable-names.js";
@@ -154,11 +155,19 @@ export function partOver(node) {
     if (!namesWhatItHolds(container, scope)) continue;
     const naming = ownNaming(container);
     if (!naming) continue;
+    if ("by" in naming && naming.by === node) continue;
     // A heading that titles its container heads what the container holds, a widget's
-    // <strong> names the widget alone, and any other name makes the container the part.
-    if (!("by" in naming)) return container;
-    if (naming.by === node || naming.by.localName === "strong") continue;
-    return naming.by.matches(HEADING) ? naming.by : container;
+    // <strong> title names the widget alone, and any other name makes the container the
+    // part.
+    const heading = titlingHeading(container);
+    if (heading) return heading;
+    if (
+      "by" in naming &&
+      naming.by.localName === "strong" &&
+      naming.by === leadingTitle(container)
+    )
+      continue;
+    return container;
   }
   return null;
 }

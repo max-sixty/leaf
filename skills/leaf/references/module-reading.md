@@ -30,7 +30,8 @@ dial does, reads it with `viewDocument(node)`: the view member holding the node
 ### Naming elements
 
 To name an element elsewhere, such as in a feed row, use `addressableLabel(element)`,
-the name Leaf's chrome gives it: its title, caption or label; failing those, a
+the name Leaf's chrome gives it: the name its author declares, with `aria-labelledby` or
+`aria-label` on plain markup, else its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
 `addressableWord(element)` gives the word for its kind instead: the fixed word its
@@ -44,9 +45,9 @@ its element on every widget that takes it (the registry's `$attributes`).
 
 `titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
 or `article` that opens with it, alone or in that `hgroup`, and a widget it leads, such
-as a card, unless the widget's `label` names it; where it titles no element, the heading
-itself. A heading after other content, or opening any other element, titles only
-itself. `lf-toc` links each heading to one of them, and a heading's
+as a card. An element its author names otherwise, as a widget's `label` or a section's
+`aria-label` does, is no heading's. A heading after other content, or opening any other
+element, titles only itself. `lf-toc` links each heading to one of them, and a heading's
 link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and

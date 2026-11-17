@@ -20,12 +20,11 @@ created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
-`name` is what the authoring contract calls it away from itself: a widget's `label`
-attribute (the registry's `$attributes`), else its leading title, and plain markup's
-caption: a disclosure's `<summary>`, an `<hgroup>`'s heading, or the heading a section
-or article opens with (`leading_title_node`). It is the rule the browser's
-`addressableName` reads off the live page, read here off the document the gesture was
-made in.
+`name` is what the authoring contract calls it away from itself (`element_name`): the
+name its author declares, a widget's in its `label` attribute (the registry's
+`$attributes`) and plain markup's as ARIA reads it (`aria_name`), else its leading
+title (`leading_title_node`). It is the rule the browser's `addressableName` reads off
+the live page, read here off the document the gesture was made in.
 """
 
 from collections.abc import Callable
@@ -117,25 +116,31 @@ def _blank(node) -> bool:
     return isinstance(node, str) and not node.strip()
 
 
-def element_name(node: dict, registry: dict) -> str:
-    """What the authoring contract calls an element away from itself: a widget's
-    `label` attribute (`contract.NAME_ATTRIBUTE`), else its leading title, in the
-    words the author wrote. The browser's `addressableName` reads the same rule off
-    the live page; `tests/name_cases.json` holds both to the same cases."""
+def element_name(node: dict, registry: dict, nodes: dict[str, dict]) -> str:
+    """What the authoring contract calls an element away from itself, in the words the
+    author wrote: the name its author declares, a widget's in its `label` attribute
+    (`contract.NAME_ATTRIBUTE`) and plain markup's as ARIA reads it (`aria_name`, from
+    `nodes`, its document's elements by id), else its leading title. The browser's
+    `addressableName` reads the same rule off the live page; `tests/name_cases.json`
+    holds both to the same cases."""
     if _registered(node, registry):
         declared = (node["attrs"].get(NAME_ATTRIBUTE) or "").strip()
         if declared:
             return declared
+    elif declared := aria_name(node, nodes):
+        return declared
     title = leading_title_node(node, registry)
     return collapse(_text(title)) if title else ""
 
 
-def group_name(group: dict, nodes: dict[str, dict]) -> str:
-    """The name the author gives a group, as ARIA reads it: the words of the elements
-    its `aria-labelledby` names, read from `nodes`, its document's elements by id; else
-    its `aria-label`; else a fieldset's legend, its first `<legend>` child; empty where
-    the author named nothing."""
-    attrs = group["attrs"]
+def aria_name(node: dict, nodes: dict[str, dict]) -> str:
+    """The name ARIA gives an element whose author names it, as a browser's
+    accessibility tree computes it: the words of the elements its `aria-labelledby`
+    names, read from `nodes`, its document's elements by id; else its `aria-label`; else
+    a fieldset's legend, its first `<legend>` child; empty where the author named
+    nothing. `page check` requires one of a question's group, so a screen reader names
+    the question as Leaf does."""
+    attrs = node["attrs"]
     named = [
         nodes[i] for i in (attrs.get("aria-labelledby") or "").split() if i in nodes
     ]
@@ -143,11 +148,11 @@ def group_name(group: dict, nodes: dict[str, dict]) -> str:
         return words
     if words := collapse(attrs.get("aria-label") or ""):
         return words
-    if group["tag"] == "fieldset":
+    if node["tag"] == "fieldset":
         legend = next(
             (
                 child
-                for child in group["content"]
+                for child in node["content"]
                 if not isinstance(child, str) and child["tag"] == "legend"
             ),
             None,
@@ -189,7 +194,7 @@ class _Document:
         }
 
     def name(self, node: dict) -> str:
-        return element_name(node, self.registry)
+        return element_name(node, self.registry, self.nodes)
 
     @cached_property
     def marks(self) -> dict:

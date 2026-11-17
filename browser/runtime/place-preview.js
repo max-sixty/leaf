@@ -13,7 +13,7 @@
 
    - its name, the way the authoring contract names an element (addressable-names.js,
      `ownNaming`): a heading's words, the heading a section opens with, a tab's label, a
-     table's or figure's caption, an `aria-label`; and for a place with no name of its
+     table's or figure's caption, an `aria-labelledby` or `aria-label`; and for a place with no name of its
      own, or one the page draws nothing of, the name of the part it stands in, by the
      rule On Me groups its items by (thread/placement.js, `partOver`): the heading over
      it, or the nearest element holding it that the contract names;
@@ -515,11 +515,9 @@ function conversations(place) {
   const about = conversationsAbout(place);
   if (!about) return null;
   return html`<span class="lf-place-foot"
-    ><span>${counted(about.threads, "thread")}</span>${
-      about.turn
-        ? html`<span class="lf-place-turn">${voiced(about.turn.word)}</span>`
-        : nothing
-    }</span
+    ><span>${counted(about.threads, "thread")}</span>${about.turn
+      ? html`<span class="lf-place-turn">${voiced(about.turn.word)}</span>`
+      : nothing}</span
   >`;
 }
 
@@ -536,11 +534,9 @@ function partView(part) {
       return html`<span class="lf-place-code">${part.lines}</span>`;
     case "figure":
       return html`<span class="lf-place-figure"
-        ><img src=${part.src} alt="" />${
-          part.caption
-            ? html`<span class="lf-place-text">${part.caption}</span>`
-            : nothing
-        }</span
+        ><img src=${part.src} alt="" />${part.caption
+          ? html`<span class="lf-place-text">${part.caption}</span>`
+          : nothing}</span
       >`;
     case "list":
       return html`<span class="lf-place-list"

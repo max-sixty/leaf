@@ -175,6 +175,26 @@ test("a heading titles the section or article it opens, and otherwise itself", (
   declare();
 });
 
+test("a declared name withdraws a heading's title but never gives one", () => {
+  document.body.innerHTML = `<main>
+    <section id="ask" role="group" aria-labelledby="ask-heading">
+      <h3 id="ask-heading">Which region first?</h3><p>Premise.</p></section>
+    <section id="later" aria-labelledby="question"><h2 id="intro">Introduction</h2>
+      <h2 id="question">Question</h2><p>Words.</p></section>
+    <section id="labelled" aria-label="Deploy plan"><h2 id="plan">Plan</h2></section>
+  </main>`;
+  const titled = (/** @type {string} */ id) =>
+    titledElement(/** @type {Element} */ (document.getElementById(id))).id;
+  // A group whose aria-labelledby names the heading it opens with is that heading's.
+  assert.equal(titled("ask-heading"), "ask");
+  // One naming a later heading is no heading's: the order the page reads in decides
+  // which heading heads which part.
+  assert.equal(titled("intro"), "intro");
+  assert.equal(titled("question"), "question");
+  // A section its aria-label names is no heading's, though it opens with one.
+  assert.equal(titled("plan"), "plan");
+});
+
 test("a widget titled by its leading heading is that heading's, past a header", () => {
   declare({ "lf-card": {} });
   document.body.innerHTML = `<main><h2>Earlier</h2>

@@ -138,5 +138,43 @@
     },
     "markup": "<section id=\"it\"><h2>Deploy a <lf-gloss tip=\"A thin, end-to-end path.\">walking skeleton</lf-gloss></h2></section>",
     "name": "Deploy a walking skeleton"
+  },
+  {
+    "id": "a section's aria-labelledby names it, wherever the heading stands",
+    "markup": "<section id=\"it\" aria-labelledby=\"h\"><p>Premise words.</p><h3 id=\"h\">Which region first?</h3></section>",
+    "name": "Which region first?"
+  },
+  {
+    "id": "a section's aria-label names it over the heading it opens with",
+    "markup": "<section id=\"it\" aria-label=\"Deploy plan\"><h2>Plan</h2><p>Body words.</p></section>",
+    "name": "Deploy plan"
+  },
+  {
+    "id": "aria-labelledby joins the words of each element it names",
+    "markup": "<section id=\"it\" aria-labelledby=\"a b\"><h2 id=\"a\">Plan</h2><p id=\"b\">for Monday</p></section>",
+    "name": "Plan for Monday"
+  },
+  {
+    "id": "an aria-labelledby naming no element leaves the heading to name it",
+    "markup": "<section id=\"it\" aria-labelledby=\"gone\"><h2>Plan</h2></section>",
+    "name": "Plan"
+  },
+  {
+    "id": "a div is named by its aria-label",
+    "markup": "<div id=\"it\" aria-label=\"Metrics\"><p>Words.</p></div>",
+    "name": "Metrics"
+  },
+  {
+    "id": "a fieldset is named by its legend",
+    "markup": "<fieldset id=\"it\"><legend>Region</legend><p>Words.</p></fieldset>",
+    "name": "Region"
+  },
+  {
+    "id": "a widget is named by its label, not an aria-label",
+    "registry": {
+      "lf-option": {}
+    },
+    "markup": "<lf-option id=\"it\" aria-label=\"Other\"><strong>Flag first</strong> Ship dark.</lf-option>",
+    "name": "Flag first"
   }
 ]

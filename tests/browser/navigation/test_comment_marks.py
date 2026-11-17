@@ -549,7 +549,7 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
         page.evaluate(RELEASE_FOCUS)
         page.keyboard.press("o")
         expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
-            "data-lf-annotations-hidden", "hidden"
+            "data-lf-annotations-hidden", re.compile(".*")
         )
         page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
         again = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}

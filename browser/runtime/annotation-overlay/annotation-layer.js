@@ -15,10 +15,12 @@
    each watcher, so the margin can take focus and its card off what it hides and the
    passage paint can empty the durable marks (anchor-paint.js, `paintDurable`). Readers
    ask `annotationsHidden()` rather than the attribute, which is a rendering; a renderer
-   that reads it repaints when it changes. Every box the stylesheets hide stands in the
-   chrome, so the attribute stands there rather than on `html`, where a rule reading it
-   restyled or visited every element of the page each time the layer changed: 2 to 3 s
-   of Firefox's main thread on a page of 1.5 million elements. */
+   that reads it repaints when it changes. The margin's pins and change bars stand in
+   the chrome and read the attribute through its root; the contents map's changed
+   stretch, in the page, reads it through `:root:has()` (toc.css). On `html`, a custom
+   property the attribute set restyled every element of the page each time the layer
+   changed, and a rule reading it through a descendant combinator made Firefox visit
+   every element: 2 to 3 s of Firefox's main thread on a page of 1.5 million. */
 import { signal } from "/runtime/framework.js";
 import { tabStore } from "../tab-store.js";
 import { chromeRoot } from "../chrome.js";

@@ -283,11 +283,13 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
 
 
 def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve):
-    """`o` hides the annotation layer, all of which stands in the chrome
-    (annotation-layer.js). It stated that on `html`, where a custom property hiding the
-    margin's change bars restyled every element of the page: 2 to 3 s of Firefox's main
-    thread on a page of 1.5 million elements, and 65 ms in Chromium. Counted in the
-    browser's own restyled elements, against a restyle of the whole page."""
+    """`o` hides the annotation layer (annotation-layer.js). A custom property it set on
+    `html` to hide the margin's change bars was inherited by every element and restyled
+    the whole page: 2 to 3 s of Firefox's main thread on a page of 1.5 million elements,
+    and 65 ms in Chromium. This counts, in the browser's own restyled elements, what
+    `o` restyles against such a property changed on `html`, so a property `o` sets
+    there again fails it. Firefox visiting the page for a rule read through a
+    descendant combinator from `html` restyles nothing, and no count here sees it."""
     paragraphs = "".join(
         f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
     )

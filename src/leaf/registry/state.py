@@ -120,12 +120,6 @@ def validate_widget_record_contracts(
     declarations: dict,
     path,
 ) -> None:
-    # `resolves` is a reserved attribute: the comment thread an answer to this
-    # widget's own obligation closes, which admission reads off the sending document into
-    # the answering action's meaning. On a widget with no local obligation nothing would
-    # ever read it, so the name means that or is refused here.
-    if "resolves" in properties and not (entry.get("awaits") or {}).get("answered"):
-        raise registry_error("reserved-resolves", path, tag)
     # One rule set for both writers: they differ in who sends the state, not in
     # how a verb, its unit, and record hang together.
     for verb, spec in state_specs(entry):

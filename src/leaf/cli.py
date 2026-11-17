@@ -485,9 +485,8 @@ def init(
         raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
         raise click.UsageError("--package selections cannot be empty")
-    if len(set(selected)) != len(selected):
-        raise click.UsageError("each --package selection may appear only once")
-    selections = () if no_packages else selected or None
+    # A selection named twice means it once.
+    selections = () if no_packages else tuple(dict.fromkeys(selected)) or None
     return cmd_init(
         page_path(dir),
         selections,

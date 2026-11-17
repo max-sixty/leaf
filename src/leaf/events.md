@@ -376,7 +376,7 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   leaves an existing name in place. `thread_title` names or renames a thread with a
   single line of plain text no longer than its registry `title` allows
   (`registry.kernel.title_limit`). An unnamed thread has a null title.
-- `summary` covers an inclusive `from`–`through` range of at least two spoken turns in
+- `summary` covers an inclusive `from`–`through` range of one or more spoken turns in
   one thread; a reaction may lie inside it but not at an endpoint. It replaces the
   summaries it overlaps whole, and every spoken turn older than the last drawn
   summary then in force must lie in a summary, apart from the thread's opening

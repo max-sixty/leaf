@@ -1744,22 +1744,23 @@ def test_a_choice_made_while_the_settings_hold_a_retired_field_reads_as_chosen(
     browser, serve
 ):
     """Settings the log holds for a name no control of this revision draws, such as a
-    contributor that hasn't registered, stay in what a choice records, as in what a
-    tune records, so the button then offers to undo the choice rather than send the
-    same settings again."""
-    url = serve(PLAYGROUND_PAGE)
+    field an earlier revision had, stay out of what a choice records, so the page's
+    contract still admits it, and the button then offers to undo the choice rather
+    than send the same settings again."""
+    url = serve(named_source("notification-playground"))
     page = open_page(browser, url)
-    playground = page.locator("#card-playground")
+    playground = page.locator("#notification-playground")
     choose = playground.locator(".lf-playground-submit")
+    values = playground.evaluate("root => ({...root.values})")
     response = post_event(
         page,
         url.rsplit("/versions/", 1)[0] + "/api/event",
         data={
             "kind": "action",
             "revision": events_model.read_events(serve.page_dir)[-1]["revision"],
-            "widget": "card-playground",
+            "widget": "notification-playground",
             "action": "tune",
-            "detail": {"values": {**playground_values(page), "retired": "kept"}},
+            "detail": {"values": {**values, "retired": "kept"}},
         },
     )
     assert response.ok
@@ -1775,4 +1776,4 @@ def test_a_choice_made_while_the_settings_hold_a_retired_field_reads_as_chosen(
     expect(choose).to_have_text("Undo choice")
     round_trip(page)
     expect(choose).to_have_text("Undo choice")
-    assert actions(serve.page_dir)[-1]["detail"]["values"]["retired"] == "kept"
+    assert actions(serve.page_dir)[-1]["detail"]["values"] == values

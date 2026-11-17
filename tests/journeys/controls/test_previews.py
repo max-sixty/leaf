@@ -350,7 +350,7 @@ def test_a_thread_s_words_in_a_widget_preview_it_unless_the_widget_draws_them(
     }
     # Code's entry stands for the line its words are on, which has no id.
     page.mouse.move(2, 2)
-    entry = page.locator('[data-lf-margin-for*="/lf-code:"] > .lf-margin-marker')
+    entry = page.locator('[data-lf-margin-for^="id:code/"] > .lf-margin-marker')
     entry.scroll_into_view_if_needed()
     entry.hover()
     expect(word).to_have_text("On code")

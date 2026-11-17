@@ -164,17 +164,17 @@
 // read during the run, or read again after it left the page, is compared from the
 // frame that read it then.
 //
-// A landmark that a scroll moves in a frame, as its scrollers' offsets changing say, is
-// judged on that frame's step alone, and its moves stand only where Chrome reports
-// painting them, as every move did before runs; it is judged from where that frame
-// left it. A scroll moves a landmark on screen and not in layout, and these
+// A landmark held by a box whose scroll offset changed in a frame, the root's
+// included, is judged on that frame's step alone, and from where that frame left it.
+// Its moves in that frame stand only where Chrome reports painting them, as every move
+// did before runs. A scroll moves a landmark on screen and not in layout, and these
 // comparisons read a move as the landmark's own where both its screen and its layout
 // positions changed. In a frame that scrolls, the two can change for different
 // reasons: a sticky track whose own scroller scrolls as the page scrolls past it
 // moves on screen by its scroll and in layout by its sticking. Chrome removes
-// scrolling from what it reports. Scroll anchoring holding the page still as content
-// above grows changes the root's offset too, so it moves every landmark the root
-// scrolls in that frame.
+// scrolling from what it reports. Scroll anchoring, holding the page still as content
+// above grows, changes the root's offset too, so it puts every landmark the root holds
+// on Chrome's report for that frame.
 //
 // A move fails where the next reading still finds the landmark away from where the run
 // began (`standingMotion`). Typing is judged the same way, from where the key found its
@@ -4020,29 +4020,28 @@
     if (!changed) return;
     const animations = [...run.motion];
     const { from, permitted, arrived } = run;
-    // Whether a scroll moved the node this frame: the scroll offsets its layout
-    // position adds back changed (the header's "Runs of motion").
-    const scrolled = new Map();
-    const scrolls = (node) => {
-      if (!scrollers.length) return false;
-      if (!scrolled.has(node)) {
-        const offset = (at) => {
-          const box = boxAt(node, at),
-            layout = layoutAt(node, at);
-          return (
-            box && layout && { left: layout.left - box.left, top: layout.top - box.top }
-          );
-        };
-        const was = offset(before.at),
-          now = offset(after.at);
-        scrolled.set(
-          node,
+    // Whether a scroll may have moved the node this frame: a box holding it changed its
+    // scroll offset (the header's "Runs of motion"). Each box is asked on its own,
+    // since scrolls opposite ways cancel in a sum, and a fixed box doesn't end the
+    // walk, since a transformed box holding one carries it as the page scrolls.
+    const shifted = new Set(
+      scrollers.filter((box) => {
+        const was = scrollAt(box, before.at),
+          now = scrollAt(box, after.at);
+        return (
           Boolean(was && now) &&
-            (Math.abs(now.left - was.left) >= 0.5 ||
-              Math.abs(now.top - was.top) >= 0.5),
+          (Math.abs(now.left - was.left) >= 0.5 || Math.abs(now.top - was.top) >= 0.5)
         );
-      }
-      return scrolled.get(node);
+      }),
+    );
+    const scrolls = (node) => {
+      for (
+        let box = shifted.size ? paintAt(node, after.at)?.parent : null;
+        box instanceof Element;
+        box = paintAt(box, after.at)?.parent
+      )
+        if (shifted.has(box)) return true;
+      return false;
     };
     // A node first read during the run, read again after it left the page, or moved by
     // a scroll this frame is judged from the frame that read it then.

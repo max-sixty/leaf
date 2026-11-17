@@ -4422,11 +4422,15 @@ def test_inherited_custom_translation_credits_only_its_bound_consumer(
     browser, fault, finish
 ):
     """A shadow stylesheet can carry a field's words through its host's animation.
-    Neither another descendant's layout nor a replacement translate inherits credit."""
+    Neither another descendant's layout nor a replacement translate inherits credit.
+    The coincidence's own translate stands in the markup, so the carrier first paints
+    where it holds it."""
+    carrier = ' style="translate:-170px 0px"' if fault == "coincidence" else ""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
-        + quote("""<!doctype html><style>
+        + quote(
+            """<!doctype html><style>
 @property --travel { syntax: '<length>+'; inherits: true; initial-value: 0px 0px; }
 </style><body style="margin:0"><button id="start">Start</button>
 <div id="panel" style="margin-left:350px"></div>
@@ -4434,19 +4438,16 @@ def test_inherited_custom_translation_credits_only_its_bound_consumer(
 <script>
 const root = panel.attachShadow({mode:'open'});
 root.innerHTML = '<style>#carrier {translate:var(--travel)}</style>' +
-  '<div id="carrier"><button id="control">Retained control</button></div>';
+  '<div id="carrier"CARRIER><button id="control">Retained control</button></div>';
 const carrier = root.getElementById('carrier'), control = root.getElementById('control');
 start.onclick=()=>{
 window.motion=panel.animate([{'--travel':'-200px 0px'},{'--travel':'0px 0px'}],
   {duration:1000});
 motion.pause();motion.currentTime=150;
 };
-</script></body>""")
-    )
-    if fault == "coincidence":
-        page.evaluate(
-            "panel.shadowRoot.getElementById('carrier').style.translate = '-170px 0px'"
+</script></body>""".replace("CARRIER", carrier)
         )
+    )
     paint(page)
     page.locator("#start").click()
     paint(page)

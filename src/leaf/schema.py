@@ -346,24 +346,23 @@ def _facts(properties: dict, **schema) -> dict:
     }
 
 
+# The form of a fact declared to hold only for the occurrences whose authored
+# attributes match its `when` (`registry.contract.holds_for`).
+_WHEN_FORM = {
+    "type": "object",
+    "properties": {"when": AWAITING_CONDITION},
+    "required": ["when"],
+    "additionalProperties": False,
+}
+
+
 def _conditional(schema: dict) -> dict:
     """The schema of a fact a declaration may state outright, as `schema` admits, or
-    limit to the occurrences whose authored attributes match
-    `{when: {attribute: [values]}}` (`registry.contract.holds_for`). Only a mark takes
-    this form. Delivery and the browser then paint it on each occurrence where it
-    holds, and `registry.widgets` holds its `when` to the declared attributes, with no
-    code that names the fact."""
-    return {
-        "oneOf": [
-            schema,
-            {
-                "type": "object",
-                "properties": {"when": AWAITING_CONDITION},
-                "required": ["when"],
-                "additionalProperties": False,
-            },
-        ]
-    }
+    in the `{when: {attribute: [values]}}` form. Only a mark (`$marks`) may take it,
+    and importing this module fails for any other fact (below). Delivery and the
+    browser paint each mark where it holds, and `registry.widgets` holds each mark's
+    `when` to the declared attributes, so no code names the fact."""
+    return {"oneOf": [schema, _WHEN_FORM]}
 
 
 # The author's half of a declaration: how an author writes the element. A selector
@@ -375,7 +374,7 @@ _AUTHOR = {
 # The facts a declaration groups, by what each group is about; `$keys` in the kernel
 # package's registry says which reader needs each declared because it can't run the
 # widget's module.
-FACT_GROUPS = {
+FACT_GROUPS: dict[str, dict[str, dict]] = {
     "data": {
         "inputs": DATA_INPUTS_SCHEMA,
         "outputs": {
@@ -512,6 +511,16 @@ DECLARATION_KEYS = frozenset(
     {key for key in DECLARATION_SCHEMA["properties"] if key != "description"}
     | {f"{group}.{name}" for group, facts in FACT_GROUPS.items() for name in facts}
 )
+# A fact no mark paints would reach its readers in the `{when}` form as an object, which
+# reads as true, with nothing holding its condition to the declared attributes.
+if stray := sorted(
+    f"{group}.{name}"
+    for group, facts in FACT_GROUPS.items()
+    for name, schema in facts.items()
+    if _WHEN_FORM in schema.get("oneOf", ())
+    and f"{group}.{name}" not in kernel_registry()["$marks"]
+):
+    raise ValueError(f"only a mark ($marks) may take the {{when}} form: {stray}")
 # The facts a fact is read through, which a declaration of it must declare too: a
 # member that leaves under its owner's decision reads its owners, and a view of
 # another widget's answer its owners and its reference (`registry.widgets`).

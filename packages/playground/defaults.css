@@ -257,11 +257,8 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   gap: var(--lf-sp-1);
   font-weight: 600;
 }
-:where(
-  .lf-playground-controls-region
-    > aside
-    :is(input:not([type="checkbox"], [type="radio"]), select, textarea)
-) {
+:where(.lf-playground-controls-region > aside)
+  :where(input:not([type="checkbox"], [type="radio"]), select, textarea) {
   box-sizing: border-box;
   inline-size: 100%;
   margin: 0;

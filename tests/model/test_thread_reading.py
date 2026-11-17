@@ -569,9 +569,10 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
     """The hint is the range admission takes, so following it is never refused and
     never leaves older discussion in full above a summary (#5531). A rewrite that
     retires a summary leaves its run uncovered above a later one. Where that run is
-    long enough, the hint names it. Where it is too short, the hint names the next
-    long-enough run widened over it, replacing the later summary between them, so a
-    short stretch left above a summary doesn't stop every later hint."""
+    long enough, the hint names it and the later summary. Where it is too short, the
+    hint names the next long-enough run widened over it, so a short stretch left above
+    a summary doesn't stop every later hint. Either way the hint replaces the later
+    summary, and following it leaves the thread one summary."""
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
@@ -601,7 +602,7 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
     if widened:
         assert hint == {"from": reply["id"], "through": newer[4]["id"]}
     else:
-        assert hint == {"from": root["id"], "through": reply["id"]}
+        assert hint == {"from": root["id"], "through": folded[-1]["id"]}
     assert (
         command_findings(
             "thread",
@@ -616,6 +617,71 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
         )
         == []
     )
+    read = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert read.exit_code == 0, read.output
+    assert [s["text"] for s in json.loads(read.output)["thread"]["summaries"]] == [
+        "Earlier."
+    ]
+
+
+def test_a_summary_hint_spans_the_summaries_above_its_run(page_dir):
+    """A thread summarized once and grown long again is offered one range from its
+    earlier summary through the new run, so following each hint leaves one summary
+    of the earlier discussion rather than a row of them. The range starts on a
+    message the thread still says, though the user took back the first message the
+    earlier summary named."""
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Plan the rollout."}
+    )
+    spoken = [root]
+
+    def say(author, parent=root):
+        spoken.append(
+            append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": author,
+                    "parent": parent["id"],
+                    "text": f"Detail {len(spoken)}.",
+                },
+            )
+        )
+
+    say("user")
+    # A reply to it keeps the message in its place once the user takes it back, and
+    # a fold without prose outlives that.
+    say("agent", parent=spoken[1])
+    for author in ("user", "agent"):
+        say(author)
+    thread_model.cmd_summarize(page_dir, spoken[1]["id"], spoken[4]["id"], "")
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": spoken[1]["id"]}
+    )
+    for author in ("user", "agent", "user", "agent", "user", "agent"):
+        say(author)
+
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [spoken[-1]],
+        page_view_model.PageView(page_dir).within,
+    )
+    assert digest["summary_hint"] == {
+        "from": spoken[2]["id"],
+        "through": spoken[-3]["id"],
+    }
+
+    thread_model.cmd_summarize(
+        page_dir, spoken[2]["id"], spoken[-3]["id"], "All of it."
+    )
+    read = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert read.exit_code == 0, read.output
+    [summary] = json.loads(read.output)["thread"]["summaries"]
+    assert summary["text"] == "All of it."
 
 
 @pytest.mark.parametrize(

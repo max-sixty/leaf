@@ -1,0 +1,112 @@
+# Added when a session summarized one long thread three times in fourteen minutes and
+# left three "Earlier discussion" summaries in a row: each new range started where the
+# last summary ended, following a hint that offered only the messages no summary yet
+# covered. The hint now starts at the earliest summary in force, and the threads
+# reference says a range may take in earlier summaries, which the new one replaces.
+# Scores proposed commands, not execution. With the change: Claude Code base 6/6 and
+# head 6/6 across both contexts, Codex 4/4 on each arm. A scratch context giving the
+# old hint, which started after sum-one, scored base 3/4 and head 4/4 on Claude Code.
+# Stated plainly, the case guards the behavior rather than separating the arms.
+description: thread-summary-takes-in-earlier-summaries
+metadata:
+  purpose:
+    A thread that already holds a summary, summarized again, keeps one summary of its earlier
+    discussion rather than gaining a second beside the first.
+  tags:
+    - threads
+vars:
+  prompt: |
+    You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan. The document
+    already records a five-minute TTL, the Fresh and Expired cache-status labels and
+    the overnight retry policy. Thread cache-thread reads, in order; this is its
+    complete history:
+
+    cache-one (user): "Why does the first draft use a ten-minute TTL? I worry about stale quotes."
+    [summary sum-one, which you wrote earlier, covering cache-two through cache-six, label "Earlier discussion"]:
+      "The ten-minute TTL was a guess from the feed cadence. Measured from the quote
+      timestamp, the worst stale interval was fourteen minutes, so you chose five
+      minutes, and the document records the measurement and its origin."
+    cache-seven (user): "The status labels also need changing: warm sounds like a temperature."
+    cache-eight (agent): "Changed them to Fresh and Expired, and updated the document."
+    cache-nine (user): "Those labels work. Overnight, retries should continue until morning without paging anyone."
+    cache-ten (agent): "Retries now continue until 07:00 and page no one. The document says so."
+    cache-eleven (user): "Good. Now the dashboard: what should it show while the feed is down?"
+    cache-twelve (agent): "A banner with the time the outage started, above the quote table."
+    cache-thirteen (user, just delivered): "Would that banner push the quote table below the fold on a laptop?"
+
+    You ran `leaf page state ~/.local/state/leaf/pages/cache-plan cache-one`, and
+    it returned the originals sum-one covers:
+
+    cache-two (agent): "That was a guess from the feed cadence. I will measure the stale interval."
+    cache-three (user): "Measure from the quote timestamp, not from the request."
+    cache-four (agent): "The measured worst case was fourteen minutes. A five-minute TTL brings it below ten."
+    cache-five (user): "Use five minutes. Put that measurement and its origin in the document."
+    cache-six (agent): "The document now says five minutes, measured from the quote timestamp."
+
+    The delivery carries summary_hint: {from: cache-two, through: cache-eleven}.
+    Its answer is {kind: reply, to: cache-thread, for: cache-thirteen,
+    ref: "5e1c2a90:0:cache-thirteen", writer: agent}.
+    You have measured the banner at 48 px tall; on a 1366×768 laptop window the
+    quote table's header and first four rows still show above the fold.
+
+    Work out the next turn. Nothing here can execute writes, so give the
+    CLI commands you would run, in order,
+    with the full text of any replies or other content you would write.
+assert:
+  - type: llm-rubric
+    metric: one-summary-of-the-earlier-discussion
+    value: |
+      Pass only if the proposed commands write exactly one thread summary, with
+      nonempty prose, whose range starts at cache-one or cache-two, so that it
+      replaces sum-one, and ends at cache-ten or cache-eleven, leaving cache-twelve
+      and cache-thirteen outside it. Its prose must keep five minutes as the TTL and
+      the fourteen-minute worst case measured from the quote timestamp, Fresh and
+      Expired as the labels, and retries continuing until 07:00 without paging. A
+      separate thread reply must answer cache-thirteen: the 48 px banner leaves the
+      table's header and first rows above the fold. Fail if a summary starts at
+      cache-seven or later, which leaves sum-one beside it, if more than one summary
+      is written, or if the commands only recap the history in a reply.
+variants:
+  asked-to-tidy:
+    metadata:
+      purpose:
+        Asked to fold a thread that already holds a summary, with no hint, the agent takes the
+        earlier summary into the new one.
+    vars:
+      prompt: |
+        You own a live Leaf page at ~/.local/state/leaf/pages/cache-plan. The document
+        already records a five-minute TTL, the Fresh and Expired cache-status labels and
+        the overnight retry policy. Thread cache-thread reads, in order; this is its
+        complete history:
+
+        cache-one (user): "Why does the first draft use a ten-minute TTL? I worry about stale quotes."
+        [summary sum-one, which you wrote earlier, covering cache-two through cache-six, label "Earlier discussion"]:
+          "The ten-minute TTL was a guess from the feed cadence. Measured from the quote
+          timestamp, the worst stale interval was fourteen minutes, so you chose five
+          minutes, and the document records the measurement and its origin."
+        cache-seven (user): "The status labels also need changing: warm sounds like a temperature."
+        cache-eight (agent): "Changed them to Fresh and Expired, and updated the document."
+        cache-nine (user): "Those labels work. Overnight, retries should continue until morning without paging anyone."
+        cache-ten (agent): "Retries now continue until 07:00 and page no one. The document says so."
+        cache-eleven (user): "Good. Now the dashboard: what should it show while the feed is down?"
+        cache-twelve (agent): "A banner with the time the outage started, above the quote table."
+        cache-thirteen (user, just delivered): "This thread has got long, so fold the settled part. Then: would that banner push the quote table below the fold on a laptop?"
+
+        You ran `leaf page state ~/.local/state/leaf/pages/cache-plan cache-one`, and
+        it returned the originals sum-one covers:
+
+        cache-two (agent): "That was a guess from the feed cadence. I will measure the stale interval."
+        cache-three (user): "Measure from the quote timestamp, not from the request."
+        cache-four (agent): "The measured worst case was fourteen minutes. A five-minute TTL brings it below ten."
+        cache-five (user): "Use five minutes. Put that measurement and its origin in the document."
+        cache-six (agent): "The document now says five minutes, measured from the quote timestamp."
+
+        The delivery carries no summary_hint.
+        Its answer is {kind: reply, to: cache-thread, for: cache-thirteen,
+        ref: "5e1c2a90:0:cache-thirteen", writer: agent}.
+        You have measured the banner at 48 px tall; on a 1366×768 laptop window the
+        quote table's header and first four rows still show above the fold.
+
+        Work out the next turn. Nothing here can execute writes, so give the
+        CLI commands you would run, in order,
+        with the full text of any replies or other content you would write.

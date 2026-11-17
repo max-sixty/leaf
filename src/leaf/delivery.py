@@ -231,8 +231,8 @@ _THREAD_DIGEST = object_schema(
     },
     {
         "summary_hint": described(
-            "An earlier run of messages worth summarizing, from its first message "
-            "through its last.",
+            "An earlier range worth summarizing, from its first message through "
+            "its last, taking in the thread's summaries in force.",
             object_schema({"from": STRING, "through": STRING}),
         )
     },

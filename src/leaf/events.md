@@ -375,10 +375,12 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   message and progress a later reply completed (`events.summary_range`). This holds
   for a fold without prose too. The refusal names the range admission would take:
   the requested one widened over every message it would leave. A delivery's
-  `summary_hint` is the range admission takes for the run it suggests, so it may
-  replace a summary in force to close a gap above it. `text` may be empty and
-  `label` defaults to “Earlier discussion”. `events.active_summaries` says which
-  summaries stand. A summary answers, resolves, settles and marks read nothing.
+  `summary_hint` spans the run of messages it suggests and every summary in force
+  among the messages older than the newest exchange, widened as admission would
+  widen it, so a summary that follows it replaces those summaries with one and is
+  never refused. `text` may be empty and `label` defaults to “Earlier discussion”.
+  `events.active_summaries` says which summaries stand. A summary answers, resolves,
+  settles and marks read nothing.
 - An agent `reply` with `ephemeral: true` is progress. It carries no `responds`,
   `todo`, markup, failure or anchor transition and takes part in no turn, settlement or
   reopening. Posted to an update the agent owes, it carries `start: {item}`, in the

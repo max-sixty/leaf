@@ -3327,17 +3327,19 @@ EOF</code></pre>
               one thread under a disclosure labelled “Earlier discussion” or a label the
               agent chooses, with a summary of their decisions, reasoning, and open
               questions. The original messages stay in the log and unfold from the
-              disclosure. A summary answers nothing and closes nothing. Leaf refuses a
+              disclosure. A range may take in earlier summaries, which the new one
+              replaces. A summary answers nothing and closes nothing. Leaf refuses a
               range that would leave any message but the thread's first in full above a
               summary, and names a wider range it accepts.
             </p>
             <p id="summaries-hint">
               Once a thread is long, Leaf suggests a range to the agent with the user's
-              next message, leaving the newest exchange outside it; the agent decides
-              whether to summarize. Editing a message inside a written summary's range
-              removes the summary, so an outdated summary cannot hide the correction.
-              Progress messages an agent posts while working gather behind the latest
-              one, and disappear once its next ordinary reply arrives.
+              next message. It takes in any earlier summaries and leaves the newest
+              exchange outside, so a summary over it leaves the thread one summary; the
+              agent decides whether to summarize. Editing a message inside a written
+              summary's range removes the summary, so an outdated summary cannot hide
+              the correction. Progress messages an agent posts while working gather
+              behind the latest one, and disappear once its next ordinary reply arrives.
             </p>
           </section></lf-tab
         ><lf-tab id="keys" label="Keys"

@@ -501,15 +501,21 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         summaries = summaries_for[t]
         digest["summaries"] = summaries
         covered = {identity for summary in summaries for identity in summary["covers"]}
-        # Keep the newest exchange verbatim. The hint starts from the earliest run
+        # Keep the newest exchange verbatim. A hint is offered for the earliest run
         # of uncovered messages before it that is long enough to suggest. Completed
         # progress is not drawn, so a run folds it; pending progress is still being
-        # said, so a run stops at it. The hint is the range admission takes for that
-        # run (`events.summary_range`): widened over any message it would leave in
-        # full above a summary, replacing the summaries in force in between. So
-        # following it is never refused, and a short stretch a retired summary left
-        # above a later one doesn't stop every later hint.
-        prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
+        # said, so a run stops at it. The hint spans that run and every summary in
+        # force among the older messages, so a summary that follows it replaces
+        # them and the thread keeps one summary of its earlier discussion, rather
+        # than gaining one more beside the last each time a run grows long enough.
+        # Its ends are conversation turns, which a summary's own `from` may no
+        # longer be once the user took that message back. The hint is the range
+        # admission takes (`events.summary_range`): widened over any message it
+        # would leave in full above a summary. So following it is never refused,
+        # and a short stretch a retired summary left above a later one doesn't stop
+        # every later hint.
+        older = [message["id"] for message in conversation_turns(threads[t])[:-2]]
+        prefix = set(older)
         completed = progress_completions(threads[t])
         ids = [message["id"] for message in threads[t]["msgs"]]
         at = {identity: index for index, identity in enumerate(ids)}
@@ -539,7 +545,9 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
             [],
         )
         if candidate:
-            start, end = candidate[0]["id"], candidate[-1]["id"]
+            inside = covered | {message["id"] for message in candidate}
+            span = [identity for identity in older if identity in inside]
+            start, end = span[0], span[-1]
             folded = {"covers": ids[at[start] : at[end] + 1]}
             start, end = summary_range(threads[t], [*summaries, folded], start, end)
             # The range only: what the agent does with it is a `handling` clause.

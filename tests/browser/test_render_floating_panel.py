@@ -2011,7 +2011,7 @@ THREAD_FIT = """() => {
     height: box.height,
     scrolls: view.scrollHeight > view.clientHeight + 1,
     below: box.bottom - messages.at(-1).getBoundingClientRect().bottom,
-    room: parseFloat(getComputedStyle(view).paddingBottom),
+    gap: parseFloat(getComputedStyle(view).getPropertyValue('--lf-msg-gap')),
     first: messages[0].getBoundingClientRect().top,
     panel: document.querySelector('.lf-fp-card').getBoundingClientRect().top,
     window: window.innerHeight,
@@ -2047,8 +2047,8 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     settled(page)
     short = page.evaluate(THREAD_FIT)
     assert not short["scrolls"]
-    # Nothing stands under its message but the view's padding.
-    assert short["below"] - short["room"] < 10, short
+    # Nothing stands under its message but a message's gap over the field.
+    assert short["below"] - short["gap"] < 10, short
 
     page.keyboard.press("Escape")
     open_threads(page)
@@ -2537,6 +2537,8 @@ FOOT = """([parts, fromEnd]) => {
   const press = view.querySelector('.lf-new-reply')?.getBoundingClientRect();
   return {
     below: box.bottom - part.bottom - parseFloat(getComputedStyle(view).paddingBottom),
+    pad: parseFloat(getComputedStyle(view).paddingBottom),
+    gap: parseFloat(getComputedStyle(view).getPropertyValue('--lf-msg-gap')),
     press: press && {over: press.top - part.bottom, under: box.bottom - press.bottom},
     said: [...document.querySelectorAll('.lf-fp-peek')]
       .filter((node) => node.checkVisibility())

@@ -122,14 +122,14 @@ variants:
     # better?" The notes below are the session's inventory as it held it when it
     # wrote the page, grouped by reader as its own reply grouped them, and the prompt
     # quotes the user's standing instructions the session carried. On Opus 5.5 with
-    # them, base 48ee07f1ed kept a 32-row table in 5 of 6 pages but sorted the key
-    # names into boxes or chips in 6 of 6; the plain HTML control kept no table and
-    # drew name chips in 3 of 3. With "Show the subject"'s table bullet and figure
-    # test, 6 of 6 kept the table and 2 sorted names into boxes, but 4 of 6 still
-    # drew a figure that restates the readers, as the quoted "draw a design rather
-    # than describing it" asks; without that sentence none did (3 of 3) and the HTML
-    # control kept its table in 2 of 3. With no standing instructions base sorted
-    # names into boxes in 3 of 6 and the HTML control in 0 of 3.
+    # them, base 48ee07f1ed sorted the key names into boxes or chips in 6 of 6 pages
+    # and passed inventory-lines-up in 1 of 3; the plain HTML control kept no table
+    # and drew name chips in 3 of 3. With "Show the subject"'s table bullet and figure
+    # test, 3 of 3 passed both rubrics: each kept a 32-row table, and its figure, a
+    # box per reader on either side of the browser boundary, named no keys. Without
+    # the quoted "draw a design rather than describing it", the HTML control kept its
+    # table in 2 of 3. With no standing instructions, base sorted names into boxes in
+    # 3 of 6 and the HTML control in 0 of 3.
     metadata:
       conditions: [leaf, html]
       purpose:
@@ -246,22 +246,21 @@ variants:
       - type: llm-rubric
         metric: inventory-lines-up
         value: |
-          The page's evidence is an inventory: 32 keys, each with the reader that needs
-          it, the fact it states and the widgets that declare it. The user weighs each
-          key's need, so pass only if any one key can be found and read in one line or
-          row together with what it states and who reads it, and the keys line up so a
-          reader can scan and compare them, as in a table with a row per key grouped or
-          sorted by reader. A chart or diagram may sit beside that inventory. Fail if the
-          keys appear only as bare names, such as comma-separated lists, chips or cards
-          holding a group's names and a count, so the reader has to look elsewhere for
-          what a key states, or if the page leaves keys out.
+          The page answers the quoted questions with the key inventory as its evidence.
+          Pass only if, wherever the page presents individual keys, a reader can find
+          each one in a line or row together with what it states and who reads it,
+          aligned so keys can be scanned and compared, as in a table with a row per key
+          grouped by reader, or a table of readers whose cells give each key with its
+          meaning. A chart or diagram may sit beside it. Fail if keys appear only as bare
+          names, such as comma-separated lists, chips or cards holding a group's names and
+          a count, so the reader has to look elsewhere for what a key states.
       - type: llm-rubric
         metric: figures-carry-something
         value: |
           Find every figure that presents the keys or their readers: an inline `<svg>`,
           `lf-diagram`, `lf-chart`, image, or a grid of boxes, cards or chips. Pass if
-          there is none, or if each shows something the inventory and prose don't
-          already say, such as how the registry and its readers connect, or a measured
-          shape the argument cites. Fail if any one only restates the inventory: key
-          names sorted into boxes, cards or chips by reader, one mark or square per key,
-          or a bar or segment per reader sized by its count of keys.
+          there is none, or if each makes a relationship or pattern the argument rests
+          on easier to see than the table and prose, such as how the registry and its
+          readers connect or the relative sizes of groups the argument compares. Fail if
+          any one only restates the inventory in a weaker form: key names sorted into
+          boxes, cards or chips by reader, or one mark or square per key.

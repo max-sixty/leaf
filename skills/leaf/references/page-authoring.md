@@ -30,12 +30,13 @@ in its own form:
   that effect in one of the forms above, with the code beside it.
 
 A drawing or chart makes its point through its geometry: where its marks sit, their
-sizes, and what contains or links them. Before adding one, name what its geometry shows
-that the words or a table beside it don't. Names sorted into a box per group, or a bar
-per group sized by how many members it has, show only the grouping, which a table shows
-by grouping its rows; a mark per counted item shows only the count, and boxes holding
-sentences show only the sentences. When the user has nothing to picture, as when they
-weigh a refactor's reasons and cost, leave the case in words and draw nothing.
+sizes, and what contains or links them. Add one where that geometry makes a
+relationship or pattern the argument rests on easier to see than the words or a table
+would. Names sorted into a box per group show the grouping no more plainly than a table
+grouped the same way, and leave out the facts the table gives beside each name. A mark
+per counted item shows only the count, and boxes holding sentences show only the
+sentences. When the user has nothing to picture, as when they weigh a refactor's reasons
+and cost, leave the case in words and draw nothing.
 
 `authoring-evidence.md` says which element draws each kind of evidence, and how to draw
 a figure of your own.

@@ -2627,7 +2627,13 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     where its motion has drawn it so far (geometry.js, `covered`): a Tab's arrival at a
     stop at the page's foot while Threads is still opening over it puts the view away,
     as it does once the view stands open, and the stop ends in sight."""
-    foot = '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
+    # The Tab leaves a stop the view never covers, above where it comes to rest: a key
+    # pressed on a stop the user can't see lets go of it first (keyboard/controller.js).
+    foot = (
+        '<p><button id="before">Before the foot</button></p>'
+        '<div style="height:450px"></div>'
+        '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
+    )
     page = floating(browser, serve(LONG_PAGE.replace("</main>", foot, 1), comments=12))
     page.evaluate(
         "() => scrollTo({top: document.scrollingElement.scrollHeight,"
@@ -2642,12 +2648,9 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
         }"""
     )
     dev_browser.open_threads(page)
-    page.evaluate(
-        """async () => {
-          const {focusDestination} = await window.__lfWidgetApi();
-          focusDestination(document.querySelector('#foot'), 'step');
-        }"""
-    )
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#foot")).to_be_focused()
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
     seen = page.evaluate(
         """async () => {

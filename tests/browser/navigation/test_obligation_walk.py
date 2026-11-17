@@ -1300,8 +1300,8 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
     expect(thread.locator("leaf-text")).to_be_focused()
 
 
-def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, serve):
-    """A question's frame holds what it asks about, so a press on a control there is the
+def test_c_from_a_shot_in_a_questions_group_comments_on_the_question(browser, serve):
+    """A question's group holds what it asks about, so a press on a control there is the
     user reading the question. After `m`, a click that flips the shot or drags its divider
     puts focus on the shot's own controls, which would move `c` onto the shot, while
     a press on its Pixels button would leave `c` on the question, and once the question

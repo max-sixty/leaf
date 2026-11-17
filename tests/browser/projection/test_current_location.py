@@ -562,6 +562,56 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     )
 
 
+def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
+    browser, serve
+):
+    """A choosing lf-options that stands at its own source, as each does in a named
+    group holding two questions (`obligations/place.js`), gives its location ring up to
+    the row as a group's question does. If the choice kept its ring, a Tab in would
+    draw the choice's ring at the region's gap and the row's inside the frame, two
+    accent lines a few pixels apart for one fact."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Release",
+                """<h1 id="h">Release</h1>
+<section id="release" role="group" aria-labelledby="release-h">
+<h2 id="release-h">When and where does it ship?</h2>
+<lf-options id="ship">
+  <lf-option id="ship-monday" label="Ship Monday"></lf-option>
+  <lf-option id="ship-thursday" label="Ship Thursday"></lf-option>
+</lf-options>
+<lf-options id="region">
+  <lf-option id="region-eu" label="EU first"></lf-option>
+  <lf-option id="region-us" label="US first"></lf-option>
+</lf-options>
+</section>""",
+            )
+        ),
+    )
+    choice = page.locator("#ship")
+    page.keyboard.press("m")
+    expect(choice).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#release")).not_to_have_attribute("data-lf-obligation", "1")
+    assert choice.evaluate(LOCATION_RING)[0] == "solid"
+    # An arrival rings the choice at the region's gap, outside its frame.
+    arrived = choice.evaluate(
+        "el => [getComputedStyle(el).outlineOffset, getComputedStyle("
+        "document.documentElement).getPropertyValue('--lf-focus-region-gap').trim()]"
+    )
+    assert arrived[0] == arrived[1], arrived
+
+    page.keyboard.press("Tab")
+    expect(page.locator("#ship-monday .lf-pick")).to_be_focused()
+    # The ring is painted in the frame the focus move asks for (repaint.js).
+    rendered(page)
+    assert choice.evaluate(LOCATION_RING)[0] == "none", (
+        "the choice kept its ring round the row"
+    )
+    assert page.locator("#ship-monday").evaluate(RING)[0] == "solid"
+
+
 def test_the_ring_says_where_the_user_is_located(browser, serve):
     """One ring, meaning one thing: this is where the user is located. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.

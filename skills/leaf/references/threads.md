@@ -197,14 +197,14 @@ finished work.
 
 When a message asks the user to choose among answers you can list, such as which of two
 ways to proceed, whether to take an action or whether a step they took worked, you can
-send the answers in the message as an `<lf-options id="…">` group holding an
+send the answers in the message as an `<lf-options id="…">` holding an
 `<lf-option id="…">` for each. Picking an option is generally quicker and easier for
 the user than typing a reply, so a choice usually serves them better than answers
-listed in words. The user answers with a press in the thread, and the group waits
-on them until they do, so the message takes no `--obligation`, which the command refuses
-beside it. The message's text asks the question and gives your reason, so the group
-needs no heading. Title each option by what choosing it does and mark the one you
-advise (`authoring-on-me.md`, "What a question holds").
+listed in words. The user answers with a press in the thread, and the `lf-options`
+waits on them until they do, so the message takes no `--obligation`, which the command
+refuses beside it. The message's text asks the question and gives your reason, so the
+`lf-options` needs no heading or group round it. Title each option by what choosing it
+does and mark the one you advise (`authoring-on-me.md`, "What a question holds").
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'

@@ -59,7 +59,7 @@ test("no element has no name", () => {
 test("generated chrome names nothing, and does not hide the title behind it", () => {
   declare({ "lf-card": {} });
   assert.equal(
-    named('<lf-card id="it"><strong class="lf-ui">6 · 🎯</strong>Words.</lf-card>'),
+    named('<lf-card id="it" label="6 · 🎯">Words.</lf-card>'),
     "",
   );
   declare();

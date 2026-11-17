@@ -4,7 +4,7 @@ import re
 
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import aria_name
-from leaf.obligations import framed_widgets, shown_in
+from leaf.obligations import shown_in, widget_groups
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     authored_inert,
@@ -231,22 +231,25 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
 def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     """Each widget a page asks with stands in a group the author names
-    (`obligations.framed_widgets`): the group is the question, the region On Me selects
+    (`obligations.widget_groups`): the group is the question, the region On Me selects
     and the ring draws round, and its name is the question's words on On Me and in
     what the agent hears. Leaf reads both from the author's markup and infers neither,
-    so a widget no group holds, or whose group is unnamed, names no question, and a
-    group without an id is no place to stand. A widget with words of its own needs no
-    group: one set among words (`words.inline`) is named by them, and one asking about
-    each record of its data (`state.awaits.records`) by each record's label. A message's widget
-    needs none either, since the message names what it asks, so only a page's
-    documents are checked."""
+    so a widget no group holds names no question (`ungrouped-question`, one finding a
+    widget), and a group holding one needs a name, and an id to be a place to stand
+    (`question-group`, one finding a group, saying all it lacks). A widget with words
+    of its own needs no group: one set among words (`words.inline`) is named by them,
+    and one asking about each record of its data (`state.awaits.records`) by each
+    record's label. A message's widget needs none either, since the message names what
+    it asks, so only a page's documents are checked."""
     # A widget inside SVG keeps its exact source rather than a node, and so is no
     # widget the walk reads.
     groups = {
         id(node): group
-        for node, group in framed_widgets(document.authoring.content, registry)
+        for node, group in widget_groups(document.authoring.content, registry)
     }
     errors = []
+    # Each group holding a widget that asks, with those widgets.
+    asked: dict[int, tuple[dict, list[str]]] = {}
     for rec in document.lf_elements:
         entry = registry.get(rec["tag"]) or {}
         awaits = declared_fact(entry, "state.awaits")
@@ -261,24 +264,33 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
             continue
         group = groups[key]
         at = element_at(rec["tag"], rec["attrs"].get("id", ""))
-        if group is None or not aria_name(group, document.authoring.by_id):
-            unnamed = group and element_at(group["tag"], group["attrs"].get("id", ""))
+        if group is None:
+            errors.append(Finding("ungrouped-question", at, {"line": rec["line"]}))
+        else:
+            asked.setdefault(id(group), (group, []))[1].append(at)
+    for group, widgets in asked.values():
+        lacks = [
+            need
+            for need, missing in (
+                ("id", not group["attrs"].get("id")),
+                ("name", not aria_name(group, document.authoring.by_id)),
+            )
+            if missing
+        ]
+        if lacks:
             errors.append(
                 Finding(
-                    "unframed-question",
-                    at,
-                    {"line": rec["line"], "group": unnamed or None},
+                    "question-group",
+                    element_at(group["tag"], group["attrs"].get("id", "")),
+                    {
+                        "line": group["line"],
+                        "tag": group["tag"],
+                        "lacks": lacks,
+                        "widgets": widgets,
+                    },
                 )
             )
-        elif not group["attrs"].get("id"):
-            errors.append(
-                Finding(
-                    "question-group-id",
-                    element_at(group["tag"]),
-                    {"line": group["line"], "widget": at},
-                )
-            )
-    return errors
+    return sorted(errors, key=lambda finding: finding.values["line"])
 
 
 def relation_mismatch(

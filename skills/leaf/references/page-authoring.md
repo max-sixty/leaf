@@ -353,7 +353,8 @@ line of text, so there the id goes on the picture. One id around several such bl
 as on a table of screenshots, puts a comment aimed at any one of them on the whole
 table. Where a wrapper holds only one child that fills it, put the id on the child.
 
-Group a heading with its eyebrow or subtitle in `<hgroup>` and put the id on the group.
+Group a heading with its eyebrow or subtitle in `<hgroup>` and put the id on the
+`<hgroup>`.
 When that title starts a section with an id, the `<section>` carries the address
 instead. An id a heading needs for `aria-labelledby` is not the section's address.
 

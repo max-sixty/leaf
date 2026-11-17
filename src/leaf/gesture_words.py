@@ -8,7 +8,7 @@ that reworded or removed an option does not change what the user chose. Deliveri
 the transcript, the served history and the undo offer state a gesture through this
 one reading.
 
-Done names no option: on a group whose `state.awaits.value` verb records the pick
+Done names no option: on a widget whose `state.awaits.value` verb records the pick
 as a set of ids, Done says that verb's state when the user pressed it, worded by the
 action that set it, or by Done's own document where the pick is authored. The pick
 is derived from the log before Done rather than stamped at admission, so Done keeps

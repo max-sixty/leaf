@@ -502,9 +502,10 @@ const asked = new Set<string>();
  * module adds the calls the session is running, makes the
  * fork, and hands back the line, or the failure, which hands the thread over. Forks
  * for different threads run side by side, and the follower lists a kept-back thread
- * under its line turn until its fork decides, so each line turn gets one fork,
- * however many messages join it. Its outcomes go to the debug log and the page's
- * diagnostics, since the user meets the line only as the agent's. */
+ * under its line turn until its fork decides, so each line turn gets one fork; a
+ * message that joins the thread meanwhile opens a new line turn, whose fork is asked
+ * about them all. Its outcomes go to the debug log and the page's diagnostics, since
+ * the user meets the line only as the agent's. */
 function lineFork($: EngineInterface, session: string, kept: KeptBack) {
   if (asked.has(kept.turn)) return;
   asked.add(kept.turn);

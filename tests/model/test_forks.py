@@ -2282,37 +2282,56 @@ def test_without_a_lane_nothing_is_kept_back(claimed):
     assert deliverable(claimed) == [asked["id"]]
 
 
-def test_a_message_while_kept_back_joins_the_line_turn_and_goes_where_it_goes(
-    claimed, lane
-):
-    """A second message in a kept-back thread is the line turn's too, as any running
-    turn's thread's further messages are: the follower lists the thread with both
-    under the one turn, so the module asks no second line fork, as the user accepted
-    on 2026-11-15. The line the first message's line fork writes goes in nowhere,
-    since the thread's newest message carries its one answer, so the line turn ends
-    and the thread goes to the main thread with both messages and no line."""
+def test_a_message_while_kept_back_gives_a_new_line_fork_both(claimed, lane):
+    """A second message while the line fork writes about the first, as a quick
+    correction, closes that line turn and opens a new one holding both, which the
+    follower lists, so the module asks a new line fork about both. The first line
+    fork's answer, about the first alone, drops; the new one's line goes in, and its
+    take gives both to a working fork."""
     first = said(claimed, "Why 30 s?")
-    line_turn = basis(claimed, first["id"])["turn"]
+    earlier = basis(claimed, first["id"], first["id"])
     second = said(claimed, "Or rather, why not 20?", parent=first["id"])
+    later = basis(claimed, first["id"], first["id"], second["id"])
+    assert later["turn"] != earlier["turn"]
+    assert earlier["turn"] not in state_model.open_agent_turns("s1")
     assert kept_back(claimed) == [(first["id"], (first["id"], second["id"]))]
-    assert basis(claimed, first["id"])["turn"] == line_turn
     assert deliverable(claimed) == []
 
-    routed = forks_model.route(
+    assert (
+        forks_model.route(
+            "s1",
+            earlier,
+            answer=judged("checking why 30 s", "take"),
+            failed=None,
+            work_forks=True,
+        )["outcome"]
+        == "dropped"
+    )
+    question = forks_model.ask("s1", later, [])
+    assert question is not None
+    assert "Why 30 s?" in question["prompt"] and "why not 20?" in question["prompt"]
+    taken = forks_model.route(
         "s1",
-        basis(claimed, first["id"], first["id"]),
-        answer=judged("checking why 30 s", "take"),
+        later,
+        answer=judged("weighing 20 s against 30 s", "take"),
         failed=None,
         work_forks=True,
     )
-    assert (routed["outcome"], "line" in routed) == ("hand_over", False), routed
-    assert line_turn not in state_model.open_agent_turns("s1")
-    assert kept_back(claimed) == []
-    assert deliverable(claimed) == [first["id"], second["id"]]
-    assert not any(
-        event["kind"] == "reply" and event["author"] == "agent"
+    assert taken["outcome"] == "take", taken
+    lines = [
+        event
         for event in events_model.read_events(claimed)
+        if event["kind"] == "reply" and event["author"] == "agent"
+    ]
+    assert [line["text"] for line in lines] == ["weighing 20 s against 30 s"]
+    [pickup] = [
+        event for event in events_model.read_events(claimed) if opened_pickup(event)
+    ]
+    assert (pickup["events"], pickup["turn"]) == (
+        [first["id"], second["id"]],
+        taken["turn"],
     )
+    assert deliverable(claimed) == []
 
 
 def test_a_thread_the_session_owes_stays_with_it_and_a_follow_up_is_forked(

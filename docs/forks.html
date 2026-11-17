@@ -456,8 +456,9 @@ flowchart TD
             </lf-diagram>
             <figcaption id="holding-caption">
               <strong>A thread's waiting messages, by who has them.</strong> A further
-              message joins whichever state its thread is in, and goes to a running fork
-              even once it has answered; a message in a thread the main thread already
+              message joins whichever state its thread is in: a kept-back thread gets a
+              new line fork for all its waiting messages, a running fork takes it even
+              once it has answered, and a message in a thread the main thread already
               owes goes straight to it. Leaf also gives kept-back messages to the main
               thread when the newest owes no reply.
             </figcaption>
@@ -816,10 +817,10 @@ flowchart TD
               <pre>
 flowchart TD
   accTitle: Where a further message in a thread goes
-  accDescr: If a running line turn or fork turn holds the thread, by its pickup or its answer, the message is that turn's: a fork takes it at its next tool boundary, and a line turn's goes where the thread goes, with no line fork of its own. Otherwise, if the main thread owes the thread, or its answer took the thread from a fork that still runs, it takes the message as any input. Otherwise the message is kept back for the line fork, which sorts it. On a take, if a fork gave the thread's last answer and its turn has closed, that fork is resumed in a new turn; otherwise a new working fork takes it.
+  accDescr: If a running fork turn holds the thread, by its pickup or its answer, that fork takes the message at its next tool boundary. Otherwise, if the main thread owes the thread, or its answer took the thread from a fork that still runs, it takes the message as any input. Otherwise the message is kept back for the line fork, which sorts it. On a take, if a fork gave the thread's last answer and its turn has closed, that fork is resumed in a new turn; otherwise a new working fork takes it.
   more["A further message in a thread"]
-  q1("Does a running line turn or fork turn hold the thread, by its pickup or its answer?")
-  a1["That turn's: a fork's at its next tool boundary, a line turn's wherever the thread goes"]
+  q1("Does a running fork turn hold the thread, by its pickup or its answer?")
+  a1["That fork, at its next tool boundary"]
   q2("Does the main thread owe the thread, or did its answer take it from a fork that still runs?")
   a2["The main thread, as any input"]
   kept["Kept back for the line fork, which sorts it"]

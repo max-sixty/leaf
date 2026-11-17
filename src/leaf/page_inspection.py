@@ -10,9 +10,12 @@ from page CSS. Page-owned widget implementations are listed from captured
 provenance. JavaScript bytes include executable inline scripts and captured files,
 including downloads; no byte count implies execution. JavaScript is not parsed for
 strings that might become CSS. Words are the page's text reading
-(`passages.page_passages`), split into those a reader sees on arrival and those a
-closed `<details>` or `hidden` holds, so collapsed supporting material, such as a
-quoted source, costs the shown count nothing.
+(`passages.page_passages`), counted only in blocks of a sentence or more, so a table
+of short cells, a heading, code or a picture costs nothing, while a table cell that
+holds paragraphs counts as they would. They split into those a reader sees on arrival
+and those a closed `<details>` or `hidden` holds, so collapsed supporting material,
+such as a quoted source, costs the shown count nothing; the longest unbroken run of
+shown prose says where a page reads as a wall of text.
 
 This is a static source inventory, not network transfer or CSS coverage. Styles made
 by JavaScript, including widget template strings, are outside it. Browser views
@@ -23,6 +26,7 @@ Revision comparisons name changed captured sources and metric deltas. The revisi
 directories retain the files for an author who needs their full text diff.
 """
 
+import itertools
 import json
 from pathlib import Path
 
@@ -73,28 +77,61 @@ def _css_counts(css: str, *, inline=False) -> dict:
     return counts
 
 
+# A block shorter than a short sentence, such as a heading, a label or a table cell
+# holding a value, is scanned rather than read, so its words aren't counted.
+_SENTENCE = 12
+
+
 def _words(artifact: RevisionArtifact) -> dict:
-    """The words of the page's text reading: `shown` on arrival, and `collapsed` in a
-    closed `<details>`, other than its `<summary>`, or under `hidden`."""
+    """The words of the page's text reading that sit in blocks of a sentence or more:
+    `shown` on arrival, `collapsed` in a closed `<details>`, other than its `<summary>`,
+    or under `hidden`, and `longest_run`, the most shown in consecutive such blocks."""
     markup = artifact.html.decode("utf-8")
-    arrival = SourceDocument(markup)
-    for element in arrival.tree.select("details:not([open]), [hidden]"):
-        if element.tag != "details" or "hidden" in element.attrs:
-            element.extract()
-            continue
-        for child in element.children:
-            if not (isinstance(child, turbohtml.Element) and child.tag == "summary"):
-                child.extract()
 
-    def count(document):
-        return len(page_passages(document, artifact.registry).text.split())
+    def blocks(*, arrival: bool) -> list[int]:
+        document = SourceDocument(markup)
+        # Code and pictures are the subject shown as it is: each reads as a one-word
+        # block, which counts nothing and ends a run of prose. A widget's content keeps
+        # its own reading, since a `<pre>` there can hold its data or Markdown body.
+        for element in document.tree.select(
+            "pre, img, svg, canvas, video, picture, iframe"
+        ):
+            if not any(
+                getattr(ancestor, "tag", None) in artifact.registry
+                for ancestor in element.ancestors
+            ):
+                element.replace_with(turbohtml.E.p("·"))
+        collapsed = document.tree.select("details:not([open]), [hidden]")
+        for element in collapsed if arrival else ():
+            if element.tag != "details" or "hidden" in element.attrs:
+                element.extract()
+                continue
+            for child in element.children:
+                if not (
+                    isinstance(child, turbohtml.Element) and child.tag == "summary"
+                ):
+                    child.extract()
+        reading = page_passages(document, artifact.registry)
+        cuts = [0, *(cut + 1 for cut in sorted(reading.breaks)), len(reading.text) + 1]
+        return [
+            len(reading.text[a : b - 1].split()) for a, b in itertools.pairwise(cuts)
+        ]
 
-    shown = count(arrival)
+    def prose(counts):
+        return sum(count for count in counts if count >= _SENTENCE)
+
+    shown = blocks(arrival=True)
+    run = longest = 0
+    for count in shown:
+        run = run + count if count >= _SENTENCE else 0
+        longest = max(longest, run)
     return {
-        "shown": shown,
-        "collapsed": count(SourceDocument(markup)) - shown,
+        "shown": prose(shown),
+        "collapsed": prose(blocks(arrival=False)) - prose(shown),
+        "longest_run": longest,
         "coverage": [
-            "Words a reader can select on the page; a widget's drawn labels and data notation are not counted.",
+            f"Words in blocks of {_SENTENCE} or more, such as paragraphs and table cells or list items that hold sentences; a heading, label or short cell is scanned, not read, and isn't counted.",
+            "Code in a <pre> and pictures aren't counted, and end a run; a widget's drawn labels and data notation aren't counted.",
             "A widget that hides content, such as a tab set's other tabs, counts it as shown.",
         ],
     }
@@ -396,7 +433,7 @@ def cmd_inspect(
                 },
                 "words": {
                     key: report["words"][key] - baseline["words"][key]
-                    for key in ("shown", "collapsed")
+                    for key in ("shown", "collapsed", "longest_run")
                 },
                 "coverage": "Source changes only. Browser observations are not subtracted across rendering environments or interaction states.",
             }

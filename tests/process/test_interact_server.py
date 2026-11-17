@@ -2645,7 +2645,7 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
                     }
                 }
             ),
-            "non-empty description",
+            "'description' is a required property",
         ),
     ],
 )

@@ -39,7 +39,7 @@ from leaf import structure as structure_model
 from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, message_markup, page_passages
 from leaf.registry import storage as registry_storage
-from leaf.registry.contract import declared_fact
+from leaf.registry.contract import declared_fact, element_declarations
 from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf_dev.browser import PANEL_THREAD
@@ -399,7 +399,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     (
                         "draws a box of no size",
                         "tinyBoxes",
-                        page_registry(page),
+                        element_declarations(page_registry(page)),
                     ),
                     (
                         "has a control clipped out of its box",

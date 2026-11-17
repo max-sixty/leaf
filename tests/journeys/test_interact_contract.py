@@ -152,7 +152,7 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
         owner = json.loads(json.dumps(task["server"]["state"]["status"]))
         owner["record"] = {"kind": "value", "attr": "owner"}
         task["attributes"]["properties"]["owner"] = {"type": "string"}
-        task.setdefault("required", []).append("owner")
+        task["attributes"].setdefault("required", []).append("owner")
         task["server"]["state"]["owner"] = owner
 
     declare_on_page(page_dir, owned)

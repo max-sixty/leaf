@@ -5423,9 +5423,9 @@ def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):
     checked = set()
     for attr, fact in DECLARED_WORDS:
         for name, entry in registry.items():
-            if not name.startswith("lf-") or attr not in entry.get(
-                "attributes", {}
-            ).get("properties", {}):
+            if not name.startswith("lf-") or attr not in entry["attributes"].get(
+                "properties", {}
+            ):
                 continue
             names = registry[fact]["names"]
             assert entry["attributes"]["properties"][attr]["enum"] == names

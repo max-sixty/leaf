@@ -12,7 +12,7 @@ vars:
   prompt: |
     I'm building a Leaf package at packages/timeline with one upgraded widget,
     lf-timeline, whose module draws a row of dated markers once it upgrades. The
-    registry entry has an x-example and the module is written. Before I put it on any
+    registry entry has an example and the module is written. Before I put it on any
     page, what should I run to check the widget itself, and what should I do with
     what it reports? One of my colleagues says any finding means the widget can't
     ship yet.

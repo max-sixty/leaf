@@ -135,9 +135,9 @@ def test_an_unchanged_frame_misses_no_restyle(browser):
 def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     browser, serve, surface
 ):
-    """As days pass, a message's head says when it was said with more words, from its
-    clock time to "Yesterday" and then its date, while the thread and its controls stay
-    put.
+    """As days pass, a message's head says when it was said with more words, from how
+    long ago ("just now") to "Yesterday" and its time, then its date and time, while
+    the thread and its controls stay put.
 
     Metadata may move or stay reserved. The passive-region fault controls above
     exercise the watcher's permitted motion independently of this surface's layout.
@@ -177,8 +177,13 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     receipt = header.locator(".lf-msg-sending")
     timestamp = header.locator("time")
     expect(receipt).to_have_text(re.compile(r"^Queued for "))
-    expect(timestamp).to_have_text(re.compile(r"^\d\d:\d\d$"))
-    clock = timestamp.inner_text()
+    expect(timestamp).to_have_text(re.compile(r"^(just now|\d+m ago)$"))
+    # The time of day the head says once the message is a day old, as the browser
+    # writes it (presence.js, `timeOfDay`).
+    clock = timestamp.evaluate(
+        "node => new Date(node.dateTime)"
+        ".toLocaleTimeString(undefined, {timeStyle: 'short'})"
+    )
     # Age changes are news after Chrome's recent-input grace, even when opening the
     # surface and resizing it happened immediately before this clock transition.
     rendered(page)
@@ -196,7 +201,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     now = datetime.now().astimezone()
     for delta, age in [
         (timedelta(days=1), f"Yesterday {clock}"),
-        (timedelta(days=3), re.compile(rf"^\d{{1,2}} \w+ {clock}$")),
+        (timedelta(days=3), re.compile(rf"^\w+ \d{{1,2}} {re.escape(clock)}$")),
     ]:
         # Fixed Date advances the age without changing Chrome's monotonic clock;
         # LayoutShift, frame readings and input attribution still share native time.

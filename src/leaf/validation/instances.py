@@ -10,6 +10,8 @@ from leaf.obligations import (
 )
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
+    authored_inert,
+    declared_fact,
     exhibits,
     is_element_name,
     matches_when,
@@ -17,7 +19,7 @@ from leaf.registry.contract import (
     retirement_slots,
     state_specs,
 )
-from leaf.registry.kernel import authored_inert, kernel_marks
+from leaf.registry.kernel import kernel_marks
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
@@ -53,14 +55,14 @@ def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
 
 def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Validate parsed lf-* elements against the registry: schema over the
-    attribute instance, x-owners nesting, and the x-content model."""
+    attribute instance, markup.owners nesting, and the content model."""
     errors = []
-    # Member containers admit exactly the tags that declare them as x-owners.
+    # Member containers admit exactly the tags that declare them as markup.owners.
     members_of = {}
     for tag, entry in registry.items():
         if not is_element_name(tag):
             continue
-        for owner in entry.get("x-owners", []):
+        for owner in declared_fact(entry, "markup.owners", []):
             members_of.setdefault(owner, set()).add(tag)
 
     for rec in lf_elements:
@@ -80,7 +82,8 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # `lang`, `dir`, `aria-*` and the page's own `data-*` describe the element as
         # on any other. `data-lf-*` stays Leaf's; `hidden` and `inert` still validate,
         # since either could hide what the widget asks of the user.
-        props = entry.get("properties", {})
+        attributes = entry["attributes"]
+        props = attributes.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
             if name in AUTHORED_ALLOCATIONS or (
@@ -90,7 +93,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             prop = props.get(name)
             is_flag = isinstance(prop, dict) and prop.get("type") == "boolean"
             instance[name] = True if value in (None, "") and is_flag else (value or "")
-        for err in sorted(json_validator(entry).iter_errors(instance), key=str):
+        for err in sorted(json_validator(attributes).iter_errors(instance), key=str):
             errors.append(found_at("attribute-schema", rec, **schema_reading(err)))
         for verb, spec in state_specs(entry):
             binding = spec.get("contract")
@@ -102,44 +105,27 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                         "instance-contract", rec, verb=verb, contract=name, **binding
                     )
                 )
-        for input_name, spec in entry.get("x-data", {}).items():
+        for input_name, spec in declared_fact(entry, "data.inputs", {}).items():
             if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
                 spec.get("reference")
             ):
                 errors.append(found_at("ambiguous-data-binding", rec, input=input_name))
-        # A member stands directly in an owner; one declaring x-within may also stand
-        # at any depth inside one of the regions it names. It belongs to its nearest
-        # owner, so going outward it must meet such a region before any owner.
-        want_owners = entry.get("x-owners", [])
-        within = entry.get("x-within", [])
-        nearest = next(
-            (
-                node["tag"]
-                for node in member_holders(rec, registry)
-                if node["tag"] in within or node["tag"] in want_owners
-            ),
-            None,
-        )
-        if want_owners and rec["parent"] not in want_owners and nearest not in within:
+        # A member stands directly in an owner.
+        want_owners = declared_fact(entry, "markup.owners", [])
+        if want_owners and rec["parent"] not in want_owners:
             errors.append(
-                found_at(
-                    "not-member",
-                    rec,
-                    owners=want_owners,
-                    parent=rec["parent"],
-                    within=within,
-                )
+                found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
-        # Tags that name this declaration in x-owners are its admissible members under
-        # any content model. "data" takes one <pre>, or none where the markup binds an
-        # x-data input, whose value is then the text; "members" takes element members
-        # only, and "empty" takes nothing at all.
-        content = entry["x-content"]
+        # Tags that name this declaration in markup.owners are its admissible members
+        # under any content model. "data" takes one <pre>, or none where the markup
+        # binds an input (`data.inputs`), whose value is then the text; "members" takes
+        # element members only, and "empty" takes nothing at all.
+        content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
         bound = any(
             rec["attrs"].get(spec.get(key))
-            for spec in entry.get("x-data", {}).values()
+            for spec in declared_fact(entry, "data.inputs", {}).values()
             for key in ("source", "reference")
         )
         if content == "empty" and (rec["children"] or rec["text"]):
@@ -210,7 +196,7 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
     optional header, exactly one body element, and an optional footer."""
     errors = []
     for rec in lf_elements:
-        role = registry.get(rec["tag"], {}).get("x-reading-role")
+        role = declared_fact(registry.get(rec["tag"], {}), "markup.reading-role")
         if role is None:
             continue
         direct = rec["direct"]
@@ -229,7 +215,7 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
 
 
 def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A page's parts (`x-views.parts`) written directly in `main` lay the page out
+    """A page's parts (`paint.views.parts`) written directly in `main` lay the page out
     themselves, each part's child carrying its own Layout, so the `main` holding them
     carries none. With one, its Layout and the parts' both arrange the page, and the
     page renders with nothing out of reach, so the render check passes it."""
@@ -242,23 +228,23 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         found_at("parts-in-layout", rec, rec["attrs"].get("id", ""), layout=layouts[0])
         for rec in document.lf_elements
         if rec["parent"] == "main"
-        and registry.get(rec["tag"], {}).get("x-views", {}).get("parts")
+        and declared_fact(registry.get(rec["tag"], {}), "paint.views", {}).get("parts")
     ]
 
 
 def unasked(rec: dict, entry: dict) -> dict:
-    """The `x-awaits.when` conditions a widget never met, as attribute and the values
+    """The `state.awaits.when` conditions a widget never met, as attribute and the values
     it would ask at, or none where it asks, was asked, or can be made to ask.
 
-    The flag `x-awaits.retired` names is how an author ends an obligation already
+    The flag `state.awaits.retired` names is how an author ends an obligation already
     asked, such as a settled decision kept with its context, so failing on it alone
     leaves the widget counted. A condition a recorded value writes can still be met
     by a gesture."""
-    awaits = entry["x-awaits"]
+    awaits = entry["state"]["awaits"]
     when = awaits.get("when") or {}
     recorded = {
         (spec.get("record") or {}).get("attr")
-        for spec in entry.get("x-state", {}).values()
+        for spec in declared_fact(entry, "state.verbs", {}).values()
         if (spec.get("record") or {}).get("kind") == "value"
     }
     return {
@@ -271,7 +257,7 @@ def unasked(rec: dict, entry: dict) -> dict:
 
 
 def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """An enclosing widget (`x-encloses`) supplies a leading title and
+    """An enclosing widget (`state.encloses`) supplies a leading title and
     arrival region for the obligations inside it.
 
     It never owns obligation identity or registration. Any number of sources can select
@@ -294,7 +280,7 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
             continue
         for holder in enclosing_widgets(rec):
             holder_entry = registry.get(holder["tag"], {})
-            if holder_entry.get("x-exhibit"):
+            if declared_fact(holder_entry, "state.exhibit"):
                 break
             if encloses(holder_entry):
                 framed[id(holder)].append((rec, unasked(rec, entry)))
@@ -360,13 +346,16 @@ def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
 
 
 def keyed_members(lf_elements: list, registry: dict) -> dict:
-    """Every member a keyed reference may name, as `(id(owner), tag, key, value)` mapped
+    """Every member a markup.unique attribute keys, as `(id(owner), tag, key, value)` mapped
     to the members holding it, in document order; the owner is the member's nearest
-    enclosing element of the tag its x-unique declaration names for that key. A member
-    standing in no such owner is left out: x-owners reports where it stands."""
+    enclosing element of the tag its markup.unique declaration names for that key. A
+    member
+    standing in no such owner is left out: markup.owners reports where it stands."""
     members = {}
     for rec in lf_elements:
-        for key, scope_tag in registry.get(rec["tag"], {}).get("x-unique", {}).items():
+        for key, scope_tag in declared_fact(
+            registry.get(rec["tag"], {}), "markup.unique", {}
+        ).items():
             value = rec["attrs"].get(key)
             scope = enclosing(rec, scope_tag, registry)
             if value is not None and scope is not None:
@@ -375,10 +364,10 @@ def keyed_members(lf_elements: list, registry: dict) -> dict:
 
 
 def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Each member whose x-unique attribute repeats an earlier member's value within
-    their shared owner: two playground controls with one name, or two choices of one
-    control with one value. Asked of one document, since an owner and its members
-    always stand in the same one."""
+    """Each member whose markup.unique attribute repeats an earlier member's value within
+    their shared owner, such as two options of one set with one value, or two settings
+    of one playground preset for one field. Asked of one document, since an owner and
+    its members always stand in the same one."""
     return [
         found_at(
             "repeated-key",
@@ -386,7 +375,7 @@ def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
             key=key,
             value=value,
             first_line=first["line"],
-            scope=registry[tag]["x-unique"][key],
+            scope=registry[tag]["markup"]["unique"][key],
         )
         for (_, tag, key, value), (first, *extras) in keyed_members(
             lf_elements, registry
@@ -409,22 +398,18 @@ def reference_errors(
     contract's predicate selects is named by exactly one referrer, as each readings
     seat is filled by one command.
 
-    A keyed reference names a member rather than an id: the `tag` member, inside the
-    referrer's own nearest owner of the tag its `key` is unique within (x-unique),
-    whose `key` attribute holds the value, as a playground preset's setting names a
-    control of the same playground.
-
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
     errors = []
     own = {rec["attrs"].get("id") for rec in lf_elements}
     owners = {}
-    keyed = None
     for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
+        # An undeclared tag is `widget_errors`' to report.
+        if (entry := registry.get(rec["tag"])) is None:
+            continue
         resolves = rec["attrs"].get("resolves")
         if (
-            "resolves" in entry.get("properties", {})
+            "resolves" in entry["attributes"].get("properties", {})
             and resolves
             and resolves not in thread_ids
         ):
@@ -433,29 +418,12 @@ def reference_errors(
                     "unknown-thread", rec, rec["attrs"].get("id", ""), resolves=resolves
                 )
             )
-        for attr, reference in entry.get("x-refers", {}).items():
+        for attr, reference in declared_fact(entry, "markup.refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
             reference_to = {"attr": attr, "target": target}
-            if member := reference.get("tag"):
-                if keyed is None:
-                    keyed = keyed_members(lf_elements, registry)
-                key = reference["key"]
-                scope_tag = registry[member]["x-unique"][key]
-                scope = enclosing(rec, scope_tag, registry)
-                if (id(scope), member, key, target) not in keyed:
-                    errors.append(
-                        found_at(
-                            "unmatched-member",
-                            rec,
-                            **reference_to,
-                            member=member,
-                            key=key,
-                            scope=scope_tag,
-                        )
-                    )
-            elif target not in ids:
+            if target not in ids:
                 errors.append(found_at("unknown-reference", rec, **reference_to))
             elif mismatch := relation_mismatch(reference, by_id.get(target), registry):
                 errors.append(
@@ -463,22 +431,25 @@ def reference_errors(
                 )
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
-            elif attr == entry.get("x-shows", {}).get("attr") and target not in own:
+            elif (
+                attr == declared_fact(entry, "state.shows", {}).get("attr")
+                and target not in own
+            ):
                 # A view and the answer it shows travel in one document, so a board
                 # in a reply shows widgets frozen in the same reply (`shown_answers`).
                 errors.append(found_at("shows-outside", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
-        for input_name, spec in registry.get(rec["tag"], {}).get("x-data", {}).items():
+        for input_name, spec in declared_fact(
+            registry.get(rec["tag"], {}), "data.inputs", {}
+        ).items():
             target = rec["attrs"].get(spec.get("reference"))
             producer = by_id.get(target)
             if not target or not producer:
                 continue  # The ordinary relation check names a missing target.
-            output = (
-                registry.get(producer["tag"], {})
-                .get("x-output", {})
-                .get(spec["output"])
-            )
+            output = declared_fact(
+                registry.get(producer["tag"], {}), "data.outputs", {}
+            ).get(spec["output"])
             if output is None or output["contract"] != spec["contract"]:
                 errors.append(
                     found_at(
@@ -494,7 +465,7 @@ def reference_errors(
         (tag, attr, reference)
         for tag, entry in registry.items()
         if is_element_name(tag)
-        for attr, reference in entry.get("x-refers", {}).items()
+        for attr, reference in declared_fact(entry, "markup.refers", {}).items()
         if reference.get("owns")
     ]
     for rec in lf_elements:
@@ -524,18 +495,19 @@ def reference_errors(
 def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """A conditional obligation needs an id when it is live.
 
-    Requiring every instance globally would outlaw inert option groups; checking the
-    declared predicate here gives the runtime exactly the addressability it consumes.
+    A widget whose schema leaves `id` optional may stand without one while its
+    predicate fails; checking the declared predicate here gives the runtime exactly
+    the addressability it consumes.
     """
     errors = []
     for rec in lf_elements:
-        declaration = registry.get(rec["tag"], {}).get("x-awaits")
+        declaration = declared_fact(registry.get(rec["tag"], {}), "state.awaits")
         if (
             declaration is not None
             and matches_when(rec["attrs"], declaration.get("when"))
             and not rec["attrs"].get("id")
         ):
-            errors.append(found_at("needs-id", rec, role="x-awaits"))
+            errors.append(found_at("needs-id", rec, role="state.awaits"))
     return errors
 
 
@@ -571,7 +543,7 @@ def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
 
 def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     """A page's allocations that mean nothing where they stand
-    (`registry.kernel.authored_inert`), which delivery leaves unpainted, so nothing on
+    (`registry.contract.authored_inert`), which delivery leaves unpainted, so nothing on
     the page shows the author the width or height they asked for is missing. Advice,
     since the page works as it is; the words say where the allocation would hold. A
     message has its own rule for the room (`$marks`, `message`), so this reads only
@@ -588,7 +560,9 @@ def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Fi
             continue
         tag = item["tag"]
         declaration = registry.get(tag, {}) if is_element_name(tag) else {}
-        if holds := authored_inert(key, declaration, content=item["content"]):
+        if holds := authored_inert(
+            key, declaration, item["attrs"], content=item["content"]
+        ):
             findings.append(
                 Finding(
                     "inert-allocation",

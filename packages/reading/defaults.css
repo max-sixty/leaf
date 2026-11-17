@@ -6,9 +6,10 @@
  * Layouts, so a Layout and the page's sheet outrank them as they outrank Leaf's. It sets
  * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
  * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
- * disclosures, definitions, rules and pictures, browser/styles/components/reading.css),
- * and the root's colour scheme, which lets
- * the tokens' light-dark() pairs follow the reader's preference.
+ * disclosures, definitions, rules and pictures, browser/styles/components/reading.css)
+ * and its own buttons, fields and labelled choices the faces of Leaf's controls
+ * (controls.css, "The faces of Leaf's control roles"), and the root's colour scheme,
+ * which lets the tokens' light-dark() pairs follow the reader's preference.
  *
  * Three faces, because the page already has three kinds of words and the norms
  * turn on telling them apart. What the page *says* is set in a text serif: prose
@@ -25,7 +26,7 @@
  * would have to arrive as a base64 blob in both — and referenced by URL instead
  * it silently falls back in exactly the medium (an exported file, mailed on) that
  * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
- * else; each is a screen serif with a large x-height, which is the property that
+ * else; each is a screen serif with a large paint.height, which is the property that
  * matters at 17px. */
 
 /* The document is warm paper under near-black ink, in either scheme. Leaf steps its
@@ -204,13 +205,6 @@ section.panel > :is(h2, h3):first-child {
 }
 .callout:is(.ok, .warn, .danger) > strong:first-child {
   color: var(--lf-tone-ink);
-}
-/* A sidenote is a small indented block where it was written, and on paper; where it hangs
-   in the column's margin is the column Layout's (layouts.css). */
-aside.note {
-  font-size: var(--lf-t-5);
-  line-height: 1.45;
-  color: var(--lf-muted);
 }
 /* A list of facts, each label beside its value, laid out as Leaf lays out its own
    (`dl.lf-facts`, browser/styles/components/reading.css), so a reader learns where a

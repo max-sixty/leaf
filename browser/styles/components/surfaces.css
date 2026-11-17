@@ -1,4 +1,4 @@
-/* The rules that dress both sides of a shadow boundary. A widget declaring x-shadow
+/* The rules that dress both sides of a shadow boundary. A widget declaring words.shadow
  * renders into a tree no document selector reaches (runtime/shadow-stage.js), and the
  * controls, threads and composer a widget seats there are the layer's own. So what they
  * need is stated here, once: the stage copies the composed shadow.css into each declared
@@ -10,7 +10,7 @@
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
    so it holds no room, and unpadded, since a holder that pads every child, as a
-   `choose` group pads its cells, would make it a box that cuts off its own words;
+   live option group pads its cells, would make it a box that cuts off its own words;
    the covered-words gate skips this class.
 
    And out of the selection, which the clip does not do on its own: a word standing
@@ -80,8 +80,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 /* Where a widget upgrade fails, it fails soft into this box, in the document or in an
- * x-shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the theme
- * gives other labels (.tag, figcaption), with figures of one width. */
+ * words.shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the
+ * theme gives other labels (.tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
   background: var(--lf-danger-tint);
@@ -213,9 +213,9 @@ a[data-lf-external]::after,
  * list of the tags and roles that count, so a role a widget reaches for next year is a
  * pressable the day its module names it.
  *
- * In this file, because a widget declaring x-shadow builds its controls in a tree the
- * document's stylesheet does not reach, and a floor that stopped at the light DOM would
- * be a floor the newest kind of widget is the one to fall through. */
+ * In this file, because a widget declaring words.shadow builds its controls in a tree
+ * the document's stylesheet does not reach, and a floor that stopped at the light DOM
+ * would be a floor the newest kind of widget is the one to fall through. */
 /* Every box's outline stands where the box says its marks stand (base.css, "Where it
    stands"), so a ring a carrier draws on its own box stands there without restating
    it. A box that says nothing keeps the property's initial 0. */
@@ -250,7 +250,8 @@ a[data-lf-external]::after,
    and no height of its own: the box's own rule says how high it stacks over what the
    box holds, and where it stands when that isn't the box's edge, such as an anchor or
    a grid area. */
-:is(.lf-ring-frame, [data-lf-reading-role="pane"]) > :not(header, footer) {
+.lf-ring-frame > :not(header, footer),
+[data-lf-reading-role="pane"] > :not(header, footer) {
   --lf-focus-box: .lf-ring-frame, [data-lf-reading-role=pane];
 }
 :is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible] {
@@ -261,10 +262,9 @@ a[data-lf-external]::after,
   > :not(header, footer)[data-lf-focus-visible] {
   outline: none;
 }
-:where(
-  .lf-ring-overlay[data-lf-focus-visible],
-  :is(.lf-ring-frame, [data-lf-reading-role="pane"])[data-lf-control-focus-visible]
-)::after {
+:where(.lf-ring-overlay[data-lf-focus-visible])::after,
+:where(.lf-ring-frame[data-lf-control-focus-visible])::after,
+:where([data-lf-reading-role="pane"][data-lf-control-focus-visible])::after {
   content: "";
   position: absolute;
   inset: 0;
@@ -285,35 +285,61 @@ a[data-lf-external]::after,
    ring rather than a mark, so it stands at no weight, as the focus floor above does:
    the box's own focus treatment wins, an author's outline or a carrier's such as a
    ring overlay. */
-:where(
-  [data-lf-aimed],
-  [data-lf-traced],
-  [data-lf-proxied],
-  [data-lf-mark],
-  [data-lf-projected-location]
-) {
+:where([data-lf-aimed]),
+:where([data-lf-traced]),
+:where([data-lf-proxied]),
+:where([data-lf-mark]),
+:where([data-lf-projected-location]) {
   --lf-band-gap: var(--lf-ring-at, var(--lf-focus-region-gap));
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
     var(--lf-band-ink, var(--lf-accent));
   outline-offset: var(--lf-band-gap);
 }
-:where(
-  [data-lf-aimed],
-  [data-lf-traced],
-  [data-lf-proxied],
-  [data-lf-mark]:not([data-lf-mark="focus"]),
-  [data-lf-projected-location]
-) {
+:where([data-lf-aimed]),
+:where([data-lf-traced]),
+:where([data-lf-proxied]),
+:where([data-lf-mark]:not([data-lf-mark="focus"])),
+:where([data-lf-projected-location]) {
   outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
     var(--lf-band-ink, var(--lf-accent)) !important;
   outline-offset: var(--lf-band-gap) !important;
 }
-:where(a[href], button, input, select, textarea, summary, [role]):where(
-  [data-lf-aimed],
-  [data-lf-traced],
-  [data-lf-proxied],
-  [data-lf-mark],
-  [data-lf-projected-location]
+:where([data-lf-aimed]):where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [role]
+),
+:where([data-lf-traced]):where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [role]
+),
+:where([data-lf-proxied]):where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [role]
+),
+:where([data-lf-mark]):where(a[href], button, input, select, textarea, summary, [role]),
+:where([data-lf-projected-location]):where(
+  a[href],
+  button,
+  input,
+  select,
+  textarea,
+  summary,
+  [role]
 ) {
   --lf-band-gap: var(--lf-ring-at, var(--lf-focus-ring-gap));
 }
@@ -329,7 +355,17 @@ a[data-lf-external]::after,
    mark, the proxy or location ring, or the focus ring the box wears, its own or a
    control's in it. */
 :where(
-  :is([data-lf-traced], [data-lf-mark="action"]):is(
+  [data-lf-traced]:is(
+    [data-lf-aimed],
+    [data-lf-proxied],
+    [data-lf-projected-location],
+    [data-lf-mark]:not([data-lf-mark="action"]),
+    [data-lf-focus-visible],
+    [data-lf-control-focus-visible]
+  )
+),
+:where(
+  [data-lf-mark="action"]:is(
     [data-lf-aimed],
     [data-lf-proxied],
     [data-lf-projected-location],
@@ -344,13 +380,11 @@ a[data-lf-external]::after,
 /* A forced palette draws marks in its highlight, as it does the focus ring
    (tokens.css). */
 @media (forced-colors: active) {
-  :where(
-    [data-lf-aimed],
-    [data-lf-traced],
-    [data-lf-proxied],
-    [data-lf-mark],
-    [data-lf-projected-location]
-  ) {
+  :where([data-lf-aimed]),
+  :where([data-lf-traced]),
+  :where([data-lf-proxied]),
+  :where([data-lf-mark]),
+  :where([data-lf-projected-location]) {
     --lf-band-ink: Highlight;
   }
 }
@@ -373,7 +407,25 @@ a[data-lf-external]::after,
    band's cut neither paints nor takes a press. A box that clips itself keeps its own
    clip, which cuts the mark as it cuts the box. */
 :where(
-  :is([data-lf-aimed], [data-lf-traced], [data-lf-mark]):not(
+  [data-lf-aimed]:not(
+    [data-lf-projected-location],
+    [data-lf-proxied],
+    [data-lf-mark~="focus"],
+    [data-lf-focus-visible],
+    [data-lf-control-focus-visible]
+  )
+),
+:where(
+  [data-lf-traced]:not(
+    [data-lf-projected-location],
+    [data-lf-proxied],
+    [data-lf-mark~="focus"],
+    [data-lf-focus-visible],
+    [data-lf-control-focus-visible]
+  )
+),
+:where(
+  [data-lf-mark]:not(
     [data-lf-projected-location],
     [data-lf-proxied],
     [data-lf-mark~="focus"],
@@ -407,28 +459,34 @@ a[data-lf-external]::after,
    contour of each shape it draws, as that shape's stroke, so a diamond's mark follows
    its sides: no outline, brackets, veil or gap. The stroke is important, as the
    outline is, so a drawing's own stroke rules leave the mark standing while it shows;
-   its words keep their own. A comment's mark there takes the quieter contour ink. */
-:where(svg *:not(foreignObject *)):where(
-  [data-lf-aimed],
-  [data-lf-traced],
-  [data-lf-proxied],
-  [data-lf-mark],
-  [data-lf-projected-location]
-) {
+   its words keep their own. A comment's mark there takes the quieter contour ink.
+   `svg` stands as an ancestor of its own, by which Chromium passes over these rules
+   outside a drawing (browser/AGENTS.md, "A rule costs only the elements it could
+   style"). */
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ) {
   --lf-shape-ink: var(--lf-band-ink, var(--lf-accent));
   --lf-shape-w: var(--lf-band-w, var(--lf-focus-ring-w));
   outline-style: none !important;
   clip-path: none;
   box-shadow: none;
 }
-:where(svg *:not(foreignObject *)):where(
+:where(svg)
+  :where(:not(foreignObject *)):where(
     [data-lf-aimed],
     [data-lf-traced],
     [data-lf-proxied],
     [data-lf-mark],
     [data-lf-projected-location]
   ):where(path, rect, circle, ellipse, line, polyline, polygon),
-:where(svg *:not(foreignObject *)):where(
+:where(svg)
+  :where(:not(foreignObject *)):where(
     [data-lf-aimed],
     [data-lf-traced],
     [data-lf-proxied],
@@ -467,7 +525,8 @@ a[data-lf-external]::after,
    in its own tree, which those selectors don't reach, so the mark's part (focus.js,
    `markFocus`) brings it there, at a pseudo-element's weight: a diff's file filter
    stood past its pane's foot, and a code block's Copy past its top. */
-:where(:focus, [data-lf-focus]),
+:where(:focus),
+:where([data-lf-focus]),
 ::part(lf-focus) {
   scroll-margin: var(--lf-focus-ring-landing);
 }
@@ -486,7 +545,8 @@ a[data-lf-external]::after,
    counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
    strip, which the band covers whole, comes out negative by its height, so its names
    count as shown too. */
-:where(:focus, [data-lf-focus]),
+:where(:focus),
+:where([data-lf-focus]),
 ::part(lf-focus) {
   scroll-margin-top: calc(
     var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
@@ -592,20 +652,22 @@ button.lf-inline-action,
   syntax: "*";
   inherits: false;
 }
-:where(
-  .lf-btn,
-  button.lf-icon-action,
-  button.lf-inline-action,
-  button.lf-mark-action,
-  button.lf-answer
-) {
+:where(.lf-btn),
+:where(button.lf-icon-action),
+:where(button.lf-inline-action),
+:where(button.lf-mark-action),
+:where(button.lf-answer) {
   --lf-face-floor: auto;
   position: relative;
-  &::after {
-    content: "";
-    position: absolute;
-    inset: min(0px, (100% - var(--lf-aim-floor)) / 2);
-  }
+}
+:where(.lf-btn)::after,
+:where(button.lf-icon-action)::after,
+:where(button.lf-inline-action)::after,
+:where(button.lf-mark-action)::after,
+:where(button.lf-answer)::after {
+  content: "";
+  position: absolute;
+  inset: min(0px, (100% - var(--lf-aim-floor)) / 2);
 }
 /* A symbol or mark on a vendor control, Copy, takes its press on its button part, so
    the reach is the part's: one on the host would take the press from the button and
@@ -632,7 +694,10 @@ summary {
    A radio or checkbox takes no typing, so iOS doesn't zoom onto it, and its mark keeps
    the size of its label's type (controls.css, `.lf-choice`). */
 @media (pointer: coarse) {
-  :is(input:not([type="radio"], [type="checkbox"]), textarea, leaf-text, select) {
+  input:not([type="radio"], [type="checkbox"]),
+  textarea,
+  leaf-text,
+  select {
     font-size: max(var(--lf-entry-floor), 1em) !important;
   }
 }
@@ -685,22 +750,20 @@ summary {
 /* Adjacent whole threads are ruled apart; parts belong to their author's
    transcript. An outlet contains only whole cards, its resolved group and the comment
    box; there, inert outgoing pixels may stand between the live neighbors. */
-:is(
-  .lf-page-thread:not(.lf-primary-part, [inert])
-    + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-  [data-lf-thread-surface]
-    > .lf-page-thread:not([inert])
-    ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
-) {
+.lf-page-thread:not(.lf-primary-part, [inert])
+  + .lf-page-thread:not(.lf-primary-part, [inert]),
+.lf-page-thread:not(.lf-primary-part, [inert]) + .lf-resolved-threads,
+[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-page-thread:not([inert]),
+[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads {
   margin-top: var(--lf-sp-3);
 }
-:is(
-  .lf-page-thread:not(.lf-primary-part, [inert])
-    + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-  [data-lf-thread-surface]
-    > .lf-page-thread:not([inert])
-    ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
-)::before {
+.lf-page-thread:not(.lf-primary-part, [inert])
+  + .lf-page-thread:not(.lf-primary-part, [inert])::before,
+.lf-page-thread:not(.lf-primary-part, [inert]) + .lf-resolved-threads::before,
+[data-lf-thread-surface]
+  > .lf-page-thread:not([inert])
+  ~ .lf-page-thread:not([inert])::before,
+[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads::before {
   content: "";
   position: absolute;
   inset-inline: var(--lf-sp-1);
@@ -784,7 +847,8 @@ summary {
   position: relative;
   clip-path: inset(-100vh calc(-1 * var(--lf-sp-2)) -100vh -100vw);
 }
-:is(.lf-msg-head, .lf-thread-working-head) {
+.lf-msg-head,
+.lf-thread-working-head {
   display: flex;
   align-items: center;
   gap: var(--lf-sp-2);
@@ -808,14 +872,16 @@ summary {
    keeps its annotations and time together in the order. A primary reader's notice of
    news (below) gives way with the metadata, each in proportion to its width. A long
    name is cut at its cap (below) however much room is left. */
-:is(.lf-msg-head, .lf-thread-working-head) {
+.lf-msg-head,
+.lf-thread-working-head {
   & > .lf-msg-control-room {
     flex-shrink: 1e18;
   }
   & > .lf-msg-meta > :not(time, .lf-msg-new) {
     flex-shrink: 1e12;
   }
-  & > :is(.lf-msg-meta, .lf-primary-news),
+  & > .lf-msg-meta,
+  & > .lf-primary-news,
   & > .lf-msg-meta > time {
     flex-shrink: 1e6;
   }
@@ -987,7 +1053,8 @@ summary {
 /* Progress belongs to the completing reply's metadata, or to the face of a run no
    reply folds, with no summary row. Flex wrapping keeps its complete label and hit
    target at narrow widths. */
-:is(.lf-msg-head, .lf-thread-working-head):has(> .lf-summary-expand) {
+.lf-msg-head:has(> .lf-summary-expand),
+.lf-thread-working-head:has(> .lf-summary-expand) {
   flex-wrap: wrap;
   overflow: visible;
   white-space: normal;

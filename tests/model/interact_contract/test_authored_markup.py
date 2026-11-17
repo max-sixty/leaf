@@ -6,6 +6,7 @@ import json
 import pytest
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     append_carried_log_record,
     check,
     check_findings,
@@ -34,10 +35,11 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     class unconditionally, so nothing anywhere said the page's own words had
     gone. The <p class="note"> is the control: an ordinary class is the author's
     to write, and the count below is exact so a reservation that swallowed it
-    would be caught here rather than in a page that stopped rendering. The button
-    wears the names a kernel idiom gives a page's own control to take Leaf's face
+    would be caught here rather than in a page that stopped rendering. The box
+    wears the name a kernel idiom gives a page's own scroller
     (`structure.AUTHORED_CLASSES`), which the reservation leaves to the author, and
-    the one beside them it doesn't."""
+    the button the names of Leaf's own controls, which a page's controls no longer
+    write to take their faces (the theme gives them those)."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -45,7 +47,8 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
             '<p id="q" class="lf-quiet">said out of sight</p>'
             '<p id="n" class="lf-not-coined-yet">a name the runtime has not taken</p>'
             '<p id="k" class="note">an ordinary class the author owns</p>'
-            '<button id="b" class="lf-btn lf-commit lf-icon-action">Send</button>'
+            '<div id="s" class="lf-scroll">a box the page scrolls</div>'
+            '<button id="b" class="lf-btn lf-commit">Send</button>'
             '<p id="g" data-lf-gen="1">generated-looking</p>',
         )
     )
@@ -59,7 +62,7 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
         ("<div>", ["lf-chrome"]),
         ("<p>", ["lf-quiet"]),
         ("<p>", ["lf-not-coined-yet"]),
-        ("<button>", ["lf-icon-action"]),
+        ("<button>", ["lf-btn", "lf-commit"]),
         ("<p>", ["data-lf-gen"]),
     ]
 
@@ -97,7 +100,7 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
 
 @pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
 def test_a_reference_names_any_element_the_page_holds(page_dir, target):
-    """An `x-refers` attribute takes the id of whatever element it names, a section
+    """A `markup.refers` attribute takes the id of whatever element it names, a section
     whose id a widget couldn't carry included, and `page check` refuses only a value
     naming no element."""
     (page_dir / "index.html").write_text(
@@ -136,14 +139,26 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
     on a question, which draws no box of its own, a width on `main`, which would size
     the page, and a stated height on a block no module draws into. `page check` names
     each so the author can move it. A width on the table inside the question, and a
-    height on a chart, mean what they say."""
+    height on a chart, mean what they say. A tab set draws no box of its own only where
+    it is written `flow="page"`, so a width there means nothing and on a boxed set it
+    holds."""
+    tabs = (
+        '<lf-tabs id="{id}"{flow} data-width="wide">'
+        '<lf-tab id="{id}-one" label="One"><p>One.</p></lf-tab></lf-tabs>'
+    )
     (page_dir / "index.html").write_text(
         PAGE.replace("<main>", '<main data-width="wide">')
+        .replace(
+            "</section>",
+            "</section>"
+            + tabs.format(id="page-tabs", flow=' flow="page"')
+            + tabs.format(id="boxed-tabs", flow=""),
+        )
         .replace(
             '<div id="plan-choice-decision">',
             '<lf-ask id="plan-choice-decision" data-width="available">',
         )
-        .replace("<lf-options>", '<lf-options id="plan-choice" choose>')
+        .replace(PAGE_GROUP, '<lf-options id="plan-choice">')
         .replace(
             "</lf-options>\n  </div>",
             "</lf-options>\n"
@@ -162,6 +177,7 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
         ("<main>", "data-width", "content", "advice"),
         ("<lf-ask id=plan-choice-decision>", "data-width", "flow", "advice"),
         ("<div id=sized>", "data-height", "declared", "advice"),
+        ("<lf-tabs id=page-tabs>", "data-width", "flow", "advice"),
     ]
 
 
@@ -211,7 +227,7 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     html = (
         '<main><p id="visible">Visible words.</p>'
         '<template id="practice" data-sample><lf-ask id="nested-ask">'
-        '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
+        '<h2>Hidden question</h2><lf-options id="nested-options">'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
     )
@@ -265,8 +281,16 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
     """Which part opens is the browser's, so every part's Layout goes across, and a box
     at a part's depth under any other child names none."""
     registry = {
-        "lf-parts": {"x-views": {"members": "lf-part", "parts": True}},
-        "lf-tabs": {"x-views": {"members": "lf-tab"}},
+        "lf-parts": {
+            "paint": {
+                "views": {"members": "lf-part", "parts": True},
+            },
+        },
+        "lf-tabs": {
+            "paint": {
+                "views": {"members": "lf-tab"},
+            },
+        },
     }
     parts = structure_model.SourceDocument(
         '<main><header><h1>Review</h1></header><lf-parts id="parts">'

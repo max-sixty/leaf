@@ -62,14 +62,14 @@ BINDING_BADGE_PAGE = leaf_page(
     """
 <h1 id="h">Two questions, two forms</h1>
 <lf-ask id="cards-decision"><h2>How should the bath be heated?</h2>
-<lf-options id="cards" choose>
+<lf-options id="cards">
   <lf-option id="c-heater"><strong>Immersion heater</strong> Drops into the basin.</lf-option>
   <lf-option id="c-cable"><strong>Heated cable</strong> A cord across the base.</lf-option>
   <lf-option id="c-hand"><strong>Break the ice</strong> Someone goes out each morning.</lf-option>
 </lf-options></lf-ask>
 <p id="plan">The camera mount is the part nobody has costed.</p>
 <lf-ask id="rows-decision"><h2>When should it be costed?</h2>
-<lf-options id="rows" choose>
+<lf-options id="rows">
   <lf-option id="r-now" for="plan">Cost it now</lf-option>
   <lf-option id="r-later" for="plan">Leave it for the spring</lf-option>
 </lf-options></lf-ask>
@@ -275,7 +275,7 @@ enough that it runs past the end of one line and carries on onto the next</a>, a
 <p id="dsc-body">A replica in each region, and a read on every request that carries a
 session.</p></details>
 <lf-ask id="opts-decision"><h2>How should sessions work?</h2>
-<lf-options id="opts" choose>
+<lf-options id="opts">
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
@@ -442,9 +442,9 @@ First line of the note.
 Second paragraph of the note.
 </pre></lf-draft>
 <lf-ask id="picks-decision"><h2>Should we keep the mounts?</h2>
-<lf-options id="picks" choose>
+<lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
-  <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
+  <lf-option id="opt-b" selected>Replace the mounts</lf-option>
 </lf-options></lf-ask>
 """,
 )
@@ -459,7 +459,7 @@ NESTED_SUGGESTION = (
         "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
         "<lf-new>Switch the north feeder to thistle in autumn."
         '<lf-ask id="blend-decision"><h2>Which seed blend?</h2>'
-        '<lf-options id="blend" choose>'
+        '<lf-options id="blend">'
         '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
         '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
         "</lf-options></lf-ask></lf-new>",
@@ -828,8 +828,8 @@ DISCLOSED_PAGE = leaf_page(
 <p id="dsc-body">A replica in each region, and a read on every request that carries a
 session.</p></details>
 <lf-ask id="settled-decision"><h2>Should we keep it?</h2>
-<lf-options id="settled" choose settled>
-  <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week.</lf-option>
+<lf-options id="settled" settled>
+  <lf-option id="st-keep" selected><strong>Keep it</strong> Decided last week.</lf-option>
   <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-ask>
 """,
@@ -839,7 +839,7 @@ KEYS_PAGE = leaf_page(
     """
 <h1 id="h">Session store</h1>
 <lf-ask id="opts-decision"><h2>How should sessions work?</h2>
-<lf-options id="opts" choose>
+<lf-options id="opts">
   <lf-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
   <lf-option id="opt-token"><strong>Signed tokens</strong> No store at all.</lf-option>
 </lf-options></lf-ask>
@@ -1000,22 +1000,28 @@ def source_revision(page_dir, source):
 def data_projection_page(serve):
     feed = {
         "description": "A project-supplied live feed.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
         },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "rows": {
-                "contract": "deployment-rows",
-                "source": "source",
-                "property": "value",
-            }
+        "content": "empty",
+        "data": {
+            "inputs": {
+                "rows": {
+                    "contract": "deployment-rows",
+                    "source": "source",
+                    "property": "value",
+                }
+            },
         },
-        "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
+        "author": {
+            "example": '<lf-feed id="feed-example" source="deployments"></lf-feed>',
+        },
     }
     contract = {
         "description": "Current deployment status rows.",

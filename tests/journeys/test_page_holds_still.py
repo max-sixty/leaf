@@ -54,7 +54,7 @@ from render_harness import (
 from leaf import cli as cli_model
 from leaf import data as data_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import go_to_threads, settle
+from leaf_dev.browser import go_to_threads, open_on_me, settle
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -292,7 +292,7 @@ DECISIONS_PAGE = leaf_page(
     + "".join(
         f'<section id="ask-{n}"><h2>Part {n}</h2>{paragraphs(n * 3, 2)}'
         f'<lf-ask id="decide-{n}"><h3>Ask {n}: which way should part {n} go?</h3>'
-        f'<lf-options id="ways-{n}" choose><lf-option id="north-{n}">North</lf-option>'
+        f'<lf-options id="ways-{n}"><lf-option id="north-{n}">North</lf-option>'
         f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-ask></section>'
         for n in range(1, ASKS + 1)
     ),
@@ -774,7 +774,7 @@ def put_pane(page, built):
 def put_on_me_row(page, built):
     """On Me open in the panel, its list scrolled past its first rows, the user on a
     row in sight."""
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     rows = page.locator(".lf-fp-on-item")
     expect(rows).to_have_count(ASKS)
     rows.first.evaluate(
@@ -799,7 +799,7 @@ def put_on_me_turned_back(page, built):
     scrolled with the wheel past its first cards, the pointer resting on one in sight.
     Nothing the user does after the tab press repaints the panel, and no card holds a
     message for Leaf's reader to draw, so the list's next paint is the news's."""
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     cards = page.locator(".lf-fp-on-item")
     expect(cards).to_have_count(ASKS)
     tabs = page.locator(".lf-fp-controls .lf-fp-filters button")

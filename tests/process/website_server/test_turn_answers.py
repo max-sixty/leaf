@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     activity_reading,
     append_command,
@@ -100,7 +101,7 @@ def test_a_turn_that_completes_without_an_answer_is_still_receipted(
 
 def _page_pick(page_dir: Path) -> dict:
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+        PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     )
     publish(page_dir)
     return append_command(
@@ -230,7 +231,7 @@ def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
             "author": "agent",
             "revision": 1,
             "html": True,
-            "text": 'Which region?\n\n<lf-options id="region" choose>'
+            "text": 'Which region?\n\n<lf-options id="region">'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
@@ -289,7 +290,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
             "revision": 1,
             "html": True,
             "text": 'Which region?\n\n<lf-ask id="region-ask"><h3>Which region?</h3>'
-            '<lf-options id="region" choose>'
+            '<lf-options id="region">'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             '<lf-option id="west"><strong>West</strong></lf-option>'
             "</lf-options></lf-ask>",

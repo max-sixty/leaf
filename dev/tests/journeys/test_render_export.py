@@ -473,7 +473,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     expect_preview_named(driven, f"Preview · {runtime.name}")
     with sending(driven, "the agent-driven option pick"):
         driven.locator("#opt-shim .lf-pick").click()
-    expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(driven.locator("#opt-shim")).to_have_attribute("selected", "")
     [automated_event] = [
         event
         for event in events_model.read_events(page_dir)
@@ -492,7 +492,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         expect(
             driven.get_by_role("heading", name="A preview follows source edits")
         ).to_be_visible(timeout=HANDOVER_DEADLINE_MS)
-    expect(driven.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(driven.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
@@ -514,7 +514,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     expect_preview_named(user, f"User · {runtime.name}")
     with sending(user, "the user option pick"):
         user.locator("#opt-stage .lf-pick").click()
-    expect(user.locator("#opt-stage")).to_have_attribute("chosen", "")
+    expect(user.locator("#opt-stage")).to_have_attribute("selected", "")
     [user_event] = [
         event
         for event in events_model.read_events(user_dir)
@@ -546,7 +546,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
     assert user_event not in events_model.read_events(user_dir)
     replaced_page = open_page(browser, replaced_url)
     expect_preview_named(replaced_page, f"Preview · {runtime.name}")
-    expect(replaced_page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
+    expect(replaced_page.locator("#opt-stage")).not_to_have_attribute("selected", "")
 
 
 def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
@@ -683,7 +683,7 @@ def test_restarting_a_preview_discards_its_state_and_starts_it_fresh(
     page = open_page(browser, url)
     with sending(page, "the user option pick before restart"):
         page.locator("#opt-shim .lf-pick").click()
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     page.close()
 
     end_preview(process)
@@ -694,7 +694,7 @@ def test_restarting_a_preview_discards_its_state_and_starts_it_fresh(
     assert (directory / "index.html").read_bytes() == source.read_bytes()
     assert b'"kind": "action"' not in (directory / "events.jsonl").read_bytes()
     fresh = open_page(browser, restarted_url)
-    expect(fresh.locator("#opt-shim")).not_to_have_attribute("chosen", "")
+    expect(fresh.locator("#opt-shim")).not_to_have_attribute("selected", "")
 
 
 def test_preview_adds_immutable_media_before_stamping_source(watched_preview):

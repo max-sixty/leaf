@@ -12,6 +12,9 @@
  * sheet's faces and only a transcript there takes it again. A widget's own source or
  * controls keep its own sheet. The runtime colours a code block's tokens only where the
  * block wears the face (syntax.js), since the token palette is drawn for its ground.
+ * The face's native controls, a page's own buttons, fields and labelled choices, wear
+ * the faces of Leaf's own, under the same input (controls.css, "The faces of Leaf's
+ * control roles").
  *
  * The face is markup's default, so its rules also stand in a cascade layer of their
  * own, `lf-reading-face`, the first of the tier this sheet composes into (`lf-base` in
@@ -35,7 +38,8 @@
 /* Markup Leaf renders from Markdown, a message's or a widget's body (`markdown.js`,
    `.lf-markdown-body`), is Leaf's reading of it, so it wears the face whatever theme the
    page takes. */
-:where(.lf-thread-transcript, .lf-markdown-body) {
+:where(.lf-thread-transcript),
+:where(.lf-markdown-body) {
   --lf-reading-face: 1;
 }
 :host {
@@ -86,7 +90,9 @@
      * shrinking box is sized from, so a flex item or a grid track holding a long name
      * hands room to its neighbour the same way (a flex item measured 691px to 359px).
      * A block (pre) wraps nothing, so this reaches nothing there. */
-    :is(code, samp, kbd:where(:not(.lf-key-badge))) {
+    code,
+    samp,
+    kbd:where(:not(.lf-key-badge)) {
       overflow-wrap: anywhere;
     }
     /* A block that scrolls its own lines never sizes what holds it: without this a long
@@ -231,8 +237,10 @@
      * edges, and every row, the outer columns, the header row and the last row stand
      * flush with them. An outward ring there lost the side on the table's edge. Room
      * outside the table would have to come from a negative margin, which overflows any
-     * scroller holding the table flush, as an x-bound box does. */
-    :is(tr, th, td) {
+     * scroller holding the table flush, as a paint.bound box does. */
+    tr,
+    th,
+    td {
       --lf-ring-at: var(--lf-focus-ring-inset);
     }
   }
@@ -285,7 +293,9 @@ dl.lf-facts dd {
        nothing to say where it ended. Slice the decoration across lines so side padding
        belongs only to the span's start and end: cloning each fragment adds padding
        after line breaking and can paint past the column. */
-    :is(code, samp, kbd) {
+    code,
+    samp,
+    kbd {
       background: var(--lf-code-bg);
       border-radius: var(--lf-code-inline-r);
       padding: var(--lf-code-inline-pad);
@@ -345,7 +355,8 @@ dl.lf-facts dd {
     /* A cell already supplies the identifier's frame and spacing. The size is relative to
        the cell's own, so a name reads as a word of the row: at the chip size it stood
        11.5px beside 14px values. */
-    :is(th, td) :is(code, samp):not(pre *) {
+    :is(th, td) code:not(pre *),
+    :is(th, td) samp:not(pre *) {
       padding: 0;
       background: none;
       font-size: 0.9em;
@@ -354,12 +365,11 @@ dl.lf-facts dd {
      * keeps `--output-dir`. `anywhere` (above) gives a name a one-character minimum, and
      * a table's automatic layout sets every column the same share of the way from its
      * minimum to its widest, so a column of names beside a column of sentences got
-     * almost none: at 720px `--output-dir` stood as `--output-` over `dir`, and
-     * `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box of
-     * its own width, which the column can't go under, up to a third of the reading
-     * column, or of the nearest size container where that is narrower (the body, unless
-     * a box nearer declares one). A longer name breaks inside its box rather than hold
-     * the column open.
+     * almost none: at 720px `--output-dir` stood as `--output-` over `dir` beside
+     * 560px of prose. So the name is a box of its own width, which the column can't go
+     * under, up to a third of the reading column, or of the nearest size container
+     * where that is narrower (the body, unless a box nearer declares one). A longer
+     * name breaks inside its box rather than hold the column open.
      *
      * The rule takes a `<th scope="row">` whose only element is the code, because that
      * is where the page's author says which cell names the row: in pages written since
@@ -400,7 +410,8 @@ dl.lf-facts dd {
       font-weight: 600;
       margin-bottom: 6px;
     }
-    :is(th, td) {
+    th,
+    td {
       text-align: start;
       padding: 8px 14px;
       border-bottom: 1px solid var(--lf-rule);
@@ -408,7 +419,8 @@ dl.lf-facts dd {
       --lf-block-frame: 1;
     }
     @media screen and (max-width: 640px) {
-      :is(th, td) {
+      th,
+      td {
         padding-inline: 8px;
       }
     }
@@ -537,7 +549,8 @@ dl.lf-facts dd {
     }
     /* A list keeps the browser's markers, at each depth, over a page reset that
        clears them (layer.py, `PAGE_RESET_LAYER`). */
-    :is(ul, ol) {
+    ul,
+    ol {
       margin: 10px 0;
       padding-inline-start: var(--lf-list-inset);
       list-style: revert;
@@ -680,7 +693,9 @@ dl.lf-facts dd {
      * numbers rather than tokens, wherever the face is worn. Like the element styles above,
      * these are prose defaults, which a component's own spacing outranks. */
     @container style(--lf-density: working) {
-      :is(p, ul, ol) {
+      p,
+      ul,
+      ol {
         margin-block: 6px;
       }
       li {
@@ -695,7 +710,8 @@ dl.lf-facts dd {
       h4 {
         margin: 10px 0 4px;
       }
-      :is(th, td) {
+      th,
+      td {
         padding: 4px 10px;
       }
     }
@@ -708,7 +724,8 @@ dl.lf-facts dd {
    these rules.
    Paragraphs keep the editor's whitespace, and a Markdown message's blocks the blank
    lines between them (below), through send, replies and reopening. */
-:is(.lf-msg-body, leaf-text) {
+.lf-msg-body,
+leaf-text {
   --lf-quote-inset: 10px;
   --lf-pre-inset: 10px;
 }

@@ -2,7 +2,7 @@
 @import "./styles/disclosure.css";
 @import "./styles/worktrees.css";
 
-/* The diff's rules inside its own shadow tree (x-shadow). A selector in defaults.css stops
+/* The diff's rules inside its own shadow tree (words.shadow). A selector in defaults.css stops
    dead at a shadow boundary, so these go in as a <style> the shadow root owns. They stay
    in the package's
    stylesheets because the package owns the look: a project overriding it overrides these
@@ -477,7 +477,8 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 :where(:host(lf-diff)) [data-line-type="change-addition"] [data-diff-span] {
   background: var(--lf-code-add-mark);
 }
-:where(:host(lf-diff)) :is([data-separator], [data-no-newline]) {
+:where(:host(lf-diff)) [data-separator],
+:where(:host(lf-diff)) [data-no-newline] {
   padding-inline: calc(var(--lf-diff-gutter) + 2ch) 8px;
   color: var(--lf-code-muted);
   background: var(--lf-code-chrome);
@@ -490,7 +491,12 @@ pre[data-overflow="wrap"] .lf-diff-rows {
    chrome's face, as the path does the reverse. The row keeps the source's face,
    so its inset measures the code column in the code's `ch`; the label is a block so
    its line box holds only its own face and the row stays one source line tall. */
-:where(:host(lf-diff)) :is([data-separator-wrapper], [data-no-newline] > span) {
+:where(:host(lf-diff))
+  :where([data-separator-wrapper]):is(
+    [data-separator-wrapper],
+    [data-no-newline] > span
+  ),
+:where(:host(lf-diff)) [data-no-newline] > span {
   display: block;
   font: var(--lf-font-small);
   line-height: var(--lf-code-line);

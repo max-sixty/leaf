@@ -160,7 +160,7 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
         )
         if reading == "page-tab":
             content = content.replace(
-                '<lf-tabs id="readings">', '<lf-tabs id="readings" class="layout-flow">'
+                '<lf-tabs id="readings">', '<lf-tabs id="readings" flow="page">'
             )
         if reading == "boxed-tab":
             content = f"<section>{content}</section>"
@@ -385,8 +385,8 @@ def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, se
                 """
 <h1>Choices</h1>
 <div style="overflow:clip;display:flex;gap:16px">
-<label class="lf-choice"><input id="check" type="checkbox">Outline changes</label>
-<label class="lf-choice"><input id="radio" type="radio" name="view">Full frame</label>
+<label><input id="check" type="checkbox">Outline changes</label>
+<label><input id="radio" type="radio" name="view">Full frame</label>
 </div>
 <p><button>Next</button></p>
 """,
@@ -494,9 +494,9 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
             """
 <h1>Contours</h1>
 <p id="said">A paragraph with room around it.</p>
-<lf-options id="pick" choose>
+<lf-options id="pick">
   <lf-option id="keep"><strong>Keep</strong> the words alone.</lf-option>
-  <lf-option id="place" chosen><strong>Place</strong> them in the line.</lf-option>
+  <lf-option id="place" selected><strong>Place</strong> them in the line.</lf-option>
 </lf-options>
 """,
         )
@@ -1181,7 +1181,7 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
                 """
       <lf-ask id="decision"><h2>Ready?</h2>
         <p>Review the evidence before choosing.</p>
-        <lf-options id="answer" choose>
+        <lf-options id="answer">
           <lf-option id="yes">Approve</lf-option>
           <lf-option id="no">Hold</lf-option>
         </lf-options>

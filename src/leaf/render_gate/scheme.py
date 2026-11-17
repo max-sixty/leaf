@@ -328,7 +328,7 @@ def _render_page(
         registry = served_here("/registry.json").json()
         # The readings in the page consume element declarations, so they are handed
         # only those:
-        # $keys spells its members in the x- keys' own names, and a sweep over
+        # $keys spells its members in a declaration's own keys, and a sweep over
         # every declaration took it for a widget called $keys.
         declarations = element_declarations(registry)
         visual_provider_problems = evaluate_probe(

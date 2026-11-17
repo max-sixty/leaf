@@ -32,6 +32,7 @@ from render_harness import (
     back_gesture,
     consume_browser_errors,
     draft_control,
+    expect_design_mode,
     expect_panel_says,
     hold_selection,
     is_problem,
@@ -57,7 +58,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, on_view_tab, open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -274,8 +275,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On Me by pointer: out with the panel's view.
-    toggle.click()
+    # On Me by pointer, its tab beside the leaf's menu: out with the panel's view.
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -323,8 +324,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     out()
 
-    toggle.focus()
-    page.keyboard.press("Enter")
+    # And On Me's tab pressed from the keyboard.
+    on_view_tab(page, "On Me").press("Enter")
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -344,7 +345,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
         """
         <lf-ask id="second-ask">
           <h2>A second question</h2>
-          <lf-options id="second-options" choose>
+          <lf-options id="second-options">
             <lf-option id="second-one">First answer</lf-option>
             <lf-option id="second-two">Second answer</lf-option>
           </lf-options>
@@ -1065,7 +1066,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
     # command and the widget ancestor outside the dialog are both unreachable.
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     page.keyboard.press("Escape")
     expect(popover).to_be_hidden()
     expect(modal).to_be_visible()
@@ -2059,7 +2060,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
         """
 <h1 id="frames">Choose a frame</h1>
 <lf-ask id="first-question-decision"><h2>Which first frame?</h2>
-<lf-options id="first-question" choose>
+<lf-options id="first-question">
   <lf-option id="first-frame"><strong>First</strong>
     <label><input id="first" type="radio" name="first-frame">
       <span>first state</span></label>
@@ -2067,7 +2068,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
   <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
 </lf-options></lf-ask>
 <lf-ask id="frame-question-decision"><h2>Which next frame?</h2>
-<lf-options id="frame-question" choose>
+<lf-options id="frame-question">
   <lf-option id="after-frame"><strong>After</strong>
     <div id="label-thread" tabindex="-1">
     <label id="frame-label"><input id="frame" type="radio" name="frame">

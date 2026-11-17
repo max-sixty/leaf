@@ -274,10 +274,6 @@
     2 * var(--lf-margin-entry) + var(--lf-margin-gap) + var(--lf-rail-hang) +
       var(--lf-focus-ring-room)
   );
-  /* A note's preferred text measure plus the gutter beside its passage. The
-     column Layout centers this pair when both fit; native flex wrapping stacks
-     them otherwise (layouts.css). */
-  --lf-note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. Beside its words a card stands at the
      minimum until `size-width` widens it (placement-rules.json). The minimum chooses whether the card and the

@@ -56,7 +56,6 @@ from render_cases_layout import (
     SCROLLED_CONTAINER,
     SHOT_SRC,
     SHOTS,
-    SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     UNMARKABLE_PAGE,
     apply_restore_case,
@@ -846,10 +845,6 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     viewport still belongs to page flow, and offered controls still lose presses
     when clipped, beside a clean control the viewport shows completely.
 
-    A note in an option now wraps inside its native row rather than being pulled
-    into the page's margin. It remains readable inside the group's clip and must not
-    be reported alongside the genuinely lost boxes.
-
     A box's own content has no box to lose, so the box answers for it, down as well as
     across: a log capped by a max-height, a short box of paragraphs and a label that
     does not wrap each cut off what they hold. A bounded log scrolls, a closed
@@ -857,9 +852,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     box overhangs by less than a line, and words clipped to a pixel for whoever is
     listening show nothing to cut from, so none of those is named."""
     url = serve(
-        OVER_ITS_CONTAINER.replace(
-            "</main>", _added(SIDENOTE_IN_A_WIDGET) + CUT_CONTENT + "</main>"
-        ),
+        OVER_ITS_CONTAINER.replace("</main>", CUT_CONTENT + "</main>"),
         layer_registry=DRAWING_CONTROL_LAYER,
         layer_widgets=DRAWING_CONTROL_WIDGETS,
     )
@@ -867,28 +860,13 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     expect(page.locator("lf-test-drawing-control [data-lf-offer]")).to_have_count(2)
     expect(page.locator("#clipped-drawing-control")).to_have_text("Inspect")
     expect(page.locator("#clean-drawing-control")).to_have_text("Inspect")
-    # Scroll the group rather than its note, so scrolling cannot conceal a clipped
-    # child by moving its overflow-hidden container's contents.
-    page.locator("#where").scroll_into_view_if_needed()
-    seen = page.evaluate("""() => {
-        const n = document.getElementById('boxed-note');
-        const b = n.getBoundingClientRect();
-        const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        return {painted: !!mid && (n === mid || n.contains(mid)),
-                at: mid && mid.tagName};
-    }""")
     page.close()
-    assert seen["painted"], f"the option clipped its wrapped note: {seen}"
     failures = render_gate_model.render_version(browser, url).failures
     clipped = {
         (f.at, f.values["container"]) for f in failures if f.code == "clipped-out"
     }
     controls = {f.values["id"] for f in failures if f.code == "clipped-control"}
 
-    assert (
-        "<aside id=boxed-note>",
-        "<lf-options id=where>",
-    ) not in clipped, f"the visible wrapped note was reported as clipped: {failures}"
     assert (
         "<div id=eaten>",
         "<div id=clipping>",
@@ -956,9 +934,8 @@ def test_the_render_gate_reads_one_light_page_at_the_desktop_window(browser, ser
     source = leaf_page(
         "native layout in the gate",
         '<aside><div class="layout-track"><nav aria-label="Route"><a href="#move">Move</a></nav></div></aside>'
-        '<div class="layout-column layout-notes"><h1>Migration plan</h1><h2 id="move">Move</h2>'
-        '<div class="layout-note"><p>Shift one cohort at a time while keeping the old readers available.</p>'
-        '<aside class="note" id="frequency">Support runs this twice a month.</aside></div></div>',
+        '<div class="layout-column"><h1>Migration plan</h1><h2 id="move">Move</h2>'
+        "<p>Shift one cohort at a time while keeping the old readers available.</p></div>",
         layout="sidebar",
     )
     seen = []

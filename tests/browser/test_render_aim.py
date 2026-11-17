@@ -9,7 +9,6 @@ from itertools import pairwise
 
 import pytest
 from interact_support import (
-    SHIPPED_PACKAGES,
     append_carried_log_record,
     append_command,
     declare_idle,
@@ -102,7 +101,6 @@ from leaf import structure as structure_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
-from leaf.validation import composition as validation_model
 from leaf_dev.browser import PANEL_THREAD, panel_tab
 from leaf_dev.example_data import named_source
 
@@ -167,46 +165,6 @@ def open_compact_comment(page, text=None):
 # The top of the window the page shows (geometry.js, `shownWindow`): what a float the
 # page places stands below.
 SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
-
-
-def test_the_catalog_sidenote_can_be_aimed_whole(browser, serve):
-    """The sidenote authors copy carries the identity its advertised aim needs.
-
-    A handwritten fixture would prove the runtime and leave the catalog free to
-    regress to an id-less note that renders normally but gives Alt nothing to outline.
-    Drive that example itself through the whole gesture, from outline to anchored
-    composer."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    sidenote = registry["aside.note"]["x-example"]
-    html = LONG_PAGE.replace(
-        '<h1 id="t">Long</h1>', f'<h1 id="t">Long</h1>\n{sidenote}'
-    )
-    page = open_page(browser, serve(html))
-    note = page.locator("#logout-frequency")
-
-    note.hover()
-    page.keyboard.down("Alt")
-    expect(page.locator("[data-lf-aimed]")).to_have_id("logout-frequency")
-    note.click()
-    page.keyboard.up("Alt")
-
-    # The sequence already names Comment, so the durable composer is the focused field
-    # beside the note. It grows in place, Shift+Enter adds a line, and Enter submits it.
-    field = open_compact_comment(page, "why here")
-    assert page.evaluate(DRAFT_MARK) == "logout-frequency"
-    one_line = field.bounding_box()["height"]
-    page.keyboard.press("Shift+Enter")
-    page.keyboard.type("because every active session must end before support continues")
-    assert field.bounding_box()["height"] > one_line
-    expect(page.locator(".lf-composer")).to_have_attribute("data-lf-open", "")
-    with sending(page, "the compact comment"):
-        page.keyboard.press("Enter")
-    sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["kind"] == "comment"
-    assert sent["text"] == (
-        "why here\nbecause every active session must end before support continues"
-    )
-    expect(page.locator(".lf-fab-bar")).to_be_hidden()
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):

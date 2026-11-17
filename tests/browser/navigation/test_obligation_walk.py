@@ -85,7 +85,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         )
     source = leaf_page(
         "Ask travel across tabs",
-        '<h1>Review the two proposals</h1><lf-tabs id="views" class="layout-flow">'
+        '<h1>Review the two proposals</h1><lf-tabs id="views" flow="page">'
         '<lf-tab id="first" label="First">'
         '<div style="height: 1800px"></div>'
         + first

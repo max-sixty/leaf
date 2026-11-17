@@ -21,8 +21,8 @@ import { addressableName } from "./addressable-names.js";
  * @typedef {ReturnType<ReturnType<typeof widgetController>["read"]>} WidgetReading
  * @typedef {(element: Element) => WidgetReading} ReadWidget
  * @typedef {Extract<import("./framework/application.js").ObligationRecord, {source: {kind: "widget"}}>} WidgetObligation
- * @typedef {{held: Map<Node, import("./framework/application.js").ObligationRecord[]>, asking: Set<string>, stopped: Map<Element, boolean>}} Open
- *   The open widget obligations as one reading reads them: those each goal holds, placed
+ * @typedef {{tree: WorkTree, held: Map<Node, import("./framework/application.js").ObligationRecord[]>, asking: Set<string>, stopped: Map<Element, boolean>}} Open
+ *   One reading's scope (`workTree`) and its open widget obligations: those each goal holds, placed
  *   once for every goal of the scope (`obligationsByRegion`); the ids of the widgets that
  *   own one; and each goal's `stopped`, which a parent's reads again.
  */
@@ -39,28 +39,73 @@ function workRole(element, role = null) {
 }
 
 /** @template {Role} R @typedef {{element: Element, role: Extract<WorkRole, {role: R}>}} WorkEntry */
-/** @template {Role} R @param {[string, WorkRole]} entry @param {R} role
- * @returns {entry is [string, Extract<WorkRole, {role: R}>]} */
-const hasRole = (entry, role) => entry[1].role === role;
-/** @template {Role} R @param {Element} root @param {R} role @param {{direct?: boolean}} [options]
- * @returns {WorkEntry<R>[]} */
-function workEntries(root, role, { direct = false } = {}) {
-  const roles = new Map(
-    Object.entries(widgets()).filter((entry) => hasRole(entry, role)),
-  );
-  const boundary = workAncestor(root, "scope");
-  return [...root.querySelectorAll("*")].flatMap((element) => {
-    const declared = roles.get(element.localName);
-    return declared &&
-      workAncestor(element, "scope") === boundary &&
-      (!direct || workAncestor(element.parentElement) === root)
-      ? [{ element, role: declared }]
-      : [];
-  });
+/** @typedef {{
+ *   goals: WorkEntry<"goal">[],
+ *   workers: WorkEntry<"worker">[],
+ *   childGoals: Map<Element, WorkEntry<"goal">[]>,
+ *   childWorkers: Map<Element, Element[]>,
+ *   leaves: (goal: Element) => WorkEntry<"goal">[],
+ * }} WorkTree
+ *   A scope's goals and workers in document order, read in one walk. A goal's or worker's
+ *   children are those whose nearest work ancestor of any role is it; a goal's leaves are
+ *   the goals inside it, through any role but a nested scope, that have no child goal.
+ */
+/** @template K, V @param {Map<K, V[]>} map @param {K} key @param {V} item */
+const append = (map, key, item) => {
+  const list = map.get(key);
+  if (list) list.push(item);
+  else map.set(key, [item]);
+};
+// One walk of the scope, so a reading costs the scope's size rather than its size for
+// each goal (root AGENTS.md, "Responsiveness"). A nested scope's work is its own, so the
+// walk doesn't enter it.
+/** @param {Element} root @returns {WorkTree} */
+function workTree(root) {
+  const roles = widgets();
+  /** @type {WorkTree["goals"]} */
+  const goals = [];
+  /** @type {WorkTree["workers"]} */
+  const workers = [];
+  /** @type {WorkTree["childGoals"]} */
+  const childGoals = new Map();
+  /** @type {WorkTree["childWorkers"]} */
+  const childWorkers = new Map();
+  /** @type {Map<Element | null, WorkEntry<"goal">[]>} goals by their nearest goal ancestor */
+  const innerGoals = new Map();
+  /** @param {Element} parent @param {Element | null} work @param {Element | null} goal */
+  const visit = (parent, work, goal) => {
+    for (const element of parent.children) {
+      const role = roles[element.localName];
+      if (role?.role === "scope") continue;
+      if (role?.role === "goal") {
+        const entry = { element, role };
+        goals.push(entry);
+        if (work) append(childGoals, work, entry);
+        append(innerGoals, goal, entry);
+      } else if (role?.role === "worker") {
+        workers.push({ element, role });
+        if (work) append(childWorkers, work, element);
+      }
+      visit(element, role ? element : work, role?.role === "goal" ? element : goal);
+    }
+  };
+  visit(root, workAncestor(root), null);
+  /** @type {Map<Element, WorkEntry<"goal">[]>} */
+  const leafCache = new Map();
+  /** @param {Element} goal @returns {WorkEntry<"goal">[]} */
+  const leaves = (goal) => {
+    let found = leafCache.get(goal);
+    if (!found) {
+      found = (innerGoals.get(goal) ?? []).flatMap((inner) => [
+        ...(childGoals.has(inner.element) ? [] : [inner]),
+        ...leaves(inner.element),
+      ]);
+      leafCache.set(goal, found);
+    }
+    return found;
+  };
+  return { goals, workers, childGoals, childWorkers, leaves };
 }
-/** @param {Element} root @param {Role} role */
-const directWorkElements = (root, role) =>
-  workEntries(root, role, { direct: true }).map(({ element }) => element);
 
 /** @param {Element | null | undefined} element @param {Role | null} [role] */
 export function workAncestor(element, role) {
@@ -185,20 +230,17 @@ function stoppedNow(entry, open, read) {
   if (!role.stopped.some((value) => value === roleState(goal, role, read)))
     return false;
   if (open.asking.has(goal.id)) return true;
-  const children = workEntries(goal, "goal", { direct: true });
+  const children = open.tree.childGoals.get(goal) ?? [];
   return children.length ? children.some((child) => stopped(child, open, read)) : true;
 }
 
-/** @param {WorkEntry<"goal">} entry @param {Open} open @param {ReadWidget} read */
-function goalView(entry, open, read) {
+/** @param {WorkEntry<"goal">} entry @param {Open} open @param {Map<Element, ReturnType<typeof workerView>>} workers @param {ReadWidget} read */
+function goalView(entry, open, workers, read) {
   const { element: goal, role } = entry;
-  const descendants = workEntries(goal, "goal");
-  const leaves = descendants.filter(
-    (item) => !directWorkElements(item.element, "goal").length,
-  );
+  const leaves = open.tree.leaves(goal);
   const progressLeaves = leaves.length ? leaves : [entry];
-  const liveWorkers = workEntries(goal, "worker", { direct: true })
-    .map((worker) => workerView(worker, read))
+  const liveWorkers = (open.tree.childWorkers.get(goal) ?? [])
+    .map((worker) => /** @type {ReturnType<typeof workerView>} */ (workers.get(worker)))
     .filter((worker) => !worker.retired);
   const state = roleState(goal, role, read);
   const reportVerb = stateReport(goal, role);
@@ -248,25 +290,23 @@ export function readWork(scope) {
     return reading;
   };
   const obligations = openWidgetObligations();
-  const entries = workEntries(scope, "goal");
+  const tree = workTree(scope);
   /** @type {Open} */
   const open = {
+    tree,
     held: obligationsByRegion(
-      entries.map(({ element }) => element),
+      tree.goals.map(({ element }) => element),
       obligations,
     ),
     asking: new Set(obligations.map((item) => item.source.id)),
     stopped: new Map(),
   };
-  const goals = entries.map((goal) => goalView(goal, open, read));
+  const workers = tree.workers.map((worker) => workerView(worker, read));
+  const workerViews = new Map(workers.map((worker) => [worker.element, worker]));
+  const goals = tree.goals.map((goal) => goalView(goal, open, workerViews, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
-  const workers = workEntries(scope, "worker").map((worker) =>
-    workerView(worker, read),
-  );
   const liveWorkers = workers.filter((worker) => !worker.retired);
-  const leaves = goals.filter(
-    (goal) => !directWorkElements(goal.element, "goal").length,
-  );
+  const leaves = goals.filter((goal) => !tree.childGoals.has(goal.element));
   const stoppedGoals = goals
     .filter((goal) => goal.stopped)
     .sort((a, b) => {

@@ -196,9 +196,10 @@ widget. On a page without Leaf, nothing listens and the marks mean nothing.
 `ago(ts)` words a server timestamp as the page does everywhere: "just now", then "2m
 ago", "2h ago", "2d ago". Draw an age
 in `<time datetime=${ts}>` and declare `agePreview` as its `lfPreview`
-(`module-input.md`, "Previews"), so pointing at it says when, in the reader's zone,
-as Leaf's own ages do: "Sat 15 Aug 2026, 14:02 PT". Read `ago` synchronously in
-`render()`, which then redraws as the time's reading changes.
+(`module-input.md`, "Previews"), so pointing at it says when, in the reader's zone and
+as their browser writes a date, as Leaf's own ages do: "Sat, Aug 15, 2026, 2:02 PM PT".
+Read `ago` synchronously in `render()`, which then redraws as the time's reading
+changes.
 
 ## Editing a bound file
 

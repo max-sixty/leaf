@@ -114,11 +114,6 @@ html[data-lf-region-capture] {
 html[data-lf-draw-mode] {
   touch-action: pinch-zoom;
 }
-/* A change's mark is an annotation, so hiding annotations (`o`) hides its bar
-   (margin-bars.js) too. */
-:root[data-lf-annotations="hidden"] {
-  --lf-change-bar: transparent;
-}
 /* The unanswered decision the user is in (markHere) wears the location ring
    (`[data-lf-projected-location]`, surfaces.css). The ring stands outside the decision, so a
    landing keeps its room at the scroller's edge, as a margin entry's does (controls.css): an obligation
@@ -1003,7 +998,12 @@ html[data-lf-draw-mode] {
     background: var(--lf-work);
   }
   .lf-change-bar {
-    background: var(--lf-change-bar, var(--lf-change));
+    background: var(--lf-change);
+  }
+  /* A change's mark is an annotation, so hiding annotations (`o`, annotation-layer.js)
+     hides its bar too. */
+  :scope[data-lf-annotations-hidden] .lf-change-bar {
+    background: transparent;
   }
   /* The change a Change entry points at, outlined round all its blocks, in the quiet
      contour a margin control draws round what it concerns (`[data-lf-traced]`,

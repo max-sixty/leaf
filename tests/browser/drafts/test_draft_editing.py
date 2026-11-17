@@ -11,6 +11,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import panel_comment
 from render_cases_navigation import DRAFT_DRAWN, JOURNEY_V1, _publish
 from render_harness import (
+    CHROME_ROOT,
     compare_with,
     consume_browser_errors,
     draft_control,
@@ -840,7 +841,9 @@ def test_draft_controls_survive_hiding_annotations_and_escape_discards(browser, 
     page.keyboard.press("Tab")
     expect(draft_control(page, "save", "local")).to_be_focused()
     page.keyboard.press("o")
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     expect(draft_control(page, "save", "local")).to_be_visible()
     expect(draft_control(page, "cancel", "local")).to_be_visible()
     expect(draft.locator("[data-lf-draft-action]:visible")).to_have_count(2)

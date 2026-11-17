@@ -159,8 +159,8 @@ lf-toc a[data-lf-focus] {
  * rule, centred on the row's first line in one column at every depth; the map draws the
  * section's marker as that ring (below). Only where you are fills a marker, so no mark
  * reads as the current section. While the changes view is on, a changed section's
- * stretch of the rule wears the face a change wears in the margin (`--lf-change-bar`,
- * chrome.css), and a mark stands over it. Out of the words, no mark reads as part of
+ * stretch of the rule wears the change's colour, as its bar in the margin does
+ * (chrome.css), and a mark stands over it. Out of the words, no mark reads as part of
  * them, and out of flow, none moves a row. They take no
  * presses: the link is the only thing to press. Rejected: a dash after the words read
  * as an en dash; dashes ticked off the rule, with every label inset 6px further on the
@@ -208,7 +208,7 @@ lf-toc
   inset-inline-start: calc(-2px - var(--lf-sp-3) - var(--lf-toc-indent));
   width: 3px;
   border-radius: 1.5px;
-  background: var(--lf-change-bar, var(--lf-change));
+  background: var(--lf-change);
 }
 /* The outline's head, the disclosure's toggle or the label over the outline beside the
  * body, stands where the start row they leave out would, so it carries the marks of what

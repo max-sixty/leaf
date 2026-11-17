@@ -108,7 +108,7 @@ UNRESOLVED = """async () => {
   const api = await import(new URL('runtime/check-api.js', boot));
   const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
   const unsent = (event) => event.kind === 'action' &&
-    declarationFor(document.getElementById(event.widget))?.state?.verbs?.[event.action]
+    declarationFor(document.getElementById(event.widget))?.verbs?.[event.action]
       ?.unsent === true;
   return api.readApplication().unresolved.map(({ event }) =>
     [event.attempt, event.kind, unsent(event)]);

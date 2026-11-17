@@ -205,19 +205,16 @@ def reload_skill(session_id: str) -> str | None:
     it removed, and to read the skill again and, through it, what the work in progress
     needs.
 
-    Claude Code keeps a model-written summary, the last few files read and the
-    skills loaded through its Skill tool. The rest of what the agent read is gone,
-    which takes the skill when it was read as a file, the references, and every
-    widget's instructions, which only `leaf page instructions` prints. The summary
-    paraphrases those rules, as in "settle the lf-options with `settled`", and the
-    page's own markup offers a pattern to copy, so an agent can believe it still has
-    them. On 2026-10-25 five sessions left questions for the user only in their
-    replies, four of them after compacting, so this hook first sent the agent back
-    to the skill alone. Over the two weeks to 2026-11-15 agents reread the skill
-    after 273 of 324 compactions, yet 34 of the 107 `lf-options` groups written
-    after a compaction had that widget's instructions in context, against 34 of 34
-    written before one. Restating a rule on every prompt weighed on every turn and
-    covered only that rule, so this message names what the compaction removed and
+    Claude Code keeps a model-written summary, the last few files read and the skills
+    loaded through its Skill tool. The rest of what the agent read is gone, which takes
+    the skill when it was read as a file, the references, and every widget's
+    instructions, which only `leaf page instructions` prints. The summary paraphrases
+    those rules, as in "settle the lf-options with `settled`", and the page's own markup
+    offers a pattern to copy, so an agent can believe it still has them. Sending the
+    agent back to the skill alone isn't enough: agents reread the skill after most
+    compactions, yet `lf-options` groups written after a compaction often lack that
+    widget's instructions in context, where those written before one have them. Restating a rule on every prompt weighs on every turn and covers only
+    that rule, so this message names what the compaction removed and
     leaves the rules to the skill and its routes."""
     from .schema import SKILL_FILE
 

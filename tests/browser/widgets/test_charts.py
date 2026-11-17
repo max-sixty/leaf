@@ -79,8 +79,8 @@ def test_the_covered_words_gate_reads_a_chart_s_labels_and_what_is_shown(
         # tick for the first week of June reads 1 over Jun. Those two lines are two
         # tspans of one <text>, offset by the dy the drawing asked for, and each reports
         # a line box carrying the font's own leading, a couple of pixels taller than
-        # the step between them. So the pass read every such tick as a collision, and
-        # the corpus's own heat-loss page failed the gate for an ordinary axis.
+        # the step between them. So a pass reading those boxes would read every such
+        # tick as a collision, and fail the gate for an ordinary axis.
         #
         # The reading is taken as the gate runs it, where the label's lines are held out,
         # and with that hold defeated, where it has to report; otherwise a pass here
@@ -265,7 +265,7 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
     browser, serve
 ):
     """A drawing that scales takes its labels with it. That is what a diagram does, and
-    at 63% of its natural size a five-node flowchart's labels went under legibility; a
+    scaled well below its natural size a flowchart's labels can go under legibility; a
     chart has no natural size to keep, so it is drawn again for the width it now has and
     its text stays the size the theme set. The room changes for reasons a user never
     asked about — a window narrower than the column, the thread panel taking its strip
@@ -344,7 +344,7 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
 
 
 def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
-    """The page lays a chart's box out before Plot draws (x-height), so the drawing fills
+    """The page lays a chart's box out before Plot draws (paint.height), so the drawing fills
     that box rather than sizing it: with a legend Plot sets above it, the legend and the
     drawing together end at the box's foot, and the box keeps the height it had at first
     paint. Drawn at the options' own height instead, the legend overhangs the box."""
@@ -393,8 +393,8 @@ def test_a_chart_gives_its_legend_the_room_a_late_font_takes(engine, request, se
     """A legend's height comes from its type as well as its width: a font that arrives
     after the chart has drawn, as the wider spacing set here does, wraps the swatches
     onto more lines at the same width. The drawing gives the legend that room and still
-    ends at the box's foot. Measured once per width, the legend ran past the box onto
-    the paragraph below."""
+    ends at the box's foot. Measured once per width, the legend would run past the box
+    onto the paragraph below."""
     body = """{
   ariaLabel: "Merged by team",
   color: {legend: true},
@@ -434,11 +434,12 @@ def test_a_chart_keeps_its_stated_height_beside_a_taller_one(browser, serve):
     """A row of tiles stretches each cell to the row's tallest, and once a chart is drawn
     its box is the drawing's, so a short chart's box stands as tall as its neighbour.
     Drawn again for a new width, it keeps the height it states. Drawn to the stretched
-    box, it took the neighbour's height, and each width change after kept it there.
+    box, it would take the neighbour's height, and each width change after would keep it
+    there.
 
     Plot loads here before the charts' module does, so their room is delivered after
-    the bundle is in, the order a CPU-starved machine gave them. The first drawing ran
-    inside that ResizeObserver delivery then, and the browser reported a ResizeObserver
+    the bundle is in, the order a CPU-starved machine can give them. A first drawing run
+    inside that ResizeObserver delivery would have the browser report a ResizeObserver
     loop."""
     body = """{
   ariaLabel: "Merged by team: backend 12, frontend 19",
@@ -606,8 +607,8 @@ def test_a_chart_first_laid_out_on_paper_draws_at_its_stated_height(browser, ser
     """Paper prints a shut tab's panel open, where the theme holds no undrawn box at its
     stated height and the box is its source's. A chart there still waits for the user to
     open the tab (`measure`), so it takes the stated height once they do. Drawn for the
-    box paper gave it, it kept the source's height, and a source shorter than Plot's
-    margins drew bars of negative height."""
+    box paper gave it, it would keep the source's height, and a source shorter than
+    Plot's margins would draw bars of negative height."""
     url = serve(
         leaf_page(
             "chart printed from a shut tab",

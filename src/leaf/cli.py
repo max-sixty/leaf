@@ -7,8 +7,8 @@ ending the command, `{"error", "findings"}` (`LeafGroup`), which its exit status
 marks. stdout is the one stream only Leaf writes. stderr also carries whatever the
 launcher, the interpreter and Leaf's dependencies print, such as a warning, a
 traceback or a library's log record, so Leaf puts nothing a reader parses there.
-Findings went on stderr until a library's log line broke the suite's parse of it; a
-reader piping stdout alone now meets them in the pipe rather than beside it.
+Findings stay off stderr, where a library's log line breaks a parse of them; a
+reader piping stdout alone meets them in the pipe rather than beside it.
 `--help`, `--version` and `--root` print text.
 
 A command returns its result and never prints it: `LeafGroup.main` prints what it
@@ -888,9 +888,9 @@ def picture(page_dir: Path, message: str) -> dict:
 def report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     """Report a state change onto a page widget, as a worker.
 
-    VERB is one of the widget's agent-written x-state verbs, and each NAME=VALUE one of
-    its fields: `leaf page report <page> t-parser status value=review text="Ready for
-    review"` moves a task. The page shows the report at once, marked provisional,
+    VERB is one of the widget's agent-written verbs (state.verbs), and each NAME=VALUE
+    one of its fields: `leaf page report <page> t-parser status value=review text="Ready
+    for review"` moves a task. The page shows the report at once, marked provisional,
     until a stamped version writes it into the markup or overrules it.
     """
     from leaf.reports import cmd_report
@@ -1640,7 +1640,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
-    A to-do on a widget needs a widget that declares x-work or holds an
+    A to-do on a widget needs a widget that declares state.work or holds an
     unsettled update. A thread attachment provides discussion context;
     replying does not complete the task. To leave the user something to do or
     answer, send a message with --obligation instead."""

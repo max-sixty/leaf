@@ -17,10 +17,14 @@ const settled = async (element) => {
 test("a bound element draws its source only once the page has read it", async () => {
   adoptRegistry({
     "lf-listing": {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      data: {
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      },
     },
     "lf-unbound": {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      data: {
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });

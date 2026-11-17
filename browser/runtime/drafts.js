@@ -123,13 +123,13 @@ import { signal } from "./framework.js";
 
 // ---------- draft persistence ----------
 // Text the user typed but hasn't sent must survive navigation, reload, version switches
-// and the tab itself. That last one is where a store outside the tab came from: each
+// and the tab itself. That last one needs a store outside the tab: each
 // round's reply hands the URL over again and the user opens the page from the turn in
 // front of them, so a page's tabs accumulate and the one holding a half-written sentence
-// is as likely to be closed as any other. Tab-local storage carried a draft through
-// everything but the one gesture nobody thinks of as destructive. Browser storage then
-// carried it through that, but not to the user's other browser or device, which the
-// page's server now does (November 2026), at the cost of words typed while the server
+// is as likely to be closed as any other. Tab-local storage carries a draft through
+// everything but the one gesture nobody thinks of as destructive. Browser storage
+// carries it through that, but not to the user's other browser or device, which the
+// page's server does, at the cost of words typed while the server
 // can't be reached.
 //
 // So the draft is the user's, and one draft has one copy: every box showing it, in
@@ -426,8 +426,8 @@ function heardWrite(ctx, sent, { written, version, record }) {
 // draft is about. Threads lists the drafts under Drafts (`draftsReading`;
 // floating-panel.js, `draftsListing`), and a press on a row or Resume writing brings the
 // user back to one (`createWritingResume`). Opening another box opens that box's own
-// draft and moves no words into it. Until November 2026 an explicit Comment on
-// another target, or `c` into a thread, moved the unsent words there. Words move only
+// draft and moves no words into it. Rejected: an explicit Comment on
+// another target, or `c` into a thread, moving the unsent words there. Words move only
 // when their box is gone, into the page's draft (`moveToPage`).
 // - `page`: the page's own comment, the floating panel's field (`PAGE_DRAFT`);
 // - `comment`: a comment on a passage or element, under its anchor's key
@@ -611,12 +611,14 @@ export const draftContexts = () => [...draftCache.keys()];
 // ---------- the drafts list ----------
 // Every message draft holding words or a drawing, as this document shows it, in no
 // order: a generation it is sending stands on screen as the message, not as a draft.
-// It is the one list every view of drafts reads: Threads' Drafts band and the On Me
-// mark's dot (floating-panel.js), and each draft's margin entry. It publishes when
+// The page's own draft isn't listed: the floating panel's field shows it and no view of
+// drafts does, so listing it would repaint every view of drafts as the field's words
+// start and end. It is the one list every view of drafts reads: Threads' Drafts band and the
+// On Me mark's dot (floating-panel.js), and each draft's margin entry. It publishes when
 // a draft starts or stops holding something or what it is about changes, so a
 // keystroke in a draft already listed costs one comparison and repaints nothing; a
 // view reads the draft's words where it draws them (`loadDraft`).
-/** @typedef {NonNullable<ReturnType<typeof draftSubject>> & {context: string, payload: DraftPayload | undefined}} ListedDraft */
+/** @typedef {{part: DraftPart, name: string, context: string, payload: DraftPayload | undefined}} ListedDraft */
 /** @type {Map<string, ListedDraft>} */
 const listing = new Map();
 const listed = signal(/** @type {readonly ListedDraft[]} */ (Object.freeze([])));
@@ -636,7 +638,7 @@ const listsAlike = (was, now) =>
 /** @param {string} ctx */
 function listDraft(ctx) {
   const subject = draftSubject(ctx);
-  if (!subject) return;
+  if (!subject || subject.part === "page") return;
   const record = activeDraftRecord(ctx);
   const holds = Boolean(record?.text.trim() || field(record?.payload, "drawing"));
   const was = listing.get(ctx);
@@ -660,7 +662,6 @@ export const draftAnchor = (draft) => {
 /** @param {ListedDraft} draft */
 export const draftSends = (draft) =>
   ({
-    page: "Comment",
     comment: field(draft.payload, "suggest") ? "Suggestion" : "Comment",
     reply: "Reply",
     rewrite: "Edit",
@@ -1279,9 +1280,9 @@ export function mirrorDraft(
   );
   return off;
 }
-// Reply drafts are never pruned. A thread resolving is not a discard: another
+// Reply drafts are never pruned. A thread resolving is not a discard, so another
 // tab's Resolve, or this tab accepting a suggestion whose action `resolves`,
-// used to sweep an unsent reply out of storage — words going missing, where the
+// sweeps no unsent reply out of storage, which would lose words where the
 // norm is that Cancel is the only discard. A thread a retraction reopens finds
 // the draft where it was left.
 

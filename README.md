@@ -72,7 +72,8 @@ The first run syncs the plugin's uv environment through your configured package
 index. Render checks and exports use the executable named by
 `LEAF_BROWSER_EXECUTABLE`, `CHROME_PATH`, or `CHROME_BIN`, then installed Google
 Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
-`chromium`, or `chromium-browser` on `PATH`.
+`chromium`, or `chromium-browser` on `PATH`. A render check of a page last shown in
+Firefox uses the installed Firefox instead, where there is one.
 
 Leaf needs Claude Code 2.1.196 or later, the first release whose hooks name the
 turn they run in. On an earlier one, an update handed into a prompt you interrupt

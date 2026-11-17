@@ -1205,14 +1205,13 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
 def staged_site(site, tmp_path):
     """The module's built site, copied for one test to break files in.
 
-    `build` links the vendored layer into every page it publishes rather than
-    writing it again, so the site is 18,054 files and 65M on disk. A plain
-    `copytree` copies bytes and breaks every one of those links, so each copy
-    measured 398M. Sharing the layer the way `build` does, and the way a lent page
-    shares it, brings that to 84M. It buys nothing in time — the two take 3.5s and
-    3.9s, because the cost is the directory entry rather than the bytes — and
-    everything outside the layer is still copied, so a test rewrites the file it is
-    here to break without that write reaching the build the rest of the module reads.
+    `build` links the vendored layer into every page it publishes rather than writing it
+    again. A plain `copytree` copies bytes and breaks every one of those links, so each
+    copy holds the layer again for every page. Sharing the layer the way `build` does,
+    and the way a lent page shares it, keeps the links. It saves disk rather than time,
+    since the cost can lie in the directory entry rather than the bytes, and everything
+    outside the layer is still copied, so a test rewrites the file it is here to break
+    without that write reaching the build the rest of the module reads.
     """
     staged = tmp_path / "staged"
 
@@ -1681,7 +1680,9 @@ def test_a_published_decision_survives_reload(served_example, browser):
     decisions = page.locator(".lf-fp-on-user")
     expect_obligations_answered(page, "0/1")
     expect(decisions).to_be_visible()
-    chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
+    chosen = (
+        "() => [...document.querySelectorAll('lf-option[selected]')].map(o => o.id)"
+    )
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
     expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")

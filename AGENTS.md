@@ -213,11 +213,17 @@ skill's `references/`, behind a pointer that names the task. `running-tend` hold
 only what Tend's jobs alone do.
 
 A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A contract several modules
-share goes in the protocol reference for that boundary, which says what each side
-relies on, not how one side provides it. A header also records
-the product decisions its module embodies and the alternatives they rejected; a
-change that reverses one rewrites that record and says so in its commit.
+docstring. A contract several modules share goes in the protocol reference for that
+boundary, which says what each side relies on, not how one side provides it. A
+header also states the product decisions its module embodies, each with its reason,
+whether the user made it, and any alternative a later change might reach for, with
+why that alternative fails. A change that reverses a decision rewrites its statement
+and says so in its commit.
+
+Text in the tree, comments, tests and eval cases included, says what holds now
+rather than how it came to be. The date of a decision or change, the request or
+incident behind it, the measurements that settled it and the versions before it go
+in the commit message, where `git log -L` finds them.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
 `vendor.mjs`; point to it, so a new member needs no edit. Where the prose must
@@ -229,8 +235,8 @@ instructions (the `AGENTS.md` files and project skills), these prose defects are
 public surface traps: mechanism written for a reader other than the one the text
 addresses, a second copy of a rule another text owns, a coined term used without its
 definition, and, in maintainer guidance, a sentence that says how the diff's code
-works or which failure it fixed rather than what other code must rely on, which
-belongs in the module header or the commit message.
+works rather than what other code must rely on, which belongs in the module header,
+or how a rule came to be, which belongs in the commit message.
 
 ### Use dependencies
 
@@ -361,6 +367,18 @@ same event, or the message as it now reads, under the same name and from the sam
 (`event_facts.py`). A fact about the past, such as the settings the user had open
 when they wrote, is derived from the log and never stored as a second copy.
 
+### Read what the page states
+
+Leaf takes each fact about a page from where the page states it: the structure HTML
+defines, including the relations it gives its own elements, or a declaration in an
+author's attribute, a registry entry or the event log. A declaration on a plain
+element uses a standard attribute that means the same to every reader; one on Leaf's
+own element uses Leaf's attribute, such as `label`, since no standard defines that
+element. Leaf takes no fact from how content looks or what it says, and reads words
+only to quote, anchor and show them, so restyling a page changes no fact Leaf holds
+and rewording it changes only its words. Any other reading of markup is an exception
+the maintainer agrees to.
+
 ### Keep the layer open
 
 No code outside a content widget's module names it, so a new widget family needs
@@ -394,8 +412,8 @@ there. Size says little: a two-line selector can reach every page.
   the owner, export, move or generate the owner rather than copy it.
 - **What it puts between the author and HTML**: be hesitant to add anything there,
   such as a tag, class, attribute or key for what an HTML element, attribute or CSS
-  property already says, a rule that reads meaning out of the author's markup, or a
-  pass that rewrites it. Authors and agents already write HTML well, and each such
+  property already says, a rule that reads meaning out of the author's markup ("Read
+  what the page states"), or a pass that rewrites it. Authors and agents already write HTML well, and each such
   layer is one more thing every author learns and every later change keeps working.
   Add one only for what HTML can't say.
 - **What it buys**: a behavior a user sees, a request the maintainer made, or a

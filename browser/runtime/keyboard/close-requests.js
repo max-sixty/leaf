@@ -11,13 +11,13 @@
  * layer in which Escape has no step of Leaf's leaves the page holding none, and back
  * closes it as the browser does.
  *
- * Back never throws away words the user wrote and hasn't sent (Max's decision,
- * 2026-10-25), though Escape may: on a phone back comes before any key, and an edge
+ * Back never throws away words the user wrote and hasn't sent (Max's decision),
+ * though Escape may: on a phone back comes before any key, and an edge
  * swipe made by accident after the keyboard hides would otherwise lose an edit nothing
  * undoes. A row whose `run` discards such words declares `keep` (bindings.js), which
  * back takes instead: it closes the editor without losing the words. An `lf-draft`,
  * which a press away saves, saves them too, so a stray swipe sends a turn as a stray
- * tap does (Max's decision, 2026-10-27). A message rewrite saves only on Enter or
+ * tap does (Max's decision). A message rewrite saves only on Enter or
  * Save, so back keeps its words where reopening finds them and says so, as a composer
  * closed over its words does, showing them beside the control that reopens them.
  * Rejected: back taking no step in a changed editor, which held the user on the page,

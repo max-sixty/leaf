@@ -1,6 +1,5 @@
-# Added while separating contribution ownership from annotation geometry. This guards
-# the shared producer contract across its public API cutover; a pass on both arms is
-# evidence of preserved authoring behavior, not a measured guidance improvement.
+# This guards the shared producer contract; a pass on both arms is evidence of
+# preserved authoring behavior, not a measured guidance improvement.
 description: shared-contribution-actions
 metadata:
   purpose: A package supplies one current action reading for target controls and Page Map.

@@ -11,6 +11,7 @@ from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEAT, open_seat_box, panel_comment
 from render_harness import (
+    CHROME_ROOT,
     LONG_PAGE,
     consume_browser_errors,
     holding,
@@ -498,10 +499,9 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
     """Pressing a box's submit control is its send key pressed from the box, so it leaves
     the user where Enter would, never on the button, where the next letters fall on
     nothing. A box that stays to take more keeps them in it, typing on, and so does a
-    reply's, on a card, in a widget's thread and in the panel alike, where a card's and
-    a widget's once left them on the thread. The comment that starts a thread finishes
-    what they were writing, whichever of a box's two sends starts it: they stand on the
-    thread's card or title, and `c` writes the follow-up."""
+    reply's, on a card, in a widget's thread and in the panel alike. The comment that
+    starts a thread finishes what they were writing, whichever of a box's two sends
+    starts it: they stand on the thread's card or title, and `c` writes the follow-up."""
     page, box, send, after, reply = pressed_send_surface(browser, serve, surface)
     if how == "keyboard":
         # Tab reaches the control from the box; `Send & pause` stands one past `Send`,
@@ -528,7 +528,9 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
         expect(reply).to_be_focused()
     page.keyboard.type("ok")
     expect(reply).to_have_js_property("value", "ok")
-    expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     sent = events_model.read_events(serve.page_dir)
     assert any(event.get("text") == "Sent from the box." for event in sent), sent
 
@@ -536,8 +538,8 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
 def test_a_pointer_send_finishes_the_words_an_input_method_holds(browser, serve):
     """A press on Send while an input method holds unfinished words takes the focus, as
     leaving the box is what finishes them: the send carries the finished words, and the
-    box it empties stays empty. Held in the box, the words went out unfinished and the
-    input method's commit afterwards wrote them back into the emptied box."""
+    box it empties stays empty. Held in the box, the words would go out unfinished and
+    the input method's commit afterwards would write them back into the emptied box."""
     page, box, send, after, _ = pressed_send_surface(browser, serve, "general")
     ended = box.evaluate_handle(
         """box => {
@@ -607,8 +609,8 @@ def shown_in(page, node, scroller):
 def test_a_seat_send_in_a_bounded_block_moves_the_block_and_not_the_page(
     browser, serve, bound
 ):
-    """A block that bounds its own height scrolls a seat inside it, so each send
-    landed its thread by scrolling the page too, and the block went out of the window
+    """A block that bounds its own height scrolls a seat inside it, so a send that
+    landed its thread by scrolling the page too would take the block out of the window
     after two sends: the comment that starts the thread, then a reply in it. The block
     is the reading region the seat stands in."""
     page = open_page(browser, serve(bounded_seat_page(6, bound)))
@@ -655,8 +657,8 @@ def test_a_seat_send_in_a_bounded_block_moves_the_block_and_not_the_page(
 
 
 def test_a_seat_box_grown_by_a_paste_keeps_its_send_above_the_panel(browser, serve):
-    """The comment box a widget seats grew under the window's foot chrome, CodeMirror's
-    caret scrolling knowing nothing of it."""
+    """The comment box a widget seats would otherwise grow under the window's foot
+    chrome, CodeMirror's caret scrolling knowing nothing of it."""
     url, host = seated_page(serve, "verdict")
     page = open_page(browser, url)
     page.locator(f"{host} > .lf-test-comment").scroll_into_view_if_needed()

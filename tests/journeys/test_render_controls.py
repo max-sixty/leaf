@@ -146,8 +146,8 @@ def _sample_containment_page():
    {"kind":"reply","author":"agent","parent":"question","ephemeral":true,
     "text":"Checking the nested reading region."},
    {"kind":"reply","author":"agent","parent":"question",
-    "html":true, "revision":1,
-    "text":"The destination is inside the nested reading region.\n\n<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
+    "revision":1,
+    "text":"The destination is inside the nested reading region.\\n\\n<details><summary>Read the checks</summary><p>The reading region contains the destination.</p></details>"}]
 </script>
 <script type="module">
   const sample = document.querySelector('#practice');
@@ -180,7 +180,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
 <lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
-<lf-options id="stable-options" choose>
+<lf-options id="stable-options">
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
 </lf-options></lf-ask>
@@ -273,9 +273,7 @@ CONTROL_ARCHETYPES = (
 
 # The layer's focus floor (surfaces.css), which rings every box holding visible focus
 # where no carrier wears the ring for it: the panel's own controls and rows among them.
-FLOOR_RING = (
-    "[data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])"
-)
+FLOOR_RING = "[data-lf-focus-visible]:not([data-lf-projected-mark], [data-lf-projected-location])"
 
 
 # The page the chrome's surfaces are sampled on: small, with a board's grips, and served
@@ -763,7 +761,7 @@ AIM_PAGE = leaf_page(
       <lf-column id="aim-done" label="Done"></lf-column>
     </lf-board>
     <lf-ask id="aim-ask"><h2>Which jobs?</h2>
-      <lf-options id="aim-jobs" choose multiple>
+      <lf-options id="aim-jobs" multiple>
         <lf-option id="aim-mounts">Replace the mounts</lf-option>
         <lf-option id="aim-bath">Heat the bird bath</lf-option>
       </lf-options>
@@ -880,7 +878,8 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     anchored = views["you"].locator(".lf-margin-preview")
     expect(anchored).to_be_visible()
     expect(anchored).to_have_attribute(
-        "aria-label", "Thread for Agenda and room photo."
+        "aria-label",
+        re.compile(r"^Thread for § paragraph · Agenda and room photo\. Practice"),
     )
     expect(anchored.locator(".lf-msg")).to_have_count(3)
     expect(anchored.locator("leaf-text")).to_be_visible()

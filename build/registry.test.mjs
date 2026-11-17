@@ -7,7 +7,7 @@
  * side:
  *
  * - each `$marks` paint is still spelled somewhere, and no source spells another
- *   `data-lf-` name formed from a mark's key, which is what a renamed paint leaves
+ *   `data-lf-` name formed from its fact's name, which is what a renamed paint leaves
  *   behind;
  * - each `data-lf-` attribute Python writes into a page or reads off one is one the
  *   browser spells too, so renaming it on either side alone fails here. A name two
@@ -78,7 +78,7 @@ test("hand-written sources spell each mark as `$marks` paints it", async () => {
   const spelled = await spelledNames([...python, ...browser]);
   for (const [key, { paint }] of Object.entries(marks)) {
     assert.ok(spelled.has(paint), `no stylesheet or module spells ${key}'s ${paint}`);
-    const stale = `data-lf-${key.slice("x-".length)}`;
+    const stale = `data-lf-${key.split(".").pop()}`;
     if (stale !== paint)
       assert.ok(
         !spelled.has(stale),

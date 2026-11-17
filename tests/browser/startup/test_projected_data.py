@@ -146,22 +146,28 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     )
     feed = {
         "description": "A live deployment feed.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
         },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "rows": {
-                "contract": "deployment-rows",
-                "source": "source",
-                "property": "value",
-            }
+        "content": "empty",
+        "data": {
+            "inputs": {
+                "rows": {
+                    "contract": "deployment-rows",
+                    "source": "source",
+                    "property": "value",
+                }
+            },
         },
-        "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
+        "author": {
+            "example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
+        },
     }
     contract = {
         "description": "Deployment records with durable ids.",
@@ -372,9 +378,7 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
     lines follows them across updates: while the lines read as they did, they stay
     marked and the thread's margin entry stands beside them. A line the document holds
     twice is told apart by the lines around each copy. Once an update rewrites a
-    commented line, its comment stands nowhere on the page. Each comment used to come
-    off its lines on the first update, every margin entry collecting at the document's
-    top, and a comment on a repeated line stood there from the start."""
+    commented line, its comment stands nowhere on the page."""
     lines = [f"line {i} " + "words " * (i % 9) for i in range(1, 401)]
     # Row 128 ends the listing's first run of rows; row 310 repeats row 300.
     lines[127] = "the last row of the first run"
@@ -442,22 +446,28 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     )
     entry = {
         "description": "A project-supplied derived feed.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "rows": {
-                "contract": "derived-rows",
-                "source": "source",
-                "property": "value",
-            }
+        "content": "empty",
+        "data": {
+            "inputs": {
+                "rows": {
+                    "contract": "derived-rows",
+                    "source": "source",
+                    "property": "value",
+                }
+            },
         },
-        "x-example": '<lf-derived id="derived-example"></lf-derived>',
+        "author": {
+            "example": '<lf-derived id="derived-example"></lf-derived>',
+        },
     }
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
@@ -947,18 +957,28 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
     def entry(tag, contract):
         return {
             "description": "An instrumented data reader.",
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "source": {"type": "string"},
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "source": {"type": "string"},
+                },
+                "required": ["id", "source"],
+                "additionalProperties": False,
             },
-            "required": ["id", "source"],
-            "additionalProperties": False,
-            "x-content": "empty",
-            "x-data": {
-                "data": {"contract": contract, "source": "source", "property": "value"}
+            "content": "empty",
+            "data": {
+                "inputs": {
+                    "data": {
+                        "contract": contract,
+                        "source": "source",
+                        "property": "value",
+                    }
+                },
             },
-            "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
+            "author": {
+                "example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
+            },
         }
 
     def module(tag):

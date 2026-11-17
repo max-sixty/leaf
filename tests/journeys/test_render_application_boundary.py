@@ -112,7 +112,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     # siblings are a shape, not an identity — so it leaves focus on the page, where the
     # page's own keys are live, rather than hand the next press to a guess.
     assert page.evaluate("document.activeElement === document.body")
-    expect(page.locator("#activation-go")).to_have_attribute("chosen", "")
+    expect(page.locator("#activation-go")).to_have_attribute("selected", "")
     restored_top = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )

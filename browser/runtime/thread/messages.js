@@ -396,7 +396,7 @@ const keptElements = new Map();
 // The markup a drawing that doesn't hold an authored message draws in its place
 // (`authoredHolders`): the message less what a second copy would duplicate, each id
 // and each custom element, which a module upgrades once. A widget set among words
-// (`x-inline`) leaves its words, and any other goes whole, as a choice the drawing
+// (`words.inline`) leaves its words, and any other goes whole, as a choice the drawing
 // asks in its own controls does.
 /** @param {DocumentFragment} message */
 function heldElsewhere(message) {
@@ -404,7 +404,7 @@ function heldElsewhere(message) {
   copy.content.append(message.cloneNode(true));
   for (const element of copy.content.querySelectorAll("*"))
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declarationFor(element, "x-inline"))
+    else if (declarationFor(element)?.words?.inline)
       element.replaceWith(...element.childNodes);
     else element.remove();
   return copy.innerHTML;
@@ -565,8 +565,8 @@ const authoredMessage = (message) => {
 // conversation, as On Me's cards are (primary-reader.js, `messagesAside`). A drawing
 // aside holds the widgets only while no other drawing shows the message, so opening On
 // Me takes no choice out of a thread the user sees, and no arrival lands in it
-// (`authoredHolder`). Until 15 November 2026 On Me's card ranked as the primary
-// reader's view, and opening it emptied a thread on the page of its widgets.
+// (`authoredHolder`). Rejected: On Me's card ranking as the primary
+// reader's view, so opening it empties a thread on the page of its widgets.
 export const HOLDS = Object.freeze({ reader: 4, margin: 3, page: 2, aside: 1 });
 /** @typedef {{node: HTMLDivElement, model: ReturnType<typeof messageReading>,
  * present: (model: ReturnType<typeof messageReading>) => HTMLDivElement}} PresentedMessage */

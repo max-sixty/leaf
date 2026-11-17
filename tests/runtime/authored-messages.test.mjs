@@ -83,7 +83,7 @@ test("adopting an edit's island retires the widgets the wording before it held",
   });
   assert.equal(await loadMarkdown(), true);
   const choice = (id, label) =>
-    `<lf-options id="${id}" choose><lf-option id="${id}-a">${label}</lf-option></lf-options>`;
+    `<lf-options id="${id}"><lf-option id="${id}-a">${label}</lf-option></lf-options>`;
   const message = { id: "edited-message" };
   const sentText = `Pick:\n\n${choice("edited-first", "First")}`;
   const sent = await prepareAuthoredMessage(
@@ -132,7 +132,7 @@ test("a message's words part its blocks, as the page reading does", async () => 
     {
       id: "worded-message",
       text:
-        'Pick one:\n\n<lf-options id="worded-choice" choose>' +
+        'Pick one:\n\n<lf-options id="worded-choice">' +
         '<lf-option id="worded-now"><strong>Open it now</strong></lf-option>' +
         '<lf-option id="worded-hold"><strong>Hold</strong> <em>it</em></lf-option>' +
         "</lf-options>",

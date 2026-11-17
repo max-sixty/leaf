@@ -473,7 +473,7 @@ leaf server start ./review</code></pre>
                 </p>
                 <lf-ask id="queue-question">
                   <h3>When the queue fills, what should happen?</h3>
-                  <lf-options id="queue-policy" choose>
+                  <lf-options id="queue-policy">
                     <lf-option id="block-producer"
                       ><strong>Pause the producer</strong> Keep every queued record;
                       wait for space before accepting more.</lf-option
@@ -507,7 +507,7 @@ leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updat
 leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
-                registry entry declares <code>x-awaits</code>, creates an
+                registry entry declares <code>state.awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
                 answer, and lifecycle; an optional <code>lf-ask</code> supplies its
                 heading as the prompt. The widget owns the value, and the agent records
@@ -518,15 +518,15 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                 <summary>Example: answer a page choice</summary>
                 <p id="decision-example-reading">
                   The page asks which queue policy to use with
-                  <code>lf-options id="queue-policy" choose</code>. When the user
-                  chooses Drop the oldest record, Leaf delivers that choice to the
-                  agent. The agent starts the choice event, reads the current choice,
-                  and revises the HTML to show the selected option:
+                  <code>lf-options id="queue-policy"</code>. When the user chooses Drop
+                  the oldest record, Leaf delivers that choice to the agent. The agent
+                  starts the choice event, reads the current choice, and revises the
+                  HTML to show the selected option:
                 </p>
                 <pre
                   id="decision-markup"
-                ><code class="language-html">&lt;lf-options id="queue-policy" choose&gt;
-  &lt;lf-option id="drop-oldest" chosen&gt;Drop the oldest record&lt;/lf-option&gt;
+                ><code class="language-html">&lt;lf-options id="queue-policy"&gt;
+  &lt;lf-option id="drop-oldest" selected&gt;Drop the oldest record&lt;/lf-option&gt;
   &lt;lf-option id="block-producer"&gt;Pause the producer&lt;/lf-option&gt;
 &lt;/lf-options&gt;</code></pre>
                 <p id="decision-stamp-reading">
@@ -538,7 +538,7 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                   id="decision-commands"
                 ><code class="language-bash">leaf task start ./review &lt;event-id&gt; --text "Recording the chosen queue policy"
 leaf page state ./review
-# Add chosen to the picked option in ./review/index.html; check and review.
+# Add selected to the picked option in ./review/index.html; check and review.
 leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></pre>
               </details>
               <details id="delivery-example">
@@ -851,7 +851,8 @@ flowchart TD
                     When the agent runs <code>leaf page instructions</code>, which
                     prints each package's <code>instructions/</code> files by audience.
                     Each <code>--use</code> adds that entry's
-                    <code>x-instructions</code> and its data contracts' instructions.
+                    <code>author.instructions</code> and its data contracts'
+                    instructions.
                   </td>
                 </tr>
                 <tr>
@@ -1249,23 +1250,24 @@ flowchart TD
                 each ask it gives a thread title, a message of a few sentences that the
                 user can answer without the chat, the words of the passage it concerns,
                 if one does, and the id of a question it asks again, if any, such as a
-                step the user took that didn't work. A step the user is to take is asked
-                the same way: the message says what to do, and asks for a reply only for
-                what the user alone can report, such as what a build showed them, or
-                where the agent's next step waits on it, since the reply tells the agent
-                to go on. Leaf skips an ask whose title a question the agent asked
-                already has.
+                step the user took that didn't work. The fork writes the message as the
+                agent's guidance has the agent write one. Where the agent left answers
+                the user picks among, or an action it takes once the user agrees, such
+                as merging a pull request, the message holds a choice of them. A step
+                only the user can take, such as trying a build, says what to do, and
+                asks for a reply only for what the user alone can report or the agent's
+                next step waits on. Leaf skips an ask whose title a question the agent
+                asked already has.
               </p>
               <p id="fork-writes">
-                Leaf writes each remaining ask as the agent's message with an
-                obligation. A question asked again goes in its thread under its id, as
-                <code>leaf thread reply --obligation &lt;id&gt;</code> asks it, and
-                reopens the thread if the user closed it. Any other opens a thread of
-                its own, as <code>leaf thread create --obligation</code> does, on that
-                passage, or on the page as a whole where the fork named none or the page
-                doesn't show its words once. Each stays On Me until the user replies or
-                settles it with a reaction, and nothing on the page marks where it came
-                from.
+                Leaf posts each remaining ask as the agent's message, as the agent's
+                <code>leaf thread</code> command would. The user's pick answers a
+                choice, and any other ask carries an obligation, which their reply or a
+                settling reaction answers. A question asked again goes in its thread,
+                and reopens the thread if the user closed it. Any other opens a thread
+                of its own, on that passage, or on the page as a whole where the fork
+                named none or the page doesn't show its words once. Nothing on the page
+                marks where an ask came from.
               </p>
               <p id="fork-fixes">
                 Where a few of a page's words have gone stale, the fork can give the
@@ -1837,7 +1839,7 @@ flowchart TD
                   <td>Verb</td>
                   <td>
                     A fold <code>unit</code> and a recorded effect or custom payload
-                    schema, declared under <code>x-state</code>
+                    schema, declared under <code>state.verbs</code>
                   </td>
                   <td>Package, in <code>registry.json</code></td>
                 </tr>
@@ -1869,7 +1871,7 @@ flowchart TD
             <lf-sample id="try-sample" label="release question" interactive>
               <lf-ask id="ship-ask">
                 <h2>When should this ship?</h2>
-                <lf-options id="ship" choose>
+                <lf-options id="ship">
                   <lf-option id="ship-now"
                     ><strong>Now</strong> Today, behind the flag.</lf-option
                   >
@@ -1889,61 +1891,63 @@ flowchart TD
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
-"x-state": {
-  "choose": {
-    "unit": "widget",
-    "record": {"kind": "attribute", "attr": "chosen"}
+"state": {
+  "verbs": {
+    "choose": {
+      "unit": "widget",
+      "record": {"kind": "attribute", "attr": "selected"}
+    },
+    "add": {
+      "detail": {"type": "object",
+                 "properties": {"option": {"type": "string"},
+                                "text": {"type": "string", "minLength": 1}},
+                 "required": ["option", "text"], "additionalProperties": false},
+      "unit": "option",
+      "creates": {"child": "lf-option", "words": "text"}
+    },
+    "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
   },
-  "add": {
-    "detail": {"type": "object",
-               "properties": {"option": {"type": "string"},
-                              "text": {"type": "string", "minLength": 1}},
-               "required": ["option", "text"], "additionalProperties": false},
-    "unit": "option",
-    "creates": {"child": "lf-option", "words": "text"}
-  },
-  "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
-},
-"x-awaits": {
-  "value": "choose",
-  "answered": {
-    "choose": {"when": {"multiple": [false]}},
-    "answer": {"when": {"multiple": [true]}}
+  "awaits": {
+    "value": "choose",
+    "answered": {
+      "choose": {"when": {"multiple": [false]}},
+      "answer": {"when": {"multiple": [true]}}
+    }
   }
 }
 </code></pre>
-              <lf-note at="2"
+              <lf-note at="3"
                 >The verb's name, which the widget sends as the event's
                 <code>action</code>.</lf-note
               >
-              <lf-note at="3"
+              <lf-note at="4"
                 >One unit for the whole group, so every pick uses the same coordinate
                 and a later pick replaces an earlier one.</lf-note
               >
-              <lf-note at="4"
-                >How the current selection appears in markup: <code>chosen</code> on
+              <lf-note at="5"
+                >How the current selection appears in markup: <code>selected</code> on
                 each picked option. This effect also determines the payload:
                 <code>detail.value</code>
                 must be an array of owned option ids. The agent writes the pick into the
                 next version.</lf-note
               >
-              <lf-note at="11"
+              <lf-note at="12"
                 >The unit is the value of <code>detail.option</code>, so each added
                 option has a coordinate of its own.</lf-note
               >
-              <lf-note at="12"
+              <lf-note at="13"
                 >The action adds an <code>lf-option</code> to the group, with
                 <code>detail.text</code> as its text.</lf-note
               >
-              <lf-note at="14"
+              <lf-note at="15"
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> group.</lf-note
               >
-              <lf-note at="17"
+              <lf-note at="18"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
               >
-              <lf-note at="18"
+              <lf-note at="19"
                 >A single-choice group is answered when an option is selected. A
                 multiple-choice group is answered when the user presses Done. Undo can
                 make the obligation unanswered again.</lf-note
@@ -2065,7 +2069,7 @@ flowchart TD
    "state": {"origin": "lf-options",
      "decides": false,
      "unit": "widget",
-     "record": {"kind": "attribute", "attr": "chosen"},
+     "record": {"kind": "attribute", "attr": "selected"},
      "creates": null,
      "detail": {"type": "object",
        "properties": {"value": {"type": "array",
@@ -2085,7 +2089,7 @@ flowchart TD
    "state": {"origin": "lf-options",
      "decides": false,
      "unit": "widget",
-     "record": {"kind": "attribute", "attr": "chosen"},
+     "record": {"kind": "attribute", "attr": "selected"},
      "creates": null,
      "detail": {"type": "object",
        "properties": {"value": {"type": "array",
@@ -2209,13 +2213,14 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares <code>x-state</code> verbs,
-                <code>x-awaits.answered</code>, <code>creates</code>, and agent-written
-                verbs.
+                >: how a package declares verbs (<code>state.verbs</code>),
+                <code>state.awaits.answered</code>, <code>creates</code>, and
+                agent-written verbs.
               </li>
               <li>
-                <a href="/extending/#x-state">Registry keys</a>: the exact definition of
-                <code>x-state</code>, <code>x-awaits</code>, and the keys beside them.
+                <a href="/extending/#state.verbs">Registry keys</a>: the exact
+                definition of <code>state.verbs</code>, <code>state.awaits</code>, and
+                the keys beside them.
               </li>
               <li>
                 <a
@@ -2286,7 +2291,7 @@ flowchart TD
               <lf-ask id="sample-publish-report-decision">
                 <h2>Publish the sample report?</h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
-                <lf-options id="sample-publish-report" choose>
+                <lf-options id="sample-publish-report">
                   <lf-option id="sample-publish-report-keep"
                     ><strong>Keep it private</strong></lf-option
                   >
@@ -2455,7 +2460,7 @@ flowchart TD
               <li id="progress-done">
                 <time>2m</time> <small>observation</small> <strong>Answered</strong> The
                 revision goes live, the agent's reply reports it, and the status returns
-                to <em>Ready — select text to comment</em>.
+                to <em>Claude awaits</em>.
               </li>
             </ol>
           </section>
@@ -2673,7 +2678,7 @@ flowchart TD
                   </td>
                 </tr>
                 <tr id="updates-reading-awaits">
-                  <td>Ready — select text to comment</td>
+                  <td>Claude awaits</td>
                   <td>
                     The agent is taking input. An update still on its way to the agent
                     says so on its own label, and the menu's full status counts it.
@@ -2770,7 +2775,7 @@ flowchart TD
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
               obligation is answered by the actions its
-              <code>x-awaits</code> declaration names, such as a pick, or the Done a
+              <code>state.awaits</code> declaration names, such as a pick, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there or a settling reaction, such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and records the
@@ -2816,7 +2821,7 @@ flowchart TD
               <li id="updates-written-waiting">
                 <strong><code>leaf page open …</code></strong> Leaves feedback open and
                 clears starts while keeping to-dos. It creates no obligation. Questions
-                that need an answer belong in a thread message with
+                that need an answer belong in a thread message, as a choice or with
                 <code>--obligation</code>, so On Me opens the conversation.
               </li>
               <li id="updates-written-idle">

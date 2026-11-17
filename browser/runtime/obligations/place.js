@@ -9,8 +9,8 @@
    Frozen thread sources may have no node until the thread owner materializes them.
    A question answered in words and an update stand nowhere on the page; their thread
    or widget owner draws them. Nor does anything whose subject is the page as a whole:
-   a to-do on the page stood at its first heading until 2 November 2026, when the user
-   chose to give it no place, since that heading had nothing to do with it. Placement
+   the user chose to give a to-do on the page no place, over standing it at its first
+   heading, which has nothing to do with it. Placement
    never changes the semantic inventory or its obligation identities.
 
    A region holds an obligation when the obligation's source element is the region or stands under
@@ -101,7 +101,7 @@ export const obligationsIn = (region, items = readObligations().all) =>
     obligationsByRegion([region], items).get(region)
   );
 
-// The regions among `regions` that hold a widget declaring `x-awaits`, one whose markup
+// The regions among `regions` that hold a widget declaring `state.awaits`, one whose markup
 // asks the user something, in the page or in a message's markup. A region holds it
 // whatever the inventory says of its obligation: before the first reading the
 // obligation isn't listed yet, and once it is withdrawn the inventory lists it as
@@ -121,7 +121,7 @@ export function regionsAwaiting(regions) {
   let ids = awaitingIds.get(widgets);
   if (!ids) {
     ids = [...widgets.values()]
-      .filter(({ declaration }) => declaration["x-awaits"] !== undefined)
+      .filter(({ declaration }) => declaration.state?.awaits !== undefined)
       .map(({ id }) => id);
     awaitingIds.set(widgets, ids);
   }

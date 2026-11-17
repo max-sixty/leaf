@@ -25,6 +25,7 @@ from interact_support import (
     FLOW_PAGE,
     OPTIONS,
     PAGE,
+    PAGE_GROUP,
     SHIPPED_PACKAGES,
     STATED_TIMEOUT,
     X,
@@ -98,6 +99,10 @@ from leaf.validation.admission import message_markup_errors
 from leaf.validation.source import check_source
 from leaf.validation.source_history import predecessor_reading
 from leaf_dev.example_data import captured_value, patch_manifest
+
+# PAGE's group asking, and the same group once the author settles it.
+ASKING = '<lf-options id="choice">'
+SETTLED = '<lf-options id="choice" settled>'
 
 
 def test_stamp_installs_or_restores_complete_authored_inputs_before_activation(
@@ -748,7 +753,18 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
 
 def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
     registry = with_modules(
-        {"lf-shell": {"x-verbatim": True}, "lf-piece": {"x-verbatim": True}},
+        {
+            "lf-shell": {
+                "words": {
+                    "verbatim": True,
+                },
+            },
+            "lf-piece": {
+                "words": {
+                    "verbatim": True,
+                },
+            },
+        },
         "lf-shell",
         "lf-piece",
     )
@@ -884,9 +900,11 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
     registry: dict[str, dict] = with_modules(
         {
             "lf-draft": {
-                "x-content": "data",
-                "x-verbatim": True,
-                "x-text-format": "markdown",
+                "content": "data",
+                "words": {
+                    "verbatim": True,
+                    "text-format": "markdown",
+                },
             }
         },
         "lf-draft",
@@ -963,7 +981,7 @@ def folded(page_dir, board="b1"):
     return projection_model.folded_positions(
         board,
         "move",
-        registry["lf-board"]["x-state"]["move"]["record"],
+        registry["lf-board"]["state"]["verbs"]["move"]["record"],
         projection_model.AuthoredOrders(document.document.by_id, registry),
         document.projection,
     )
@@ -1017,7 +1035,7 @@ def test_rank_rules_match_the_browser_cases():
     # The append door reads the rank through the detail schema, whose `pattern`
     # searches rather than fully matches, so it must refuse the same cases.
     board = model_layer()["lf-board"]
-    rank = detail_schema(board, board["x-state"]["move"])["properties"]["rank"]
+    rank = detail_schema(board, board["state"]["verbs"]["move"])["properties"]["rank"]
     assert not any(schema_error(rank, r) is None for r in RANK_CASES["invalid"])
     assert all(schema_error(rank, r) is None for r in RANK_CASES["valid"])
 
@@ -1039,7 +1057,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
     document = structure_model.SourceDocument(
         f'<main><lf-board id="board">{columns}</lf-board></main>'
     )
-    spec = registry["lf-board"]["x-state"]["move"]
+    spec = registry["lf-board"]["state"]["verbs"]["move"]
     desired = {
         ("board", move["card"], "move"): (
             {
@@ -1183,7 +1201,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     markup = PAGE.replace(
         "</main>",
         OPTIONS.format(
-            a=" chosen", b="", chip="", shim="Keep the shim.", stage="Stage it."
+            a=" selected", b="", chip="", shim="Keep the shim.", stage="Stage it."
         )
         + '<lf-draft id="summary"><pre>Ship on Friday.</pre></lf-draft>'
         + _board([X, Y], [])
@@ -1257,7 +1275,13 @@ def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
 
     registry = page_dir / "page" / "registry.json"
     registry.parent.mkdir(exist_ok=True)
-    invalid = {"run-plan": {"x-space": "own"}}
+    invalid = {
+        "run-plan": {
+            "paint": {
+                "space": "own",
+            },
+        }
+    }
     registry.write_text(json.dumps(invalid))
     initial = state_json(page_dir)
     assert initial["active"] is None
@@ -1268,7 +1292,9 @@ def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
 
     declaration = {
         "description": "Initial plan",
-        "x-example": '<div class="run-plan">Plan</div>',
+        "author": {
+            "example": '<div class="run-plan">Plan</div>',
+        },
     }
     registry.write_text(json.dumps({"run-plan": declaration}))
     accepted = state_json(page_dir)
@@ -1362,7 +1388,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Choose a route.\n\n<lf-options id="frozen" choose><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
+            "text": 'Choose a route.\n\n<lf-options id="frozen"><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
         },
     )
     append_command(
@@ -1385,7 +1411,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
     assert message["text"].startswith("Choose a route.\n\n<lf-options")
     assert message["content"][0]["content"] == ["Choose a route."]
     frozen = construction_nodes(message["content"])
-    assert "chosen" in frozen["second"]["attrs"]
+    assert "selected" in frozen["second"]["attrs"]
     assert frozen["frozen"]["edit"] == {
         "kind": "thread",
         "thread": root["id"],
@@ -1593,7 +1619,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):
             continue
-        for attr, spec in entry.get("properties", {}).items():
+        for attr, spec in entry["attributes"].get("properties", {}).items():
             if attr in {"restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)
@@ -1617,15 +1643,19 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
     arranges both panes in a workspace however it likes."""
     zone = {
         "description": "A project package's differently named pane.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "label": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "label": {"type": "string"},
+            },
+            "required": ["id", "label"],
+            "additionalProperties": False,
         },
-        "required": ["id", "label"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-reading-role": "pane",
+        "content": "markup",
+        "markup": {
+            "reading-role": "pane",
+        },
     }
     declare_on_page(page_dir, lambda registry: registry.update({"lf-zone": zone}))
     version = page_dir / "index.html"
@@ -1706,12 +1736,12 @@ def test_a_layer_naming_no_tones_refuses_every_word_rather_than_none():
     registry = copy.deepcopy(model_layer())
     registry["$tones"]["names"] = []
     stamp_words(registry)
-    assert registry["lf-column"]["properties"]["tone"]["enum"] == []
+    assert registry["lf-column"]["attributes"]["properties"]["tone"]["enum"] == []
 
 
 def test_check_rejects_loose_content_in_items_container(page_dir):
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", "<lf-options>\nloose text\n<p>stray</p>\n<br/>")
+        PAGE.replace(PAGE_GROUP, PAGE_GROUP + "\nloose text\n<p>stray</p>\n<br/>")
     )
     status, findings = check_findings(page_dir)
     assert status == 1
@@ -1734,8 +1764,8 @@ def test_tabs_reject_structural_violations(page_dir):
   <lf-tab id="ws-a"><p>x</p></lf-tab>
 </lf-tabs>
 <lf-tab id="ws-stray" label="Stray"><p>y</p></lf-tab>
-<lf-options>"""
-    (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", bad))
+"""
+    (page_dir / "index.html").write_text(PAGE.replace(PAGE_GROUP, bad + PAGE_GROUP))
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(findings, "attribute-schema", "<lf-tab>", keyword="required")
@@ -1746,13 +1776,13 @@ def test_tabs_reject_structural_violations(page_dir):
 def test_suggestion_rejects_malformed_shapes(page_dir):
     for markup, expected in [
         (
-            '<lf-suggestion id="sug-a"></lf-suggestion><lf-options>',
+            '<lf-suggestion id="sug-a"></lf-suggestion>' + PAGE_GROUP,
             ("empty-suggestion", "<lf-suggestion id=sug-a>"),
         ),
         (
             (
                 '<lf-suggestion id="sug-a"><lf-new><p>x</p></lf-new>'
-                "<lf-new><p>y</p></lf-new></lf-suggestion><lf-options>"
+                "<lf-new><p>y</p></lf-new></lf-suggestion>" + PAGE_GROUP
             ),
             ("repeated-slot", "<lf-suggestion id=sug-a>"),
         ),
@@ -1760,16 +1790,16 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
             (
                 '<lf-suggestion id="sug-a"><lf-new>'
                 '<lf-suggestion id="sug-b"><lf-new>x</lf-new></lf-suggestion>'
-                "</lf-new></lf-suggestion><lf-options>"
+                "</lf-new></lf-suggestion>" + PAGE_GROUP
             ),
             ("nested-suggestion", "<lf-suggestion id=sug-b>"),
         ),
         (
-            "<lf-old><p>orphan</p></lf-old><lf-options>",
+            "<lf-old><p>orphan</p></lf-old>" + PAGE_GROUP,
             ("not-member", "<lf-old>"),
         ),
     ]:
-        (page_dir / "index.html").write_text(PAGE.replace("<lf-options>", markup))
+        (page_dir / "index.html").write_text(PAGE.replace(PAGE_GROUP, markup))
         status, findings = check_findings(page_dir)
         assert status == 1, markup
         assert expected in [(f.code, f.at) for f in findings], markup
@@ -1779,20 +1809,18 @@ def test_suggestion_rejects_malformed_shapes(page_dir):
 def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, widget):
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-options"]["properties"].update(
+        lambda registry: registry["lf-options"]["attributes"]["properties"].update(
             resolves={"type": "string"}
         ),
     )
     source = (
         PAGE.replace(
-            "<lf-options>",
+            PAGE_GROUP,
             '<lf-suggestion id="answer" resolves="plan"><lf-new><p>Proposed</p>'
-            "</lf-new></lf-suggestion><lf-options>",
+            "</lf-new></lf-suggestion>" + PAGE_GROUP,
         )
         if widget == "lf-suggestion"
-        else PAGE.replace(
-            "<lf-options>", '<lf-options id="answer" choose resolves="plan">'
-        )
+        else PAGE.replace(PAGE_GROUP, '<lf-options id="answer" resolves="plan">')
     )
     (page_dir / "index.html").write_text(source)
     status, findings = check_findings(page_dir)
@@ -1812,9 +1840,9 @@ def test_resolves_names_a_thread_for_every_declared_answering_widget(page_dir, w
 
 def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     registry = copy.deepcopy(load_registry(page_dir))
-    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
+    registry["lf-options"]["attributes"]["properties"]["resolves"] = {"type": "string"}
     markup = (
-        '<lf-options id="answer" choose resolves="plan">'
+        '<lf-options id="answer" resolves="plan">'
         '<lf-option id="approve"><strong>Approve</strong></lf-option></lf-options>'
     )
     page = structure_model.SourceDocument(PAGE)
@@ -2001,11 +2029,9 @@ def test_response_address_survives_its_delivery_turn_closing(page_dir):
 def test_a_cli_write_is_admitted_through_the_browser_door(page_dir):
     """One door, so a rule is stated once and holds for whoever appends.
 
-    The `leaf` writers used to append with whatever contract each of them
-    remembered: four with none at all, and the two that checked reaching two
-    different homes. Nothing between them and the log read the event's own
-    record schema, so a shape the browser door has always refused could still
-    land — and stay, because `page init` re-reads every stored record before it
+    A writer that appends with whatever contract it remembers, with nothing between it
+    and the log reading the event's own record schema, lets a shape the browser door
+    refuses land — and stay, because `page init` re-reads every stored record before it
     will replace a layer, and refuses the re-vendor rather than the event.
 
     Each arm below is a writer that reaches the log by a different route: a reply
@@ -2092,7 +2118,8 @@ def test_check_accepts_authored_body_content_beside_main(page_dir):
         "</main>",
         '</main><footer id="footer">Footer words</footer>Authored tail'
         '<aside id="aside">Aside words</aside>'
-        '<lf-options><lf-option id="tail">A sibling option</lf-option></lf-options>',
+        '<lf-options id="tail-choice"><lf-option id="tail">A sibling option</lf-option>'
+        "</lf-options>",
     )
     (page_dir / "index.html").write_text(source)
 
@@ -2218,7 +2245,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread",
             "create",
             "--text",
-            'Which store?\n\n<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store" choose>'
+            'Which store?\n\n<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store">'
             '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></lf-ask>",
         ).output.splitlines()
@@ -2279,9 +2306,7 @@ def test_report_validates_at_the_door_and_stamps_identity(page_dir, monkeypatch)
     session's voice and the exact revision the user is looking at."""
     _tasks_version(page_dir, "active")
     version = page_dir / "index.html"
-    version.write_text(
-        version.read_text().replace("<lf-options>", '<lf-options id="choice">')
-    )
+    version.write_text(version.read_text().replace(PAGE_GROUP, SETTLED))
     activation = revisioning_model.activate_source(page_dir)
     assert activation.error is None and activation.revision == 1
     draft_report = _report(page_dir, "t-parser", "status", "value=review")
@@ -2403,7 +2428,7 @@ def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
     it, and a user's action can land meanwhile (`publishing` header). The stamp
     then checks again against the log and revisions it publishes onto: it names
     the revision the read activated rather than publishing the source twice."""
-    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    html = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -2505,7 +2530,7 @@ def test_stamp_checks_events_that_arrive_as_it_reads_the_log(monkeypatch, page_d
 def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page_dir):
     """A page written faster than the stamp checks it outside the transaction
     still gets its stamp: the last check runs under the transaction."""
-    html = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    html = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -2564,8 +2589,8 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     }.items() <= state["source"].items()
     assert state["data"] == {"dir": "data", "errors": []}
     assert state["event_seq"] == events_model.read_events(page_dir)[-1]["seq"]
-    # The one asking group: PAGE's own bare <lf-options> takes no `choose`. The obligation
-    # names the region the user is sent to and the group that answers it.
+    # The one asking group: PAGE's own is settled. The obligation names the region the
+    # user is sent to and the group that answers it.
     assert obligations_on_user(state) == [
         {
             "id": "widget:g1",
@@ -2862,7 +2887,7 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
             "description": "Another meaning.",
             "schema": {"type": "array"},
         }
-        registry["lf-test-data"]["x-data"]["data"]["contract"] = "other-rows"
+        registry["lf-test-data"]["data"]["inputs"]["data"]["contract"] = "other-rows"
 
     declare_on_page(page_dir, declare)
 
@@ -2929,7 +2954,9 @@ def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
         registry["lf-other-data"] = {
             **registry["lf-test-data"],
             "description": "A differently typed test input.",
-            "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+            "data": {
+                "inputs": {"data": {"contract": "other-rows", "source": "source"}}
+            },
         }
 
     declare_on_page(page_dir, declare)
@@ -3044,7 +3071,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
 ):
     """An obligation retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
-    opts = """<lf-options id="g1" choose>
+    opts = """<lf-options id="g1">
       <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
       <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
     </lf-options>"""
@@ -3086,7 +3113,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     """A version that honors a pick in its markup reads as answered with no log
     at all — the shipped examples arrive that way."""
-    opts = OPTIONS.format(a=" chosen", b="", chip="", shim="s.", stage="t.")
+    opts = OPTIONS.format(a=" selected", b="", chip="", shim="s.", stage="t.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
@@ -3344,7 +3371,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "author": "agent",
             "revision": 1,
             "text": 'Which mitigations?\n\n<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
-            '<lf-options id="gm" choose multiple>'
+            '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
             "</lf-options></lf-ask>",
@@ -3399,14 +3426,14 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
       <lf-test-task id="future" status="active"><strong>Future review</strong>
         <lf-ask id="future-decision"><h3>Review it now?</h3>
-          <lf-options id="future-review" choose>
+          <lf-options id="future-review">
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
         </lf-ask>
       </lf-test-task>
       <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
         <lf-ask id="decision-decision"><h3>Which way out?</h3>
-          <lf-options id="decision-options" choose>
+          <lf-options id="decision-options">
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
         </lf-ask>
@@ -3581,11 +3608,11 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
     markup = (
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
-        '<lf-sample id="sample"><lf-options id="example" choose>'
+        '<lf-sample id="sample"><lf-options id="example">'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-sample>"
         '<lf-ask id="real-decision"><h3>What next?</h3>'
-        '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
+        '<lf-options id="real"><lf-option id="real-a">A</lf-option>'
         '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
         "</lf-test-task></lf-test-plan>"
     )
@@ -3611,7 +3638,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
     markup = (
         '<lf-sample id="practice" interactive>'
         '<lf-ask id="practice-ask"><h3>Which queue policy?</h3>'
-        '<lf-options id="practice-policy" choose>'
+        '<lf-options id="practice-policy">'
         '<lf-option id="practice-a">A</lf-option>'
         '<lf-option id="practice-b">B</lf-option></lf-options></lf-ask>'
         "</lf-sample>"
@@ -3637,11 +3664,11 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
 
 
 def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
-    """A draft uses the ordinary x-awaits fold: its edit discharges the decision,
+    """A draft uses the ordinary state.awaits fold: its edit discharges the decision,
     and an honoring version can clear the authored condition without reviving it."""
 
-    def command(status, needed, body):
-        flag = " needed" if needed else ""
+    def command(status, required, body):
+        flag = " required" if required else ""
         return (
             '<lf-test-plan id="hub">'
             f'<lf-test-task id="goal" status="{status}"><strong>Import</strong>'
@@ -3760,11 +3787,10 @@ def _palette(theme, look, half):
 
 def test_the_series_palette_clears_the_floors_it_claims_to():
     """The theme's comment beside these tokens tells the next editor to check them rather
-    than look at them, and until this test there was nothing to check them with — the
-    syntax roles have UNREAD_SYNTAX in the render gate and the series steps had the
-    honour system. What made the argument was the first attempt at the line, chosen by
-    eye: its blue and its plum came out 0.3 apart under simulated deuteranopia, which is
-    one colour to a user who has no way to tell us.
+    than look at them, and this test checks the series steps, as UNREAD_SYNTAX in the
+    render gate checks the syntax roles. A line chosen by eye can put two steps, such as
+    a blue and a plum, close enough under simulated deuteranopia to be one colour to a
+    user who has no way to tell us.
 
     Every pair rather than the neighbours, because a stacked bar puts any two of them
     edge to edge, and both palettes, because the dark steps are stepped against a
@@ -3805,10 +3831,14 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
     def declare(registry):
         registry["lf-label"] = {
             "description": "An inline label.",
-            "type": "object",
-            "properties": {},
-            "x-content": "markup",
-            "x-owners": ["lf-column"],
+            "attributes": {
+                "type": "object",
+                "properties": {},
+            },
+            "content": "markup",
+            "markup": {
+                "owners": ["lf-column"],
+            },
         }
 
     declare_on_page(page_dir, declare)
@@ -4006,10 +4036,10 @@ def test_a_cold_page_state_reads_only_the_element_index_of_history(
     builds its element index as it is read and the rest on first use, so here only
     the candidate and the active revision are read whole. The withdrawn obligation is the
     control: it is known only from the revision that asked."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    source = PAGE.replace(PAGE_GROUP, ASKING)
     for edit in range(4):
         (page_dir / "index.html").write_text(
-            (source if edit == 0 else source.replace(" choose", "")).replace(
+            (source if edit == 0 else source.replace(ASKING, SETTLED)).replace(
                 "</main>", f"<p>edit {edit}</p></main>"
             )
         )
@@ -4036,15 +4066,15 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
 ):
     """A retry or new version reuses completed historical registration work.
 
-    A history larger than the parse cache used to parse every predecessor on every
+    A history larger than the parse cache doesn't parse every predecessor on every
     read. Count parses rather than time, so contention cannot change the result.
     """
     from leaf.work_reading import WorkReading
 
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    source = PAGE.replace(PAGE_GROUP, ASKING)
     for edit in range(4):
         (page_dir / "index.html").write_text(
-            (source if edit == 0 else source.replace(" choose", "")).replace(
+            (source if edit == 0 else source.replace(ASKING, SETTLED)).replace(
                 "</main>", f"<p>edit {edit}</p></main>"
             )
         )
@@ -4084,7 +4114,7 @@ def test_obligation_history_survives_parse_eviction_and_new_revisions(
         assert read() == initial
         assert len(parsed) <= 1  # the active revision may have been evicted
         (page_dir / "index.html").write_text(
-            source.replace(" choose", "").replace("</main>", "<p>new</p></main>")
+            source.replace(ASKING, SETTLED).replace("</main>", "<p>new</p></main>")
         )
         activated = revisioning_model.activate_source(page_dir)
         assert activated.error is None, activated.error
@@ -4123,7 +4153,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
     def declare(registry):
         contracts = registry["$data"]["contracts"]
         contracts["current-rows"] = contracts["rows"]
-        registry["lf-test-data"]["x-data"]["data"]["contract"] = "current-rows"
+        registry["lf-test-data"]["data"]["inputs"]["data"]["contract"] = "current-rows"
 
     declare_on_page(page_dir, declare)
     registry = read_page_registry(page_dir).registry
@@ -4238,8 +4268,16 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
     does carry retires that element's losing slot, or empties a widget it leaves
     showing nothing, exactly as the walk given it does."""
     registry = {
-        "lf-old": {"x-retired-when": "accepted"},
-        "lf-new": {"x-retired-when": "rejected"},
+        "lf-old": {
+            "state": {
+                "retired-when": "accepted",
+            },
+        },
+        "lf-new": {
+            "state": {
+                "retired-when": "rejected",
+            },
+        },
     }
     document = structure_model.SourceDocument(
         '<main><lf-suggestion id="edit"><lf-old><p>Old words.</p></lf-old>'
@@ -4267,12 +4305,16 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 
     registry: dict[str, dict] = {
         "lf-draft": {
-            "x-verbatim": True,
-            "x-state": {
-                "edit": {
-                    "unit": "widget",
-                    "record": {"kind": "body"},
-                }
+            "words": {
+                "verbatim": True,
+            },
+            "state": {
+                "verbs": {
+                    "edit": {
+                        "unit": "widget",
+                        "record": {"kind": "body"},
+                    }
+                },
             },
         }
     }
@@ -4297,7 +4339,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
                 "state": state_definition(
                     "lf-draft",
                     registry["lf-draft"],
-                    registry["lf-draft"]["x-state"]["edit"],
+                    registry["lf-draft"]["state"]["verbs"]["edit"],
                 ),
             },
             "seq": seq,
@@ -4336,21 +4378,25 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 def test_projected_verbatim_includes_generated_children():
     registry = {
         "lf-list": {
-            "x-verbatim": True,
-            "x-state": {
-                "add": {
-                    "detail": {
-                        "type": "object",
-                        "properties": {
-                            "item": {"type": "string"},
-                            "text": {"type": "string", "minLength": 1},
+            "words": {
+                "verbatim": True,
+            },
+            "state": {
+                "verbs": {
+                    "add": {
+                        "detail": {
+                            "type": "object",
+                            "properties": {
+                                "item": {"type": "string"},
+                                "text": {"type": "string", "minLength": 1},
+                            },
+                            "required": ["item", "text"],
+                            "additionalProperties": False,
                         },
-                        "required": ["item", "text"],
-                        "additionalProperties": False,
-                    },
-                    "unit": "item",
-                    "creates": {"child": "lf-item", "words": "text"},
-                }
+                        "unit": "item",
+                        "creates": {"child": "lf-item", "words": "text"},
+                    }
+                },
             },
         },
         "lf-item": {},
@@ -4377,7 +4423,7 @@ def test_projected_verbatim_includes_generated_children():
     from leaf.registry.contract import state_definition
 
     event["meaning"]["state"] = state_definition(
-        "lf-list", registry["lf-list"], registry["lf-list"]["x-state"]["add"]
+        "lf-list", registry["lf-list"], registry["lf-list"]["state"]["verbs"]["add"]
     )
     expected = render_gate_readings._expected_verbatim(
         markup, [event], registry, here=1
@@ -4410,9 +4456,11 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     )
     registry: dict[str, dict] = {
         "lf-draft": {
-            "x-content": "data",
-            "x-text-format": "markdown",
-            "x-verbatim": True,
+            "content": "data",
+            "words": {
+                "text-format": "markdown",
+                "verbatim": True,
+            },
         }
     }
     assert passages_model.page_passages(document, registry).text == case["words"]
@@ -4524,7 +4572,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     edited = live.replace(
         "Fastest to ship.",
         'A revised recommendation. <small class="tag">Recommended</small>',
-    ).replace('id="o-stage"', 'id="o-stage" chosen')
+    ).replace('id="o-stage"', 'id="o-stage" selected')
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + edited))
     assert stamp(page_dir, "revise recommendation").exit_code == 0
     [current] = [
@@ -4542,9 +4590,9 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
 def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir):
     """An action admitted by an earlier Leaf stays in force, and keeps its obligation
     answered, under a Leaf that records the same operation's definition with other
-    fields. Before #2329 the definition carried `update`, the verb flag now
-    named `text`; matching every recorded field dropped each decision on a page
-    that Leaf version had served."""
+    fields. An earlier Leaf's definition carries `update` where this one names the
+    verb flag `text`; matching every recorded field would drop each decision on a
+    page that Leaf version served."""
     source = page_dir / "index.html"
     source.write_text(
         PAGE.replace(

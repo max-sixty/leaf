@@ -1,11 +1,6 @@
-# From Codex session 01a1177f-6bbd-7121-9958-61f8e61ead3e: a navigation
-# assessment presented recommendations as findings until the user requested Asks.
-# Includes the report framing that competed with exposing the pending decisions.
-# Initial short paired runs at e9c98892c produced Asks in both arms (2/2 per
-# context). A later drafted-report run reproduced prose-only decisions after
-# loading the first instruction draft. The final direct obligation passed 2/2,
-# as did the paired baseline; the case does not establish a causal improvement.
-# Both arms also passed drafted-report 2/2 at the source's high effort.
+# A navigation assessment presented recommendations as findings until the user
+# requested Asks. Includes the report framing that competed with exposing the
+# pending decisions.
 description: assessment-surfaces-pending-decisions
 metadata:
   purpose: "Asks: an assessment exposes decisions waiting on the user while informational findings remain findings."
@@ -52,14 +47,10 @@ assert:
       or confirmation of already verified behavior. Fail prose-only recommendations,
       a batch choice for both changes, or automatic selection of the author's pick.
 variants:
-  # From 01a1220f-e1e1-7383-979a-eeeef1463c84: the handoff registered only
-  # its recommended next extract and called the other proposals candidates.
-  # A short probe preserved all decisions. With revision 85, a verified old-contract
-  # trial withdrew even the existing ask because preparation was agent-owned work.
-  # Two other initial trials missed the skill or read another checkout: unscored.
-  # Native skill-input pairs with the final rubric: original 0/2, revised 2/2.
-  # Readiness does not decide which scopes need asks: the rubric accepts
-  # independently answerable boundary choices without resuming blocked work.
+  # The handoff registered only its recommended next extract and called the other
+  # proposals candidates. Readiness does not decide which scopes need asks: the
+  # rubric accepts independently answerable boundary choices without resuming
+  # blocked work.
   remaining-review:
     metadata:
       purpose:
@@ -281,7 +272,7 @@ variants:
           <p>Tapping a discussion should select it even when an older message still has
           focus. I recommend this independent fix next; extraction and verification are
           my work, and choosing a scope does not authorize landing it.</p>
-          <lf-options id="next-touch" choose>
+          <lf-options id="next-touch">
             <lf-option id="next-touch-keep" value="keep-priority">Keep the current priorities</lf-option>
             <lf-option id="next-touch-next" value="next-scope">Make #59 the next extraction scope</lf-option>
           </lf-options>
@@ -353,16 +344,11 @@ variants:
       executor: leaf_dev.usability_eval
       scenario: remaining-review
       purpose: "On Me: finish an existing branch review with independent recorded scope choices."
-  # From 01a12305-235c-7613-8331-c007a55786e8: the agent read empty queues,
-  # then handed over undecided rewrites as prose. At 87976febb, unchanged shipped
-  # instructions passed 2/2 on Codex. This short replay protects the contract;
-  # it did not reproduce the long-session omission or establish an improvement.
-  # Across #2506's rename, paired on Claude Code: the case and instructions at
-  # 0cc6805bf passed 2/3, at 3fe3eb0af 3/3; the miss was the judge faulting an
-  # unrun plan the prompt asks for. Both registered two separate asks.
-  # At 838ad41c7 on Codex, 1/2 interpreted "files unreachable" as forbidding
-  # reading Leaf references. Clarifying reference access passed 2/2 with the
-  # same shipped instructions; this was a probe ambiguity, not a guidance gain.
+  # The agent read empty queues, then handed over undecided rewrites as prose.
+  # This short replay protects the contract; it does not reproduce the
+  # long-session omission. The prompt names the review page and its services as
+  # unreachable, since "files unreachable" can read as forbidding reading Leaf
+  # references.
   prose-review-handoff:
     metadata:
       purpose: "On Me: a prose review handoff reconciles an empty queue with the decisions it still needs."
@@ -410,19 +396,8 @@ variants:
           settled; it must not acquire a new request for approval. Do not require
           exact wording, synthetic event IDs, or a particular choice widget.
   # Control for prose-review-handoff: chat answers settle decisions without
-  # reopening them or moving authorized agent work onto the user. At 87976febb,
-  # unchanged shipped instructions passed 2/2 on Codex. With its queue rows as
-  # prose Questions, 27484affb passed 3/3 on Claude Code.
-  # Across #2506's rename (prose Question rows to `"kind":"ask"`), paired on
-  # Claude Code: 0cc6805bf passed 3/3 and 3fe3eb0af 3/3, every sample ending
-  # both `reply:` ids; 0cc6805bf ended them `done`, 3fe3eb0af `dropped`.
-  # Once `done` recorded a prose ask answered elsewhere, the rubric required
-  # `done`. Paired on Claude Code against ac09416a5: base 2/3, the miss ending
-  # both `dropped` as its instructions said; head 3/3, all `done` with the
-  # chat answer as the detail. The two base passes ignored that instruction.
-  # Protocol 9 renamed these rows' kind to `"widget"`; that change is unscored.
-  # Protocol 45 made resolving the thread how the agent retires them; the rubric
-  # asked for `leaf task end … done` before.
+  # reopening them or moving authorized agent work onto the user. Resolving the
+  # thread is how the agent retires them.
   settled-review:
     metadata:
       purpose: "On Me: settled chat decisions stay settled while an authorized external wait remains agent work."
@@ -464,12 +439,7 @@ variants:
           is allowed; it must create no obligation or required user action. Fail if it
           ends ci-work before CI finishes or claims an empty On Me list means all
           work is complete. Do not require exact wording or invented result IDs.
-  # From 01a12209-ecff-7132-8615-f7d8ada34ddb: the first paired run missed
-  # required approval on baseline and registered it on head. A later pair
-  # passed both arms; the evidence is illustrative, not a failure rate. Graded
-  # only on the derived approval Question, 27484affb passed 2/2 on Claude Code.
-  # Across #2506's rename, paired on Claude Code: 0cc6805bf and 3fe3eb0af each
-  # passed 3/3.
+  # The drafted handoff invites missing the required approval.
   queue-handoff:
     metadata:
       purpose: "On Me: user actions are registered, authorized agent work remains on the agent, and an empty On Me list does not imply all work is finished."
@@ -546,16 +516,14 @@ variants:
 
         The page directory is not reachable here, so return the final <main> HTML
         rather than writing a file.
-  # From Claude Code session 07bcc268-9c0b-4b0e-b618-9234e0102238: asked which
-  # refactors were clear and which needed more thought, the agent drew a board
-  # whose "Needs your decision" column held six product choices, invited
-  # comments or drags on the cards, and listed the choices and its "say go"
+  # Asked which refactors were clear and which needed more thought, a Claude Code
+  # agent drew a board whose "Needs your decision" column held six product choices,
+  # invited comments or drags on the cards, and listed the choices and its "say go"
   # recommendations only as open items in its chat replies. On Me held nothing.
   # The draft and chat items below reproduce what its own replies repeated.
-  # Paired on Claude Code against 521522dbd: base 6/8, head 11/11 across
-  # three rounds of wording. Base misses kept the column and a combined ask.
-  # Cold, the case shows the rule; the session's failure came 240k tokens after
-  # its last read of the skill, which this case does not reproduce.
+  # A failing answer keeps the column and a combined ask. Cold, the case shows the
+  # rule; the session's failure came long after its last read of the skill, which
+  # this case does not reproduce.
   # The task asks for commands/HTML with services unreachable: score that plan,
   # not whether it ran. Permission and policy choices both use answering widgets;
   # a conversational reply could settle a thread question without making the choice.

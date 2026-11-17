@@ -35,7 +35,7 @@ REPLY_SAMPLE = """<lf-sample id="reply-practice" label="Practice in a reply">
   <template id="reply-practice-source" data-sample>
     <h1 id="reply-child-heading">Practice from a reply</h1>
     <lf-ask id="reply-child-ask"><h2>Which approach?</h2>
-      <lf-options id="reply-child-options" choose>
+      <lf-options id="reply-child-options">
         <lf-option id="reply-child-a">First approach</lf-option>
         <lf-option id="reply-child-b">Second approach</lf-option>
       </lf-options>
@@ -92,13 +92,13 @@ def test_inline_sample_choices_use_parent_state_and_undo(browser, serve):
                 """
       <h1>Delivery</h1>
       <lf-sample id="working" interactive label="Working choices">
-        <lf-options id="delivery" choose>
+        <lf-options id="delivery">
           <lf-option id="standard">Standard</lf-option>
           <lf-option id="express">Express</lf-option>
         </lf-options>
       </lf-sample>
       <lf-sample id="quoted" label="Quoted choices">
-        <lf-options id="quoted-delivery" choose>
+        <lf-options id="quoted-delivery">
           <lf-option id="quoted-standard">Standard</lf-option>
         </lf-options>
       </lf-sample>

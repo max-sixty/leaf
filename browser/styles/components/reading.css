@@ -47,8 +47,8 @@
 }
 /* An overlay scrollbar paints over the scroller's own block end, and macOS widens it to
  * a 15px track under the pointer: a thread's code block, 8px of padding under its last
- * line, lost half that line to the bar the moment the user reached for it. So a box of
- * text that can scroll sideways keeps room below its content for the track. A widget's
+ * line, can lose half that line to the bar the moment the user reaches for it. So a
+ * box of text that can scroll sideways keeps room below its content for the track. A widget's
  * text scroller declares `lf-text-scroller`, as lf-diff's file and lf-call-diff's call
  * group do, on any page. It keeps the whole track, since nothing here knows how close
  * its last line sits to its edge. The face's code block and table are such boxes too
@@ -60,8 +60,8 @@
  * A float and not a block: a block child wraps the lines in an anonymous block, whose
  * overflow the scroller no longer pads at its inline end, so the last character sat
  * against the edge and a block that overflowed by less than its inset stopped
- * scrolling, which removed the room, which made it scroll again, a ResizeObserver loop
- * in the command hub's lf-ask. A float leaves the lines where they were, and at the box's
+ * scrolling, which removed the room, which made it scroll again, a ResizeObserver
+ * loop. A float leaves the lines where they were, and at the box's
  * full width it can only stand below the last of them. In a grid, which ignores the
  * float, it takes a row of its own across every track. */
 @media screen {
@@ -73,22 +73,29 @@
     grid-column: 1 / -1;
   }
 }
+/* Whether focus is in a table whose rows open with their names (below, the sticky row
+   names). The names' fade asks the table for it by a style query, so nothing inherits
+   it. */
+@property --lf-names-focus {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @layer lf-reading-face {
   @container style(--lf-reading-face: 1) {
     /* An identifier breaks where it must. A test name or a path is one word to the line
      * breaker, and a word a box cannot hold is either drawn past the box or holds the
-     * box to its own width — in a table cell the latter: a column of 79-character test
-     * names beside a column of prose held its column at 583px of the 720px measure, the
-     * prose was squeezed to 118px and a few words a line, and the table ran 3174px tall
-     * and scrolled 83px sideways for the rest. `anywhere` rather than `break-word`
-     * because only `anywhere` counts the break when a box's minimum is measured, and a
-     * table's columns are sized from exactly that: with it the same table stood
-     * 112/352/256 and 1047px tall, scrolling nothing. On code and not on every cell,
-     * because a cell's minimum is its longest word, and that is what keeps a column of
-     * row names from being squeezed under the prose beside it — with every cell
-     * breakable the same table's row names measured 55px. The minimum is what every
-     * shrinking box is sized from, so a flex item or a grid track holding a long name
-     * hands room to its neighbour the same way (a flex item measured 691px to 359px).
+     * box to its own width — in a table cell the latter: a column of long test names
+     * beside a column of prose holds its column at most of the measure, the prose is
+     * squeezed to a few words a line, and the table runs tall and scrolls sideways for
+     * the rest. `anywhere` rather than `break-word` because only `anywhere` counts the
+     * break when a box's minimum is measured, and a table's columns are sized from
+     * exactly that: with it such a table can fit the measure without scrolling. On code
+     * and not on every
+     * cell, because a cell's minimum is its longest word, and that is what keeps a
+     * column of row names from being squeezed under the prose beside it. The minimum is
+     * what every shrinking box is sized from, so a flex item or a grid track holding a
+     * long name hands room to its neighbour the same way.
      * A block (pre) wraps nothing, so this reaches nothing there. */
     code,
     samp,
@@ -104,12 +111,12 @@
      *
      * The same rule costs a block in a box that takes its width from its content (a flex
      * item, a grid `auto` track beside an `fr` track, a box sized to fit), which sizes
-     * without it: two short commands in a flex row stood 30px wide each. `page check
-     * --render` reports a block left too narrow to read (`squeezedBoxes`,
+     * without it: the rule can squeeze short commands in a flex row too narrow to read.
+     * `page check --render` reports a block left too narrow to read (`squeezedBoxes`,
      * render-checks/layout.js), and the author gives the block or its holder a width. A
      * one-column grid inside the block would size it by its lines and still let it
-     * shrink, but its text-only lines lost the room after their last character (1px
-     * against a block's 15px), and a block mixing text and tags stood each run in a row
+     * shrink, but its text-only lines lost the room after their last character, and a
+     * block mixing text and tags stood each run in a row
      * of its own. */
     pre {
       overflow: auto hidden;
@@ -148,9 +155,9 @@
     }
     /* A table's columns hold what is in them, and the space between two of them is
      * one gutter wide. `width: 100%` bought the opposite: the browser's auto layout
-     * spreads leftover width across every column, so a four-column survey on the
-     * 720px measure ran 149/122/267/182 over content 95px and 52px wide, and the eye
-     * crossed 124px of nothing to get from an attribute to its values.
+     * spreads leftover width across every column, so a four-column survey's columns
+     * run far wider than their content, and the eye crosses a gap of nothing to get
+     * from an attribute to its values.
      *
      * display:block is what buys it back, and a wide table's answer with it. The
      * grid inside a block box shrink-wraps, so a table takes the measure only when
@@ -171,8 +178,8 @@
      * render-checks/layout.js) and leaves the third case to a table with nothing
      * left to wrap.
      *
-     * Two things the display change could have cost, both measured rather than
-     * assumed, and neither charged: Chrome's accessibility tree keeps table,
+     * Two things the display change could have cost, and neither charged: Chrome's
+     * accessibility tree keeps table,
      * rowgroup, row, columnheader and cell through it, with or without an explicit
      * role, and a long table still breaks across printed pages, since a page box
      * fragments an overflow block rather than clipping it. What paper does lose is
@@ -181,17 +188,16 @@
      * one.
      *
      * A table asks its holder for its columns' width, as the browser's own table does,
-     * and scrolls them where the holder gives it less. Until November 2026 it was an
-     * inline-size container so that its width never widened its holder, as `pre`'s
-     * containment still keeps a code block's. Containment sizes a box as if it were
+     * and scrolls them where the holder gives it less. Rejected: an inline-size
+     * container so that its width never widened its holder, as `pre`'s containment
+     * keeps a code block's. Containment sizes a box as if it were
      * empty, so a holder that takes its width from its content (a flex item, a grid's
-     * `auto` track, a box sized to fit, such as a thread card) gave the table none: two
-     * tables side by side in a flex row stood 0px wide, a headed one beside a note 65px
-     * with a column out of sight, and a thread card stayed at its narrowest, scrolling a
-     * seven-column table it had room for. Now a table in such a holder widens it to the
-     * columns' width, past the window if the columns need that, and the render check
-     * reports the page scrolling sideways. In the column, a panel or any other block,
-     * the table takes its holder's width and scrolls as before.
+     * `auto` track, a box sized to fit, such as a thread card) gives the table none: a
+     * table in a flex row can collapse to nothing, and a thread card stays at its
+     * narrowest, scrolling a table it has room for. A table in such a holder widens it
+     * to the columns' width, past the window if the columns need that, and the render
+     * check reports the page scrolling sideways. In the column, a panel or any other
+     * block, the table takes its holder's width and scrolls.
      *
      * Like `pre` it scrolls only sideways, `hidden` down, so a landing on what it
      * holds still counts the sticky headers over the table. Scrolling sideways makes it
@@ -221,7 +227,7 @@
        line: it asks the table for no width, fills the box the table has, and stays on
        screen as the columns scroll. A block would do the same, except in WebKit, which
        scrolled a block's sticky caption away with the columns of a right-to-left table
-       (Playwright WebKit, 2026-11-05). */
+       (Playwright WebKit). */
     caption {
       display: inline-block;
       vertical-align: top;
@@ -237,7 +243,7 @@
      * edges, and every row, the outer columns, the header row and the last row stand
      * flush with them. An outward ring there lost the side on the table's edge. Room
      * outside the table would have to come from a negative margin, which overflows any
-     * scroller holding the table flush, as an x-bound box does. */
+     * scroller holding the table flush, as a paint.bound box does. */
     tr,
     th,
     td {
@@ -364,35 +370,31 @@ dl.lf-facts dd {
     /* A row's heading keeps the name it holds whole, as an option table in a man page
      * keeps `--output-dir`. `anywhere` (above) gives a name a one-character minimum, and
      * a table's automatic layout sets every column the same share of the way from its
-     * minimum to its widest, so a column of names beside a column of sentences got
-     * almost none: at 720px `--output-dir` stood as `--output-` over `dir`, and
-     * `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box of
-     * its own width, which the column can't go under, up to a third of the reading
-     * column, or of the nearest size container where that is narrower (the body, unless
-     * a box nearer declares one). A longer name breaks inside its box rather than hold
-     * the column open.
+     * minimum to its widest, so a column of names beside a column of sentences gets
+     * almost none, and `--output-dir` can break as `--output-` over `dir`. So the name
+     * is a box of its own width, which the column can't go under, up to a third of the
+     * reading column, or of the nearest size container where that is narrower (the
+     * body, unless a box nearer declares one). A longer name breaks inside its box
+     * rather than hold the column open.
      *
      * The rule takes a `<th scope="row">` whose only element is the code, because that
-     * is where the page's author says which cell names the row: in pages written since
-     * page-authoring.md asked for the heading (#4091), 659 of the 663 rows that open on
-     * a code name are written so. A name in any other column is left to the table's
+     * is where the page's author says which cell names the row, as page-authoring.md
+     * asks. A name in any other column is left to the table's
      * layout. A stylesheet can't find it there: a selector reads no text, and a name, a
      * command and the one code in a sentence are each a `<code>` in a `<td>`. The page's
      * author knows which column holds names, and their own `white-space: nowrap` on
      * those cells keeps them whole.
      *
-     * Rejected, each measured in Firefox on 381 tables from real pages:
+     * Rejected:
      * - Delivery and both Markdown renderers marking every cell whose whole text is one
-     *   code name. That kept the names in other columns whole too, 8 names broken on
-     *   the 213 tables with row headings against this rule's 68, at the price of
+     *   code name. That keeps the names in other columns whole too, at the price of
      *   reading each cell's text in three places to learn what the row heading says.
      * - `td > code:only-child`, a guess from structure. It makes a box of a command
-     *   and of the one code in a sentence, and the box holds its column open: 6 tables
-     *   newly scrolled sideways and 9 grew by 15% or more.
-     * - `calc-size(max-content, min(size, 20ch))` as the box's minimum, which caps only
-     *   the least, so a long name takes its whole width where its table has room. It
-     *   was the rule until November 2026, on every code in a row's first cell, and
-     *   Firefox lacks calc-size(), so every name stayed breakable there. The width
+     *   and of the one code in a sentence, and the box holds its column open.
+     * - `calc-size(max-content, min(size, 20ch))` as the box's minimum, on every code in
+     *   a row's first cell, which caps only the least, so a long name takes its whole
+     *   width where its table has room. Firefox lacks calc-size(), so every name stays
+     *   breakable there. The width
      *   below is one every engine computes, and it is the box's least and its most: a
      *   name past the third breaks there even in a table with room for it. */
     th[scope="row"] > :is(code, samp):only-child,
@@ -480,15 +482,26 @@ dl.lf-facts dd {
        Each rule below names its cells' types, in a `:where()` that adds no weight,
        because its subject follows the table's `:has()`: when such a subject names no
        type, class, id or attribute, Chromium restyles every element under any one whose
-       focus mark changes (test_a_has_leads_only_to_a_subject_naming_an_element). Focus
-       marks every ancestor of the focused element, `main` included, so with
-       `:first-child` alone every focus move restyled the page
-       (test_resolving_a_thread_restyles_what_focus_marks). */
+       attributes another `:has()` reads change
+       (test_a_has_leads_only_to_a_subject_naming_an_element).
+       Whether focus is in the table is a property the table sets, `--lf-names-focus`,
+       and the fade asks the table for it by a style query on the container the table
+       names, `lf-row-names` (`browser/AGENTS.md`, "A rule for focus anywhere in a box"),
+       so a focus move into or out of the table restyles the table, its fades and, while
+       its fades are drawn, everything in it, and a move elsewhere on the page restyles
+       none of it (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes).
+       A page that names its own container on such a table (`container-name: vendors`)
+       loses the fade, and a nested one given its own `container` fades by the outer
+       table's focus. */
     table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
       --lf-more-fade-start: 0px;
       --lf-names-clear-to: right;
+      container-name: lf-row-names;
       &[data-lf-scroll-direction="rtl"] {
         --lf-names-clear-to: left;
+      }
+      &[data-lf-focus-within] {
+        --lf-names-focus: 1;
       }
       & > * > tr > :where(th, td):first-child {
         position: sticky;
@@ -498,21 +511,20 @@ dl.lf-facts dd {
         background: var(--lf-ground);
       }
       @media screen {
-        &[data-lf-more-before]:not([data-lf-focus-within])
-          > *
-          > tr
-          > :where(th, td):first-child::after {
-          content: "";
-          position: absolute;
-          inset-block: 0;
-          inset-inline-start: 100%;
-          inline-size: var(--lf-more-fade, 24px);
-          background: linear-gradient(
-            to var(--lf-names-clear-to),
-            var(--lf-ground),
-            transparent
-          );
-          pointer-events: none;
+        @container lf-row-names style(--lf-names-focus: 0) {
+          &[data-lf-more-before] > * > tr > :where(th, td):first-child::after {
+            content: "";
+            position: absolute;
+            inset-block: 0;
+            inset-inline-start: 100%;
+            inline-size: var(--lf-more-fade, 24px);
+            background: linear-gradient(
+              to var(--lf-names-clear-to),
+              var(--lf-ground),
+              transparent
+            );
+            pointer-events: none;
+          }
         }
       }
     }
@@ -532,8 +544,8 @@ dl.lf-facts dd {
        stands centred over its captures in the row names' ink, and a row's name stands level
        with its capture's middle rather than at its top edge. A head's longest word still
        sets its column's least width, so a long head draws its captures a little larger
-       than their neighbours ("Documentation reviewed" over one of three equal captures, 11%
-       wider at 1440px); breaking heads anywhere evened the scale but split "Documentation"
+       than their neighbours ("Documentation reviewed" over one of three equal
+       captures); breaking heads anywhere evened the scale but split "Documentation"
        mid-word on a phone. A table is one of captures where a cell of its own rows holds
        nothing but an image, linked or not, so a table nested in a cell is read for itself. */
     table:has(td > img:only-child, td > a:only-child > img:only-child):has(
@@ -661,11 +673,11 @@ dl.lf-facts dd {
      * a user can select and quote; it is set in the sans because it reads as
      * machinery, not because it is the runtime's.
      *
-     * Nothing a widget builds through `offer` belongs here, and the first draft had
-     * four of them (a row's `for` reference, the settled row's count and Δ, a tab's
-     * Δ). Those wear lf-ui, which already answers in the same face — so the rule was
-     * inert, and it said the wrong thing where anyone read it: that the runtime's own
-     * chrome is the page pointing at its content. This list is the page's words.
+     * Nothing a widget builds through `offer` belongs here, such as a row's `for`
+     * reference, the settled row's count and Δ, or a tab's Δ. Those wear lf-ui, which
+     * already answers in the same face — so the rule would be inert for them, and it
+     * would say the wrong thing where anyone read it: that the runtime's own chrome is
+     * the page pointing at its content. This list is the page's words.
      *
      * Figures are part of the face, because apparatus is where the page's quantities
      * live and a quantity here is one that moves — a task's done fraction, a metric's
@@ -673,14 +685,12 @@ dl.lf-facts dd {
      * asked for. The sans sets its digits to their own widths, so a rewrite resizes the
      * box the number is set in — a chip has a filled edge, so that edge is visible on its
      * own — and moves whatever stands after it, which for a metric is the delta riding
-     * against its value. Measured in this stack, `1,412` and `1,398` stand 4.6px apart at
-     * --lf-t-2 and `11,111` and `41,208` 15.5px, all four identical once the figures are
-     * tabular. That is the movement browser/AGENTS.md's "The page holds still under the user's aim" forbids,
+     * against its value. That is the movement browser/AGENTS.md's "The page holds still under the user's aim" forbids,
      * in the form the norm calls worst — arriving on a poll, with no gesture behind it to
      * explain where the line went.
      *
      * The serif is left out because it needs nothing: Charter already sets every digit
-     * to one width, so the same four strings measure identically with the property and
+     * to one width, so numbers of one length measure identically with the property and
      * without it, and stating it there would be a declaration that could never be
      * wrong and never do anything. */
     figcaption,
@@ -737,9 +747,9 @@ leaf-text.lf-fab-input,
 }
 /* A message runs to the width of the box that holds it, a card, a seat or the
      floating panel, which sets the limit: a thread is all messages, so its box is
-     already sized for reading them. It once kept the column's measure, which in the
-     panel widened for a long draft stopped messages two thirds of the way across (the
-     user's call, 28 October). */
+     already sized for reading them. Rejected (the user's call): the column's measure,
+     which in the panel widened for a long draft stopped messages two thirds of the way
+     across. */
 .lf-msg-body {
   min-width: 0;
   margin: var(--lf-msg-body-gap) 0 0;
@@ -751,8 +761,7 @@ leaf-text.lf-fab-input,
    a surface whose messages end their words further in says where
    (`--lf-msg-text-end`), as a margin card does. Rejected: ending them short of Send,
    as the field they were typed in does, so a line broke where it broke as they wrote
-   it; every message the user sent then ran up to 86px narrower than the reply under
-   it. */
+   it; every message the user sent would run narrower than the reply under it. */
 .lf-msg:where([data-lf-author="user"]) {
   --lf-msg-text-end: var(--lf-thread-text-inset);
 }
@@ -786,14 +795,14 @@ leaf-text.lf-fab-input,
      no wrap can help. A table is the one block in a reply with somewhere else to
      put the width — the reading face makes it scroll inside itself — so breaking its
      cells to save that room spends the alignment the table was written for:
-     "12,000" arrived as "12,0" over "00", in a column of figures to compare. */
+     "12,000" can break as "12,0" over "00", in a column of figures to compare. */
 .lf-msg-body :is(th, td) {
   overflow-wrap: normal;
 }
 /* A row heading's name takes a third of the narrowest thread card here. No rule can
    read how wide the card or panel holding a message is, and at the reading column's
-   third a long name in a 320px card stood whole and pushed 135px of its table out of
-   sight. */
+   third a long name in the narrowest card stands whole and pushes part of its table
+   out of sight. */
 .lf-msg-body th[scope="row"] :is(code, samp) {
   max-inline-size: calc(var(--lf-thread-card-min) / 3);
 }

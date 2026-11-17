@@ -228,11 +228,11 @@ export function createDesignMode({
         legendBoxes.delete(addressable);
         legendSizes.unobserve(addressable);
       }
-    // A widget's part is what its declaration says it is — a tag declaring x-owners has a
-    // compound owner, and is what the owner is made of — rather than what stands inside a
-    // widget: a tab holds a whole page, and every heading and paragraph of that page is
-    // the author's, and named.
-    const parts = new Set(tagsDeclaring((e) => e["x-owners"]));
+    // A widget's part is what its declaration says it is — a tag declaring
+    // markup.owners has a compound owner, and is what the owner is made of — rather
+    // than what stands inside a widget: a tab holds a whole page, and every heading and
+    // paragraph of that page is the author's, and named.
+    const parts = new Set(tagsDeclaring((e) => e.markup?.owners));
     /** @type {LegendEntry[]} */
     const entries = [];
     for (const addressable of addressables) {
@@ -252,8 +252,8 @@ export function createDesignMode({
     }
     // Hidden targets retain their frames until scrolling brings them back. A box takes
     // its element's corners, read once the element shows: Chromium answers a style read
-    // inside a closed tab by styling everything the tab holds, which took 38 s on a page
-    // of thirty text documents in closed tabs.
+    // inside a closed tab by styling everything the tab holds, which can take tens of
+    // seconds on a page of large text documents in closed tabs.
     const shown = entries
       .filter(({ addressable }) => addressable.checkVisibility())
       .map((entry) => ({

@@ -44,7 +44,7 @@ import { widgetImports } from "./widget-imports.js";
    A page loads what it uses. `importWidgetModules` is the one import-on-demand door: it takes
    the markup about to be upgraded, imports each declared tag standing in it once per
    tab. Shared dependency preparation loads shadow rules where the scope
-   holds or declares creation of an `x-shadow` widget, alongside any declared Markdown parser. Three
+   holds or declares creation of a `words.shadow` widget, alongside any declared Markdown parser. Three
    boundaries introduce markup and all three use it — startup with the document, a
    version activation with the incoming authored body, and the state application with the frozen
    markup an agent's reply carries, ahead of the panel building a body. Each of them
@@ -84,7 +84,7 @@ export function rememberPassageParts(
   original = (node) => node,
 ) {
   for (const tag of tagsDeclaring(
-    (entry, tag) => upgrades(tag) && !entry["x-verbatim"],
+    (entry, tag) => upgrades(tag) && !entry.words?.verbatim,
   ))
     for (const root of within(scope, tag)) {
       const live = original(root);
@@ -102,7 +102,7 @@ export function rememberPassageParts(
 
 /** @param {Scope} scope */
 const preservingOwners = (scope) =>
-  within(scope, "*").filter((root) => registry[root.localName]?.["x-verbatim"]);
+  within(scope, "*").filter((root) => registry[root.localName]?.words?.verbatim);
 
 /** @param {Element} root @param {[string, string | null, number]} owner @param {(node: Element) => Element} original */
 function identifyPreserving(root, owner, original = (node) => node) {
@@ -136,9 +136,7 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 
 // The one import-on-demand door: a page loads the modules its own markup uses and no
 // others. The vocabulary is the layer's and the page is one document in it, so
-// importing every declared tag made every page pay for the whole layer — a triage
-// board with no diff anywhere on it fetched Pierre's 1.7MB renderer on every load,
-// which was more than half the bytes that page moved.
+// importing every declared tag would make every page pay for the whole layer.
 //
 // Three boundaries can bring a tag into the document and all three ask here: startup,
 // a version activation, and the panel's instantiation of the frozen markup an agent
@@ -159,9 +157,9 @@ const widgetUrl = (tag) =>
 /** @param {Scope} scope */
 async function loadWidgetDependencies(scope) {
   // Before the modules import, because a widget's first render asks for these rules and
-  // an async stage would put every x-shadow widget's look a fetch behind its own nodes.
-  // The creating module imports its child's constructor; its declaration brings the
-  // child's shared rules in before even the first child exists. The rules are read
+  // an async stage would put every words.shadow widget's look a fetch behind its own
+  // nodes. The creating module imports its child's constructor; its declaration brings
+  // the child's shared rules in before even the first child exists. The rules are read
   // once for the tab however many scopes ask.
   await Promise.all([
     loadDeclaredMarkdown(scope),

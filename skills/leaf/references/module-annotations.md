@@ -75,9 +75,9 @@ node. Use the focus query when retaining a focused entry while updating its read
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
-part. It declares the ids' prefixes in `x-visual.prefixes` (here `commit:`) and calls
-`registerVisualParts(source, read, {reveal, label})` once. `read()` returns the parts
-drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
+part. It declares the ids' prefixes in `words.visual.prefixes` (here `commit:`) and
+calls `registerVisualParts(source, read, {reveal, label})` once. `read()` returns the
+parts drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
 `reveal(id)` shows a part when someone follows its thread, even if it is visible
 already, so cancel work that would hide it. `label(id)` names a part in Threads without
 changing the visual, or returns `null`. Call the returned `update()` after the parts or

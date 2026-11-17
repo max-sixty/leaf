@@ -88,7 +88,7 @@
    the span the two differ in (`carry`), so a change to the page is searched only around
    it. An anchor asked of a reading again has the answer it had (`findQuote`).
 
-   Shadow trees: only open roots declared through `x-shadow` join the page reading;
+   Shadow trees: only open roots declared through `words.shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
    `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow.js),
@@ -186,9 +186,8 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // A passage is a list of {node, start, end} segments, and everything that reads the page's
 // text speaks in them: the search for a quote, the capture of one, the landmark a version
 // change rides on, the version comparison's block keys. One shape means one answer to what the
-// page says. The bugs this layer kept having were all a second answer disagreeing with the
-// first — what a selection rendered as versus what the document holds — and a second
-// answer is what there is now no room for.
+// page says. A second answer can disagree with the first — what a selection rendered as
+// versus what the document holds — so there is no room for one.
 //
 // Two skip lists, because two jobs genuinely differ, and the difference is the whole
 // reason .lf-ui and data-lf-gen are two markers rather than one. Anchoring skips the
@@ -208,13 +207,13 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // elsewhere could match inside the invisible half of a replacement.
 //
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
-// same page follow one declaration: x-retired-when names the decision that removes the
-// element, x-owners the wrapper the decision is recorded on. Composition stamps that
-// relation, owner by owner, into `$decisions` (Python's `registry.contract.stamp_decisions`).
-// Which outcome stands is the application's reading of the log and this tab's own
-// gestures, so the readings take it from the publisher, as `paintSettlements` does,
-// and never back from the mark that paint leaves: a mark a module wrote where the log
-// decided nothing silences no words.
+// same page follow one declaration: state.retired-when names the decision that removes
+// the element, markup.owners the wrapper the decision is recorded on. Composition
+// stamps that relation, owner by owner, into `$decisions` (Python's
+// `registry.contract.stamp_decisions`). Which outcome stands is the application's
+// reading of the log and this tab's own gestures, so the readings take it from the
+// publisher, as `paintSettlements` does, and never back from the mark that paint
+// leaves: a mark a module wrote where the log decided nothing silences no words.
 //
 // `settlements` is that reading per holder id: its tag, and the tags its outcome
 // in force retires.
@@ -300,9 +299,9 @@ export function renderRetired(el, outcome) {
 // The chrome question is bounded at the element, because the answer is about what this
 // element has left rather than about where it is standing. A suggestion an agent sent
 // in a reply stands inside the panel, which is chrome, so asked the unbounded way its
-// surviving half counted as apparatus too: one accepted slot emptied it, the anchor a
-// user had put on it detached, and the mark went out from under a thread that was
-// still open. The same suggestion on the page kept both.
+// surviving half would count as apparatus too: one accepted slot would empty it,
+// detaching the anchor a user put on it and taking the mark out from under a thread
+// still open, where the same suggestion on the page keeps both.
 /** @param {Element} el */
 export function settledAway(el) {
   /** @type {Element | null} */
@@ -350,12 +349,13 @@ export const leafSurface = (node) =>
   isNode(node) ? closestAcross(node, LEAF_SURFACE) : null;
 // The two together, which is what an affordance acting on where the pointer or the caret
 // is actually needs: the page's own words, as against the layer over them and as against
-// the apparatus inside them. Either half alone leaves a hole, and the hole `.lf-ui` left
-// was this one — a declared label is nearer than the panel and answers for itself, so a
-// drag across a question an agent asked in a reply read as a passage of the page. It
-// raised the page's 💬 and wrote an anchor onto a thread's own id, into an append-only
-// log, naming a section no version holds. `leaf thread create --section` refuses exactly that
-// from the file side, and file capture is the reading that is supposed to promise less.
+// the apparatus inside them. Either half alone leaves a hole, and `.lf-ui` alone leaves
+// this one — a declared label is nearer than the panel and answers for itself, so a
+// drag across a question an agent asked in a reply would read as a passage of the page,
+// raising the page's 💬 and writing an anchor onto a thread's own id, into an
+// append-only log, naming a section no version holds. `leaf thread create --section`
+// refuses exactly that from the file side, and file capture is the reading that is
+// supposed to promise less.
 /** @param {Node | null} node */
 export const pageWords = (node) => inPage(node) && !inUi(node);
 // The two readings, each one predicate over a text node and named for the question it
@@ -367,12 +367,12 @@ export const pageWords = (node) => inPage(node) && !inUi(node);
 //
 // A text node's parent is an element, and every reading of these nodes says so: the
 // walk asks it of a shadow root's own text and of a slotted node's place, and
-// `authored` of a node it is handed. Written once per reading it was several answers to
-// one question, one of them quietly admitting a node without a parent — which is a
-// claim about the page nothing backs: what a widget
-// stages into a shadow root is the only text these walks reach with no element over it,
-// and a module staging a bare text node would be handing the page words no cell, no
-// fence and no block. So the assertion is one function, and refusing is what it does.
+// `authored` of a node it is handed. Written once per reading, it would be several
+// answers to one question, one of them quietly admitting a node without a parent —
+// which is a claim about the page nothing backs: what a widget stages into a shadow
+// root is the only text these walks reach with no element over it, and a module staging
+// a bare text node would be handing the page words no cell, no fence and no block. So
+// the assertion is one function, and refusing is what it does.
 //
 // It refuses in the words of the mistake, which is the half that was missing. Throwing
 // out of the pass the render gate reads the console for is the loud direction, and the
@@ -404,12 +404,12 @@ export const elementOver = (n) => {
 // this one included, reads its host as it reads a host whose root the registry does not
 // declare, by the host's own children, which are the words the file holds. So the page
 // refuses the text once, here, whichever reader reaches it first, and no reader meets it
-// again. Thrown out of each reader instead, it was refused again on every repaint frame,
-// key and selection, each an uncaught error and each a report. The one refusal is
-// reported to the agent here, and before the page upgrades it is also the page's
+// again. Thrown out of each reader instead, it would be refused again on every repaint
+// frame, key and selection, each an uncaught error and each a report. The one refusal
+// is reported to the agent here, and before the page upgrades it is also the page's
 // startup failure, its own fault, which no server update fixes: it is declared
-// (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice says
-// the page has a problem, and the page never presents (leaf.js). A page already
+// (`lf-startup-failed`, `page`), so the readable fallback shows at once, the notice
+// says the page has a problem, and the page never presents (leaf.js). A page already
 // upgraded keeps running without those words, and without the root: a mark or a
 // projection painted into it is never cleared, and an id inside it stops resolving,
 // since every sweep of declared roots (`shadowRootsIn`) has dropped it.
@@ -467,10 +467,10 @@ export function refuseBareText() {
 //
 // A widget riding a message stands inside the floating panel, so the panel is `.lf-ui`
 // over every word it says — and read straight, a question an agent asked in a reply says
-// nothing whatever. That silence did not read as one: it read as an empty slot, so the
-// group named its options by their ids in the accessibility tree, On Me named the
-// question by its id, and every widget reading its own words in a message got "" and fell
-// back to something else.
+// nothing whatever. That silence does not read as one: it reads as an empty slot, so the
+// group would name its options by their ids in the accessibility tree, On Me would name
+// the question by its id, and every widget reading its own words in a message would get
+// "" and fall back to something else.
 //
 // So chrome between the words and their widget is that widget's own apparatus, and chrome
 // above the widget is somebody else's. Rooting the search at the element handed in says
@@ -481,10 +481,10 @@ export function refuseBareText() {
 // words, is a document of its own (`authoredScope`) standing
 // inside the chrome that draws the message, so the body frames a reading there as a
 // widget does, and the words read as their writer's: a heading in a reply names what
-// follows it there. The version diff once read every block on the live page, a
-// conversation's paragraphs among them, and so took a reader's comments for the page's
-// words; it compares versions' sources now (version.js, `paintedSource`) and reads no
-// message.
+// follows it there. The version diff compares versions' sources (version.js,
+// `paintedSource`) and reads no message: reading every block on the live page, a
+// conversation's paragraphs among them, it would take a reader's comments for the page's
+// words.
 /** @param {Node | null} node */
 const frameOf = (node) => {
   for (let a = isElement(node) ? node : upFrom(node); a; a = upFrom(a))
@@ -547,13 +547,14 @@ const SILENT_TAGS = new Set(["script", "style", "textarea"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // A generated element whose words the file cannot model: one the registry does not
-// declare as an `x-says` edge of the element holding it. Controls and the hidden comment
-// count hold no accepted text, and x-says spans are already in the file-side reading.
+// declare as a `words.says` edge of the element holding it. Controls and the hidden
+// comment count hold no accepted text, and words.says spans are already in the
+// file-side reading.
 /** @param {Element} el */
 const unmodelled = (el) => {
   const attr = el.getAttribute("data-lf-said");
   const parent = el.parentElement;
-  return !(attr && parent && registry[parent.localName]?.["x-says"]?.[attr]);
+  return !(attr && parent && registry[parent.localName]?.words?.says?.[attr]);
 };
 // Automatic control capture uses authored or registry-declared words, never the
 // mutable value of a native editing host. A user's actual Range remains readable.
@@ -575,12 +576,12 @@ const editingBoundary = (el) => isEditing(el) !== isEditing(el.parentElement);
 const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // Whether an element stands within a line of words: HTML's phrasing content
 // (`$passages.phrasing`), or a widget declared to stand among the words around it
-// (x-inline). Every other element, a widget included, starts a block of its own, its
-// words parted from those around it (`enter`), and ends a run-in title's line
-// (`runsIntoLine`).
+// (words.inline). Every other element, a widget included, starts a block of its own,
+// its words parted from those around it (`enter`).
 /** @param {Element} element */
 const phrasing = (element) =>
-  PHRASING.has(element.localName) || Boolean(registry[element.localName]?.["x-inline"]);
+  PHRASING.has(element.localName) ||
+  Boolean(registry[element.localName]?.words?.inline);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
 // marks are somebody else's (`frameOf`). An element that starts nothing — most spans,
@@ -678,14 +679,13 @@ export const authored = (root) => {
     !overIn(isElement(n) ? n : elementOver(n), GENERATED, frame);
 };
 // The composed tree, not the light one: a widget that renders the page's words into an
-// open shadow root (x-shadow) shows the user what its shadow tree holds, and a host's
-// own children stop rendering the moment it has one. A TreeWalker sees none of that — it
-// stops dead at the boundary — so the walk is written out, and it is the same walk in
-// both directions: a host's shadow root stands in for its children, a <slot> in a shadow
-// tree stands for what was assigned to it, and everything else is the light DOM it
-// always was. Nothing
-// here asks which widget it is looking at; a document with no shadow roots in it walks
-// exactly as it did before.
+// open shadow root (words.shadow) shows the user what its shadow tree holds, and a
+// host's own children stop rendering the moment it has one. A TreeWalker sees none of
+// that — it stops dead at the boundary — so the walk is written out, and it is the same
+// walk in both directions: a host's shadow root stands in for its children, a <slot> in
+// a shadow tree stands for what was assigned to it, and everything else is the light
+// DOM it always was. Nothing here asks which widget it is looking at; a document with
+// no shadow roots in it walks as plain light DOM.
 //
 // The order is what earns the recursion. `pageText` builds one string in reading order
 // and indexes every position into it, so shadow text has to arrive at the host's own
@@ -1052,14 +1052,14 @@ export const elementFromPointAcross = (x, y) => {
 };
 
 // A pass that clears its own marks before repainting has to sweep everywhere it can
-// write, and `elementById` above is what widened that: a mark placed on a staged element
-// sits in a tree `document.querySelectorAll` never enters, so the clear would miss it and
-// the mark outlive the reason for it. The runtime's own marks are read back this way, and
-// so is a control the user can focus, for the same reason: both are wherever the
-// markup ended up. Which widgets the page holds is a different question and still the
-// document's:
-// a widget staged inside another's tree is a nesting the registry's x-owners contract
-// does not model, and answering it here would be inventing that contract in a sweep.
+// write, and `elementById` above is what widened that: a mark placed on a staged
+// element sits in a tree `document.querySelectorAll` never enters, so the clear would
+// miss it and the mark outlive the reason for it. The runtime's own marks are read back
+// this way, and so is a control the user can focus, for the same reason: both are
+// wherever the markup ended up. Which widgets the page holds is a different question
+// and still the document's: a widget staged inside another's tree is a nesting the
+// registry's markup.owners contract does not model, and answering it here would be
+// inventing that contract in a sweep.
 /** @template {Element} [E=Element] @param {string} selector @returns {E[]} */
 export const pageQueryAll = (selector) =>
   /** @type {E[]} */ (queryAllUnder(document, selector));
@@ -1098,16 +1098,16 @@ function firstPassing(items, test, from = 0) {
 
 // The page reading's segments a range covers, in reading order, clipped to where it
 // starts and ends: in each piece it touches, from the first segment that is not before
-// its start up to the first that is not before its end, and that one too where it is the
-// end's own text node. A range with both ends in one part touches that part alone, as a
-// passage in a datum is captured in its datum's words (anchor-resolution.js), so
+// its start up to the first that is not before its end, and that one too where it is
+// the end's own text node. A range with both ends in one part touches that part alone,
+// as a passage in a datum is captured in its datum's words (anchor-resolution.js), so
 // selecting a line of one document reads that document. Any other touches the frame and
 // the parts it covers, with the part its start stands in. The frame's marks are in
 // reading order, so the parts it covers run from the first mark not before its start to
-// the first not before its end, with the start's part just before them, and finding them
-// costs a binary search however many parts the page holds. A walk from the range's own
-// root reads whatever that root holds: select-all beside an x-shadow widget composes a
-// range over <html>, and the reading has no position for its <title>.
+// the first not before its end, with the start's part just before them, and finding
+// them costs a binary search however many parts the page holds. A walk from the range's
+// own root reads whatever that root holds: select-all beside a words.shadow widget
+// composes a range over <html>, and the reading has no position for its <title>.
 /** @param {AbstractRange} range */
 export function segmentsIn(range) {
   catchUpReading();
@@ -1326,52 +1326,6 @@ export function excerpt(el, options) {
     cut: segments.at(-1)?.cut === true,
   };
 }
-/** Whether authored words follow `title` on its line inside `container`, by the markup
- * alone: words its author wrote after it, before a `<br>`, an element outside phrasing
- * content (`phrasing`), or the end of a block holding the title. It is the walk's
- * reading throughout: its tree (a widget's declared tree, a slot's assignment, climbed
- * by `readingParent`), and what its `wrote` reading counts, so Leaf's own apparatus in a
- * widget's tree neither runs on nor ends the line. No style is read, so a line is the
- * same whatever the reader opens, hides or resizes.
- * @param {Element} title @param {Element} container */
-export function runsIntoLine(title, container) {
-  const counts = READINGS.wrote;
-  let past = false;
-  let ended = false;
-  let follows = false;
-  walk(
-    container,
-    (node, ctx) => {
-      if (past && !ended && counts(ctx) && node.data.trim()) follows = ended = true;
-    },
-    (child, ctx) => {
-      if (ended) return true;
-      if (!past) {
-        // What comes before the title holds none of its line, and its own words are no
-        // part of it.
-        if (child !== title) return !readingUnder(title, child);
-        past = true;
-        return true;
-      }
-      if (counts(enter(ctx, child)) && (isHTML(child, "br") || !phrasing(child)))
-        ended = true;
-      return ended;
-    },
-    null,
-    (element, ctx, entering) => {
-      if (
-        !entering &&
-        past &&
-        element !== container &&
-        counts(ctx) &&
-        !phrasing(element) &&
-        readingUnder(title, element)
-      )
-        ended = true;
-    },
-  );
-  return follows;
-}
 // What the page draws now, by what the browser computes for the element each word is
 // drawn in (its slot, its parent, or a shadow root's host), and for each break, the
 // `<br>` itself, which `hidden` or `display: none` takes off the line while its parent
@@ -1580,12 +1534,12 @@ const EDGE = "\u0000"; // no document holds one, so it can't collide with page t
 // A quote names text, not a place, and a page is free to say the same thing twice. Where it
 // does, the words on either side decide which occurrence was meant. A unified diff holds
 // the same line on both sides by construction, so without this, commenting on a fixed line
-// marked the broken one — the user's objection attached to the code they were objecting
+// would mark the broken one — the user's objection attached to the code they were objecting
 // to, and stored that way. Section scoping cannot reach it, because both sides of a diff
 // live under one id. Context rather than an offset: an offset goes stale silently when the
 // page is revised, while neighbours can be checked against the page as it now stands — see
 // `holds` for what checking them means, and what it deliberately refuses to do.
-// Anchors written before this carry none: their quote resolves only when it has a
+// An anchor carrying none resolves its quote only when it has a
 // single candidate, since there is no evidence that can identify one repeated copy.
 // The way back from the reading to the page is its segments and where each one starts in
 // `raw`: each segment carries its `rawStart` alongside its DOM coordinates,
@@ -1633,10 +1587,10 @@ function spanOf(reading, lo, hi) {
 // Context identifies a passage only when its neighbours are still exactly what they were.
 // A partial match is not weak evidence for the right copy — it is evidence the page moved
 // on, and acting on it is how a comment ends up somewhere it was never made: a version that
-// rewrote the sentence beside the anchored copy left an untouched copy elsewhere matching
-// better, and the comment followed it there. Demanding the whole stored context prevents
-// that: without one exact contextual match, only a quote with a sole candidate resolves;
-// repeated candidates detach rather than inheriting document order.
+// rewrites the sentence beside the anchored copy can leave an untouched copy elsewhere
+// matching better, and the comment would follow it there. Demanding the whole stored
+// context prevents that: without one exact contextual match, only a quote with a sole
+// candidate resolves; repeated candidates detach rather than inheriting document order.
 //
 // Rare, not impossible. The bar is however much was stored, and the capture reads the
 // neighbours out of the reading the search uses: the whole document, where a section is a
@@ -1959,9 +1913,9 @@ const forget = (scope) => {
 // The page's reading is kept in pieces (`Piece`), each until a change lands in it, so a
 // change re-reads only the piece it lands in. A part is a datum, the outermost on the
 // climb the walk comes down (`readingPart`): a page grows large through its widgets'
-// data, and a datum's words are read alone where a quote in it is found. On a page of 30
-// text documents of 4 MB, reading the whole page took 2.3 to 2.6 s in Chromium and 3.6
-// to 4.2 s in Firefox, and one document 60 to 130 ms. The frame is the rest of the page,
+// data, and a datum's words are read alone where a quote in it is found. On a page of
+// large text documents, reading the whole page can take seconds, and one document a
+// small part of that. The frame is the rest of the page,
 // read with each part left out where it stands (`collect`), and nothing reads the two
 // together (`pageText`). A heading, header or hgroup is never a part, since it heads
 // what stands outside it (`outlineFold`).
@@ -2229,14 +2183,14 @@ export function hearPageWords(hear) {
 }
 // A declared shadow stage is part of its document's words — `textNodesUnder` walks into
 // one at its host's place in the string — and no observer crosses the boundary on its
-// own. shadow-stage.js, which is the only door an x-shadow root is built through, hands
-// each one here as it fills it, and again each time it adopts it. The first time forgets
-// the reading of the document the root stands in, which was read without it; from then
-// on the watcher reports the root's changes itself. The words it fills with may be ones
-// the page already marked, which moving collapses each live range of the marks onto the
-// host, so a page that has presented is presented again once the fill has moved them,
-// and its marks resolve in the stage; before then, its first presentation reads them
-// there.
+// own. shadow-stage.js, which is the only door a words.shadow root is built through,
+// hands each one here as it fills it, and again each time it adopts it. The first time
+// forgets the reading of the document the root stands in, which was read without it;
+// from then on the watcher reports the root's changes itself. The words it fills with
+// may be ones the page already marked, which moving collapses each live range of the
+// marks onto the host, so a page that has presented is presented again once the fill
+// has moved them, and its marks resolve in the stage; before then, its first
+// presentation reads them there.
 /** @type {WeakSet<ShadowRoot>} */
 const watchedRoots = new WeakSet();
 /** @param {ShadowRoot} root */
@@ -2262,10 +2216,9 @@ export function fencePassageParts(root, children = root.children) {
 // What the page says, once, as one string with a way back to the nodes it came from. Built
 // per document state rather than per caller: every anchor a pass places is asking about the
 // same document, and resolving each against its own fresh reading would let two marks in
-// one pass answer for two different pages, since a widget can upgrade between them. Forty
-// threads on a 13k-character page also spent it forty times: 9.3ms of index building per
-// pass, besides the forty tree walks feeding it, against 1.5ms for the one read that
-// replaces them.
+// one pass answer for two different pages, since a widget can upgrade between them. Read
+// per caller, it would also be built once for each thread a pass places, besides a tree
+// walk feeding each, against the one read that replaces them.
 //
 // A pass is not the bound, though, because the passes are frequent and the walk grows with
 // the page: the painter, the capture, the target picker and the selection surface each
@@ -2471,13 +2424,13 @@ function indexed(segments, chains, marks = []) {
   // the generated element a word of the reading stands in, where it is unmodelled.
   const dynamicWords = new Set();
   for (const { gen } of segments) if (gen && unmodelled(gen)) dynamicWords.add(gen);
-  // A segment's cell is the nearest candidate over it that fences. The chain crosses the
-  // shadow boundary (upFrom), and that is what keeps an x-shadow widget fenced. The parts
-  // were remembered off the light DOM before any module ran, so nothing inside a shadow
-  // tree is among them; a chain that stopped at the root would put a diff's lines in
-  // no cell at all, which reads as ordinary page prose and lets a quote run from the
-  // paragraph above straight into the first changed line. One move further up finds the
-  // host, which is the opaque root it always was.
+  // A segment's cell is the nearest candidate over it that fences. The chain crosses
+  // the shadow boundary (upFrom), and that is what keeps a words.shadow widget fenced.
+  // The parts were remembered off the light DOM before any module ran, so nothing
+  // inside a shadow tree is among them; a chain that stopped at the root would put a
+  // diff's lines in no cell at all, which reads as ordinary page prose and lets a quote
+  // run from the paragraph above straight into the first changed line. One move further
+  // up finds the host, which is the opaque root it always was.
   /** @param {CellChain | null | undefined} chain */
   const cellOf = (chain) => {
     for (let at = chain; at; at = at.up)
@@ -2711,8 +2664,7 @@ const partScopes = (root) => [
  * and among what their slots show, keeping those the walk reaches. Only the watcher
  * says a piece changed, and it hears an element arrive or leave wherever the reading
  * reads. An element's tag never changes, while a marker it bears, such as its `id` or
- * `class`, can change without the watcher hearing it. On a page of 30 text documents of 4 MB, a query of the whole page took
- * 57 ms in Chromium, and one part's 2 ms.
+ * `class`, can change without the watcher hearing it.
  * @param {readonly string[]} tags @returns {Element[]} */
 export function readingElements(tags) {
   catchUpReading();
@@ -3598,9 +3550,9 @@ function* findText(text, query) {
 // part's, each found in its own reading, since a match stands in one passage cell
 // (`findText`) and every part stands in one (`pageText`). Each is found as it is asked
 // for, and a part is read when the search reaches it, so whoever asks can take them a
-// few at a time: on a page of 30 text documents of 4 MB, reading every part takes 3 s
-// in Chromium and 6 to 9 s in Firefox, and a query matching a million times takes
-// seconds to check each match is one the page shows (`searchableWords`). A step that
+// few at a time: on a page of large text documents, reading every part can take
+// seconds, and so can checking each match of a query that matches a great many times
+// is one the page shows (`searchableWords`). A step that
 // finds nothing, the step before a part is read or a match the page hides, is null, so a
 // reader can stop before each part too. The matches are of the page as it read when the
 // search began, and its reader asks again once the page has changed

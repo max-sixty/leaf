@@ -1,8 +1,8 @@
 """Safari on an iOS simulator, for a probe or stills of an iPhone-only difference.
 
 Playwright's WebKit is a desktop build and differs from iOS WebKit beyond its version:
-on 2026-10-26 iOS 26.1 listed adopted stylesheets in `document.styleSheets` and
-Playwright's WebKit 26.6 did not, which unstyled Leaf's chrome on iPhones alone.
+iOS 26.1 lists adopted stylesheets in `document.styleSheets` and Playwright's WebKit
+26.6 does not, so code that reads that list can break Leaf's chrome on iPhones alone.
 Playwright drives no iOS browser, so this drives the simulator's Safari through
 safaridriver, Apple's WebDriver server, with Selenium as its client.
 
@@ -70,7 +70,7 @@ def ios_safari(scheme: str = "light"):
         options.set_capability("safari:useSimulator", True)
         options.set_capability("safari:deviceUDID", udid)
         # Under the default strategy, which waits for the page's load, navigating to a
-        # Leaf page never returned (2026-10-26); `load` waits on readiness instead.
+        # Leaf page can fail to return; `load` waits on readiness instead.
         options.set_capability("pageLoadStrategy", "none")
         driver = webdriver.Safari(options=options)
         try:

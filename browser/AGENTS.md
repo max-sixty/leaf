@@ -74,12 +74,12 @@ rule draws at once is drawn.
   settlement (resolving or reopening) in their own thread, a thread keeps what it drew
   behind a fixed-size control until the reader goes to it. A thread not drawn yet, one
   the agent starts or one a reply reopens out of a closed Resolved disclosure, draws at
-  once, the rare path the user chose to let move what follows it (2026-11-04). An
+  once, the rare path the user chose to let move what follows it. An
   exception the user chose stays with its owner, as the floating panel's growth for an
   answer the user waits for (`floating-panel.js`) does. Where news grows a thread's own
   box, the panel's view or a margin card, the growth may carry the box's secondary
   controls, such as Resolve or a message's pencil, from under a pointer resting on one;
-  the words the user is writing and their Send stay (the user's choice, 2026-11-14).
+  the words the user is writing and their Send stay (the user's choice).
   Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's
@@ -486,9 +486,21 @@ attribute (`test_a_has_leads_only_to_a_subject_naming_an_element`), and it reach
 only the root's subtree, never its later siblings.
 
 No `:has()` reads where focus is, by `:focus`, `:focus-visible` or a mark `focus.js`
-writes: each made every focus move restyle much of the page
+writes: each can make every focus move restyle much of the page
 (`test_no_has_reads_where_focus_is`). A rule for focus anywhere in a box reads the box's
-`data-lf-focus-within` or `data-lf-focus-visible-within`. A rule for one control's focus
+`data-lf-focus-within` or `data-lf-focus-visible-within` in the box's own compound.
+Chromium answers a change to a state that a compound before the subject reads by
+restyling every element under the changed one that the subject could match, whether or
+not the rule matches there. Focus marks every ancestor of the focused element, `main`
+included, and Go-to marks `body`, so a subject naming only a type, as `td` or `a` does,
+restyled every cell or link on the page as focus entered `main`. What the box holds
+names a class only it carries (toc.css, the map's words), or asks the box for a
+property the box sets by a style query on a container the box names (reading.css, the
+sticky row names). The query leaves what the box holds alone only while no style under
+the container depends on it; once one does, Chromium restyles everything under the
+container when the property changes. An inherited property restyles everything the box
+holds when it changes, and so does an explicit `inherit` on each element between the
+box and its readers. A rule for one control's focus
 reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
 marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 
@@ -615,7 +627,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | Fact                                                                                                           | Authority                                                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | authored widget state                                                                                          | the validated source markup, captured before upgrade                                                                                                                                                                                                                                                                                                                                |
-| external data                                                                                                  | the latest page data; Leaf sets each bound source on the widget property x-data names (data.js)                                                                                                                                                                                                                                                                                     |
+| external data                                                                                                  | the latest page data; Leaf sets each bound source on the property its input names (data.js)                                                                                                                                                                                                                                                                                         |
 | version shown                                                                                                  | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                                                                                                                                                                                                            |
 | accepted history                                                                                               | the server's event log and its `/api/state` answer, which the publisher adopts whole; an answer to a request naming the reading the tab holds may carry only the changes since, which the reader applies to that reading first (`completeState` in `layer-client.js`); each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
 | unresolved browser work, refusals included                                                                     | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                                                                                                                                                                                                     |
@@ -752,7 +764,6 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
 | Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
-| Whether a title runs into words on its line, read off the markup                                      | `passages.js` `runsIntoLine`                                                       |
 
 ### Facts both runtimes know
 
@@ -807,13 +818,13 @@ them itself.
 ## The widget vocabulary stays open
 
 Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep the
-layer open"). Each `x-` key's meaning is its `$keys` entry in `registry.json`. Use a
-boolean only when false has one clear meaning; otherwise declare named values.
+layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
+Use a boolean only when false has one clear meaning; otherwise declare named values.
 
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and browser capture stops at the fence, so
 a selection across it never becomes a quote the file can't confirm. Declare words Python
-can model with `x-says` or the content key.
+can model with `words.says` or `content`.
 
 ## Render gates
 

@@ -94,8 +94,8 @@ def test_native_choices_keep_small_marks_in_label_sized_targets(browser, serve, 
     words = face.get_by_text("Full detail")
     words.tap() if touch else words.click()
     expect(full).to_be_checked()
-    # A mark has no words, so a choice that took its baseline from its mark stood its
-    # words above the group's label, and dropped by the mark's border when checked.
+    # A mark has no words, so a choice that took its baseline from its mark would stand
+    # its words above the group's label, and drop by the mark's border when checked.
     assert face.bounding_box() == before
     baselines = page.get_by_role("group", name="Detail").evaluate("""group =>
       lfUnwatched(() => [...group.querySelectorAll('span')].map(words => {
@@ -429,10 +429,10 @@ def test_every_lift_names_one_of_the_theme_s_heights_cast_in_the_scheme_s_ink(
 ):
     """A box stands at one of three heights, and only the theme spells them out.
 
-    Twenty-nine lifts once wrote fourteen geometries between them, so two menus beside
-    each other stood at different heights for no reason anyone chose, and nothing kept
-    the next one from writing a fifteenth. The `--lf-raise-*` tokens (tokens.css, beside
-    --lf-shade) are now the only declarations that write a blur; every other rule, a
+    Lifts that each write their own geometry stand two menus beside each other at
+    different heights for no reason anyone chose, and nothing keeps the next one from
+    writing another. The `--lf-raise-*` tokens (tokens.css, beside --lf-shade) are the
+    only declarations that write a blur; every other rule, a
     filter's drop-shadow() included, names one, with a hairline or ring beside it where
     its edge needs one.
 
@@ -530,10 +530,10 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
     Leaf's own word, commit, pressed commit and field (controls.css, "The faces of
     Leaf's control roles"), so the page's controls and Leaf's read as one set, and a
     label holding a checkbox at any depth is a choice whose ring stands on the label;
-    a page that takes no theme keeps the browser's. Until 16 November 2026 a page took
-    these faces only by writing Leaf's class names, `lf-btn`, `lf-btn lf-commit`,
-    `lf-field` and `lf-choice`; a pressed submit button then took the selected
-    toggle's accent, and a mark wrapped in a span took no face."""
+    a page that takes no theme keeps the browser's. A page taking these faces only by
+    writing Leaf's class names, `lf-btn`, `lf-btn lf-commit`, `lf-field` and
+    `lf-choice`, would leave a pressed submit button with the selected toggle's accent
+    and a mark wrapped in a span with no face."""
     page = open_page(
         browser,
         serve(
@@ -597,9 +597,9 @@ def test_a_theme_gives_a_page_s_own_controls_leaf_s_faces(browser, serve, theme)
 def test_a_page_s_paper_and_ink_recolour_what_leaf_draws(browser, serve, theme):
     """A page states its ground and its text once, as `--lf-paper` and `--lf-ink`, and
     the neutral colours Leaf draws in step from the one toward the other
-    (styles/tokens.css), with a theme or without one. While each neutral was a colour
-    stated for the reading theme's paper, a dark page kept them: a control's quiet
-    words read 2.3:1 on it and a field's edge 1.2:1."""
+    (styles/tokens.css), with a theme or without one. Were each neutral a colour stated
+    for the reading theme's paper, a dark page would keep them, and a control's quiet
+    words and a field's edge would lose their contrast on it."""
     page = open_page(
         browser,
         serve(
@@ -776,13 +776,12 @@ RESET = (
 def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
     """A page that brings its own framework takes no theme, and its reset in a layer
     named `reset` clears the page's own elements and leaves what Leaf draws as it was
-    (layer.py, `PAGE_RESET_LAYER`). The layer ranked
-    above every tier of Leaf's, as any layer a page names does, and the reset took the
-    padding, border and ground from Leaf's buttons and fields and the frame from a
-    choice group."""
+    (layer.py, `PAGE_RESET_LAYER`). Left to rank above every tier of Leaf's, as any
+    layer a page names does, the reset would take the padding, border and ground from
+    Leaf's buttons and fields and the frame from a choice group."""
     body = (
         '<h1>Retention</h1><p id="own">Words.</p><p id="controls"></p>'
-        '<lf-options id="window" choose><lf-option id="short"><strong>30 days</strong>'
+        '<lf-options id="window"><lf-option id="short"><strong>30 days</strong>'
         ' In budget.</lf-option><lf-option id="long"><strong>90 days</strong>'
         " Covers the hold.</lf-option></lf-options>"
     )

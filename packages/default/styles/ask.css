@@ -1,11 +1,11 @@
 /* lf-ask: a semantic reading and arrival boundary, with no presentation of its own.
  * Block rather than the custom-element default inline so its box begins at the
- * question's opening and reaches around the context and control the current location ring says
- * are one lf-ask. What it holds doesn't arrange its options: the author lays them across
- * (`across`, options.css). It takes no width of its own: its blocks stand in the page's
- * flow (`x-flow`, layouts.css), so its words keep the prose's edge beside a block that
- * declares more room, and its box grows round that block. Otherwise its box keeps the
- * measure, on a sidebar page's wider body too. */
+ * question's opening and reaches around the context and control the current location
+ * ring says are one lf-ask. What it holds doesn't arrange its options: the author lays
+ * them across (`across`, options.css). It takes no width of its own: its blocks stand
+ * in the page's flow (`paint.flow`, layouts.css), so its words keep the prose's edge
+ * beside a block that declares more room, and its box grows round that block. Otherwise
+ * its box keeps the measure, on a sidebar page's wider body too. */
 lf-ask {
   display: block;
 }

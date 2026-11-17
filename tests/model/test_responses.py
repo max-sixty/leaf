@@ -14,6 +14,7 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     _codex_delivery,
     _observer,
     acknowledged_through,
@@ -55,7 +56,7 @@ class ResponseOptions(TypedDict, total=False):
 
 
 QUESTION = (
-    '<lf-options id="question" choose><lf-option id="question-a"><strong>A</strong>'
+    '<lf-options id="question"><lf-option id="question-a"><strong>A</strong>'
     "</lf-option></lf-options>"
 )
 
@@ -107,24 +108,24 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
 
 
 def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
-    """Agents writing a choice from memory leave out the attribute that makes it
-    ask, and satisfying the refusal with `--obligation` would leave options nobody
-    can press. So the refusal names the attribute the widget's registry entry asks
-    with."""
+    """An agent writing a widget from memory can leave out the attribute that makes
+    it ask, and satisfying the refusal with `--obligation` would leave the widget
+    asking nothing. So the refusal names the attribute the widget's registry entry
+    asks with."""
     asked = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which one?"}
+        page_dir, {"kind": "comment", "author": "user", "text": "Which wording?"}
     )
-    shown = QUESTION.replace(" choose", "")
+    shown = '<lf-draft id="wording"><pre>\nShip on Monday.</pre></lf-draft>'
     refused = CliRunner().invoke(
         cli_model.cli,
         ["thread", "reply", response_reference(page_dir, asked)]
-        + ["--text", f"Which?\n\n{shown}"],
+        + ["--text", f"Edit it?\n\n{shown}"],
     )
 
     assert refused_on(refused.stdout).values == {
-        "tag": "lf-options",
-        "id": "question",
-        "needs": "`choose`",
+        "tag": "lf-draft",
+        "id": "wording",
+        "needs": "`required`",
     }
 
 
@@ -328,7 +329,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     assert not any(
         event["kind"] == "thread_title" for event in events_model.read_events(page_dir)
     )
-    markup = '<lf-options id="response-options" choose><lf-option id="response-yes"><strong>Yes</strong></lf-option></lf-options>'
+    markup = '<lf-options id="response-options"><lf-option id="response-yes"><strong>Yes</strong></lf-option></lf-options>'
     posted = CliRunner().invoke(
         cli_model.cli,
         [
@@ -743,7 +744,7 @@ def test_provider_response_commits_full_content_before_reconnect(
         "message_identity",
         lambda: {"session": author, "agent": "Worker"},
     )
-    markup = '<lf-options id="provider-choice" choose><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
+    markup = '<lf-options id="provider-choice"><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
     shown = QUESTION if rich == "question" else markup
     flags = {
         "question": [
@@ -1037,7 +1038,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
 
 def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
     comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
-    markup = '<lf-options id="corrected-choice" choose><lf-option id="corrected-yes">Yes</lf-option></lf-options>'
+    markup = '<lf-options id="corrected-choice"><lf-option id="corrected-yes">Yes</lf-option></lf-options>'
     runner = CliRunner()
     refused = runner.invoke(
         cli_model.cli,
@@ -1115,9 +1116,7 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
 
 
 def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_dir):
-    source = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-    )
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
     action = append_command(

@@ -1,14 +1,12 @@
-# Added with pages of parts. A review of a redesigned panel was built as one column page:
-# the playground the user was to try first stood squeezed into the reading column above
-# the proposal and its reasoning, and the user asked for the page to be split into parts
-# with arrangements of their own. Claude Code, at the change: base 0/3 (a
-# layout-workspace page of two lf-pane regions, the prose beside the playground),
-# head 3/3.
-# As a probe given a page with its packages, at b90df8d3a2, every run gave each reading
-# part its own contents outline, as page-layout.md asks: Codex as an lf-toc inside a
-# `layout-column` (2 of 2), Claude Code as the `layout-sidebar` page-authoring.md's
-# "Contents navigation" composes (0 of 2 under a rubric that took only a column, 2 of 2
-# regraded once it took that sidebar too).
+# A review of a redesigned panel was built as one column page: the playground the user
+# was to try first stood squeezed into the reading column above the proposal and its
+# reasoning, and the user asked for the page to be split into parts with arrangements
+# of their own. The failing answer is a layout-workspace page of two lf-pane regions,
+# the prose beside the playground.
+# The case is a probe given a page with its packages. Each reading part takes its own
+# contents outline, as page-layout.md asks: an lf-toc inside a `layout-column`, or the
+# `layout-sidebar` page-authoring.md's "Contents navigation" composes; the rubric
+# takes both.
 description: parts-take-their-own-layouts
 metadata:
   purpose:

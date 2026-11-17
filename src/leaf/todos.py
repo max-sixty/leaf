@@ -3,8 +3,8 @@
 A to-do is work the agent owes, on its On <agent> list. Nothing is a to-do on the
 user: everything On Me is an obligation whose source says how the user answers it,
 a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no Done
-of its own to any of them. The user chose this on 2026-11-03, reversing the to-do on
-the user that `leaf task create --on user` opened from 2026-10: the widget or thread
+of its own to any of them. The user chose this over a to-do on the user
+(`leaf task create --on user`): the widget or thread
 an ask stands on is sovereign over how it is answered, and a step such as trying a
 build is asked in a thread, which the user's reply or settling reaction answers.
 
@@ -51,7 +51,7 @@ start, any agent session can end it. Commands run outside a harness all share on
 empty session identity, so Leaf can't tell them apart.
 
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
-live widget that declares `x-work` or holds an unsettled action
+live widget that declares `state.work` or holds an unsettled action
 (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`

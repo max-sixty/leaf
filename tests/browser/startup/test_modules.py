@@ -148,14 +148,13 @@ def _asked(context):
 def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     """The vocabulary is the layer's; the modules are this page's.
 
-    Every tag with a module used to import on every page, so a triage board
-    with no diff anywhere on it fetched Pierre's renderer, and that one module was
-    more than half the bytes the page moved. The board page's own modules, the board,
-    its grid and its activity feed, are the population: a page that asked for nothing
+    With every tag's module imported on every page, a triage board with no diff
+    anywhere on it would fetch Pierre's renderer. The board page's own modules, the
+    board, its grid and its activity feed, are the population: a page that asked for nothing
     would satisfy every refusal below and
     say nothing about which of them holds.
 
-    The shadow rules follow the same line: `/shadow.css` is what an `x-shadow` widget
+    The shadow rules follow the same line: `/shadow.css` is what a `words.shadow` widget
     renders under, so a page with no such widget never asks for it, and the theme
     arrives once, through the document's `<link>`.
     """
@@ -509,7 +508,7 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             + "\n\n"
             + (
                 '<lf-ask id="store-decision"><h3>Which store?</h3>'
-                '<lf-options id="store-pick" choose>'
+                '<lf-options id="store-pick">'
                 '<lf-option id="store-redis"><strong>Redis</strong></lf-option>'
                 '<lf-option id="store-cookie"><strong>A signed cookie</strong>'
                 "</lf-option></lf-options></lf-ask>"

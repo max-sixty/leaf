@@ -150,7 +150,7 @@ function suppliedDatum(source, key) {
 }
 
 // The elements under a referenced widget that a key addresses, in the one key space
-// every `x-refers` verb reads. A widget whose parts have a private address (a code
+// every `markup.refers` verb reads. A widget whose parts have a private address (a code
 // block's line ranges) answers through `lfElementsFor(key)`; otherwise the key is a
 // registered visual part's id or a projected datum's key. Only elements under the
 // source count, so a hook cannot point a caller elsewhere in the page.
@@ -182,12 +182,12 @@ export function revealAddressed(source, key) {
 /** @param {Element | null} visual */
 const visualAdmission = (visual) =>
   visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"] ?? null)
+    ? visualPartAdmission(visual, registry[visual.localName]?.words?.visual ?? null)
     : null;
 
 /** @param {Element | null} element */
 const wholeVisualSurface = (element) =>
-  element && registry[element.localName]?.["x-visual"] ? element : null;
+  element && registry[element.localName]?.words?.visual ? element : null;
 
 /** The admitted parts in their registered inventory order. */
 /** @param {Element} visual */
@@ -230,12 +230,13 @@ export const visualPartLabel = (visual, part) =>
     ? registeredVisualPartLabel(visual, part)
     : null;
 
-const declaredVisualTags = () => tagsDeclaring((entry) => entry["x-visual"]);
+const declaredVisualTags = () => tagsDeclaring((entry) => entry.words?.visual);
 const declaredVisualSelector = () => declaredVisualTags().join(",");
 
 const GENERIC_VISUALS = ["svg", "img", "figure"];
 const genericVisualSelector = GENERIC_VISUALS.join(", ");
-// The tags a picture's element has: a widget that declares `x-visual`, or a plain one.
+// The tags a picture's element has: a widget that declares `words.visual`, or a plain
+// one.
 export const visualTags = () => [...declaredVisualTags(), ...GENERIC_VISUALS];
 
 /** @param {Element} element @param {string} selector */
@@ -335,7 +336,7 @@ function addressableAt(node) {
 /** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
   const formatted = tagsDeclaring(
-    (entry) => entry["x-text-format"] === "markdown",
+    (entry) => entry.words?.["text-format"] === "markdown",
   ).join(",");
   return (
     (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
@@ -536,8 +537,8 @@ const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
 // (`contextAround`), with its own between. Every part's words are left out of its
 // block's, so a neighbour's label never names this one, and a picture says none of its
 // own, since its name describes it: a text document's view is a picture of the whole
-// document, which read all of it twice for every move of the pointer over it in Design
-// mode, 0.3 to 1.7 s on a document of 50,000 lines. Other controls say their own words
+// document, whose words would be read whole twice for every move of the pointer over it
+// in Design mode. Other controls say their own words
 // as a label does (`LABEL_WORDS`), less the `part` name the spoken name says before
 // them, as a tab whose words start with its name and go on to a count. A block is read
 // once per inventory, noting where each part stands in it; chosen capture stays lazy.

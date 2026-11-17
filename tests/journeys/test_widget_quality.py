@@ -76,7 +76,7 @@ def test_package_check_render_reports_findings_as_advice(tmp_path, headless_shel
     )
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    del registry["lf-bare"]["x-example"]
+    del registry["lf-bare"]["author"]["example"]
     registry_path.write_text(json.dumps(registry))
 
     ran = subprocess.run(
@@ -204,7 +204,7 @@ def test_package_render_check_compares_held_and_presented_boxes(tmp_path, browse
     assert made.exit_code == 0, made.output
     registry_path = package / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-first-box"]["x-example"] = (
+    registry["lf-first-box"].setdefault("author", {})["example"] = (
         '<lf-first-box id="moving"></lf-first-box>'
         '<lf-first-box id="reserved"></lf-first-box>'
     )

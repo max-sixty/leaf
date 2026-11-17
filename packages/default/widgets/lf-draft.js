@@ -14,7 +14,7 @@
  * Copy keeps the last seat, and Discard opens where Edit stood, so a second press on
  * the pencil gives the box back unchanged. A pointer sees the toolbar while over the
  * box or a key stands in it, and the open editor, a draft that asks for an edit and a
- * finger always, since a pencil that shows only under the pointer left a needed draft
+ * finger always, since a pencil that shows only under the pointer left a `required` draft
  * with no sign of how to answer it; clicking the prose still opens the editor at that spot. Rejected: a resting row under the prose
  * holding only Edit, which doubled a one-line box, and marks set into the box's
  * corner, which either covered the first line's last words or took room from them
@@ -33,13 +33,13 @@
  * draws a picture as the picture, under its source once the caret reaches it
  * (`facesOf`, composing/text-field.js), so no word moves as it opens. Rejected:
  * drawing drafts in a sent message's face, which the editor already wore, since drafts
- * would lose their document type, chosen by the user on 2026-10-23.
+ * would lose their document type, chosen by the user.
  *
  * A draft reads as a Markdown file: a line break inside a paragraph is a space
  * (`paintMarkdown`), so a draft wrapped for a wider editor, as an agent copies a
  * passage of a hard-wrapped file, wraps to the box, and the editor joins those lines
  * as the prose does. Return in a paragraph writes a hard break, which both show as a
- * line (the user's decision, 2026-10-31). Rejected: keeping each source line break as
+ * line (the user's decision). Rejected: keeping each source line break as
  * a hard one, as a message does, which drew a passage wrapped at 88 columns in a
  * narrower box with a short line after each long one.
  *
@@ -50,7 +50,7 @@
  * press away from the draft saves (focus.js, `onPressAway`), so a tap elsewhere on a
  * phone keeps what was typed without finding Save first, and Android's back
  * gesture saves the same way (`keep`, close-requests.js). A stray edge swipe therefore
- * sends the agent a turn, as a stray tap does (the user's decision, 2026-10-27). Rejected: back closing the editor with its
+ * sends the agent a turn, as a stray tap does (the user's decision). Rejected: back closing the editor with its
  * words kept unsaved, a third way out whose state the closed box had to show beside
  * Edit; and saving at each pause in the typing, as a form does, since every save is an
  * edit delivered to the agent, which would read half-written words. Pointer Discard returns the frame

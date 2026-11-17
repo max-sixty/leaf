@@ -20,7 +20,12 @@ from leaf.projection import (
     retirement_holders,
     retirement_outcomes,
 )
-from leaf.registry.contract import MODULES, is_element_name, retirement_slots
+from leaf.registry.contract import (
+    MODULES,
+    declared_fact,
+    is_element_name,
+    retirement_slots,
+)
 from leaf.render_checks import (
     evaluate_probe,
     one_frame,
@@ -61,11 +66,14 @@ class DevtoolsIssues:
     Listening starts before navigation; the reading is taken once the page settles,
     when the probe that locates a node has loaded. Each is advice: an issue's code
     names Chrome's lint, and a request that actually fails also reaches the console
-    as an error, which refuses the page."""
+    as an error, which refuses the page. Firefox keeps no such panel, so a page the
+    check draws in Firefox (`browser.launch_browser`) reads none."""
 
     def __init__(self, page):
-        self._cdp = page.context.new_cdp_session(page)
         self._raised = []
+        if page.context.browser.browser_type.name != "chromium":
+            return
+        self._cdp = page.context.new_cdp_session(page)
         self._cdp.on(
             "Audits.issueAdded", lambda event: self._raised.append(event["issue"])
         )
@@ -270,7 +278,12 @@ def _page_findings(context: _PageContext) -> list[Finding]:
 def _unreduced_motion(page) -> list[Finding]:
     """Advice naming page content that keeps animating once the reader asks for less
     motion, which Leaf leaves to the page (state.css). Read last, since setting the
-    preference stops Leaf's own motion for the readings after it."""
+    preference stops Leaf's own motion for the readings after it. Read in Chromium
+    only: Playwright 1.65 sets no reduced-motion preference in Firefox over WebDriver
+    BiDi, whose `matchMedia` goes on answering no, and refuses the call outright on a
+    page holding a frame ("invalid argument")."""
+    if page.context.browser.browser_type.name != "chromium":
+        return []
     page.emulate_media(reduced_motion="reduce")
     one_frame(page)
     found = [
@@ -294,7 +307,7 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
-    # x-verbatim promises the words the page renders. Source provenance was
+    # words.verbatim promises the words the page renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
     # side is the settled projection, so a page that never applied that projection is
@@ -421,7 +434,8 @@ def open_widgets(registry: dict) -> list[str]:
     return [
         tag
         for tag, entry in registry.items()
-        if is_element_name(tag) and entry.get("x-content") in ("markup", "members")
+        if is_element_name(tag)
+        and declared_fact(entry, "content") in ("markup", "members")
     ]
 
 
@@ -538,8 +552,9 @@ def swept_faults(samples) -> list[Finding]:
 
 
 def squeezed_advice(readings) -> list[Finding]:
-    """Advice naming each table that scrolls sideways with a cell wrapped, and each code
-    block that scrolls its lines in too little width to read them.
+    """Advice naming each table that scrolls sideways with a cell wrapped, each table
+    that breaks a short name inside itself (`brokenNames`), and each code block that
+    scrolls its lines in too little width to read them.
 
     The sweep is the reading's only home, and it takes in the desktop's width.
     Advice rather than a failure because the box still scrolls and every word in it
@@ -558,7 +573,7 @@ def squeezed_advice(readings) -> list[Finding]:
             (json.dumps(table["place"], sort_keys=True), table["code"]): Finding.read(
                 table, severity="advice"
             )
-            for table in reading["squeezed"]
+            for table in [*reading["squeezed"], *reading["broken"]]
         },
     )
 

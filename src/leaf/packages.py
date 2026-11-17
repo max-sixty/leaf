@@ -108,21 +108,23 @@ def starter_element_declaration(tag: str) -> dict:
     label = name.replace("-", " ")
     title = label.capitalize()
     return {
-        "description": (
-            f"A dedicated block for {label} content. Use it to keep one technical "
-            "point with its supporting evidence or rationale. Give the block a stable "
-            "id."
-        ),
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-verbatim": True,
-        "x-example": (
-            f'<{tag} id="{name}"><strong>{title}</strong> '
+        "description": f"A dedicated block for {label} content. Use it to keep one technical "
+        "point with its supporting evidence or rationale. Give the block a stable "
+        "id.",
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "words": {
+            "verbatim": True,
+        },
+        "author": {
+            "example": f'<{tag} id="{name}"><strong>{title}</strong> '
             "The retry budget is three attempts before manual review."
-            f"</{tag}>"
-        ),
+            f"</{tag}>",
+        },
     }
 
 

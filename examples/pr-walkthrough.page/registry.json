@@ -110,22 +110,30 @@
   },
   "lf-pr-brief": {
     "description": "The review packet\u2019s live author brief and observed checks.",
-    "x-instructions": "Place one empty element before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description, so surrounding prose can carry the reviewer's analysis.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" },
-      "source": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "source": { "type": "string" }
+      },
+      "required": ["id", "source"],
+      "additionalProperties": false
     },
-    "required": ["id", "source"],
-    "additionalProperties": false,
-    "x-content": "empty",
-    "x-data": {
-      "request": {
-        "contract": "pull-request",
-        "source": "source",
-        "property": "value"
+    "content": "empty",
+    "data": {
+      "inputs": {
+        "request": {
+          "contract": "pull-request",
+          "source": "source",
+          "property": "value"
+        }
       }
     },
-    "x-height": true
+    "paint": {
+      "height": true
+    },
+    "author": {
+      "instructions": "Place one empty element before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description, so surrounding prose can carry the reviewer's analysis."
+    }
   }
 }

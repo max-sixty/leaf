@@ -14,6 +14,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     PICKS_PAGE,
     STATED_TIMEOUT,
     Prose,
@@ -174,10 +175,10 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
 ):
     """Each page states its own debt; the protocol they share is stated once.
 
-    Every debt used to carry the whole protocol with it, so a session holding
-    three pages that owed the same thing spent three copies of the same ninety
-    words saying so — most of what the blocking message weighed, and all of it
-    between one page's line and the next.
+    A debt that carried the whole protocol with it would make a session holding
+    three pages that owe the same thing spend three copies of the same words
+    saying so — most of what the blocking message weighs, and all of it between
+    one page's line and the next.
     """
     second = tmp_path / "second-page"
     shutil.copytree(claimed, second)
@@ -901,7 +902,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Which region?\n\n<lf-options id="thread-region" choose>'
+            "text": 'Which region?\n\n<lf-options id="thread-region">'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
@@ -1104,7 +1105,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
     to a draft that asks nothing is carried by the log and owes nothing: it keeps a
     receipt that reports its delivery, which no count, Stop or `idle` reads, and the
     next version retires it without writing the edit in."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
         "</section>", '<lf-draft id="note"><pre>Blue room.</pre></lf-draft></section>'
     )
     (claimed / "index.html").write_text(source)
@@ -1169,7 +1170,8 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="backfill-first">', '<lf-option id="backfill-first" chosen>'
+            '<lf-option id="backfill-first">',
+            '<lf-option id="backfill-first" selected>',
         )
     )
     assert stamp(claimed, "Backfill leads").exit_code == 0
@@ -1183,9 +1185,9 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
     """An option the user added stands in its group from the log, where the user put
     it, so no version has to place it in the markup. A pick of it is owed a stamped
     version all the same, and a version that leaves the option out settles it; a
-    version still marking an authored option `chosen` does not."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
-        '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
+    version still marking an authored option `selected` does not."""
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
+        '<lf-option id="flag-first">', '<lf-option id="flag-first" selected>'
     )
     (claimed / "index.html").write_text(source)
     publish(claimed)
@@ -1216,7 +1218,7 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="flag-first" chosen>', '<lf-option id="flag-first">'
+            '<lf-option id="flag-first" selected>', '<lf-option id="flag-first">'
         )
     )
     assert stamp(claimed, "Neither yet").exit_code == 0
@@ -1225,9 +1227,9 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
 
 def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
     """Done finishes a multiple-choice answer without replacing it: the version that
-    takes the answer in still marks the authored picks `chosen`, beside an added option
+    takes the answer in still marks the authored picks `selected`, beside an added option
     that stays the log's, and a version without them leaves the answer owed."""
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
     for action, detail in [
@@ -1255,7 +1257,7 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="flag-first">', '<lf-option id="flag-first" chosen>'
+            '<lf-option id="flag-first">', '<lf-option id="flag-first" selected>'
         )
     )
     assert stamp(claimed, "Flag first, staged").exit_code == 0
@@ -1275,11 +1277,11 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     if declared == "done-only":
         declare_on_page(
             claimed,
-            lambda registry: registry["lf-options"]["x-awaits"].update(
+            lambda registry: registry["lf-options"]["state"]["awaits"].update(
                 answered={"answer": {}}
             ),
         )
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose multiple>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
     lease = _watched(claimed)

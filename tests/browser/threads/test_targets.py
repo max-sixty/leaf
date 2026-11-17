@@ -240,7 +240,7 @@ def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
     seed_reply(
         serve.page_dir,
         '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
-        '<lf-options id="tv-decision" choose>'
+        '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-ask>",
         "tv-decision",
@@ -321,7 +321,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     seed_reply(
         serve.page_dir,
         '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
-        '<lf-options id="tv-decision" choose>'
+        '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-ask>",
         "tv-decision-region",
@@ -401,7 +401,7 @@ def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):
     """A change sent in a reply keeps the canonical circular control.
 
     A reply is upgraded inside a closed comment panel, where its box is zero, and its
-    controls used to be measured there and collapse. The control's circle is fixed,
+    controls, measured there, would collapse. The control's circle is fixed,
     so it is the same shape in the reply as on the page.
 
     The page's own change is the geometry reference."""
@@ -540,12 +540,12 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
     document.
 
     `shownParts` falls back to an element's children when the element itself has no
-    box, which is what a mark hangs on and what a decision's ring hangs on. It kept the
-    runtime's own apparatus out of that fallback by asking whether each child was
-    under the runtime's chrome, and a widget an agent sent in a reply is: the panel
-    over it answers for every child, so the fallback filtered all of them away and the
-    widget showed as nothing at all. Bounded at the widget, the panel above it is no
-    longer its own apparatus and the parts come back.
+    box, which is what a mark hangs on and what a decision's ring hangs on. Keeping the
+    runtime's own apparatus out of that fallback by asking whether each child is under
+    the runtime's chrome would filter away every child of a widget an agent sent in a
+    reply, which is: the panel over it answers for every child, so the widget would
+    show as nothing at all. Bounded at the widget, the panel above it is not its own
+    apparatus and the parts show.
 
     `display: contents` on a widget is a page's line to write — the shipped vocabulary
     has none today, and `shownParts` exists because any layer can. A widget in a reply
@@ -556,12 +556,12 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
         "<style>.lf-chrome lf-options { display: contents }</style>\n</head>",
     )
     url = serve(page_source, packages=EXAMPLE_PACKAGES)
-    # The page's unlayered style puts a reporting group's wrapper in `contents`; the
+    # The page's unlayered style puts a group's wrapper in `contents`; the
     # subject is the boxless wrapper fallback, not package-theme precedence.
     seed_reply(
         serve.page_dir,
         '<lf-options id="tv-decision">'
-        '<lf-option id="tv-redis" chosen>Redis</lf-option>'
+        '<lf-option id="tv-redis" selected>Redis</lf-option>'
         "</lf-options>",
         "tv-decision",
     )
@@ -590,7 +590,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
 
 def test_a_thread_on_a_rewrite_is_named_by_its_old_and_new_words(browser, serve):
     """A rewrite's slots are two words apart on the page and no characters apart in
-    the text, so a thread anchored on one was quoted as "redblue". The module that
+    the text, so a thread anchored on one would be quoted as "redblue". The module that
     names its own kind (`lfWord`) names its own words the same way (`lfSays`)."""
     url = serve(
         leaf_page(
@@ -882,23 +882,29 @@ customElements.define('lf-quote-subject', class extends LeafElement {
         layer_registry={
             "lf-quote-subject": {
                 "description": "A named subject whose wording changes.",
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "data-words": {"type": "string"},
-                    "source": {"type": "string"},
+                "attributes": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "data-words": {"type": "string"},
+                        "source": {"type": "string"},
+                    },
+                    "required": ["id"],
+                    "additionalProperties": False,
                 },
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "empty",
-                "x-data": {
-                    "words": {
-                        "contract": "text-document",
-                        "source": "source",
-                        "property": "value",
-                    }
+                "content": "empty",
+                "data": {
+                    "inputs": {
+                        "words": {
+                            "contract": "text-document",
+                            "source": "source",
+                            "property": "value",
+                        }
+                    },
                 },
-                "x-example": '<lf-quote-subject id="example"></lf-quote-subject>',
+                "author": {
+                    "example": '<lf-quote-subject id="example"></lf-quote-subject>',
+                },
             }
         },
         layer_widgets={"lf-quote-subject.js": module},

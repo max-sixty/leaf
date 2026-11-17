@@ -248,8 +248,8 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
 
 
 def test_z_takes_back_a_reply_the_user_sent(browser, serve):
-    """`z` takes back the user's newest gesture, a reply they sent included, where it
-    used to stop at the reply as said rather than unsaid. The reply's thread is out
+    """`z` takes back the user's newest gesture, a reply they sent included, and doesn't
+    stop at the reply as said rather than unsaid. The reply's thread is out
     of view, so the first press opens it and says what the next takes; the second
     takes the reply back."""
     url = serve(LONG_PAGE, comments=3)
@@ -487,8 +487,9 @@ def test_z_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
     browser, serve
 ):
     """A choice in front of the user, made in another tab, is taken back by one press,
-    as before. `z` once showed it first if the agent had picked it up, so the same press
-    did two things depending on a delivery the user never saw happen."""
+    whether or not the agent has picked it up. `z` doesn't show it first if the agent
+    has, which would have the same press do two things depending on a delivery the user
+    never saw happen."""
     url = serve(UNDO_PAGE)
     choice = append_command(
         serve.page_dir,
@@ -526,9 +527,9 @@ FAR_CHOICE_PAGE = leaf_page(
 <h1 id="h">Far</h1>
 {paras}
 <lf-ask id="picks-decision"><h2>Should we keep the mounts?</h2>
-<lf-options id="picks" choose>
+<lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
-  <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
+  <lf-option id="opt-b" selected>Replace the mounts</lf-option>
 </lf-options></lf-ask>
 """,
 ).format(
@@ -1414,14 +1415,14 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     outer = declarations["lf-outer-board"]
-    outer["properties"]["restated"] = {"type": "boolean"}
-    outer["x-content"] = "members"
-    outer["x-example"] = (
+    outer["attributes"]["properties"]["restated"] = {"type": "boolean"}
+    outer["content"] = "members"
+    outer.setdefault("author", {})["example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
         "</lf-outer-board>"
     )
-    outer["x-state"] = {
+    outer.setdefault("state", {})["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -1432,7 +1433,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     }
     standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
     declarations["lf-column"] = standard["lf-column"]
-    declarations["lf-column"]["x-owners"].append("lf-outer-board")
+    declarations["lf-column"]["markup"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { LeafElement } from "/runtime/widget-api.js";
@@ -1715,7 +1716,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     browser, serve
 ):
     """A complete read may first reveal both optimistic A and another tab's undo of A.
-    The outbox entry is no longer a hold against that same read: the withdrawal must
+    The outbox entry is not a hold against that same read: the withdrawal must
     restore authored state before accounting releases A, or the sender keeps showing a
     gesture the log and every fresh page have already taken back."""
     page = open_page(browser, serve(BOARD_PAGE))
@@ -2194,10 +2195,10 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     expect(body).to_have_text("Rewritten.")
     page.locator("#opt-a").click()
     round_trip(page)
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
 
     undo(page)
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     undo(page)
     # The arrival first, read the way every assertion after a trip reads it, and then
     # the reading a retry cannot make: `to_have_text` collapses the blank line, which
@@ -2234,14 +2235,14 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     round_trip(page)
     page.locator("#opt-b").click()
     round_trip(page)
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     cut = CutOff().hold(page)
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     holding(page, held, 1, "the optimistic withdrawal")
     other_undo = append_command(
         serve.page_dir,
@@ -2273,7 +2274,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     page.unroute("**/api/event")
     round_trip(page)
 
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     values = page.evaluate("window.refusalValues")
     assert len(values) > 1 and all(value == ["opt-a"] for value in values), values
     consume_browser_errors(page, http_error_console(400))
@@ -2426,19 +2427,19 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
 
     pinned.locator("#opt-shim").click()
     round_trip(pinned)
-    expect(moved_on.locator("lf-option[chosen]")).to_have_attribute("id", "opt-shim")
+    expect(moved_on.locator("lf-option[selected]")).to_have_attribute("id", "opt-shim")
 
     stamp_page(serve.page_dir, REPLAYED_PAGE, "unchanged")
     wait_for_revision(moved_on, 2)
     expect(moved_on).not_to_have_url(re.compile("/versions/"))
     expect(pinned).to_have_url(re.compile("v1"))
     # Replay carries the v1 pick onto v2, so this tab is showing it.
-    expect(moved_on.locator("lf-option[chosen]")).to_have_attribute("id", "opt-shim")
+    expect(moved_on.locator("lf-option[selected]")).to_have_attribute("id", "opt-shim")
 
     undo(pinned)
     told(moved_on)
     told(moved_on)
-    expect(moved_on.locator("lf-option[chosen]")).to_have_count(0)
+    expect(moved_on.locator("lf-option[selected]")).to_have_count(0)
 
 
 def test_a_move_on_a_version_a_newer_one_replaced_is_refused_and_restored(
@@ -2523,7 +2524,7 @@ def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve)
     original = page.locator("#sug-thistle lf-options").element_handle()
     page.locator("#blend-mixed").click()
     round_trip(page)
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "blend-mixed")
 
     suggestion_control(page, "sug-thistle", "accept").click()
     round_trip(page)
@@ -2536,7 +2537,7 @@ def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve)
     assert original.evaluate(
         "node => node === document.querySelector('#sug-thistle lf-options')"
     )
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "blend-mixed")
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
@@ -2631,7 +2632,7 @@ PANED_LONG_PAGE = leaf_page(
 )
 
 
-# The item field is the one that used to retire; the passage field rides the pane.
+# The item field is the one at risk of retiring; the passage field rides the pane.
 @pytest.mark.parametrize(
     ("target", "scroller"), [("item", "page"), ("item", "pane"), ("passage", "pane")]
 )
@@ -2640,10 +2641,10 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
 ):
     """Scrolling away from a comment and back returns to the field as the user left
     it: standing beside its target, with their words and their caret in it. Geometry
-    says where the field stands, never whether: an item's field used to read "the
-    target is off screen" as "the target is gone" and put the field away, words and
-    all, the moment its item left the window. The field now follows out of view
-    without retiring its draft; on return it stands beside the target."""
+    says where the field stands, never whether: an item's field that read "the target
+    is off screen" as "the target is gone" would put the field away, words and all,
+    the moment its item left the window. The field follows out of view without
+    retiring its draft; on return it stands beside the target."""
     page = open_page(
         browser, serve(LONG_PAGE if scroller == "page" else PANED_LONG_PAGE)
     )
@@ -2710,9 +2711,9 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
     placement asks is whether the box and its two 8px gaps fit beside the column in
     body's client box, and that box is the window less whatever the platform spends on
     a scrollbar — nothing under macOS's overlay ones, 15px of gutter on the Linux
-    runner. 1440 made the question exact rather than true: the margin fitted the box
-    with nothing at all to spare where this was written, and fell 15px short where it
-    ran, so a placement doing precisely what it should read as a bug."""
+    runner. At 1440 the question is exact rather than true: the margin fits the box
+    with nothing at all to spare under the overlay scrollbars and falls 15px short on
+    the Linux runner, so a placement doing precisely what it should reads as a bug."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
@@ -2844,12 +2845,16 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         layer_registry={
             "lf-preparation": {
                 "description": "A reply whose presentation waits for its content.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
+                "attributes": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                },
+                "content": "markup",
+                "author": {
+                    "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
+                },
             }
         },
         layer_widgets={

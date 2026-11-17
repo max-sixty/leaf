@@ -1,18 +1,12 @@
-# From Codex session 01a0f99f-caf4-7302-9fa7-bec4ca9f3050: a test-removal
-# review grouped independent proposals in checkbox sets, leaving rejection implicit
-# and each choice unfinished until the group's Done. The checkbox-wording context
-# preserves that request, which also admits a single selected-set answer. The
+# A Codex session's test-removal review grouped independent proposals in checkbox
+# sets, leaving rejection implicit and each choice unfinished until the group's Done.
+# The checkbox-wording context preserves that request, which also admits a single
+# selected-set answer; its wording leaves the answer's granularity ambiguous. The
 # primary supplies the partial-review need: keep and not-yet-reviewed differ.
-# With partial-review context, both arms exposed the three states (2/2 each) at
-# e9c98892c. The original checkbox context failed this granularity criterion in
-# both arms (0/2 each); its wording leaves the answer's granularity ambiguous.
 # Compact controls remain allowed; advice-marker checks are independent of the
 # card comparison treatment, which options-stay-words-for-wording covers.
-# At e9c98892c the final ordered card/advice instructions still omitted compact
-# recommendation markers in both arms (0/2 each). A compact worked example also
-# produced 0/2 and was not retained. This detection remains a known failure.
-# Matching the source's high effort instead of the catalog's medium still gave
-# 0/2 per arm; the Ask granularity criterion passed 2/2 per arm in both settings.
+# Compact recommendation markers remain a known failure: agents following the
+# card/advice instructions omit them, and a compact worked example doesn't fix it.
 description: proposals-get-individual-decisions
 metadata:
   purpose:
@@ -64,15 +58,13 @@ assert:
     value: |
       Each recommended removal needs a recommended small.tag on its Remove option,
       with a reason in prose. Advice must remain distinct from the user's choice:
-      neither option starts chosen. Fail recommendations expressed only in prose.
+      neither option starts selected. Fail recommendations expressed only in prose.
       Compact Remove / Keep controls need not have comparison chips; this case
       checks the advice marker rather than the card treatment.
 variants:
-  # Claude d693ee03-0814-46f1-bb84-52e638722236 read the complete instructions
-  # and rich examples, then gave five well-explained fixes identical Do it / Not
-  # now labels. Local context alone does not make the choices substantive.
-  # Without the prompt's pointer to the lf-ask, lf-options and lf-option entries,
-  # 2 of 2 Claude Code runs at 0e538e29d read authoring-on-me.md and passed.
+  # An agent read the complete instructions and rich examples, then gave five
+  # well-explained fixes identical Do it / Not now labels. Local context alone does
+  # not make the choices substantive.
   hardening-outcomes:
     metadata:
       purpose: "Choices: independent proposals name their concrete outcomes even when their questions already explain them."
@@ -155,12 +147,11 @@ variants:
 
         Write the Leaf review page. The page directory is not reachable from here,
         so reply with the complete `<main>` element's HTML rather than writing a file.
-  # From Claude Code session 656c7596 (thread 662249df on duplicate-logic-sweep):
-  # a sweep page asked "which workstreams to dispatch" as one multi-select after the
-  # last workstream section, so answering for any one meant scrolling back to it.
-  # The source's brief prescribed that multi-select; this prompt only asks to
-  # choose which to dispatch. At e1c3d2b3d the base passed 6/11 (each failure one
-  # page-end multi-select); defining a selected set by dependence passed 8/8.
+  # A session's sweep page asked "which workstreams to dispatch" as one multi-select
+  # after the last workstream section, so answering for any one meant scrolling back
+  # to it. The source's brief prescribed that multi-select; this prompt only asks to
+  # choose which to dispatch. The failure is one page-end multi-select; defining a
+  # selected set by dependence addresses it.
   dispatch-from-sections:
     metadata:
       purpose: "Asks: independent items presented in their own sections are decided where each is presented, not in one selected set apart from them."
@@ -247,10 +238,8 @@ variants:
           the workstreams rather than carry their case. Fail if #11 or #12 is
           decided only inside a batch with the clear-cut workstreams.
   # Guardrail for dispatch-from-sections: a capacity limit ties the items together,
-  # so the answer is genuinely one set. Both arms passed 3/3 at e1c3d2b3d. A
-  # blunter rule (one Question per item, never a multi-select across items)
-  # passed 0/4, posing six separate Asks; the dependence wording passed 4/4.
-  # Reworded by #2506 (one ask); at 3fe3eb0af it passed 1/1 on Claude Code.
+  # so the answer is genuinely one set. A blunter rule (one Question per item, never
+  # a multi-select across items) fails it by posing six separate Asks.
   dispatch-two-of-six:
     metadata:
       purpose: "Asks: a choice constrained across obligations stays one obligation whose answer is the set."

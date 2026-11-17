@@ -39,7 +39,8 @@ rubrics:
       unbroken block. An ask whose text holds an `lf-options` group is a choice the
       user presses: its words and options ask it together, each option titled by what
       choosing it does, and an option marked recommended only where the agent
-      advised it. For a step the user takes,
+      advised it. An action the agent takes once the user agrees, such as a merge, is
+      asked as such a choice. For a step only the user can take,
       it says what to do, and asks for a reply only for what the user alone can report or the agent's next step waits
       on, not for an effect the agent could check itself and nothing waits on. A finding's summary says correctly what the conversation
       shows. Each change makes the page say what the conversation shows now, in the
@@ -378,6 +379,38 @@ cases:
           choice: true
     assert:
       - *items
+  # A closeout whose fork would ask the user in words to run the command, so they would
+  # type it as a reply.
+  ask-permission:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - user: Open a PR for it.
+      - tool: Bash
+        input:
+          command: gh pr create --fill && gh pr checks --watch
+          description: Open the pull request and wait for its checks
+        result: |-
+          https://github.com/acme/search/pull/812
+          All checks were successful
+          review-bot  APPROVED
+      - assistant: >-
+          [#812](https://github.com/acme/search/pull/812) holds the LRU cache behind
+          the `search.cache` flag. CI passes and the review bot approved it.
+
+
+          Merging is yours: run `/merge-pr`.
+    labels:
+      expect:
+        - kind: question
+          words: ["812"]
+          thread: null
+          choice: true
+    assert:
+      - *items
   ask-on-me:
     fork: turn-end
     page: turn-end-check/pages/cache.html
@@ -674,7 +707,7 @@ cases:
                   </section>
                   <section id="slow-next">
                     <h2>Which should I fix first?</h2>
-                    <lf-options id="slow-first" choose>
+                    <lf-options id="slow-first">
                       <lf-option id="slow-first-sort"><strong>Index the price field</strong> The most called of the three; one index build, about an hour.</lf-option>
                       <lf-option id="slow-first-facet"><strong>Cap the wildcard facet</strong> The slowest; a facet over 100 terms falls back to a prefix match.</lf-option>
                       <lf-option id="slow-first-empty"><strong>Answer an empty query from the cache</strong> The rarest; one line in the handler.</lf-option>

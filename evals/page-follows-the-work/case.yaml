@@ -1,20 +1,20 @@
-# From session 97499ac5 (2026-11-15, page choice-alignment): the user complained about an
-# inspect row on another session's page; the agent fixed Leaf's choice control in #6110 and
-# wrote a page that opened with before/after captures of that row. Minutes later it learned
-# the row was gone from its page, and over the next two hours the user moved the work on to
-# rebuilding the control. Every revision was a targeted edit of the region it changed: the
-# agent added the rebuild as a new section, recaptured the old row's "after" with the new
-# CSS, and amended the lede, while the title kept asking why the row misaligned and the row's
-# captures and a paragraph about its own CSS stayed first. Asked whether the row was still
-# part of the design, the user then asked why it was still on the page. The prompt replays
-# the minute the rebuild was pushed, with the page as it stood (revision 6) and the rebuild's
-# captures; the session recaptured the old "after" images itself next. Claude Code,
-# 2026-11-16: the prompt retired the row 0/14 before SKILL.md judged material by what a
-# reader arriving now needs and 16/16 after; two wordings that kept only that goal,
-# without "material about something since removed goes", retired it 0/12. A variant replaying the user's comment on the
-# row's "after" an hour earlier was dropped: every run on every arm, 21 in all, answered
-# the user's question on the page, which was the page's subject then; what the user
-# objected to was that material staying once the work moved on.
+# A session's page (choice-alignment): the user complained about an inspect row on
+# another session's page; the agent fixed Leaf's choice control and wrote a page that
+# opened with before/after captures of that row. Minutes later it learned the row was
+# gone from its page, and over the next two hours the user moved the work on to
+# rebuilding the control. Every revision was a targeted edit of the region it changed:
+# the agent added the rebuild as a new section, recaptured the old row's "after" with
+# the new CSS, and amended the lede, while the title kept asking why the row
+# misaligned and the row's captures and a paragraph about its own CSS stayed first.
+# Asked whether the row was still part of the design, the user then asked why it was
+# still on the page. The prompt replays the minute the rebuild was pushed, with the
+# page as it stood (revision 6) and the rebuild's captures; the session recaptured the
+# old "after" images itself next. SKILL.md judges material by what a reader arriving
+# now needs, and says material about something since removed goes; that goal alone,
+# without the clause, can leave the row standing. A variant replaying the user's
+# comment on the row's "after" an hour earlier tests nothing here: the row was the
+# page's subject then, so answering the user's question on the page is right; what
+# the user objected to was that material staying once the work moved on.
 description: page-follows-the-work
 metadata:
   purpose:

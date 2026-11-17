@@ -5,12 +5,12 @@
  * runtime owner reaches it (`.dependency-cruiser.mjs`, `core-independent-of-overlay`).
  * Its factories share the core runtime's canonical owners.
  *
- * It lives in the kernel. #1652 placed it in the bundled default package, but every
+ * It lives in the kernel rather than the bundled default package: every
  * module here reads private runtime owners, which no package may import, so the
- * package boundary held only by exempting the default package from it, and composition,
- * the import graph, lint and installation preparation each carried a special case for
- * this directory. The dynamic import above, not the package, is what keeps a page-owned
- * presentation from loading it, and that import is unchanged at the same URL. */
+ * package boundary would hold only by exempting the default package from it, and
+ * composition, the import graph, lint and installation preparation would each carry a
+ * special case for this directory. The dynamic import above, not the package, is what
+ * keeps a page-owned presentation from loading it. */
 export { createMarginProjection } from "./margin-projection.js";
 export { createAnchorPaint } from "./anchor-paint.js";
 export { createVisualMarkPaint } from "./visual-mark-paint.js";

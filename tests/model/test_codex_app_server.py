@@ -19,6 +19,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _codex_delivery,
     _delivery_item,
@@ -2136,7 +2137,7 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
     end a second time.
     """
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     action = append_command(
@@ -2649,10 +2650,10 @@ def test_an_active_task_whose_turn_is_not_named_records_no_turn(monkeypatch):
     """A turn id has to be a turn, or nothing ever clears what it was written on.
 
     `thread/resume` can report a task active without naming its running turn: full
-    history is deprecated for paginated threads, so `turns` may not carry it. The
-    word "active" used to be recorded in its place, and no `turn/completed`
-    matches that, so the page's activity reading and the fold the delivery loop
-    waits on both stood until the next reconnect.
+    history is deprecated for paginated threads, so `turns` may not carry it. Were
+    the word "active" recorded in its place, no `turn/completed` would match it, so
+    the page's activity reading and the fold the delivery loop waits on would both
+    stand until the next reconnect.
     """
     observer = _observer()
     observer.started = True
@@ -2921,9 +2922,7 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
         prepared = _codex_delivery(page_dir)
     else:
         (page_dir / "index.html").write_text(
-            PAGE.replace(
-                "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-            )
+            PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
         )
         publish(page_dir)
         append_command(
@@ -3145,7 +3144,7 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
     """An action delivery has no reply reservation that could prevent a duplicate
     start."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     append_command(
@@ -3504,7 +3503,7 @@ def test_a_backlog_of_notifications_leaves_keepalive_pongs_readable(app_server):
     # The follower folds each notification before receiving the next, so a burst of
     # them waits in the connection's queue. A bounded queue pauses socket reads when
     # it fills, and the pongs behind the burst then go unread until the keepalive
-    # closes a connection whose server answered (#3895).
+    # closes a connection whose server answered.
     notifications = 64
     sent = threading.Event()
 

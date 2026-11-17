@@ -90,7 +90,7 @@ MAP_CHOICE_PAGE = leaf_page(
     + """
 <lf-ask id="map-ask">
   <h3>Which map should the sample team carry?</h3>
-  <lf-options id="map" choose>
+  <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
@@ -739,9 +739,9 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
 
 def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
     """Draw mode lasts while the user moves about the page, so on a phone two fingers
-    still scroll and zoom it, and one finger draws. The mode once set `touch-action:
-    none` on the whole document, so neither scrolling nor zoom worked until the user
-    left it."""
+    still scroll and zoom it, and one finger draws. A mode that set `touch-action:
+    none` on the whole document would leave neither scrolling nor zoom working until
+    the user left it."""
     filler = "".join(f"<p>Paragraph {n}. " + "Filler. " * 30 + "</p>" for n in range(8))
     html = TARGETS_PAGE.replace("</main>", filler + "</main>")
     context = browser.new_context(
@@ -926,7 +926,7 @@ def test_draw_mode_captures_widget_controls(browser, serve):
         serve(
             leaf_page(
                 "Drawing over a choice",
-                '<h1>Choose a route</h1><lf-options id="route" choose>'
+                '<h1>Choose a route</h1><lf-options id="route">'
                 '<lf-option id="trail">Trail</lf-option>'
                 '<lf-option id="street">Street</lf-option></lf-options>',
             )
@@ -943,12 +943,12 @@ def test_draw_mode_captures_widget_controls(browser, serve):
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    assert option.get_attribute("chosen") is None
+    assert option.get_attribute("selected") is None
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert cursor_at(page, *point) == "crosshair"
     stroke_over(page, control)
     expect(page.locator(".lf-drawing-mark")).to_have_count(1)
-    assert option.get_attribute("chosen") is None
+    assert option.get_attribute("selected") is None
 
 
 def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
@@ -1610,5 +1610,5 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
 
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": target}
-    assert page.locator("#map-street").get_attribute("chosen") is None
-    assert page.locator("#map-trail").get_attribute("chosen") is None
+    assert page.locator("#map-street").get_attribute("selected") is None
+    assert page.locator("#map-trail").get_attribute("selected") is None

@@ -496,9 +496,11 @@ included, and Go-to marks `body`, so a subject naming only a type, as `td` or `a
 restyled every cell or link on the page as focus entered `main`. What the box holds
 names a class only it carries (toc.css, the map's words), or asks the box for a
 property the box sets by a style query on a container the box names (reading.css, the
-sticky row names). An inherited property restyles everything the box holds when it
-changes, and so does an explicit `inherit` on each element between the box and its
-readers. A rule for one control's focus
+sticky row names). The query leaves what the box holds alone only while no style under
+the container depends on it; once one does, Chromium restyles everything under the
+container when the property changes. An inherited property restyles everything the box
+holds when it changes, and so does an explicit `inherit` on each element between the
+box and its readers. A rule for one control's focus
 reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
 marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 

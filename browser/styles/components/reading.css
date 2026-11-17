@@ -492,9 +492,12 @@ dl.lf-facts dd {
        Whether focus is in the table is a property the table sets, `--lf-names-focus`,
        and the fade asks the table for it by a style query on the container the table
        names, `lf-row-names` (`browser/AGENTS.md`, "A rule for focus anywhere in a box"),
-       so a focus move into or out of the table restyles the table and its fades, and a
-       move elsewhere on the page restyles none of it
-       (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes). */
+       so a focus move into or out of the table restyles the table, its fades and, while
+       its fades are drawn, everything in it, and a move elsewhere on the page restyles
+       none of it (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes).
+       A page that names its own container on such a table (`container-name: vendors`)
+       loses the fade, and a nested one given its own `container` fades by the outer
+       table's focus. */
     table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
       --lf-more-fade-start: 0px;
       --lf-names-clear-to: right;

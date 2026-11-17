@@ -820,7 +820,7 @@ PHONE_PAGE = leaf_page(
 PHONE_READING_PAGE = leaf_page(
     "phone reading",
     "<h1 id='t'>Phone</h1>"
-    + "<aside class='note'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    + "<aside style='font-size: 13px'><lf-draft id='note'><pre>A draft set in the sidenote's"
     " type.</pre></lf-draft></aside>"
     + "".join(
         f"<p id='p{n}'>Paragraph {n}. "

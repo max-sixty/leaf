@@ -10,6 +10,7 @@ from leaf.obligations import (
 )
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
+    authored_inert,
     exhibits,
     is_element_name,
     matches_when,
@@ -17,7 +18,7 @@ from leaf.registry.contract import (
     retirement_slots,
     state_specs,
 )
-from leaf.registry.kernel import authored_inert, kernel_marks
+from leaf.registry.kernel import kernel_marks
 from leaf.registry.schema import json_validator, schema_reading
 from leaf.shown_answers import shown_errors
 from leaf.structure import AUTHORED_ALLOCATIONS, SourceDocument
@@ -531,7 +532,7 @@ def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
 
 def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     """A page's allocations that mean nothing where they stand
-    (`registry.kernel.authored_inert`), which delivery leaves unpainted, so nothing on
+    (`registry.contract.authored_inert`), which delivery leaves unpainted, so nothing on
     the page shows the author the width or height they asked for is missing. Advice,
     since the page works as it is; the words say where the allocation would hold. A
     message has its own rule for the room (`$marks`, `message`), so this reads only
@@ -548,7 +549,9 @@ def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Fi
             continue
         tag = item["tag"]
         declaration = registry.get(tag, {}) if is_element_name(tag) else {}
-        if holds := authored_inert(key, declaration, content=item["content"]):
+        if holds := authored_inert(
+            key, declaration, item["attrs"], content=item["content"]
+        ):
             findings.append(
                 Finding(
                     "inert-allocation",

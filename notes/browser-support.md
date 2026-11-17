@@ -181,7 +181,7 @@ non-inheriting `<length-percentage>` properties and its shell's width in `cqi`, 
 `:has()` asked again of `main` as focus moved restyled every element under it:
 7,152 elements a move at 1,024 sections, and 1,014 with the room registered `*`.
 So the column resolves the lengths in its room in registered `<length>`
-properties (`--lf-room-length`, `--lf-room-note`, `browser/layouts.css`) and
+properties (`--lf-room-length`, `browser/layouts.css`) and
 states the room from them, percentage and all, only in `--lf-free-start` and its
 kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
 `--lf-free-start` `<length-percentage>` again:

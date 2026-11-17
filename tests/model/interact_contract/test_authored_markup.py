@@ -138,9 +138,21 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
     on a question, which draws no box of its own, a width on `main`, which would size
     the page, and a stated height on a block no module draws into. `page check` names
     each so the author can move it. A width on the table inside the question, and a
-    height on a chart, mean what they say."""
+    height on a chart, mean what they say. A tab set draws no box of its own only where
+    it is written `flow="page"`, so a width there means nothing and on a boxed set it
+    holds."""
+    tabs = (
+        '<lf-tabs id="{id}"{flow} data-width="wide">'
+        '<lf-tab id="{id}-one" label="One"><p>One.</p></lf-tab></lf-tabs>'
+    )
     (page_dir / "index.html").write_text(
         PAGE.replace("<main>", '<main data-width="wide">')
+        .replace(
+            "</section>",
+            "</section>"
+            + tabs.format(id="page-tabs", flow=' flow="page"')
+            + tabs.format(id="boxed-tabs", flow=""),
+        )
         .replace(
             '<div id="plan-choice-decision">',
             '<lf-ask id="plan-choice-decision" data-width="available">',
@@ -164,6 +176,7 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
         ("<main>", "data-width", "content", "advice"),
         ("<lf-ask id=plan-choice-decision>", "data-width", "flow", "advice"),
         ("<div id=sized>", "data-height", "declared", "advice"),
+        ("<lf-tabs id=page-tabs>", "data-width", "flow", "advice"),
     ]
 
 

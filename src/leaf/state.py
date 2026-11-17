@@ -342,8 +342,7 @@ class Record(Generic[_RecordValue]):
     a page's stream, a claim or a session's lifecycle.
 
     Each kind is declared once, beside the module that owns it, whose functions are
-    its only writers, and `schema` declares the object. Objects stay open, so a
-    field another Leaf adds leaves a record readable. Leaf alone writes these files,
+    its only writers, and `schema` declares the object. Leaf alone writes these files,
     and the hooks that read several of them must not load a schema engine, so
     nothing validates a record whole while Leaf runs; the suite checks every record
     a test writes against its schema instead (`tests/conftest.py`).

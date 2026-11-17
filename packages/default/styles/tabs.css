@@ -10,12 +10,11 @@
  * index.
  * Live pages select their panel before the strip arrives. Without the runtime,
  * panels stack as labeled sections. */
-/* A set authored as layout-flow shares the document's space and draws no frame. Every
- * other set is boxed. layouts.css owns the flow declaration the module reads for
- * scrolling; primary URL/history ownership is a separate fact (lf-tabs.js). */
+/* A set written `flow="page"` stands in the page's flow, its panels sharing the
+ * document's room (`x-flow`, layouts.css), and draws no frame. Every other set is
+ * boxed. Which set owns the page's URL and history is a separate fact (lf-tabs.js). */
 
 :where(lf-tabs) {
-  --lf-views-flow: box;
   --lf-tab-end: calc(var(--lf-sp-4) + var(--lf-end-room));
   display: block;
   margin: 14px 0;
@@ -910,7 +909,7 @@ lf-tabs[data-lf-views] > lf-tab {
 
 @media screen {
   @scope (html[data-lf-interactive]) {
-    @scope (lf-tabs.layout-flow) {
+    @scope (lf-tabs[flow="page"]) {
       /* Page tabs have no panel padding. Keep the ring outside the three text edges,
      * with its top on the strip's rule; boxed sets and parts keep their inset ring. */
       :scope:is(lf-tabs)[data-lf-views]::after {

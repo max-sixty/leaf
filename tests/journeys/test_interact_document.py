@@ -668,7 +668,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
     drawing = '<svg viewBox="0 0 8 8" role="img" aria-label="{}"><rect width="8" height="8" /></svg>'
     blocks = (
         "<pre><code>uv run backfill --check</code></pre>"
-        '<aside class="note">The retry path is deliberately separate.</aside>'
+        "<aside>The retry path is deliberately separate.</aside>"
         '<figure id="fig"><table><tr><td>1</td></tr></table></figure>'
         '<table id="shots"><tr>'
         f"<td>{drawing.format('Before')}</td>"
@@ -712,7 +712,7 @@ def test_check_advises_where_a_users_aim_has_nothing_to_land_on(page_dir):
         ).replace(
             "<h2>Plan</h2>",
             '<h2>Plan</h2><pre id="cmd"><code>uv run backfill --check</code></pre>'
-            '<aside class="note" id="retry-note">The retry path is deliberately '
+            '<aside id="retry-note">The retry path is deliberately '
             "separate.</aside>",
         )
     )

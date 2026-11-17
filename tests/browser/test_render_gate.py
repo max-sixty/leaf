@@ -34,7 +34,6 @@ from render_cases_layout import (
     CUSTOM_WIDGET_PAGE,
     HIDDEN_SCROLLERS,
     IDENTIFIERS_IN_CODE_PAGE,
-    NOTE_BESIDE_A_CHANGE,
     RESIZE_LOOP_EVENT,
     WIDE_TABLE_PAGE,
     arrival_findings,
@@ -64,7 +63,6 @@ from render_harness import (
     left_alone,
     live_counts,
     open_page,
-    open_threads,
     pane_scroll_behavior,
     panel_control,
     panel_menu,
@@ -2311,7 +2309,7 @@ def test_block_margins_follow_density_frames_and_the_column_on_one_page(
 <div class="callout" id="framed"><h2>Callout</h2><p>Body.</p></div>
 <section id="prose-led"><p>Prose first.</p></section>
 <section id="list-led"><ol><li>A list first.</li></ol></section>
-<section class="layout-flow" id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
+<section id="flow"><section id="flow-led"><h2>In a flow</h2></section></section>""",
             )
         ),
     )
@@ -3707,7 +3705,7 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
         "Contained exhibits",
         """<div class="layout-column">
           <h1>Evidence</h1>
-          <section id="plain">
+          <div id="plain">
             <table id="wide-table" data-width="wide"><tr><td>Wide evidence</td></tr></table>
             <lf-diff id="declared-wide"><pre>diff --git a/count.py b/count.py
 --- a/count.py
@@ -3717,14 +3715,14 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
 +new
 </pre></lf-diff>
             <table id="ordinary-table"><tr><td>Ordinary evidence</td></tr></table>
-          </section>
+          </div>
           <aside id="framed" class="callout">
             <table id="framed-table" data-width="wide"><tr><td>Framed evidence.</td></tr></table>
           </aside>
-          <section id="wrapper"><section class="layout-flow">
+          <div id="wrapper"><section>
             <table id="nested-table" data-width="wide"><tr><td>Nested evidence.</td></tr></table>
-          </section></section>
-          <section id="flow" class="layout-flow">
+          </section></div>
+          <section id="flow">
             <div id="wide-flow" data-width="wide">Shared tracks.</div>
             <div id="allocated" data-width="available"><section id="inside-wide">
               <div id="nested-wide" data-width="wide">Already has room.</div>
@@ -3743,17 +3741,17 @@ def test_declared_space_names_containing_holders_as_advice(browser, serve):
     reading = render_checks_model.evaluate_probe(page, "geometryReading", [])
     contained = reading["contained"]
     assert {finding["at"]: finding["holders"] for finding in contained} == {
-        "<table id=wide-table>": ["<section id=plain>"],
-        "<lf-diff id=declared-wide>": ["<section id=plain>"],
+        "<table id=wide-table>": ["<div id=plain>"],
+        "<lf-diff id=declared-wide>": ["<div id=plain>"],
         "<div id=grid-wide>": ["<div id=custom-grid>"],
         "<table id=framed-table>": ["<aside id=framed>"],
-        "<table id=nested-table>": ["<section id=wrapper>"],
+        "<table id=nested-table>": ["<div id=wrapper>"],
     }
     findings = render_gate_readings.swept_faults([(1280, reading)])
     advice = [finding for finding in findings if finding.code == "contained-space"]
     assert len(advice) == 5
     assert all(finding.severity == "advice" for finding in advice)
-    assert 'class="layout-flow"' in str(advice[0])
+    assert "as a section, article or details" in str(advice[0])
     assert "put data-width on the frame" in str(advice[0])
 
 
@@ -3770,7 +3768,7 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
         <section id="words" data-width="available"><h2>Off</h2><p>Words.</p></section>
         <details id="more" data-width="available" open><summary>More</summary>
           <p>Words.</p></details>
-        <section id="flowing" class="layout-flow"><section id="inner" data-width="available">
+        <section id="flowing"><section id="inner" data-width="available">
           <p>Words.</p></section></section>
         <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
         <figure id="pictured" data-width="available"><div>Picture.</div>
@@ -3792,7 +3790,7 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
     advice = render_gate_readings.swept_faults([(1440, reading)])
     worded = [finding for finding in advice if finding.code == "words-off-column"]
     assert all(finding.severity == "advice" for finding in worded) and len(worded) == 3
-    assert 'class="layout-flow"' in str(worded[0])
+    assert "move data-width to the block inside" in str(worded[0])
 
 
 def test_the_sweep_reads_each_width_as_a_load_there_shows_it(browser, serve):
@@ -3935,42 +3933,6 @@ def test_an_item_its_content_holds_past_the_column_is_told_to_drop_its_minimum(
     assert "min-width: 0" not in str(Finding.read(past["<div id=sized>"]))
 
 
-def test_a_change_level_with_a_note_is_decided_on_the_change(browser, serve):
-    """Both elements in the right margin stand level with what they belong to — the
-    controls with the change they decide, the note with the block it annotates — so the
-    controls of a change beside a note would be drawn over the note's first line. The
-    note holds the rail's strip there, so the controls stand as a pin on the change
-    instead, clear of the note, and the gate has no covered words to read."""
-    url = serve(NOTE_BESIDE_A_CHANGE)
-    page = open_page(browser, url)
-    # A note hangs in the margin only where the room beside the column holds it.
-    resized(page, 1600, 900)
-    page.locator("#sug-level").scroll_into_view_if_needed()
-    geometry = """() => {
-        const note = document.getElementById('level-note');
-        const prose = document.getElementById('sug-level').getBoundingClientRect();
-        const row = document.querySelector("[data-lf-margin-for='sug-level']");
-        const n = note.getBoundingClientRect(), b = row.getBoundingClientRect();
-        return {beside: n.left >= prose.right, place: row.dataset.lfPlace,
-                across: Math.min(n.right, b.right) - Math.max(n.left, b.left),
-                down: Math.min(n.bottom, b.bottom) - Math.max(n.top, b.top)};
-    }"""
-    level = page.evaluate(geometry)
-    covered = render_checks_model.evaluate_probe(page, "coveredWords")
-    page.close()
-
-    assert level["beside"], (
-        f"the note never hung in the margin, so nothing here was tested: {level}"
-    )
-    assert level["place"] == "pin", level
-    assert level["across"] <= 0 or level["down"] <= 0, (
-        f"the change's controls were drawn over the note: {level}"
-    )
-    assert not [
-        f for f in covered if "level-note" in f["at"] or "level-note" in f["under"]
-    ], covered
-
-
 def test_the_covered_words_gate_still_reads_a_control_in_the_flow(browser, serve):
     """The other half of the exemption above, put back as a bug: a control the widget
     hangs out of the flow is answered for, and one standing in the flow is an element in the margin
@@ -4066,33 +4028,6 @@ def test_words_the_panel_covers_at_the_page_s_end_are_reported(
     assert [f["at"] for f in under_panel] == under, found
     # The author reads the record as words naming the element it found.
     assert all(f["at"] in str(Finding.read(f)) for f in under_panel)
-
-
-# A sidenote beside a section of prose and tiles, the content a strip crushing the
-# column would push out of it.
-COMPARE_NOTE_PAGE = leaf_page(
-    "compare note",
-    """
-<h1 id="title">Maps</h1>
-<section id="comparison" class="layout-flow">
-  <h2>Compare, Variants, and Chips</h2>
-  <div class="layout-note"><p id="compare-guide">Ordinary sections compare alternatives. Small labels carry their
-  attributes.</p><aside class="note" id="compare-note">The page puts short alternatives in a row
-  and longer explanations below. Narrow the window to see this note follow the text.
-  </aside></div>
-  <div id="compare" class="layout-tiles">
-    <section class="panel"><small class="tag">power: none</small><small class="tag ok"
-    >weight: low</small> <strong>Paper map</strong> Easy to annotate and fold.</section>
-    <section class="panel"><small class="tag">power: daily</small><small class="tag warn"
-    >weight: medium</small> <strong>Tablet map</strong> Searchable and backlit.</section>
-  </div>
-</section>
-"""
-    + "\n".join(
-        f"<p id='after-{i}'>Paragraph {i}. " + "Filler. " * 30 + "</p>"
-        for i in range(8)
-    ),
-).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 
 
 def test_the_syntax_probe_reports_code_the_user_cannot_tell_from_its_block(
@@ -4708,54 +4643,6 @@ body { width: 40vw; }
         )
         assert body > 0, f"the two candidate measurements do not diverge at {width}px"
         assert root_overflow(page) == 0, (width, body)
-
-
-def test_a_page_hands_its_note_strip_back_when_the_panel_takes_the_room(browser, serve):
-    """The margin form is granted by the room beside the page's column, and the thread
-    panel stands over the page rather than taking room from it, so the panel decides
-    nothing about where a note stands: the window does.
-
-    `page check --render` and the render sweep normally open with no panel, so this
-    test exercises the panel's state they do not otherwise visit.
-
-    Three readings distinguish a real container response from either never floating the
-    note or releasing it whenever the panel opens: the note begins in the margin, returns
-    to flow in a window too narrow for it, and stays in the margin with the panel open
-    in one wide enough."""
-    url = serve(COMPARE_NOTE_PAGE)
-    page = open_page(browser, url)
-    page.evaluate("location.hash = 'compare-note'")
-    expect(page.locator("#compare-note")).to_be_visible()
-    resized(page, 1600, 900)
-    reading = """() => {
-        const note = document.querySelector('aside.note').getBoundingClientRect();
-        const prose = document.querySelector('#compare-guide').getBoundingClientRect();
-        const main = document.querySelector('main'), s = getComputedStyle(main);
-        return {beside: note.left >= prose.right,
-                column: Math.round(main.getBoundingClientRect().width
-                    - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight))};
-    }"""
-    roomy = page.evaluate(reading)
-    resized(page, 1024, 900)
-    open_threads(page)
-    cramped = page.evaluate(reading)
-    misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
-    resized(page, 1728, 900)
-    wide = page.evaluate(reading)
-    page.close()
-
-    assert roomy["beside"], (
-        f"no note stood in the margin to begin with, so this proves nothing: {roomy}"
-    )
-    assert not cramped["beside"], (
-        f"the strip outlived the room for it: {cramped}, {misplaced}"
-    )
-    assert misplaced == [], (
-        f"content set outside a column the strip had crushed: {misplaced}"
-    )
-    assert wide["beside"], (
-        f"a window wide enough for both moved the notes anyway: {wide}"
-    )
 
 
 def test_label_size_reading_ignores_html_elements_inside_a_drawing(browser, serve):

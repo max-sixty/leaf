@@ -28,7 +28,7 @@ from render_harness import (
     leaf_page,
     long_press,
     open_page,
-    page_registry,
+    page_declarations,
     resized,
     said,
     scroll_settled,
@@ -1100,7 +1100,9 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
     expect(group).to_have_css("display", "grid")
     expect(group.locator("lf-option").first).to_have_css("display", "flow-root")
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", page_declarations(page)
+        )
         == []
     )
 

@@ -74,7 +74,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
         None,
         None,
         "Which should go first?\n\n"
-        '<lf-ask id="order-decision"><h3>Which first?</h3>'
+        '<lf-ask id="order-decision">\n<h3>Which first?</h3>'
         '<lf-options id="order" choose>'
         '<lf-option id="mounts">Mounts</lf-option>'
         '<lf-option id="camera">Camera</lf-option>'

@@ -56,7 +56,7 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
         serve.page_dir,
         {"responds": root},
         "Choose the first job.\n\n"
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-ask id="first-job-decision">\n<h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
@@ -101,7 +101,7 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
         serve.page_dir,
         {"responds": root},
         "Choose the first job.\n\n"
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-ask id="first-job-decision">\n<h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'

@@ -742,7 +742,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         )
 
     def question(decision_id, markup):
-        return f'<lf-ask id="{decision_id}"><h2>Pick?</h2>{markup}</lf-ask>'
+        return f'<lf-ask id="{decision_id}">\n<h2>Pick?</h2>{markup}</lf-ask>'
 
     # `flag-first` is an option on the page (PAGE fixture) — refused.
     clash = reply(
@@ -834,7 +834,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--text",
             (
                 "Pick:\n\n"
-                '<lf-ask id="pick-decision"><h2>Pick?</h2>'
+                '<lf-ask id="pick-decision">\n<h2>Pick?</h2>'
                 '<lf-options id="lf-pick" choose>'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
@@ -1675,7 +1675,7 @@ def test_html_enters_only_through_the_cli_gate(server, page_dir):
             {
                 "kind": "comment",
                 "revision": 1,
-                "text": 'hi\n\n<lf-diagram id="m"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+                "text": 'hi\n\n<lf-diagram id="m">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
                 "html": True,
             }
         ).encode(),

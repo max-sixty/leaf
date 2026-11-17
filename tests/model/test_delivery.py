@@ -697,7 +697,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "html": True,
             "text": "Which mitigations should I carry into the patch?\n\n"
-            + '<lf-options id="gm" choose>'
+            + '<lf-options id="gm" choose>\n'
             '<lf-option id="m-cap"><small class="tag">recommended</small>'
             "<strong>Cap retries</strong> Bound retry load.</lf-option>"
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
@@ -895,7 +895,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "revision": 1,
             "html": True,
             "text": "Here is the proposed answer.\n\n"
-            + '<lf-suggestion id="thread-answer" resolves="c-target">'
+            + '<lf-suggestion id="thread-answer" resolves="c-target">\n'
             "<lf-old><p>Old words.</p></lf-old>"
             "<lf-new><p>New words.</p></lf-new>"
             "</lf-suggestion>",

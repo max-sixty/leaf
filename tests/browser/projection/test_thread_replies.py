@@ -185,7 +185,7 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "author": "agent",
             "revision": 1,
             "parent": "body-question",
-            "text": f'Edit these words.\n\n<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
+            "text": f'Edit these words.\n\n<{tag} id="reply-body">\n<pre>\n    First line.\n    Second line.\n</pre></{tag}>',
             "html": True,
         },
     )

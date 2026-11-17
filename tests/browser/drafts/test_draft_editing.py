@@ -594,7 +594,7 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
             "--text",
             "Here it is:"
             + "\n\n"
-            + ('<lf-draft id="reply-draft"><pre>The note to send.</pre></lf-draft>'),
+            + ('<lf-draft id="reply-draft">\n<pre>The note to send.</pre></lf-draft>'),
         ],
     )
     assert replied.exit_code == 0, replied.output

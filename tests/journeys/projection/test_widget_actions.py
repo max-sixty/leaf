@@ -67,7 +67,7 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
             "revision": 1,
             "text": (
                 "Should the cache warm lazily?\n\n"
-                '<lf-trial id="rq-cache">'
+                '<lf-trial id="rq-cache">\n'
                 '<lf-current><p id="rq-now">Warm on deploy.</p></lf-current>'
                 '<lf-proposed><p id="rq-next">Warm on first request.</p></lf-proposed>'
                 "</lf-trial>"

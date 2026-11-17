@@ -22,7 +22,7 @@ from .projection import (
     markup_value,
     record_members,
 )
-from .registry.contract import declared_fact, state_specs, upgraded
+from .registry.contract import state_specs, upgraded
 from .structure import SourceDocument
 
 
@@ -39,7 +39,7 @@ def event_origin(event: dict) -> dict:
 def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> dict:
     """Read the current value of the source that constructs each input."""
     inputs = {}
-    for name, spec in declared_fact(entry, "data.inputs", {}).items():
+    for name, spec in entry.get("inputs", {}).items():
         source = attrs.get(spec.get("source"))
         if source is None:
             continue
@@ -265,10 +265,9 @@ def constructed_content(
             entry = registry.get(node["tag"], {})
             if (
                 parent is not None
-                and declared_fact(entry, "state.retired-when")
-                and parent["tag"] in declared_fact(entry, "markup.owners", [])
-                and outcomes.get(parent["attrs"].get("id"))
-                == entry["state"]["retired-when"]
+                and entry.get("retired-when")
+                and parent["tag"] in entry.get("owners", [])
+                and outcomes.get(parent["attrs"].get("id")) == entry["retired-when"]
             ):
                 continue
             node["content"] = visible(node["content"], node)

@@ -8,7 +8,6 @@ from leaf.obligations import shown_in, widget_groups
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
     authored_inert,
-    declared_fact,
     exhibits,
     is_element_name,
     matches_when,
@@ -52,14 +51,14 @@ def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
 
 def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Validate parsed lf-* elements against the registry: schema over the
-    attribute instance, markup.owners nesting, and the content model."""
+    attribute instance, `owners` nesting, and the content model."""
     errors = []
-    # Member containers admit exactly the tags that declare them as markup.owners.
+    # Member containers admit exactly the tags that declare them as `owners`.
     members_of = {}
     for tag, entry in registry.items():
         if not is_element_name(tag):
             continue
-        for owner in declared_fact(entry, "markup.owners", []):
+        for owner in entry.get("owners", []):
             members_of.setdefault(owner, set()).add(tag)
 
     for rec in lf_elements:
@@ -102,27 +101,27 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                         "instance-contract", rec, verb=verb, contract=name, **binding
                     )
                 )
-        for input_name, spec in declared_fact(entry, "data.inputs", {}).items():
+        for input_name, spec in entry.get("inputs", {}).items():
             if rec["attrs"].get(spec.get("source")) and rec["attrs"].get(
                 spec.get("reference")
             ):
                 errors.append(found_at("ambiguous-data-binding", rec, input=input_name))
         # A member stands directly in an owner.
-        want_owners = declared_fact(entry, "markup.owners", [])
+        want_owners = entry.get("owners", [])
         if want_owners and rec["parent"] not in want_owners:
             errors.append(
                 found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
-        # Tags that name this declaration in markup.owners are its admissible members
+        # Tags that name this declaration in `owners` are its admissible members
         # under any content model. "data" takes one <pre>, or none where the markup
-        # binds an input (`data.inputs`), whose value is then the text; "members" takes
+        # binds an input (`inputs`), whose value is then the text; "members" takes
         # element members only, and "empty" takes nothing at all.
         content = entry["content"]
         allowed = members_of.get(tag, set())
         stray = sorted({c for c in rec["children"] if c not in allowed})
         bound = any(
             rec["attrs"].get(spec.get(key))
-            for spec in declared_fact(entry, "data.inputs", {}).values()
+            for spec in entry.get("inputs", {}).values()
             for key in ("source", "reference")
         )
         if content == "empty" and (rec["children"] or rec["text"]):
@@ -193,7 +192,7 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
     optional header, exactly one body element, and an optional footer."""
     errors = []
     for rec in lf_elements:
-        role = declared_fact(registry.get(rec["tag"], {}), "markup.reading-role")
+        role = registry.get(rec["tag"], {}).get("reading-role")
         if role is None:
             continue
         direct = rec["direct"]
@@ -212,7 +211,7 @@ def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
 
 
 def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """A page's parts (`paint.views.parts`) written directly in `main` lay the page out
+    """A page's parts (`views.parts`) written directly in `main` lay the page out
     themselves, each part's child carrying its own Layout, so the `main` holding them
     carries none. With one, its Layout and the parts' both arrange the page, and the
     page renders with nothing out of reach, so the render check passes it."""
@@ -225,7 +224,7 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         found_at("parts-in-layout", rec, rec["attrs"].get("id", ""), layout=layouts[0])
         for rec in document.lf_elements
         if rec["parent"] == "main"
-        and declared_fact(registry.get(rec["tag"], {}), "paint.views", {}).get("parts")
+        and registry.get(rec["tag"], {}).get("views", {}).get("parts")
     ]
 
 
@@ -237,8 +236,8 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     so a widget no group holds names no question (`ungrouped-question`, one finding a
     widget), and a group holding one needs a name, and an id to be a place to stand
     (`question-group`, one finding a group, saying all it lacks). A widget with words
-    of its own needs no group: one set among words (`words.inline`) is named by them,
-    and one asking about each record of its data (`state.awaits.records`) by each
+    of its own needs no group: one set among words (`inline`) is named by them,
+    and one asking about each record of its data (`awaits.records`) by each
     record's label. A message's widget needs none either, since the message names what
     it asks, so only a page's documents are checked."""
     # A widget inside SVG keeps its exact source rather than a node, and so is no
@@ -252,10 +251,10 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     asked: dict[int, tuple[dict, list[str]]] = {}
     for rec in document.lf_elements:
         entry = registry.get(rec["tag"]) or {}
-        awaits = declared_fact(entry, "state.awaits")
+        awaits = entry.get("awaits")
         if not (
             awaits is not None
-            and not declared_fact(entry, "words.inline")
+            and not entry.get("inline")
             and "records" not in awaits
             and matches_when(rec["attrs"], awaits.get("when"))
             and not shown_in(rec, registry)
@@ -330,16 +329,14 @@ def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
 
 
 def keyed_members(lf_elements: list, registry: dict) -> dict:
-    """Every member a markup.unique attribute keys, as `(id(owner), tag, key, value)` mapped
+    """Every member a `unique` attribute keys, as `(id(owner), tag, key, value)` mapped
     to the members holding it, in document order; the owner is the member's nearest
-    enclosing element of the tag its markup.unique declaration names for that key. A
+    enclosing element of the tag its `unique` declaration names for that key. A
     member
-    standing in no such owner is left out: markup.owners reports where it stands."""
+    standing in no such owner is left out: `owners` reports where it stands."""
     members = {}
     for rec in lf_elements:
-        for key, scope_tag in declared_fact(
-            registry.get(rec["tag"], {}), "markup.unique", {}
-        ).items():
+        for key, scope_tag in registry.get(rec["tag"], {}).get("unique", {}).items():
             value = rec["attrs"].get(key)
             scope = enclosing(rec, scope_tag, registry)
             if value is not None and scope is not None:
@@ -348,7 +345,7 @@ def keyed_members(lf_elements: list, registry: dict) -> dict:
 
 
 def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Each member whose markup.unique attribute repeats an earlier member's value within
+    """Each member whose `unique` attribute repeats an earlier member's value within
     their shared owner, such as two options of one set with one value, or two settings
     of one playground preset for one field. Asked of one document, since an owner and
     its members always stand in the same one."""
@@ -359,7 +356,7 @@ def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
             key=key,
             value=value,
             first_line=first["line"],
-            scope=registry[tag]["markup"]["unique"][key],
+            scope=registry[tag]["unique"][key],
         )
         for (_, tag, key, value), (first, *extras) in keyed_members(
             lf_elements, registry
@@ -402,7 +399,7 @@ def reference_errors(
                     "unknown-thread", rec, rec["attrs"].get("id", ""), resolves=resolves
                 )
             )
-        for attr, reference in declared_fact(entry, "markup.refers", {}).items():
+        for attr, reference in entry.get("refers", {}).items():
             target = rec["attrs"].get(attr)
             if not target:
                 continue
@@ -415,25 +412,20 @@ def reference_errors(
                 )
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
-            elif (
-                attr == declared_fact(entry, "state.shows", {}).get("attr")
-                and target not in own
-            ):
+            elif attr == entry.get("shows", {}).get("reference") and target not in own:
                 # A view and the answer it shows travel in one document, so a board
                 # in a reply shows widgets frozen in the same reply (`shown_answers`).
                 errors.append(found_at("shows-outside", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)
-        for input_name, spec in declared_fact(
-            registry.get(rec["tag"], {}), "data.inputs", {}
-        ).items():
+        for input_name, spec in registry.get(rec["tag"], {}).get("inputs", {}).items():
             target = rec["attrs"].get(spec.get("reference"))
             producer = by_id.get(target)
             if not target or not producer:
                 continue  # The ordinary relation check names a missing target.
-            output = declared_fact(
-                registry.get(producer["tag"], {}), "data.outputs", {}
-            ).get(spec["output"])
+            output = (
+                registry.get(producer["tag"], {}).get("outputs", {}).get(spec["output"])
+            )
             if output is None or output["contract"] != spec["contract"]:
                 errors.append(
                     found_at(
@@ -449,7 +441,7 @@ def reference_errors(
         (tag, attr, reference)
         for tag, entry in registry.items()
         if is_element_name(tag)
-        for attr, reference in declared_fact(entry, "markup.refers", {}).items()
+        for attr, reference in entry.get("refers", {}).items()
         if reference.get("owns")
     ]
     for rec in lf_elements:
@@ -485,13 +477,13 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Findi
     """
     errors = []
     for rec in lf_elements:
-        declaration = declared_fact(registry.get(rec["tag"], {}), "state.awaits")
+        declaration = registry.get(rec["tag"], {}).get("awaits")
         if (
             declaration is not None
             and matches_when(rec["attrs"], declaration.get("when"))
             and not rec["attrs"].get("id")
         ):
-            errors.append(found_at("needs-id", rec, role="state.awaits"))
+            errors.append(found_at("needs-id", rec, role="awaits"))
     return errors
 
 

@@ -17,7 +17,7 @@
  * first reading is in, as offline, Later and Next step to the next card in order.
  *
  * Which card is open is view state for this user, as a tab set's open panel is
- * (`paint.views`): the runtime names the opening card (`openingView`), the module
+ * (`views`): the runtime names the opening card (`openingView`), the module
  * records each card it shows (`keepView`), so a reload comes back to it, and no event
  * carries it. Where neither the address nor the tab names a card, the deck opens on the
  * first that waits once the first reading is in. Inactive cards are

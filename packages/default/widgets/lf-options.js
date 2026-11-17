@@ -4,7 +4,7 @@
  *
  * Which form a group takes is a fact about its options, decided in CSS and never here:
  * an option with a `label` argues its own case and is a card on a row of its own, which
- * draws its label as its title (`words.says`), and a group whose options are bare labels
+ * draws its label as its title (`says`), and a group whose options are bare labels
  * is an obligation *about* the page, drawn as compact rows.
  * The difference this module sees is only what a row adds — `for`, the id of the block
  * the row names, rendered as a reference the user can follow where the group's rows
@@ -55,7 +55,7 @@
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
  * whole, posted as an `answer` action and held as the obligation's closing condition
- * (state.awaits.answered). Answered is paint on the press, never a wider word. A
+ * (`awaits.answered`). Answered is paint on the press, never a wider word. A
  * second press withdraws that answer through the widget's exact undo, reopening the
  * obligation; the set can still change after either press, and each toggle reaches the
  * agent.
@@ -638,7 +638,7 @@ customElements.define(
       option.prepend(mark);
       // A card's title follows its mark, which floats beside it as the card's state
       // seat and must come first to stand on the title's line. The words pass puts a
-      // `words.says` title before chrome it finds at the start, so the title is written
+      // `says` title before chrome it finds at the start, so the title is written
       // here, after the mark, wherever this runs first; the pass then keeps its words.
       const title = option.getAttribute("label");
       if (title !== null && !option.querySelector(':scope > [data-lf-said="label"]')) {

@@ -102,9 +102,7 @@ def test_a_project_package_restates_a_theme_s_idiom(tmp_path, monkeypatch):
     project.mkdir(parents=True)
     callout = {
         "description": "project callout",
-        "author": {
-            "example": '<aside class="callout">…</aside>',
-        },
+        "example": '<aside class="callout">…</aside>',
     }
     (project / "registry.json").write_text(json.dumps({".callout": callout}))
     (project / "defaults.css").write_text(".callout { background: teal; }\n")

@@ -188,9 +188,7 @@ PROGRESSIVE_REGISTRY = {
             "required": ["id"],
         },
         "content": "markup",
-        "words": {
-            "shadow": True,
-        },
+        "shadow": True,
     }
 }
 

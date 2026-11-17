@@ -1,4 +1,4 @@
-/* The one traversal of `state.verbs`, and the generation it belongs to.
+/* The one traversal of `verbs`, and the generation it belongs to.
 
    Derived state declarations belong to one complete registry generation. Warming the
    index must not make a later generation inherit the declarations of the one before it,
@@ -37,21 +37,17 @@ test("a vocabulary that has not loaded has no state index to give", () => {
 test("authoring selectors and shared facts never enter widget state", () => {
   const idiom = {
     description: "An authored shape.",
-    author: {
-      example: "<table></table>",
-    },
+    example: "<table></table>",
   };
   load("mixed-vocabulary", {
     "lf-index-owner": {
-      state: {
-        verbs: { set: {} },
-      },
+      verbs: { set: {} },
     },
     "lf-index-owner.selected": idiom,
     table: idiom,
     ".lede": idiom,
     $keys: {
-      "state.verbs": "State meanings.",
+      verbs: "State meanings.",
     },
   });
   assert.deepEqual(
@@ -69,21 +65,15 @@ test("authoring selectors and shared facts never enter widget state", () => {
 test("both writers contribute, and only recorded declarations own a selector", () => {
   load("writers", {
     "lf-index-action": {
-      state: {
-        verbs: { set: { record: { kind: "value", attr: "phase" } } },
-      },
+      verbs: { set: { record: { kind: "value", attr: "phase" } } },
     },
     "lf-index-report": {
-      state: {
-        verbs: {
-          measure: { writer: "agent", record: { kind: "value", attr: "phase" } },
-        },
+      verbs: {
+        measure: { writer: "agent", record: { kind: "value", attr: "phase" } },
       },
     },
     "lf-index-recordless": {
-      state: {
-        verbs: { settle: {} },
-      },
+      verbs: { settle: {} },
     },
   });
 
@@ -104,9 +94,7 @@ test("both writers contribute, and only recorded declarations own a selector", (
 test("a later generation inherits nothing from the index warmed before it", () => {
   load("warmed", {
     "lf-index-gone": {
-      state: {
-        verbs: { set: { record: {} } },
-      },
+      verbs: { set: { record: {} } },
     },
   });
   assert.deepEqual(
@@ -116,9 +104,7 @@ test("a later generation inherits nothing from the index warmed before it", () =
 
   load("later", {
     "lf-index-fresh": {
-      state: {
-        verbs: { measure: {} },
-      },
+      verbs: { measure: {} },
     },
   });
   assert.deepEqual(

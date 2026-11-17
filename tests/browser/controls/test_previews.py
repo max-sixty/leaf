@@ -2257,7 +2257,7 @@ def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
 ROUTE = {
     **element_declaration("lf-route"),
     "content": "empty",
-    "author": {"example": '<lf-route id="route"></lf-route>'},
+    "example": '<lf-route id="route"></lf-route>',
 }
 ROUTE_WIDGET = """
 customElements.define('lf-route', class extends HTMLElement {

@@ -209,58 +209,50 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "data": {
-      "inputs": {
-        "run": {
-          "contract": "visual-run",
-          "source": "source",
-          "property": "value"
-        }
+    "inputs": {
+      "run": {
+        "contract": "visual-run",
+        "source": "source",
+        "property": "value"
       }
     },
-    "words": { "word": "review" },
-    "paint": {
-      "space": "available",
-      "height": true
-    },
-    "state": {
-      "awaits": {
-        "records": {
-          "input": "run",
-          "label": "title"
-        },
-        "value": "review",
-        "answered": {
-          "review": {
-            "detail": {
-              "approved": true
-            }
-          }
-        }
+    "word": "review",
+    "space": "available",
+    "height": true,
+    "awaits": {
+      "records": {
+        "input": "run",
+        "label": "title"
       },
-      "verbs": {
+      "value": "review",
+      "answered": {
         "review": {
           "detail": {
-            "type": "object",
-            "properties": {
-              "case": {
-                "type": "string",
-                "pattern": "^[a-z0-9][a-z0-9-]*$"
-              },
-              "approved": {
-                "type": "boolean"
-              }
-            },
-            "required": ["case", "approved"],
-            "additionalProperties": false
-          },
-          "unit": "case"
+            "approved": true
+          }
         }
       }
     },
-    "author": {
-      "instructions": "Write it empty with a stable id, and bind `source` to the visual run. To open a case on its changed area, give it a `focus` rectangle in the run. Tie each case's id to the run, not to the user's inspection choices.",
-      "example": "<lf-visual-review id=\"docs-review\" data-height=\"720\" source=\"docs-visual-run\"></lf-visual-review>"
-    }
+    "verbs": {
+      "review": {
+        "detail": {
+          "type": "object",
+          "properties": {
+            "case": {
+              "type": "string",
+              "pattern": "^[a-z0-9][a-z0-9-]*$"
+            },
+            "approved": {
+              "type": "boolean"
+            }
+          },
+          "required": ["case", "approved"],
+          "additionalProperties": false
+        },
+        "unit": "case"
+      }
+    },
+    "instructions": "Write it empty with a stable id, and bind `source` to the visual run. To open a case on its changed area, give it a `focus` rectangle in the run. Tie each case's id to the run, not to the user's inspection choices.",
+    "example": "<lf-visual-review id=\"docs-review\" data-height=\"720\" source=\"docs-visual-run\"></lf-visual-review>"
   }
 }

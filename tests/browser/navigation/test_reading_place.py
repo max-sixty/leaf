@@ -219,9 +219,7 @@ ITEMS_LAYER = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "author": {
-            "example": '<lf-items id="items"></lf-items>',
-        },
+        "example": '<lf-items id="items"></lf-items>',
     },
     "lf-item-link": {
         "description": "A button that travels to one part of the items it refers to.",
@@ -236,12 +234,8 @@ ITEMS_LAYER = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "markup": {
-            "refers": {"for": {}},
-        },
-        "author": {
-            "example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
-        },
+        "refers": {"for": {}},
+        "example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
     },
 }
 ITEMS_WIDGETS = {

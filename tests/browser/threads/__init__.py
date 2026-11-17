@@ -250,12 +250,8 @@ def _shadow_tree_widget(tag):
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "shadow": True,
-        },
-        "author": {
-            "example": f'<{tag} id="example"></{tag}>',
-        },
+        "shadow": True,
+        "example": f'<{tag} id="example"></{tag}>',
     }
     module = f"""
 import {{shadowStage}} from '/runtime/widget-api.js';

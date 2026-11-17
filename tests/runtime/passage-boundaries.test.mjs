@@ -308,9 +308,7 @@ test("a widget fenced after a reading was taken is in the next one", () => {
 test("a declared shadow tree's words are read, and its changes are seen", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-doors" },
   });
@@ -328,9 +326,7 @@ test("a declared shadow tree's words are read, and its changes are seen", () => 
 test("each document's reading is forgotten alone: the page's and a reply's", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-documents" },
   });
@@ -386,9 +382,7 @@ test("a forgotten reading is held by no key or kept answer that outlives it", as
 test("startup refuses bare text staged inside another widget's root", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-nested-bare" },
   });
@@ -418,9 +412,7 @@ test("startup refuses bare text staged inside another widget's root", () => {
 test("startup's refusal sweep asks each of many sibling stages once", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-flat-sweep" },
   });
@@ -463,9 +455,7 @@ test("an undeclared shadow tree is opaque, and its host reads by its children", 
 test("chrome over a declared tree stops at its root, and not for what it slots", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-contexts" },
   });
@@ -490,9 +480,7 @@ test("chrome over a declared tree stops at its root, and not for what it slots",
 test("a line break assigned to a shadow slot separates its words", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-slotted-break" },
   });
@@ -512,9 +500,7 @@ test("a line break assigned to a shadow slot separates its words", () => {
 test("words a slot draws run into the words around the slot", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-slotted-words" },
   });
@@ -531,9 +517,7 @@ test("words a slot draws run into the words around the slot", () => {
 test("a selection in nested slots keeps exactly the rendered words it covers", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-nested-slots" },
   });
@@ -643,9 +627,7 @@ test("a selection in an undeclared host that reorders its children keeps its wor
 test("the reading's words stand in the order a selection is compared in", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "passage-reading-order" },
   });
@@ -807,9 +789,7 @@ test("telling a quote's copies apart reads only around them", () => {
 test("a kept quote answers each change as a fresh pass over the page does", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "quote-index" },
   });

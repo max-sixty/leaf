@@ -839,6 +839,10 @@ export function createResponseSurface({
   // - `point`, `dragged`: where it began, and whether it has since moved off it.
   // - `range`, `backward`: what the drag has held inside the document
   //   (`rememberPointerSelection`).
+  // - `away`: whether the hand last moved over something other than page words, such as
+  //   the layer. The selection alone can't say: over the layer's own words the browser
+  //   can leave its far end on the page's last words, inside the document while the
+  //   range holds everything after the press.
   // - `claimed`: a widget turned the press into a different gesture after pointerdown.
   //   `preventDefault` on its bubbling pointermove is the shared claim boundary: the
   //   selection surface must not restore the range it captured before that claim.
@@ -852,6 +856,7 @@ export function createResponseSurface({
    *   dragged: boolean,
    *   range: Range | null,
    *   backward: boolean,
+   *   away: boolean,
    *   claimed: boolean,
    *   words: string,
    *   action: boolean,
@@ -967,14 +972,14 @@ export function createResponseSurface({
     repaint();
   };
   // What this drag has had inside the document, kept against a release that ends holding
-  // something else. Only while both ends are still in it: `pageSelection` answers for the
-  // end the press began at, which stays in the page for the whole of a drag that leaves it,
-  // so without the far end this would remember the runaway range itself and have nothing
-  // to put back.
+  // something else. Only while both ends and the hand are still in it: `pageSelection`
+  // answers for the end the press began at, which stays in the page for the whole of a
+  // drag that leaves it, so without the far end and the hand (`away`) this would remember
+  // the runaway range itself and have nothing to put back.
   /** @param {PagePress} press */
   const rememberPointerSelection = (press) => {
     const selection = pageSelection();
-    if (!selection || leftThePage(selection)) return;
+    if (!selection || press.away || leftThePage(selection)) return;
     const anchor = selectionAnchor(selection);
     if (hasQuote(anchor)) {
       press.range = pageRange(selection).cloneRange();
@@ -1151,6 +1156,7 @@ export function createResponseSurface({
           dragged: false,
           range: null,
           backward: false,
+          away: false,
           claimed: false,
           words: stood ? stood.toString() : "",
           action:
@@ -1176,6 +1182,7 @@ export function createResponseSurface({
       }
       press.dragged ||=
         Math.hypot(ev.clientX - press.point.x, ev.clientY - press.point.y) > 3;
+      press.away = !pageWords(eventSource(ev));
     });
     document.addEventListener("touchstart", (ev) => {
       // The native touch event follows pointerdown and is the same selecting press.
@@ -1204,11 +1211,13 @@ export function createResponseSurface({
       // paragraph overshooting the layer would capture and mark far more than it held, and
       // name the whole document in the field — because past the page's last words the
       // browser extends through everything between (leftThePage, composing/capture.js).
+      // A release with the hand over the layer (`away`) has left it too, wherever the
+      // browser put the selection's far end.
       //
       // Asked here and nowhere shared, because the gesture is what tells this from ⌘A: select
       // all means the document and lands its far end past the page by definition, and it
       // arrives through the keyboard's route, which never comes past this line.
-      const escaped = press.dragged && leftThePage();
+      const escaped = press.dragged && (press.away || leftThePage());
       const completed =
         press.dragged && (escaped || !hasQuote(selected)) ? press.range : null;
       const selectedByGesture =

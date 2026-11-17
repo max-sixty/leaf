@@ -39,7 +39,6 @@ from leaf import structure as structure_model
 from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, page_passages
 from leaf.registry import storage as registry_storage
-from leaf.registry.contract import declared_fact
 from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.thread_context import logged_fragment
@@ -385,7 +384,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 # user, whatever answers it has to have been built here too:
                 # data-lf-offer is the runtime's own mark for a thing to work, so
                 # this asks the declaration and never the tag.
-                if "value" in declared_fact(registry[rec["tag"]], "state.awaits", {}):
+                if "value" in registry[rec["tag"]].get("awaits", {}):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
         # Each carried thread must be disclosed for the gate's geometry readings:
@@ -511,12 +510,8 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
             "additionalProperties": False,
         },
         "content": "markup",
-        "paint": {
-            "space": "available",
-        },
-        "author": {
-            "example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
-        },
+        "space": "available",
+        "example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
     }
     source = leaf_page(
         "Available package surface",

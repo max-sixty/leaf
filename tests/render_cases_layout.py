@@ -486,9 +486,7 @@ DRAWING_CONTROL_LAYER = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "author": {
-            "example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
-        },
+        "example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
     }
 }
 DRAWING_CONTROL_WIDGETS = {
@@ -1243,11 +1241,12 @@ diff --git a/client/offline/merge.ts b/client/offline/merge.ts
 """,
 )
 # The same diff, arriving the other way a widget reaches a user: on a reply, into a
-# column narrower than any page's.
+# column narrower than any page's. A message reads HTML by CommonMark's rules, so the
+# opening tag stands alone on its line to start a block that keeps the `<pre>` whole.
 PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
     WIDE_DIFF_PAGE.index("<lf-diff") : WIDE_DIFF_PAGE.index("</lf-diff>")
     + len("</lf-diff>")
-].replace('id="wide-diff"', 'id="rp-diff"')
+].replace('<lf-diff id="wide-diff"><pre>', '<lf-diff id="rp-diff">\n<pre>')
 
 
 def serious_axe_violations(page):

@@ -30,7 +30,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         },
         "content": "data",
     }
-    stage = {**source, "content": "markup", "words": {"shadow": True}}
+    stage = {**source, "content": "markup", "shadow": True}
     url = serve(
         leaf_page(
             "Source states",

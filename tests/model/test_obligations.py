@@ -256,15 +256,13 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
                 "additionalProperties": False,
             },
             "content": "none",
-            "state": {
-                "awaits": {
-                    "when": {"active": [True]},
-                    "value": "set",
-                    "answered": {"set": {}},
-                },
-                "verbs": {
-                    "set": {"unit": "widget", "record": {"kind": "value", "attr": attr}}
-                },
+            "awaits": {
+                "when": {"active": [True]},
+                "value": "set",
+                "answered": {"set": {}},
+            },
+            "verbs": {
+                "set": {"unit": "widget", "record": {"kind": "value", "attr": attr}}
             },
         }
         return layer
@@ -344,15 +342,13 @@ def test_false_and_zero_are_typed_answers(value):
             "additionalProperties": False,
         },
         "content": "none",
-        "state": {
-            "awaits": {
-                "when": {"active": [True]},
-                "value": "set",
-                "answered": {"set": {}},
-            },
-            "verbs": {
-                "set": {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
-            },
+        "awaits": {
+            "when": {"active": [True]},
+            "value": "set",
+            "answered": {"set": {}},
+        },
+        "verbs": {
+            "set": {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
         },
     }
     document = model.leaf_page(
@@ -745,22 +741,20 @@ def conditional_registry():
             "additionalProperties": False,
         },
         "content": "none",
-        "state": {
-            "verbs": {
-                "phase": {
-                    "unit": "widget",
-                    "record": {"kind": "value", "attr": "phase"},
-                },
-                "answer": {
-                    "unit": "widget",
-                    "detail": {"type": "object", "additionalProperties": False},
-                },
+        "verbs": {
+            "phase": {
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "phase"},
             },
-            "awaits": {
-                "when": {"phase": ["open"], "ready": [True]},
-                "value": "answer",
-                "answered": {"answer": {}},
+            "answer": {
+                "unit": "widget",
+                "detail": {"type": "object", "additionalProperties": False},
             },
+        },
+        "awaits": {
+            "when": {"phase": ["open"], "ready": [True]},
+            "value": "answer",
+            "answered": {"answer": {}},
         },
     }
     return registry
@@ -805,7 +799,7 @@ def test_conditional_request_retains_registration_between_value_actions():
     )["all"]
     assert historical["status"] == "withdrawn"
     report_registry = deepcopy(registry)
-    report_registry["lf-conditional"]["state"]["verbs"]["phase"]["writer"] = "agent"
+    report_registry["lf-conditional"]["verbs"]["phase"]["writer"] = "agent"
     reports = [{**event, "kind": "report", "author": "agent"} for event in events]
     [reported] = page_obligations(
         model.reading(document, reports, registry=report_registry)
@@ -847,7 +841,7 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
     """
     registry = conditional_registry()
     if writer == "report":
-        registry["lf-conditional"]["state"]["verbs"]["phase"]["writer"] = "agent"
+        registry["lf-conditional"]["verbs"]["phase"]["writer"] = "agent"
     document = model.leaf_page(
         "Conditional",
         '<lf-conditional id="conditional" phase="closed" ready></lf-conditional>',
@@ -1100,7 +1094,7 @@ EXHIBITS = json.loads(
 
 @pytest.mark.parametrize("case", EXHIBITS["cases"], ids=lambda case: case["id"])
 def test_a_widget_is_quoted_where_the_browser_fences_it(case):
-    """A widget strictly inside a state.exhibit is a mention, read off the holder chain by
+    """A widget strictly inside an `exhibit` is a mention, read off the holder chain by
     the rule the browser's `quoted` and its descriptors' `quoted` flag read off the
     page."""
     document = SourceDocument(model.leaf_page("Exhibits", case["markup"]))
@@ -1252,7 +1246,7 @@ def test_data_record_requests_keep_conditional_registration_and_their_group():
     registry = deepcopy(model.model_layer("visual-review"))
     entry = registry["lf-visual-review"]
     entry["attributes"]["properties"]["required"] = {"type": "boolean"}
-    entry["state"]["awaits"]["when"] = {"required": [True]}
+    entry["awaits"]["when"] = {"required": [True]}
     source = json.loads(
         (
             Path(__file__).parents[2]
@@ -1306,11 +1300,11 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
 
     registry = deepcopy(model.model_layer("visual-review"))
     entry = registry["lf-visual-review"]
-    entry["state"]["awaits"]["records"]["input"] = "missing"
-    with pytest.raises(RegistryError, match=r"state.awaits\.records"):
+    entry["awaits"]["records"]["input"] = "missing"
+    with pytest.raises(RegistryError, match=r"`awaits\.records`"):
         validate_registry(registry, "test")
-    entry["state"]["awaits"]["records"]["input"] = "run"
-    entry["state"]["awaits"]["records"]["label"] = "missing"
+    entry["awaits"]["records"]["input"] = "run"
+    entry["awaits"]["records"]["label"] = "missing"
     source = json.loads(
         (
             Path(__file__).parents[2]
@@ -1320,8 +1314,8 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
     value_2 = payload_error("run", "visual-run", source, registry)
     assert value_2 is not None
     assert "obligation label 'missing'" in value_2
-    entry["state"]["awaits"]["records"]["label"] = "title"
+    entry["awaits"]["records"]["label"] = "title"
     assert payload_error("run", "visual-run", source, registry) is None
-    entry["state"]["awaits"]["answered"]["review"]["detail"] = {"approved": "yes"}
+    entry["awaits"]["answered"]["review"]["detail"] = {"approved": "yes"}
     with pytest.raises(RegistryError, match="detail condition"):
         validate_registry(registry, "test")

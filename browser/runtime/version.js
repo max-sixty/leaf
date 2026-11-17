@@ -543,26 +543,24 @@ const diffBlockSel = () =>
   [
     TEXT_BLOCK,
     "aside",
-    ...tagsDeclaring((e) => e.markup?.owners && (e.content ?? "markup") === "markup"),
+    ...tagsDeclaring((e) => e.owners && (e.content ?? "markup") === "markup"),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule below
     // avoids counting nested blocks twice. One set among the words around it
-    // (words.inline), such as a gloss, is part of its paragraph's words instead, or
+    // (`inline`), such as a gloss, is part of its paragraph's words instead, or
     // that rule would skip the paragraph and miss a change to the words around it. A
     // suggestion's slots stay blocks: the decision retiring one makes the suggestion
     // opaque, and its paragraph's words would run across it.
-    ...tagsDeclaring((e) => !e.words?.inline && e.words?.verbatim),
+    ...tagsDeclaring((e) => !e.inline && e.verbatim),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two
 // versions of one passage and is already its own mark. Plus svg, drawn by either.
 const diffOpaqueSel = () =>
   [
-    ...tagsDeclaring(
-      (e, tag) => upgrades(tag) && !e.words?.verbatim && e.content === "data",
-    ),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && e.content === "data"),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e, tag) => upgrades(tag) && e.data?.inputs),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && e.inputs),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
@@ -655,13 +653,11 @@ function diffBlocks(root) {
     if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
       continue; // leaf blocks only, excluding opaque children on both sides
     let key = comparisonWords(b, opaque);
-    // A words.says value is the page's words at the element's edge (renderSaid), so it
+    // A `says` value is the page's words at the element's edge (renderSaid), so it
     // belongs to what this block says: folded into the key at its declared edge, a
     // version that moves a metric's number or an event's time marks though no prose
     // changed. Both sources hold the attribute, so the key reads it on both sides.
-    for (const [attr, edge] of Object.entries(
-      registry[b.localName]?.words?.says ?? {},
-    )) {
+    for (const [attr, edge] of Object.entries(registry[b.localName]?.says ?? {})) {
       const said = b.getAttribute(attr);
       if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
     }
@@ -677,7 +673,7 @@ function diffBlocks(root) {
     // opaque to comparison.
     /** @type {Set<string>} */
     const bindingAttrs = new Set();
-    for (const input of Object.values(entry.data?.inputs ?? {})) {
+    for (const input of Object.values(entry.inputs ?? {})) {
       if (input.source) bindingAttrs.add(input.source);
       if (input.reference) bindingAttrs.add(input.reference);
     }
@@ -1026,7 +1022,7 @@ function changedSince(base, current = currentSource()) {
   };
 }
 // The view a block stands in, which shows and hides as one: the nearest `details`
-// holding it, member of a widget's declared views (`paint.views`), such as a tab, or
+// holding it, member of a widget's declared views (`views`), such as a tab, or
 // element a disclosure control names (ARIA's `aria-expanded` with `aria-controls`),
 // such as a settled options group's options, which share their one control's view.
 // Each is structure, so a change's extent doesn't depend on which views were open when
@@ -1035,7 +1031,7 @@ function changedSince(base, current = currentSource()) {
 function viewOf(block, controls) {
   for (let at = /** @type {Element | null} */ (block); at; at = at.parentElement) {
     if (at.localName === "details") return at;
-    const members = registry[at.parentElement?.localName ?? ""]?.paint?.views?.members;
+    const members = registry[at.parentElement?.localName ?? ""]?.views?.members;
     if (members && at.matches(members)) return at;
     const control = at.id ? controls.get(at.id) : undefined;
     if (control) return control;
@@ -1875,7 +1871,7 @@ export function createVersionController({
   // page has run by the time a patch asks: startup awaits each import before the state
   // feed starts, and an activation awaits the arriving revision's (`prepareActivation`).
   // A `members` container retains authored markup while the inputs its renderer
-  // consumes stay the same. A structured member list, or a declared paint.views list,
+  // consumes stay the same. A structured member list, or a declared `views` list,
   // consumes its direct members' identities and attributes, and the face a member
   // opens with: a leading <template>, whose markup the list draws in place of the
   // member's label (lf-tabs.js). A template's markup is its content, which isn't
@@ -1909,7 +1905,7 @@ export function createVersionController({
       (content !== "members" && content !== "markup")
     )
       return false;
-    const members = content === "members" || entry.paint?.views !== undefined;
+    const members = content === "members" || entry.views !== undefined;
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),

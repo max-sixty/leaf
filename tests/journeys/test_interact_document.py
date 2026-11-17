@@ -285,9 +285,7 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
             "additionalProperties": False,
         },
         "content": "markup",
-        "markup": {
-            "owners": ["lf-option", "lf-card"],
-        },
+        "owners": ["lf-option", "lf-card"],
     }
     declare_on_page(page_dir, lambda registry: registry.__setitem__("lf-label", label))
     (page_dir / "index.html").write_text(
@@ -616,9 +614,7 @@ def declare_other_rows(page_dir, kind):
         registry["lf-other-data"] = {
             **registry["lf-test-data"],
             "description": "A differently typed test input.",
-            "data": {
-                "inputs": {"data": {"contract": "other-rows", "source": "source"}}
-            },
+            "inputs": {"data": {"contract": "other-rows", "source": "source"}},
         }
 
     declare_on_page(page_dir, declare)

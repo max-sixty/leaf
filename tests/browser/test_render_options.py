@@ -1608,7 +1608,7 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
         # user — and the file's reading of that same version — find the chip inside the
         # row's own words rather than out among the row's machinery.
         #
-        # In an attribute rendered by `words.says`, the edge a pseudo-element would take
+        # In an attribute rendered by `says`, the edge a pseudo-element would take
         # stops being the element's own words the moment a module injects chrome, and
         # appending puts the page's words on the far side of it. A chip is authored
         # markup, written before the title, so it cannot land there by construction —
@@ -2215,9 +2215,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                         "additionalProperties": False,
                     },
                     "content": "markup",
-                    "state": {
-                        "work": True,
-                    },
+                    "work": True,
                 }
             }
         )
@@ -2257,7 +2255,7 @@ def test_widget_work_in_a_declared_shadow_tree_keeps_its_button_and_leaves_with_
     browser, serve, subtests
 ):
     """A task on a widget follows an id through declared shadow roots. This stages an
-    authored prose widget the way a future words.shadow vocabulary member may. Crossing
+    authored prose widget the way a future `shadow` vocabulary member may. Crossing
     that supported boundary must not turn the shared local line back into an unstyled
     block, and its ending must reach the same tree: the lookup already promises to find
     it there, and the cleanup cannot leave the provisional line behind after the server

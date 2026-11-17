@@ -38,9 +38,7 @@ def declare_part_prefixes(page_dir, *prefixes):
         page_dir,
         lambda registry: registry["lf-diagram"].update(
             {
-                "words": {
-                    "visual": {"prefixes": list(prefixes)},
-                },
+                "visual": {"prefixes": list(prefixes)},
             }
         ),
     )

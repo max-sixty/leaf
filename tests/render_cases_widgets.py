@@ -79,17 +79,13 @@ PAGE_DECLARATION = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "state": {
-            "verbs": {
-                "choose": {
-                    "unit": "widget",
-                    "record": {"kind": "value", "attr": "choice"},
-                }
-            },
+        "verbs": {
+            "choose": {
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "choice"},
+            }
         },
-        "author": {
-            "example": '<lf-local id="local-example" choice="idle"></lf-local>',
-        },
+        "example": '<lf-local id="local-example" choice="idle"></lf-local>',
     }
 }
 
@@ -191,12 +187,8 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "visual": {"parts": "parts"},
-        },
-        "author": {
-            "example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
-        },
+        "visual": {"parts": "parts"},
+        "example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
     }
 }
 
@@ -243,8 +235,8 @@ def prefixed_visual_layer(*prefixes):
                 "properties": {"id": entry["attributes"]["properties"]["id"]},
                 "required": ["id"],
             },
-            "words": {**entry["words"], "visual": {"prefixes": list(prefixes)}},
-            "author": {"example": '<lf-test-visual id="visual"></lf-test-visual>'},
+            "visual": {"prefixes": list(prefixes)},
+            "example": '<lf-test-visual id="visual"></lf-test-visual>',
         }
     }
 
@@ -269,13 +261,9 @@ SHADOW_VISUAL_LAYER = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "shadow": True,
-            "visual": {"parts": "parts"},
-        },
-        "author": {
-            "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
-        },
+        "shadow": True,
+        "visual": {"parts": "parts"},
+        "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
     }
 }
 SHADOW_VISUAL_WIDGETS = {
@@ -1234,13 +1222,15 @@ OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
 SCROLLED = "() => document.scrollingElement.scrollTop > 0"
 
 
+# The question's group is named by `aria-label`, so aiming at its heading, which carries
+# no id, aims at the question.
 WHERE_I_STAND_PAGE = leaf_page(
     "where i stand",
     """
 <h1 id="t">Current location</h1>
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
-<section id="shape-decision" role="group" aria-labelledby="shape-decision-h"><h2 id="shape-decision-h">Which material?</h2>
+<section id="shape-decision" role="group" aria-label="Which material?"><h2>Which material?</h2>
 <lf-options id="shape">
   <lf-option id="sh-steel" label="Steel">Galvanised, and the
   <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>

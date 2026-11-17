@@ -10,13 +10,13 @@
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
- * which selects the member before its first paint (`paint.views`).
+ * which selects the member before its first paint (`views`).
  * The first tab set placed directly in main is the page's navigation over sections of
  * that page, whatever else main holds: its panel id is the URL fragment, and history
  * follows those panel entries. A link inside a panel is still fragment travel
  * (history.js).
  *
- * The authored `flow="page"` puts the set in the document's flow (`paint.flow`), and
+ * The authored `flow="page"` puts the set in the document's flow (`flow`), and
  * the package styles its unframed face. This module reads that attribute for scrolling,
  * separately from primary URL/history ownership above. In document flow
  * ("page"), the strip sticks at the
@@ -83,6 +83,7 @@ import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
   afterScript,
+  authoredTitle,
   setScroll,
   actionTemplate,
   agentName,
@@ -627,11 +628,13 @@ export class TabSet extends LeafElement {
     this.#pageFlow = this.#parts ? this.#root : this.getAttribute("flow") === "page";
     // The strip is named as the chrome names the set (`addressableLabel`): its author's
     // `aria-label`, else the nearest element holding it that has a name, such as its
-    // section. The page's navigation stands in no section, and the page's title names it.
+    // section. The page's navigation stands in no section, and the page's `<title>`
+    // names it: `main` has no name of its own, so its label would be its words run
+    // together.
     keeps(
       this.#strip,
       "aria-label",
-      addressableLabel(this) || (this.#root ? addressableLabel(main) : "") || null,
+      addressableLabel(this) || (this.#root ? authoredTitle() : "") || null,
     );
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.

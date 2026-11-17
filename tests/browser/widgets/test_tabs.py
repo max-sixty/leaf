@@ -908,7 +908,8 @@ def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve)
         serve.page_dir,
         source.replace(
             '<p id="last-words">Nothing yet.</p>',
-            '<lf-options id="pick"><lf-option id="pick-a">Go</lf-option></lf-options>',
+            '<section id="ask" role="group" aria-labelledby="ask-h"><h3 id="ask-h">Go?</h3>'
+            '<lf-options id="pick"><lf-option id="pick-a">Go</lf-option></lf-options></section>',
         ),
         "Ask the first question",
     )
@@ -1444,7 +1445,7 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
 
 def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):
     """A screen reader names each list of tabs, so a page's several sets can be told
-    apart: the page's navigation by the page's title, a set in a section by the
+    apart: the page's navigation by the page's `<title>`, a set in a section by the
     section's heading, and a set its author labelled by that label."""
     source = leaf_page(
         "Kitchen plan",
@@ -1465,7 +1466,7 @@ def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):
 </section>""",
     )
     page = open_page(browser, serve(source))
-    for name in ("Redo the kitchen", "Finishes", "Handles"):
+    for name in ("Kitchen plan", "Finishes", "Handles"):
         expect(page.get_by_role("tablist", name=name, exact=True)).to_have_count(1)
 
 

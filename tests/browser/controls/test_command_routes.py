@@ -28,10 +28,8 @@ KEYBOARD_HINT_REGISTRY = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "state": {
-            "verbs": SEATED_OBLIGATION_LAYER["lf-verdict"]["state"]["verbs"],
-            "awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["state"]["awaits"],
-        },
+        "verbs": SEATED_OBLIGATION_LAYER["lf-verdict"]["verbs"],
+        "awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["awaits"],
     }
 }
 

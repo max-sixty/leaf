@@ -558,7 +558,7 @@ def unsent_at_messages(
     """Input id → the unsent work in force when the user wrote it, on each widget
     their words were about, for the batch's messages and edits that had any.
 
-    Unsent work (`$state.unsent`) asks for nothing, so no batch carries it, and a
+    Unsent work (`$verbs.unsent`) asks for nothing, so no batch carries it, and a
     message about a playground's preview would reach the agent without the settings
     the preview showed; current state may hold later ones. `unsent` says whether an
     action's verb declares it, which takes the page's vocabulary.

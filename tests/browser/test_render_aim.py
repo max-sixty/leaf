@@ -1390,9 +1390,11 @@ POINTED_WITHIN = {
     ),
     # A target's first line: its own row stands there already, so a comment pointed at
     # it joins that row, an obligation's marker's, rather than standing pushed below it.
+    # The group is named by `aria-label`, so its heading carries no id and points at the
+    # group rather than being a target of its own.
     "first line": (
         (
-            '<section id="within" role="group" aria-labelledby="within-h"><h2 id="within-h">Which way?</h2><lf-options id="route">'
+            '<section id="within" role="group" aria-label="Which way?"><h2>Which way?</h2><lf-options id="route">'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
             "</lf-option></lf-options></section>"
         ),
@@ -3305,7 +3307,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
 ):
     """A generated SVG node still names the authored widget when no parts are declared.
 
-    The registry's words.visual contract makes the drawing one item rather than exposing
+    The registry's `visual` contract makes the drawing one item rather than exposing
     renderer internals, so both the aim and the legend stop at the widget.
     """
     page = open_page(browser, serve(PICTURE_PAGE))

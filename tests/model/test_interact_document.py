@@ -755,14 +755,10 @@ def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries(
     registry = with_modules(
         {
             "lf-shell": {
-                "words": {
-                    "verbatim": True,
-                },
+                "verbatim": True,
             },
             "lf-piece": {
-                "words": {
-                    "verbatim": True,
-                },
+                "verbatim": True,
             },
         },
         "lf-shell",
@@ -901,10 +897,8 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
         {
             "lf-draft": {
                 "content": "data",
-                "words": {
-                    "verbatim": True,
-                    "text-format": "markdown",
-                },
+                "verbatim": True,
+                "text-format": "markdown",
             }
         },
         "lf-draft",
@@ -981,7 +975,7 @@ def folded(page_dir, board="b1"):
     return projection_model.folded_positions(
         board,
         "move",
-        registry["lf-board"]["state"]["verbs"]["move"]["record"],
+        registry["lf-board"]["verbs"]["move"]["record"],
         projection_model.AuthoredOrders(document.document.by_id, registry),
         document.projection,
     )
@@ -1035,7 +1029,7 @@ def test_rank_rules_match_the_browser_cases():
     # The append door reads the rank through the detail schema, whose `pattern`
     # searches rather than fully matches, so it must refuse the same cases.
     board = model_layer()["lf-board"]
-    rank = detail_schema(board, board["state"]["verbs"]["move"])["properties"]["rank"]
+    rank = detail_schema(board, board["verbs"]["move"])["properties"]["rank"]
     assert not any(schema_error(rank, r) is None for r in RANK_CASES["invalid"])
     assert all(schema_error(rank, r) is None for r in RANK_CASES["valid"])
 
@@ -1057,7 +1051,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
     document = structure_model.SourceDocument(
         f'<main><lf-board id="board">{columns}</lf-board></main>'
     )
-    spec = registry["lf-board"]["state"]["verbs"]["move"]
+    spec = registry["lf-board"]["verbs"]["move"]
     desired = {
         ("board", move["card"], "move"): (
             {
@@ -1275,9 +1269,7 @@ def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
     registry.parent.mkdir(exist_ok=True)
     invalid = {
         "run-plan": {
-            "paint": {
-                "space": "own",
-            },
+            "space": "own",
         }
     }
     registry.write_text(json.dumps(invalid))
@@ -1290,9 +1282,7 @@ def test_page_state_keeps_accepted_registry_while_source_is_invalid(page_dir):
 
     declaration = {
         "description": "Initial plan",
-        "author": {
-            "example": '<div class="run-plan">Plan</div>',
-        },
+        "example": '<div class="run-plan">Plan</div>',
     }
     registry.write_text(json.dumps({"run-plan": declaration}))
     accepted = state_json(page_dir)
@@ -1651,9 +1641,7 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
             "additionalProperties": False,
         },
         "content": "markup",
-        "markup": {
-            "reading-role": "pane",
-        },
+        "reading-role": "pane",
     }
     declare_on_page(page_dir, lambda registry: registry.update({"lf-zone": zone}))
     version = page_dir / "index.html"
@@ -2883,7 +2871,7 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
             "description": "Another meaning.",
             "schema": {"type": "array"},
         }
-        registry["lf-test-data"]["data"]["inputs"]["data"]["contract"] = "other-rows"
+        registry["lf-test-data"]["inputs"]["data"]["contract"] = "other-rows"
 
     declare_on_page(page_dir, declare)
 
@@ -2950,9 +2938,7 @@ def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
         registry["lf-other-data"] = {
             **registry["lf-test-data"],
             "description": "A differently typed test input.",
-            "data": {
-                "inputs": {"data": {"contract": "other-rows", "source": "source"}}
-            },
+            "inputs": {"data": {"contract": "other-rows", "source": "source"}},
         }
 
     declare_on_page(page_dir, declare)
@@ -3660,7 +3646,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
 
 
 def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
-    """A draft uses the ordinary state.awaits fold: its edit discharges the decision,
+    """A draft uses the ordinary `awaits` fold: its edit discharges the decision,
     and an honoring version can clear the authored condition without reviving it."""
 
     def command(status, required, body):
@@ -3832,9 +3818,7 @@ def test_page_inspection_places_cards_among_identified_siblings(page_dir):
                 "properties": {},
             },
             "content": "markup",
-            "markup": {
-                "owners": ["lf-column"],
-            },
+            "owners": ["lf-column"],
         }
 
     declare_on_page(page_dir, declare)
@@ -4149,7 +4133,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
     def declare(registry):
         contracts = registry["$data"]["contracts"]
         contracts["current-rows"] = contracts["rows"]
-        registry["lf-test-data"]["data"]["inputs"]["data"]["contract"] = "current-rows"
+        registry["lf-test-data"]["inputs"]["data"]["contract"] = "current-rows"
 
     declare_on_page(page_dir, declare)
     registry = read_page_registry(page_dir).registry
@@ -4265,14 +4249,10 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
     showing nothing, exactly as the walk given it does."""
     registry = {
         "lf-old": {
-            "state": {
-                "retired-when": "accepted",
-            },
+            "retired-when": "accepted",
         },
         "lf-new": {
-            "state": {
-                "retired-when": "rejected",
-            },
+            "retired-when": "rejected",
         },
     }
     document = structure_model.SourceDocument(
@@ -4301,16 +4281,12 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 
     registry: dict[str, dict] = {
         "lf-draft": {
-            "words": {
-                "verbatim": True,
-            },
-            "state": {
-                "verbs": {
-                    "edit": {
-                        "unit": "widget",
-                        "record": {"kind": "body"},
-                    }
-                },
+            "verbatim": True,
+            "verbs": {
+                "edit": {
+                    "unit": "widget",
+                    "record": {"kind": "body"},
+                }
             },
         }
     }
@@ -4335,7 +4311,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
                 "state": state_definition(
                     "lf-draft",
                     registry["lf-draft"],
-                    registry["lf-draft"]["state"]["verbs"]["edit"],
+                    registry["lf-draft"]["verbs"]["edit"],
                 ),
             },
             "seq": seq,
@@ -4374,25 +4350,21 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
 def test_projected_verbatim_includes_generated_children():
     registry = {
         "lf-list": {
-            "words": {
-                "verbatim": True,
-            },
-            "state": {
-                "verbs": {
-                    "add": {
-                        "detail": {
-                            "type": "object",
-                            "properties": {
-                                "item": {"type": "string"},
-                                "text": {"type": "string", "minLength": 1},
-                            },
-                            "required": ["item", "text"],
-                            "additionalProperties": False,
+            "verbatim": True,
+            "verbs": {
+                "add": {
+                    "detail": {
+                        "type": "object",
+                        "properties": {
+                            "item": {"type": "string"},
+                            "text": {"type": "string", "minLength": 1},
                         },
-                        "unit": "item",
-                        "creates": {"child": "lf-item", "words": "text"},
-                    }
-                },
+                        "required": ["item", "text"],
+                        "additionalProperties": False,
+                    },
+                    "unit": "item",
+                    "creates": {"child": "lf-item", "words": "text"},
+                }
             },
         },
         "lf-item": {},
@@ -4419,7 +4391,7 @@ def test_projected_verbatim_includes_generated_children():
     from leaf.registry.contract import state_definition
 
     event["meaning"]["state"] = state_definition(
-        "lf-list", registry["lf-list"], registry["lf-list"]["state"]["verbs"]["add"]
+        "lf-list", registry["lf-list"], registry["lf-list"]["verbs"]["add"]
     )
     expected = render_gate_readings._expected_verbatim(
         markup, [event], registry, here=1
@@ -4453,10 +4425,8 @@ def test_markdown_body_file_words_match_the_shared_browser_dialect(case):
     registry: dict[str, dict] = {
         "lf-draft": {
             "content": "data",
-            "words": {
-                "text-format": "markdown",
-                "verbatim": True,
-            },
+            "text-format": "markdown",
+            "verbatim": True,
         }
     }
     assert passages_model.page_passages(document, registry).text == case["words"]

@@ -1007,18 +1007,14 @@ def data_projection_page(serve):
             "additionalProperties": False,
         },
         "content": "empty",
-        "data": {
-            "inputs": {
-                "rows": {
-                    "contract": "deployment-rows",
-                    "source": "source",
-                    "property": "value",
-                }
-            },
+        "inputs": {
+            "rows": {
+                "contract": "deployment-rows",
+                "source": "source",
+                "property": "value",
+            }
         },
-        "author": {
-            "example": '<lf-feed id="feed-example" source="deployments"></lf-feed>',
-        },
+        "example": '<lf-feed id="feed-example" source="deployments"></lf-feed>',
     }
     contract = {
         "description": "Current deployment status rows.",

@@ -139,7 +139,7 @@ lf-column {
     }
   }
 }
-/* The heading is written by lf-board.js rather than by the words.says pass, because
+/* The heading is written by lf-board.js rather than by the `says` pass, because
    it is the list's accessible name as well as its visible words and the pass
    knows nothing about names. Where the upgrade ran, the column carries those
    words as its name and the span is aria-hidden, so they reach the tree once;
@@ -245,7 +245,7 @@ lf-card {
     clear: right;
   }
 }
-/* A card's title is its label, which the runtime writes as text (`words.says`). Until
+/* A card's title is its label, which the runtime writes as text (`says`). Until
    it does, the theme paints the title from the attribute in the place the grip's float
    stands, keeping the grip's room at its line's end, so a page no script runs still
    shows it. The prose after the title starts on its next line in whatever shape the

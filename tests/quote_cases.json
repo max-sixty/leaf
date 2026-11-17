@@ -1,5 +1,5 @@
 {
-  "about": "Quote resolution's cases, which the browser's findQuote (passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, the browser rendering each `words.says` value it declares, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there, or `true` to stage the host's own children.",
+  "about": "Quote resolution's cases, which the browser's findQuote (passages.js) and the file's resolve_quote (anchor_capture.py) both answer: how many letters of the section, its words without the space between them, stand before the passage each resolves the anchor to, or null where it names none. A case's `registry` adds to the layer's, the browser rendering each `says` value it declares, and its `stage` gives each tag the shadow tree the browser stages for it, its light children slotted there, or `true` to stage the host's own children.",
   "cases": [
     {
       "id": "a copy a fence parts is passed by, and the next starts past it",
@@ -170,9 +170,7 @@
       "markup": "<div id=\"s\"><lf-gap-slot>alpha<br>beta</lf-gap-slot></div>",
       "registry": {
         "lf-gap-slot": {
-          "words": {
-            "shadow": true
-          }
+          "shadow": true
         }
       },
       "stage": {
@@ -212,9 +210,7 @@
       "before": 0,
       "registry": {
         "lf-gap-slot": {
-          "words": {
-            "shadow": true
-          }
+          "shadow": true
         }
       },
       "stage": {
@@ -235,9 +231,7 @@
       "markup": "<div id=\"s\"><lf-word><span>alpha</span></lf-word><lf-word><span>beta</span></lf-word></div>",
       "registry": {
         "lf-word": {
-          "words": {
-            "shadow": true
-          }
+          "shadow": true
         }
       },
       "stage": {
@@ -254,9 +248,7 @@
       "markup": "<div id=\"s\"><lf-word><span>alpha</span></lf-word><lf-word><span>beta</span></lf-word></div>",
       "registry": {
         "lf-word": {
-          "words": {
-            "shadow": true
-          }
+          "shadow": true
         }
       },
       "stage": {
@@ -273,10 +265,8 @@
       "markup": "<div id=\"s\"><lf-said-label label=\"Head\">body words</lf-said-label></div>",
       "registry": {
         "lf-said-label": {
-          "words": {
-            "says": {
-              "label": "before"
-            }
+          "says": {
+            "label": "before"
           }
         }
       },
@@ -291,12 +281,10 @@
       "markup": "<p id=\"s\">lead <lf-said-tip tip=\"Tip\">gloss</lf-said-tip> tail</p>",
       "registry": {
         "lf-said-tip": {
-          "words": {
-            "says": {
-              "tip": "after"
-            },
-            "inline": true
-          }
+          "says": {
+            "tip": "after"
+          },
+          "inline": true
         }
       },
       "anchor": {
@@ -367,13 +355,11 @@
       "markup": "<div id=\"s\"><lf-said-pair head=\"MARK\" tail=\"one\"></lf-said-pair> <lf-said-pair head=\"MARK\" tail=\"two\"></lf-said-pair></div>",
       "registry": {
         "lf-said-pair": {
-          "words": {
-            "says": {
-              "head": "before",
-              "tail": "after"
-            },
-            "inline": true
-          }
+          "says": {
+            "head": "before",
+            "tail": "after"
+          },
+          "inline": true
         }
       },
       "anchor": {

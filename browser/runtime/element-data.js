@@ -4,7 +4,7 @@
    The widget itself reads ordinary properties and reports drawn marks; this owner
    associates those drawings with the snapshots Leaf supplied, independently of Lit.
 
-   Bound values. A module reads each input (`data.inputs`) through the plain property its
+   Bound values. A module reads each input (`inputs`) through the plain property its
    declaration names (`property`): before each update that the input's delivery
    moves, this element sets `this[property]` to the delivered value, or null while the
    source has none, so the widget reads `this.value` as it would anywhere else a host
@@ -55,7 +55,7 @@ export class ElementData {
     this.#element = element;
     this.#stage = stage;
     const declaration = registry[element.localName];
-    this.#inputs = Object.entries(declaration?.data?.inputs ?? {}).flatMap(
+    this.#inputs = Object.entries(declaration?.inputs ?? {}).flatMap(
       ([input, declaration]) =>
         declaration.property
           ? [
@@ -83,7 +83,7 @@ export class ElementData {
     if (
       declaration?.content === "data" &&
       element.querySelector(":scope > pre") &&
-      !Object.values(declaration.data?.inputs ?? {}).some((input) =>
+      !Object.values(declaration.inputs ?? {}).some((input) =>
         bindsInput(element, input),
       )
     )
@@ -97,9 +97,7 @@ export class ElementData {
 
   /** @param {string} region */
   connect(region) {
-    return registry[this.#element.localName]?.data?.inputs
-      ? joinDataDelivery(region)
-      : null;
+    return registry[this.#element.localName]?.inputs ? joinDataDelivery(region) : null;
   }
 
   // Read before shouldUpdate, so an unchanged-value gate still follows delivery.

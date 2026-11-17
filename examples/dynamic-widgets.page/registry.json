@@ -15,11 +15,9 @@
       "required": ["id"],
       "additionalProperties": false
     },
-    "data": {
-      "outputs": {
-        "document": {
-          "contract": "text-document"
-        }
+    "outputs": {
+      "document": {
+        "contract": "text-document"
       }
     }
   },

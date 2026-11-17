@@ -99,7 +99,7 @@ UNDER_POINTER = f"""([x, y, index]) => {{
 }}"""
 
 # The tab's unresolved gestures by attempt and kind, read through the check entry, and
-# whether each records only what the user hasn't sent (`$state.unsent`), as a
+# whether each records only what the user hasn't sent (`$verbs.unsent`), as a
 # playground's settings: a press that set them, pressed again while they stand, has
 # nothing new to record.
 UNRESOLVED = """async () => {
@@ -108,7 +108,7 @@ UNRESOLVED = """async () => {
   const api = await import(new URL('runtime/check-api.js', boot));
   const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
   const unsent = (event) => event.kind === 'action' &&
-    declarationFor(document.getElementById(event.widget))?.state?.verbs?.[event.action]
+    declarationFor(document.getElementById(event.widget))?.verbs?.[event.action]
       ?.unsent === true;
   return api.readApplication().unresolved.map(({ event }) =>
     [event.attempt, event.kind, unsent(event)]);

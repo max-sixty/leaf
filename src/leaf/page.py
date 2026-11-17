@@ -11,7 +11,7 @@ from collections.abc import Collection
 from pathlib import Path
 
 from .refusals import Refused
-from .registry.contract import declared_fact, is_element_name
+from .registry.contract import is_element_name
 from .registry.storage import layer_record, require_candidate, selected_vocabulary
 from .structure import SourceDocument
 
@@ -48,7 +48,7 @@ def instruction_selection(
             continue
         selected_entries.add(name)
         entry = declarations[name]
-        if example := declared_fact(entry, "author.example"):
+        if example := entry.get("example"):
             nodes = [
                 node
                 for node in SourceDocument(example, fragment=True).tree.find_all(True)
@@ -61,8 +61,7 @@ def instruction_selection(
                 if any(node.matches(selector) for node in nodes)
             )
         selected_contracts.update(
-            spec["contract"]
-            for spec in declared_fact(entry, "data.inputs", {}).values()
+            spec["contract"] for spec in entry.get("inputs", {}).values()
         )
     for contract in sorted(selected_contracts):
         if contract not in data_contracts:
@@ -113,7 +112,7 @@ def page_instructions(
         said = [
             text.strip()
             for text in (
-                declared_fact(registry[name], "author.instructions"),
+                registry[name].get("instructions"),
                 *words(registry[name]),
             )
             if text

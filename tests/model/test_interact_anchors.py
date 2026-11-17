@@ -367,7 +367,8 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
     page_dir,
 ):
     """A diagnostic on any message names the delivery route for the thread's
-    exact owed input; proactive replies cannot infer that input."""
+    exact owed input; a proactive reply cannot infer that input, so it answers
+    nothing and its note names the route too."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
@@ -388,8 +389,9 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         cli_model.cli,
         ["thread", "reply", str(page_dir), own["id"], "--text", "more"],
     )
-    assert posted.exit_code != 0
-    assert f"{undelivered(page_dir, asked['id'])} answers it" in posted.output
+    assert posted.exit_code == 0, posted.output
+    [owed] = json.loads(posted.stdout)["findings"]
+    assert f"{undelivered(page_dir, asked['id'])} answers it" in owed["text"]
     answered = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1243,7 +1245,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
 
 def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
     """The registry draws the line: lf-draft renders the authored Markdown into a body
-    the anchor pass can see (words.verbatim), and lf-diagram renders a picture instead."""
+    the anchor pass can see (`verbatim`), and lf-diagram renders a picture instead."""
     result = comment(
         drafted(page_dir), "--quote", "every mutating command", "--text", "which ones?"
     )
@@ -2003,9 +2005,7 @@ def test_data_widget_prose_members_are_quotable_without_admitting_source():
             },
             "lf-remark": {
                 "content": "markup",
-                "markup": {
-                    "owners": ["lf-source"],
-                },
+                "owners": ["lf-source"],
             },
         },
         "lf-source",

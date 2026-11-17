@@ -51,7 +51,7 @@ from leaf import service as service_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
-from leaf.registry.contract import declared_fact, element_declarations
+from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.themes import DEFAULT_THEME
 from leaf.thread_context import logged_fragment, thread_digest
@@ -436,8 +436,7 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
 def test_registry_examples_validate(page_dir):
     registry = registry_storage.load_registry(page_dir)
     assert any(
-        tag.startswith("lf-") and "example" in entry.get("author", {})
-        for tag, entry in registry.items()
+        tag.startswith("lf-") and "example" in entry for tag, entry in registry.items()
     )
     assert (
         validation_model.validate_registry_examples(registry, "vendored registry")
@@ -447,10 +446,10 @@ def test_registry_examples_validate(page_dir):
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
     registry = registry_storage.load_registry(page_dir)
-    registry["lf-diff"].setdefault("author", {})["example"] = (
+    registry["lf-diff"]["example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
-    registry["lf-code"].setdefault("author", {})["example"] = (
+    registry["lf-code"]["example"] = (
         '<lf-code id="shared"><pre>one/file.py</pre></lf-code>'
     )
 
@@ -533,11 +532,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     gallery_registry = json.loads(
         (page_files(gallery) / "registry.json").read_text(encoding="utf-8")
     )
-    apparatus = {
-        tag
-        for tag, entry in gallery_registry.items()
-        if declared_fact(entry, "state.exhibit")
-    }
+    apparatus = {tag for tag, entry in gallery_registry.items() if entry.get("exhibit")}
     assert apparatus
     eyebrows = re.findall(
         r'<p class="bg-feature-elements">(.*?)</p>',
@@ -606,7 +601,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
 
 
 def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_page):
-    """An attribute a member declares unique within its owner (markup.unique), such as a
+    """An attribute a member declares unique within its owner (`unique`), such as a
     playground preset's `for`, refuses a repeat in the same owner, and a preset carries
     the id a comment on it records, since without one the comment lands on the whole
     playground. Both doors refuse a break before any browser draws it: message markup,

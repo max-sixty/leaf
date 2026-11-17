@@ -98,7 +98,7 @@ test("a message's words part its blocks, as the page reading does", async () => 
 test("a drawing that doesn't hold a message's widgets drops only a question's group", async () => {
   adoptRegistry({
     $layer: { generation: "message-held-elsewhere" },
-    "lf-options": { state: { awaits: { value: "choose" } } },
+    "lf-options": { awaits: { value: "choose" } },
     "lf-option": {},
     "lf-chart": {},
   });

@@ -17,8 +17,6 @@ import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js
 import { threadReading } from "../../browser/runtime/thread/thread-card.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-// No thread has a to-do attached.
-
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log
 // by the same cases (`tests/turn_cases.json`).
 const TURN_CASES = JSON.parse(

@@ -1475,8 +1475,7 @@ flowchart TD
                   <td>Obligation</td>
                   <td>
                     An input or answer owed by the user or agent. It holds its source,
-                    typed answer, next actor, and status: open, answered, answered
-                    elsewhere or withdrawn.
+                    typed answer, next actor, and status: open, answered or withdrawn.
                   </td>
                   <td>
                     <code>widget:</code>, <code>message:</code> or <code>update:</code>,
@@ -2310,7 +2309,7 @@ flowchart TD
               HTML structure, element declarations, dependencies, and recorded user
               decisions. An invalid save keeps the last valid revision live and reports
               the error. <code>leaf page check --render</code> additionally opens the
-              page in Chrome in both color schemes to check for console errors,
+              page in the reader’s browser to check for console errors,
               invisible widgets, and horizontal overflow.
             </p>
           </section>
@@ -2778,8 +2777,9 @@ flowchart TD
               <code>state.awaits</code> declaration names, such as a pick, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there or a settling reaction, such as 👍. The
-              agent ends its to-dos with <code>leaf task end</code>, and records the
-              same way an answer the user gave elsewhere, such as in chat. Done history
+              agent ends its to-dos with <code>leaf task end</code>, and ends a thread
+              question the user answered elsewhere, such as in chat, by resolving its
+              thread. Done history
               records the outcome, including withdrawn obligations and failed or dropped
               to-dos.
             </p>

@@ -480,15 +480,25 @@ dl.lf-facts dd {
        Each rule below names its cells' types, in a `:where()` that adds no weight,
        because its subject follows the table's `:has()`: when such a subject names no
        type, class, id or attribute, Chromium restyles every element under any one whose
-       focus mark changes (test_a_has_leads_only_to_a_subject_naming_an_element). Focus
-       marks every ancestor of the focused element, `main` included, so with
-       `:first-child` alone every focus move restyled the page
-       (test_resolving_a_thread_restyles_what_focus_marks). */
+       attributes another `:has()` reads change
+       (test_a_has_leads_only_to_a_subject_naming_an_element).
+       Whether focus is in the table is a property the table sets, `--lf-names-fade`,
+       the fade's `content`, rather than a mark in the cells' rule. Focus marks every
+       ancestor of the focused element, `main` included, so a mark in the cells' rule
+       restyled every `th` and `td` under each element whose mark changed: every cell on
+       the page, 15,000 of them in 40 ms in Chromium, as focus entered or left `main`.
+       Read on the table, the mark restyles the table alone, and its cells only when
+       focus enters or leaves that table
+       (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes). */
     table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
       --lf-more-fade-start: 0px;
       --lf-names-clear-to: right;
+      --lf-names-fade: "";
       &[data-lf-scroll-direction="rtl"] {
         --lf-names-clear-to: left;
+      }
+      &[data-lf-focus-within] {
+        --lf-names-fade: none;
       }
       & > * > tr > :where(th, td):first-child {
         position: sticky;
@@ -498,11 +508,8 @@ dl.lf-facts dd {
         background: var(--lf-ground);
       }
       @media screen {
-        &[data-lf-more-before]:not([data-lf-focus-within])
-          > *
-          > tr
-          > :where(th, td):first-child::after {
-          content: "";
+        &[data-lf-more-before] > * > tr > :where(th, td):first-child::after {
+          content: var(--lf-names-fade);
           position: absolute;
           inset-block: 0;
           inset-inline-start: 100%;

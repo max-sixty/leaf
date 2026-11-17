@@ -482,6 +482,58 @@ def test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks(browser, s
     assert long - short < 10, {"8 sections": short, "48 sections": long}
 
 
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes(
+    browser, serve
+):
+    """Focus entering the page's column marks `main` and its other ancestors, and Go-to
+    marks `body`. Neither may restyle the cells and links under them that the mark
+    changes nothing for. Two rules read a mark before such a subject, and each made
+    one of these gestures restyle every element of a kind on the page: the fade beside
+    a table's row names, which goes while focus is in the table, restyled every `th`
+    and `td` as focus entered or left `main` (reading.css, the sticky row names), and
+    the contents map's words, which show while the map is pointed at, focused or under
+    Go-to, restyled every link then and as Go-to armed (toc.css). On a page of 30
+    tables of 125 rows, that was 18,873 elements and about 50 ms in Chromium for each
+    focus. Counted in the browser's own restyled elements, a table of six times the
+    rows restyles no more."""
+
+    def restyled(rows):
+        names = "".join(
+            f'<tr><th scope="row"><code>name-{r}</code></th><td>{r} days</td>'
+            f'<td>Words about <a href="#rows">row {r}</a>.</td></tr>'
+            for r in range(rows)
+        )
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Table",
+                    '<h1>Table</h1><p><a id="first" href="#rows">A link</a>.</p>'
+                    '<table id="rows"><thead><tr><th>Name</th><th>Age</th>'
+                    f"<th>Notes</th></tr></thead><tbody>{names}</tbody></table>",
+                )
+            ),
+        )
+        body, main = page.locator("body"), page.locator("main")
+        entering = restyle_counts(
+            page, lambda: (page.locator("#first").focus(), rendered(page))
+        )
+        expect(main).to_have_attribute("data-lf-focus-within", "")
+        page.evaluate("() => document.activeElement.blur()")
+        expect(main).not_to_have_attribute("data-lf-focus-within", "")
+        arming = restyle_counts(
+            page, lambda: (page.keyboard.press("g"), rendered(page))
+        )
+        expect(body).to_have_attribute("data-lf-go-to-active", "")
+        page.close()
+        return {"entering": sum(entering), "Go-to": sum(arming)}
+
+    short, long = restyled(20), restyled(120)
+    for gesture in short:
+        assert long[gesture] - short[gesture] < 10, {"20 rows": short, "120 rows": long}
+
+
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
 def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     request, serve, engine

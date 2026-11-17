@@ -2705,11 +2705,11 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
                 "Pick one:\n\n"
                 '<section id="thread-pick-decision" role="group" aria-labelledby="thread-pick-decision-h">\n<h3 id="thread-pick-decision-h">Which option?</h3>'
                 '<lf-options id="thread-pick">'
-                '<lf-option id="thread-a"><strong>A</strong></lf-option>'
+                '<lf-option id="thread-a" label="A"></lf-option>'
                 "</lf-options></section>"
                 '<lf-sample id="sample">'
                 '<lf-options id="exhibited-pick">'
-                '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
+                '<lf-option id="exhibited-a" label="A"></lf-option>'
                 "</lf-options></lf-sample>"
             ),
         ],

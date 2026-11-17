@@ -3312,8 +3312,8 @@ FRAMED_TABLES_PAGE = leaf_page(
 <h2 id="figure-asked-h">Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
 <lf-options id="figure-asked-choice">
-<lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
-<lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
+<lf-option id="figure-asked-early" label="Early">End it at 16:00.</lf-option>
+<lf-option id="figure-asked-late" label="Late">End it at 18:00.</lf-option>
 </lf-options>
 </section>
 </figure>
@@ -3321,8 +3321,8 @@ FRAMED_TABLES_PAGE = leaf_page(
 <h2 id="asked-h">Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
 <lf-options id="asked-choice">
-<lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
-<lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
+<lf-option id="asked-early" label="Early">Move it to 8:00.</lf-option>
+<lf-option id="asked-late" label="Late">Move it to 10:00.</lf-option>
 </lf-options>
 </section>
 <section class="panel" id="checks">

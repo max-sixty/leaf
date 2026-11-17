@@ -106,7 +106,8 @@ def test_a_reference_names_any_element_the_page_holds(page_dir, target):
     naming no element."""
     (page_dir / "index.html").write_text(
         PAGE.replace('<section id="plan"', '<section id="Plan_Notes"').replace(
-            '<lf-option id="flag-first">', f'<lf-option id="flag-first" for="{target}">'
+            '<lf-option id="flag-first" label="Flag first">',
+            f'<lf-option id="flag-first" label="Flag first" for="{target}">',
         )
     )
     _status, findings = check_findings(page_dir)
@@ -179,6 +180,25 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
         ("<main>", "data-width", "content", "advice"),
         ("<div id=sized>", "data-height", "declared", "advice"),
         ("<lf-tabs id=page-tabs>", "data-width", "flow", "advice"),
+    ]
+
+
+def test_check_advises_a_label_where_a_card_leads_with_a_strong(page_dir):
+    """An option or card leading with a <strong>, past any chips, draws as bold words
+    rather than a titled card, so `page check` advises its title in `label`. Bold words
+    after words of the option's own, or an option with a label, draw no advice."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice">').replace(
+            '<lf-option id="flag-first" label="Flag first">',
+            '<lf-option id="old"><small class="tag">x</small> <strong>Old</strong> w.'
+            '</lf-option><lf-option id="bare">Keep <strong>it</strong></lf-option>'
+            '<lf-option id="flag-first" label="Flag first">',
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert [(f.at, f.severity) for f in found(findings, "title-in-strong")] == [
+        ("<lf-option id=old>", "advice")
     ]
 
 

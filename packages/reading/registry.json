@@ -20,7 +20,7 @@
     "example": "<section class=\"panel\" id=\"checks\">\n  <h2>Checks</h2>\n  <table>…</table>\n</section>"
   },
   ".facts": {
-    "description": "A grid of labels and values for summary facts, written as a definition list. As a direct child of an `lf-option` titled with a `<strong>`, it floats right as a narrow column where the option is wide enough, so the options' figures line up.",
+    "description": "A grid of labels and values for summary facts, written as a definition list. As a direct child of an `lf-option` with a `label`, it floats right as a narrow column where the option is wide enough, so the options' figures line up.",
     "example": "<dl class=\"facts\">\n  <dt>Owner</dt><dd>payments</dd>\n  <dt>Rollout</dt><dd>behind a flag</dd>\n</dl>"
   },
   ".metric": {

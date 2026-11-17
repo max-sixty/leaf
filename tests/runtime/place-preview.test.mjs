@@ -266,14 +266,15 @@ test("a heading's section is walked through declared shadow trees and their slot
     placePreview(document.getElementById("slotted-words")).name,
     "Slotted topic",
   );
-  // A host's title and body, assigned to a slot inside a wrapper of its tree, preview
-  // as the tree draws them: the title names it, and the body follows.
-  document.body.innerHTML = `<main><lf-staged id="titled-host"></lf-staged></main>`;
+  // A host's label names it, and its body, assigned to a slot inside a wrapper of its
+  // tree, previews as the tree draws it.
+  document.body.innerHTML = `<main><lf-staged id="titled-host" label="Slotted title">
+    </lf-staged></main>`;
   const wrapper = document.createElement("template");
   wrapper.innerHTML = `<div><slot></slot></div>`;
   const titled = document.getElementById("titled-host");
   shadowStage(titled, [...wrapper.content.childNodes]);
-  titled.innerHTML = `<strong>Slotted title</strong><p>Body words.</p>`;
+  titled.innerHTML = `<p>Body words.</p>`;
   const card = placePreview(titled);
   const shown = document.createElement("div");
   render(card.detail, shown);
@@ -406,17 +407,23 @@ test("a place with no name of its own is named by the part it stands in, as On M
     `<section><strong>Bold container</strong><p id="it">Text inside it.</p></section>`,
   ])
     named(`<h2>Outer</h2>${markup}`, "Outer", "heading");
-  // A widget's leading <strong> names the widget, as an option's does, and makes no part.
+  // A widget's leading <strong> names nothing, so the heading over it is the part, and
+  // a widget its label names is the part, as a tab is.
   Object.assign(registry, {
     "lf-block": {},
     $layer: { generation: "place-preview-titled-widget" },
   });
   named(
-    `<h2>Outer</h2><lf-block><strong>Titled</strong><p id="it">Asked.</p></lf-block>`,
+    `<h2>Outer</h2><lf-block><strong>Bold</strong><p id="it">Asked.</p></lf-block>`,
     "Outer",
     "heading",
   );
-  assert.equal(addressableLabel(document.querySelector("lf-block")), "Titled");
+  assert.equal(addressableLabel(document.querySelector("lf-block")), "");
+  named(
+    `<h2>Outer</h2><lf-block label="Titled"><p id="it">Asked.</p></lf-block>`,
+    "Titled",
+    "lf-block",
+  );
   // What Leaf generates in the page names nothing, whatever it is labelled.
   named(
     `<h2>Real part</h2><div data-lf-gen="1" aria-label="Leaf's own"><p id="it">Words

@@ -2060,21 +2060,19 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
 <h1 id="frames">Choose a frame</h1>
 <section id="first-question-decision" role="group" aria-labelledby="first-question-decision-h"><h2 id="first-question-decision-h">Which first frame?</h2>
 <lf-options id="first-question">
-  <lf-option id="first-frame"><strong>First</strong>
-    <label><input id="first" type="radio" name="first-frame">
+  <lf-option id="first-frame" label="First">    <label><input id="first" type="radio" name="first-frame">
       <span>first state</span></label>
   </lf-option>
-  <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
+  <lf-option id="neither-first-frame" label="Neither"></lf-option>
 </lf-options></section>
 <section id="frame-question-decision" role="group" aria-labelledby="frame-question-decision-h"><h2 id="frame-question-decision-h">Which next frame?</h2>
 <lf-options id="frame-question">
-  <lf-option id="after-frame"><strong>After</strong>
-    <div id="label-thread" tabindex="-1">
+  <lf-option id="after-frame" label="After">    <div id="label-thread" tabindex="-1">
     <label id="frame-label"><input id="frame" type="radio" name="frame">
       <span>after state</span></label>
     </div>
   </lf-option>
-  <lf-option id="before-frame"><strong>Before</strong></lf-option>
+  <lf-option id="before-frame" label="Before"></lf-option>
 </lf-options></section>
 """,
     )

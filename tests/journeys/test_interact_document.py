@@ -295,8 +295,8 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
             '<lf-card id="labels-card"><lf-label>cheap</lf-label>A</lf-card>'
             "</lf-column></lf-board>" + PAGE_GROUP,
         ).replace(
-            '<lf-option id="flag-first">',
-            '<lf-option id="flag-first"><lf-label>small</lf-label>',
+            '<lf-option id="flag-first" label="Flag first">',
+            '<lf-option id="flag-first" label="Flag first"><lf-label>small</lf-label>',
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
@@ -402,7 +402,7 @@ def test_publishing_records_typed_settlements_for_provisional_agent_facts(page_d
             path.read_text().replace(
                 "</section>",
                 '<lf-board id="rollout"><lf-column id="now" label="Now">'
-                '<lf-card id="rollout-card"><strong>Ship</strong></lf-card>'
+                '<lf-card id="rollout-card" label="Ship"></lf-card>'
                 "</lf-column></lf-board></section>",
             )
         )

@@ -539,7 +539,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--text",
             "Pick:\n\n"
             '<section id="q1-decision" role="group" aria-labelledby="q1-decision-h">\n<h3 id="q1-decision-h">Pick one</h3><lf-options id="q1">'
-            '<lf-option id="q1-a"><strong>A</strong>'
+            '<lf-option id="q1-a" label="A">'
             '<span id="thread-label">Label</span></lf-option></lf-options></section>',
         ).exit_code
         == 0

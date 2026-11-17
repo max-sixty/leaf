@@ -141,6 +141,10 @@ export {
 export { raiseError } from "./errors.js";
 export { MAX_EDIT_LENGTH } from "./text-alignment.js";
 export { says, wrote } from "./passages.js";
+// `phrasing(element)`: whether an element stands within a line of words (HTML's phrasing
+// content, or a widget declared `words.inline`), where every other element starts a
+// block of its own.
+export { phrasing } from "./passages.js";
 export { ago, agePreview } from "./presence.js";
 export { boundFile } from "./file-api.js";
 export { RequestError } from "./layer-client.js";

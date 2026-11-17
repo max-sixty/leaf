@@ -595,11 +595,11 @@ PAGE = f"""<!doctype html>
   <div id="plan-choice-decision" role="group" aria-labelledby="plan-choice-question">
     <h3 id="plan-choice-question">Which plan should lead?</h3>
     {PAGE_GROUP}
-      <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
-        <strong>Flag first</strong> Ship dark.
+      <lf-option id="flag-first" label="Flag first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
+        Ship dark.
       </lf-option>
-      <lf-option id="backfill-first"><small class="tag">effort: med</small><small class="tag">risk: low</small>
-        <strong>Backfill first</strong> Verify, then flip. <em>My take: do this first.</em>
+      <lf-option id="backfill-first" label="Backfill first"><small class="tag">effort: med</small><small class="tag">risk: low</small>
+        Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
   </div>
@@ -803,7 +803,10 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     source.write_text(
         source.read_text()
         .replace(PICKS_GROUP, f'<lf-options id="picks" resolves="{thread}">')
-        .replace('<lf-option id="flag-first">', '<lf-option id="flag-first" selected>')
+        .replace(
+            '<lf-option id="flag-first" label="Flag first">',
+            '<lf-option id="flag-first" label="Flag first" selected>',
+        )
     )
 
 
@@ -1192,7 +1195,7 @@ def _board(todo, done):
     """A two-column board, each column given its cards as (id, attrs, title)."""
 
     def card(c):
-        return f'<lf-card id="{c[0]}"{c[1]}><strong>{c[2]}</strong></lf-card>'
+        return f'<lf-card id="{c[0]}" label="{c[2]}"{c[1]}></lf-card>'
 
     return (
         '<lf-board id="b1">'
@@ -1207,8 +1210,8 @@ Y = ("card-y", "", "Wire the importer")
 OPTIONS = """<section id="g1-decision" role="group" aria-labelledby="g1-decision-h">
   <h3 id="g1-decision-h">Which migration should lead?</h3>
   <lf-options id="g1">
-    <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
-    <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
+    <lf-option id="o-shim" label="Shim it"{a}>{shim}</lf-option>
+    <lf-option id="o-stage" label="Migrate in stages"{b}>{stage}</lf-option>
   </lf-options>
 </section>"""
 

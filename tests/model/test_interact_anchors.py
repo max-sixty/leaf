@@ -227,8 +227,8 @@ def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
     # row — the runtime writes controls between options, words this reading doesn't
     # hold. The runtime reads its side back the same way, and only a full match counts.
     assert (
-        anchor["prefix"] == "risk: low Backfill first"
-    )  # the option's own chip band, then its title
+        anchor["prefix"] == "st effort: med risk: low"
+    )  # the end of the option's title, then its chip band
     assert anchor["suffix"] == ". My take: do this first"
 
 
@@ -1456,7 +1456,7 @@ def test_a_widgets_said_attribute_is_quotable_like_any_other_passage(page_dir):
     )
     published(page_dir)
     for quote, section in (
-        ("risk: low Backfill first", "backfill-first"),
+        ("Backfill first effort: med", "backfill-first"),
         ("Traffic 312 daily visits", "k-visits"),
     ):
         result = comment(page_dir, "--quote", quote, "--text", "x")
@@ -1732,7 +1732,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h">\n<h3 id="gm-decision-h">Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm">'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-cap" label="Cap retries"></lf-option>'
             "</lf-options></section>",
         },
     )
@@ -1767,7 +1767,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                         f"Choose {suffix}\n\n"
                         f'<section id="group-{suffix}-decision" role="group" aria-labelledby="group-{suffix}-decision-h">\n<h3 id="group-{suffix}-decision-h">Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}">'
-                        f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
+                        f'<lf-option id="option-{suffix}" label="{suffix}"></lf-option>'
                         "</lf-options></section>"
                     ),
                 },

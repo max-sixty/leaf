@@ -21,12 +21,10 @@ created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
-`name` is what the authoring contract calls it away from itself: a widget's `label`
-attribute (the registry's `$attributes`), else its leading title, and plain markup's
-caption: a disclosure's `<summary>`, an `<hgroup>`'s heading, or the heading a section
-or article opens with (`leading_title_node`). It is the rule the browser's
-`addressableName` reads off the live page, read here off the document the gesture was
-made in.
+`name` is what the authoring contract calls it away from itself (`element_name`): a
+widget's `label` attribute (the registry's `$attributes`), else plain markup's caption
+(`caption_node`). It is the rule the browser's `addressableName` reads off the live
+page, read here off the document the gesture was made in.
 """
 
 from collections.abc import Callable
@@ -54,7 +52,6 @@ from .thread_context import (
 )
 
 HEADINGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
-WIDGET_TITLES = HEADINGS | {"summary", "strong"}
 SECTIONS = frozenset({"section", "article"})
 
 # revision → its immutable document read under the registry captured with it.
@@ -75,34 +72,11 @@ def _registered(node: dict, registry: dict) -> bool:
     return is_element_name(node["tag"]) and node["tag"] in registry
 
 
-def leading_title_node(node: dict, registry: dict) -> dict | None:
-    """The element that titles `node`. A widget the registry registers, such as an
-    option or a card, is titled by its first heading, summary or `<strong>`, looking
-    inside a leading <header> or <hgroup> and past other elements, until text
-    intervenes. Plain markup is titled by the caption HTML gives it: a disclosure by
-    its first <summary>, an <hgroup> by its heading, and a section or article by the
-    heading it opens with, alone or in an <hgroup>. No other element is titled by a
-    heading inside it, and a bold line in plain markup is how it looks, not what it is
-    called."""
-    if _registered(node, registry):
-        return _widget_title(node)
-    return _opening_title(node)
-
-
-def _widget_title(node: dict) -> dict | None:
-    for child in node["content"]:
-        if isinstance(child, str):
-            if child.strip():
-                return None
-            continue
-        if child["tag"] in WIDGET_TITLES:
-            return child
-        if child["tag"] in {"header", "hgroup"}:
-            return _widget_title(child)
-    return None
-
-
-def _opening_title(node: dict) -> dict | None:
+def caption_node(node: dict) -> dict | None:
+    """The caption that names plain markup: a disclosure's first <summary>, an
+    <hgroup>'s heading, or the heading a section or article opens with, alone or in an
+    <hgroup>. No other element is named by a heading inside it, and a <strong> names
+    nothing."""
     elements = [child for child in node["content"] if not isinstance(child, str)]
     if node["tag"] == "details":
         return next((child for child in elements if child["tag"] == "summary"), None)
@@ -114,7 +88,7 @@ def _opening_title(node: dict) -> dict | None:
     if first is None or isinstance(first, str):
         return None
     if first["tag"] == "hgroup":
-        return _opening_title(first)
+        return caption_node(first)
     return first if first["tag"] in HEADINGS else None
 
 
@@ -123,16 +97,15 @@ def _blank(node) -> bool:
 
 
 def element_name(node: dict, registry: dict) -> str:
-    """What the authoring contract calls an element away from itself: a widget's
-    `label` attribute (`contract.NAME_ATTRIBUTE`), else its leading title, in the
-    words the author wrote. The browser's `addressableName` reads the same rule off
-    the live page; `tests/name_cases.json` holds both to the same cases."""
+    """What the authoring contract calls an element away from itself, in the words the
+    author wrote: a widget's `label` attribute (`contract.NAME_ATTRIBUTE`), else plain
+    markup's caption. A widget takes no name from its markup. The browser's
+    `addressableName` reads the same rule off the live page; `tests/name_cases.json`
+    holds both to the same cases."""
     if _registered(node, registry):
-        declared = (node["attrs"].get(NAME_ATTRIBUTE) or "").strip()
-        if declared:
-            return declared
-    title = leading_title_node(node, registry)
-    return collapse(_text(title)) if title else ""
+        return (node["attrs"].get(NAME_ATTRIBUTE) or "").strip()
+    caption = caption_node(node)
+    return collapse(_text(caption)) if caption else ""
 
 
 def group_name(group: dict, nodes: dict[str, dict]) -> str:

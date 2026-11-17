@@ -29,8 +29,8 @@ vars:
       E=html.escape
       def opt(i, title, body, rec=False, tags=()):
           t=''.join(f'<small class="tag">{E(x)}</small>' for x in tags)
-          r='<small class="tag ok">recommended</small>' if rec else ''
-          return f'      <lf-option id="{i}">{t}{r}<strong>{E(title)}</strong> {body}</lf-option>\n'
+          r=' recommended' if rec else ''
+          return f'      <lf-option id="{i}" label="{E(title)}"{r}>{t} {body}</lf-option>\n'
       def dec(i, q, ctx, opts):
           o=''.join(opt(f"{i}-{k}", *v) for k,v in opts)
           return f'''  <section id="{i}-ask" role="group" aria-labelledby="{i}-ask-h">
@@ -95,7 +95,7 @@ assert:
     value: |
       The reply is a Python call to the script's `dec` helper, whose options are
       tuples passed to `opt(i, title, body, rec=False, tags=())`; the `tags`
-      argument becomes `small.tag` labels before the option's title. The
+      argument becomes `small.tag` chips after the option's title. The
       alternatives differ in how much work each is and in how far back `z` can
       reach. Pass only if a reader can compare the options on both differences
       from compact titles or labels, such as "effort: small" and "reach: no limit",

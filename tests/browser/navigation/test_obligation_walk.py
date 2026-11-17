@@ -1001,13 +1001,13 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
 <h1 id="h">Open questions</h1>
 <section id="first-decision" role="group" aria-labelledby="first-decision-h"><h2 id="first-decision-h">Where should the feeders go?</h2>
 <lf-options id="first">
-  <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
-  <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
+  <lf-option id="fi-hedge" label="Along the hedge"></lf-option>
+  <lf-option id="fi-lawn" label="Out on the lawn"></lf-option>
 </lf-options></section>
 <section id="second-decision" role="group" aria-labelledby="second-decision-h"><h2 id="second-decision-h">Who fills them?</h2>
 <lf-options id="second">
-  <lf-option id="se-rota"><strong>A rota</strong></lf-option>
-  <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
+  <lf-option id="se-rota" label="A rota"></lf-option>
+  <lf-option id="se-camera" label="Whoever the camera calls"></lf-option>
 </lf-options></section>
 """,
         ),
@@ -1022,8 +1022,8 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             "text": "And one for you in here.\n\n"
             '<section id="reply-decision" role="group" aria-labelledby="reply-decision-h">\n<h3 id="reply-decision-h">Which baffle?</h3>'
             '<lf-options id="reply-ask">'
-            '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
-            '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
+            '<lf-option id="re-dome" label="A dome"></lf-option>'
+            '<lf-option id="re-cone" label="A cone"></lf-option>'
             "</lf-options></section>",
         },
     )
@@ -1465,8 +1465,8 @@ OBLIGATION_IN_A_PANE_PAGE = leaf_page(
         <section id="pane-decision" role="group" aria-labelledby="pane-decision-h">
           <h3 id="pane-decision-h">How should the probe page?</h3>
           <lf-options id="pane-choice">
-            <lf-option id="pane-a"><strong>Require three failures</strong> Quieter.</lf-option>
-            <lf-option id="pane-b"><strong>Keep one failure</strong> Louder.</lf-option>
+            <lf-option id="pane-a" label="Require three failures">Quieter.</lf-option>
+            <lf-option id="pane-b" label="Keep one failure">Louder.</lf-option>
           </lf-options>
         </section>
         <div style="height: 900px"></div>

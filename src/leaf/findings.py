@@ -916,6 +916,10 @@ _TEXT = {
             else f"one of {', '.join(v['allowed'])}"
         )
     ),
+    "title-in-strong": lambda at, v: (
+        f"{_line(at, v)}: leads with a <strong>, which names nothing and draws as bold"
+        ' words; give the title in label="…" and keep the rest as its words'
+    ),
     "inert-allocation": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has no effect: "
         + {

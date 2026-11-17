@@ -95,7 +95,7 @@ def test_the_envelope_stops_growing_with_the_thread(page_dir, capsys):
     markup = (
         '<lf-options id="{i}">'
         + "".join(
-            f'<lf-option id="{{i}}-o{n}"><strong>Option {n}</strong> '
+            f'<lf-option id="{{i}}-o{n}" label="Option {n}">'
             + "z" * 60
             + "</lf-option>"
             for n in range(3)

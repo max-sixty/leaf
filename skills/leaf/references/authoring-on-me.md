@@ -18,19 +18,18 @@ Each option is a result the user can pick, so its title says what choosing it do
 the subject, keeping today's behavior included: “Generate shared types” and “Keep
 handwritten types”, rather than “Accept” and “Not now”. Where the options differ only
 in a value, such as how long captures are kept, say once above them what that value
-costs, and each title can be the whole option. The user should be able to compare the
-options down the list without reading their prose, as through `small.tag` labels for
-the facts they weigh, such as effort or risk. Keep each label to a word or two, such as
-“2 days” rather than “about two days of work”, so a card's labels fit on one line
-beside its pick mark. Where cards stand side by side (`across`), labels that wrap push
-that card's title below its neighbours'. Add words only for a consequence that no title
-or label shows.
+costs, and each title can be the whole option. A card's title is its `label`
+attribute. The user should be able to compare the options down the list without
+reading their prose, as through `small.tag` chips for the facts they weigh, such as
+effort or risk. Keep each chip to a word or two, such as “2 days” rather than “about
+two days of work”, so a card's chips fit on the line under its title. Add words only
+for a consequence that no title or chip shows.
 Order the options by the subject, such as from today's behavior to the largest
 change, and keep that one order wherever the question lists them, including a
 comparison table and lettered names, so the user matches each option to its row by
-position. The recommended option stays where that order puts it;
-`<small class="tag ok">recommended</small>` marks your advice, and its `ok` draws it
-green. Prose that recommends or discusses an option names it by its title, as in
+position. The recommended option stays where that order puts it; `recommended` on it
+marks your advice, which draws a green chip beside its title. Prose that recommends or
+discusses an option names it by its title, as in
 “I'd keep handwritten types”, never by its position or by a letter from an earlier
 list, since the options' order can change after you write it.
 
@@ -156,10 +155,11 @@ action and the evidence the user needs in the question's heading and prose:
   <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
-    <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
-    <lf-option id="publish-report-publish"
-      ><strong>Publish it to the team workspace</strong></lf-option
-    >
+    <lf-option id="publish-report-keep" label="Keep it private"></lf-option>
+    <lf-option
+      id="publish-report-publish"
+      label="Publish it to the team workspace"
+    ></lf-option>
   </lf-options>
 </section>
 ```

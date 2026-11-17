@@ -903,7 +903,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
             "author": "agent",
             "revision": 1,
             "text": 'Which region?\n\n<lf-options id="thread-region">'
-            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            '<lf-option id="thread-east" label="East"></lf-option>'
             "</lf-options>",
         },
     )
@@ -1170,8 +1170,8 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="backfill-first">',
-            '<lf-option id="backfill-first" selected>',
+            '<lf-option id="backfill-first" label="Backfill first">',
+            '<lf-option id="backfill-first" label="Backfill first" selected>',
         )
     )
     assert stamp(claimed, "Backfill leads").exit_code == 0
@@ -1187,7 +1187,8 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
     version all the same, and a version that leaves the option out settles it; a
     version still marking an authored option `selected` does not."""
     source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
-        '<lf-option id="flag-first">', '<lf-option id="flag-first" selected>'
+        '<lf-option id="flag-first" label="Flag first">',
+        '<lf-option id="flag-first" label="Flag first" selected>',
     )
     (claimed / "index.html").write_text(source)
     publish(claimed)
@@ -1218,7 +1219,8 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="flag-first" selected>', '<lf-option id="flag-first">'
+            '<lf-option id="flag-first" label="Flag first" selected>',
+            '<lf-option id="flag-first" label="Flag first">',
         )
     )
     assert stamp(claimed, "Neither yet").exit_code == 0
@@ -1257,7 +1259,8 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
 
     (claimed / "index.html").write_text(
         source.replace(
-            '<lf-option id="flag-first">', '<lf-option id="flag-first" selected>'
+            '<lf-option id="flag-first" label="Flag first">',
+            '<lf-option id="flag-first" label="Flag first" selected>',
         )
     )
     assert stamp(claimed, "Flag first, staged").exit_code == 0
@@ -1338,9 +1341,9 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     board = (
         '<lf-board id="triage">'
         '<lf-column id="queue" label="Queued">'
-        '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
-        '<lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>'
-        '<lf-card id="card-c"><strong>Retry budget</strong></lf-card>'
+        '<lf-card id="card-a" label="Rolling expiry"></lf-card>'
+        '<lf-card id="card-b" label="Bounded fallback"></lf-card>'
+        '<lf-card id="card-c" label="Retry budget"></lf-card>'
         "</lf-column>"
         '<lf-column id="keep" label="Kept"></lf-column>'
         '<lf-column id="pass" label="Passed"></lf-column>'

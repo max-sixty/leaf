@@ -571,7 +571,7 @@ const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // (`inline`). Every other element, a widget included, starts a block of its own,
 // its words parted from those around it (`enter`).
 /** @param {Element} element */
-const phrasing = (element) =>
+export const phrasing = (element) =>
   PHRASING.has(element.localName) || Boolean(registry[element.localName]?.inline);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated

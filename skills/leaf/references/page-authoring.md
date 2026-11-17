@@ -283,8 +283,8 @@ a pasted link, so write a description that makes sense on its own.
 
 ## Markup
 
-Widget attributes carry scalars and children carry prose; a titled member of a compound
-widget starts with a `<strong>`. A widget whose body is data, such as `lf-code`, holds
+Widget attributes carry scalars and children carry prose; a member of a compound widget
+takes its title in `label`, as an option card and a board card do. A widget whose body is data, such as `lf-code`, holds
 escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
 Format filenames and paths as inline code.

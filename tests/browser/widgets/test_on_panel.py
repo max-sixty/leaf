@@ -160,12 +160,12 @@ Adds --dry-run to every mutating command.
 </pre></lf-draft></section>
 <section id="cache-ask" role="group" aria-labelledby="cache-ask-h"><h2 id="cache-ask-h">Which cache?</h2>
 <lf-options id="cache">
-  <lf-option id="cache-none"><strong>No cache</strong> Read through.</lf-option>
+  <lf-option id="cache-none" label="No cache">Read through.</lf-option>
 </lf-options></section>
 <section id="tags-ask" role="group" aria-labelledby="tags-ask-h"><h2 id="tags-ask-h">Which tags?</h2>
 <lf-options id="tags" multiple>
-  <lf-option id="tag-alpha" selected><strong>Alpha</strong></lf-option>
-  <lf-option id="tag-beta"><strong>Beta</strong></lf-option>
+  <lf-option id="tag-alpha" label="Alpha" selected></lf-option>
+  <lf-option id="tag-beta" label="Beta"></lf-option>
 </lf-options></section>
 <section id="tone-ask" role="group" aria-labelledby="tone-ask-h"><h2 id="tone-ask-h">Which notification?</h2>
 <lf-playground id="tone">
@@ -745,14 +745,12 @@ CARD_OPTIONS_PAGE = leaf_page(
     """<h1 id="title">Sidebar</h1>
 <section id="stick-ask" role="group" aria-labelledby="stick-ask-h"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
 <lf-options id="stick">
-  <lf-option id="stick-box"><small class="tag">two days</small>
-    <small class="tag ok">recommended</small><strong>Wrap the blocks in one box</strong>
+  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="tag">two days</small>
     One mechanism for any number of <em>blocks</em>.
     <svg class="drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
-  <lf-option id="stick-aside"><strong>Stick the aside itself</strong> It covers the
+  <lf-option id="stick-aside" label="Stick the aside itself">It covers the
     footer.</lf-option>
-  <lf-option id="stick-rule"><strong>Keep the one-block rule</strong>
-    <p>Authors keep writing one block.</p></lf-option>
+  <lf-option id="stick-rule" label="Keep the one-block rule">    <p>Authors keep writing one block.</p></lf-option>
   <lf-option id="stick-none">Leave it</lf-option>
 </lf-options></section>""",
 )
@@ -814,8 +812,8 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
                 """<h1 id="title">Tags</h1>
 <section id="tags-ask" role="group" aria-labelledby="tags-ask-h"><h2 id="tags-ask-h">Which tags?</h2>
 <lf-options id="tags" multiple>
-  <lf-option id="tag-alpha" selected><strong>Alpha</strong> The first tag.</lf-option>
-  <lf-option id="tag-beta"><strong>Beta</strong> The second tag.</lf-option>
+  <lf-option id="tag-alpha" label="Alpha" selected>The first tag.</lf-option>
+  <lf-option id="tag-beta" label="Beta">The second tag.</lf-option>
 </lf-options></section>""",
             )
         ),
@@ -851,8 +849,8 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
             "revision": 1,
             "text": "Ship on Friday?\n\n"
             '<lf-options id="ship">'
-            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
-            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            '<lf-option id="ship-friday" label="Ship Friday"></lf-option>'
+            '<lf-option id="ship-wait" label="Wait a week"></lf-option>'
             "</lf-options>",
         },
     )
@@ -932,8 +930,8 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
             },
             "text": "Ship on Friday?\n\n"
             '<lf-options id="ship">'
-            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
-            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            '<lf-option id="ship-friday" label="Ship Friday"></lf-option>'
+            '<lf-option id="ship-wait" label="Wait a week"></lf-option>'
             "</lf-options>",
         },
     )
@@ -986,8 +984,8 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
             "anchor": {"section": "risk"},
             "text": "Ship on Friday?\n\n"
             '<lf-options id="ship">'
-            '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
-            '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
+            '<lf-option id="ship-friday" label="Ship Friday"></lf-option>'
+            '<lf-option id="ship-wait" label="Wait a week"></lf-option>'
             "</lf-options>",
         },
     )

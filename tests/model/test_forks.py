@@ -693,7 +693,7 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
             "author": "agent",
             "revision": 1,
             "text": 'Which region?\n\n<lf-options id="thread-region">'
-            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            '<lf-option id="thread-east" label="East"></lf-option>'
             "</lf-options>",
         },
     )

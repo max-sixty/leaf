@@ -1194,9 +1194,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     as the user sees it without a second copy of the document."""
     markup = PAGE.replace(
         "</main>",
-        OPTIONS.format(
-            a=" selected", b="", chip="", shim="Keep the shim.", stage="Stage it."
-        )
+        OPTIONS.format(a=" selected", b="", shim="Keep the shim.", stage="Stage it.")
         + '<lf-draft id="summary"><pre>Ship on Friday.</pre></lf-draft>'
         + _board([X, Y], [])
         + '<p id="explanation"><strong>Keep</strong> <em>spaces</em>.</p></main>',
@@ -1489,7 +1487,7 @@ def test_check_rejects_widget_violations(page_dir):
             "<figure/>"
             "<lf-bogus></lf-bogus>"
             '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
-            '<lf-option id="stray"><strong>S</strong></lf-option>'
+            '<lf-option id="stray" label="S"></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
         ).replace('<lf-option id="flag-first"', "<lf-option")
@@ -1835,7 +1833,7 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     registry["lf-options"]["attributes"]["properties"]["resolves"] = {"type": "string"}
     markup = (
         '<lf-options id="answer" resolves="plan">'
-        '<lf-option id="approve"><strong>Approve</strong></lf-option></lf-options>'
+        '<lf-option id="approve" label="Approve"></lf-option></lf-options>'
     )
     page = structure_model.SourceDocument(PAGE)
 
@@ -2193,7 +2191,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     other event a thread holds names that thread, for `page state`, `status --on`
     and the thread commands alike. Narrowed to a widget, the reading holds what
     stands inside it: the obligation carries the pick on its choice."""
-    live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
     )
@@ -2238,7 +2236,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "create",
             "--text",
             'Which store?\n\n<section id="t-ask" role="group" aria-labelledby="t-ask-h">\n<h3 id="t-ask-h">Store?</h3><lf-options id="t-store">'
-            '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
+            '<lf-option id="t-sqlite" label="sqlite"></lf-option>'
             "</lf-options></section>",
         ).output.splitlines()
     ]
@@ -2561,9 +2559,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     the current state replay paints, as one queryable
     object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""
-    opts = OPTIONS.format(
-        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
-    )
+    opts = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Table by table.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
@@ -3062,8 +3058,8 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
     """An obligation retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1">
-      <lf-option id="o-shim"><strong>Shim it</strong> Fastest to ship.</lf-option>
-      <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
+      <lf-option id="o-shim" label="Shim it">Fastest to ship.</lf-option>
+      <lf-option id="o-stage" label="Migrate in stages">Table by table.</lf-option>
     </lf-options>"""
     item = (
         '<section id="plan-decision"><h2>Plan</h2>'
@@ -3103,7 +3099,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     """A version that honors a pick in its markup reads as answered with no log
     at all — the shipped examples arrive that way."""
-    opts = OPTIONS.format(a=" selected", b="", chip="", shim="s.", stage="t.")
+    opts = OPTIONS.format(a=" selected", b="", shim="s.", stage="t.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
@@ -3362,8 +3358,8 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "revision": 1,
             "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h">\n<h2 id="gm-decision-h">Which mitigations?</h2>'
             '<lf-options id="gm" multiple>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
+            '<lf-option id="m-cap" label="Cap retries"></lf-option>'
+            '<lf-option id="m-alert" label="Alert"></lf-option>'
             "</lf-options></section>",
         },
     )
@@ -3599,7 +3595,7 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
         '<lf-sample id="sample"><lf-options id="example">'
-        '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
+        '<lf-option id="example-a" label="Example only"></lf-option>'
         "</lf-options></lf-sample>"
         '<section id="real-decision" role="group" aria-labelledby="real-decision-h"><h3 id="real-decision-h">What next?</h3>'
         '<lf-options id="real"><lf-option id="real-a">A</lf-option>'
@@ -4532,7 +4528,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     page_dir,
 ):
     """Edits remain free while the original user action keeps its recorded meaning."""
-    live = OPTIONS.format(a="", b="", chip="", shim="Fastest to ship.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Two.")
     source = page_dir / "index.html"
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live))
     publish(page_dir)
@@ -4575,8 +4571,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     source.write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            "<h2>Plan</h2>"
-            + OPTIONS.format(a="", b="", chip="", shim="Fast.", stage="Two."),
+            "<h2>Plan</h2>" + OPTIONS.format(a="", b="", shim="Fast.", stage="Two."),
         )
     )
     publish(page_dir)
@@ -4628,7 +4623,7 @@ def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_di
 
 def test_revisions_can_move_rewrite_or_remove_authored_generated_children(page_dir):
     added = "g1-option-user-route"
-    live = OPTIONS.format(a="", b="", chip="", shim="Fastest to ship.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Two.")
     source = page_dir / "index.html"
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live))
     publish(page_dir)

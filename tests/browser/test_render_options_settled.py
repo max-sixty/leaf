@@ -231,7 +231,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     page.locator("#lede").click()
     row.click()
     expect(page.locator("#opt-lax")).to_be_visible()
-    lede = page.locator("#opt-lax > strong")
+    lede = page.locator('#opt-lax > [data-lf-said="label"]')
     box = lede.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))
@@ -350,8 +350,8 @@ def test_a_settled_obligation_keeps_its_heading_above_the_answer(browser, serve)
             "text": "And settled in here.\n\n"
             '<section id="th-done-decision"><h3>Where, again?</h3>'
             '<lf-options id="th-done" settled>'
-            '<lf-option id="th-redis" selected><strong>Redis</strong></lf-option>'
-            '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
+            '<lf-option id="th-redis" label="Redis" selected></lf-option>'
+            '<lf-option id="th-pg" label="Postgres"></lf-option>'
             "</lf-options></section>",
         },
     )

@@ -449,8 +449,8 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
                 '<lf-tabs id="tabs" flow="page"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
                 '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2><lf-options id="opts">'
-                f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
-                '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
+                f'<lf-option id="opt-a" label="A">{long_diff("in-option")}'
+                '</lf-option><lf-option id="opt-b" label="B"></lf-option>'
                 "</lf-options></section>" + "<p>Filler.</p>" * 60,
                 head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
             )
@@ -1098,10 +1098,9 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
         serve.page_dir,
         root,
         "Which should it be?",
-        '<lf-options id="mount"><lf-option id="mount-steel">'
-        '<small class="tag ok">recommended</small> <strong>Keep steel</strong>'
-        '</lf-option><lf-option id="mount-plastic"><strong>Go back to plastic'
-        "</strong> Lighter.</lf-option></lf-options>",
+        '<lf-options id="mount"><lf-option id="mount-steel" label="Keep steel" '
+        'recommended></lf-option><lf-option id="mount-plastic" label="Go back to '
+        'plastic">Lighter.</lf-option></lf-options>',
     )
     page = open_page(browser, url)
     rendered(page)

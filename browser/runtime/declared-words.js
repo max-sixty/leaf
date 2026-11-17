@@ -74,7 +74,7 @@ export const isPagePaint = (name) =>
   Object.values(marks).some((mark) => mark.attribute === name);
 
 // A word for a user listening, silent on screen: real text — the one thing every
-// screen reader announces in every mode — placed after the element's leading title,
+// screen reader announces in every mode — placed after the title its `label` draws,
 // wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
 // .lf-quiet (the shared clip), and data-lf-gen (no author wrote it). One writer per
 // element, and the empty word removes what stands: a fact the page has stopped painting
@@ -90,7 +90,7 @@ export const isPagePaint = (name) =>
 // user would hear as the element re-reading itself.
 /** @param {Element} el @param {string | null} word */
 function quietWord(el, word) {
-  const title = el.querySelector(":scope > strong");
+  const title = el.querySelector(':scope > [data-lf-said="label"]');
   const seat = title ? title.nextSibling : el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");
   if (existing) {

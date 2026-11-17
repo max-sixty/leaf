@@ -1080,14 +1080,14 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
 <section id="near"><p>A question sits at the top.</p></section>
 <section id="first-decision" role="group" aria-labelledby="first-decision-h"><h2 id="first-decision-h">Where should the feeders go?</h2>
 <lf-options id="first">
-  <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
-  <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
+  <lf-option id="fi-hedge" label="Along the hedge"></lf-option>
+  <lf-option id="fi-lawn" label="Out on the lawn"></lf-option>
 </lf-options></section>
 <section id="above">{filler}</section>
 <section id="second-decision" role="group" aria-labelledby="second-decision-h"><h2 id="second-decision-h">Who fills them?</h2>
 <lf-options id="second">
-  <lf-option id="se-rota"><strong>A rota</strong></lf-option>
-  <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
+  <lf-option id="se-rota" label="A rota"></lf-option>
+  <lf-option id="se-camera" label="Whoever the camera calls"></lf-option>
 </lf-options></section>
 <section id="below">{filler}</section>
 """,

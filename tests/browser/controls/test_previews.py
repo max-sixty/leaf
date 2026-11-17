@@ -210,9 +210,9 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
 # Option cards whose picks Done completes.
 FEEDERS = """<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which feeders should we refill?</h2>
 <lf-options id="feeders" multiple>
-<lf-option id="feeder-porch"><strong>The porch feeder</strong> Seen from the kitchen.
+<lf-option id="feeder-porch" label="The porch feeder">Seen from the kitchen.
 </lf-option>
-<lf-option id="feeder-oak"><strong>The oak feeder</strong> Out of the wind.</lf-option>
+<lf-option id="feeder-oak" label="The oak feeder">Out of the wind.</lf-option>
 </lf-options></section>"""
 
 
@@ -1663,9 +1663,9 @@ def _held(page, cdp, selector, words):
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
     '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
-    '<section id="opts-q" role="group" aria-label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1"><small class="tag">small cohort'
-    "</small> <strong>Start small</strong> Then widen.</lf-option>"
-    '<lf-option id="o2"><strong>Start wide</strong> Then '
+    '<section id="opts-q" role="group" aria-label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1" label="Start small"><small class="tag">small cohort'
+    "</small> Then widen.</lf-option>"
+    '<lf-option id="o2" label="Start wide">Then '
     '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options></section>'
     '<lf-suggestion id="sug"><lf-old><p id="old">Refill every feeder each morning.'
     "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"

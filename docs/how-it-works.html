@@ -3504,13 +3504,13 @@ EOF</code></pre>
               admission opens a line turn that picks the message up, which keeps it from
               the main thread, and the module asks a line fork for the working line.
               From then until the agent answers, the message reads
-              <a href="#stages-working">On it</a>. The line fork reads the message
-              against the conversation, writes the working line, and sorts the message
-              by who should do the work. Leaf posts the line as the agent's and sends
-              the message where the sort says. If no line comes, the line turn lapses 30
-              s after it opened, as any unconfirmed agent turn does
-              (<code>activity.STARTING_GRACE</code>), and the message is the main
-              thread's; Leaf ends the turn at once when the line fork fails or the
+              <a href="#stages-working">On it</a>. The line fork reads the message, with
+              every message of its thread, against the conversation, writes the working
+              line, and sorts the message by who should do the work. Leaf posts the line
+              as the agent's and sends the message where the sort says. If no line
+              comes, the line turn lapses 30 s after it opened, as any unconfirmed agent
+              turn does (<code>activity.STARTING_GRACE</code>), and the message is the
+              main thread's; Leaf ends the turn at once when the line fork fails or the
               newest message owes no reply.
             </p>
             <figure id="path-figure" class="diagram-figure">

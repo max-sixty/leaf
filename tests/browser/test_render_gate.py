@@ -4540,8 +4540,9 @@ def test_a_row_headings_name_stays_on_one_line(engine, request, serve):
     and the table still fits. A name wider than a third of the column breaks inside a
     box that third wide, and the sentence beside it keeps the rest. A name in another
     column is the table's to break until the page keeps its cells on one line, which it
-    can. It holds in every engine: a rule using a feature Firefox lacks would leave the
-    names broken there."""
+    can, and the render check names such a name so its author can (`brokenNames`). It
+    holds in every engine: a rule using a feature Firefox lacks would leave the names
+    broken there."""
     rows = (
         ("--plugin", "lf-options", "Loads the named plugin before the run starts, so"),
         ("--dry-run", "lf-ask", "Reports what the run would change without writing,"),
@@ -4614,6 +4615,14 @@ def test_a_row_headings_name_stays_on_one_line(engine, request, serve):
                 table,
                 measured,
             )
+        # The gate names the short names the table breaks, and only those: neither the
+        # column the page keeps on one line nor a name past a third of the table.
+        broken = {
+            f["at"]: f["names"]
+            for f in render_checks_model.evaluate_probe(page, "brokenNames")
+        }
+        assert set(broken) <= {"<table id=options>"}, (width, broken)
+    assert broken == {"<table id=options>": ["lf-options", "lf-ask"]}, broken
 
 
 def test_the_render_gate_measures_sideways_room_at_the_root_scrollport(browser, serve):

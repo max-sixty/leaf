@@ -923,6 +923,23 @@ def firefox_browser(_playwright, request):
 
 
 @pytest.fixture
+def bidi_firefox(_playwright, request):
+    """Playwright's own Firefox, driven over WebDriver BiDi as `page check` drives a
+    reader's installed Firefox (`render_gate.browser.launch_browser`): a route there is
+    handed no post's body, and no DevTools session opens."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    firefox = _playwright.firefox.launch(
+        channel="moz-firefox", executable_path=_playwright.firefox.executable_path
+    )
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(firefox)
+    finally:
+        firefox.close()
+
+
+@pytest.fixture
 def webkit_browser(_playwright, request):
     """Desktop WebKit, where wheel gestures can exercise nested scroll boundaries."""
     from render_harness import WatchedBrowser, clean_browser

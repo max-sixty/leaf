@@ -5103,6 +5103,53 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert "CODEX_SANDBOX=seatbelt" in hint and "outside the sandbox" in hint
 
 
+def test_a_firefox_reader_s_check_launches_the_installed_firefox_or_chrome(
+    monkeypatch,
+):
+    """For a page a Firefox last showed, the check launches the installed Firefox through
+    Playwright's WebDriver BiDi channel, and where the host has none, the Chrome it
+    launches for every other reader."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    for variable in browser_model.VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+    calls = []
+
+    class Engine:
+        def __init__(self, name, answers):
+            self.name, self.answers = name, answers
+
+        def launch(self, **kwargs):
+            calls.append((self.name, kwargs))
+            if not self.answers:
+                raise PlaywrightError(f"BrowserType.launch: no {self.name}")
+            return f"a {self.name}"
+
+    class Playwright:
+        def __init__(self, firefox):
+            self.firefox = Engine("firefox", firefox)
+            self.chromium = Engine("chromium", True)
+
+    assert browser_model.launch_browser(Playwright(True), "firefox") == (
+        "a firefox",
+        "Firefox",
+    )
+    assert calls == [("firefox", {"channel": "moz-firefox"})]
+    calls.clear()
+    assert browser_model.launch_browser(Playwright(False), "firefox") == (
+        "a chromium",
+        "Chrome, since the reader's Firefox didn't launch: BrowserType.launch: no"
+        " firefox",
+    )
+    assert calls == [
+        ("firefox", {"channel": "moz-firefox"}),
+        ("chromium", {"channel": "chrome"}),
+    ]
+    calls.clear()
+    assert browser_model.launch_browser(Playwright(True)) == ("a chromium", "Chrome")
+    assert calls == [("chromium", {"channel": "chrome"})]
+
+
 def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_path):
     """A reader of `leaf page instructions` with no skill loaded, such as a worker the
     author assigns, gets a pipeline it can run as printed: the producer names a

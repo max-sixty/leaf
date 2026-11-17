@@ -380,8 +380,14 @@ def open_as_user(run: Run, url: str) -> None:
     checks the user's window. Without this view the browser user first opens the
     page in the comment phase, and until then every render check reads the fixed
     laptop window rather than the user's stated one: authors can hunt for a way to
-    change it, setting `LEAF_RENDER_VIEWPORT` and grepping Leaf's source."""
+    change it, setting `LEAF_RENDER_VIEWPORT` and grepping Leaf's source. The check
+    passes over a browser a script drives (`render_gate.command._reader_view`), as
+    this one is, so the tab says it is not driven, standing in for the user's own
+    browser."""
     with headless_shell() as browser, tab(browser, run.journey_window) as view:
+        view.add_init_script(
+            "Object.defineProperty(Navigator.prototype, 'webdriver', {get: () => false})"
+        )
         load(view, url)
         deadline = time.monotonic() + 20
         while not read_user_views(run.authored_page, None)["sessions"]:

@@ -102,7 +102,7 @@ let remote: boolean | undefined;
 let lineForks = true;
 // Whether a thread whose line fork judged the work a fork's goes to a fork that does
 // it (`workFork`): `LEAF_FORK_WORK=on` in Claude Code's environment, while the design
-// in docs/forks.html is tried.
+// in How it works' Forks tab (docs/how-it-works.html) is tried.
 let workForks = false;
 
 // The summary `hooks.json` gives the background watch's wake, which Claude Code
@@ -500,7 +500,10 @@ const asked = new Set<string>();
  * under its line turn until its fork decides, so each line turn gets one fork; a
  * message that joins the thread meanwhile opens a new line turn, whose fork is asked
  * about them all. Its outcomes go to the debug log and the page's diagnostics, since
- * the user meets the line only as the agent's. */
+ * the user meets the line only as the agent's. Leaf may name more forks to make
+ * beside it (`beside`), such as one that summarizes a long thread
+ * (`src/leaf/summary_fork.py`), each started at once and answered on its own
+ * (`besideFork`), so the line waits on none of them. */
 function lineFork($: EngineInterface, session: string, kept: KeptBack) {
   if (asked.has(kept.turn)) return;
   asked.add(kept.turn);
@@ -509,6 +512,7 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
       const calls = [...running.values()];
       const question = await forkStep($, session, { thread: kept, running: calls });
       if (!question) return;
+      for (const beside of question.beside ?? []) besideFork($, session, beside);
       const ran = await runFork($, question);
       const outcome = await forkStep($, session, {
         thread: kept,
@@ -531,6 +535,30 @@ function lineFork($: EngineInterface, session: string, kept: KeptBack) {
         thread: kept,
         failed: `Leaf's step failed: ${error}`,
       }).catch(() => undefined);
+    }
+  })();
+}
+
+/** Make a fork Leaf asked for beside a line fork, and hand its answer back with the
+ * basis Leaf gave it, for Leaf to write what it answered (`forks.cmd_fork`). The
+ * user never meets such a fork, so its failures go to the debug log. */
+function besideFork(
+  $: EngineInterface,
+  session: string,
+  asked: { prompt: string; basis: { duty: string; thread: string } },
+) {
+  void (async () => {
+    const { duty, thread } = asked.basis;
+    try {
+      const ran = await runFork($, asked);
+      const outcome = await forkStep($, session, { beside: asked.basis, ...ran });
+      $.ui.log(`Leaf: the ${duty} fork for thread ${thread}: ${outcome?.outcome}`, {
+        to: "debug",
+      });
+    } catch (error) {
+      $.ui.log(`Leaf: the ${duty} fork for thread ${thread} failed: ${error}`, {
+        to: "debug",
+      });
     }
   })();
 }

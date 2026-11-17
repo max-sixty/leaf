@@ -39,28 +39,31 @@
  *   tab, since On Me already lists a thread message that waits on the user. Rejected:
  *   the ✕ standing before both marks, which kept them still but stood it between the
  *   field and the marks; and, which the user rejected, the mark pressing Next On Me
- *   with `m` beside its count, which took the On Me list a press further away and
- *   crowded the row's end with a second key. Nothing else stands in the row, so the
+ *   with `m` beside its count: a second place for a press and its key, where the
+ *   field's end already offers the moment's. Nothing else stands in the row, so the
  *   field's width follows only the user's own moves, and what its end says never
  *   slides. The empty field says
  *   what the agent is doing or wants, in the status's words (`statusReading`), after
  *   where the user stands on the page, such as an older version (`standing`), or what
  *   a passing notice says, where a placeholder would say "Comment", and the field's end
- *   says the one press that matters most at that moment: Comment and c at rest, or
- *   Open latest on an older version (`latestPress`); while it passes, the press a notice of
- *   the user's own gesture offers, as a Resolve's Next thread and t (`noticePress`,
- *   thread/folding.js); once the server reads a gesture as answering something On Me
- *   lists, a pick, a settling reaction or a reply sent from a card, while more stands
- *   there, Next On Me and m (application.js, `offerNextOnMe`), which a reply or comment
- *   sent from this field never shows, since the caret stays in it; and in a stance,
+ *   says the one press that matters most at that moment: at rest, Open latest on an
+ *   older version (`latestPress`), else Next On Me and m while On Me lists anything,
+ *   else Comment and c (`pagePress`); while it passes, the press a notice of the
+ *   user's own gesture offers, as a Resolve's Next thread and t (`noticePress`,
+ *   thread/folding.js); and in a stance,
  *   such as Draw mode, whose name the field says, Close (`stanceClose`), in place of
  *   the seat's ✕. A press acts as a touch control does, wherever the caret stands, and
  *   says its key only while that key would make it now: `m` typed in a card's reply is
  *   a letter, and Escape closes a comment box standing in Design mode before the mode.
  *   The user chose a notice's press, so a Resolve that moves the panel on says which
  *   thread it resolved and offers its next step there, and the rest over Undo and z
- *   after a Resolve, Comment and c after an answer, and the ✕ with Escape unsaid in a
- *   stance. In a thread it says the thread's word beside the leaf, in its speaker's
+ *   after a Resolve and the ✕ with Escape unsaid in a stance. The user chose Next On
+ *   Me at rest while On Me lists anything over Comment and c, since from reading or
+ *   backing out `m` is the press they most often make next; `c` still enters the
+ *   field, and Comment and c stand again once nothing waits. Rejected: Next On Me only
+ *   after an answer, until the user's next input, which left Comment and c at rest the
+ *   rest of the time and waited on the server's reading of each gesture to offer it.
+ *   In a thread it says the thread's word beside the leaf, in its speaker's
  *   face (voice.js), with a walk's position after it, and Reply with the key that
  *   enters the field at the field's end (`turnLead`). The user chose this so the next
  *   action reads apart from the agent's words, over three others:
@@ -325,12 +328,7 @@ import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { comparisonBase, comparisonChanges, versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
-import {
-  gestureReading,
-  noticeReading,
-  noticeWords,
-  offeredPress,
-} from "./notifications.js";
+import { gestureReading, noticeReading, noticeWords } from "./notifications.js";
 import {
   dismissError,
   dismissErrors,
@@ -394,10 +392,20 @@ import {
   activeCommandLabel,
   escapeInvocation,
   innermostStance,
+  pressCommand,
 } from "./keyboard/dispatch.js";
 import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
+// The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
+// takes (queue-walk.js).
+/** @type {import("./notifications.js").NoticePress} */
+const NEXT_ON_ME = {
+  action: "next-on-me",
+  command: "queue.next",
+  run: () => pressCommand("queue.next"),
+  stands: () => onUserCount() > 0,
+};
 
 // What the field's own search box asks for, in each list it searches, in Leaf's words
 // as every search's prompt is (control-labels.js, `searchField`).
@@ -1308,16 +1316,17 @@ export function createFloatingPanel({
     }
     return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
   }
-  // The press offered alone on the page, as Next On Me after an answer
-  // (notifications.js, `offerPress`), else Open latest while the page shows an older
-  // version (`latestPress`), or null (`pageOffer`). It comes and goes with the server's
-  // reading rather than with the user's input, so while the pointer rests on the panel
-  // the field's end keeps what it showed, and takes the change at the user's next input
-  // or once the pointer leaves: a press arriving there would stand where the user was
-  // about to press Comment (browser/AGENTS.md, "The page holds still under the user's
+  // The page's own press at the field's end: Open latest while the page shows an older
+  // version (`latestPress`), else Next On Me while On Me lists anything, or null, where
+  // Comment and c stand (`pageOffer`). It comes and goes with the server's reading
+  // rather than with the user's input, so while the pointer rests on the panel the
+  // field's end keeps what it showed, and takes the change at the user's next input or
+  // once the pointer leaves: a press arriving there would stand where the user was
+  // about to press another (browser/AGENTS.md, "The page holds still under the user's
   // aim").
   /** @returns {import("./notifications.js").NoticePress | "latest" | null} */
-  const pageOffer = () => offeredPress() ?? (latestPress() ? "latest" : null);
+  const pageOffer = () =>
+    latestPress() ? "latest" : onUserCount() ? NEXT_ON_ME : null;
   /** @type {ReturnType<typeof pageOffer>} */
   let shownOffer = null;
   let offerShownAt = -1;
@@ -5095,7 +5104,7 @@ export function createFloatingPanel({
   }
 
   // ---------- the field's presses ----------
-  // A notice's press, or one offered alone (notifications.js, `offerPress`), as the
+  // A notice's press, or the page's own (`pageOffer`), as the
   // field's end offers it (composing/input.js, `BoxPress`): its word, the keys of the
   // page command that makes it, as the command reference spells them, and what it does.
   // The user chose that the right side of the box is for shortcuts,

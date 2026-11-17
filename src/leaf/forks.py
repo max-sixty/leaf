@@ -156,6 +156,15 @@ its answer back (`route`). Python writes the prompt (`line_prompt`); the module 
 carries it and the line, and names the tool calls the session is running, which the
 line fork can't see: its last request predates them.
 
+The prompt carries the thread whole, as the user asked, where a delivery to the
+session carries a long thread's opening and latest messages and leaves the middle
+to `leaf page state` (`thread_context.SHOWN`). The fork can't run that, and the
+conversation it inherits may have lost the middle to a compaction, so a bounded
+thread would leave it judging a long thread's newest message without the
+discussion it continues. Each fork's prompt grows with its thread, so a thread's
+forks together grow with its square, which stays small while threads run to
+tens of messages.
+
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
 acting in the line turn, so it writes nothing once the turn has closed or lapsed
 (`_line_runs`) or another turn holds the thread (`holding.refuse_unheld`). The
@@ -497,7 +506,8 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
 
 def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
     """The thread's waiting messages `inputs` as Leaf delivers them
-    (`delivery.batch_data`), or None where the newest owes no reply."""
+    (`delivery.batch_data`), with the thread whole, or None where the newest owes
+    no reply."""
     from .delivery import batch_data, current_responses
 
     responses = current_responses(page.page_dir, page.events)
@@ -506,7 +516,11 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
         return None
     by_id = {event["id"]: event for event in page.events}
     return batch_data(
-        page.page_dir, page, [by_id[i] for i in inputs], responses=responses
+        page.page_dir,
+        page,
+        [by_id[i] for i in inputs],
+        responses=responses,
+        whole=True,
     )
 
 
@@ -546,11 +560,11 @@ def _running_line(running: list[dict]) -> str:
 
 def line_prompt(data: dict, running: list[dict]) -> str:
     """The one message a fork answers: what it is for, the thread as Leaf would
-    deliver it (`delivery.batch_data`) and what the session is running."""
+    deliver it (`delivery.batch_data`) but whole, and what the session is running."""
     return f"""{LINE_OPENING}
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to acknowledge them at once while the main session carries on. The main session takes the message from here and does what it asks. Every tool call is denied here, so don't call tools, and reply straight away without thinking it over. {_running_line(running)}
 
-The thread, as Leaf delivers it; "events" are the user's messages, oldest first:
+The whole thread, as Leaf delivers it; "events" are the user's messages, oldest first:
 {_thread_json(data)}
 
 Leaf posts your line in the thread at once as the agent's working line, until the main session's own words replace it. Write that one line: what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer to the main session, even where the conversation above holds it.

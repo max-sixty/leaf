@@ -209,6 +209,31 @@ def test_a_kept_back_message_gets_the_forks_working_line_and_goes_to_the_session
     assert forked(claimed) == []
 
 
+def test_a_line_fork_reads_the_whole_of_a_long_thread(claimed):
+    """A delivery to the session shows a long thread's opening and latest messages and
+    leaves the middle to `leaf page state`, which a line fork can't run, so the fork's
+    prompt carries every message of the thread."""
+    state_model.close_session_turn("s1")
+    opened = said(claimed, "Which TTL should the quote cache use?")
+    thread_model.post_reply(claimed, {"responds": opened["id"]}, "Ten minutes.")
+    for n in range(1, 6):
+        asked = said(claimed, f"Follow-up {n}?", parent=opened["id"])
+        thread_model.post_reply(claimed, {"responds": asked["id"]}, f"Answer {n}.")
+    held = take_lane()
+    try:
+        newest = said(claimed, "And the newest?", parent=opened["id"])
+        question = forks_model.ask("s1", basis(claimed, opened["id"], newest["id"]), [])
+    finally:
+        leases_model.release_lease(held)
+    with PageTransaction(claimed) as page:
+        [bounded] = delivery_model.batch_data(claimed, page, [newest])["threads"]
+    assert bounded["elided"]["messages"] == 4
+    assert "Follow-up 1?" not in json.dumps(bounded)
+    assert question is not None
+    assert "Follow-up 1?" in question["prompt"]
+    assert '"messages": 0' in question["prompt"]
+
+
 def taken_by_a_fork(page_dir, text: str) -> tuple[dict, dict]:
     """The user's message in a thread of its own, and what Leaf did as the line's
     fork judged its work a fork's, where the module makes forks that do it."""

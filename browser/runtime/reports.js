@@ -50,7 +50,6 @@
 
    The shared presentation coordinator owns the proof that guards report callbacks.
    Raw report and history readings remain direct semantic selections. */
-import { currentProjection } from "./projection/state.js";
 import { applicationRegionsPresented, readPart } from "./semantic-state.js";
 import { closestAcross } from "./passages.js";
 
@@ -120,35 +119,18 @@ export const readHistory = readPart((root) => ({
   events: root.authoritative?.browser.history ?? [],
 }));
 
-/** @param {Element | ReportTarget | null} target */
-const reportWidgets = (target) => {
-  const key = targetKey(reportTarget(target));
-  const widgets = new Set(target instanceof Element ? [target.id] : []);
-  for (const entry of currentProjection().classified.values()) {
-    if (entry.terminal || entry.e.kind !== "report") continue;
-    if (key === null || key === targetKey({ kind: "widget", id: entry.e.widget }))
-      widgets.add(entry.e.widget);
-  }
-  return widgets;
-};
-
 // A report can speak only once the renderer of its widget and coordinate chrome have
 // committed, and any required asynchronous preparation, the same coordinator region
 // startup and pending release use. A widget that narrates its reports in the update
 // that draws its state (a `LeafElement`, leaf-element.js) is its own render, so only
-// its preparation, the coordinate chrome, and any other widget the reports name must
-// have committed. Read in a render, the answer is followed as the time a render shows is.
+// its preparation and the coordinate chrome must have committed: a report names its
+// widget by id, so the reports on a widget name no other. Read in a render, the answer
+// is followed as the time a render shows is.
 /** @param {import("./leaf-element.js").LeafElement} target */
 export const reportsReady = (target) =>
   target.whenReady(() =>
     applicationRegionsPresented([
       "projection:chrome",
       `widget:${target.id}:preparation`,
-      ...[...reportWidgets(target)]
-        .filter((widget) => widget !== target.id)
-        .flatMap((widget) => [
-          `widget:${widget}:render`,
-          `widget:${widget}:preparation`,
-        ]),
     ]),
   );

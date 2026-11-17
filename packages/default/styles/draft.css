@@ -29,10 +29,12 @@ lf-draft {
 lf-draft > .lf-markdown-body {
   white-space: normal;
 }
-:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :first-child {
+.lf-draft-body > :first-child,
+lf-draft > .lf-markdown-body > :first-child {
   margin-top: 0;
 }
-:is(.lf-draft-body, lf-draft > .lf-markdown-body) > :last-child {
+.lf-draft-body > :last-child,
+lf-draft > .lf-markdown-body > :last-child {
   margin-bottom: 0;
 }
 /* The shared source primitive owns fallback presentation, which a draft's source

@@ -514,7 +514,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
         :has(> .lf-another)
       ),
     &:where([data-lf-interactive] *)[multiple]:not(:has(> lf-options-done)) {
-      &::after {
+      /* Named by its tag, which a pseudo-element of the two selectors above lacks
+         (browser/AGENTS.md, "A rule costs only the elements it could style"). */
+      &:where(lf-options)::after {
         content: "";
         display: block;
         position: relative;

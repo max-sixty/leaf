@@ -960,23 +960,6 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     assert (reading.findings, routed.opened) == ([], 1)
 
 
-@pytest.fixture
-def bidi_firefox(_playwright, request):
-    """Playwright's own Firefox, driven over WebDriver BiDi as `page check` drives a
-    reader's installed Firefox (`render_gate.browser.launch_browser`): a route there is
-    handed no post's body, and no DevTools session opens."""
-    from render_harness import WatchedBrowser, clean_browser
-
-    firefox = _playwright.firefox.launch(
-        channel="moz-firefox", executable_path=_playwright.firefox.executable_path
-    )
-    try:
-        with clean_browser(request.node):
-            yield WatchedBrowser(firefox)
-    finally:
-        firefox.close()
-
-
 def test_a_check_drawn_in_firefox_hears_what_one_in_chrome_does(bidi_firefox, serve):
     """`page check` draws a Firefox reader's page in Firefox, which hands the check no
     post's body and keeps no DevTools Issues panel. The page-code reading still hears

@@ -3778,7 +3778,9 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
         return RenderReading([], [])
 
     monkeypatch.setattr(
-        browser_command, "run_in_browser", lambda read: (read(None), "held browser")
+        browser_command,
+        "run_in_browser",
+        lambda read, engine: (read(None), "held browser"),
     )
     monkeypatch.setattr(browser_command, "run_page_code", lambda *args: [])
     monkeypatch.setattr(browser_command, "render_version", held_browser)

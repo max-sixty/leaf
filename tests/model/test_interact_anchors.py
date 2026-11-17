@@ -1243,7 +1243,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
 
 def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
     """The registry draws the line: lf-draft renders the authored Markdown into a body
-    the anchor pass can see (words.verbatim), and lf-diagram renders a picture instead."""
+    the anchor pass can see (`verbatim`), and lf-diagram renders a picture instead."""
     result = comment(
         drafted(page_dir), "--quote", "every mutating command", "--text", "which ones?"
     )
@@ -1981,9 +1981,7 @@ def test_data_widget_prose_members_are_quotable_without_admitting_source():
             },
             "lf-remark": {
                 "content": "markup",
-                "markup": {
-                    "owners": ["lf-source"],
-                },
+                "owners": ["lf-source"],
             },
         },
         "lf-source",

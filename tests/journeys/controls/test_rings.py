@@ -18,7 +18,7 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
 ):
     """Clicks retain the current location; keyboard arrivals show one ring, including carriers."""
     declaration = element_declaration("lf-shadow-focus", upgrade=True)
-    declaration.setdefault("words", {})["shadow"] = True
+    declaration["shadow"] = True
     page = open_page(
         browser,
         serve(

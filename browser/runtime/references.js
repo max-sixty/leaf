@@ -3,23 +3,23 @@
 import { registry } from "./registry.js";
 import { authoredScope, elementById, pageDocument } from "./passages.js";
 
-// The verbs that follow a `markup.refers` attribute (`navigateToDatum`, `data`) are
+// The verbs that follow a `refers` attribute (`navigateToDatum`, `data`) are
 // handed it by package code, so an undeclared one is that code's error, thrown at the
 // call rather than read as a reference to nothing.
 /** @param {string} verb @param {Element} owner @param {string} attribute */
 export function requireReference(verb, owner, attribute) {
   if (
     typeof attribute !== "string" ||
-    !Object.hasOwn(registry[owner.localName]?.markup?.refers ?? {}, attribute)
+    !Object.hasOwn(registry[owner.localName]?.refers ?? {}, attribute)
   )
     throw new TypeError(
-      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by markup.refers`,
+      `${verb} ${owner.localName} attribute ${String(attribute)} is not declared by refers`,
     );
 }
 
-// The element a `markup.refers` attribute names. A keyed contract names the member
+// The element a `refers` attribute names. A keyed contract names the member
 // whose key holds the value inside the owner's nearest enclosing scope, the scope the
-// member's markup.unique declares for that key. Any other names an id: in the owner's
+// member's `unique` declares for that key. Any other names an id: in the owner's
 // own authored document first, so a widget in a message finds its message's element
 // before a page element with the same id, as the server's request check does, and then
 // in the page beside it, which a message's widget may name. A mounted input supplies
@@ -31,9 +31,9 @@ export function referencedProjection(
   id = owner.getAttribute(attribute),
 ) {
   if (!id) return null;
-  const { tag, key } = registry[owner.localName].markup.refers[attribute];
+  const { tag, key } = registry[owner.localName].refers[attribute];
   if (tag) {
-    const within = registry[tag].markup.unique[key];
+    const within = registry[tag].unique[key];
     /** @param {Element} element */
     const scopeOf = (element) => element.parentElement?.closest(within) ?? null;
     const scope = scopeOf(owner);

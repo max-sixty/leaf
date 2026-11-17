@@ -211,7 +211,7 @@ def queue_board_registry(registry: dict) -> dict:
     answers spanning units without a presentation-specific package.
     """
     registry = deepcopy(registry)
-    registry["lf-board"].setdefault("state", {})["awaits"] = {
+    registry["lf-board"]["awaits"] = {
         "value": "move",
         "answered": {
             "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
@@ -744,9 +744,7 @@ def declare_data_input(
             "additionalProperties": False,
         },
         "content": "empty",
-        "data": {
-            "inputs": {input_name: {"contract": contract, "source": "source"}},
-        },
+        "inputs": {input_name: {"contract": contract, "source": "source"}},
     }
 
     def declare(registry):
@@ -1384,29 +1382,29 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-test-task"]["state"]["verbs"]["status"]["record"] = {"kind": "body"}
+    registry["lf-test-task"]["verbs"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
-    registry["lf-test-task"]["state"]["verbs"]["status"]["record"] = {
+    registry["lf-test-task"]["verbs"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
     }
 
 
 def _report_no_record(registry):
-    del registry["lf-test-task"]["state"]["verbs"]["status"]["record"]
+    del registry["lf-test-task"]["verbs"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["lf-test-task"]["state"]["verbs"]["status"]["record"]["attr"] = "phase"
+    registry["lf-test-task"]["verbs"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_says_attr(registry):
     task = registry["lf-test-task"]
     task["attributes"]["required"].append("owner")
-    task.setdefault("words", {})["says"] = {"owner": "before"}
-    task["state"]["verbs"]["status"] = {
+    task["says"] = {"owner": "before"}
+    task["verbs"]["status"] = {
         "writer": "agent",
         "unit": "widget",
         "record": {"kind": "value", "attr": "owner"},
@@ -1414,7 +1412,7 @@ def _report_says_attr(registry):
 
 
 def _report_authored_detail(registry):
-    registry["lf-test-task"]["state"]["verbs"]["status"]["detail"] = {
+    registry["lf-test-task"]["verbs"]["status"]["detail"] = {
         "type": "object",
         "additionalProperties": False,
     }
@@ -1427,16 +1425,16 @@ def _report_without_overruled(registry):
 def _report_without_module(registry):
     registry["lf-test-bare"] = {
         **deepcopy(registry["lf-test-task"]),
-        "author": {"example": '<lf-test-bare id="bare"></lf-test-bare>'},
+        "example": '<lf-test-bare id="bare"></lf-test-bare>',
     }
 
 
 def _user_verb_text(registry):
-    registry["lf-options"]["state"]["verbs"]["choose"]["text"] = True
+    registry["lf-options"]["verbs"]["choose"]["text"] = True
 
 
 def _agent_verb_answers(registry):
-    registry["lf-options"]["state"]["verbs"]["choose"]["writer"] = "agent"
+    registry["lf-options"]["verbs"]["choose"]["writer"] = "agent"
     registry["lf-options"]["attributes"]["properties"]["overruled"] = {
         "type": "boolean"
     }
@@ -1444,12 +1442,12 @@ def _agent_verb_answers(registry):
 
 def _body_record_with_prose(registry):
     # Isolate the body-record contract from the Markdown/data-content contract.
-    del registry["lf-draft"]["words"]["text-format"]
+    del registry["lf-draft"]["text-format"]
     registry["lf-draft"]["content"] = "markup"
 
 
 def _body_record_with_nested_widget(registry):
-    registry["lf-option"]["markup"]["owners"].append("lf-draft")
+    registry["lf-option"]["owners"].append("lf-draft")
 
 
 # A holder/slot family core has never heard of. <lf-trial> is decided by `adopt`,
@@ -1496,7 +1494,7 @@ def trial_family(root: Path) -> None:
     Registry declarations relate its owners and slots, and each owner's module is the
     product's starter, which renders nothing of its own: anything a test sees settle is
     the layer's doing, and the holders' bodies are the authored words
-    (`words.verbatim`).
+    (`verbatim`).
     Only <lf-proposed> names two owners, for the selector case that needs one."""
     package = root / ".leaf"
     for tag, upgrade in (
@@ -1514,29 +1512,21 @@ def trial_family(root: Path) -> None:
     ):
         declarations[tag] |= {
             "content": "members",
-            "state": {
-                "verbs": {"decide": deciding_verb(outcomes)},
-            },
-            "author": {
-                "example": example,
-            },
+            "verbs": {"decide": deciding_verb(outcomes)},
+            "example": example,
         }
         declarations[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
-    declarations["lf-trial"]["state"]["verbs"]["decide"]["withdraws"] = "shelve"
+    declarations["lf-trial"]["verbs"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (
         ("lf-current", ["lf-trial"], "adopt"),
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
     ):
         declarations[tag] |= {
-            "markup": {
-                "owners": owners,
-            },
-            "state": {
-                "retired-when": outcome,
-            },
+            "owners": owners,
+            "retired-when": outcome,
         }
-        del declarations[tag]["author"]["example"]  # a slot does not stand alone
+        del declarations[tag]["example"]  # a slot does not stand alone
         del declarations[tag]["attributes"]["required"]  # nor an id it must carry
     source.write_text(json.dumps(declarations))
     # add_test_widget frames every tag as a card. The slots draw no box of their own;
@@ -2552,7 +2542,7 @@ def declared_reading_package(tmp_path, monkeypatch):
     registry = json.loads(registry_path.read_text())
     reading = registry["lf-reading"]
     reading["attributes"]["properties"].update({"label": {"type": "string"}})
-    reading.setdefault("words", {})["says"] = {"label": "before"}
+    reading["says"] = {"label": "before"}
     registry_path.write_text(json.dumps(registry))
     return "./.leaf"
 
@@ -2566,13 +2556,6 @@ def with_modules(registry: dict, *tags: str) -> dict:
     return registry
 
 
-def declare_fact(entry: dict, fact: str, value) -> None:
-    """Declare one fact on an element declaration by its path, as `$keys` names it:
-    `group.name`, or a top-level name such as `content`."""
-    group, _, name = fact.rpartition(".")
-    (entry.setdefault(group, {}) if group else entry)[name] = value
-
-
 def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
     """The product's starter declaration for `tag` as a composed vocabulary holds it,
     its defaults written in, or, without `upgrade`, the same markup block with no
@@ -2580,7 +2563,7 @@ def element_declaration(tag: str, *, upgrade: bool = False) -> dict:
     declaration = packages_model.starter_element_declaration(tag)
     declaration["content"] = "markup"
     if not upgrade:
-        del declaration["words"]
+        del declaration["verbatim"]
     return declaration
 
 

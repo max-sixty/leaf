@@ -46,18 +46,10 @@ def matches_when(attrs: dict, when: dict | None) -> bool:
     )
 
 
-def declared_fact(entry: Mapping, fact: str, default=None):
-    """One fact of an element declaration, named by its path: `group.name` for a fact
-    in a group (`state.verbs`), or the name alone for one at the top (`content`), as
-    `$keys` documents each. `default` where the entry declares none."""
-    group, _, name = fact.rpartition(".")
-    return (entry.get(group, {}) if group else entry).get(name, default)
-
-
 def fact_condition(rule) -> dict | None:
     """The `when` of a fact declared to hold only for some occurrences,
     `{when: {attribute: [values]}}`, or None for a fact declared outright. The
-    declaration schema says which facts may take that form (`schema.FACT_GROUPS`)."""
+    declaration schema says which facts may take that form (`schema.FACTS`)."""
     return (
         rule["when"] if isinstance(rule, Mapping) and rule.keys() == {"when"} else None
     )
@@ -73,7 +65,7 @@ def holds_for(attrs: dict, rule):
 
 def exhibits(attrs: dict, entry: dict) -> bool:
     """Whether this occurrence quotes its descendants."""
-    return bool(holds_for(attrs, declared_fact(entry, "state.exhibit")))
+    return bool(holds_for(attrs, entry.get("exhibit")))
 
 
 def authored_inert(
@@ -81,17 +73,15 @@ def authored_inert(
 ) -> str | None:
     """Why an occurrence's authored override of the mark `key` means nothing on its
     element, or None where it holds. A width means nothing on an element that takes
-    none of its own (`flow`, where its `paint.flow` holds); otherwise the override
+    none of its own (`flow`, where its `flow` holds); otherwise the override
     holds where its `authored_on` says, and the condition it fails is the reason
     (`content`, a block in the page's flow, which `main`, `body` and `html` aren't;
     `declared`, a tag declaring the mark). Delivery paints only an override that holds
     (`revision_delivery.mark_declared`), and `page check` names the rest."""
-    if key == "paint.space" and holds_for(
-        attrs, declared_fact(declaration, "paint.flow")
-    ):
+    if key == "space" and holds_for(attrs, declaration.get("flow")):
         return "flow"
     condition = kernel_marks()[key]["authored_on"]
-    holds = content if condition == "content" else bool(declared_fact(declaration, key))
+    holds = content if condition == "content" else bool(declaration.get(key))
     return None if holds else condition
 
 
@@ -229,7 +219,7 @@ class VisualParts:
 
 def visual_parts(record: dict, registry: dict) -> VisualParts:
     """The visual-part ids one authored Leaf element admits."""
-    visual = declared_fact(registry.get(record.get("tag"), {}), "words.visual")
+    visual = registry.get(record.get("tag"), {}).get("visual")
     if not isinstance(visual, dict):
         return VisualParts()
     if "prefixes" in visual:
@@ -444,7 +434,7 @@ def detail_schema(
 
 def decides(spec: dict) -> bool:
     """Whether a verb declares the role that selects retirable members
-    (state.retired-when) or declines the proposal (its `withdraws`). Its required
+    (`retired-when`) or declines the proposal (its `withdraws`). Its required
     `outcome` carries that choice; the same field name on any other verb is
     ordinary domain data.
     The browser reads the role from `$decisions`
@@ -453,16 +443,12 @@ def decides(spec: dict) -> bool:
 
 
 def deciding_verbs(entry: dict) -> list[str]:
-    """Every verb (state.verbs) of one declaration that decides; validation holds it to one."""
-    return [
-        verb
-        for verb, spec in declared_fact(entry, "state.verbs", {}).items()
-        if decides(spec)
-    ]
+    """Every verb (`verbs`) of one declaration that decides; validation holds it to one."""
+    return [verb for verb, spec in entry.get("verbs", {}).items() if decides(spec)]
 
 
 def deciding_verb(entry: dict) -> str | None:
-    """The one deciding verb (state.verbs), or None."""
+    """The one deciding verb (`verbs`), or None."""
     return next(iter(deciding_verbs(entry)), None)
 
 
@@ -474,7 +460,7 @@ def deciding_outcomes(entry: dict) -> list[str]:
     verb = deciding_verb(entry)
     if verb is None:
         return []
-    detail = entry["state"]["verbs"][verb].get("detail") or {}
+    detail = entry["verbs"][verb].get("detail") or {}
     schema = detail.get("properties", {}).get("outcome")
     return list(schema.get("enum", [])) if isinstance(schema, dict) else []
 
@@ -483,19 +469,19 @@ def withdrawing_outcome(entry: dict) -> str | None:
     """The outcome of one declaration's deciding verb that declines the proposal
     (`withdraws`), or None."""
     verb = deciding_verb(entry)
-    return entry["state"]["verbs"][verb].get("withdraws") if verb is not None else None
+    return entry["verbs"][verb].get("withdraws") if verb is not None else None
 
 
 def verb_writer(spec: dict) -> str:
-    """The side that writes one verb (state.verbs): `agent` where it says so, else `user`.
+    """The side that writes one verb (`verbs`): `agent` where it says so, else `user`.
     The browser reads it from `$states` (`stamp_states`)."""
     return spec.get("writer", "user")
 
 
 def state_specs(entry: dict, *, writer: str | None = None):
-    """The verb (state.verbs) declarations on one element declaration, as (verb, spec),
+    """The verb (`verbs`) declarations on one element declaration, as (verb, spec),
     narrowed to the verbs one side writes when `writer` names it."""
-    for verb, spec in declared_fact(entry, "state.verbs", {}).items():
+    for verb, spec in entry.get("verbs", {}).items():
         if writer is None or verb_writer(spec) == writer:
             yield verb, spec
 
@@ -608,11 +594,11 @@ def same_state_operation(recorded, current) -> bool:
 
 
 def event_spec(entry: dict, event: dict) -> dict | None:
-    """The verb (state.verbs) an action or report names, when its writer sent it: a verb
+    """The verb (`verbs`) an action or report names, when its writer sent it: a verb
     declares one writer, and the kind that carries it says which side sent it
     (`registry.kernel.verb_writers`), so its coordinate is only ever written from one
     side."""
-    spec = declared_fact(entry, "state.verbs", {}).get(event["action"])
+    spec = entry.get("verbs", {}).get(event["action"])
     if spec is None or verb_writer(spec) != verb_writers()[event["kind"]]:
         return None
     return spec
@@ -620,16 +606,16 @@ def event_spec(entry: dict, event: dict) -> dict | None:
 
 def retirement_slots(registry: dict) -> dict:
     """owner tag → {outcome verb → the tags that leave the page under it}: every
-    owner/member pair `state.retired-when` relates, the member naming the outcome and
-    `markup.owners` the widgets whose decision reaches it. Read out of the merged
+    owner/member pair `retired-when` relates, the member naming the outcome and
+    `owners` the widgets whose decision reaches it. Read out of the merged
     registry rather than known here, so which widgets a decision settles is a
     fact about this page's vocabulary and never a list in the code."""
     slots = {}
     for tag, entry in registry.items():
-        if not is_element_name(tag) or not declared_fact(entry, "state.retired-when"):
+        if not is_element_name(tag) or not entry.get("retired-when"):
             continue
-        outcome = entry["state"]["retired-when"]
-        for owner in entry["markup"]["owners"]:
+        outcome = entry["retired-when"]
+        for owner in entry["owners"]:
             slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
     return slots
 
@@ -637,7 +623,7 @@ def retirement_slots(registry: dict) -> dict:
 def stamp_states(registry: dict) -> dict:
     """Write `$states` into a validated vocabulary: tag → verb → {`writer`, the side
     `verb_writer` names; `definition`, the operation `state_definition` records on an
-    admitted event}, for every verb (state.verbs).
+    admitted event}, for every verb (`verbs`).
 
     Each composition stamps it (`registry.layer.stamp_composition`), so the browser
     compares an event's recorded operation with this definition, and reads a verb's
@@ -651,7 +637,7 @@ def stamp_states(registry: dict) -> dict:
             for verb, spec in state_specs(entry)
         }
         for tag, entry in registry.items()
-        if is_element_name(tag) and declared_fact(entry, "state.verbs")
+        if is_element_name(tag) and entry.get("verbs")
     }
     return registry
 
@@ -695,11 +681,11 @@ def stamp_words(registry: dict) -> dict:
 def _named_attributes(entry: dict):
     """(attribute, grammar) for each attribute of one element declaration whose value
     is a name Leaf looks up: the element's own `id`, an input's source attribute
-    (`data.inputs`) and a verb's `contract` attribute. A `markup.refers` attribute is
+    (`inputs`) and a verb's `contract` attribute. A `refers` attribute is
     left out: `page check` resolves its value to the element it names, whatever that
     element's id or key."""
     yield "id", ELEMENT_ID
-    for spec in declared_fact(entry, "data.inputs", {}).values():
+    for spec in entry.get("inputs", {}).values():
         if source := spec.get("source"):
             yield source, DATA_SOURCE_NAME
     for _verb, spec in state_specs(entry):
@@ -728,7 +714,7 @@ def stamp_grammars(registry: dict) -> dict:
 
 def stamp_decisions(registry: dict) -> dict:
     """Write `$decisions` into a validated vocabulary: owner tag → {`verb`, its deciding
-    verb (state.verbs); `retires`, `retirement_slots`' outcome → member tags}, for every
+    verb (`verbs`); `retires`, `retirement_slots`' outcome → member tags}, for every
     tag that declares a deciding verb.
 
     Each composition stamps it (`registry.layer.stamp_composition`), so the browser
@@ -765,17 +751,13 @@ def require_module(tag: str, entry: dict, registry: dict, path) -> None:
     needs_module = [
         key
         for key in (
-            "state.verbs",
-            "words.verbatim",
-            "words.shadow",
-            "state.history",
+            "verbs",
+            "verbatim",
+            "shadow",
+            "history",
         )
-        if declared_fact(entry, key)
-    ] + (
-        ["words.visual"]
-        if isinstance(declared_fact(entry, "words.visual"), dict)
-        else []
-    )
+        if entry.get(key)
+    ] + (["visual"] if isinstance(entry.get("visual"), dict) else [])
     if needs_module and MODULES in registry and not upgraded(registry, tag):
         raise registry_error(
             "needs-module", path, tag, keys=needs_module, module=f"widgets/{tag}.js"

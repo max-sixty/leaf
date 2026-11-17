@@ -12,12 +12,8 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "words": {
-      "shadow": true
-    },
-    "author": {
-      "example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
-    }
+    "shadow": true,
+    "example": "<lf-conversation-workspace id=\"reader-example\"></lf-conversation-workspace>"
   },
   "lf-margin-entry-gallery": {
     "description": "A developer exhibit of page-edge controls and status indicators across their supported states.",
@@ -30,13 +26,9 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "state": {
-      "exhibit": true
-    },
-    "author": {
-      "instructions": "Use this only in the feature gallery. Ordinary pages demonstrate controls through the live widgets that own them.",
-      "example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>"
-    }
+    "exhibit": true,
+    "instructions": "Use this only in the feature gallery. Ordinary pages demonstrate controls through the live widgets that own them.",
+    "example": "<lf-margin-entry-gallery id=\"margin-entry-gallery\"></lf-margin-entry-gallery>"
   },
   "lf-document-gallery": {
     "description": "A gallery producer whose changing Markdown is read by a text document.",
@@ -51,18 +43,12 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "data": {
-      "outputs": {
-        "document": {
-          "contract": "text-document"
-        }
+    "outputs": {
+      "document": {
+        "contract": "text-document"
       }
     },
-    "state": {
-      "exhibit": true
-    },
-    "author": {
-      "example": "<lf-document-gallery id=\"document-producer\"></lf-document-gallery>"
-    }
+    "exhibit": true,
+    "example": "<lf-document-gallery id=\"document-producer\"></lf-document-gallery>"
   }
 }

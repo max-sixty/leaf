@@ -355,7 +355,7 @@ def test_another_widget_s_answer_holds_a_thread_two_widgets_answered():
 
 def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     """The two halves of a `spoken` reading come from different places. Words are
-    the vocabulary's word — fences, words.says, chrome — but where an element sits is
+    the vocabulary's word — fences, `says`, chrome — but where an element sits is
     recorded off the tag stack before anything asks the registry what it shows.
     That is the whole of what liveness asks a page, and it is why the readings
     that may not raise on the registry gate need give nothing up.
@@ -438,7 +438,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     server, page_dir
 ):
     registry = vocabulary(page_dir)
-    registry["lf-suggestion"]["state"]["verbs"]["label"] = {
+    registry["lf-suggestion"]["verbs"]["label"] = {
         "detail": {
             "type": "object",
             "properties": {"text": {"type": "string"}},
@@ -514,7 +514,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
 
     registry = registry_storage.require_registry(page_dir)
     registry = deepcopy(registry)
-    registry["lf-suggestion"]["state"]["verbs"]["label"] = {
+    registry["lf-suggestion"]["verbs"]["label"] = {
         "detail": {"type": "object"},
         "unit": "widget",
     }

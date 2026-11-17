@@ -335,7 +335,7 @@ def test_a_revision_takes_its_place_in_the_log_from_the_event_naming_its_bundle(
 # answer the opening comment `e2`.
 OWNED = deepcopy(model_layer())
 OWNED["lf-options"]["attributes"]["properties"]["resolves"] = {"type": "string"}
-OWNED["lf-options"]["state"]["verbs"]["add"] = {
+OWNED["lf-options"]["verbs"]["add"] = {
     "detail": {
         "type": "object",
         "properties": {"item": {"type": "string"}, "text": {"type": "string"}},

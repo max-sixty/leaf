@@ -120,9 +120,7 @@ PLATE_PACKAGE = {
             "additionalProperties": False,
         },
         "content": "markup",
-        "words": {
-            "visual": "whole",
-        },
+        "visual": "whole",
     }
 }
 
@@ -179,7 +177,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
     as well as titled cards, while a group of words stays one control with hairlines
     between its cells. A
     picture is a drawing, a capture or a widget whose entry declares it draws one
-    (`words.visual`), wrapped in the link that opens it or not.
+    (`visual`), wrapped in the link that opens it or not.
 
     The cards read down unless the author asks for `across`, so each picture stands at
     the size its author gave it, in the reading column or a group given `data-width`;
@@ -619,7 +617,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     Were an options group both the state owner and the navigation target, then when the
     heading, premise, and evidence stood immediately above it, `d` would centre the
     options and make the user scroll backward before they could answer. `lf-ask` encodes
-    that broader unit while the nested state.awaits widget still owns the action: the
+    that broader unit while the nested `awaits` widget still owns the action: the
     walk rings the region, aligns its opening at the window's head, and stands the user
     on it.
 
@@ -1251,7 +1249,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An enclosing widget (`state.encloses`) states its own arrival region: a heading,
+    An enclosing widget (`encloses`) states its own arrival region: a heading,
     the context, then the control. A suggestion can stand mid-sentence, so it can never
     satisfy "an obligation must name itself without context outside the obligation" and
     no region can be written round it. Arriving on the change alone put its own top edge

@@ -5,7 +5,7 @@
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:
 
-   - `renderSaid` turns `words.says` values into real selectable text.
+   - `renderSaid` turns `says` values into real selectable text.
    - `renderQuiet` gives state provenance a clipped spoken reading.
    - Declared marks expose the width model, inline run, quoting, own height, and
      reading role to the theme: delivery paints a page's document, and `markDeclared`
@@ -13,8 +13,8 @@
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The obligation model (obligations/model.js) reads `state.awaits`, while the obligation view (obligations/view.js)
-     projects the enclosing widget (`state.encloses`) around that source where one exists;
+   - The obligation model (obligations/model.js) reads `awaits`, while the obligation view (obligations/view.js)
+     projects the enclosing widget (`encloses`) around that source where one exists;
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
@@ -49,13 +49,7 @@
 import { isElement } from "./shadow-tree.js";
 
 import { markViews } from "./storage.js";
-import {
-  declaredFact,
-  elementDeclarations,
-  holdsFor,
-  registry,
-  tagsDeclaring,
-} from "./registry.js";
+import { elementDeclarations, holdsFor, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { dressCode } from "./code-dressing.js";
 import { keeps } from "./keeps.js";
@@ -300,11 +294,11 @@ export function paintDeclaredWords(root) {
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget declares its capacity (paint.space) and the Layout gives it the room:
+// the widget declares its capacity (`space`) and the Layout gives it the room:
 // `wide` uses the shared evidence cap, and `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
-// Whether the widget is set among the words around it is the second (words.inline).
+// Whether the widget is set among the words around it is the second (`inline`).
 // What reads it is the pair of selectors asking whether a suggestion slot or a variant
 // holds block content, which is HTML's phrasing content inverted: a custom element is
 // in no closed platform set, so any widget in one of those makes it a block — an inline
@@ -314,7 +308,7 @@ export function paintDeclaredWords(root) {
 // one marker now, data-lf-inline, and an inline widget from any layer joins by
 // declaring.
 //
-// Whether the widget quotes what it holds is the third (state.exhibit). An exhibit is
+// Whether the widget quotes what it holds is the third (`exhibit`). An exhibit is
 // a mention, not a use, so every rule saying "this takes input" — the hand, the lift,
 // the joined shape, the reserved strips, the hover wash — stands down inside one. The
 // declaration is the tag's and the question is the occurrence's, which is the shape
@@ -326,13 +320,13 @@ export function paintDeclaredWords(root) {
 // declaration is the one representation, and the mark is how a stylesheet, which cannot
 // read a registry, asks it the same thing.
 //
-// Two more complete the set: paint.bound, a block that holds its own height and scrolls
+// Two more complete the set: `bound`, a block that holds its own height and scrolls
 // inside it (`bounds.js` holds each bounded block that arrives as a reading region, and
-// keeps an `end` bound on its newest entry), and markup.reading-role, the structure the
+// keeps an `end` bound on its newest entry), and `reading-role`, the structure the
 // theme and the workspace Layout lay out, so every package's pane takes the same rules.
 //
 // An attribute, because the theme cannot read the registry — the same arrangement
-// words.says already has with data-lf-said. Which declarations are marks, the attribute
+// `says` already has with data-lf-said. Which declarations are marks, the attribute
 // each is painted as, the attribute an occurrence overrides it with, and whether it
 // holds in a message are one table, the kernel registry's `$marks`, which this runtime
 // imports from `kernel-facts.js`. A page's document arrives painted from it: delivery
@@ -357,12 +351,16 @@ export function markDeclared(root) {
   for (const [key, mark] of Object.entries(marks)) {
     const { attribute, authored, message } = mark;
     if (!message) continue;
-    const tags = tagsDeclaring((entry) => declaredFact(entry, key));
+    // `$marks` keys each mark by the name of the fact it paints.
+    const fact = /** @type {keyof import("../types/contract.js").WidgetDeclaration} */ (
+      key
+    );
+    const tags = tagsDeclaring((entry) => entry[fact]);
     for (const tag of tags) {
-      const declared = declaredFact(registry[tag], key);
+      const declared = registry[tag]?.[fact];
       for (const el of elementsIn(root, tag)) {
         const value = holdsFor(el, declared);
-        if (key === "paint.views") {
+        if (key === "views") {
           markViews(el);
           continue;
         }
@@ -387,7 +385,7 @@ export function markDeclared(root) {
 // the same words with `content: attr()`, and a pseudo-element's glyphs are in no text
 // node: no selection can cover them, so no comment can be anchored on them, and the
 // page shows text you can read and can't point at. Not the widget author's to remember,
-// either: the registry names the attributes (words.says) and one pass renders them, so
+// either: the registry names the attributes (`says`) and one pass renders them, so
 // a widget cannot render a word the user can't quote.
 //
 // Each value goes at the edge its pseudo-element occupied (before = first child, after =
@@ -412,9 +410,9 @@ export function markDeclared(root) {
 /** @param {Scope} root */
 export function renderSaid(root) {
   for (const [tag, entry] of elementDeclarations()) {
-    if (!entry.words?.says) continue;
+    if (!entry.says) continue;
     for (const el of elementsIn(root, tag))
-      for (const [attr, edge] of Object.entries(entry.words?.says)) {
+      for (const [attr, edge] of Object.entries(entry.says)) {
         const text = el.getAttribute(attr);
         const existing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
         // A live revision may change or drop the attribute under a span already

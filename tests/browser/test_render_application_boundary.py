@@ -75,9 +75,7 @@ THREAD_READER_DECLARATION = {
         "additionalProperties": False,
     },
     "content": "empty",
-    "author": {
-        "example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
-    },
+    "example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
 }
 
 THREAD_FILTER = r"""
@@ -113,9 +111,7 @@ THREAD_FILTER_DECLARATION = {
         "additionalProperties": False,
     },
     "content": "empty",
-    "author": {
-        "example": '<lf-thread-filter id="example"></lf-thread-filter>',
-    },
+    "example": '<lf-thread-filter id="example"></lf-thread-filter>',
 }
 
 
@@ -846,12 +842,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
                     "additionalProperties": False,
                 },
                 "content": "markup",
-                "words": {
-                    "shadow": True,
-                },
-                "author": {
-                    "example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
-                },
+                "shadow": True,
+                "example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
             },
         }
         modules["widgets/lf-controller-stage.js"] = """\
@@ -1259,9 +1251,7 @@ THREAD_ACTIONS_DECLARATION = {
         "additionalProperties": False,
     },
     "content": "empty",
-    "author": {
-        "example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
-    },
+    "example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
 }
 
 
@@ -1341,9 +1331,7 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
         layer_registry={
             "lf-message-reader": {
                 **THREAD_READER_DECLARATION,
-                "author": {
-                    "example": '<lf-message-reader id="reader-example"></lf-message-reader>'
-                },
+                "example": '<lf-message-reader id="reader-example"></lf-message-reader>',
             }
         },
         layer_widgets={"lf-message-reader.js": module},
@@ -1590,9 +1578,7 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
                     "additionalProperties": False,
                 },
                 "content": "empty",
-                "words": {
-                    "shadow": True,
-                },
+                "shadow": True,
             }
         },
         layer_widgets={
@@ -1965,9 +1951,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "shadow": True,
-        },
+        "shadow": True,
     }
     module = (companion / "widgets/lf-conversation-workspace.js").read_text()
     module = module.replace(

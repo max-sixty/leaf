@@ -128,7 +128,7 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 # A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
 # its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
 # diagram package's does.
-SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "paint": {"height": True}}
+SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
 SKETCH_WIDGET = """
 import {PendingTaskEvent, once} from '/runtime/portable-api.js';
 customElements.define('lf-sketch', class extends HTMLElement {
@@ -1362,7 +1362,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             "overruled": {"type": "boolean"},
         }
     )
-    stateful.setdefault("state", {})["verbs"] = {
+    stateful["verbs"] = {
         "change": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "user"},
@@ -1382,12 +1382,8 @@ def _author_stateful_verbatim_widget(tmp_path):
             "additionalProperties": False,
         },
         "content": "markup",
-        "words": {
-            "verbatim": True,
-        },
-        "author": {
-            "example": '<lf-shell id="shell-example">Example</lf-shell>',
-        },
+        "verbatim": True,
+        "example": '<lf-shell id="shell-example">Example</lf-shell>',
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
@@ -3390,8 +3386,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-callout"]["words"].pop("verbatim")
-    entries["lf-callout"].setdefault("words", {})["shadow"] = True
+    entries["lf-callout"].pop("verbatim")
+    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -4234,8 +4230,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-callout"]["words"].pop("verbatim")
-    entries["lf-callout"].setdefault("words", {})["shadow"] = True
+    entries["lf-callout"].pop("verbatim")
+    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'

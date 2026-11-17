@@ -81,7 +81,7 @@ test("hand-written sources spell each mark as `$marks` paints it", async () => {
       spelled.has(attribute),
       `no stylesheet or module spells ${key}'s ${attribute}`,
     );
-    const stale = `data-lf-${key.split(".").pop()}`;
+    const stale = `data-lf-${key}`;
     if (stale !== attribute)
       assert.ok(
         !spelled.has(stale),

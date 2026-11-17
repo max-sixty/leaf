@@ -67,7 +67,7 @@ vars:
 
     You read the code. Your notes:
 
-    - Today a widget has four inputs to its On Me card. `state.awaits` in its registry
+    - Today a widget has four inputs to its On Me card. `awaits` in its registry
       entry says whether it asks and what answers it. Its keyboard commands marked
       `decision: true` are copied onto the card as plain buttons, and a press clicks
       the widget's real control on the page (`choicesOf` in `obligations/view.js`).

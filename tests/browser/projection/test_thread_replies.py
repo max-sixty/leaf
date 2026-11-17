@@ -144,20 +144,14 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                         "additionalProperties": False,
                     },
                     "content": "data",
-                    "words": {
-                        "verbatim": True,
+                    "verbatim": True,
+                    "verbs": {
+                        "edit": {
+                            "unit": "widget",
+                            "record": {"kind": "body"},
+                        }
                     },
-                    "state": {
-                        "verbs": {
-                            "edit": {
-                                "unit": "widget",
-                                "record": {"kind": "body"},
-                            }
-                        },
-                    },
-                    "author": {
-                        "example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
-                    },
+                    "example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
                 },
             },
             "layer_widgets": {

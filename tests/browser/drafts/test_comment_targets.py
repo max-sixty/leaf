@@ -681,18 +681,14 @@ customElements.define('lf-draft-subject', class extends LeafElement {
                     "additionalProperties": False,
                 },
                 "content": "empty",
-                "data": {
-                    "inputs": {
-                        "words": {
-                            "contract": "text-document",
-                            "source": "source",
-                            "property": "value",
-                        }
-                    },
+                "inputs": {
+                    "words": {
+                        "contract": "text-document",
+                        "source": "source",
+                        "property": "value",
+                    }
                 },
-                "author": {
-                    "example": '<lf-draft-subject id="example"></lf-draft-subject>',
-                },
+                "example": '<lf-draft-subject id="example"></lf-draft-subject>',
             }
         },
         layer_widgets={"lf-draft-subject.js": module},

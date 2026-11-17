@@ -230,7 +230,7 @@ def build() -> dict:
                         "parent": "e1",
                         "responds": "e1",
                         "text": "Here is the board. Which card goes first?\n\n"
-                        + model_layer()["lf-board"]["author"]["example"],
+                        + model_layer()["lf-board"]["example"],
                         "obligation": True,
                     },
                     {
@@ -484,9 +484,7 @@ def obligation_value_cases():
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
         registry = {
             "lf-value": {
-                "state": {
-                    "verbs": {"set": spec},
-                },
+                "verbs": {"set": spec},
             }
         }
         source = SourceReading(SourceDocument(markup), registry)
@@ -825,18 +823,16 @@ def tail_cases() -> list[dict]:
                 "additionalProperties": False,
             },
             "content": "none",
-            "state": {
-                "awaits": {
-                    "when": {"active": [True]},
-                    "value": "set",
-                    "answered": {"set": {}},
-                },
-                "verbs": {
-                    "set": {
-                        "unit": "widget",
-                        "record": {"kind": "value", "attr": "value"},
-                    }
-                },
+            "awaits": {
+                "when": {"active": [True]},
+                "value": "set",
+                "answered": {"set": {}},
+            },
+            "verbs": {
+                "set": {
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "value"},
+                }
             },
         },
     }

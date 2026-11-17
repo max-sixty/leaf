@@ -6,7 +6,7 @@
    - runtime apparatus is in neither reading;
    - projected external or derived data is in `says` and not in `wrote`.
 
-   A widget whose tag declares `data.inputs` names the items it drew from its bound value
+   A widget whose tag declares `inputs` names the items it drew from its bound value
    with plain attributes, and Leaf stamps them (`projectMarked`) once the widget
    reports the value it drew (element-data.js, "Bound values"):
 
@@ -84,7 +84,7 @@ const projectedDescendants = (root) =>
 /** @param {Element} node */
 const markOwner = (node) => {
   for (let at = composedParentNode(node); at; at = composedParentNode(at))
-    if (at instanceof Element && registry[at.localName]?.data?.inputs) return at;
+    if (at instanceof Element && registry[at.localName]?.inputs) return at;
   return null;
 };
 

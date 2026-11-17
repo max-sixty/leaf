@@ -381,7 +381,7 @@ const keptElements = new Map();
 // The markup a drawing that doesn't hold an authored message draws in its place
 // (`authoredHolders`): the message less what a second copy would duplicate, each id
 // and each custom element, which a module upgrades once. A widget set among words
-// (`words.inline`) leaves its words, and any other goes whole, as a choice the drawing
+// (`inline`) leaves its words, and any other goes whole, as a choice the drawing
 // asks in its own controls does.
 /** @param {DocumentFragment} message */
 function heldElsewhere(message) {
@@ -389,7 +389,7 @@ function heldElsewhere(message) {
   copy.content.append(message.cloneNode(true));
   for (const element of copy.content.querySelectorAll("*"))
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declarationFor(element)?.words?.inline)
+    else if (declarationFor(element)?.inline)
       element.replaceWith(...element.childNodes);
     else element.remove();
   return copy.innerHTML;

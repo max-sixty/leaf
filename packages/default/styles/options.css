@@ -199,7 +199,7 @@ lf-options:has(> lf-option > strong) {
  * A quoted group is exhibited, not offered, so every rule granting an input affordance
  * excludes it where it is written (`:not(:where([data-lf-exhibit]) *)`), so each new
  * affordance carries its own exclusion. Delivery paints `data-lf-exhibit` from the
- * registry's state.exhibit (`mark_declared`). The guard sits in :where(), so it adds no
+ * registry's `exhibit` (`mark_declared`). The guard sits in :where(), so it adds no
  * weight. A rule for a group that only shows its state, such as the caption room below,
  * therefore keeps no more weight than the live rule later in the sheet that replaces
  * it. */
@@ -617,7 +617,7 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   /* A group whose options hold a picture stands its cells apart, each framed as the
    * cards a group not joined draws (`--lf-joined: 0`), a gap apart; their grounds and
    * state faces are every live cell's (above). A picture is an image, drawing,
-   * table or video, or a widget whose entry says it draws one (`words.visual`, painted
+   * table or video, or a widget whose entry says it draws one (`visual`, painted
    * `data-lf-visual`), anywhere in an option; a control the runtime draws there
    * (`.lf-ui`), such as a nested group's Send, is none. Joined, a 1px hairline is the
    * only boundary between one option's picture and the next option's title, and the

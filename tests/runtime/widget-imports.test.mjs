@@ -7,14 +7,10 @@ test("declared creations prepare shadow rules before any child exists", () => {
   scope.innerHTML = '<lf-nursery id="nursery"></lf-nursery>';
   const registry = {
     "lf-nursery": {
-      state: {
-        verbs: { sow: { creates: { child: "lf-seedling", words: "label" } } },
-      },
+      verbs: { sow: { creates: { child: "lf-seedling", words: "label" } } },
     },
     "lf-seedling": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
   };
   assert.equal(widgetImports(scope, registry).shadow, true);

@@ -89,17 +89,13 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
             "additionalProperties": False,
         },
         "content": "markup",
-        "markup": {
-            "owners": ["lf-test-plan"],
-        },
-        "state": {
-            "verbs": {
-                "phase": {
-                    "writer": "agent",
-                    "unit": "widget",
-                    "record": {"kind": "value", "attr": "phase"},
-                }
-            },
+        "owners": ["lf-test-plan"],
+        "verbs": {
+            "phase": {
+                "writer": "agent",
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "phase"},
+            }
         },
     }
     declarations = {

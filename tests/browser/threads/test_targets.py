@@ -893,18 +893,14 @@ customElements.define('lf-quote-subject', class extends LeafElement {
                     "additionalProperties": False,
                 },
                 "content": "empty",
-                "data": {
-                    "inputs": {
-                        "words": {
-                            "contract": "text-document",
-                            "source": "source",
-                            "property": "value",
-                        }
-                    },
+                "inputs": {
+                    "words": {
+                        "contract": "text-document",
+                        "source": "source",
+                        "property": "value",
+                    }
                 },
-                "author": {
-                    "example": '<lf-quote-subject id="example"></lf-quote-subject>',
-                },
+                "example": '<lf-quote-subject id="example"></lf-quote-subject>',
             }
         },
         layer_widgets={"lf-quote-subject.js": module},

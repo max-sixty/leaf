@@ -97,22 +97,21 @@ export function inlineMarkdownFragment(text, message = true) {
   return parsed.content;
 }
 
-// The written files in `scope` whose `paint.prepaint` attribute names Markdown and that
+// The written files in `scope` whose `prepaint` attribute names Markdown and that
 // hold no rendering yet: a revision's or a message's, since delivery renders only the
 // first document's (`revision_delivery.mark_declared`).
 /** @param {Element | Document | DocumentFragment} scope */
 const unpaintedFiles = (scope) =>
-  declaredElements(scope, (entry) => entry.paint?.prepaint).filter(
+  declaredElements(scope, (entry) => entry.prepaint).filter(
     (element) =>
-      element.getAttribute(String(declarationFor(element)?.paint?.prepaint)) ===
-        "markdown" &&
+      element.getAttribute(String(declarationFor(element)?.prepaint)) === "markdown" &&
       element.querySelector(":scope > pre") &&
       !element.querySelector(":scope > [data-lf-prepaint]"),
   );
 
-// A declaration whose data body is Markdown words (`words.text-format`).
+// A declaration whose data body is Markdown words (`text-format`).
 /** @param {import("../types/contract.js").WidgetDeclaration} entry */
-const wordsAreMarkdown = (entry) => entry.words?.["text-format"] === "markdown";
+const wordsAreMarkdown = (entry) => entry["text-format"] === "markdown";
 
 // Registry text formatting belongs to the layer, so a package declaration cannot
 // make file-side passages read words the browser leaves as raw Markdown.
@@ -131,7 +130,7 @@ export async function loadDeclaredMarkdown(scope) {
     );
 }
 
-// Each element declaring `words.text-format` shows its data body's rendering in place
+// Each element declaring `text-format` shows its data body's rendering in place
 // of its `<pre>`. Only presentation nodes are formatted. Source documents stay intact
 // for typed state, revision patching and provenance; arrivals call this after capture,
 // before connection. Their import preparation has already made the parser ready, so

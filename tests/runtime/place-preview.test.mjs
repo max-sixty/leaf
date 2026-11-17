@@ -193,9 +193,7 @@ test("a message's markup previews by its own document: its words, names and outl
 test("a heading's section is walked through declared shadow trees and their slots", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "place-preview-shadow" },
   });
@@ -301,9 +299,7 @@ test("a heading's section is walked through declared shadow trees and their slot
 test("a preview reads an empty slot's fallback as the page's reading does", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "place-preview-fallback" },
   });
@@ -485,9 +481,7 @@ test("a heading counts the conversations about what it titles, as about its own 
 test("a slotted section reads its slot's run once, and only as far as its preview shows", () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "place-preview-run" },
   });

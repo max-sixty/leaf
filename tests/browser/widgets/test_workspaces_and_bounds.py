@@ -610,9 +610,7 @@ ZONE_PACKAGE = {
             "additionalProperties": False,
         },
         "content": "markup",
-        "markup": {
-            "reading-role": "pane",
-        },
+        "reading-role": "pane",
     }
 }
 

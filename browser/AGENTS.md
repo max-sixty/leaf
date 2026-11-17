@@ -824,7 +824,7 @@ Use a boolean only when false has one clear meaning; otherwise declare named val
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and browser capture stops at the fence, so
 a selection across it never becomes a quote the file can't confirm. Declare words Python
-can model with `words.says` or `content`.
+can model with `says` or `content`.
 
 ## Render gates
 

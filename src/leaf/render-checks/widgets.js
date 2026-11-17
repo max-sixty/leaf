@@ -105,12 +105,12 @@ export const missingUpgrades = (modules) =>
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const invalidVisualProviders = (declarations) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry.words?.visual)
+    .filter(([, entry]) => entry.visual)
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
         code: "visual-parts",
         at: locate(el),
-        problems: visualPartProblems(el, entry.words?.visual),
+        problems: visualPartProblems(el, entry.visual),
       })),
     )
     .filter((instance) => instance.problems.length);
@@ -334,11 +334,11 @@ export function changedBoxes() {
   }));
 }
 
-// paint.height's attribute ($marks in runtime/kernel-registry.json): the stated height a
+// `height`'s attribute ($marks in runtime/kernel-registry.json): the stated height a
 // page reserves for a drawing, or empty where it states none.
 const STATED_HEIGHT = "data-lf-height";
 
-// Each drawn element whose tag declares paint.height and whose drawing is taller or
+// Each drawn element whose tag declares `height` and whose drawing is taller or
 // shorter than the box it first showed before drawing (`undrawnHeights` in driver.js).
 // The drawing's height is the element's box with its paint lifted for one read, since a
 // package may keep a stated height larger than its drawing, as the diagram's does. The

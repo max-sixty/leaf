@@ -116,7 +116,7 @@ connection. Use `disconnectedCallback` only for teardown that must happen at onc
 as cancelling a grab or removing hoisted UI. A `LeafElement` that overrides either
 callback calls the `super` method.
 
-`quoted(element)` is true for a widget inside one whose `state.exhibit` declaration
+`quoted(element)` is true for a widget inside one whose `exhibit` declaration
 applies (including its optional `when` condition), such as `lf-sample`. A quoted widget
 never takes the user's edits, so check `quoted` before wiring a choice, a drag grip or
 anything else that sends input back. Its presentation and view state still work.
@@ -178,7 +178,7 @@ element's class, and Leaf then edits inside those children in place.
 Leaf still replaces the widget when a revision changes what the module drew from, which
 it takes to be the element's own attributes. A module that also draws from which
 children it has, or from their attributes, as a tab strip shows each tab's `label`,
-declares `content: members` or `paint.views`. Leaf then also replaces the widget when a
+declares `content: members` or `views`. Leaf then also replaces the widget when a
 direct child is added, removed, reordered or given other attributes. Without either
 declaration the module keeps its first drawing of a child the revision changed. Leaf
 compares only each direct child's tag and attributes, so a module that draws from what
@@ -237,9 +237,9 @@ native disclosures, links and authored content need no such wait.
 - Size the widget in the package theme, including its initial authored drawing.
   A shadow template uses native slots for authored children, keeping their nodes and
   browser state in the light DOM.
-- Where the markup can't say how tall the drawing will be, declare `paint.height` and add
+- Where the markup can't say how tall the drawing will be, declare `height` and add
   the class `lf-rendered` once drawn.
-- A widget that shows one member at a time declares `paint.views: {members: "selector"}`;
+- A widget that shows one member at a time declares `views: {members: "selector"}`;
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as
   `:has()`, can change membership as they arrive; use the child's own start tag for
@@ -253,7 +253,7 @@ native disclosures, links and authored content need no such wait.
   again without that member when the animation ends. Only the selected member is
   saved. Pass `null` as a second argument to get null where neither the address nor
   the tab names a member, and choose then. A holder whose members share the
-  surrounding page's flow declares `paint.flow`, as its members do, so a member's wide
+  surrounding page's flow declares `flow`, as its members do, so a member's wide
   blocks and sidebar take the page's room.
 
 ## Rendering
@@ -275,7 +275,7 @@ unchanged. Don't bind an initial default onto a property the browser owns.
 ### Drawing what a widget reads
 
 A widget extends `LeafElement`, a `LitElement` that draws everything in one `render()`.
-A `words.shadow` widget uses an ordinary shadow root; other widgets draw into
+A `shadow` widget uses an ordinary shadow root; other widgets draw into
 themselves or a generated part `createRenderRoot()` returns, never over authored
 children. One-time setup goes in `setup()`, before the first render; work needing the
 rendered nodes goes in `firstUpdated`. A `setup()` that throws shows its failure and
@@ -320,10 +320,10 @@ custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
 
 ### Shadow stages and styles
 
-Declare `words.shadow` where the user should quote and comment on the words a widget's
+Declare `shadow` where the user should quote and comment on the words a widget's
 shadow root shows; a root attached any other way is opaque to comments.
 
-For `words.shadow`, `LeafElement` creates the root, applies the shared stylesheet and
+For `shadow`, `LeafElement` creates the root, applies the shared stylesheet and
 annotation support, and owns its Lit render. Return the template from `render()` and
 use native slots for authored children. Read presentation inputs from the host and its
 authored children; read decisions through `this.reading` and `this.state`.

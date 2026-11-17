@@ -118,7 +118,7 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
         order = folded_positions(
             "punch-list",
             "move",
-            registry["lf-board"]["state"]["verbs"]["move"]["record"],
+            registry["lf-board"]["verbs"]["move"]["record"],
             AuthoredOrders(document.document.by_id, registry),
             document.projection,
         )

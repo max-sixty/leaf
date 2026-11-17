@@ -638,7 +638,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     nothing and publishes no obligation, so it leaves the thread the user's to answer,
     and no card reads it as work the agent is holding. The thread's own unanswered
     input is the contrast: it publishes the obligation that holds its thread."""
-    board = model.model_layer()["lf-board"]["author"]["example"]
+    board = model.model_layer()["lf-board"]["example"]
     state = model.reading(
         HUB,
         (

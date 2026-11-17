@@ -66,7 +66,7 @@ def on_card(page, at):
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
     """The panel's On Me mark lists every open obligation under On Me, in document order, and
     every answered one folded under Done with its current answer, so the user can review
-    and revise. A twelfth widget joins by declaring state.awaits.
+    and revise. A twelfth widget joins by declaring `awaits`.
 
     A closed view holds no cards at all: they are the open view's rendering, the mark's
     count is the closed view's, and a hidden list of buttons is a set of controls no

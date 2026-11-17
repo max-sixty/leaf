@@ -89,9 +89,7 @@
       "additionalProperties": false
     },
     "content": "members",
-    "paint": {
-      "space": "wide"
-    }
+    "space": "wide"
   },
   "lf-test-worker": {
     "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
@@ -110,27 +108,23 @@
       "required": ["id", "state"],
       "additionalProperties": false
     },
-    "markup": {
-      "owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
-      "refers": {
-        "on": {
-          "via": "$work.widgets",
-          "where": {
-            "role": "goal"
-          }
+    "owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
+    "refers": {
+      "on": {
+        "via": "$work.widgets",
+        "where": {
+          "role": "goal"
         }
       }
     },
-    "state": {
-      "verbs": {
-        "state": {
-          "writer": "agent",
-          "unit": "widget",
-          "text": true,
-          "record": {
-            "kind": "value",
-            "attr": "state"
-          }
+    "verbs": {
+      "state": {
+        "writer": "agent",
+        "unit": "widget",
+        "text": true,
+        "record": {
+          "kind": "value",
+          "attr": "state"
         }
       }
     }
@@ -166,15 +160,13 @@
       "additionalProperties": false
     },
     "content": "members",
-    "markup": {
-      "refers": {
-        "readings": {
-          "via": "$work.widgets",
-          "where": {
-            "role": "readings"
-          },
-          "owns": true
-        }
+    "refers": {
+      "readings": {
+        "via": "$work.widgets",
+        "where": {
+          "role": "readings"
+        },
+        "owns": true
       }
     }
   },
@@ -215,18 +207,14 @@
       "required": ["id", "status"],
       "additionalProperties": false
     },
-    "markup": {
-      "owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"]
-    },
-    "state": {
-      "verbs": {
-        "status": {
-          "writer": "agent",
-          "unit": "widget",
-          "record": {
-            "kind": "value",
-            "attr": "status"
-          }
+    "owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
+    "verbs": {
+      "status": {
+        "writer": "agent",
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "status"
         }
       }
     }
@@ -243,24 +231,18 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "data": {
-      "inputs": {
-        "worktrees": {
-          "contract": "lf-test-tree",
-          "source": "source",
-          "property": "value"
-        }
+    "inputs": {
+      "worktrees": {
+        "contract": "lf-test-tree",
+        "source": "source",
+        "property": "value"
       }
     },
-    "markup": {
-      "owners": ["lf-test-worker"]
-    },
-    "paint": {
-      "space": "wide"
-    }
+    "owners": ["lf-test-worker"],
+    "space": "wide"
   },
   "$work": {
-    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in state.verbs, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
+    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in `verbs`, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
     "widgets": {
       "lf-test-plan": {
         "role": "scope"

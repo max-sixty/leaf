@@ -14,7 +14,7 @@ it here from that owner as it reads the source (`page_fixtures.authored_markup`)
   `<meta name="description">`;
 - `.example-packages` inside a catalog link: each bundled package whose element the
   example's markup uses, in package order;
-- `table#all-verbs`'s body: every verb (`state.verbs`) the kernel and the bundled packages
+- `table#all-verbs`'s body: every verb (`verbs`) the kernel and the bundled packages
   declare, in registry order;
 - `nav.reference-index` and `div.reference-list`: the core layer's `$keys`
   (`browser/registry.json`);
@@ -128,7 +128,7 @@ def verb_rows() -> list[str]:
         for tag, element in json.loads(path.read_text(encoding="utf-8")).items():
             if not tag.startswith("lf-"):
                 continue
-            for verb, verb_state in element.get("state", {}).get("verbs", {}).items():
+            for verb, verb_state in element.get("verbs", {}).items():
                 cells = (
                     f"<code>{tag}</code>",
                     f"<code>{verb}</code>",
@@ -157,8 +157,22 @@ def example_packages(source: Path) -> str:
 
 
 def registry_keys() -> dict[str, str]:
+    """Each documented key's text, in `$keys` order, which is the reference's."""
     keys = json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))["$keys"]
-    return {key: keys[key] for key in sorted(keys) if key != "description"}
+    return {
+        key: text
+        for key, text in keys.items()
+        if key not in ("description", "sections")
+    }
+
+
+def key_sections() -> dict[str, dict]:
+    """Each `$keys` section, by the key it opens on (`$keys.sections`)."""
+    keys = json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))["$keys"]
+    sections = {section["from"]: section for section in keys["sections"]}
+    if unknown := sorted(set(sections) - set(registry_keys())):
+        raise ValueError(f"$keys.sections opens on keys it doesn't document: {unknown}")
+    return sections
 
 
 def key_prose(text: str) -> str:
@@ -178,24 +192,36 @@ def key_index() -> list[str]:
     return [f'<a href="#{key}"><code>{key}</code></a>' for key in registry_keys()]
 
 
+def key_entry(entry_id: str, heading: str, text: str, label: str) -> str:
+    lead, detail = key_summary(text)
+    contract = ""
+    if detail:
+        contract = (
+            '<details class="reference-more">'
+            f'<summary aria-label="Full {label} contract">Full contract</summary>'
+            f"<p>{key_prose(detail)}</p>"
+            "</details>"
+        )
+    return (
+        f'<section class="reference-entry" id="{entry_id}">'
+        f"<h3>{heading}</h3>"
+        f'<div class="reference-copy"><p>{key_prose(lead)}</p>{contract}</div>'
+        "</section>"
+    )
+
+
 def key_entries() -> list[str]:
+    """Each key's entry, in `$keys` order, with each section's entry before the key it
+    opens on."""
+    sections = key_sections()
     entries = []
     for key, text in registry_keys().items():
-        lead, detail = key_summary(text)
-        contract = ""
-        if detail:
-            contract = (
-                '<details class="reference-more">'
-                f'<summary aria-label="Full {key} contract">Full contract</summary>'
-                f"<p>{key_prose(detail)}</p>"
-                "</details>"
+        if section := sections.get(key):
+            title = section["title"]
+            entries.append(
+                key_entry(f"keys-{title.lower()}", title, section["description"], title)
             )
-        entries.append(
-            f'<section class="reference-entry" id="{key}">'
-            f"<h3><code>{key}</code></h3>"
-            f'<div class="reference-copy"><p>{key_prose(lead)}</p>{contract}</div>'
-            "</section>"
-        )
+        entries.append(key_entry(key, f"<code>{key}</code>", text, key))
     return entries
 
 
@@ -205,7 +231,7 @@ def read_json(path: Path) -> dict:
 
 def schema_reference(ref: str) -> str:
     """A `$ref` as a link to the entry that declares its target: a served-state
-    definition, an event kind, or the registry's `state.verbs`."""
+    definition, an event kind, or the registry's `verbs`."""
     uri, _, pointer = ref.partition("#")
     if not uri:
         name = pointer.removeprefix("/$defs/")
@@ -217,7 +243,7 @@ def schema_reference(ref: str) -> str:
         label = f"{owner}'s <code>{field}</code>" if field else name or "served state"
         return f'<a href="#served-{target or "state"}">{label}</a>'
     if uri == "leaf:verb":
-        return '<a href="/extending/#state.verbs">verb (state.verbs)</a>'
+        return '<a href="/extending/#verbs">verb (<code>verbs</code>)</a>'
     if uri == "leaf:event":
         return '<a href="#events">event</a>'
     kind = uri.removeprefix("leaf:event/").removeprefix("leaf:message/")
@@ -456,7 +482,7 @@ def event_entries() -> list[str]:
             if contract.get(member):
                 notes.append(f"A <code>{member}</code> kind.")
         if writer := contract.get("verb_writer"):
-            notes.append(f"Carries a verb (state.verbs) the {writer} writes.")
+            notes.append(f"Carries a verb (<code>verbs</code>) the {writer} writes.")
         entries.append(
             schema_entry(
                 f"event-{kind}",

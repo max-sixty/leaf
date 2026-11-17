@@ -23,7 +23,6 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
-from ..registry.contract import declared_fact
 from .instances import (
     reference_errors,
     thread_markup_contract_errors,
@@ -212,7 +211,7 @@ def message_markup_errors(
         for rec in frag.lf_elements
         if rec["parent"] == "p"
         and rec["tag"] in registry
-        and not declared_fact(registry[rec["tag"]], "words.inline")
+        and not registry[rec["tag"]].get("inline")
     ]:
         return misplaced
     if errs := (

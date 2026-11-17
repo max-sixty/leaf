@@ -3305,7 +3305,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
 ):
     """A generated SVG node still names the authored widget when no parts are declared.
 
-    The registry's words.visual contract makes the drawing one item rather than exposing
+    The registry's `visual` contract makes the drawing one item rather than exposing
     renderer internals, so both the aim and the legend stop at the widget.
     """
     page = open_page(browser, serve(PICTURE_PAGE))

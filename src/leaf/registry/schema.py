@@ -121,7 +121,7 @@ def leaf_resources() -> dict[str, dict]:
     `leaf:event/<kind>` is one kernel event record (`$events.kinds`), `leaf:event`
     any of them, `leaf:message/<kind>` a message kind's record as a thread holds it,
     whose `text` is its latest edit's and empty once an edit deleted it (`events.md`,
-    "Messages"), and `leaf:verb` a verb in state.verbs (`schema.VERB_SCHEMA`). A reference
+    "Messages"), and `leaf:verb` a verb in `verbs` (`schema.VERB_SCHEMA`). A reference
     may point into one, as `leaf:event/comment#/properties/anchor` does.
 
     Each event record is left open, so that a schema adding fields to one, as a

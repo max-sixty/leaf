@@ -6,7 +6,7 @@
  * wear the rules imported here, each widget's from its own file. The import order is the
  * cascade order. */
 
-/* Every attribute the registry marks words.says is written twice in these sheets. The runtime
+/* Every attribute the registry marks `says` is written twice in these sheets. The runtime
  * renders the value as real text (renderSaid, in a span carrying data-lf-said),
  * because a pseudo-element paints glyphs that live in no text node — a user
  * can read them and can never select or comment on them. The pseudo-element

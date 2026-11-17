@@ -947,7 +947,7 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
     url = serve(OBLIGATIONS_PAGE)
 
     def undeclare(registry):
-        del registry["lf-suggestion"]["state"]["awaits"]
+        del registry["lf-suggestion"]["awaits"]
         del registry["lf-suggestion"]["attributes"]["properties"]["resolves"]
 
     declare_on_page(serve.page_dir, undeclare)

@@ -58,16 +58,14 @@ def _messages(events: list) -> dict[str, dict]:
 
 
 def asking_widget(fragment, registry: dict) -> dict | None:
-    """The first widget in a message's markup that waits on the user (`state.awaits`),
+    """The first widget in a message's markup that waits on the user (`awaits`),
     which makes it the message's request for an answer."""
     return next(
         (
             rec
             for rec in fragment.lf_elements
             if local_obligation_entry(registry.get(rec["tag"]) or {})
-            and matches_when(
-                rec["attrs"], registry[rec["tag"]]["state"]["awaits"].get("when")
-            )
+            and matches_when(rec["attrs"], registry[rec["tag"]]["awaits"].get("when"))
             and not shown_in(rec, registry)
         ),
         None,
@@ -82,7 +80,7 @@ def unasked_widget(fragment, registry: dict) -> dict:
         entry = registry.get(rec["tag"]) or {}
         if not local_obligation_entry(entry) or shown_in(rec, registry):
             continue
-        when = entry["state"]["awaits"].get("when") or {}
+        when = entry["awaits"].get("when") or {}
         needs = [
             _attribute_written(attr, values)
             for attr, values in when.items()

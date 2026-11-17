@@ -231,7 +231,7 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     page.locator("#lede").click()
     row.click()
     expect(page.locator("#opt-lax")).to_be_visible()
-    lede = page.locator("#opt-lax > strong")
+    lede = page.locator('#opt-lax > [data-lf-said="label"]')
     box = lede.bounding_box()
     y = box["y"] + box["height"] / 2
     select(page, (box["x"] + 2, y), (box["x"] + box["width"] - 2, y))

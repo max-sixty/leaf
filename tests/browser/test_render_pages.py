@@ -264,7 +264,10 @@ p.facts, div.facts {font-size:12px;}
         values[1].bounding_box()["x"], abs=1
     )
     docked = page.locator("#option-facts").bounding_box()
-    assert docked["x"] > page.locator("#route-one > strong").bounding_box()["x"]
+    assert (
+        docked["x"]
+        > page.locator('#route-one > [data-lf-said="label"]').bounding_box()["x"]
+    )
     prose = page.locator("#option-prose").bounding_box()
     assert prose["width"] > page.locator("#route-two").bounding_box()["width"] * 0.75
     authored = page.locator("#authored-pairs")

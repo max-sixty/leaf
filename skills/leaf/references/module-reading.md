@@ -12,7 +12,10 @@ block boundaries, explicit line breaks and preformatted whitespace. Read a conne
 element so its computed styles supply these boundaries; a closed popover is supported.
 Inline values stay in their sentence, and ordinary HTML source indentation collapses. To
 name one of the widget's own parts, use `wrote(element)`, which returns only the words
-the author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims
+the author wrote. `phrasing(element)` says whether an element stands within a line of
+words, as HTML's phrasing content does, rather than starting a block of its own, so a
+widget can take a sentence's words up to the first block without reading styles. Read a
+widget's `<pre>` body with `bodyText(this)`, which trims
 leading blank lines and trailing whitespace. A widget that also declares an input
 (`data.inputs`) reads that input's property instead, which Leaf sets to the `<pre>`'s
 text when the markup binds nothing (`package-data.md`, "External or derived data").

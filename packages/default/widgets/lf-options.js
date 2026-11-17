@@ -122,6 +122,7 @@ import {
   markdownWords,
   offer,
   offerAction,
+  phrasing,
   placePreview,
   pressIsKeyboardActivation,
   quoted,
@@ -142,11 +143,34 @@ import {
 /** @param {Element} option */
 const label = (option) => option.getAttribute("label")?.trim() || wrote(option);
 
-// What choosing an option gives the user: a card's words, which On Me shows under the
-// option's name, where the user answers away from the card. A compact option says
-// nothing beyond its name.
+// What choosing an option gives the user, which On Me shows under the option's name,
+// where the user answers away from the card: a card's sentence, its words up to the
+// first element HTML sets apart from a line of words (`phrasing`), less the side
+// comments HTML's <small> marks, such as its chips, and any SVG or MathML drawn among
+// them; or, where the card opens with a paragraph, that paragraph's words. A compact
+// option says nothing beyond its name.
+const HTML_NS = "http://www.w3.org/1999/xhtml";
 /** @param {Element} option */
-const consequence = (option) => (option.hasAttribute("label") ? wrote(option) : "");
+const consequence = (option) => {
+  if (!option.hasAttribute("label")) return "";
+  let words = "";
+  for (const node of option.childNodes) {
+    if (node instanceof Text) words += node.data;
+    else if (!(node instanceof Element) || node.matches(".lf-ui, [data-lf-gen]"))
+      continue;
+    else if (node.localName === "small" || node.namespaceURI !== HTML_NS) continue;
+    else if (phrasing(node)) {
+      // `wrote` trims the element's own edges, which may be the spaces between words,
+      // as where emphasis splits a sentence.
+      const text = node.textContent;
+      words += `${/^\s/.test(text) ? " " : ""}${wrote(node)}${/\s$/.test(text) ? " " : ""}`;
+    } else {
+      if (!words.trim() && node.localName === "p") words = wrote(node);
+      break;
+    }
+  }
+  return words.replace(/\s+/g, " ").trim();
+};
 
 // The option the page advises is `recommended`, and the group says so wherever the
 // option is answered away from its card.

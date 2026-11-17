@@ -226,7 +226,10 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(answer).to_have_text("Fix")
     settled = source.replace(
         '<lf-options id="o-a">', '<lf-options id="o-a" settled>'
-    ).replace('<lf-option id="o-a-fix">', '<lf-option id="o-a-fix" selected>')
+    ).replace(
+        '<lf-option id="o-a-fix" label="Fix">',
+        '<lf-option id="o-a-fix" label="Fix" selected>',
+    )
     assert settled.count("settled") == 1 and settled.count(" selected>") == 1
     wait_for_revision(page, stamp_page(serve.page_dir, settled, "Settle a")["revision"])
     expect(page.locator("#o-a .lf-settled")).to_be_visible()

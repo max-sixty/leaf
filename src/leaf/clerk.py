@@ -116,12 +116,13 @@ the same way; neither does yet.
 The fork can't author the page, so each ask is the agent's message in a thread,
 written as the agent's guidance has it write one (`threads.md`), and Leaf posts its
 text as the agent's `leaf thread` command does, drawing the HTML in it. Where the
-agent offered answers the user picks among, or left them the go-ahead for an action
-it takes once they agree, such as a merge, the message holds an `lf-options`
+agent offered answers the user picks among, left them the go-ahead for an action it
+takes once they agree, such as a merge, or asked what a step only they can take
+showed them, such as whether a build installed, the message holds an `lf-options`
 group, as "Ask for a pick" has the agent write it, so the pick shows as the group's
 state, `1`–`9` answer it, and a reply in words leaves it open, passing it to the
-agent until the agent answers. Any other ask, a step only the user can take included,
-is the message with an obligation: On Me lists it until the user replies or settles
+agent until the agent answers. Any other ask, such as what an error the user saw
+said, is the message with an obligation: On Me lists it until the user replies or settles
 it, and their reply reaches the agent as any reply does. Where Leaf refuses the HTML
 (`check_markup`), the fork has no next attempt, so the message asks in words with an
 obligation and shows the HTML as text, and the agent hears why. An ask that asks an

@@ -25,9 +25,8 @@ in a session with no live generation would open one; a resumed session's first
 prompt follows. Between turns the watch revives a dead server once for each page it
 watches (`session.Watch`), and the next prompt tries again where that failed.
 
-The hook used to tell the agent to run `leaf server start` instead, which left the
-user's tab without a server until the agent acted. Of 18 Claude Code sessions told
-over 20 days, 6 acted at their next tool call and 4 never did.
+Telling the agent to run `leaf server start` instead leaves the user's tab without
+a server until the agent acts, which an agent can put off or never do.
 """
 
 import time

@@ -206,11 +206,17 @@ skill's `references/`, behind a pointer that names the task. `running-tend` hold
 only what Tend's jobs alone do.
 
 A contract one module owns goes in that module's header, a helper's in its
-docstring, and how a rule was found in the commit message. A contract several modules
-share goes in the protocol reference for that boundary, which says what each side
-relies on, not how one side provides it. A header also records
-the product decisions its module embodies and the alternatives they rejected; a
-change that reverses one rewrites that record and says so in its commit.
+docstring. A contract several modules share goes in the protocol reference for that
+boundary, which says what each side relies on, not how one side provides it. A
+header also states the product decisions its module embodies, each with its reason,
+whether the user made it, and any alternative a later change might reach for, with
+why that alternative fails. A change that reverses a decision rewrites its statement
+and says so in its commit.
+
+Text in the tree, comments, tests and eval cases included, says what holds now
+rather than how it came to be. The date of a decision or change, the request or
+incident behind it, the measurements that settled it and the versions before it go
+in the commit message, where `git log -L` finds them.
 
 Don't copy into prose a list the code already keeps, such as the bundles in
 `vendor.mjs`; point to it, so a new member needs no edit. Where the prose must
@@ -222,8 +228,8 @@ instructions (the `AGENTS.md` files and project skills), these prose defects are
 public surface traps: mechanism written for a reader other than the one the text
 addresses, a second copy of a rule another text owns, a coined term used without its
 definition, and, in maintainer guidance, a sentence that says how the diff's code
-works or which failure it fixed rather than what other code must rely on, which
-belongs in the module header or the commit message.
+works rather than what other code must rely on, which belongs in the module header,
+or how a rule came to be, which belongs in the commit message.
 
 ### Use dependencies
 

@@ -93,9 +93,8 @@ def test_a_settled_page_with_a_reaction_in_force_stops_rendering_its_margin(
     A margin render ends in `paintKeys`, which ends in the shared repaint, and that
     repaint runs chrome layout. Anything chrome layout did that restated a reaction
     seat's offer would close a cycle — chrome layout, margin render, paint, chrome
-    layout — and the gallery once ran a whole margin render every frame with nothing
-    dispatched and nothing on the page moving: ~350ms of main thread per frame, long
-    enough that every Playwright read of that page waited on it.
+    layout — that runs a whole margin render every frame with nothing dispatched and
+    nothing on the page moving, so every Playwright read of that page waits on it.
 
     The reaction seat is asserted first, because it is the ingredient that cycle needed:
     a page with no seat passes this without saying anything. The heartbeat is the one

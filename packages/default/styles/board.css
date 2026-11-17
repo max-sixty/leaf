@@ -3,13 +3,13 @@
  * each result as a `move` action. Unupgraded it reads as a static board. */
 /* The floor a column stops narrowing at, and the reason it is arithmetic rather than a
  * round number. A board lays its columns into whatever width it is given and scrolls
- * once they are at their narrowest, which is the right order — but the floor was stated
- * as the column's own box (10rem), and a column is mostly not its card's words: 18px of
- * the column's border and inset, then the card's border, its two insets and the column
- * the grip hangs in. Measured at 160px, 70 of them were furniture and the card's prose
- * got 90 — twelve characters, in which `documented` (92px of Charter at the page's own
- * 17) cannot be set at all, so the shipped board broke ordinary words across lines the
- * moment the thread strip took its margin. A board is meant to scroll before it squeezes,
+ * once they are at their narrowest, which is the right order. Rejected: the floor
+ * stated as the column's own box (10rem), since a column is mostly not its card's
+ * words: 18px of the column's border and inset, then the card's border, its two insets
+ * and the column the grip hangs in. At 10rem the furniture takes 70px of the column's
+ * 160 and leaves the card's prose 90, in which an ordinary word such as `documented`
+ * cannot be set at all, so the board breaks ordinary words across lines. A board is
+ * meant to scroll before it squeezes,
  * and a floor that does not count what the board spends does not know when to.
  *
  * So the measure is the number chosen and the furniture is derived from the rules that
@@ -89,8 +89,8 @@ lf-board {
 /* The column states its own floor rather than the board stating it as a track, because a
    track cannot read the box it sits in and a column can. `1fr` is `minmax(auto, 1fr)`,
    and a specified min-width is exactly what that automatic minimum resolves to, so the
-   track is the width it was. A track width is a border-box measure, so the column is
-   sized as one too, and its min-height restates the outer box it stated before. */
+   track's minimum is the column's floor. A track width is a border-box measure, so the
+   column is sized as one too, and its min-height states the outer box. */
 lf-column {
   display: block;
   --lf-ground: var(--lf-field);
@@ -109,12 +109,12 @@ lf-column {
    columns stack: each takes the board's width and its own height, so every column is a
    scroll down away, the gesture the rest of the page already takes, and the rationale
    a page writes after its board follows the last column rather than the tallest one's
-   empty field. The board used to page sideways here, one column wide with a sliver of
-   the next as the cue, which left one column on screen, every other behind a sideways
-   swipe nothing else on the page asks for, and each column stretched to the tallest's
-   height. The floor still wins inside a narrower frame. The board asks its own box, so
-   a board in a workspace pane answers for the room it has rather than for the room the
-   window has. The grid flows by column and a container query cannot restyle its own
+   empty field. Rejected: paging the board sideways here, one column wide with a sliver
+   of the next as the cue, which left one column on screen, every other behind a
+   sideways swipe nothing else on the page asks for, and each column stretched to the
+   tallest's height. The floor still wins inside a narrower frame. The board asks its
+   own box, so a board in a workspace pane answers for the room it has rather than for
+   the room the window has. The grid flows by column and a container query cannot restyle its own
    container, so each column takes the first track and sparse placement gives it the
    next row. */
 @media screen {
@@ -209,8 +209,9 @@ lf-card {
 /* The room the grip takes, spent only beside the grip: an empty float the grip's own
    size stands in the card's top corner, so the lines level with the grip (the title's,
    and on a finger's taller grip the first line after it) stop short of it, and what
-   runs below takes the card's whole width. It used to be a column down the card's full
-   height, which set a 188px card's prose at 136px under a 30px glyph. The float starts
+   runs below takes the card's whole width. Rejected: a column down the card's full
+   height, which narrows a card's prose all the way down for a glyph at its top. The
+   float starts
    where the grip does, at its inset from the card's edge rather than the card's padding,
    and its width keeps the card's inset between the words and the grip.
 
@@ -245,9 +246,9 @@ lf-card {
   }
 }
 /* The prose after the title starts on its next line in whatever shape the author wrote
-   it. A title margin was trimmed only where no element followed it (the frame's trim
-   reads a plain sentence's title as the card's last block), and a paragraph's margin
-   set its prose 13px lower than a sentence's. */
+   it. Otherwise a title margin is trimmed only where no element follows it (the
+   frame's trim reads a plain sentence's title as the card's last block), and a
+   paragraph's margin sets its prose lower than a sentence's. */
 lf-card > strong {
   display: block;
   font: var(--lf-font-title);

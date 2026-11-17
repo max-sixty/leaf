@@ -467,11 +467,12 @@ defaults (`[]` for none), gives its probe that page, initialized, and the prompt
 it (`page_prompt` in `workflows/eval.yaml`). The runner tells such a probe
 the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
 the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
-prompt asking for its tool calls with their JSON input. The leading comment records
-where the case came from and what it measured, `metadata.purpose` the behavior it
-pins, and `metadata.tags` its area. `description` is the short task name shown in
-reports (for example, "CSS cascade survey"); the directory address remains the case
-ID used for selection and grouping.
+prompt asking for its tool calls with their JSON input. The leading comment says
+what situation the case reproduces and the failure it invites, `metadata.purpose`
+the behavior it pins, and `metadata.tags` its area; where the case came from and what
+its runs measured go in the commit that adds or changes it. `description` is the
+short task name shown in reports (for example, "CSS cascade survey"); the directory
+address remains the case ID used for selection and grouping.
 
 A short case that needs real authoring declares `metadata.authoring: true`.
 Its agent has native file and command tools, an initialized writable page, the

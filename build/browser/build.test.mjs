@@ -159,7 +159,7 @@ test("runtime TypeScript is refused by build and check, with declarations allowe
   await writeFile(path.join(runtime, "unimported.ts"), "export const value = 1;\n");
   await assert.rejects(checkRuntimeModules(scratch), {
     message:
-      "Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\nbrowser/runtime/nested/unimported.ts",
+      "Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build:\nbrowser/runtime/nested/unimported.ts",
   });
 });
 

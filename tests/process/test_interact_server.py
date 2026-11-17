@@ -1665,9 +1665,10 @@ def test_a_page_loads_from_other_servers_as_written(server, page_dir):
 def test_a_page_serves_one_document_at_each_of_its_three_addresses(server, page_dir):
     """The live root, a stamped version and a revision are all this page.
 
-    The revision address used to fall through to the static file branch, which
-    returned the authored bytes. The module that source names still started a
-    runtime, but without the layer's bootstrap or the revision identity that tells the runtime which document it is showing. Each
+    The revision address doesn't fall through to the static file branch, which
+    returns the authored bytes: the module that source names would still start a
+    runtime, but without the layer's bootstrap or the revision identity that tells the
+    runtime which document it is showing. Each
     address names the page root as canonical, which is how a user sent to one of
     them, and a crawler that finds all three, arrive at one page.
     """
@@ -3422,8 +3423,8 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
     """A connection that waits before speaking is a browser preconnecting, not a
     socket that will never speak.
 
-    The close was once bounded by a one-second read deadline every connection
-    carried, which cannot tell those two apart. Chromium opens sockets ahead of need
+    A one-second read deadline on every connection, bounding the close, cannot tell
+    those two apart. Chromium opens sockets ahead of need
     and writes real requests onto them later, and a request written onto a connection
     the server had already closed is dropped with no response, no console entry and no
     error: in a page that reads as a subresource which never arrives and a load event
@@ -3432,8 +3433,8 @@ def test_temporary_server_answers_a_connection_opened_before_its_request(page_di
     server = hosting_model.TemporaryPageServer(page_dir, token=TOKEN).start()
     client = socket.create_connection(("127.0.0.1", server.port))
     try:
-        # Longer than any per-connection read deadline of the order the close was
-        # once bounded by, so a server still carrying one has closed this already.
+        # Longer than a one-second per-connection read deadline, so a server still
+        # carrying one has closed this already.
         time.sleep(2)
         client.sendall(f"GET /?t={TOKEN} HTTP/1.1\r\nHost: 127.0.0.1\r\n\r\n".encode())
         client.settimeout(STATED_TIMEOUT)
@@ -3576,15 +3577,14 @@ def test_every_event_door_refusal_is_final_and_read_refusals_name_the_attempt(
     the user's whole explanation. Every one of these is deterministic, so the loop
     never ends.
 
-    The state-dependent refusals were written through `event_rejection` from the start
-    and the gates in front of them were not, which is the split this asserts away: the
-    read-only preview server and each shape gate answer in the door's own shape rather
-    than in the shape of whichever branch decided them, and each names the attempt it
-    read. The key gate is not among them: it reads no event and lasts only until the
-    printed link is opened (`test_a_user_without_the_key_reads_and_writes_nothing`). A
-    page's runtime is vendored at
-    `page init` and the layer around it moves, so the shape gates are reachable by an
-    older page's honest event, not only by a hand-written POST."""
+    The state-dependent refusals are written through `event_rejection`, and this asserts
+    the gates in front of them are too: the read-only preview server and each shape gate
+    answer in the door's own shape rather than in the shape of whichever branch decided
+    them, and each names the attempt it read. The key gate is not among them: it reads
+    no event and lasts only until the printed link is opened
+    (`test_a_user_without_the_key_reads_and_writes_nothing`). A page's runtime is
+    vendored at `page init` and the layer around it moves, so the shape gates are
+    reachable by an older page's honest event, not only by a hand-written POST."""
     publish(page_dir)
     attempt = "attempt-for-the-door-x"
     comment = {"kind": "comment", "revision": 1, "text": "hello", "attempt": attempt}
@@ -3781,7 +3781,9 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
         return RenderReading([], [])
 
     monkeypatch.setattr(
-        browser_command, "run_in_browser", lambda read: (read(None), "held browser")
+        browser_command,
+        "run_in_browser",
+        lambda read, engine: (read(None), "held browser"),
     )
     monkeypatch.setattr(browser_command, "run_page_code", lambda *args: [])
     monkeypatch.setattr(browser_command, "render_version", held_browser)
@@ -4823,8 +4825,8 @@ def test_a_run_ends_only_the_servers_it_started(tmp_path, spawn):
 
     A persistent server under the machine's `~/.local/state/leaf/pages` looks to
     the sweep exactly like a page a test forgot: a held lease under an enabled
-    service. The sweep once took its root from the environment before
-    `isolated_session` had moved it, and stopped every such server on the
+    service. A sweep that took its root from the environment before
+    `isolated_session` had moved it would stop every such server on the
     machine after every test (tests/AGENTS.md, "Processes and servers").
 
     So a run is made against a home planted the way the developer's is, of the

@@ -135,9 +135,9 @@ OVER_WORDS = """(el, id) => {
 # rect is relative to the scroller, so a scroll landing between the two reads is subtracted
 # straight into the answer. `d` scrolls to the decision it steps to, the root is the scroller,
 # and a page whose content sits on fractional pixels settles that scroll across a frame —
-# so the chip's offset came back a pixel out on about half of the runs, on whichever row
-# the frame happened to fall between. Nothing had moved by then except the root scrollport,
-# which is the one thing this measurement is not about.
+# so the chip's offset can come back a pixel out, on whichever row the frame happens to
+# fall between. Nothing has moved by then except the root scrollport, which is the one
+# thing this measurement is not about.
 #
 # Every reading is stated from the option's padding box, because that is where the chip is
 # placed from and where the option's own room starts: a joined cell wears the hairline
@@ -695,10 +695,9 @@ TWO_COPIES_PAGE = leaf_page(
 """,
 ).replace("{passage}", LONG_PASSAGE)
 # Prose past the pattern's own ceiling. One expression with a term per character stops
-# compiling somewhere past ten thousand of them — measured on the corpus: 1.3ms at four
-# hundred characters, 11.6ms at five thousand, a SyntaxError at twelve — and the throw
-# would land inside the pass that draws every mark on the page, not just this one's. A
-# user reaches it in one keystroke, so the guard is a page long enough to prove it.
+# compiling somewhere past ten thousand of them, and the throw would land inside the
+# pass that draws every mark on the page, not just this one's. A user reaches it in one
+# keystroke, so the guard is a page long enough to prove it.
 CEILING_PAGE = leaf_page(
     "everything",
     """
@@ -935,7 +934,7 @@ def live_watcher(page_dir, page):
 # The tone read is the sheet the runtime appended, never the mark's own — and the two are
 # not told apart by their colours. The mark is authored in the accent, so a working page
 # paints it the shade it already was, and a reading that took the first rule it found
-# agreed with the leaf on the one state where nothing had to have happened.
+# would agree with the leaf on the one state where nothing had to have happened.
 TAB_TONE = """(want) => {
     const leaf = document.querySelector('.lf-fp-leaf');
     const el = leaf.querySelector('svg[data-lf-icon=leaf]');

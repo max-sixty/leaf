@@ -23,7 +23,6 @@ from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
     PREVIEW,
-    expect_panel_offers,
     latest_press,
     open_page,
     panel_menu,
@@ -454,8 +453,8 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     before the status, and its end offers Open latest in Comment's place, so nothing in
     the row moves and the On Me mark keeps its seat; the press opens the latest, and the
     words and the press go with it: in place on a tab the agent has since revised, and
-    from a version the user travelled back to, where the leaf's menu offers the keyboard
-    the same press."""
+    from a version the user travelled back to, where the press wears its keys, Versions'
+    `g V` and then its `l`, which make it too, leaving Versions."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
     latest = latest_press(page)
@@ -484,10 +483,12 @@ def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     expect(page).to_have_url(re.compile(r"/versions/v1\b"))
     expect(field(page)).to_have_attribute("placeholder", re.compile(r"^v1 of 2 · "))
     expect(latest).to_be_visible()
-    expect_panel_offers(page, "latest")
-    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="latest"]')
-    row.focus()
-    page.keyboard.press("Enter")
+    expect(latest.locator("kbd")).to_have_text(["g", "V", "l"])
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+v")
+    panel_settled(page, view="versions")
+    page.keyboard.press("l")
     expect(page).not_to_have_url(re.compile(r"/versions/"))
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
     expect(latest).to_have_count(0)
@@ -578,8 +579,8 @@ def test_a_long_reply_takes_its_room_from_the_thread_s_top(browser, serve):
     """Once the panel reaches the window's top, each line a reply gains takes its room
     from the open thread's view, which gives way at its top and keeps the message the
     user is answering beside the field; taking the lines away gives the room back the
-    same way. The view once kept its scroll and gave way at its foot, so a long reply
-    covered the agent's last line."""
+    same way. A view that kept its scroll and gave way at its foot would let a long
+    reply cover the agent's last line."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")
     thread_model.post_reply(
@@ -773,8 +774,7 @@ def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, se
     """A draft past the field's cap scrolls inside it; deleting its last lines until
     the rest fits stops that scroll, and the lines still shown stay where they stood
     on the tween's first frame, then travel down as the lines scrolled away come into
-    view, carrying on from where they are drawn when another line goes midway. They
-    used to jump down by the scroll the field gave up."""
+    view, carrying on from where they are drawn when another line goes midway."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     page.emulate_media(reduced_motion="no-preference")
     field(page).click()

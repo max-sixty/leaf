@@ -202,7 +202,7 @@ export async function checkRuntimeModules(directory = root) {
   );
   if (typescript.length)
     throw new Error(
-      `Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build (#4112):\n${typescript.join("\n")}`,
+      `Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build:\n${typescript.join("\n")}`,
     );
 }
 

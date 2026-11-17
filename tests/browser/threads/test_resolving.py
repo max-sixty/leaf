@@ -577,9 +577,10 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
     """A settlement takes the user's view of its thread away, and every way back gives
     that view back on the surface the user had it on: `z` by each of its three ways,
     the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
-    choose chose for the thread as it stood at the way back: it put a thread resolved
-    in its card in the panel, where resolved threads open, one resolved in the panel's
-    view in a card, and one resolved in a seat in the panel, then a card."""
+    choose would choose for the thread as it stood at the way back: it would put a
+    thread resolved in its card in the panel, where resolved threads open, one resolved
+    in the panel's view in a card, and one resolved in a seat in the panel, then a
+    card."""
     s = surface(browser, serve, gesture)
     page = s.page
     page.evaluate(OPEN_THREAD_COUNT)
@@ -680,8 +681,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
 def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, serve):
     """Resolve in a card shows the thread after the resolved one at the same passage,
     else the one before, standing the user on it, and the page doesn't move; `z` brings
-    the thread back where it was resolved (thread-preview.js, the user's choice of 4
-    November 2026)."""
+    the thread back where it was resolved (thread-preview.js, the user's choice)."""
     comment = {
         "kind": "comment",
         "author": "user",

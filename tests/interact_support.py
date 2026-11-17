@@ -87,7 +87,7 @@ from leaf.validation import composition as composition_model
 from leaf.validation import instances as validation_model
 
 ROOT = Path(__file__).parent.parent
-# The checkout and the payload a harness installs are one tree now; PLUGIN_ROOT still
+# The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
 # names the role a path plays — "what a harness runs" — for the tests built on that.
 PLUGIN_ROOT = ROOT
 # The skill contains agent instructions; application resources belong to the plugin.
@@ -95,9 +95,8 @@ SKILL_ROOT = PLUGIN_ROOT / "skills" / "leaf"
 COMMAND_HUB_PACKAGE = ROOT / "tests" / "fixtures" / "packages" / "work"
 # The complete shipped vocabulary, in the order `page init` composes it for an example.
 # Read from examples/layer.json rather than listed here, because a floor that names its
-# own packages stops covering the next one: lf-diagram and lf-diff left the default
-# package for `diagram` and `diff` and would have dropped out of every sweep silently,
-# and pr-review's two widgets had never been in one.
+# own packages stops covering the next one, and a widget that moves to another package
+# drops out of every sweep silently.
 SHIPPED_PACKAGES = [
     schema_model.ASSETS,
     schema_model.DEFAULT_PACKAGE,
@@ -2269,12 +2268,12 @@ print("queued")
 def under_codex(spawn, codex_program):
     """A command run the way Codex runs one: a session process that stays for the
     thread, and between it and the command a shell of the moment — which is what
-    a pipeline leaves there, and what Leaf once mistook for the session.
+    a pipeline leaves there, and what Leaf must not mistake for the session.
 
     `; exit` is what puts that shell there: a lone command is exec'd in place by
-    the shell wrapping it, which is why some command shapes recorded the right
-    pid by accident. It also keeps the command's own status, where the `| cat`
-    that produced the shape in the wild would report the pipeline's last exit.
+    the shell wrapping it, which is why some command shapes would record the right
+    pid by accident. It also keeps the command's own status, where a `| cat`
+    would report the pipeline's last exit.
     PYTHONHOME because a copied interpreter has no prefix beside it to find its
     own standard library in. It is the copy's alone: the runner drops it before
     the shell, so the command gets the environment the test gave it, and a

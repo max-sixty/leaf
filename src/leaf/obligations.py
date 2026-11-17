@@ -34,23 +34,23 @@ where they asked back or the step is still to do, its reply's `obligation` names
 question by id, as one reply can name each question the user's message answered. The
 question then stands open again under the id and the words of the message that first
 asked it, so a plan step naming it follows under the same title, and stands on that
-reply, which On Me shows and the user's next message answers. The user chose this on
-4 November 2026 over handing the question to the agent until it replied, as a widget's
+reply, which On Me shows and the user's next message answers. The user chose this
+over handing the question to the agent until it replied, as a widget's
 does, which left On Me full until the agent had read each reply, and over asking again
 under a new id, which left the plan step reading done. Asking again is the declaration
 asking is, an `obligation` naming the questions, rather than a second one beside it.
 
 A record's `status` is one of three, and this module is their one producer: `open`;
-`answered`, its typed answer in the record; and `withdrawn`, an obligation the
-document no longer makes. A question asked in a thread message, in words or by a
-widget frozen in it, also ends when either side resolves its thread after the message
-now asking it: it stays `open` with nobody's move, though a later reply reopens the
-thread, until a message asks it again under its id (`question_ids`) or the resolve is
-taken back. That is how the agent ends one the user answered on another surface, or
-that no longer applies, so the thread reads as settled wherever it shows. The user asked for this on 15 November
-2026 over an agent end of its own (`todo_end` on the question's id, read as
-`answered_elsewhere` or `withdrawn` with the agent's note), which added a status, a
-line under the question and a Done row, and left half of the threads it ended open. A
+`answered`, its typed answer in the record; and `withdrawn`, an obligation the document
+no longer makes. A question asked in a thread message, in words or by a widget frozen in
+it, also ends when either side resolves its thread after the message now asking it: it
+stays `open` with nobody's move, though a later reply reopens the thread, until a
+message asks it again under its id (`question_ids`) or the resolve is taken back. That
+is how the agent ends one the user answered on another surface, or that no longer
+applies, so the thread reads as settled wherever it shows. The user asked for this over
+an agent end of its own (`todo_end` on the question's id, read as `answered_elsewhere`
+or `withdrawn` with the agent's note), which added a status, a line under the question
+and a Done row, and left threads it ended open. A
 page widget's answer given elsewhere goes into its declared state in a revision."""
 
 import hashlib

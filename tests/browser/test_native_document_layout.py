@@ -51,8 +51,7 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     """A question's section draws no box of its own around its blocks, so they stand
     in the page's flow: its words and its options keep the prose's edge, and a block
     declaring more room takes it. A div keeps what it holds in the column, inside a
-    question or round it. The words used to go with the question's box, 480px left of
-    the page's column."""
+    question or round it."""
     options = (
         '<lf-options id="{id}-options">'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
@@ -109,9 +108,9 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     """Beside a contents map, a question or section written in the other direction from
     the page takes the same room as the page's own blocks: an available block reaches
     the page's room, and a wide one grows from the prose toward its own end, which faces
-    the map, within the room before the prose. Both used to grow toward the map, the
-    available block 334px past the window's edge, since the flow read the room on the
-    column's start side as the room on its own."""
+    the map, within the room before the prose. A flow that read the room on the
+    column's start side as the room on its own would grow both toward the map, the
+    available block past the window's edge."""
     other = "rtl" if direction == "ltr" else "ltr"
     options = '<lf-options id="{id}-o"><lf-option id="{id}-y">Yes</lf-option>'
     question = (
@@ -212,7 +211,8 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_body(browser, s
     scrolled past, so the line read in a sidebar page's body stays put, as a thread's
     new reply above the screen relies on (held-news.js). The aside stands first in the
     tree and stretches along the body, holding only a sticky track, so anchoring must
-    pass over it to the body: anchored on the aside, the line moved by the growth."""
+    pass over it to the body: anchored on the aside, the line would move by the
+    growth."""
     paragraphs = "".join(
         f'<p id="p{number}">Paragraph {number} of the evidence.</p>'
         for number in range(80)
@@ -248,9 +248,9 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
 ):
     """A sticky track scrolls its own blocks, and the browser's scroll anchoring holds
     the line read there while a block above it grows, as a widget drawing late does.
-    The track set `overflow-anchor: none` on itself, and the line moved by the growth,
-    200px in both engines. The aside before the body keeps the property, which keeps
-    the page's anchoring off the track."""
+    A track that set `overflow-anchor: none` on itself would see the line move by the
+    growth. The aside before the body keeps the property, which keeps the page's
+    anchoring off the track."""
     follow_ups = "".join(f'<p id="f{n}">Follow-up {n} to check.</p>' for n in range(60))
     body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
     source = leaf_page(

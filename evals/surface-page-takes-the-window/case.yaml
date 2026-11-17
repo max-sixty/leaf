@@ -1,15 +1,9 @@
-# From session e8a66e47, whose design-review page put its main item, a playground
-# sketching a redesigned panel, in a column page as a breakout between the review's
-# prose, so the playground's edges matched nothing above it and the review pushed it
-# down. The user wanted the playground to lead, with the review split out. Claude Code:
-# base 0/9 across three runs (c20bf406f twice, c71562813 once), every page a column;
-# head 9/9, each a workspace whose first page tab is the playground's lf-ask.
-# Those historical scores used an exact workspace/tab structure. The current rubric
-# judges the leading usable playground and access to supporting reading.
-# As an authoring case naming nothing to read, at 0e538e29d each of 4 Claude Code
-# authors read the playground's instructions through `leaf page instructions` and
-# passed, as 4 of 4 probes told to read them did. Now a probe given a page with its
-# packages, it passed Claude Code 2 of 2, Codex 2 of 2 at b90df8d3a2.
+# A session's design-review page put its main item, a playground sketching a
+# redesigned panel, in a column page as a breakout between the review's prose, so the
+# playground's edges matched nothing above it and the review pushed it down. The user
+# wanted the playground to lead, with the review split out. The rubric judges the
+# leading usable playground and access to supporting reading, not an exact
+# workspace/tab structure. The case is a probe given a page with its packages.
 description: surface-page-takes-the-window
 metadata:
   purpose: "Arranging a page: the proposed panel leads as a usable playground, with its supporting review easy to reach."

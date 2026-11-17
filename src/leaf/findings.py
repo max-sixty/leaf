@@ -264,6 +264,20 @@ def _squeezed(at: str, v: dict) -> str:
     )
 
 
+def _broken_names(at: str, v: dict) -> str:
+    # The reading knows which names break, not which column holds the row's name, so
+    # the words offer the remedy for either.
+    names = ", ".join(v["names"])
+    if (more := v["count"] - len(v["names"])) > 0:
+        names += f" and {more} more"
+    return (
+        f"{at} draws {names} on more than one line, though each is under a third of the"
+        " table's width; a name written as its row's <th scope=\"row\"> stays whole up"
+        " to a third of the column, and white-space: nowrap in the page's CSS keeps a"
+        " column of names on one line"
+    )
+
+
 def _squeezed_code(at: str, v: dict) -> str:
     # The reading knows the block is too narrow, not what narrowed it, so the words
     # offer both remedies. In a table cell the table's own advice holds: a column sizes
@@ -782,6 +796,7 @@ _TEXT = {
     ),
     "squeezed-table": _squeezed,
     "squeezed-code": _squeezed_code,
+    "broken-name": _broken_names,
     "drawn-height": _drawn_height,
     "shrunk-labels": lambda at, v: (
         f"{at} draws labels below {v['threshold']}px, {v['labels']} at"

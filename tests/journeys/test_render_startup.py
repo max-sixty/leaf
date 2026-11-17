@@ -202,8 +202,8 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     page.goto(serve(source), wait_until="load")
     holding(page, held, 1, "the unanswered private-state read")
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-    # Cross the former ten-second presentation deadline with a read still in flight.
-    # This is the interval that used to invent an offline answer and release choices.
+    # Cross ten seconds with a read still in flight: a presentation deadline there
+    # would invent an offline answer and release choices.
     page.wait_for_function("performance.now() > 11_000")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(

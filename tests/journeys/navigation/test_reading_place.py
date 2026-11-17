@@ -73,7 +73,7 @@ AT_EACH_KEY = """addEventListener("keydown", () => { globalThis.__lfAtKey = scro
   {capture: true});"""
 
 
-# Daily, by the user's choice (2026-11-14): each case fits the browser tier's budget,
+# Daily, by the user's choice: each case fits the browser tier's budget,
 # but together they take minutes of CPU, which each push to main would pay.
 @pytest.mark.parametrize("when", ["at once", "under way"])
 @pytest.mark.parametrize("follow", FOLLOWS)

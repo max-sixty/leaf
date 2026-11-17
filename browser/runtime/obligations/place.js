@@ -15,8 +15,8 @@
    Frozen thread sources may have no node until the thread owner materializes them.
    A question answered in words and an update stand nowhere on the page; their thread
    or widget owner draws them. Nor does anything whose subject is the page as a whole:
-   a to-do on the page stood at its first heading until 2 November 2026, when the user
-   chose to give it no place, since that heading had nothing to do with it. Placement
+   the user chose to give a to-do on the page no place, over standing it at its first
+   heading, which has nothing to do with it. Placement
    never changes the semantic inventory or its obligation identities.
 
    A region holds an obligation when the obligation's source element is the region or stands under

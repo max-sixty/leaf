@@ -305,8 +305,8 @@ export function createAnnotationInventory({
   // target again only where its words changed or a passage in it is new. Every change to
   // the page starts a collection, a closed tab's document drawing included, and a change
   // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
-  // collection, one comment on a 4 MB text document read that document again each time
-  // another of 30 drew, 200 ms each in Chromium.
+  // collection, one comment on a large text document would read that document again
+  // each time another document drew.
   /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
    * @returns {string[]} */
   function passageRows(target, quoted) {
@@ -492,8 +492,8 @@ export function createAnnotationInventory({
   }
 
   // Each collection builds every group on the page again from every record, and sorts
-  // them all, though a gesture changes few of them: about 10 ms a collection on the
-  // 1,024-section page `leaf-dev bench` generates, and sending a comment runs two. Not
+  // them all, though a gesture changes few of them, a cost that grows with the page
+  // (`leaf-dev bench` measures it), and sending a comment runs two. Not
   // yet built: keep each group between collections while its records are the same
   // objects and the page's reading stands (`pageReadingVersion`, passages.js), build
   // again only the groups that changed, and sort again only when that reading moves,

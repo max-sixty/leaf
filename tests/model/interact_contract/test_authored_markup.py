@@ -246,10 +246,10 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     """Child documents keep their own ids, widgets, passages, and validation reading."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template id="practice" data-sample><section id="nested-ask" role="group" aria-labelledby="nested-ask-h">'
-        '<h2 id="nested-ask-h">Hidden question</h2><lf-options id="nested-options">'
+        '<template id="practice" data-sample><lf-group id="nested-ask" label="Hidden question">'
+        '<lf-options id="nested-options">'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
-        "</lf-options></section></template></main>"
+        "</lf-options></lf-group></template></main>"
     )
     parser = structure_model.SourceDocument(html)
 

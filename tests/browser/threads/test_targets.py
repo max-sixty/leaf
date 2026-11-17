@@ -239,10 +239,10 @@ def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<section id="tv-decision-region" role="group" aria-labelledby="tv-decision-region-h">\n<h3 id="tv-decision-region-h">Which store should I write up?</h3>'
+        '<lf-group id="tv-decision-region" label="Which store should I write up?">\n'
         '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
         "tv-decision",
     )
     page = open_page(browser, url)
@@ -320,10 +320,10 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     )
     seed_reply(
         serve.page_dir,
-        '<section id="tv-decision-region" role="group" aria-labelledby="tv-decision-region-h">\n<h3 id="tv-decision-region-h">Which store should I write up?</h3>'
+        '<lf-group id="tv-decision-region" label="Which store should I write up?">\n'
         '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
         "tv-decision-region",
     )
     page = open_page(request.getfixturevalue(engine), url)

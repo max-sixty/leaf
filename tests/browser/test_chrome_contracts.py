@@ -392,9 +392,9 @@ def questions_page(sections: int) -> str:
         + "".join(
             f'<section id="s{g}"><h2>Section {g}</h2>'
             f'<p id="p{g}">Some words about section {g}.</p>'
-            f'<section id="q{g}" role="group" aria-labelledby="q{g}-h"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}">'
+            f'<lf-group id="q{g}" label="Question {g}"><lf-options id="o{g}">'
             f'<lf-option id="o{g}-1">One</lf-option>'
-            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></section></section>'
+            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-group></section>'
             for g in range(1, sections + 1)
         )
         + "</article>",

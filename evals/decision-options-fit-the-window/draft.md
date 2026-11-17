@@ -149,8 +149,7 @@ handoff and save it.
         </p>
       </section>
 
-      <section id="route-ask" role="group" aria-labelledby="route-ask-h">
-        <h2 id="route-ask-h">How should a card hand its thread to the panel?</h2>
+      <lf-group id="route-ask" label="How should a card hand its thread to the panel?">
         <p>
           Each candidate starts from the card a <kbd>t</kbd> walk opens. B and C add
           <em>Open in panel</em> to the card's head, beside Resolve and Close. The card
@@ -342,7 +341,7 @@ handoff and save it.
             still and the journey in Firefox.
           </lf-playground-output>
         </lf-playground>
-      </section>
+      </lf-group>
 
       <section id="considered">
         <h2>What each candidate leaves open</h2>

@@ -22,8 +22,7 @@ vars:
     The page so far holds ten proposals, each put to the user like these two:
 
     ```html
-    <section id="ask-resolve-glyph" role="group" aria-labelledby="resolve-glyph">
-      <h3 id="resolve-glyph">Resolve and Reopen are a bare ✓: one press hides the thread, and reopening looks like a status</h3>
+    <lf-group id="ask-resolve-glyph" label="Resolve and Reopen are a bare ✓: one press hides the thread, and reopening looks like a status">
       <p>
         A card's Resolve is a ✓ beside ✕. One press closes the card, removes the
         marker and the passage underline, and ends the thread's open questions. The
@@ -42,10 +41,9 @@ vars:
         <lf-option id="resolve-words" label="Write Resolve and Reopen as words, and make the resolved line reopen" recommended><small class="tag">effort: ~25 lines</small></lf-option>
         <lf-option id="resolve-keep" label="Keep the ✓ glyphs"><small class="tag">effort: none</small>Their names stay in tooltips only, which a phone never shows.</lf-option>
       </lf-options>
-    </section>
+    </lf-group>
 
-    <section id="ask-answer-control" role="group" aria-labelledby="answer-control">
-      <h3 id="answer-control">A question asked in words shows no way to answer it</h3>
+    <lf-group id="ask-answer-control" label="A question asked in words shows no way to answer it">
       <p>
         A question asked in words renders as an ordinary paragraph, and the only
         sign it is a question is a <code>?</code> in the rail. On Me has the same
@@ -62,7 +60,7 @@ vars:
         <lf-option id="answer-build" label="Draw an Answer press on bare questions and on On Me cards" recommended><small class="tag">effort: ~40 lines</small></lf-option>
         <lf-option id="answer-keep" label="Keep the rail’s ? as the only sign"><small class="tag">effort: none</small></lf-option>
       </lf-options>
-    </section>
+    </lf-group>
     ```
 
     You read the code. Your notes:
@@ -138,8 +136,7 @@ variants:
         Earlier decisions on the page look like this one:
 
         ```html
-        <section id="d43" role="group" aria-labelledby="d43-h">
-          <h3 id="d43-h">#43 How strong should the window-height requirements be?</h3>
+        <lf-group id="d43" label="#43 How strong should the window-height requirements be?">
           <p>
             Clipped controls and sideways scroll stay refusals, now also at the new height.
             The question is the two that aren't checked: a workspace's decision in view, and a
@@ -152,7 +149,7 @@ variants:
             <lf-option id="d43-refuse" label="Refuse an overflowing pane">Every page fits, at the cost of refusing a long file or reading list that may scroll.</lf-option>
             <lf-option id="d43-guide" label="Guidance only">No check; the goal line alone.</lf-option>
           </lf-options>
-        </section>
+        </lf-group>
         ```
 
         Your notes, from measuring the gate on 40 example pages:
@@ -236,8 +233,7 @@ variants:
         An earlier decision on the page reads:
 
         ```html
-        <section id="skill-ask" role="group" aria-labelledby="skill-ask-h">
-          <h2 id="skill-ask-h">Should the grind workflow become a skill?</h2>
+        <lf-group id="skill-ask" label="Should the grind workflow become a skill?">
           <p>
             Every agent tonight read the same brief, and three of its rules came from
             friction an agent hit. No skill covers a batch of agents over the TODO
@@ -251,7 +247,7 @@ variants:
             </lf-option>
             <lf-option id="skill-keep" label="Keep the brief in .tmp/"></lf-option>
           </lf-options>
-        </section>
+        </lf-group>
         ```
 
         Your notes:

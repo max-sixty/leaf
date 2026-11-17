@@ -84,11 +84,11 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         serve.page_dir,
         {"parent": answered},
         "Choose the backend here.\n\n"
-        '<section id="backend-decision" role="group" aria-labelledby="backend-decision-h">\n<h3 id="backend-decision-h">Which backend?</h3>'
+        '<lf-group id="backend-decision" label="Which backend?">\n'
         '<lf-options id="backend">'
         '<lf-option id="backend-sqlite" label="SQLite"></lf-option>'
         '<lf-option id="backend-postgres" label="Postgres"></lf-option>'
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
     )
     told(page)
     expect(thread_row(page, answered).locator(".lf-row-end")).to_contain_text(

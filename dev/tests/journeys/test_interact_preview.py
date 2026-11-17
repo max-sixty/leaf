@@ -751,9 +751,9 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     source.write_text(
         "<!doctype html><html><head><title>Reading</title></head><body><main>"
         '<h1>Initial reading</h1><lf-text-document id="receipt" source="receipt"></lf-text-document>'
-        '<section id="route-q" role="group" aria-label="Which route?">'
+        '<lf-group id="route-q" label="Which route?">'
         '<lf-options id="route"><lf-option id="first">First</lf-option>'
-        '<lf-option id="second">Second</lf-option></lf-options></section>'
+        '<lf-option id="second">Second</lf-option></lf-options></lf-group>'
         "</main></body></html>"
     )
     source.with_suffix(".data.json").write_text('{"receipt":"Original value"}')

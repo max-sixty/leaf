@@ -110,10 +110,10 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
         '<figure id="held-latency" role="group" aria-labelledby="held-latency-caption">' +
         '<lf-chart id="held-chart"></lf-chart>' +
         '<figcaption id="held-latency-caption">Latency by day</figcaption></figure>\n\n' +
-        '<section id="held-ask" role="group" aria-labelledby="held-ask-h">' +
-        '<h3 id="held-ask-h">Roll back now?</h3>' +
+        '<lf-group id="held-ask" label="Roll back now?">' +
+        '' +
         '<lf-options id="held-choice"><lf-option id="held-yes">Yes</lf-option>' +
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
     },
     "held-thread",
   );

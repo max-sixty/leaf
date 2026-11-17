@@ -230,9 +230,9 @@ heading asks the question, the group names that heading:
     <h1 id="tune-h">Which latency window should checkout alert on?</h1>
     <p>…</p>
   </header>
-  <section id="tune" role="group" aria-labelledby="tune-h">
+  <lf-group id="tune" label="Which latency window should checkout alert on?">
     <lf-playground id="tune-config">…</lf-playground>
-  </section>
+  </lf-group>
 </main>
 ```
 

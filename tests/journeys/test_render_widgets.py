@@ -66,12 +66,11 @@ MOTION_SAMPLE_CONTENT = """
 <lf-sample id="card-sample" label="Current sample">
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
-    <section id="sample-choice-ask" role="group" aria-labelledby="sample-choice-ask-h"><h3 id="sample-choice-ask-h">Choose a sample</h3>
-      <lf-options id="sample-choice">
+    <lf-group id="sample-choice-ask" label="Choose a sample">      <lf-options id="sample-choice">
         <lf-option id="sample-alpha" label="Alpha"></lf-option>
         <lf-option id="sample-beta" label="Beta"></lf-option>
       </lf-options>
-    </section>
+    </lf-group>
     <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
   </template>
 </lf-sample>
@@ -104,12 +103,11 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         return f"""
 <lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
-  <section id="ask-{key}" role="group" aria-labelledby="q-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
-    <lf-options id="o-{key}">
+  <lf-group id="ask-{key}" label="What happens to {key}?">    <lf-options id="o-{key}">
       <lf-option id="o-{key}-fix" label="Fix">Ship the patch.</lf-option>
       <lf-option id="o-{key}-close" label="Close">Explain and close.</lf-option>
     </lf-options>
-  </section>
+  </lf-group>
 </lf-tab>"""
 
     source = leaf_page(
@@ -294,13 +292,12 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     source = leaf_page(
         "Session-store follow-ups",
         """<h1>Session-store follow-ups</h1>
-<section id="session-triage-decision" role="group" aria-labelledby="session-triage-decision-h">
-  <h2 id="session-triage-decision-h">Which follow-ups should we keep?</h2>
+<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">
   <lf-options id="session-triage" multiple>
     <lf-option id="rolling-expiry">Rolling expiry</lf-option>
     <lf-option id="bounded-fallback">Bounded fallback</lf-option>
   </lf-options>
-</section>
+</lf-group>
 """,
     )
     page = open_page(browser, serve(source))
@@ -332,9 +329,9 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     # The workspace's full height reaches every obligation in it; an obligation held in a pane is
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
-        '<section id="session-triage-decision" role="group" aria-labelledby="session-triage-decision-h">',
+        '<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">',
         '<lf-pane id="triage-pane" label="Triage"><div>\n<section id="session-triage-decision" role="group" aria-labelledby="session-triage-decision-h">',
-    ).replace("</section>\n", "</section>\n</div></lf-pane>\n")
+    ).replace("</section>\n", "</lf-group>\n</div></lf-pane>\n")
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
@@ -1791,8 +1788,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         """
 <h1>Tone playground</h1>
 <p id="host-note">The page around the playground.</p>
-<section id="tone-ask" role="group" aria-labelledby="tone-ask-h">
-  <h2 id="tone-ask-h">Which tone?</h2>
+<lf-group id="tone-ask" label="Which tone?">
   <lf-playground id="tone-playground">
     <aside><fieldset id="tone"><legend>Tone</legend>
       <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
@@ -1809,7 +1805,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
     <lf-playground-output id="tone-instruction">Use the
       <output for="tone"></output> tone.</lf-playground-output>
   </lf-playground>
-</section>
+</lf-group>
 """,
     )
     page = open_page(browser, serve(source))
@@ -1891,8 +1887,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
         "focus playground",
         """
 <h1>Ring playground</h1>
-<section id="ring-ask" role="group" aria-labelledby="ring-ask-h">
-  <h2 id="ring-ask-h">Which ring?</h2>
+<lf-group id="ring-ask" label="Which ring?">
   <lf-playground id="ring-playground">
     <lf-playground-preset id="preset-wide" label="Wide">
       <lf-playground-setting for="width" value="4"></lf-playground-setting>
@@ -1916,7 +1911,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     <lf-playground-output>Use the
       <output for="ring"></output> ring.</lf-playground-output>
   </lf-playground>
-</section>
+</lf-group>
 """,
     )
     page = open_page(browser, serve(source))

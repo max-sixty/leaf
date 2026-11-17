@@ -705,14 +705,13 @@ cases:
                       </tbody>
                     </table>
                   </section>
-                  <section id="slow-next" role="group" aria-labelledby="slow-next-h">
-                    <h2 id="slow-next-h">Which should I fix first?</h2>
+                  <lf-group id="slow-next" label="Which should I fix first?">
                     <lf-options id="slow-first">
                       <lf-option id="slow-first-sort" label="Index the price field">The most called of the three; one index build, about an hour.</lf-option>
                       <lf-option id="slow-first-facet" label="Cap the wildcard facet">The slowest; a facet over 100 terms falls back to a prefix match.</lf-option>
                       <lf-option id="slow-first-empty" label="Answer an empty query from the cache">The rarest; one line in the handler.</lf-option>
                     </lf-options>
-                  </section>
+                  </lf-group>
                 </main>
         result: The file {page}/index.html has been updated successfully.
       - *slow-reply

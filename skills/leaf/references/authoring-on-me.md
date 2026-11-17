@@ -106,14 +106,13 @@ and options, after the evidence, leaves the evidence outside what `m` selects. E
 widget in the group that asks is its own question with its own answer.
 
 ```html
-<section id="material-q" role="group" aria-labelledby="material-h">
-  <h2 id="material-h">Which material for the housing?</h2>
+<lf-group id="material-q" label="Which material for the housing?">
   <p>Aluminium costs three times as much and halves the weight.</p>
   <table id="material-weights">
     …
   </table>
   <lf-options id="material">…</lf-options>
-</section>
+</lf-group>
 ```
 
 On a quick-answer page, open with the question and put optional detail in a disclosure after
@@ -147,12 +146,7 @@ things as they are and take the action, so declining is an answer too. Put the e
 action and the evidence the user needs in the question's heading and prose:
 
 ```html
-<section
-  id="publish-report-question"
-  role="group"
-  aria-labelledby="publish-report-heading"
->
-  <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
+<lf-group id="publish-report-question" label="Publish this report to the team workspace?">
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
     <lf-option id="publish-report-keep" label="Keep it private"></lf-option>
@@ -161,7 +155,7 @@ action and the evidence the user needs in the question's heading and prose:
       label="Publish it to the team workspace"
     ></lf-option>
   </lf-options>
-</section>
+</lf-group>
 ```
 
 Other unanswered questions do not block it. When permission depends on an earlier

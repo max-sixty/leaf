@@ -970,8 +970,7 @@ FRAMED_WIDE_PAGE = leaf_page(
     <lf-column id="q2" label="Done"></lf-column>
   </lf-board>
 </lf-sample>
-<section id="pick-decision" role="group" aria-labelledby="pick-decision-h"><h2 id="pick-decision-h">Should the option include evidence?</h2>
-<lf-options id="pick">
+<lf-group id="pick-decision" label="Should the option include evidence?"><lf-options id="pick">
   <lf-option id="opt-a" label="With evidence">    <lf-diagram id="in-card"><pre>
 graph LR
   A[request] --> B[queue]
@@ -979,9 +978,8 @@ graph LR
 </pre></lf-diagram>
   </lf-option>
   <lf-option id="opt-b" label="Without"></lf-option>
-</lf-options></section>
-<section id="row-pick-decision" role="group" aria-labelledby="row-pick-decision-h"><h2 id="row-pick-decision-h">Where should the cable run?</h2>
-<lf-options id="row-pick">
+</lf-options></lf-group>
+<lf-group id="row-pick-decision" label="Where should the cable run?"><lf-options id="row-pick">
   <lf-option id="row-a">Along the fence line
     <lf-diagram id="in-row"><pre>
 graph LR
@@ -994,7 +992,7 @@ graph LR
 </pre></lf-diagram>
   </lf-option>
   <lf-option id="row-b">Under the lawn in a trench</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 <lf-board id="evidence">
   <lf-column id="e1" label="Todo"><lf-card id="ek1" label="With evidence">    <lf-diagram id="in-board-card"><pre>
 graph LR
@@ -1230,12 +1228,12 @@ WHERE_I_STAND_PAGE = leaf_page(
 <h1 id="t">Current location</h1>
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
-<section id="shape-decision" role="group" aria-label="Which material?"><h2>Which material?</h2>
+<lf-group id="shape-decision" label="Which material?"><h2>Which material?</h2>
 <lf-options id="shape">
   <lf-option id="sh-steel" label="Steel">Galvanised, and the
   <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>
   <lf-option id="sh-cedar" label="Cedar">Cheap; needs sealing.</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 <section id="settled-decision"><h2>Should we keep it?</h2>
 <lf-options id="settled" settled>
   <lf-option id="st-keep" label="Keep it" selected>Decided last week, with the

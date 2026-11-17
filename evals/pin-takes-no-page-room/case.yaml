@@ -13,10 +13,9 @@ vars:
     content is a question section:
 
     ```html
-    <section id="rollout" role="group" aria-labelledby="rollout-h">
-      <h2 id="rollout-h">Which region should take the first rollout of the new billing service?</h2>
+    <lf-group id="rollout" label="Which region should take the first rollout of the new billing service?">
       <lf-options id="region">...</lf-options>
-    </section>
+    </lf-group>
     ```
 
     The page's own `<style>` is empty.

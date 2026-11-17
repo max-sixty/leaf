@@ -2104,9 +2104,9 @@ def test_check_accepts_authored_body_content_beside_main(page_dir):
         "</main>",
         '</main><footer id="footer">Footer words</footer>Authored tail'
         '<aside id="aside">Aside words</aside>'
-        '<section id="tail-q" role="group" aria-label="Which tail?">'
+        '<lf-group id="tail-q" label="Which tail?">'
         '<lf-options id="tail-choice"><lf-option id="tail">A sibling option</lf-option>'
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
     )
     (page_dir / "index.html").write_text(source)
 
@@ -2172,7 +2172,7 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
     has a thread to move; the version has to be refused before it goes out."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '<section id="plan" role="group" aria-label="Plan">',
+            '<lf-group id="plan" label="Plan">',
             '<section id="plan" role="group" aria-label="Plan"><svg viewBox="0 0 10 10">'
             '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
         )
@@ -3599,7 +3599,7 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
         "</lf-test-task></lf-test-plan>"
     )
     (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", markup + "</section>")
+        PAGE.replace("</section>", markup + "</lf-group>")
     )
     publish(page_dir)
     assert obligations_on_user(state_json(page_dir)) == [
@@ -3619,10 +3619,10 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
     for nothing, and the pick wakes no agent."""
     markup = (
         '<lf-sample id="practice" interactive>'
-        '<section id="practice-ask" role="group" aria-labelledby="practice-ask-h"><h3 id="practice-ask-h">Which queue policy?</h3>'
+        '<lf-group id="practice-ask" label="Which queue policy?">'
         '<lf-options id="practice-policy">'
         '<lf-option id="practice-a">A</lf-option>'
-        '<lf-option id="practice-b">B</lf-option></lf-options></section>'
+        '<lf-option id="practice-b">B</lf-option></lf-options></lf-group>'
         "</lf-sample>"
     )
     (page_dir / "index.html").write_text(

@@ -891,9 +891,9 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
-        '<section id="{id}" role="group" aria-labelledby="{id}-h"><h3 id="{id}-h">Ship it?</h3>{table}'
+        '<lf-group id="{id}" label="Ship it?">{table}'
         '<lf-options id="{id}-o">'
-        '<lf-option id="{id}-yes">Yes</lf-option></lf-options></section>'
+        '<lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-group>'
     )
     body = (
         '<p id="prose">Prose.</p>'
@@ -906,10 +906,10 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<aside class="callout" id="contained-c">'
         + table.format(id="contained-c")
         + "</aside>"
-        + '<section id="list-q" role="group" aria-label="Raise the limit?">'
+        + '<lf-group id="list-q" label="Raise the limit?">'
         + '<lf-options id="list"><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
-        + "</lf-options></section>"
+        + "</lf-options></lf-group>"
     )
     measure = """() => Object.fromEntries(
       ['prose', 'ask', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']

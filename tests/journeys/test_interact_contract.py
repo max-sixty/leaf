@@ -476,7 +476,7 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
             "kind": "comment",
             "author": "agent",
             "text": "A widget example\n\n"
-            '<section id="message-ask" role="group" aria-labelledby="message-ask-h">\n<h2 id="message-ask-h">Route</h2><lf-options id="message-widget"><lf-option id="message-option">Existing</lf-option></lf-options></section>',
+            '<lf-group id="message-ask" label="Route">\n<lf-options id="message-widget"><lf-option id="message-option">Existing</lf-option></lf-options></lf-group>',
         },
         {
             "kind": "comment",

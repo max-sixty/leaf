@@ -448,10 +448,10 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
                 "Panel and option",
                 '<lf-tabs id="tabs" flow="page"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
-                '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2><lf-options id="opts">'
+                '<lf-group id="ask" label="Which?"><lf-options id="opts">'
                 f'<lf-option id="opt-a" label="A">{long_diff("in-option")}'
                 '</lf-option><lf-option id="opt-b" label="B"></lf-option>'
-                "</lf-options></section>" + "<p>Filler.</p>" * 60,
+                "</lf-options></lf-group>" + "<p>Filler.</p>" * 60,
                 head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
             )
         ),

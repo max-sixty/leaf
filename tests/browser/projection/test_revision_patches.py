@@ -815,8 +815,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     first = leaf_page(
         "Widgets first",
         """
-<section id="wd-store-ask" role="group" aria-labelledby="wd-store-ask-h"><h2 id="wd-store-ask-h">Which store?</h2>
-<lf-options id="wd-store">
+<lf-group id="wd-store-ask" label="Which store?"><lf-options id="wd-store">
   <lf-option id="wd-keep">Keep the store
   <img src="/page/held.svg" alt="Leaf" data-evidence="/media/051bee487bfb5d13.png">
   <svg width="16" height="16"><image width="16" height="16" xlink:href="/page/held.svg"></image></svg>
@@ -825,12 +824,11 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
   <script>if (false) import("/runtime/widget-api.js");</script>
 </lf-option>
   <lf-option id="wd-drop">Drop the store</lf-option>
-</lf-options></section>
-<section id="wd-when-ask" role="group" aria-labelledby="wd-when-ask-h"><h2 id="wd-when-ask-h">Which schedule?</h2>
-<lf-options id="wd-when">
+</lf-options></lf-group>
+<lf-group id="wd-when-ask" label="Which schedule?"><lf-options id="wd-when">
   <lf-option id="wd-now">Start now</lf-option>
   <lf-option id="wd-later">Start later</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 """,
     )
     second = (
@@ -845,7 +843,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
             '  <lf-option id="wd-never">Do not start at all</lf-option>',
         )
         .replace(
-            '<section id="wd-when-ask" role="group" aria-labelledby="wd-when-ask-h">',
+            '<lf-group id="wd-when-ask" label="Which schedule?">',
             '<p><lf-tally id="arriving-tally" for="wd-when-ask" next></lf-tally></p>'
             '<section id="wd-when-ask" role="group" aria-labelledby="wd-when-ask-h">',
         )
@@ -1135,11 +1133,11 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
         "Comment scope",
         '<h1 id="h">Decisions</h1><section id="subject">' + paragraph + "</section>",
     )
-    second = first.replace("</section>", paragraph + "</section>").replace(
+    second = first.replace("</section>", paragraph + "</lf-group>").replace(
         "</main>",
-        '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Decision?</h2>'
+        '<lf-group id="question" label="Decision?">'
         '<lf-options id="options"><lf-option id="yes">Yes</lf-option>'
-        "</lf-options></section></main>",
+        "</lf-options></lf-group></main>",
     )
     page = open_page(browser, live_url(serve(first)))
     page.locator("#subject p").click(click_count=3)
@@ -1199,11 +1197,10 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     owner."""
 
     def question(identity, label):
-        return f"""<section id="{identity}-ask" role="group" aria-labelledby="{identity}-ask-h"><h2 id="{identity}-ask-h">{label}?</h2>
-  <lf-options id="{identity}-options">
+        return f"""<lf-group id="{identity}-ask" label="{label}?">  <lf-options id="{identity}-options">
     <lf-option id="{identity}-yes">Yes</lf-option>
   </lf-options>
-</section>"""
+</lf-group>"""
 
     first_question = question("first", "First")
     second_question = question("second", "Second")

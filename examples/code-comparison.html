@@ -309,14 +309,7 @@
           label="Compare"
           summary="Tune both treatments and keep one"
         >
-          <section
-            id="code-comparison-ask"
-            role="group"
-            aria-labelledby="code-comparison-ask-h"
-          >
-            <h2 id="code-comparison-ask-h">
-              Which code-reader treatment should the agent keep?
-            </h2>
+          <lf-group id="code-comparison-ask" label="Which code-reader treatment should the agent keep?">
             <lf-playground
               id="code-comparison-playground"
               contract="code-comparison-values"
@@ -399,7 +392,7 @@ export function releaseLabels(releases) {
                 measurement test.
               </lf-playground-output>
             </lf-playground>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="code-comparison-comment"

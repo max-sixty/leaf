@@ -1269,9 +1269,9 @@ def test_data_record_requests_keep_conditional_registration_and_their_group():
     def document(attrs):
         return model.leaf_page(
             "Review",
-            '<section id="frame" role="group" aria-labelledby="frame-h">'
-            '<h2 id="frame-h">Review this</h2><lf-visual-review id="review"'
-            f' source="gallery-visual-run" {attrs}></lf-visual-review></section>',
+            '<lf-group id="frame" label="Review this">'
+            '<lf-visual-review id="review"'
+            f' source="gallery-visual-run" {attrs}></lf-visual-review></lf-group>',
         )
 
     assert (

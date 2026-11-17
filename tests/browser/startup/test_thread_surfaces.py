@@ -431,10 +431,9 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
             "Page annotation view",
             """
       <h1 id="title">Review</h1>
-      <section id="choice-question" role="group" aria-labelledby="choice-question-h"><h2 id="choice-question-h">Which route?</h2>
-        <lf-options id="routes"><lf-option id="route-a">Route A</lf-option>
+      <lf-group id="choice-question" label="Which route?">        <lf-options id="routes"><lf-option id="route-a">Route A</lf-option>
         <lf-option id="route-b">Route B</lf-option></lf-options>
-      </section>
+      </lf-group>
       <p id="subject">The export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review"></aside>
     """,

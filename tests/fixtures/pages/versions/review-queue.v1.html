@@ -132,14 +132,7 @@
 verify counts
 switch readers
 expire old keys</code></pre>
-              <section
-                id="review-cache-decision"
-                role="group"
-                aria-labelledby="review-cache-decision-h"
-              >
-                <h4 id="review-cache-decision-h">
-                  What should happen if post-switch verification fails?
-                </h4>
+              <lf-group id="review-cache-decision" label="What should happen if post-switch verification fails?">
                 <p>
                   Both choices keep the old keys available while the migration is
                   checked.
@@ -157,7 +150,7 @@ expire old keys</code></pre>
                     mismatch.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </section>
             <section id="review-email">
               <h3>Receipt email</h3>
@@ -223,14 +216,7 @@ expire old keys</code></pre>
                   corrected ledger entry.
                 </p>
               </div>
-              <section
-                id="review-billing-decision"
-                role="group"
-                aria-labelledby="review-billing-decision-h"
-              >
-                <h4 id="review-billing-decision-h">
-                  Where should the legacy invoice be reconciled?
-                </h4>
+              <lf-group id="review-billing-decision" label="Where should the legacy invoice be reconciled?">
                 <p>
                   The one-cent difference is confined to invoices created before the
                   reporting migration.
@@ -250,7 +236,7 @@ expire old keys</code></pre>
                     adjustment.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </section>
             <section id="review-webhook">
               <h3>Webhook delivery</h3>

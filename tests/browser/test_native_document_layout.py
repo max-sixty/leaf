@@ -190,10 +190,9 @@ def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
     source = leaf_page(
         "Question in a workspace",
         """<header><h1>Question in a workspace</h1></header>
-        <div id="region"><section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Ship it?</h2>
-          <div id="wide-evidence" data-width="wide">Evidence.</div>
+        <div id="region"><lf-group id="asked" label="Ship it?">          <div id="wide-evidence" data-width="wide">Evidence.</div>
           <lf-options id="choice"><lf-option id="yes">Yes</lf-option></lf-options>
-        </section></div>""",
+        </lf-group></div>""",
         layout="workspace",
     )
     page = open_page(browser, serve(source))

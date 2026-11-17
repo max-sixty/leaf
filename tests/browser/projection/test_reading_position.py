@@ -678,11 +678,11 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
     """Obligation repaint keeps the reading of the panel's On Me view the user scrolled."""
     questions = "".join(
-        f'<section id="ask-{index}" role="group" aria-labelledby="ask-{index}-h"><h2 id="ask-{index}-h">Question {index} about this project</h2>'
+        f'<lf-group id="ask-{index}" label="Question {index} about this project">'
         f'<lf-options id="options-{index}">'
         f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
         f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
-        "</lf-options></section>"
+        "</lf-options></lf-group>"
         for index in range(30)
     )
     page = open_page(

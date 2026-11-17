@@ -167,11 +167,11 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
     those decoded. A choice recorded on the page's widget stays, one the user took back
     stays taken back, and so does the data the page itself binds."""
     decisions = (
-        '<section id="decisions" role="group" aria-label="Which ones?">'
+        '<lf-group id="decisions" label="Which ones?">'
         '<lf-options id="picks"><lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options>'
         '<lf-options id="taken-back"><lf-option id="keep">Keep</lf-option>'
-        '<lf-option id="drop">Drop</lf-option></lf-options></section>'
+        '<lf-option id="drop">Drop</lf-option></lf-options></lf-group>'
     )
     page_notes = (
         '<lf-text-document id="notes" source="page-notes" label="notes.md">'

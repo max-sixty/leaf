@@ -18,8 +18,7 @@
         for the end.
       </p>
       <lf-deck id="deck-catch-up">
-        <section id="deck-store-ask" role="group" aria-labelledby="deck-store-ask-h">
-          <h3 id="deck-store-ask-h">Which session store ships in 2.4?</h3>
+        <lf-group id="deck-store-ask" label="Which session store ships in 2.4?">
           <p>
             Postgres removed the Redis hop in load tests (p99 41 ms to 29 ms) but needs
             the migration in the runbook. Redis is what production runs today.
@@ -32,7 +31,7 @@
               >Run the migration Thursday.</lf-option
             >
           </lf-options>
-        </section>
+        </lf-group>
         <section id="deck-notes-card">
           <h3>Tighten the upgrade note?</h3>
           <lf-suggestion id="deck-notes-suggestion">
@@ -49,23 +48,15 @@
             >
           </lf-suggestion>
         </section>
-        <section id="deck-beta-ask" role="group" aria-labelledby="deck-beta-ask-h">
-          <h3 id="deck-beta-ask-h">Which platforms get the 2.4 beta?</h3>
+        <lf-group id="deck-beta-ask" label="Which platforms get the 2.4 beta?">
           <p>Each platform adds a day of smoke testing.</p>
           <lf-options id="deck-beta-choice" multiple>
             <lf-option id="deck-beta-mac">macOS</lf-option>
             <lf-option id="deck-beta-linux">Linux</lf-option>
             <lf-option id="deck-beta-win">Windows</lf-option>
           </lf-options>
-        </section>
-        <section
-          id="deck-support-ask"
-          role="group"
-          aria-labelledby="deck-support-ask-h"
-        >
-          <h3 id="deck-support-ask-h">
-            Send this reply to the support thread about slow logins?
-          </h3>
+        </lf-group>
+        <lf-group id="deck-support-ask" label="Send this reply to the support thread about slow logins?">
           <p>It goes out under your name, with any edit you make to it.</p>
           <lf-draft id="deck-support-draft">
             <pre>
@@ -75,19 +66,14 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
             <lf-option id="deck-support-send" label="Send it"></lf-option>
             <lf-option id="deck-support-hold" label="Don't send it"></lf-option>
           </lf-options>
-        </section>
-        <section
-          id="deck-publish-ask"
-          role="group"
-          aria-labelledby="deck-publish-ask-h"
-        >
-          <h3 id="deck-publish-ask-h">Post the release notes to #eng on Friday?</h3>
+        </lf-group>
+        <lf-group id="deck-publish-ask" label="Post the release notes to #eng on Friday?">
           <p>Posts the notes, with the upgrade note as you leave it.</p>
           <lf-options id="deck-publish-choice">
             <lf-option id="deck-publish-hold" label="Keep them as a draft"></lf-option>
             <lf-option id="deck-publish-post" label="Post them on Friday"></lf-option>
           </lf-options>
-        </section>
+        </lf-group>
       </lf-deck>
       <p id="deck-after">The rest of the page goes on below the deck.</p>
     </main>

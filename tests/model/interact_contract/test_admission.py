@@ -57,13 +57,12 @@ STATED_KIT = """<!doctype html>
     <lf-option id="quoted-gps" label="Dedicated GPS">Offline maps.</lf-option>
   </lf-options>
 </lf-sample>
-<section id="kit-decision" role="group" aria-labelledby="kit-decision-h">
-  <h2 id="kit-decision-h">Which navigation kit this year?</h2>
+<lf-group id="kit-decision" label="Which navigation kit this year?">
   <lf-options id="live-pick">
     <lf-option id="live-paper" label="Paper maps">Nothing to charge.</lf-option>
     <lf-option id="live-gps" label="Dedicated GPS">Offline maps.</lf-option>
   </lf-options>
-</section>
+</lf-group>
 </main>
 </body>
 </html>

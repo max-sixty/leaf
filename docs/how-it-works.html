@@ -471,14 +471,7 @@ leaf server start ./review</code></pre>
                   The importer receives bursts of records faster than it can process
                   them. Its queue has room for 1,000 records.
                 </p>
-                <section
-                  id="queue-question"
-                  role="group"
-                  aria-labelledby="queue-question-h"
-                >
-                  <h3 id="queue-question-h">
-                    When the queue fills, what should happen?
-                  </h3>
+                <lf-group id="queue-question" label="When the queue fills, what should happen?">
                   <lf-options id="queue-policy">
                     <lf-option id="block-producer" label="Pause the producer"
                       >Keep every queued record; wait for space before accepting
@@ -489,7 +482,7 @@ leaf server start ./review</code></pre>
                       one.</lf-option
                     >
                   </lf-options>
-                </section>
+                </lf-group>
                 <h3>Recorded actions</h3>
                 <lf-activity id="queue-activity"></lf-activity>
               </lf-sample>
@@ -1874,8 +1867,7 @@ flowchart TD
               The three undos return the choices to their starting state.
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
-              <section id="ship-ask" role="group" aria-labelledby="ship-ask-h">
-                <h2 id="ship-ask-h">When should this ship?</h2>
+              <lf-group id="ship-ask" label="When should this ship?">
                 <lf-options id="ship">
                   <lf-option id="ship-now" label="Now"
                     >Today, behind the flag.</lf-option
@@ -1884,7 +1876,7 @@ flowchart TD
                     >Next week, after the load test.</lf-option
                   >
                 </lf-options>
-              </section>
+              </lf-group>
               <lf-activity id="sample-feed"></lf-activity>
             </lf-sample>
           </section>
@@ -2290,14 +2282,7 @@ flowchart TD
               label="Permission for a sample report"
               interactive
             >
-              <section
-                id="sample-publish-report-decision"
-                role="group"
-                aria-labelledby="sample-publish-report-decision-h"
-              >
-                <h2 id="sample-publish-report-decision-h">
-                  Publish the sample report?
-                </h2>
+              <lf-group id="sample-publish-report-decision" label="Publish the sample report?">
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
                   <lf-option
@@ -2309,7 +2294,7 @@ flowchart TD
                     label="Publish the report"
                   ></lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
               <lf-activity id="sample-permission-history"></lf-activity>
             </lf-sample>
           </section>

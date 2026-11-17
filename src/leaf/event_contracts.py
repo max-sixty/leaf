@@ -685,7 +685,7 @@ def _thread_presentation_error(view, event: dict, events: list) -> Finding | Non
         end = messages.index(event["through"])
     except ValueError:
         return Finding("summary-endpoints", values=named)
-    if start >= end:
+    if start > end:
         return Finding("summary-order", values=named)
     # The summaries in force once this one stands: those it overlaps it replaces whole.
     candidate = {**event, "seq": events[-1]["seq"] + 1}

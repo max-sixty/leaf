@@ -1009,20 +1009,31 @@ _TEXT = {
         ' own (page-layout.md, "A page of parts")'
     ),
     "pane-ends": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} admits at most one direct"
-        " <header> and one direct <footer>"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds more than one direct"
+        " <header> or <footer>; its grid sets each one after the first beside it, in a"
+        " column of its own, so put what they hold in one <header> or <footer>"
     ),
     "pane-header-first": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} direct <header> must be first"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <header> after"
+        " other children; its grid still draws the header on top, but keyboard and"
+        " screen-reader order follow the markup"
     ),
     "pane-footer-last": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} direct <footer> must be last"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <footer> before"
+        " other children; its grid still draws the footer at the bottom, but keyboard"
+        " and screen-reader order follow the markup"
     ),
     "pane-body": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} must contain exactly one direct"
-        " body element between its header and footer, found "
-        + (_json(v["body"]) if v["body"] else "nothing")
-        + "; wrap several blocks in one <div> or <section>"
+        f"{_line(at, v)}: `reading-role` {v['role']} "
+        + (
+            "holds loose text as its body, which stands without the body's padding"
+            " and doesn't scroll as the pane's body; wrap it in a <p> or <div>"
+            if v["body"] == ["#text"]
+            else f"holds {len(v['body'])} body blocks ({_json(v['body'])}); its grid"
+            " places them all in its one body cell, where they overlap, and only the"
+            " first element among them scrolls as the pane's body, so wrap them in one"
+            " <div> or <section>"
+        )
     ),
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
@@ -1454,12 +1465,6 @@ _TEXT = {
             " decision"
         )
     ),
-    "reserved-resolves": _declared(
-        lambda v: (
-            "declares attribute `resolves`, a reserved name (the thread an"
-            " answer to its obligation closes), but originates no local obligation"
-        )
-    ),
     "verb-detail-schema": _declared(
         lambda v: (
             f"verb `{v['verb']}` (`verbs`) has an invalid detail schema: {v['reason']}"
@@ -1872,7 +1877,8 @@ _TEXT = {
         "summary endpoints must name spoken turns in one thread"
     ),
     "summary-order": lambda at, v: (
-        "summary must cover at least two messages in thread order"
+        f"summary's `from` {v['from']!r} comes after its `through` {v['through']!r}"
+        " in thread order"
     ),
     "summary-gap": lambda at, v: (
         "summary would leave messages unsummarized above a summary, and only the"

@@ -213,6 +213,10 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     )
     assert refused(third["id"], reaction["id"]) == "summary-endpoints"
 
+    # One message is a range too; the next summary overlaps it and replaces it.
+    alone = summarize(second["id"], second["id"])
+    assert alone.exit_code == 0, alone.output
+
     described = summarize(second["id"], third["id"])
     assert described.exit_code == 0, described.output
     assert json.loads(described.output)["through"] == third["id"]

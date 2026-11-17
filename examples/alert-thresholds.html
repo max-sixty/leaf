@@ -9,10 +9,6 @@
     <style>
       /* The stage holds the totals and one pair per alert: its evidence, and beside it
          the controls that change only that alert. */
-      #alert-preview {
-        align-content: start;
-      }
-
       .alert-board {
         display: grid;
         gap: var(--lf-sp-4);
@@ -80,6 +76,27 @@
         display: grid;
         align-content: start;
         gap: var(--lf-sp-3);
+      }
+
+      /* Each setting's name heads its choices, which stand one per line with their
+         marks on the name's edge. */
+      .alert-settings fieldset {
+        display: grid;
+        min-width: 0;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+
+      .alert-settings legend {
+        padding: 0;
+        font: var(--lf-font-ui);
+        font-weight: 600;
+      }
+
+      .alert-settings fieldset > label {
+        justify-self: stretch;
+        margin-inline-start: calc(-1 * var(--lf-choice-pad));
       }
 
       @container alert-board (min-width: 40rem) {
@@ -383,642 +400,514 @@
           submit-label="Apply these settings"
           data-width="available"
         >
-          <lf-playground-control
-            id="alert-budget"
-            name="budget"
-            label="On-call page budget, per 30 days"
-            kind="range"
-            value="10"
-            min="0"
-            max="30"
-          ></lf-playground-control>
-          <lf-playground-control
-            id="finance-counts"
-            name="finance-counts"
-            label="Count finance-ops pages in the budget"
-            kind="toggle"
-            value="false"
-          ></lf-playground-control>
-          <lf-playground-preview id="alert-preview">
-            <div class="alert-board">
-              <dl
-                class="alert-totals"
-                aria-label="Last 30 days with these settings"
-                aria-live="polite"
+          <aside>
+            <label id="alert-budget"
+              >On-call page budget, per 30 days
+              <input type="range" name="budget" min="0" max="30" value="10"
+            /></label>
+            <label id="finance-counts"
+              ><input type="checkbox" name="finance-counts" role="switch" /> Count
+              finance-ops pages in the budget</label
+            >
+          </aside>
+          <div class="alert-board">
+            <dl
+              class="alert-totals"
+              aria-label="Last 30 days with these settings"
+              aria-live="polite"
+            >
+              <div class="alert-total" data-total="oncall" data-tone="danger">
+                <dt>Payments on-call pages</dt>
+                <dd><strong>37</strong> <span>of 10 allowed · today 37</span></dd>
+              </div>
+              <div class="alert-total" data-total="false" data-tone="danger">
+                <dt>False pages</dt>
+                <dd><strong>31</strong> <span>today 31</span></dd>
+              </div>
+              <div class="alert-total" data-total="finance" data-tone="">
+                <dt>Finance-ops pages</dt>
+                <dd><strong>0</strong> <span>today 0</span></dd>
+              </div>
+              <div class="alert-total" data-total="tickets" data-tone="">
+                <dt>Tickets</dt>
+                <dd><strong>4</strong> <span>today 4</span></dd>
+              </div>
+              <div class="alert-total" data-total="missed" data-tone="danger">
+                <dt>Real incidents missed</dt>
+                <dd><strong>2</strong> <span>today 2</span></dd>
+              </div>
+            </dl>
+            <div class="alert-pair" id="alert-rate" data-alert="rate">
+              <article class="alert-evidence" id="alert-rate-evidence">
+                <header class="alert-head">
+                  <h3><code>payments-5xx-rate</code></h3>
+                  <span class="alert-today">Today: over 1%, pages</span>
+                </header>
+                <p class="alert-what">
+                  Share of requests returning a 5xx, over 5 minutes.
+                </p>
+                <table class="alert-replay" id="alert-rate-replay">
+                  <thead>
+                    <tr>
+                      <th scope="col">Threshold</th>
+                      <th scope="col" class="num">Fired</th>
+                      <th scope="col" class="num">Real</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr data-threshold="0.5%">
+                      <th scope="row">over 0.5%</th>
+                      <td class="num">31</td>
+                      <td class="num">3</td>
+                    </tr>
+                    <tr data-threshold="1%" class="chosen">
+                      <th scope="row">over 1% <span class="tag">today</span></th>
+                      <td class="num">12</td>
+                      <td class="num">3</td>
+                    </tr>
+                    <tr data-threshold="2%">
+                      <th scope="row">over 2%</th>
+                      <td class="num">4</td>
+                      <td class="num">3</td>
+                    </tr>
+                    <tr data-threshold="5%">
+                      <th scope="row">over 5%</th>
+                      <td class="num">1</td>
+                      <td class="num">1</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="alert-note">
+                  Over 5% would have missed the 19 September partial outage and the 26
+                  September card-network incident.
+                </p>
+                <p class="alert-outcome" data-outcome data-tone="warn">
+                  12 pages to payments on-call: 3 real, 9 false · catches all 3 real
+                </p>
+              </article>
+              <section
+                class="alert-settings"
+                id="alert-rate-settings"
+                aria-label="payments-5xx-rate settings"
               >
-                <div class="alert-total" data-total="oncall" data-tone="danger">
-                  <dt>Payments on-call pages</dt>
-                  <dd><strong>37</strong> <span>of 10 allowed · today 37</span></dd>
-                </div>
-                <div class="alert-total" data-total="false" data-tone="danger">
-                  <dt>False pages</dt>
-                  <dd><strong>31</strong> <span>today 31</span></dd>
-                </div>
-                <div class="alert-total" data-total="finance" data-tone="">
-                  <dt>Finance-ops pages</dt>
-                  <dd><strong>0</strong> <span>today 0</span></dd>
-                </div>
-                <div class="alert-total" data-total="tickets" data-tone="">
-                  <dt>Tickets</dt>
-                  <dd><strong>4</strong> <span>today 4</span></dd>
-                </div>
-                <div class="alert-total" data-total="missed" data-tone="danger">
-                  <dt>Real incidents missed</dt>
-                  <dd><strong>2</strong> <span>today 2</span></dd>
-                </div>
-              </dl>
-              <div class="alert-pair" id="alert-rate" data-alert="rate">
-                <article class="alert-evidence" id="alert-rate-evidence">
-                  <header class="alert-head">
-                    <h3><code>payments-5xx-rate</code></h3>
-                    <span class="alert-today">Today: over 1%, pages</span>
-                  </header>
-                  <p class="alert-what">
-                    Share of requests returning a 5xx, over 5 minutes.
-                  </p>
-                  <table class="alert-replay" id="alert-rate-replay">
-                    <thead>
-                      <tr>
-                        <th scope="col">Threshold</th>
-                        <th scope="col" class="num">Fired</th>
-                        <th scope="col" class="num">Real</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr data-threshold="0.5%">
-                        <th scope="row">over 0.5%</th>
-                        <td class="num">31</td>
-                        <td class="num">3</td>
-                      </tr>
-                      <tr data-threshold="1%" class="chosen">
-                        <th scope="row">over 1% <span class="tag">today</span></th>
-                        <td class="num">12</td>
-                        <td class="num">3</td>
-                      </tr>
-                      <tr data-threshold="2%">
-                        <th scope="row">over 2%</th>
-                        <td class="num">4</td>
-                        <td class="num">3</td>
-                      </tr>
-                      <tr data-threshold="5%">
-                        <th scope="row">over 5%</th>
-                        <td class="num">1</td>
-                        <td class="num">1</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <p class="alert-note">
-                    Over 5% would have missed the 19 September partial outage and the 26
-                    September card-network incident.
-                  </p>
-                  <p class="alert-outcome" data-outcome data-tone="warn">
-                    12 pages to payments on-call: 3 real, 9 false · catches all 3 real
-                  </p>
-                </article>
-                <section
-                  class="alert-settings"
-                  id="alert-rate-settings"
-                  aria-label="payments-5xx-rate settings"
-                >
-                  <lf-playground-control
-                    id="rate-threshold"
-                    name="rate-threshold"
-                    label="Threshold"
-                    kind="choice"
-                    value="1%"
+                <fieldset id="rate-threshold">
+                  <legend>Threshold</legend>
+                  <label id="rate-threshold-0-5"
+                    ><input type="radio" name="rate-threshold" value="0.5%" /> over
+                    0.5%</label
+                  ><label id="alert-rate-today"
+                    ><input type="radio" name="rate-threshold" value="1%" checked />
+                    over 1%</label
+                  ><label id="rate-threshold-2"
+                    ><input type="radio" name="rate-threshold" value="2%" /> over
+                    2%</label
+                  ><label id="rate-threshold-5"
+                    ><input type="radio" name="rate-threshold" value="5%" /> over
+                    5%</label
                   >
-                    <lf-playground-choice
-                      id="rate-threshold-0-5"
-                      value="0.5%"
-                      label="over 0.5%"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="alert-rate-today"
-                      value="1%"
-                      label="over 1%"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="rate-threshold-2"
-                      value="2%"
-                      label="over 2%"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="rate-threshold-5"
-                      value="5%"
-                      label="over 5%"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                  <lf-playground-control
-                    id="rate-route"
-                    name="rate-route"
-                    label="Route"
-                    kind="choice"
-                    value="page"
+                </fieldset>
+                <fieldset id="rate-route">
+                  <legend>Route</legend>
+                  <label id="rate-route-page"
+                    ><input type="radio" name="rate-route" value="page" checked />
+                    Page</label
+                  ><label id="rate-route-ticket"
+                    ><input type="radio" name="rate-route" value="ticket" />
+                    Ticket</label
+                  ><label id="rate-route-off"
+                    ><input type="radio" name="rate-route" value="off" /> Off</label
                   >
-                    <lf-playground-choice
-                      id="rate-route-page"
-                      value="page"
-                      label="Page"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="rate-route-ticket"
-                      value="ticket"
-                      label="Ticket"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="rate-route-off"
-                      value="off"
-                      label="Off"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                </section>
-              </div>
-              <div class="alert-pair" id="alert-latency" data-alert="latency">
-                <article class="alert-evidence" id="alert-latency-evidence">
-                  <header class="alert-head">
-                    <h3><code>payments-p99-latency</code></h3>
-                    <span class="alert-today">Today: over 800 ms, pages</span>
-                  </header>
-                  <p class="alert-what">p99 latency over 10 minutes.</p>
-                  <table class="alert-replay" id="alert-latency-replay">
-                    <thead>
-                      <tr>
-                        <th scope="col">Threshold</th>
-                        <th scope="col" class="num">Fired</th>
-                        <th scope="col" class="num">Real</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr data-threshold="600ms">
-                        <th scope="row">over 600 ms</th>
-                        <td class="num">44</td>
-                        <td class="num">2</td>
-                      </tr>
-                      <tr data-threshold="800ms" class="chosen">
-                        <th scope="row">over 800 ms <span class="tag">today</span></th>
-                        <td class="num">19</td>
-                        <td class="num">2</td>
-                      </tr>
-                      <tr data-threshold="1200ms">
-                        <th scope="row">over 1,200 ms</th>
-                        <td class="num">5</td>
-                        <td class="num">2</td>
-                      </tr>
-                      <tr data-threshold="2000ms">
-                        <th scope="row">over 2,000 ms</th>
-                        <td class="num">0</td>
-                        <td class="num">0</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <p class="alert-outcome" data-outcome data-tone="warn">
-                    19 pages to payments on-call: 2 real, 17 false · catches all 2 real
-                  </p>
-                </article>
-                <section
-                  class="alert-settings"
-                  id="alert-latency-settings"
-                  aria-label="payments-p99-latency settings"
-                >
-                  <lf-playground-control
-                    id="latency-threshold"
-                    name="latency-threshold"
-                    label="Threshold"
-                    kind="choice"
-                    value="800ms"
-                  >
-                    <lf-playground-choice
-                      id="latency-threshold-600ms"
-                      value="600ms"
-                      label="over 600 ms"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="latency-threshold-800ms"
-                      value="800ms"
-                      label="over 800 ms"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="latency-threshold-1200ms"
-                      value="1200ms"
-                      label="over 1,200 ms"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="latency-threshold-2000ms"
-                      value="2000ms"
-                      label="over 2,000 ms"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                  <lf-playground-control
-                    id="latency-route"
-                    name="latency-route"
-                    label="Route"
-                    kind="choice"
-                    value="page"
-                  >
-                    <lf-playground-choice
-                      id="latency-route-page"
-                      value="page"
-                      label="Page"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="latency-route-ticket"
-                      value="ticket"
-                      label="Ticket"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="latency-route-off"
-                      value="off"
-                      label="Off"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                </section>
-              </div>
-              <div class="alert-pair" id="alert-declines" data-alert="declines">
-                <article class="alert-evidence" id="alert-declines-evidence">
-                  <header class="alert-head">
-                    <h3><code>card-auth-decline-spike</code></h3>
-                    <span class="alert-today">Today: over 2×, opens a ticket</span>
-                  </header>
-                  <p class="alert-what">
-                    Card authorization declines against their 7-day baseline, for 15
-                    minutes.
-                  </p>
-                  <table class="alert-replay" id="alert-declines-replay">
-                    <thead>
-                      <tr>
-                        <th scope="col">Threshold</th>
-                        <th scope="col" class="num">Fired</th>
-                        <th scope="col" class="num">Real</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr data-threshold="1.5x">
-                        <th scope="row">over 1.5×</th>
-                        <td class="num">9</td>
-                        <td class="num">1</td>
-                      </tr>
-                      <tr data-threshold="2x" class="chosen">
-                        <th scope="row">over 2× <span class="tag">today</span></th>
-                        <td class="num">3</td>
-                        <td class="num">1</td>
-                      </tr>
-                      <tr data-threshold="3x">
-                        <th scope="row">over 3×</th>
-                        <td class="num">1</td>
-                        <td class="num">1</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <p class="alert-outcome" data-outcome data-tone="ok">
-                    3 tickets: 1 real, 2 false · catches the real
-                  </p>
-                </article>
-                <section
-                  class="alert-settings"
-                  id="alert-declines-settings"
-                  aria-label="card-auth-decline-spike settings"
-                >
-                  <lf-playground-control
-                    id="declines-threshold"
-                    name="declines-threshold"
-                    label="Threshold"
-                    kind="choice"
-                    value="2x"
-                  >
-                    <lf-playground-choice
-                      id="declines-threshold-1-5x"
-                      value="1.5x"
-                      label="over 1.5×"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="declines-threshold-2x"
-                      value="2x"
-                      label="over 2×"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="declines-threshold-3x"
-                      value="3x"
-                      label="over 3×"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                  <lf-playground-control
-                    id="declines-route"
-                    name="declines-route"
-                    label="Route"
-                    kind="choice"
-                    value="ticket"
-                  >
-                    <lf-playground-choice
-                      id="declines-route-page"
-                      value="page"
-                      label="Page"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="declines-route-ticket"
-                      value="ticket"
-                      label="Ticket"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="declines-route-off"
-                      value="off"
-                      label="Off"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                </section>
-              </div>
-              <div class="alert-pair" id="alert-webhooks" data-alert="webhooks">
-                <article class="alert-evidence" id="alert-webhooks-evidence">
-                  <header class="alert-head">
-                    <h3><code>webhook-backlog</code></h3>
-                    <span class="alert-today">Today: over 5,000, pages</span>
-                  </header>
-                  <p class="alert-what">Undelivered merchant webhooks in the queue.</p>
-                  <table class="alert-replay" id="alert-webhooks-replay">
-                    <thead>
-                      <tr>
-                        <th scope="col">Threshold</th>
-                        <th scope="col" class="num">Fired</th>
-                        <th scope="col" class="num">Real</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr data-threshold="1000">
-                        <th scope="row">over 1,000</th>
-                        <td class="num">22</td>
-                        <td class="num">0</td>
-                      </tr>
-                      <tr data-threshold="5000" class="chosen">
-                        <th scope="row">over 5,000 <span class="tag">today</span></th>
-                        <td class="num">6</td>
-                        <td class="num">1</td>
-                      </tr>
-                      <tr data-threshold="20000">
-                        <th scope="row">over 20,000</th>
-                        <td class="num">1</td>
-                        <td class="num">1</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <p class="alert-outcome" data-outcome data-tone="warn">
-                    6 pages to payments on-call: 1 real, 5 false · catches the real
-                  </p>
-                </article>
-                <section
-                  class="alert-settings"
-                  id="alert-webhooks-settings"
-                  aria-label="webhook-backlog settings"
-                >
-                  <lf-playground-control
-                    id="webhooks-threshold"
-                    name="webhooks-threshold"
-                    label="Threshold"
-                    kind="choice"
-                    value="5000"
-                  >
-                    <lf-playground-choice
-                      id="webhooks-threshold-1000"
-                      value="1000"
-                      label="over 1,000"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="webhooks-threshold-5000"
-                      value="5000"
-                      label="over 5,000"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="webhooks-threshold-20000"
-                      value="20000"
-                      label="over 20,000"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                  <lf-playground-control
-                    id="webhooks-route"
-                    name="webhooks-route"
-                    label="Route"
-                    kind="choice"
-                    value="page"
-                  >
-                    <lf-playground-choice
-                      id="webhooks-route-page"
-                      value="page"
-                      label="Page"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="webhooks-route-ticket"
-                      value="ticket"
-                      label="Ticket"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="webhooks-route-off"
-                      value="off"
-                      label="Off"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                </section>
-              </div>
-              <div class="alert-pair" id="alert-ledger" data-alert="ledger">
-                <article class="alert-evidence" id="alert-ledger-evidence">
-                  <header class="alert-head">
-                    <h3><code>ledger-reconciliation-lag</code></h3>
-                    <span class="alert-today">Today: over 90 min, off</span>
-                  </header>
-                  <p class="alert-what">
-                    Minutes since the last successful ledger reconciliation run.
-                  </p>
-                  <table class="alert-replay" id="alert-ledger-replay">
-                    <thead>
-                      <tr>
-                        <th scope="col">Threshold</th>
-                        <th scope="col" class="num">Fired</th>
-                        <th scope="col" class="num">Real</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr data-threshold="60min">
-                        <th scope="row">over 60 min</th>
-                        <td class="num">14</td>
-                        <td class="num">2</td>
-                      </tr>
-                      <tr data-threshold="90min" class="chosen">
-                        <th scope="row">over 90 min <span class="tag">today</span></th>
-                        <td class="num">7</td>
-                        <td class="num">2</td>
-                      </tr>
-                      <tr data-threshold="180min">
-                        <th scope="row">over 180 min</th>
-                        <td class="num">2</td>
-                        <td class="num">2</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <p class="alert-note">
-                    Off since August, after a noisy weekend. Both real firings were
-                    reconciliation runs that silently stopped; finance found them two
-                    days later.
-                  </p>
-                  <p class="alert-outcome" data-outcome data-tone="danger">
-                    Off: nothing fires · misses 2 real incidents
-                  </p>
-                </article>
-                <section
-                  class="alert-settings"
-                  id="alert-ledger-settings"
-                  aria-label="ledger-reconciliation-lag settings"
-                >
-                  <lf-playground-control
-                    id="ledger-threshold"
-                    name="ledger-threshold"
-                    label="Threshold"
-                    kind="choice"
-                    value="90min"
-                  >
-                    <lf-playground-choice
-                      id="ledger-threshold-60min"
-                      value="60min"
-                      label="over 60 min"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="ledger-threshold-90min"
-                      value="90min"
-                      label="over 90 min"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="ledger-threshold-180min"
-                      value="180min"
-                      label="over 180 min"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                  <lf-playground-control
-                    id="ledger-route"
-                    name="ledger-route"
-                    label="Route"
-                    kind="choice"
-                    value="off"
-                  >
-                    <lf-playground-choice
-                      id="ledger-route-page"
-                      value="page"
-                      label="Page"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="ledger-route-ticket"
-                      value="ticket"
-                      label="Ticket"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="ledger-route-off"
-                      value="off"
-                      label="Off"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                  <p class="alert-owner">
-                    Finance owns this alert: its pages go to the finance-ops rotation,
-                    not payments on-call.
-                  </p>
-                </section>
-              </div>
-              <div class="alert-pair" id="alert-cert" data-alert="cert">
-                <article class="alert-evidence" id="alert-cert-evidence">
-                  <header class="alert-head">
-                    <h3><code>gateway-cert-expiry</code></h3>
-                    <span class="alert-today"
-                      >Today: under 14 days, opens a ticket</span
-                    >
-                  </header>
-                  <p class="alert-what">
-                    Days until the payment gateway’s TLS certificate expires.
-                  </p>
-                  <table class="alert-replay" id="alert-cert-replay">
-                    <thead>
-                      <tr>
-                        <th scope="col">Threshold</th>
-                        <th scope="col" class="num">Fired</th>
-                        <th scope="col" class="num">Real</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr data-threshold="30d">
-                        <th scope="row">under 30 days</th>
-                        <td class="num">1</td>
-                        <td class="num">1</td>
-                      </tr>
-                      <tr data-threshold="14d" class="chosen">
-                        <th scope="row">
-                          under 14 days <span class="tag">today</span>
-                        </th>
-                        <td class="num">1</td>
-                        <td class="num">1</td>
-                      </tr>
-                      <tr data-threshold="7d">
-                        <th scope="row">under 7 days</th>
-                        <td class="num">1</td>
-                        <td class="num">1</td>
-                      </tr>
-                    </tbody>
-                  </table>
-                  <p class="alert-note">
-                    It fires once per renewal whatever the threshold; only the warning
-                    time changes.
-                  </p>
-                  <p class="alert-outcome" data-outcome data-tone="ok">
-                    1 ticket: 1 real, 0 false · catches the real
-                  </p>
-                </article>
-                <section
-                  class="alert-settings"
-                  id="alert-cert-settings"
-                  aria-label="gateway-cert-expiry settings"
-                >
-                  <lf-playground-control
-                    id="cert-threshold"
-                    name="cert-threshold"
-                    label="Threshold"
-                    kind="choice"
-                    value="14d"
-                  >
-                    <lf-playground-choice
-                      id="cert-threshold-30d"
-                      value="30d"
-                      label="under 30 days"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="cert-threshold-14d"
-                      value="14d"
-                      label="under 14 days"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="cert-threshold-7d"
-                      value="7d"
-                      label="under 7 days"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                  <lf-playground-control
-                    id="cert-route"
-                    name="cert-route"
-                    label="Route"
-                    kind="choice"
-                    value="ticket"
-                  >
-                    <lf-playground-choice
-                      id="cert-route-page"
-                      value="page"
-                      label="Page"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="cert-route-ticket"
-                      value="ticket"
-                      label="Ticket"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="cert-route-off"
-                      value="off"
-                      label="Off"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                </section>
-              </div>
+                </fieldset>
+              </section>
             </div>
-          </lf-playground-preview>
+            <div class="alert-pair" id="alert-latency" data-alert="latency">
+              <article class="alert-evidence" id="alert-latency-evidence">
+                <header class="alert-head">
+                  <h3><code>payments-p99-latency</code></h3>
+                  <span class="alert-today">Today: over 800 ms, pages</span>
+                </header>
+                <p class="alert-what">p99 latency over 10 minutes.</p>
+                <table class="alert-replay" id="alert-latency-replay">
+                  <thead>
+                    <tr>
+                      <th scope="col">Threshold</th>
+                      <th scope="col" class="num">Fired</th>
+                      <th scope="col" class="num">Real</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr data-threshold="600ms">
+                      <th scope="row">over 600 ms</th>
+                      <td class="num">44</td>
+                      <td class="num">2</td>
+                    </tr>
+                    <tr data-threshold="800ms" class="chosen">
+                      <th scope="row">over 800 ms <span class="tag">today</span></th>
+                      <td class="num">19</td>
+                      <td class="num">2</td>
+                    </tr>
+                    <tr data-threshold="1200ms">
+                      <th scope="row">over 1,200 ms</th>
+                      <td class="num">5</td>
+                      <td class="num">2</td>
+                    </tr>
+                    <tr data-threshold="2000ms">
+                      <th scope="row">over 2,000 ms</th>
+                      <td class="num">0</td>
+                      <td class="num">0</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="alert-outcome" data-outcome data-tone="warn">
+                  19 pages to payments on-call: 2 real, 17 false · catches all 2 real
+                </p>
+              </article>
+              <section
+                class="alert-settings"
+                id="alert-latency-settings"
+                aria-label="payments-p99-latency settings"
+              >
+                <fieldset id="latency-threshold">
+                  <legend>Threshold</legend>
+                  <label id="latency-threshold-600ms"
+                    ><input type="radio" name="latency-threshold" value="600ms" /> over
+                    600 ms</label
+                  ><label id="latency-threshold-800ms"
+                    ><input
+                      type="radio"
+                      name="latency-threshold"
+                      value="800ms"
+                      checked
+                    />
+                    over 800 ms</label
+                  ><label id="latency-threshold-1200ms"
+                    ><input type="radio" name="latency-threshold" value="1200ms" /> over
+                    1,200 ms</label
+                  ><label id="latency-threshold-2000ms"
+                    ><input type="radio" name="latency-threshold" value="2000ms" /> over
+                    2,000 ms</label
+                  >
+                </fieldset>
+                <fieldset id="latency-route">
+                  <legend>Route</legend>
+                  <label id="latency-route-page"
+                    ><input type="radio" name="latency-route" value="page" checked />
+                    Page</label
+                  ><label id="latency-route-ticket"
+                    ><input type="radio" name="latency-route" value="ticket" />
+                    Ticket</label
+                  ><label id="latency-route-off"
+                    ><input type="radio" name="latency-route" value="off" /> Off</label
+                  >
+                </fieldset>
+              </section>
+            </div>
+            <div class="alert-pair" id="alert-declines" data-alert="declines">
+              <article class="alert-evidence" id="alert-declines-evidence">
+                <header class="alert-head">
+                  <h3><code>card-auth-decline-spike</code></h3>
+                  <span class="alert-today">Today: over 2×, opens a ticket</span>
+                </header>
+                <p class="alert-what">
+                  Card authorization declines against their 7-day baseline, for 15
+                  minutes.
+                </p>
+                <table class="alert-replay" id="alert-declines-replay">
+                  <thead>
+                    <tr>
+                      <th scope="col">Threshold</th>
+                      <th scope="col" class="num">Fired</th>
+                      <th scope="col" class="num">Real</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr data-threshold="1.5x">
+                      <th scope="row">over 1.5×</th>
+                      <td class="num">9</td>
+                      <td class="num">1</td>
+                    </tr>
+                    <tr data-threshold="2x" class="chosen">
+                      <th scope="row">over 2× <span class="tag">today</span></th>
+                      <td class="num">3</td>
+                      <td class="num">1</td>
+                    </tr>
+                    <tr data-threshold="3x">
+                      <th scope="row">over 3×</th>
+                      <td class="num">1</td>
+                      <td class="num">1</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="alert-outcome" data-outcome data-tone="ok">
+                  3 tickets: 1 real, 2 false · catches the real
+                </p>
+              </article>
+              <section
+                class="alert-settings"
+                id="alert-declines-settings"
+                aria-label="card-auth-decline-spike settings"
+              >
+                <fieldset id="declines-threshold">
+                  <legend>Threshold</legend>
+                  <label id="declines-threshold-1-5x"
+                    ><input type="radio" name="declines-threshold" value="1.5x" /> over
+                    1.5×</label
+                  ><label id="declines-threshold-2x"
+                    ><input type="radio" name="declines-threshold" value="2x" checked />
+                    over 2×</label
+                  ><label id="declines-threshold-3x"
+                    ><input type="radio" name="declines-threshold" value="3x" /> over
+                    3×</label
+                  >
+                </fieldset>
+                <fieldset id="declines-route">
+                  <legend>Route</legend>
+                  <label id="declines-route-page"
+                    ><input type="radio" name="declines-route" value="page" />
+                    Page</label
+                  ><label id="declines-route-ticket"
+                    ><input type="radio" name="declines-route" value="ticket" checked />
+                    Ticket</label
+                  ><label id="declines-route-off"
+                    ><input type="radio" name="declines-route" value="off" /> Off</label
+                  >
+                </fieldset>
+              </section>
+            </div>
+            <div class="alert-pair" id="alert-webhooks" data-alert="webhooks">
+              <article class="alert-evidence" id="alert-webhooks-evidence">
+                <header class="alert-head">
+                  <h3><code>webhook-backlog</code></h3>
+                  <span class="alert-today">Today: over 5,000, pages</span>
+                </header>
+                <p class="alert-what">Undelivered merchant webhooks in the queue.</p>
+                <table class="alert-replay" id="alert-webhooks-replay">
+                  <thead>
+                    <tr>
+                      <th scope="col">Threshold</th>
+                      <th scope="col" class="num">Fired</th>
+                      <th scope="col" class="num">Real</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr data-threshold="1000">
+                      <th scope="row">over 1,000</th>
+                      <td class="num">22</td>
+                      <td class="num">0</td>
+                    </tr>
+                    <tr data-threshold="5000" class="chosen">
+                      <th scope="row">over 5,000 <span class="tag">today</span></th>
+                      <td class="num">6</td>
+                      <td class="num">1</td>
+                    </tr>
+                    <tr data-threshold="20000">
+                      <th scope="row">over 20,000</th>
+                      <td class="num">1</td>
+                      <td class="num">1</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="alert-outcome" data-outcome data-tone="warn">
+                  6 pages to payments on-call: 1 real, 5 false · catches the real
+                </p>
+              </article>
+              <section
+                class="alert-settings"
+                id="alert-webhooks-settings"
+                aria-label="webhook-backlog settings"
+              >
+                <fieldset id="webhooks-threshold">
+                  <legend>Threshold</legend>
+                  <label id="webhooks-threshold-1000"
+                    ><input type="radio" name="webhooks-threshold" value="1000" /> over
+                    1,000</label
+                  ><label id="webhooks-threshold-5000"
+                    ><input
+                      type="radio"
+                      name="webhooks-threshold"
+                      value="5000"
+                      checked
+                    />
+                    over 5,000</label
+                  ><label id="webhooks-threshold-20000"
+                    ><input type="radio" name="webhooks-threshold" value="20000" /> over
+                    20,000</label
+                  >
+                </fieldset>
+                <fieldset id="webhooks-route">
+                  <legend>Route</legend>
+                  <label id="webhooks-route-page"
+                    ><input type="radio" name="webhooks-route" value="page" checked />
+                    Page</label
+                  ><label id="webhooks-route-ticket"
+                    ><input type="radio" name="webhooks-route" value="ticket" />
+                    Ticket</label
+                  ><label id="webhooks-route-off"
+                    ><input type="radio" name="webhooks-route" value="off" /> Off</label
+                  >
+                </fieldset>
+              </section>
+            </div>
+            <div class="alert-pair" id="alert-ledger" data-alert="ledger">
+              <article class="alert-evidence" id="alert-ledger-evidence">
+                <header class="alert-head">
+                  <h3><code>ledger-reconciliation-lag</code></h3>
+                  <span class="alert-today">Today: over 90 min, off</span>
+                </header>
+                <p class="alert-what">
+                  Minutes since the last successful ledger reconciliation run.
+                </p>
+                <table class="alert-replay" id="alert-ledger-replay">
+                  <thead>
+                    <tr>
+                      <th scope="col">Threshold</th>
+                      <th scope="col" class="num">Fired</th>
+                      <th scope="col" class="num">Real</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr data-threshold="60min">
+                      <th scope="row">over 60 min</th>
+                      <td class="num">14</td>
+                      <td class="num">2</td>
+                    </tr>
+                    <tr data-threshold="90min" class="chosen">
+                      <th scope="row">over 90 min <span class="tag">today</span></th>
+                      <td class="num">7</td>
+                      <td class="num">2</td>
+                    </tr>
+                    <tr data-threshold="180min">
+                      <th scope="row">over 180 min</th>
+                      <td class="num">2</td>
+                      <td class="num">2</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="alert-note">
+                  Off since August, after a noisy weekend. Both real firings were
+                  reconciliation runs that silently stopped; finance found them two days
+                  later.
+                </p>
+                <p class="alert-outcome" data-outcome data-tone="danger">
+                  Off: nothing fires · misses 2 real incidents
+                </p>
+              </article>
+              <section
+                class="alert-settings"
+                id="alert-ledger-settings"
+                aria-label="ledger-reconciliation-lag settings"
+              >
+                <fieldset id="ledger-threshold">
+                  <legend>Threshold</legend>
+                  <label id="ledger-threshold-60min"
+                    ><input type="radio" name="ledger-threshold" value="60min" /> over
+                    60 min</label
+                  ><label id="ledger-threshold-90min"
+                    ><input
+                      type="radio"
+                      name="ledger-threshold"
+                      value="90min"
+                      checked
+                    />
+                    over 90 min</label
+                  ><label id="ledger-threshold-180min"
+                    ><input type="radio" name="ledger-threshold" value="180min" /> over
+                    180 min</label
+                  >
+                </fieldset>
+                <fieldset id="ledger-route">
+                  <legend>Route</legend>
+                  <label id="ledger-route-page"
+                    ><input type="radio" name="ledger-route" value="page" /> Page</label
+                  ><label id="ledger-route-ticket"
+                    ><input type="radio" name="ledger-route" value="ticket" />
+                    Ticket</label
+                  ><label id="ledger-route-off"
+                    ><input type="radio" name="ledger-route" value="off" checked />
+                    Off</label
+                  >
+                </fieldset>
+                <p class="alert-owner">
+                  Finance owns this alert: its pages go to the finance-ops rotation, not
+                  payments on-call.
+                </p>
+              </section>
+            </div>
+            <div class="alert-pair" id="alert-cert" data-alert="cert">
+              <article class="alert-evidence" id="alert-cert-evidence">
+                <header class="alert-head">
+                  <h3><code>gateway-cert-expiry</code></h3>
+                  <span class="alert-today">Today: under 14 days, opens a ticket</span>
+                </header>
+                <p class="alert-what">
+                  Days until the payment gateway’s TLS certificate expires.
+                </p>
+                <table class="alert-replay" id="alert-cert-replay">
+                  <thead>
+                    <tr>
+                      <th scope="col">Threshold</th>
+                      <th scope="col" class="num">Fired</th>
+                      <th scope="col" class="num">Real</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr data-threshold="30d">
+                      <th scope="row">under 30 days</th>
+                      <td class="num">1</td>
+                      <td class="num">1</td>
+                    </tr>
+                    <tr data-threshold="14d" class="chosen">
+                      <th scope="row">under 14 days <span class="tag">today</span></th>
+                      <td class="num">1</td>
+                      <td class="num">1</td>
+                    </tr>
+                    <tr data-threshold="7d">
+                      <th scope="row">under 7 days</th>
+                      <td class="num">1</td>
+                      <td class="num">1</td>
+                    </tr>
+                  </tbody>
+                </table>
+                <p class="alert-note">
+                  It fires once per renewal whatever the threshold; only the warning
+                  time changes.
+                </p>
+                <p class="alert-outcome" data-outcome data-tone="ok">
+                  1 ticket: 1 real, 0 false · catches the real
+                </p>
+              </article>
+              <section
+                class="alert-settings"
+                id="alert-cert-settings"
+                aria-label="gateway-cert-expiry settings"
+              >
+                <fieldset id="cert-threshold">
+                  <legend>Threshold</legend>
+                  <label id="cert-threshold-30d"
+                    ><input type="radio" name="cert-threshold" value="30d" /> under 30
+                    days</label
+                  ><label id="cert-threshold-14d"
+                    ><input type="radio" name="cert-threshold" value="14d" checked />
+                    under 14 days</label
+                  ><label id="cert-threshold-7d"
+                    ><input type="radio" name="cert-threshold" value="7d" /> under 7
+                    days</label
+                  >
+                </fieldset>
+                <fieldset id="cert-route">
+                  <legend>Route</legend>
+                  <label id="cert-route-page"
+                    ><input type="radio" name="cert-route" value="page" /> Page</label
+                  ><label id="cert-route-ticket"
+                    ><input type="radio" name="cert-route" value="ticket" checked />
+                    Ticket</label
+                  ><label id="cert-route-off"
+                    ><input type="radio" name="cert-route" value="off" /> Off</label
+                  >
+                </fieldset>
+              </section>
+            </div>
+          </div>
           <lf-playground-output id="alert-instruction">
             Apply these alert settings to payments-api's monitoring config and show me
             the config diff.

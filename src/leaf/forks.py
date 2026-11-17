@@ -3,9 +3,9 @@ messages: a line fork, which posts the agent's working line on a thread's waitin
 messages at once and sorts them, and, with `LEAF_FORK_WORK=on` in Claude Code's
 environment while the design is tried, a working fork with the session's tools, which
 does a thread's work and answers it. Both run only in Claude Code, from Leaf's hooks
-module (`hooks/claude-code.ts`). `docs/forks.html` is the design's home, diagrams
-included; this header holds the rules this module keeps and the choices behind them,
-and `holding.py` the rule for which turn holds a message.
+module (`hooks/claude-code.ts`). How it works' Forks tab (`docs/how-it-works.html`)
+explains the design, diagrams included; this header holds the rules this module keeps
+and the choices behind them, and `holding.py` the rule for which turn holds a message.
 
 On a real page the session's answer to a thread message takes tens of seconds, longer
 when it is busy, and the thread shows nothing from the agent after a message until the
@@ -52,8 +52,14 @@ thread once the module says the fork runs (`started`): as it says which agent it
 spawned for a new one, and once it has delivered a resumed one's message; and it
 hears as the fork's run ends (`clerk.queue`), since Claude Code tells it nothing of
 a fork a module made. The user chose these lines over the fork's own
-SendMessage to the main thread, which would wake it for every answer
-(`docs/forks.html`, "How a fork tells the main thread"). A line waits for the
+SendMessage to the main thread. Leaf writes a line from the log, so it covers a fork
+that failed or was stopped before it could write, and wakes the main thread only
+where a fork's end leaves it owing something. A fork's SendMessage could say more of
+what the fork did, but it starts a turn on an idle main session, so it would wake the
+main thread for every answer, and add a second report to the notification Claude Code
+sends as a resumed run ends. Claude Code offers no third way: a module starts a fork
+only with `$.agent.spawn`, whose first run never notifies the main thread, and the
+module's own call to the Agent tool is refused (2.1.322). A line waits for the
 session's next tool boundary or prompt, and Leaf wakes an idle session only for what
 a fork's end leaves it owing: a thread given back, whose answer is owed again, and a
 to-do the fork opened, whose line wakes it (`ended`).
@@ -619,7 +625,7 @@ def work_prompt(delivery: dict, turn: str) -> str:
     (`state.acting_agent_turn`), and the three ways it ends: an answer, an answer
     that opens a to-do for work bigger than a message, which the main thread
     schedules, or `HAND_BACK` for a message the main thread has to act on now
-    (`docs/forks.html`, "To-dos")."""
+    (`docs/how-it-works.html`, "The main thread stays in charge")."""
     return f"""{WORK_OPENING}
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to do what the message asks beside the main session, which carries on with its own work and leaves this thread to you. You have the session's tools. Change nothing the main session is changing or about to change: its files and branch, the page's source, its pull requests.
 

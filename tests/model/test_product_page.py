@@ -360,12 +360,12 @@ def test_the_event_log_page_quotes_the_registry():
     }
 
 
-def test_the_forks_guide_lists_the_judgments_and_endings_forks_keeps():
-    """The guide's sorting table names each judgment the line fork can answer
-    (`forks.ANSWER`), and its endings table each outcome `forks.ended` gives a
-    thread, so a judgment or outcome added to the code fails here until the guide,
-    the design's reference, says what it means."""
-    tree = SourceDocument(named_source("forks").read_text()).tree
+def test_how_it_works_lists_the_judgments_and_endings_forks_keeps():
+    """How it works' Forks tab names each judgment the line fork can answer
+    (`forks.ANSWER`) in its sorting table, and each outcome `forks.ended` gives a
+    thread in its endings table, so a judgment or outcome added to the code fails
+    here until the tab says what it means."""
+    tree = SourceDocument(named_source("how-it-works").read_text()).tree
     answer: dict = forks_model.ANSWER
     judgments = {code.text for code in tree.select("table#sorting-table td code")}
     assert judgments == set(answer["properties"]["work"]["enum"])

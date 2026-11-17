@@ -167,10 +167,10 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     assert board.aria_snapshot() == (
         '- list "Todo":\n'
         "  - listitem:\n"
-        "    - strong: Heated perch\n"
+        "    - text: Heated perch\n"
         "    - 'button \"Move: Heated perch — Todo\"'\n"
         "  - listitem:\n"
-        "    - strong: Squirrel baffle\n"
+        "    - text: Squirrel baffle\n"
         "    - 'button \"Move: Squirrel baffle — Todo\"'\n"
         '- list "Done"'  # empty, and still announced: it is a drop target
     )
@@ -193,11 +193,11 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
     assert board.aria_snapshot() == (
         '- list "Todo":\n'
         "  - listitem:\n"
-        "    - strong: Heated perch\n"
+        "    - text: Heated perch\n"
         "    - 'button \"Move: Heated perch — Todo\"'\n"
         '- list "Done":\n'
         "  - listitem:\n"
-        "    - strong: Squirrel baffle\n"
+        "    - text: Squirrel baffle\n"
         "    - text: my change\n"
         "    - 'button \"Move: Squirrel baffle — Done\"'"
     )
@@ -642,7 +642,7 @@ def test_a_card_s_title_clears_its_grip_and_its_prose_starts_under_it(
                 if (node.parentElement.closest('.lf-grip') || !node.textContent.trim()) continue;
                 range.selectNodeContents(node);
                 for (const r of range.getClientRects())
-                    lines.push({title: node.parentElement.localName === 'strong',
+                    lines.push({title: node.parentElement.matches('[data-lf-said="label"]'),
                                 top: r.top, bottom: r.bottom, right: r.right});
             }
             const beside = (l) => l.top < grip.bottom && l.bottom > grip.top;
@@ -668,7 +668,7 @@ def test_a_card_s_title_clears_its_grip_and_its_prose_starts_under_it(
         gaps = page.evaluate(
             """() => Object.fromEntries(['plain', 'element', 'paragraph'].map((id) => {
               const card = document.getElementById(id);
-              const title = card.querySelector(':scope > strong');
+              const title = card.querySelector(':scope > [data-lf-said="label"]');
               const walk = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
               walk.currentNode = title.lastChild;
               let text = walk.nextNode();
@@ -714,7 +714,8 @@ def test_a_grip_taller_than_its_title_leaves_the_blocks_under_it_their_width(
         const s = getComputedStyle(card), box = card.getBoundingClientRect();
         const content = box.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
             - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
-        const title = card.querySelector('strong').getBoundingClientRect();
+        const title = card.querySelector(':scope > [data-lf-said="label"]')
+            .getBoundingClientRect();
         const blocks = ['#card-a-code', '#card-a-note'].map((id) =>
             card.querySelector(id).getBoundingClientRect());
         const under = (b) => b.top < grip.bottom && b.bottom > grip.top

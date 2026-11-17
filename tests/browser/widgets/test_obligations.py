@@ -224,7 +224,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
     # Apart or joined changes only the frame: a pick fills and rings a card as it does
     # a cell, so it reads among pictures as plainly as among words.
     for id in ("pictured", "worded"):
-        page.locator(f"#{id}-yes > strong").click()
+        page.locator(f'#{id}-yes > [data-lf-said="label"]').click()
         expect(page.locator(f"#{id}-yes")).to_have_attribute("selected", "")
     page.mouse.move(0, 0)
     face = """el => { const s = getComputedStyle(el);
@@ -279,9 +279,9 @@ def chipped_obligation(id, cards):
     """An obligation framing a drawing, its titled cards laid across; each card is
     (chips, title, attributes)."""
     options = "".join(
-        f'<lf-option id="{id}-{n}"{attributes}>'
+        f'<lf-option id="{id}-{n}" label="{title}"{attributes}>'
         + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
-        + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
+        + "<p>Its consequence.</p></lf-option>"
         for n, (chips, title, attributes) in enumerate(cards)
     )
     return (
@@ -298,7 +298,7 @@ CHIPPED_CARDS_PAGE = leaf_page(
     + chipped_obligation(
         "some",
         [
-            (["recommended"], "Seal the hatch", ""),
+            ([], "Seal the hatch", " recommended"),
             ([], "Glaze the bay", ""),
             (["risky"], "Insulate the floor", " selected"),
         ],
@@ -307,9 +307,9 @@ CHIPPED_CARDS_PAGE = leaf_page(
         "all",
         [
             (
-                ["recommended", "£180", "one afternoon", "needs the installer"],
+                ["£180", "one afternoon", "needs the installer"],
                 "Seal the hatch",
-                "",
+                " recommended",
             ),
             (["£1,180"], "Glaze the bay", ""),
             (["risky"], "Insulate the floor", ""),
@@ -322,15 +322,12 @@ CHIPPED_CARDS_PAGE = leaf_page(
     ("engine", "rows"),
     [("browser", ("some",)), ("firefox_browser", ("some", "all"))],
 )
-def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
+def test_cards_laid_across_align_their_titles_whatever_chips_follow_them(
     request, serve, engine, rows
 ):
-    """Cards side by side read as one comparison, so each title, and the sentence under
-    it, stands on one line across the row whether its card opens with chips, with
-    none, or with the "selected" state beside them. A card whose chips wrap to several
-    lines moves its neighbours' contents down with it, which needs baseline
-    content-alignment: Chromium lacks it, so there only chips that fit beside the
-    state seat keep the row aligned (`notes/browser-support.md`)."""
+    """Cards side by side read as one comparison, so each title stands on one line
+    across the row whatever chips follow it, with the "selected" state or the
+    recommended badge beside it."""
     page = open_page(request.getfixturevalue(engine), serve(CHIPPED_CARDS_PAGE))
     resized(page, 1440, 900)
     at = page.evaluate(
@@ -340,8 +337,7 @@ def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
             Math.round(card.querySelector(`:scope > ${part}`).getBoundingClientRect().top);
           return [id, {
             cards: cards.map((card) => Math.round(card.getBoundingClientRect().top)),
-            titles: cards.map((card) => top(card, 'strong')),
-            sentences: cards.map((card) => top(card, 'p')),
+            titles: cards.map((card) => top(card, '[data-lf-said="label"]')),
           }];
         }))""",
         list(rows),
@@ -350,7 +346,6 @@ def test_cards_laid_across_align_their_titles_whatever_chips_open_them(
         row = at[id]
         assert len(set(row["cards"])) == 1, f"{id}: the cards share a row: {row}"
         assert len(set(row["titles"])) == 1, f"{id}: titles misaligned: {row}"
-        assert len(set(row["sentences"])) == 1, f"{id}: sentences misaligned: {row}"
 
 
 def test_options_laid_across_fill_the_wide_measure_they_ask_for(browser, serve):

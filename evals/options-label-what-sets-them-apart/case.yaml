@@ -95,7 +95,7 @@ assert:
     value: |
       The reply is a Python call to the script's `dec` helper, whose options are
       tuples passed to `opt(i, title, body, rec=False, tags=())`; the `tags`
-      argument becomes `small.tag` labels before the option's title. The
+      argument becomes `small.tag` chips after the option's title. The
       alternatives differ in how much work each is and in how far back `z` can
       reach. Pass only if a reader can compare the options on both differences
       from compact titles or labels, such as "effort: small" and "reach: no limit",

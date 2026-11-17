@@ -245,21 +245,30 @@ lf-card {
     clear: right;
   }
 }
-/* A card's title is its label, which the runtime writes as text (`words.says`) and the
-   theme paints from the attribute until it does. The prose after it starts on its next
-   line in whatever shape the author wrote it, and a paragraph's margin would set its
-   prose lower than a sentence's. */
-lf-card[label]::before,
+/* A card's title is its label, which the runtime writes as text (`words.says`). Until
+   it does, the theme paints the title from the attribute in the place the grip's float
+   stands, keeping the grip's room at its line's end, so a page no script runs still
+   shows it. The prose after the title starts on its next line in whatever shape the
+   author wrote it, and a paragraph's margin would set its prose lower than a
+   sentence's. The title stands at the card's start, so the frame trims only its end: a
+   block after the title keeps its margin, as after any heading. */
 lf-card > [data-lf-said="label"] {
   display: block;
   font: var(--lf-font-title);
-  margin: 0;
 }
-lf-card[label]::before {
+lf-card[label]:not(:has(> [data-lf-said="label"]))::before {
   content: attr(label);
+  display: block;
+  float: none;
+  inline-size: auto;
+  block-size: auto;
+  margin: 0;
+  padding-inline-end: var(--lf-grip-room, 0);
+  font: var(--lf-font-title);
 }
-lf-card:has(> [data-lf-said="label"])::before {
-  content: none;
+lf-card[label] {
+  --lf-block-frame: 0;
+  --lf-frame-end: 1;
 }
 lf-card[label] > p:nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
   margin-block-start: 0;

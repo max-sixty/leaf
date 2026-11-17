@@ -206,17 +206,8 @@ def registry_path(registry: dict, path: str):
 def reference_relation_problem(
     reference: dict, registry: dict, declarations: dict
 ) -> tuple[str, dict] | None:
-    """Why one `{via, where}` or `{tag, key}` target relation cannot name a declared
-    widget, as a finding's code and values. A keyed relation needs its key declared
-    unique on the member, which also supplies the owner it resolves within, so one
-    reference names at most one member."""
-    if member := reference.get("tag"):
-        key = reference["key"]
-        if member not in declarations:
-            return "refers-unknown-member", {"member": member}
-        if key not in declarations[member].get("x-unique", {}):
-            return "refers-unkeyed", {"member": member, "key": key}
-        return None
+    """Why one `{via, where}` target relation cannot name a declared widget, as a
+    finding's code and values."""
     via = reference.get("via")
     if via is None:
         return None

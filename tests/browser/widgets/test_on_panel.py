@@ -153,12 +153,12 @@ Adds --dry-run to every mutating command.
 </lf-options></lf-ask>
 <lf-ask id="tone-ask"><h2>Which notification?</h2>
 <lf-playground id="tone">
-  <lf-playground-control id="format" name="format" label="Format" kind="choice" value="banner">
-    <lf-playground-choice id="format-banner" value="banner" label="Banner"></lf-playground-choice>
-    <lf-playground-choice id="format-strip" value="strip" label="Strip"></lf-playground-choice>
-  </lf-playground-control>
-  <lf-playground-preview><p id="tone-preview">The notification.</p></lf-playground-preview>
-  <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>
+  <aside><fieldset id="format"><legend>Format</legend>
+    <label id="format-banner"><input type="radio" name="format" value="banner" checked> Banner</label>
+    <label id="format-strip"><input type="radio" name="format" value="strip"> Strip</label>
+  </fieldset></aside>
+  <p id="tone-preview">The notification.</p>
+  <lf-playground-output>Build the <output for="format"></output>
   notification.</lf-playground-output>
 </lf-playground></lf-ask>
 """,

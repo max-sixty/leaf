@@ -32,34 +32,6 @@ from leaf_dev.example_data import named_source
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_column_width_does_not_clear_a_sidenote(browser, serve):
-    """A callout keeps the prose measure, as text does, so it must not drop below a
-    sidenote that ordinary neighboring paragraphs flow beside, as a breakout does."""
-    source = leaf_page(
-        "Column beside sidenote",
-        """
-<h1 id="title">Column beside sidenote</h1>
-<div class="layout-note"><div>
-<p id="before">The first line of ordinary prose.</p>
-<aside class="callout" id="column"><p>A callout keeps the column.</p></aside>
-<p id="after">The following line of ordinary prose.</p>
-</div><aside class="note" id="note"><p>Supporting context in the margin, long enough to
-run several lines beside the prose and the callout that follow it.</p></aside></div>
-""",
-    ).replace(
-        '<main class="layout-column">', '<main class="layout-column layout-notes">'
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1400, 900)
-    at = page.evaluate(
-        """() => ({
-          column: document.getElementById('column').getBoundingClientRect().top,
-          note: document.getElementById('note').getBoundingClientRect().bottom,
-        })"""
-    )
-    assert at["column"] < at["note"], at
-
-
 def test_a_held_marker_keeps_the_keyboard_when_the_rail_falls(browser, serve):
     """A marker the keyboard is on stays drawn when the shell loses its rail: it stands
     as a pin in its block's corner instead, so the user stays on it.
@@ -348,38 +320,6 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
         )
         == column
     ), "withdrawing the move handed the strip back and moved the column with it"
-
-
-def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail(
-    browser, serve
-):
-    """A sidenote hanging in the right margin holds the strip the rail stands in, so the
-    marker of a paragraph level with it stands on the paragraph as a pin rather than
-    over the note. The control is a paragraph far below the note, whose marker keeps
-    the rail."""
-    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(12))
-    source = leaf_page(
-        "a note beside its paragraph",
-        '<h1 id="t">Notes</h1><div class="layout-note">'
-        '<p id="beside">The paragraph the note glosses.</p>'
-        '<aside class="note" id="note">A note beside the '
-        "paragraph it glosses, long enough to stand a few lines tall.</aside></div>"
-        f"{filler}"
-        '<p id="below">A paragraph well below the note.</p>',
-    ).replace(
-        '<main class="layout-column">', '<main class="layout-column layout-notes">'
-    )
-    page = open_page(
-        browser, serve(source, events=[_comment_on("beside"), _comment_on("below")])
-    )
-    resized(page, 1600, 900)
-    margins_laid_out(page)
-    note = page.locator("#note").bounding_box()
-    prose = page.locator("#beside").bounding_box()
-    assert note["x"] >= prose["x"] + prose["width"]
-    for target, place in (("beside", "pin"), ("below", "rail")):
-        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
-        expect(row).to_have_attribute("data-lf-place", place)
 
 
 @pytest.mark.parametrize(

@@ -28,7 +28,7 @@ from render_harness import (
     leaf_page,
     long_press,
     open_page,
-    page_registry,
+    page_declarations,
     resized,
     said,
     scroll_settled,
@@ -48,7 +48,6 @@ from browser.widgets import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
-from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
@@ -447,7 +446,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         serve(
             leaf_page(
                 "Panel and option",
-                '<lf-tabs id="tabs" class="layout-flow"><lf-tab id="tab" label="Diff">'
+                '<lf-tabs id="tabs" flow="page"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
                 '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts">'
                 f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
@@ -458,7 +457,8 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         ),
     )
     resized(page, 1280, 900)
-    expect(page.locator("lf-tabs")).to_have_css("--lf-views-flow", "page")
+    # The page's own face: a set in its flow draws no frame.
+    expect(page.locator("lf-tabs")).to_have_css("border-left-width", "0px")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )
@@ -1102,7 +1102,7 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
     expect(group.locator("lf-option").first).to_have_css("display", "flow-root")
     assert (
         render_checks_model.evaluate_probe(
-            page, "undeclaredAttrs", element_declarations(page_registry(page))
+            page, "undeclaredAttrs", page_declarations(page)
         )
         == []
     )

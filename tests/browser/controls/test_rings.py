@@ -160,7 +160,7 @@ def test_a_scrolled_tab_keeps_its_focus_ring_at_the_viewport(browser, serve, rea
         )
         if reading == "page-tab":
             content = content.replace(
-                '<lf-tabs id="readings">', '<lf-tabs id="readings" class="layout-flow">'
+                '<lf-tabs id="readings">', '<lf-tabs id="readings" flow="page">'
             )
         if reading == "boxed-tab":
             content = f"<section>{content}</section>"

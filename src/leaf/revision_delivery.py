@@ -43,8 +43,13 @@ import turbohtml
 
 from .layer import DOCUMENT_LAYER_ORDER
 from .passages import markdown_markup
-from .registry.contract import declared_fact, exhibits, is_element_name
-from .registry.kernel import authored_inert, kernel_marks
+from .registry.contract import (
+    authored_inert,
+    declared_fact,
+    holds_for,
+    is_element_name,
+)
+from .registry.kernel import kernel_marks
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -426,12 +431,14 @@ def mark_declared(
         marks = {}
         for key, mark in kernel_marks().items():
             declared = (
-                exhibits(attrs, declaration)
-                if key == "server.exhibit"
+                holds_for(attrs, declared_fact(declaration, key))
+                if key in ("server.exhibit", "paint.flow")
                 else declared_fact(declaration, key)
             )
             authored = mark.get("authored")
-            inert = authored and authored_inert(key, declaration, content=content)
+            inert = authored and authored_inert(
+                key, declaration, attrs, content=content
+            )
             # A flow takes no width of its own, whatever its markup says.
             if inert == "flow":
                 continue

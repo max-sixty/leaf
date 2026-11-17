@@ -404,8 +404,8 @@
         </p>
       </header>
 
-      <lf-tabs id="extensions" class="layout-flow">
-        <lf-tab id="pages" label="Pages" class="layout-flow"
+      <lf-tabs id="extensions" flow="page">
+        <lf-tab id="pages" label="Pages"
           ><details class="topic-outline" id="pages-outline">
             <summary>In this topic</summary>
             <nav aria-label="Pages sections">
@@ -423,7 +423,7 @@
             what a page can hold and how it takes a theme, and Layout covers which
             layout fits the work.
           </p>
-          <section id="pages-parts" class="layout-flow">
+          <section id="pages-parts">
             <h2>Parts of a page</h2>
             <p id="scaffold">
               The agent writes an HTML document containing the page's title,
@@ -441,9 +441,8 @@
               </li>
               <li id="src-idioms">
                 <strong>Theme classes.</strong> The theme supplies classes for common
-                presentation patterns, including <code>.lede</code>,
-                <code>.callout</code>, and <code>aside.note</code> in a
-                <code>layout-note</code> row for a margin note.
+                presentation patterns, including <code>.lede</code> and
+                <code>.callout</code>.
               </li>
               <li id="src-widgets">
                 <strong>Widgets.</strong> A widget is a complete page feature, authored
@@ -476,7 +475,7 @@
               defines module and dependency rules.
             </p>
           </section>
-          <section id="widgets" class="layout-flow">
+          <section id="widgets">
             <h2>Widgets</h2>
             <p id="dogfood">
               These examples are interactive parts of this page. Their choices, card
@@ -582,7 +581,7 @@
               <a href="/examples/">examples gallery</a> opens complete pages using them.
             </p>
           </section>
-          <section id="asking" class="layout-flow">
+          <section id="asking">
             <h2>Asking the user</h2>
             <p id="progress-lists-subjects">
               Any widget can ask, whether bundled, from a package or the page’s own, by
@@ -621,7 +620,7 @@
               <code>leaf page check</code> reports when its source has changed.
             </p>
           </section>
-          <section id="styles-overrides" class="layout-flow">
+          <section id="styles-overrides">
             <h2>Styles and overrides</h2>
             <p id="styles-lede">
               The user chooses the visual direction. A theme supplies shared colors,
@@ -715,7 +714,7 @@ flowchart TD
               <a href="#styles-contract">the CSS tab's contract</a>.
             </p>
           </section></lf-tab
-        ><lf-tab id="layout" label="Layout" class="layout-flow"
+        ><lf-tab id="layout" label="Layout"
           ><details class="topic-outline" id="layout-outline">
             <summary>In this topic</summary>
             <nav aria-label="Layout sections">
@@ -730,7 +729,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="layouts" class="layout-flow">
+          <section id="layouts">
             <h2>Layouts</h2>
             <p id="layouts-lede">
               Leaf supplies page layouts and a layout for blocks within a page. A
@@ -1171,7 +1170,7 @@ flowchart TD
               its own grid when the supplied layouts do not fit.
             </p>
           </section>
-          <section id="column" class="layout-flow">
+          <section id="column">
             <h2>The reading column</h2>
             <p id="column-measure">
               On a <code>layout-column</code> page, headings, paragraphs, lists, and
@@ -1199,7 +1198,7 @@ flowchart TD
               </li>
               <li id="width-available">
                 <code>available</code> uses the window's width after subtracting the
-                outer page margins and space for margin notes and controls.
+                outer page margins and space for Leaf's margin controls.
               </li>
             </ul>
             <p id="column-widths-declared">
@@ -1274,18 +1273,18 @@ flowchart TD
                 body scrolls when both fit beside each other.
               </li>
               <li id="margin-sidenotes">
-                <strong>Sidenotes</strong>, each an <code>aside.note</code> paired with
-                its passage in a <code>layout-note</code> row, on the right when the row
-                has enough room.
+                <strong>Sidenotes</strong>, which the page floats into the right margin
+                with its own CSS. The rail's markers don't avoid them, so a page of
+                sidenotes gives the margin to them with <code>data-rail="none"</code> on
+                <code>body</code>.
               </li>
             </ul>
             <p id="margins-narrow">
               The browser places these compositions as soon as the HTML arrives. In a
-              narrow window, the sidebar stacks in source order and each note follows
-              its passage. Notes never shift the reading column.
+              narrow window, the sidebar stacks in source order.
             </p>
           </section>
-          <section id="sidebar-page" class="layout-flow">
+          <section id="sidebar-page">
             <h2>Sidebar pages</h2>
             <p id="sidebar-page-what">
               <code>layout-sidebar</code> on <code>main</code> places the header across
@@ -1318,7 +1317,7 @@ flowchart TD
               <a href="/examples/command-hub/">Command hub</a>.
             </p>
           </section>
-          <section id="workspace" class="layout-flow">
+          <section id="workspace">
             <h2>Workspace</h2>
             <p id="workspace-what">
               <code>layout-workspace</code> fits the page to the window above Leaf's
@@ -1618,7 +1617,7 @@ flowchart TD
               <a href="/examples/alert-review/">Alert review</a>.
             </p>
           </section>
-          <section id="tiles" class="layout-flow">
+          <section id="tiles">
             <h2>Tiles</h2>
             <p id="tiles-what">
               <code>layout-tiles</code> arranges an element's children in equal cells at
@@ -1630,7 +1629,7 @@ flowchart TD
               <code>dd</code>.
             </p>
           </section>
-          <section id="page-tabs" class="layout-flow">
+          <section id="page-tabs">
             <h2>Tabs and parts</h2>
             <p id="page-tabs-what">
               An <code>lf-tabs</code> at the top of a page creates tabs like the ones on
@@ -1652,7 +1651,7 @@ flowchart TD
               gives the markup.
             </p>
           </section>
-          <section id="narrow" class="layout-flow">
+          <section id="narrow">
             <h2>Narrow windows</h2>
             <p id="narrow-what">
               In a narrow window, page regions stack vertically in HTML order. Margin
@@ -1717,7 +1716,7 @@ flowchart TD
               </figcaption>
             </figure>
           </section></lf-tab
-        ><lf-tab id="contracts" label="Contracts" class="layout-flow"
+        ><lf-tab id="contracts" label="Contracts"
           ><details class="topic-outline" id="contracts-outline">
             <summary>In this topic</summary>
             <nav aria-label="Contracts sections">
@@ -1728,7 +1727,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="responsibilities" class="layout-flow">
+          <section id="responsibilities">
             <h2>Who is responsible for what</h2>
             <p id="responsibilities-lede">
               The user sets the goal and preferences. The author composes the page;
@@ -1840,7 +1839,7 @@ flowchart TD
               declarations and rendered behavior.
             </p>
           </section>
-          <section id="boundaries" class="layout-flow">
+          <section id="boundaries">
             <h2>Choose the extension boundary</h2>
             <ol>
               <li id="extend-page">
@@ -1861,7 +1860,7 @@ flowchart TD
               </li>
             </ol>
           </section>
-          <section id="layer" class="layout-flow">
+          <section id="layer">
             <h2>Package interfaces</h2>
             <p>
               Packages connect through declared inputs, outputs and actions. A release
@@ -1959,7 +1958,7 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="build-package" label="Build a package" class="layout-flow"
+        <lf-tab id="build-package" label="Build a package"
           ><details class="topic-outline" id="build-outline">
             <summary>In this topic</summary>
             <nav aria-label="Build a package sections">
@@ -1971,7 +1970,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="start" class="layout-flow">
+          <section id="start">
             <h2>Build a package with two files</h2>
             <p>Create a package in the project, then check the empty composition:</p>
             <pre
@@ -2028,7 +2027,7 @@ packages/callout/
               shown inline for an obligation.
             </p>
           </section>
-          <section id="theme" class="layout-flow">
+          <section id="theme">
             <h2>Style the element</h2>
             <p>
               A package's <code>defaults.css</code> joins Leaf's existing cascade as
@@ -2056,7 +2055,7 @@ packages/callout/
               control sheets compose.
             </p>
           </section>
-          <section id="widget" class="layout-flow">
+          <section id="widget">
             <h2>Declare the element</h2>
             <p>The page will author the callout as ordinary readable markup:</p>
             <pre
@@ -2099,7 +2098,7 @@ packages/callout/
               stops here.
             </p>
           </section>
-          <section id="check" class="layout-flow">
+          <section id="check">
             <h2>Compose and check the page</h2>
             <pre
               id="package-check-command"
@@ -2148,7 +2147,7 @@ $ leaf page check PAGE --render</code></pre>
             </dl>
           </section></lf-tab
         >
-        <lf-tab id="css" label="CSS" class="layout-flow"
+        <lf-tab id="css" label="CSS"
           ><details class="topic-outline" id="css-outline">
             <summary>In this topic</summary>
             <nav aria-label="CSS sections">
@@ -2160,7 +2159,7 @@ $ leaf page check PAGE --render</code></pre>
               </ul>
             </nav>
           </details>
-          <section id="styles-contract" class="layout-flow">
+          <section id="styles-contract">
             <h2>CSS contracts</h2>
             <p id="styles-contract-lede">
               Widget packages style their own elements; theme packages supply
@@ -2400,8 +2399,8 @@ flowchart TD
             </details>
           </section></lf-tab
         >
-        <lf-tab id="packages" label="Packages" class="layout-flow"
-          ><section id="bundled" class="layout-flow">
+        <lf-tab id="packages" label="Packages"
+          ><section id="bundled">
             <h2>Choose a bundled package</h2>
             <p>
               The <a href="/examples/feature-gallery/">core product gallery</a> shows
@@ -2558,7 +2557,7 @@ flowchart TD
             </p>
           </section>
           <section
-            class="developer-galleries layout-flow"
+            class="developer-galleries"
             id="developer-galleries"
             aria-labelledby="developer-galleries-title"
           >
@@ -2608,8 +2607,8 @@ flowchart TD
             </div>
           </section></lf-tab
         >
-        <lf-tab id="registry-keys" label="Registry keys" class="layout-flow"
-          ><section id="keys" class="layout-flow">
+        <lf-tab id="registry-keys" label="Registry keys"
+          ><section id="keys">
             <h2>Registry keys</h2>
             <p id="keys-lede">
               An element declaration holds the JSON Schema of its attributes. Its other

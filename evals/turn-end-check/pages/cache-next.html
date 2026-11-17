@@ -11,7 +11,7 @@
         cache evicts at 50,000 entries, merged in #812, and staging and production both
         serve it behind the search.cache flag.
       </p>
-      <section id="cache-findings" class="layout-flow">
+      <section id="cache-findings">
         <h2>What the simulation found</h2>
         <p id="cache-findings-body">
           LRU hits 81% of queries and stays under 1.9 GB, but a result can be 41 minutes
@@ -19,14 +19,14 @@
           to 2.6 GB.
         </p>
       </section>
-      <section id="cache-change" class="layout-flow">
+      <section id="cache-change">
         <h2>The change</h2>
         <p id="cache-change-body">
           <code>search/cache.py</code> wraps the result lookup in an LRU cache where the
           <code>search.cache</code> flag is <code>lru</code>.
         </p>
       </section>
-      <section id="slow" class="layout-flow">
+      <section id="slow">
         <h2>The three slowest queries</h2>
         <table id="slow-table">
           <thead>
@@ -59,7 +59,7 @@
           </tbody>
         </table>
       </section>
-      <section id="slow-next" class="layout-flow">
+      <section id="slow-next">
         <h2>Which should I fix first?</h2>
         <lf-options id="slow-first">
           <lf-option id="slow-first-sort"

@@ -286,11 +286,10 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             ("server.awaits", condition.get("when", {}))
             for condition in awaits.get("answered", {}).values()
         ),
-        (
-            "server.exhibit",
-            entry["server"]["exhibit"]["when"]
-            if isinstance(declared_fact(entry, "server.exhibit"), dict)
-            else {},
+        *(
+            (fact, rule["when"])
+            for fact in ("server.exhibit", "paint.flow")
+            if isinstance(rule := declared_fact(entry, fact), dict)
         ),
     ]
     for declaration, condition in conditions:

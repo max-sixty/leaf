@@ -11,7 +11,7 @@ from leaf.files import read_json
 from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID, WIDGET_NAME
 
 from ..findings import Finding, Rejected, element_at
-from .kernel import verb_writers
+from .kernel import kernel_marks, verb_writers
 
 
 def same_state_definition(recorded, current) -> bool:
@@ -54,10 +54,34 @@ def declared_fact(entry: Mapping, fact: str, default=None):
     return (entry.get(group, {}) if group else entry).get(name, default)
 
 
+def holds_for(attrs: dict, rule) -> bool:
+    """Whether a declaration that is a flag or `{when}`, as `server.exhibit` and
+    `paint.flow` are, holds for an occurrence with these authored attributes."""
+    return matches_when(attrs, rule["when"]) if isinstance(rule, dict) else bool(rule)
+
+
 def exhibits(attrs: dict, entry: dict) -> bool:
     """Whether this occurrence quotes its descendants."""
-    rule = declared_fact(entry, "server.exhibit", False)
-    return matches_when(attrs, rule["when"]) if isinstance(rule, dict) else rule
+    return holds_for(attrs, declared_fact(entry, "server.exhibit"))
+
+
+def authored_inert(
+    key: str, declaration: Mapping, attrs: dict, *, content: bool
+) -> str | None:
+    """Why an occurrence's authored override of the mark `key` means nothing on its
+    element, or None where it holds. A width means nothing on an element that takes
+    none of its own (`flow`, where its `paint.flow` holds); otherwise the override
+    holds where its `authored_on` says, and the condition it fails is the reason
+    (`content`, a block in the page's flow, which `main`, `body` and `html` aren't;
+    `declared`, a tag declaring the mark). Delivery paints only an override that holds
+    (`revision_delivery.mark_declared`), and `page check` names the rest."""
+    if key == "paint.space" and holds_for(
+        attrs, declared_fact(declaration, "paint.flow")
+    ):
+        return "flow"
+    condition = kernel_marks()[key]["authored_on"]
+    holds = content if condition == "content" else bool(declared_fact(declaration, key))
+    return None if holds else condition
 
 
 def is_element_name(name: str) -> bool:

@@ -22,7 +22,7 @@ from render_harness import (
     INLINE_PAGE,
     leaf_page,
     open_page,
-    page_registry,
+    page_declarations,
     panel_settled,
     resized,
     root_overflow,
@@ -39,7 +39,7 @@ from leaf import structure as structure_model
 from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, message_markup, page_passages
 from leaf.registry import storage as registry_storage
-from leaf.registry.contract import declared_fact, element_declarations
+from leaf.registry.contract import declared_fact
 from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf_dev.browser import PANEL_THREAD
@@ -399,7 +399,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     (
                         "draws a box of no size",
                         "tinyBoxes",
-                        element_declarations(page_registry(page)),
+                        page_declarations(page),
                     ),
                     (
                         "has a control clipped out of its box",
@@ -671,7 +671,9 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     """
     framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
     framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
-    framed = framed.replace("id='own-frame'", "id='own-frame' class='layout-flow'")
+    framed = framed.replace("<div id='own-frame'", "<section id='own-frame'").replace(
+        "</lf-board></div>", "</lf-board></section>"
+    )
     source = OWN_MARGIN_FURNITURE.replace(
         "</head>",
         "<style>main { position: relative; max-inline-size: var(--lf-col); "
@@ -700,7 +702,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
         f
         for f in failures
         if f.at == "<lf-board id=framed>"
-        and f.values.get("frame") == "<div id=own-frame>"
+        and f.values.get("frame") == "<section id=own-frame>"
     ], (
         "the gate said nothing about a wide widget escaping a frame that scrolls: "
         f"{failures}"
@@ -744,15 +746,14 @@ def test_two_listener_keys_keep_both_tabs_authorized(browser, serve):
 def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve):
     """A page Layout's box is `main`, or a child of a `main` that carries none, and its
     parent is the shell it is placed in. A column whose box is a child of `main` takes
-    the same column, margin content, contents map and breakouts as one on `main`
+    the same column, contents map and breakouts as one on `main`
     itself, at a width where the shell must shift the column for its sidebar, and a
     root workspace fills the window while a child keeps document end room. A `main` the
     page narrows, borders or gives scrollbar gutters is the shell the child column
     measures, so nothing it holds stands past its edges or over its border or gutters."""
     column_body = """
 <h1>Migration plan</h1>
-<div class="layout-sidebar"><aside id="route"><div class="layout-track"><nav aria-label="Route"><a href="#move">Move</a></nav></div></aside><div class="layout-column layout-notes">
-<div class="layout-note"><p>Support cadence.</p><aside class="note" id="frequency">Support runs this twice a month.</aside></div>
+<div class="layout-sidebar"><aside id="route"><div class="layout-track"><nav aria-label="Route"><a href="#move">Move</a></nav></div></aside><div class="layout-column">
 <h2 id="move">Move</h2>
 <p>Shift one cohort at a time while keeping the old readers available.</p>
 <div id="room" data-width="available">Available evidence.</div>
@@ -777,7 +778,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
         inner: [Math.round(rect(main)[0] + main.clientLeft),
                 Math.round(rect(main)[0] + main.clientLeft + main.clientWidth)],
       };
-      for (const id of ['route', 'frequency', 'room', 'contents']) {
+      for (const id of ['route', 'room', 'contents']) {
         const node = document.getElementById(id);
         if (node) {
           const style = getComputedStyle(node);

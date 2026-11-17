@@ -87,6 +87,7 @@ from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.findings import Finding, placed
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
@@ -736,6 +737,14 @@ def page_registry(page):
     the whole question those readings answer.
     """
     return render_gate_model.served(page, page.url, "/registry.json").json()
+
+
+def page_declarations(page):
+    """The element declarations of this page's registry, which is what the render gate
+    hands every reading that takes declarations (`scheme._render_page`). The registry
+    also describes HTML elements and selectors, such as `button`, which no reading asks
+    after as a widget."""
+    return element_declarations(page_registry(page))
 
 
 def post_event(page, url, **kwargs):

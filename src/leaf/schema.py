@@ -441,7 +441,17 @@ FACT_GROUPS = {
         "height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
         "bound": {"enum": ["start", "end"]},
         "spine": {"const": True},
-        "flow": {"const": True},
+        "flow": {
+            "oneOf": [
+                {"const": True},
+                {
+                    "type": "object",
+                    "properties": {"when": AWAITING_CONDITION},
+                    "required": ["when"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
         "prepaint": _ATTRIBUTE_NAME,
     },
     "server": {

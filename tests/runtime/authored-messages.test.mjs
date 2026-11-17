@@ -91,6 +91,29 @@ test("a message's words part its blocks, as the page reading does", async () => 
   assert.equal(prepared.body.text, "Pick one: Open it now Hold it");
 });
 
+// An option's title is its label, which the message writes as words where it draws, so
+// the message's words hold it too.
+test("a message's words hold its options' labels", async () => {
+  adoptRegistry({
+    $layer: { generation: "message-labels" },
+    "lf-options": {},
+    "lf-option": { says: { label: "before" } },
+  });
+  assert.equal(await loadMarkdown(), true);
+  const prepared = await prepareAuthoredMessage(
+    {
+      id: "labelled-message",
+      text:
+        'Pick one:\n\n<lf-options id="labelled-choice">\n' +
+        '<lf-option id="labelled-now" label="Open it now">Today.</lf-option>\n' +
+        '<lf-option id="labelled-hold" label="Hold it"></lf-option>\n' +
+        "</lf-options>",
+    },
+    "labelled-thread",
+  );
+  assert.equal(prepared.body.text, "Pick one: Open it now Today. Hold it");
+});
+
 // A drawing that doesn't hold the message's widgets, such as a margin card while the
 // panel holds them, draws the message less its widgets. The group round a widget that
 // asks is that widget's question and goes with it; a group round a widget that asks

@@ -602,9 +602,16 @@ customElements.define(
       );
     }
 
+    // What tune and choose record: the controls' values with those still waiting for a
+    // contributor, so a choice reads as chosen whether or not every contributor that
+    // shares its settings has registered yet.
+    #configuration() {
+      return { ...this.#pendingValues, ...this.#values };
+    }
+
     #commit() {
       clearTimeout(this.#pause);
-      const values = { ...this.#pendingValues, ...this.#values };
+      const values = this.#configuration();
       const recorded = this.#tune()?.detail.values ?? this.#defaults;
       if (!this.controller.read().actions.tune?.available) return;
       this.#unsent.clear();
@@ -655,7 +662,7 @@ customElements.define(
         this.controller.dispatch({
           kind: "action",
           verb: "choose",
-          detail: { values: this.values, instruction: this.#instruction() },
+          detail: { values: this.#configuration(), instruction: this.#instruction() },
           says: "Playground settings",
         });
       }
@@ -669,7 +676,7 @@ customElements.define(
         choice.action &&
         choice.detail.instruction === this.#instruction() &&
         configurationJSON(choice.detail.values) ===
-          configurationJSON({ ...this.#pendingValues, ...this.values }),
+          configurationJSON(this.#configuration()),
       );
     }
 

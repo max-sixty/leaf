@@ -683,6 +683,7 @@ async function boot() {
       navigation.alignTop,
       app.read.firstUnreadCommand,
       version.PICKER,
+      version.LATEST,
     ],
     scrollToElement: anchorTravel.scrollToElement,
     leavesOffered,

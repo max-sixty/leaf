@@ -408,6 +408,10 @@ const GROUPS = Object.freeze([
 ]);
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
+// The commands whose keys Open latest wears (`latestPress`): the Go-to sequence's `g`,
+// and its destination that opens the latest version.
+const GO_TO_OPEN = "navigation.go-to.open";
+const LATEST_COMMAND = "version.latest";
 // A thread's row in Threads, which names the thread by its key.
 const THREAD_ROW = ".lf-fp-thread[data-lf-key]";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
@@ -5134,16 +5138,25 @@ export function createFloatingPanel({
   }
   // Open latest, which the field's end offers while the page shows an older version
   // than the latest, as its words say first (`standing`), when no other press is
-  // offered there (`pagePress`), with no key, since none opens the latest. Its verb says
-  // it acts: "Latest" alone, in the dim face every word at the field's end wears, read
-  // as a status. The menu's row that opens the latest offers it too.
+  // offered there (`pagePress`). Its verb and its keys, `g N` (version.js, `LATEST`),
+  // say it acts, as every other press at the field's end says its key: "Latest" alone,
+  // in the dim face every word at the field's end wears, read as a status. Its keys
+  // stand only while `g` would open the Go-to sequence now, so not while the caret is
+  // in a box. The menu's row that opens the latest offers it too.
   /** @returns {import("./composing/input.js").BoxPress | null} */
   function latestPress() {
     const { latest } = versionsReading();
     if (latest.shown === null || latest.disabled) return null;
-    // The press puts nothing away: a revision installed under an open thread hands
-    // back the reply being written there (version.js, `restoreEditingContinuity`).
-    return { word: "Open latest", keys: [], run: () => versionPicker.latest() };
+    return {
+      word: "Open latest",
+      // Read at each ask, as a notice's press's key is (`noticePress`).
+      get keys() {
+        return activeCommandLabel([GO_TO_OPEN]) ? commandSteps(LATEST_COMMAND) : [];
+      },
+      // The press puts nothing away: a revision installed under an open thread hands
+      // back the reply being written there (version.js, `restoreEditingContinuity`).
+      run: () => versionPicker.latest(),
+    };
   }
 
   // ---------- gestures ----------

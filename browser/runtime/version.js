@@ -1710,6 +1710,23 @@ export function createVersionController({
     // way out is not live over. The walk being empty is the menu's business, not this key's.
     when: versionsOffered,
   };
+  // Opens the latest version from an older one, as Open latest at the floating panel's
+  // field's end does (floating-panel.js, `latestPress`), which wears its key. It is a
+  // destination of the Go-to sequence, `g N`, rather than a letter of the page's,
+  // since only an older version has it to offer (keyboard/AGENTS.md, "Page grammar").
+  /** @type {import("./keyboard/bindings.js").Command} */
+  const LATEST = {
+    id: "version.latest",
+    keys: ["Shift+n"],
+    title: "latest version",
+    touch: false,
+    travels: true,
+    when: () => {
+      const { latest } = versionsReading();
+      return latest.shown !== null && !latest.disabled;
+    },
+    run: () => goActive(),
+  };
 
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
@@ -3198,6 +3215,7 @@ export function createVersionController({
 
   return {
     PICKER,
+    LATEST,
     prepareActivation,
     aimArrival,
     installArrival,

@@ -1630,13 +1630,10 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
-  // The drafts Threads lists (`draftsListing`): every message draft but the page's own,
-  // which the field holds.
-  const listedDrafts = () => draftsReading().filter((draft) => draft.part !== "page");
   // Where nothing has news, the On Me mark and the folded leaf wear the unread dot
   // grey for these, and the mark opens Threads on them. The user asked for it on 15
   // November 2026, so a draft put away stays in sight without opening Threads.
-  const keptDrafts = () => listedDrafts().length;
+  const keptDrafts = () => draftsReading().length;
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   // Ordinary open state is implicit, and news is the row's mark (`data-lf-unread`),
   // which says New to assistive tech alone. Only an open thread is news (`isNews`), as
@@ -3223,7 +3220,7 @@ export function createFloatingPanel({
   // which a second row of tabs would have had to hold.
   function draftsListing() {
     const words = query.trim().toLowerCase();
-    const rows = listedDrafts().map((draft) => {
+    const rows = draftsReading().map((draft) => {
       const inThread = draft.part === "reply" || draft.part === "rewrite";
       const thread = inThread ? threadByKey(draft.name) : null;
       const composed =

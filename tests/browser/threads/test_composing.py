@@ -11,6 +11,7 @@ from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEAT, open_seat_box, panel_comment
 from render_harness import (
+    CHROME_ROOT,
     LONG_PAGE,
     consume_browser_errors,
     holding,
@@ -528,7 +529,9 @@ def test_a_pressed_send_leaves_the_user_where_enter_does(browser, serve, surface
         expect(reply).to_be_focused()
     page.keyboard.type("ok")
     expect(reply).to_have_js_property("value", "ok")
-    expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     sent = events_model.read_events(serve.page_dir)
     assert any(event.get("text") == "Sent from the box." for event in sent), sent
 

@@ -22,11 +22,9 @@ import {
   headed,
   HEADING,
   inPage,
-  keptAnswer,
   leafSurface,
   pageDocument,
   pageReadingVersion,
-  runsIntoLine,
 } from "../passages.js";
 import { agentName } from "../semantic-state.js";
 import { readingRegionFor } from "../reading-regions.js";
@@ -115,29 +113,23 @@ export function headingAfter(heading) {
 // its author gave it. So a <section> the author wrote names what stands in it before
 // its heading, a sub-heading inside it heads what follows the sub-heading, a captioned
 // figure or table names what it holds, and a region the author labelled is a part. A
-// run-in label, a leading <strong> that words follow before a <br> or a block element,
-// as a paragraph's or a titled option's is, names its own element and makes no part: a
-// bold label opening a line is no place a reader groups by, so On Me's bands and a
-// preview's name go on to the part holding the line. A <strong> alone on its line, over
-// a <br> or a container's blocks, names that container as a part, as a heading would.
-// Which it is is the markup's (`runsIntoLine`), not the line the browser draws: a
-// drawn line moved with every style a page could set, a box-less wrapper, kept
-// newlines, hidden words, and renamed a part as the reader opened a disclosure, where
-// Python's names, read off the document, never move. The contract stops short of the document the node stands in and the
-// page's column, whose leading heading titles the page, and passes a
-// slot, whose own children are the fallback its assignment replaces, and what Leaf
-// generates in the document, whose labels are Leaf's. A heading in a `header` or
-// `hgroup` heads what holds that, so a page's title in its header heads the page's
-// sections. The container is what "the heading over this" means: a question's own
-// heading stands inside the question, so it heads neither the question, which it
-// follows, nor the next question, which its container does not hold. The question
-// stands in the part around it, which is where On Me groups it; what a heading counts
-// as its own also takes in the element it titles (`conversationsAbout`). A heading the
-// reader cannot see, as in a tab not selected, still heads its part, so a part's name
-// does not change as the page shows or hides it; an arrival measures what it lands on
-// and passes one that shows nothing. On the corpus page, whose pages stand in tabs with
-// their titles in headers and their last sections untitled, the container alone sent
-// every item to the corpus's own title.
+// <strong> makes no part: in plain markup it names nothing, and where it titles a
+// widget, as an option's does, it names that widget and no place a reader groups by, so
+// On Me's bands and a preview's name go on to the part holding it. The contract stops
+// short of the document the node stands in and the page's column, whose leading heading
+// titles the page, and passes a slot, whose own children are the fallback its
+// assignment replaces, and what Leaf generates in the document, whose labels are
+// Leaf's. A heading in a `header` or `hgroup` heads what holds that, so a page's title
+// in its header heads the page's sections. The container is what "the heading over
+// this" means: a question's own heading stands inside the question, so it heads neither
+// the question, which it follows, nor the next question, which its container does not
+// hold. The question stands in the part around it, which is where On Me groups it; what
+// a heading counts as its own also takes in the element it titles
+// (`conversationsAbout`). A heading the reader cannot see, as in a tab not selected,
+// still heads its part, so a part's name does not change as the page shows or hides it;
+// an arrival measures what it lands on and passes one that shows nothing. On the corpus
+// page, whose pages stand in tabs with their titles in headers and their last sections
+// untitled, the container alone sent every item to the corpus's own title.
 //
 // Replaced: only a declared name or a leading heading named a container, while the
 // preview named a place by its nearest named holder first (`holderNaming`). The two
@@ -162,25 +154,14 @@ export function partOver(node) {
     if (!namesWhatItHolds(container, scope)) continue;
     const naming = ownNaming(container);
     if (!naming) continue;
-    // A heading that titles its container heads what the container holds; any other
-    // name makes the container the part.
+    // A heading that titles its container heads what the container holds, a widget's
+    // <strong> names the widget alone, and any other name makes the container the part.
     if (!("by" in naming)) return container;
-    if (
-      naming.by === node ||
-      (naming.by.localName === "strong" && runsIn(naming.by, container))
-    )
-      continue;
+    if (naming.by === node || naming.by.localName === "strong") continue;
     return naming.by.matches(HEADING) ? naming.by : container;
   }
   return null;
 }
-// Whether a title runs into words on its own line, as a paragraph's bold lead-in runs
-// into its sentence, read off the markup (`runsIntoLine`), so a place is the same part
-// whatever the reader opens or the page draws. A title alone on its line heads what
-// follows it. Kept as long as its document's reading stands, as the markup does.
-/** @param {Element} title @param {Element} container */
-const runsIn = (title, container) =>
-  keptAnswer(title, "runs into its line", () => runsIntoLine(title, container));
 // Whether the contract's name for `container` names what it holds: short of the document
 // it stands in and the page's column, never a slot, and never what Leaf generated there.
 /** @param {Element} container @param {Element} scope */

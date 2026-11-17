@@ -841,3 +841,34 @@ def test_generated_hints_are_browsable_without_entering_the_paint_layer(browser,
         "() => document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})"
     )
     expect(page.locator(CHIPS)).to_have_count(0)
+
+
+def test_a_revision_under_an_armed_go_to_keeps_its_letters_and_walk(browser, serve):
+    """A revision moves the page under an armed Go-to map with no scroll. Each chip rides
+    its target, and every letter the user has read and the target the walk stands on
+    stay, so the letter they just read takes what they read it on (keyboard/hints.js)."""
+    links = "".join(
+        f'<p><a id="l{n}" href="#top">Destination {n}</a></p>' for n in range(1, 6)
+    )
+    heading = '<h1 id="top">Kept letters</h1>'
+    source = leaf_page("Kept letters", heading + links)
+    page = open_page(browser, live_url(serve(source)))
+    page.keyboard.press("g")
+    expect(page.locator(CHIPS)).to_have_count(5)
+    codes = {n: address_code(page, "Link", f"l{n}") for n in range(1, 6)}
+    for _ in range(3):
+        page.keyboard.press("Tab")
+    expect_walk_position(page, "Target 3 of 5")
+
+    added = '<p>New words with <a id="new" href="#top">a new link</a>.</p>'
+    (serve.page_dir / "index.html").write_text(source.replace(heading, heading + added))
+    told(page)
+    expect(page.locator("#new")).to_be_visible()
+    rendered(page)
+    assert {n: address_code(page, "Link", f"l{n}") for n in range(1, 6)} == codes
+    expect(page.locator(f'{CHIPS}[data-lf-go-to-target="l3"]')).to_have_class(
+        re.compile(r"\blf-current\b")
+    )
+    page.keyboard.press("Tab")
+    expect_walk_position(page, "Target 4 of 5")
+    expect(page.locator(".lf-live")).to_contain_text("Destination 4")

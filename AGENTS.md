@@ -91,13 +91,15 @@ the page keeps. So only the event log and the records Leaf keeps outside a page
 cross between Leaf versions.
 
 - **The page protocol**, the kernel registry's `$events.protocol`, is Leaf's only
-  version: a Leaf serves and writes only pages at its own number. Bump it only when
-  a Leaf at the current number would misread an event or record that another Leaf
-  at that number wrote. A change to what the serving Leaf supplies keeps the
-  number, even where a logged message or a comment's quote then draws or resolves
-  differently. Bumps are rare, perhaps one in five hundred commits, and once Leaf
-  is released only a bump may break an existing page. `layer-registry.md`, "Page
-  protocol", says how the number is enforced and how records carry it.
+  version: a Leaf serves and writes only pages at its own number. The build refuses
+  any change to a logged event's schema until the number moves. Bump it also where a
+  Leaf at the current number would misread an event or record that another Leaf at
+  that number wrote, such as a logged value given a new meaning. A change to what the
+  serving Leaf supplies keeps the number, even where a logged message or a comment's
+  quote then draws or resolves differently. Bumps are rare, perhaps one in five
+  hundred commits, and once Leaf is released only a bump may break an existing page.
+  `layer-registry.md`, "Page protocol", says how the number is enforced and how
+  records carry it.
 - **A page's own code**, its widgets and scripts, and an installed package's
   modules call the public package API across Leaf versions. While Leaf is in alpha
   an update may change that API without a bump, since a bump would not repair code

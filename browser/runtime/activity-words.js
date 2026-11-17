@@ -5,7 +5,7 @@
    share changes in one place. Nothing here reads or writes the document; page-status.js
    and live-leaves.js read what these return, the floating panel draws it, and
    `tests/runtime/activity-words.test.mjs` holds each sentence. */
-import { counted } from "./words.js";
+import { capitalized, counted } from "./words.js";
 import { ago } from "./presence.js";
 import { itemNoun } from "./queues.js";
 import { agentSays, leafSays, saidBy, wordsText } from "./voice.js";
@@ -16,7 +16,7 @@ import { agentSays, leafSays, saidBy, wordsText } from "./voice.js";
 /** @typedef {string | Said | readonly (string | Said)[]} Words */
 /** @typedef {import("./framework/snapshot.js").Immutable<import("./framework/application.js").CurrentQueueItem>} QueueItem */
 /** @typedef {{on_user: readonly QueueItem[], on_agent: readonly QueueItem[]}} Queues */
-/** @typedef {{activity: Activity, publication?: Publication | null}} ActivityReading */
+/** @typedef {{activity: Activity, publication?: Publication | null, agent?: string}} ActivityReading */
 /** @typedef {{kind: string, tone: string, summary: string, explanation: string, adds: string,
  * asks?: boolean, summaryParts?: Said[], explanationParts?: Said[], addsParts?: Said[],
  * publication?: Publication | null}} Status */
@@ -206,7 +206,7 @@ function statusWords({
     const working = WORK_WORDS.working;
     return [working, work, work.text === working ? "" : work];
   }
-  // The stock words say where a comment starts; they report and ask nothing. An
+  // The stock words say the agent awaits the user; they report and ask nothing. An
   // update still on its way says so on its own label and in the explanation's count,
   // so the line keeps the invitation (the user's choice, over a
   // separate "listening" while one is).
@@ -301,7 +301,7 @@ export function pageStatus(state, options = {}) {
       adds: "",
     };
   if (!state) throw new Error("A reached page status needs its accepted reading");
-  const { activity, publication = null } = state;
+  const { activity, publication = null, agent = "the agent" } = state;
   // On Leaf's website any comment starts the agent (`leaf_website`), so whenever it
   // isn't working it listens: no session holds a copy until its first comment, and one
   // that has gone quiet since starts again at the next. Its work reads as on any page,
@@ -323,9 +323,14 @@ export function pageStatus(state, options = {}) {
     dated: facts.left ? ended : checkedIn,
     detail,
     detailSource: activity.detail_source,
+    // While nobody works, the line says the agent awaits the user, as it did until 26
+    // October 2026: the user chose it on 16 November 2026 over "Ready" alone and over
+    // "Ready — select text to comment", which named one route to a comment of several,
+    // on every page. How to comment is the field's end's to say (Comment and c). A
+    // visitor to the website's copy is told how it changes.
     invite: publication
       ? "Ready — comment to revise this copy"
-      : "Ready — select text to comment",
+      : `${capitalized(agent)} awaits`,
     kind,
     overdue: activity.counts.overdue,
     saved,

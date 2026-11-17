@@ -152,15 +152,15 @@ test("work waiting in the agent's own session says where it is answered, and is 
   assert.equal(pageStatus(state({ kind: "working" })).actionableWork, null);
 });
 
-test("listening says where a comment starts, with input on its way counted after", () => {
-  assert.equal(
-    said({ kind: "listening", detail: "" })[0],
-    "Ready — select text to comment",
-  );
+test("listening says the agent awaits, with input on its way counted after", () => {
+  assert.equal(said({ kind: "listening", detail: "" })[0], "Claude awaits");
   assert.deepEqual(said({ kind: "listening", detail: "", counts: { pending: 1 } }), [
-    "Ready — select text to comment",
-    "Ready — select text to comment. 1 response owed on updates awaiting delivery.",
+    "Claude awaits",
+    "Claude awaits. 1 response owed on updates awaiting delivery.",
   ]);
+  // Before the server names its agent, the line names none.
+  const unnamed = pageStatus({ activity: servedActivity({ kind: "listening" }) });
+  assert.equal(unnamed.summary, "The agent awaits");
 });
 
 test("a quiet claim is dated by its last word, and a dropped one by the turn's ending", () => {
@@ -348,7 +348,7 @@ test("the explanation names what waits on each side", () => {
   assert.match(long.explanation, /Waiting on Codex Research Agent: 1 reply/);
   assert.equal(
     model.explanation,
-    "Ready — select text to comment. Waiting on me: 2 to answer, 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
+    "Agent awaits. Waiting on me: 2 to answer, 2 updates to send again. Waiting on Agent: 1 reply, 1 to-do (Rebuild the chart).",
   );
   // A to-do's title is the agent's words; the count around it is Leaf's.
   assert.deepEqual(

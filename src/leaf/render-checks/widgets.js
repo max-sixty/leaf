@@ -105,12 +105,12 @@ export const missingUpgrades = (modules) =>
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const invalidVisualProviders = (declarations) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-visual"])
+    .filter(([, entry]) => entry.words?.visual)
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
         code: "visual-parts",
         at: locate(el),
-        problems: visualPartProblems(el, entry["x-visual"]),
+        problems: visualPartProblems(el, entry.words?.visual),
       })),
     )
     .filter((instance) => instance.problems.length);
@@ -120,7 +120,7 @@ export const invalidVisualProviders = (declarations) =>
 // the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
-// attribute as a verb's record form (`chosen`, `status`), which is what makes the write
+// attribute as a verb's record form (`selected`, `status`), which is what makes the write
 // a statement the log's fold, the state gate and construction-linked inspection can all read.
 // Everything else it needs to mark goes where the module's own words go — the chrome it
 // built, in the platform's vocabulary (aria-*, role, hidden, tabindex) or under data-*,
@@ -160,15 +160,12 @@ export function undeclaredAttrs(declarations) {
   const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(declarations)) {
-    if (!entry.properties) continue;
+    const properties = entry.attributes.properties;
+    if (!properties) continue;
     for (const root of all)
       for (const el of root.querySelectorAll(tag))
         for (const a of el.attributes)
-          if (
-            !painted.test(a.name) &&
-            !platform.has(a.name) &&
-            !(a.name in entry.properties)
-          )
+          if (!painted.test(a.name) && !platform.has(a.name) && !(a.name in properties))
             found.push({ code: "undeclared-attr", at: locate(el), tag, attr: a.name });
   }
   return found;
@@ -338,13 +335,13 @@ export function changedBoxes() {
   }));
 }
 
-// x-height's paint ($marks in runtime/kernel-registry.json): the stated height a page
-// reserves for a drawing, or empty where it states none.
+// paint.height's paint ($marks in runtime/kernel-registry.json): the stated height a
+// page reserves for a drawing, or empty where it states none.
 const STATED_HEIGHT = "data-lf-height";
 
-// Each drawn element whose tag declares x-height and whose drawing is taller or shorter
-// than the box it first showed before drawing (`undrawnHeights` in driver.js). The
-// drawing's height is the element's box with its paint lifted for one read, since a
+// Each drawn element whose tag declares paint.height and whose drawing is taller or
+// shorter than the box it first showed before drawing (`undrawnHeights` in driver.js).
+// The drawing's height is the element's box with its paint lifted for one read, since a
 // package may keep a stated height larger than its drawing, as the diagram's does. The
 // box the element holds now is reported beside both, so the finding can say whether
 // what follows moved as it drew or sits below blank room. An element hidden now has no

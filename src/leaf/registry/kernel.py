@@ -79,7 +79,7 @@ def kinds_declaring(flag: str) -> frozenset[str]:
 
 @cache
 def verb_writers() -> dict[str, str]:
-    """Each widget kind, one that carries an x-state verb, with the side that writes
+    """Each widget kind, one that carries a verb (state.verbs), with the side that writes
     that verb (`verb_writer`): the user's `action`, the agent's `report`."""
     return {
         kind: contract["verb_writer"]

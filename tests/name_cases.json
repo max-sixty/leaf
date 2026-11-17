@@ -85,13 +85,25 @@
   },
   {
     "id": "an attribute shown first is not a name",
-    "registry": { "lf-reading": { "x-says": { "value": "before" } } },
+    "registry": {
+      "lf-reading": {
+        "words": {
+          "says": { "value": "before" }
+        }
+      }
+    },
     "markup": "<lf-reading id=\"it\" value=\"312\">daily visits</lf-reading>",
     "name": ""
   },
   {
     "id": "a gloss's tip is no part of a heading's name",
-    "registry": { "lf-gloss": { "x-says": { "tip": "after" } } },
+    "registry": {
+      "lf-gloss": {
+        "words": {
+          "says": { "tip": "after" }
+        }
+      }
+    },
     "markup": "<section id=\"it\"><h2>Deploy a <lf-gloss tip=\"A thin, end-to-end path.\">walking skeleton</lf-gloss></h2></section>",
     "name": "Deploy a walking skeleton"
   }

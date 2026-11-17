@@ -615,7 +615,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | Fact                                                                                                           | Authority                                                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | authored widget state                                                                                          | the validated source markup, captured before upgrade                                                                                                                                                                                                                                                                                                                                |
-| external data                                                                                                  | the latest page data; Leaf sets each bound source on the widget property x-data names (data.js)                                                                                                                                                                                                                                                                                     |
+| external data                                                                                                  | the latest page data; Leaf sets each bound source on the property its input names (data.js)                                                                                                                                                                                                                                                                                         |
 | version shown                                                                                                  | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                                                                                                                                                                                                            |
 | accepted history                                                                                               | the server's event log and its `/api/state` answer, which the publisher adopts whole; an answer to a request naming the reading the tab holds may carry only the changes since, which the reader applies to that reading first (`completeState` in `layer-client.js`); each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
 | unresolved browser work, refusals included                                                                     | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                                                                                                                                                                                                     |
@@ -806,13 +806,13 @@ them itself.
 ## The widget vocabulary stays open
 
 Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep the
-layer open"). Each `x-` key's meaning is its `$keys` entry in `registry.json`. Use a
-boolean only when false has one clear meaning; otherwise declare named values.
+layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
+Use a boolean only when false has one clear meaning; otherwise declare named values.
 
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and browser capture stops at the fence, so
 a selection across it never becomes a quote the file can't confirm. Declare words Python
-can model with `x-says` or the content key.
+can model with `words.says` or `content`.
 
 ## Render gates
 

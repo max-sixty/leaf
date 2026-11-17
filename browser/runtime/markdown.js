@@ -3,11 +3,10 @@
 // escaped source immediately and await this only when their own rendering needs it.
 import { describeFailure } from "./exception.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "./media.js";
-import { elementsDeclaring, declarationFor } from "./registry.js";
+import { declarationFor, declaredElements } from "./registry.js";
 import { alignText } from "./text-alignment.js";
 import { dataBody } from "./widget-upgrade.js";
 import { generatedElement } from "./element-markers.js";
-import { isElement } from "./shadow-tree.js";
 import { offerContentElement } from "./element-markers.js";
 
 /** @typedef {import("markdown-it").Token} NativeToken
@@ -98,29 +97,29 @@ export function inlineMarkdownFragment(text, message = true) {
   return parsed.content;
 }
 
-// The written files in `scope` whose `x-prepaint` attribute names Markdown and that
+// The written files in `scope` whose `paint.prepaint` attribute names Markdown and that
 // hold no rendering yet: a revision's or a message's, since delivery renders only the
 // first document's (`revision_delivery.mark_declared`).
 /** @param {Element | Document | DocumentFragment} scope */
-const unpaintedFiles = (scope) => {
-  const elements = elementsDeclaring(scope, "x-prepaint");
-  if (isElement(scope) && declarationFor(scope, "x-prepaint")) elements.unshift(scope);
-  return elements.filter(
+const unpaintedFiles = (scope) =>
+  declaredElements(scope, (entry) => entry.paint?.prepaint).filter(
     (element) =>
-      element.getAttribute(String(declarationFor(element, "x-prepaint"))) ===
+      element.getAttribute(String(declarationFor(element)?.paint?.prepaint)) ===
         "markdown" &&
       element.querySelector(":scope > pre") &&
       !element.querySelector(":scope > [data-lf-prepaint]"),
   );
-};
+
+// A declaration whose data body is Markdown words (`words.text-format`).
+/** @param {import("../types/contract.js").WidgetDeclaration} entry */
+const wordsAreMarkdown = (entry) => entry.words?.["text-format"] === "markdown";
 
 // Registry text formatting belongs to the layer, so a package declaration cannot
 // make file-side passages read words the browser leaves as raw Markdown.
 /** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
   if (
-    !(isElement(scope) && declarationFor(scope, "x-text-format")) &&
-    !elementsDeclaring(scope, "x-text-format").length &&
+    !declaredElements(scope, wordsAreMarkdown).length &&
     !unpaintedFiles(scope).length
   )
     return;
@@ -132,16 +131,14 @@ export async function loadDeclaredMarkdown(scope) {
     );
 }
 
-// Each element declaring `x-text-format` shows its data body's rendering in place of
-// its `<pre>`. Only presentation nodes are formatted. Source documents stay intact for
-// typed state, revision patching and provenance; arrivals call this after capture,
+// Each element declaring `words.text-format` shows its data body's rendering in place
+// of its `<pre>`. Only presentation nodes are formatted. Source documents stay intact
+// for typed state, revision patching and provenance; arrivals call this after capture,
 // before connection. Their import preparation has already made the parser ready, so
 // this step is synchronous.
 /** @param {Element | Document | DocumentFragment} scope */
 export function formatDeclaredMarkdown(scope) {
-  const elements = elementsDeclaring(scope, "x-text-format");
-  if (isElement(scope) && declarationFor(scope, "x-text-format"))
-    elements.unshift(scope);
+  const elements = declaredElements(scope, wordsAreMarkdown);
   if (!elements.length) return;
   if (!tokenize)
     throw new Error("leaf: Markdown formatting requires its loaded renderer");

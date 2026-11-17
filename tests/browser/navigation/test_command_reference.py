@@ -527,8 +527,8 @@ def test_the_reference_runs_the_exact_numbered_obligation_action(browser, serve)
     )
 
     second.click()
-    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
-    expect(page.locator("#lq-keep")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#lq-token")).to_have_attribute("selected", "")
+    expect(page.locator("#lq-keep")).not_to_have_attribute("selected", "")
     round_trip(page)
 
 

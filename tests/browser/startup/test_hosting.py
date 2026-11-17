@@ -31,7 +31,7 @@ def test_a_live_page_embeds_at_its_own_origin_and_cannot_run_its_data(browser, s
     source = leaf_page(
         "Boundaries",
         """<h1 id="h">Boundaries</h1>
-<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick">
 <lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
 </lf-options></lf-ask>""",
         head="""<script type="module">
@@ -77,7 +77,7 @@ window.authoredModuleRan = true;
     expect(frame.locator("body")).to_have_attribute("data-lf-presented", "1")
     frame.locator("#yes").click()
     page.wait_for_function(
-        "() => document.querySelector('#yes')?.hasAttribute('chosen')"
+        "() => document.querySelector('#yes')?.hasAttribute('selected')"
     )
     assert any(
         event.get("kind") == "action"
@@ -653,7 +653,7 @@ def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
 
 
 # A choice whose press shows at once on a page that has come up.
-CHOICE = """<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+CHOICE = """<lf-ask id="decision"><h2>Proceed?</h2><lf-options id="pick">
 <lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
 </lf-options></lf-ask>"""
 

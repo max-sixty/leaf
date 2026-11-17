@@ -209,7 +209,7 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
 
 # Option cards whose picks Done completes.
 FEEDERS = """<lf-ask id="ask"><h2>Which feeders should we refill?</h2>
-<lf-options id="feeders" choose multiple>
+<lf-options id="feeders" multiple>
 <lf-option id="feeder-porch"><strong>The porch feeder</strong> Seen from the kitchen.
 </lf-option>
 <lf-option id="feeder-oak"><strong>The oak feeder</strong> Out of the wind.</lf-option>
@@ -795,14 +795,14 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
 <lf-ask id="decision"><h3>Patch decision</h3>
-<lf-options id="decision-options" choose>
-  <lf-option id="decision-ship" chosen>Ship with the resend.</lf-option>
+<lf-options id="decision-options">
+  <lf-option id="decision-ship" selected>Ship with the resend.</lf-option>
   <lf-option id="decision-hold">Hold the patch.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="meeting"><h3>Where should the group meet?</h3>
-<lf-options id="meeting-options" choose settled>
+<lf-options id="meeting-options" settled>
   <lf-option id="meeting-door">At the door</lf-option>
-  <lf-option id="meeting-desk" chosen>At reception</lf-option>
+  <lf-option id="meeting-desk" selected>At reception</lf-option>
 </lf-options></lf-ask>
 <h2 id="support">Support</h2>
 <p id="support-playbook">The playbook covers the spinner.</p>
@@ -1663,7 +1663,7 @@ def _held(page, cdp, selector, words):
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
     '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
-    '<lf-options id="opts" choose><lf-option id="o1"><small class="tag">small cohort'
+    '<lf-options id="opts"><lf-option id="o1"><small class="tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
     '<lf-option id="o2"><strong>Start wide</strong> Then '
     '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options>'
@@ -2249,18 +2249,14 @@ def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
     assert held["top"] >= 0 and held["bottom"] <= held["window"] and held["cut"], held
 
 
-# A widget that draws its own content (`x-content: empty`), as `lf-toc` does, which so
+# A widget that draws its own content (`content: empty`), as `lf-toc` does, which so
 # takes the pointer (widget-elements.js, `aimableAt`) though no press acts on it: a
 # column of links across the page's column, the middle one previewing a line of detail
 # under its name, as a contents row with marks does.
 ROUTE = {
-    **{
-        key: value
-        for key, value in element_declaration("lf-route", upgrade=True).items()
-        if key != "x-verbatim"
-    },
-    "x-content": "empty",
-    "x-example": '<lf-route id="route"></lf-route>',
+    **element_declaration("lf-route"),
+    "content": "empty",
+    "author": {"example": '<lf-route id="route"></lf-route>'},
 }
 ROUTE_WIDGET = """
 customElements.define('lf-route', class extends HTMLElement {

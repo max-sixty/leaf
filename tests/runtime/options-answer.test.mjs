@@ -8,7 +8,7 @@ await import("../../packages/default/widgets/lf-options.js");
 test("a choice names the picks its markup holds, and none it can't find", () => {
   const template = document.createElement("template");
   template.innerHTML =
-    '<lf-options id="ship" choose>' +
+    '<lf-options id="ship">' +
     '<lf-option id="ship-friday"><strong>Ship Friday</strong> before the freeze</lf-option>' +
     '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>' +
     "</lf-options>";

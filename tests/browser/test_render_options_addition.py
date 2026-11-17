@@ -230,7 +230,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
-    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
     # Located on the obligation shows its discussion beside it, so c enters the reply
     # instead of adding an answer or opening another comment box.
@@ -242,7 +242,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()
-    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
 
 def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve):
@@ -317,7 +317,7 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     # The queue holds this second action behind the first, so the pick's own paint, not
     # another held route, is what says the gesture was taken while the send was open.
     page.locator("#job-heater").click()
-    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+    expect(page.locator("#job-heater")).to_have_attribute("selected", "")
     expect(field).to_have_js_property("value", "")
 
     while held:
@@ -349,7 +349,7 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     row = form.evaluate(inner)
     page.keyboard.press("Enter")
     added = page.locator(f"#{group} > lf-option[data-lf-added]")
-    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_have_attribute("selected", "")
     round_trip(page)
     assert added.evaluate(inner) == pytest.approx(row, abs=0.5)
     authored = page.locator(f"#{group} > lf-option:not([data-lf-added])").evaluate_all(
@@ -369,7 +369,7 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     expect(page.locator("#mounts-p")).to_contain_text("the second came")
     assert page.evaluate(order) == [*authored, added_id]
     assert added.evaluate(inner) == pytest.approx(row, abs=0.5)
-    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_have_attribute("selected", "")
 
 
 PASTE_IMAGE = """(textarea, encoded) => {
@@ -460,7 +460,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     round_trip(page)
     added = page.locator("#jobs > lf-option[data-lf-added]")
     expect(added).to_contain_text(draft)
-    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_have_attribute("selected", "")
     roots = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     assert [(e["anchor"], e["text"]) for e in roots] == [
         ({"section": "jobs"}, "A separate note on this question."),
@@ -484,7 +484,7 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
     page = open_page(browser, live_url(serve(OBLIGATION_PAGE)), context=context)
     page.locator("#br-steel").tap()
     round_trip(page)
-    expect(page.locator("#br-steel")).to_have_attribute("chosen", "")
+    expect(page.locator("#br-steel")).to_have_attribute("selected", "")
     faces = page.locator(
         ".lf-key-badge[data-lf-binding-badge], .lf-command-binding-badge"
     )
@@ -501,7 +501,7 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
     page.keyboard.type("Ask the neighbours first")
     page.keyboard.press("Enter")
     added = page.locator("#bracket > lf-option[data-lf-added]")
-    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_have_attribute("selected", "")
     expect(added).to_contain_text("Ask the neighbours first")
     expect(field).to_have_js_property("value", "")
     # Words with a line break, as a paste brings them, stay on the one line.
@@ -594,7 +594,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         f"group={page.locator('#jobs').inner_html()}"
     )
     expect(new_option).to_contain_text("Insulate the camera battery")
-    expect(new_option).to_have_attribute("chosen", "")
+    expect(new_option).to_have_attribute("selected", "")
     identity = new_option.get_attribute("id")
     moves = [
         (event["action"], event["detail"])
@@ -611,22 +611,22 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
 
     page.locator("#job-heater").click()
     round_trip(page)
-    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
-    expect(new_option).to_have_attribute("chosen", "")
+    expect(page.locator("#job-heater")).to_have_attribute("selected", "")
+    expect(new_option).to_have_attribute("selected", "")
 
     page.reload(wait_until="load")
     page.wait_for_function(
         "() => document.body.getAttribute('data-lf-presented') === '1'"
     )
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
-    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+    expect(page.locator("#job-heater")).to_have_attribute("selected", "")
 
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_attribute(
-        "chosen", ""
+        "selected", ""
     )
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
-    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#jobs > lf-option[selected]")).to_have_count(0)
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)

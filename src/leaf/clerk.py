@@ -116,7 +116,7 @@ the same way; neither does yet.
 The fork can't author the page, so each ask is the agent's message in a thread,
 written as the agent's guidance has it write one (`threads.md`), and Leaf posts its
 text as the agent's `leaf thread` command does, drawing the HTML in it. Where the
-agent offered answers the user picks among, the message holds an `lf-options choose`
+agent offered answers the user picks among, the message holds an `lf-options`
 group, as "Ask for a pick" has the agent write it, so the pick shows as the group's
 state, `1`–`9` answer it, and a reply in words leaves it open, passing it to the
 agent until the agent answers. Any other ask, a step the user takes included, is the
@@ -269,6 +269,7 @@ from html import escape
 from itertools import chain, islice
 from pathlib import Path
 
+from .registry.contract import declared_fact
 from .registry.kernel import title_limit
 from .schema import SKILL_FILE
 from .state import (
@@ -1045,7 +1046,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
     """Where `document`'s source writes the `words` the user reads at `target` in
     `passages`, its page's reading, as the match, whether it stands in an attribute
     and whether in a `<pre>`; or None. Each place the source may write them, in its text or in
-    the value of an attribute a widget shows (`x-says`), gets a character of its
+    the value of an attribute a widget shows (`words.says`), gets a character of its
     own just before it, and the marked page's reading (`read`) says which mark
     stands at `target`. A copy in a script, a style, the head, a comment or a body
     the user rewrote shows nowhere, so it is never the one found.
@@ -1075,7 +1076,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
                     document.offsets(location.end_tag)[0],
                 )
             )
-        for name in (registry.get(element.tag) or {}).get("x-says") or {}:
+        for name in declared_fact(registry.get(element.tag) or {}, "words.says") or {}:
             if name in location.attrs:
                 start, end = document.offsets(location.attrs[name])
                 _, equals, value = source[start:end].partition("=")

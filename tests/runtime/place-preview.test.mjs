@@ -192,7 +192,11 @@ test("a message's markup previews by its own document: its words, names and outl
 
 test("a heading's section is walked through declared shadow trees and their slots", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      words: {
+        shadow: true,
+      },
+    },
     $layer: { generation: "place-preview-shadow" },
   });
   // Two sections a widget draws in its declared tree, in a reply's markup.
@@ -296,7 +300,11 @@ test("a heading's section is walked through declared shadow trees and their slot
 // them there (passages.js, `walk`), so a preview of what holds it shows the same words.
 test("a preview reads an empty slot's fallback as the page's reading does", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      words: {
+        shadow: true,
+      },
+    },
     $layer: { generation: "place-preview-fallback" },
   });
   document.querySelector(".lf-chrome")?.remove();
@@ -474,7 +482,11 @@ test("a heading counts the conversations about what it titles, as about its own 
 
 test("a slotted section reads its slot's run once, and only as far as its preview shows", () => {
   Object.assign(registry, {
-    "lf-staged": { "x-shadow": true },
+    "lf-staged": {
+      words: {
+        shadow: true,
+      },
+    },
     $layer: { generation: "place-preview-run" },
   });
   document.querySelector(".lf-chrome")?.remove();

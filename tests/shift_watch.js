@@ -4070,9 +4070,10 @@
   // A move stands where the reading after it still finds the node away from where the
   // run began (the header's "Runs of motion" says what that proves). Each move is
   // judged so once, on the next reading, since a later one can find the node moved by
-  // something else, such as input. One the next reading no longer finds, a roundtrip, stands
-  // only where Chrome reports painting it, so it waits for that report (`judge`), and
-  // so does a move whose next reading input owns, which leaves its pose ambiguous.
+  // something else, such as input. One the next reading no longer finds, a roundtrip,
+  // stands only where Chrome reports painting it, so it waits for that report
+  // (`judge`), as do a move whose next reading input owns, which leaves its pose
+  // ambiguous, and a move a scroll made (`reported`).
   const standingMotion = () => {
     const previous = frames.at(-2)?.at,
       next = frames.at(-1).at;

@@ -700,9 +700,5 @@ customElements.define(
       this.#refreshAvailability();
       return nothing;
     }
-
-    lfWord() {
-      return "options";
-    }
   },
 );

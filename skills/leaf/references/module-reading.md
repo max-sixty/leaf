@@ -33,10 +33,12 @@ To name an element elsewhere, such as in a feed row, use `addressableLabel(eleme
 the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
-`addressableWord(element)` gives the word for its kind instead: what the widget's
-element answers from an `lfWord()` method, as `lf-options` says "options", or else its
-tag without `lf-`. Where a widget's words alone don't convey its structure, as a
-rewrite's old and new text don't, its `lfSays()` returns the words that describe it. A
+`addressableWord(element)` gives the word for its kind instead: the fixed word its
+entry declares (`words.word`), as `lf-ask` says "question", else what its element answers
+from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
+says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
+don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
+returns the words that describe it. A
 widget whose title is an attribute holds it in `label`, as a column does, which names
 its element on every widget that takes it (the registry's `$attributes`).
 
@@ -61,10 +63,8 @@ titles only itself.
 ### Reading declarations
 
 Read the registry rather than repeating it. `declarationFor(element)` returns the
-widget's entry, whose facts sit under the reader that needs them, as
-`declarationFor(card)?.server?.shows` reads a view's `server.shows`, and
-`elementsDeclaring(root, holds)` lists the widgets under `root` whose entry `holds`
-answers for, such as `(entry) => entry.server?.awaits`.
+widget's entry, whose facts sit in groups by what they are about, as
+`declarationFor(card)?.server?.shows` reads a view's `server.shows`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a `when`,
 such as a `server.awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
@@ -278,7 +278,7 @@ the regions times the obligations.
 declaring `server.awaits`, whether its obligation has yet to arrive or was withdrawn, as
 `lf-tabs` reads it to keep a row's room for an answer. It reads the captured widgets,
 not the regions' elements, and follows each revision, so ask it rather than
-`elementsDeclaring` in a render.
+reading the regions' elements in a render.
 `tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
 open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
 does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.

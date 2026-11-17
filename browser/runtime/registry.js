@@ -109,8 +109,8 @@ export const recordedWidgetSelector = (record) =>
 export const layerFact = (name) => registry[name];
 
 // The declaration a widget's tag has: its attribute schema and the facts it declares,
-// each under the reader that needs it (`$keys`). An idiom, which a selector keys, is
-// no element's declaration.
+// grouped by what each is about (`$keys`). An idiom, which a selector keys, is no
+// element's declaration.
 /** @param {Element | null | undefined} el @returns {WidgetDeclaration | undefined} */
 export const declarationFor = (el) =>
   el && isElementName(el.localName) ? registry[el.localName] : undefined;
@@ -152,12 +152,6 @@ export const declaredElements = (root, holds = () => true) => {
   if (root instanceof Element && root.matches(selector)) found.unshift(root);
   return found;
 };
-
-// The widgets under `root`, and not `root` itself, whose declaration `holds` answers
-// for.
-/** @param {Document | DocumentFragment | Element} root @param {(entry: WidgetDeclaration) => unknown} holds */
-export const elementsDeclaring = (root, holds) =>
-  declaredElements(root, holds).filter((el) => el !== root);
 
 // Which widgets answer a question the way the caller means it, read from what they
 // declare. Nothing out here names a widget: a behaviour some widgets want is a fact

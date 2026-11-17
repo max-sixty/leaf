@@ -1250,6 +1250,7 @@ _TEXT = {
             }[v["reason"]]
         )
     ),
+    "needs-fact": _declared(lambda v: f"{v['fact']} needs {v['needs']}"),
     "requires": _declared(
         lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
     ),

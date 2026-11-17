@@ -240,12 +240,12 @@ doesn't start with `$` as an idiom's CSS selector, so a widget declared as `merg
 is refused as an idiom holding keys an idiom can't have.
 
 An element declaration holds the JSON Schema of the element's attributes under
-`attributes`, and the facts that say how Leaf treats the tag, each under the part of
-Leaf that reads it without running the widget's module: `server` (its action verbs and
-whether it puts an obligation on On Me), `markup` (what `page check` accepts), `words`
-(how its words read), `paint` (what the first paint lays out), `data` (its typed inputs
-and outputs) and `author`. `content`, which several of them read, stands beside
-`attributes`:
+`attributes`, and groups the facts that say how Leaf treats the tag by what they are
+about: `server` (its action verbs and whether it puts an obligation on On Me), `markup`
+(where it may stand and what it names), `words` (how its words read), `paint` (how its
+box is laid out before its module draws), `data` (its typed inputs and outputs) and
+`author`, with `content` beside `attributes`. Each is declared because some part of Leaf,
+such as the server or `page check`, needs it without running the widget's module:
 
 ```json
 "lf-merge-film": {
@@ -263,8 +263,8 @@ and outputs) and `author`. `content`, which several of them read, stands beside
 
 A fact is named by its path, such as `server.state`, and the merged registry's `$keys`
 entry defines each; `$state` defines the members of `server.state`, and `$awaits` an
-obligation's answer. What only the browser reads belongs to the widget's module rather
-than its declaration, as its word for its kind is its `lfWord()`. Every declaration has
+obligation's answer. What the module alone can answer stays in the module, as a word
+for its kind that depends on the element is its `lfWord()`. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
 `author.example`. The optional `author.instructions` gives the choices and obligations
 of using it; a package's shared author instructions own guidance spanning its widgets.

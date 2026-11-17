@@ -67,6 +67,7 @@
       "required": ["id"],
       "additionalProperties": false
     },
+    "words": { "word": "question" },
     "paint": {
       "flow": true
     },

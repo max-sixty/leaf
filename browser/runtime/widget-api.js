@@ -144,12 +144,7 @@ export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
-export {
-  declarationFor,
-  elementsDeclaring,
-  layerFact,
-  matchesWhen,
-} from "./registry.js";
+export { declarationFor, layerFact, matchesWhen } from "./registry.js";
 export {
   flashDuration,
   foldDuration,

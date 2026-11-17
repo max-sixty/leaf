@@ -82,6 +82,8 @@ def test_a_recorded_body_accepts_empty_text_but_not_a_missing_value():
             "attributes-schema",
             {},
         ),
+        # Every declaration says which attributes its element takes.
+        ({"description": "d"}, "invalid-declaration", {"keyword": "required"}),
     ],
 )
 def test_check_refuses_a_malformed_widget_schema(page_dir, entry, code, values):
@@ -528,14 +530,26 @@ def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
     assert key in refused.values["keys"]
 
 
-def test_retirement_requires_an_owner(page_dir):
+@pytest.mark.parametrize(
+    ("tag", "fact", "needs"),
+    [
+        ("lf-old", "server.retired-when", "markup.owners"),
+        ("lf-card", "server.shows", "markup.owners"),
+        ("lf-card", "server.shows", "markup.refers"),
+    ],
+)
+def test_a_fact_read_through_another_names_the_one_it_lacks(page_dir, tag, fact, needs):
+    """A retiring member is read through its owners, and a view of another widget's
+    answer through its owners and its reference, so a declaration without one is
+    refused naming both facts."""
     registry = vocabulary(page_dir)
-    del registry["lf-old"]["markup"]["owners"]
+    group, _, name = needs.partition(".")
+    del registry[tag][group][name]
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
     assert status != 0
-    assert found(findings, "invalid-declaration", "<lf-old>")
+    assert found(findings, "needs-fact", f"<{tag}>", fact=fact, needs=needs)
 
 
 def test_check_refuses_a_retirement_outcome_its_parent_does_not_decide(page_dir):
@@ -883,7 +897,7 @@ def test_uri_format_checks_absolute_urls_with_browser_syntax():
         assert not validator.is_valid(value), value
 
 
-def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
+def test_server_awaits_names_the_verbs_that_answer_it(page_dir):
     registry = vocabulary(page_dir)
     registry["lf-suggestion"]["server"]["awaits"]["answered"] = {"missing": {}}
     declare_vocabulary(page_dir, registry)

@@ -2,7 +2,7 @@
 
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA
+from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA, FACT_NEEDS
 
 from .contract import (
     deciding_outcomes,
@@ -41,11 +41,17 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
             "invalid-declaration", path, tag, **schema_reading(errors[0])
         )
     try:
-        check_schema(entry.get("attributes", {}))
+        check_schema(entry["attributes"])
     except SchemaError as error:
         raise registry_error(
             "attributes-schema", path, tag, **schema_reading(error)
         ) from error
+    for fact, needs in FACT_NEEDS.items():
+        if declared_fact(entry, fact) is None:
+            continue
+        for need in needs:
+            if declared_fact(entry, need) is None:
+                raise registry_error("needs-fact", path, tag, fact=fact, needs=need)
     if (
         declared_fact(entry, "words.text-format") == "markdown"
         and declared_fact(entry, "content") != "data"
@@ -128,7 +134,7 @@ def _validate_widget_structure(
             raise registry_error(
                 "unknown-declarations", path, tag, key=key, names=unknown
             )
-    attributes = entry.get("attributes", {})
+    attributes = entry["attributes"]
     properties = attributes.get("properties", {})
     required = set(attributes.get("required", []))
     layout = declared_fact(entry, "markup.reading-role")
@@ -247,7 +253,7 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
             owner
             for owner in entry["markup"]["owners"]
             if shows["value"]
-            not in declarations[owner].get("attributes", {}).get("properties", {})
+            not in declarations[owner]["attributes"].get("properties", {})
         ):
             raise registry_error(
                 "shows-value", path, tag, attr=shows["value"], owners=lacking
@@ -270,7 +276,7 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     # disappears from every consumer.
     awaits = declared_fact(entry, "server.awaits", {})
     if declared_fact(entry, "server.encloses"):
-        if "id" not in entry.get("attributes", {}).get("required", []):
+        if "id" not in entry["attributes"].get("required", []):
             raise registry_error("enclosing-id", path, tag)
         if declared_fact(entry, "content") != "markup":
             raise registry_error("enclosing-prose", path, tag)

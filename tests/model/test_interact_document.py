@@ -1615,7 +1615,7 @@ def test_every_declared_attribute_and_enum_stands_in_an_example():
     for tag, entry in sorted(registry.items()):
         if not tag.startswith("lf-"):
             continue
-        for attr, spec in entry.get("attributes", {}).get("properties", {}).items():
+        for attr, spec in entry["attributes"].get("properties", {}).items():
             if attr in {"restated", "overruled", "resolves"}:
                 continue
             seen = used.get(tag, {}).get(attr)

@@ -48,8 +48,8 @@ def matches_when(attrs: dict, when: dict | None) -> bool:
 
 def declared_fact(entry: Mapping, fact: str, default=None):
     """One fact of an element declaration, named by its path: `group.name` for a fact
-    in one reader's group (`server.state`), or the name alone for one at the top
-    (`content`), as `$keys` documents each. `default` where the entry declares none."""
+    in a group (`server.state`), or the name alone for one at the top (`content`), as
+    `$keys` documents each. `default` where the entry declares none."""
     group, _, name = fact.rpartition(".")
     return (entry.get(group, {}) if group else entry).get(name, default)
 
@@ -647,7 +647,7 @@ def stamp_words(registry: dict) -> dict:
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for attr, fact in DECLARED_WORDS:
         for entry in element_declarations(registry).values():
-            properties = entry.get("attributes", {}).get("properties", {})
+            properties = entry["attributes"].get("properties", {})
             if attr not in properties:
                 continue
             if properties[attr] is True:
@@ -682,7 +682,7 @@ def stamp_grammars(registry: dict) -> dict:
 
     Each composition stamps it (`registry.layer.stamp_composition`)."""
     for entry in element_declarations(registry).values():
-        properties = entry.get("attributes", {}).get("properties", {})
+        properties = entry["attributes"].get("properties", {})
         for attr, grammar in _named_attributes(entry):
             if properties.get(attr) is True:
                 properties[attr] = {}

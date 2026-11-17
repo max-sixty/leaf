@@ -98,11 +98,6 @@ customElements.define(
         : "Unchecked";
     }
 
-    // The word the chrome names the widget by, in a panel row, a walk or an anchor.
-    lfWord() {
-      return "review";
-    }
-
     // The run, set by whoever hosts the widget: Leaf from the bound source (the
     // registry's `data.inputs.run.property`), or null while that source has none.
     static properties = { value: { attribute: false } };

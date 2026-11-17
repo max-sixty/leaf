@@ -101,6 +101,7 @@
     "markup": {
       "owners": ["lf-playground"]
     },
+    "words": { "word": "preset" },
     "author": {
       "instructions": "A control the preset has no setting for keeps its current value."
     }

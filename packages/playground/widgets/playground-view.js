@@ -178,9 +178,6 @@ function field(name, controls) {
 /** @param {HTMLElement} host */
 export function createPlayground(host) {
   const presets = own(host, "lf-playground-preset");
-  // A preset has no module of its own, so the playground names its kind, as a panel
-  // row, a walk or an anchor on one says it.
-  for (const preset of presets) preset.lfWord = () => "preset";
   const [output, extraOutput] = own(host, "lf-playground-output");
   if (!output || extraOutput)
     throw new Error("playground needs one lf-playground-output");

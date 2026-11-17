@@ -157,24 +157,8 @@ def example_packages(source: Path) -> str:
 
 
 def registry_keys() -> dict[str, str]:
-    """Each key `$keys` documents by its path, as `server.state`, and each group of
-    keys by its name, with its own description, in path order, so a group's keys
-    follow it."""
     keys = json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))["$keys"]
-    documented = {}
-    for key, text in keys.items():
-        if key == "description":
-            continue
-        if isinstance(text, dict):
-            documented[key] = text["description"]
-            documented.update(
-                (f"{key}.{name}", fact)
-                for name, fact in text.items()
-                if name != "description"
-            )
-        else:
-            documented[key] = text
-    return dict(sorted(documented.items()))
+    return {key: keys[key] for key in sorted(keys) if key != "description"}
 
 
 def key_prose(text: str) -> str:

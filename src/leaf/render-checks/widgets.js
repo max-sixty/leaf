@@ -160,7 +160,7 @@ export function undeclaredAttrs(declarations) {
   const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(declarations)) {
-    const properties = entry.attributes?.properties;
+    const properties = entry.attributes.properties;
     if (!properties) continue;
     for (const root of all)
       for (const el of root.querySelectorAll(tag))

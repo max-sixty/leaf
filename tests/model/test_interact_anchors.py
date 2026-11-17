@@ -1438,7 +1438,7 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     assert gone.exit_code != 0 and "doesn't say" in gone.output
 
 
-def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir):
+def test_a_widgets_said_attribute_is_quotable_like_any_other_passage(page_dir):
     """renderSaid puts these words in the DOM, so the anchor pass can find them and this
     has to offer them — otherwise an attribute's own words are the one thing on the page
     Claude can't point at. Both edges the registry can give one are here: the option's

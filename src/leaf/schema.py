@@ -336,13 +336,8 @@ _TAGS = {
 }
 
 
-def _declares(group: str, *names: str) -> dict:
-    """A declaration that declares each of `names` in `group`."""
-    return {"required": [group], "properties": {group: {"required": list(names)}}}
-
-
 def _facts(properties: dict, **schema) -> dict:
-    """One group of a declaration's facts: the facts one reader needs."""
+    """One group of a declaration's facts."""
     return {
         "type": "object",
         "properties": properties,
@@ -353,15 +348,134 @@ def _facts(properties: dict, **schema) -> dict:
 
 # The author's half of a declaration: how an author writes the element. A selector
 # idiom declares only this and its description (`IDIOM_SCHEMA`).
-_AUTHOR = _facts(
-    {
-        "example": {"type": "string", "pattern": r"\S"},
-        "instructions": {"type": "string", "pattern": r"\S"},
-    }
-)
-# An element declaration: the JSON Schema of its attributes, and each fact about the
-# element that a part of Leaf which never runs its module needs, grouped by that
-# reader. `$keys` in the kernel package's registry says what each means.
+_AUTHOR = {
+    "example": {"type": "string", "pattern": r"\S"},
+    "instructions": {"type": "string", "pattern": r"\S"},
+}
+# The facts a declaration groups, by what each group is about; `$keys` in the kernel
+# package's registry says which reader needs each declared because it can't run the
+# widget's module.
+FACT_GROUPS = {
+    "data": {
+        "inputs": DATA_INPUTS_SCHEMA,
+        "outputs": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {
+                "type": "object",
+                "properties": {
+                    "contract": {
+                        "type": "string",
+                        "pattern": f"^{DATA_CONTRACT_NAME}$",
+                    }
+                },
+                "required": ["contract"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "markup": {
+        "owners": _TAGS,
+        "unique": {
+            "type": "object",
+            "minProperties": 1,
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {
+                "type": "string",
+                "pattern": f"^{WIDGET_NAME}$",
+            },
+        },
+        "refers": REFERENCE_SCHEMA,
+        "reading-role": {"enum": ["pane"]},
+    },
+    "words": {
+        "says": {
+            "type": "object",
+            "propertyNames": {"pattern": f"^{HTML_NAME}$"},
+            "additionalProperties": {"enum": ["before", "after"]},
+        },
+        "verbatim": {"type": "boolean"},
+        "shadow": {"type": "boolean"},
+        "inline": {"type": "boolean"},
+        "visual": {
+            "oneOf": [
+                {"const": "whole"},
+                {
+                    "type": "object",
+                    "properties": {"parts": _ATTRIBUTE_NAME},
+                    "required": ["parts"],
+                    "additionalProperties": False,
+                },
+                {
+                    "type": "object",
+                    "properties": {
+                        "prefixes": {
+                            "type": "array",
+                            "items": {"type": "string", "pattern": "^\\S+$"},
+                            "minItems": 1,
+                            "uniqueItems": True,
+                        }
+                    },
+                    "required": ["prefixes"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
+        "text-format": {"const": "markdown"},
+        "word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
+    },
+    "paint": {
+        "views": {
+            "type": "object",
+            "properties": {
+                "members": {"type": "string", "minLength": 1},
+                "parts": {"const": True},
+            },
+            "required": ["members"],
+            "additionalProperties": False,
+        },
+        "space": {"enum": ["wide", "available"]},
+        # A default height in CSS pixels, or `true` for a widget that has none
+        # and reserves only what an occurrence's data-height states.
+        "height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
+        "bound": {"enum": ["start", "end"]},
+        "spine": {"const": True},
+        "flow": {"const": True},
+        "prepaint": _ATTRIBUTE_NAME,
+    },
+    "server": {
+        "state": STATE_SCHEMA,
+        "awaits": AWAITS_SCHEMA,
+        "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
+        "encloses": {"const": True},
+        "exhibit": {
+            "oneOf": [
+                {"type": "boolean"},
+                {
+                    "type": "object",
+                    "properties": {"when": AWAITING_CONDITION},
+                    "required": ["when"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
+        # A view of another widget's answer (`shown_answers.py`): `attr` names
+        # that widget, and `value` the attribute of the view's compound owner
+        # that names the answer it holds.
+        "shows": {
+            "type": "object",
+            "properties": {"attr": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
+            "required": ["attr", "value"],
+            "additionalProperties": False,
+        },
+        "work": {"const": True},
+        "history": {"const": True},
+    },
+    "author": _AUTHOR,
+}
+# An element declaration: the JSON Schema of its attributes, and its facts in their
+# groups.
 DECLARATION_SCHEMA = {
     "type": "object",
     "properties": {
@@ -377,149 +491,23 @@ DECLARATION_SCHEMA = {
             },
         },
         "content": {"enum": ["markup", "members", "data", "empty"]},
-        "data": _facts(
-            {
-                "inputs": DATA_INPUTS_SCHEMA,
-                "outputs": {
-                    "type": "object",
-                    "minProperties": 1,
-                    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-                    "additionalProperties": {
-                        "type": "object",
-                        "properties": {
-                            "contract": {
-                                "type": "string",
-                                "pattern": f"^{DATA_CONTRACT_NAME}$",
-                            }
-                        },
-                        "required": ["contract"],
-                        "additionalProperties": False,
-                    },
-                },
-            }
-        ),
-        "markup": _facts(
-            {
-                "owners": _TAGS,
-                "unique": {
-                    "type": "object",
-                    "minProperties": 1,
-                    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-                    "additionalProperties": {
-                        "type": "string",
-                        "pattern": f"^{WIDGET_NAME}$",
-                    },
-                },
-                "refers": REFERENCE_SCHEMA,
-                "reading-role": {"enum": ["pane"]},
-            }
-        ),
-        "words": _facts(
-            {
-                "says": {
-                    "type": "object",
-                    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-                    "additionalProperties": {"enum": ["before", "after"]},
-                },
-                "verbatim": {"type": "boolean"},
-                "shadow": {"type": "boolean"},
-                "inline": {"type": "boolean"},
-                "visual": {
-                    "oneOf": [
-                        {"const": "whole"},
-                        {
-                            "type": "object",
-                            "properties": {"parts": _ATTRIBUTE_NAME},
-                            "required": ["parts"],
-                            "additionalProperties": False,
-                        },
-                        {
-                            "type": "object",
-                            "properties": {
-                                "prefixes": {
-                                    "type": "array",
-                                    "items": {"type": "string", "pattern": "^\\S+$"},
-                                    "minItems": 1,
-                                    "uniqueItems": True,
-                                }
-                            },
-                            "required": ["prefixes"],
-                            "additionalProperties": False,
-                        },
-                    ]
-                },
-                "text-format": {"const": "markdown"},
-            }
-        ),
-        "paint": _facts(
-            {
-                "views": {
-                    "type": "object",
-                    "properties": {
-                        "members": {"type": "string", "minLength": 1},
-                        "parts": {"const": True},
-                    },
-                    "required": ["members"],
-                    "additionalProperties": False,
-                },
-                "space": {"enum": ["wide", "available"]},
-                # A default height in CSS pixels, or `true` for a widget that has none
-                # and reserves only what an occurrence's data-height states.
-                "height": {
-                    "oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]
-                },
-                "bound": {"enum": ["start", "end"]},
-                "spine": {"const": True},
-                "flow": {"const": True},
-                "prepaint": _ATTRIBUTE_NAME,
-            }
-        ),
-        "server": _facts(
-            {
-                "state": STATE_SCHEMA,
-                "awaits": AWAITS_SCHEMA,
-                "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-                "encloses": {"const": True},
-                "exhibit": {
-                    "oneOf": [
-                        {"type": "boolean"},
-                        {
-                            "type": "object",
-                            "properties": {"when": AWAITING_CONDITION},
-                            "required": ["when"],
-                            "additionalProperties": False,
-                        },
-                    ]
-                },
-                # A view of another widget's answer (`shown_answers.py`): `attr` names
-                # that widget, and `value` the attribute of the view's compound owner
-                # that names the answer it holds.
-                "shows": {
-                    "type": "object",
-                    "properties": {"attr": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
-                    "required": ["attr", "value"],
-                    "additionalProperties": False,
-                },
-                "work": {"const": True},
-                "history": {"const": True},
-            }
-        ),
-        "author": _AUTHOR,
+        **{group: _facts(facts) for group, facts in FACT_GROUPS.items()},
     },
-    "required": ["description"],
-    # A member that leaves under its owner's decision, or a view of another widget's
-    # answer, is read through the owners it names, and a view through its reference.
-    "allOf": [
-        {
-            "if": _declares("server", "retired-when"),
-            "then": _declares("markup", "owners"),
-        },
-        {
-            "if": _declares("server", "shows"),
-            "then": _declares("markup", "owners", "refers"),
-        },
-    ],
+    "required": ["description", "attributes"],
     "additionalProperties": False,
+}
+# Every key `$keys` documents, by path: each key at a declaration's top but its
+# `description`, and each fact in a group as `group.name`.
+DECLARATION_KEYS = frozenset(
+    {key for key in DECLARATION_SCHEMA["properties"] if key != "description"}
+    | {f"{group}.{name}" for group, facts in FACT_GROUPS.items() for name in facts}
+)
+# The facts a fact is read through, which a declaration of it must declare too: a
+# member that leaves under its owner's decision reads its owners, and a view of
+# another widget's answer its owners and its reference (`registry.widgets`).
+FACT_NEEDS = {
+    "server.retired-when": ("markup.owners",),
+    "server.shows": ("markup.owners", "markup.refers"),
 }
 # A selector idiom names authored HTML the theme dresses, so it says only how an
 # author writes it, and declares no widget behavior or marks
@@ -528,7 +516,7 @@ IDIOM_SCHEMA = {
     "type": "object",
     "properties": {
         "description": DECLARATION_SCHEMA["properties"]["description"],
-        "author": {**_AUTHOR, "required": ["example"]},
+        "author": _facts(_AUTHOR, required=["example"]),
     },
     "required": ["description", "author"],
     "additionalProperties": False,

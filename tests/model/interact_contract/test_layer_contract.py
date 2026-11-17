@@ -992,14 +992,15 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     reading of a key) and adds none — the set is closed where the keys are checked."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
-    wider = {"paint": {"space": "wider, in this project"}}
     (overlay / "registry.json").write_text(
-        json.dumps({"$keys": {**wider, "paint": {**wider["paint"], "nope": "?"}}})
+        json.dumps({"$keys": {"paint.space": "wider, in this project", "nope": "?"}})
     )
     finding = init_refusal(page_dir)
-    assert found([finding], "keys-documentation", missing=[], unadmitted=["paint.nope"])
+    assert found([finding], "keys-documentation", missing=[], unadmitted=["nope"])
 
-    (overlay / "registry.json").write_text(json.dumps({"$keys": wider}))
+    (overlay / "registry.json").write_text(
+        json.dumps({"$keys": {"paint.space": "wider, in this project"}})
+    )
     result = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1011,8 +1012,8 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     )
     assert result.exit_code == 0, result.output
     keys = registry_storage.load_registry(page_dir)["$keys"]
-    assert keys["paint"]["space"] == "wider, in this project"
-    assert keys["words"]["says"]  # the rest of the shipped members stand
+    assert keys["paint.space"] == "wider, in this project"
+    assert keys["words.says"]  # the rest of the shipped members stand
 
 
 @pytest.mark.parametrize("fact", ["$state", "$awaits"])
@@ -1024,7 +1025,7 @@ def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
     kernel = shipped_core_registry()
     registry_validation.validate_layer_declarations(kernel, "kernel")
     documented = deepcopy(kernel)
-    field = min(registry_validation.DOCUMENTED_KEYS[fact]["properties"])
+    field = min(registry_validation.DOCUMENTED_KEYS[fact])
     del documented[fact][field]
     documented[fact]["nope"] = "?"
     refused = registry_refusal(

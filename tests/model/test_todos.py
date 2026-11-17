@@ -1702,7 +1702,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
     assert page_state(page_dir)["workflows"] == []
 
 
-def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
+def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_dir):
     """server.work admits a task on a widget; it is not the task's only later seat.
 
     Re-vendoring can remove that declaration while the live widget remains, because

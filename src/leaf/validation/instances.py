@@ -81,7 +81,7 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
         # `lang`, `dir`, `aria-*` and the page's own `data-*` describe the element as
         # on any other. `data-lf-*` stays Leaf's; `hidden` and `inert` still validate,
         # since either could hide what the widget asks of the user.
-        attributes = entry.get("attributes", {})
+        attributes = entry["attributes"]
         props = attributes.get("properties", {})
         instance = {}
         for name, value in rec["attrs"].items():
@@ -403,10 +403,12 @@ def reference_errors(
     own = {rec["attrs"].get("id") for rec in lf_elements}
     owners = {}
     for rec in lf_elements:
-        entry = registry.get(rec["tag"], {})
+        # An undeclared tag is `widget_errors`' to report.
+        if (entry := registry.get(rec["tag"])) is None:
+            continue
         resolves = rec["attrs"].get("resolves")
         if (
-            "resolves" in entry.get("attributes", {}).get("properties", {})
+            "resolves" in entry["attributes"].get("properties", {})
             and resolves
             and resolves not in thread_ids
         ):

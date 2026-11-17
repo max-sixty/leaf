@@ -55,15 +55,13 @@ def validate_widget_state_relations(
                 raise registry_error(
                     "creates-content", path, tag, verb=verb, child=child_tag
                 )
-            if set(child.get("attributes", {}).get("required", [])) != {"id"}:
+            if set(child["attributes"].get("required", [])) != {"id"}:
                 raise registry_error(
                     "creates-required", path, tag, verb=verb, child=child_tag
                 )
             # Composition gives the child's id the same grammar
             # (`contract.stamp_grammars`).
-            if not declares_string(
-                child.get("attributes", {}).get("properties", {}).get("id")
-            ):
+            if not declares_string(child["attributes"].get("properties", {}).get("id")):
                 raise registry_error(
                     "creates-id", path, tag, verb=verb, child=child_tag
                 )
@@ -302,7 +300,7 @@ def validate_answered_conditions(
             raise registry_error(
                 "answering-members", path, tag, verb=verb, within=within
             )
-        properties = container.get("attributes", {}).get("properties", {})
+        properties = container["attributes"].get("properties", {})
         mutable = {
             spec["record"]["attr"]
             for _verb, spec in state_specs(container)

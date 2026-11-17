@@ -90,8 +90,8 @@ def test_what_leaf_teaches_reads_only_the_tokens_its_references_name():
             entries = json.loads(path.read_text())
             taught[path.relative_to(PLUGIN_ROOT)] = "\n".join(
                 str(declared_fact(entry, key, ""))
-                for entry in entries.values()
-                if isinstance(entry, dict)
+                for name, entry in entries.items()
+                if not name.startswith("$")
                 for key in ("author.example", "author.instructions", "description")
             )
         for path in sorted(root.rglob("instructions/*.md")):

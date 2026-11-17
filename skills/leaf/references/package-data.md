@@ -211,21 +211,16 @@ draws its readings into the element its `readings` attribute names. `page check`
 requires the target in the referrer's own document, the page or the message holding it,
 and every element there matching `where` to be named by exactly one referrer.
 
-Members of one owner can name each other by a word instead of an id. A playground's
-setting names its control by `name`:
+An attribute whose value must differ among the members of one owner, such as an
+option's `value`, maps to that owner's tag in `x-unique`, and `page check` refuses a
+repeat inside the same owner:
 
 ```json
-{
-  "lf-playground-control": { "x-unique": { "name": "lf-playground" } },
-  "lf-playground-setting": {
-    "x-refers": { "for": { "tag": "lf-playground-control", "key": "name" } }
-  }
-}
+{ "lf-option": { "x-unique": { "value": "lf-options" } } }
 ```
 
-`x-unique` makes `name` unique within each `lf-playground`, and the keyed contract
-`{tag, key}` looks `for` up only inside the setting's own playground. Rules about content, such as
-a value within its range, belong to the widget and `page check --render`.
+Rules about content, such as a value within its range, belong to the widget and `page
+check --render`.
 
 ## External or derived data
 

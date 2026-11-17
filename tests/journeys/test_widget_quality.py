@@ -149,10 +149,10 @@ def test_complete_views_restore_native_values_in_wrapped_layouts(
         with page.expect_request("**/leaf.js"):
             navigate()
         expect(page.locator("main")).to_be_visible()
-        expect(page.locator("#drawing lf-playground-preview")).to_have_text(
+        expect(page.locator("#drawing-words")).to_have_text(
             "The actual preview, with its own words."
         )
-        expect(page.locator("#drawing input")).to_have_count(0)
+        expect(page.locator("#drawing input")).to_have_count(5)
         assert boot, "the positive control did not hold the entry module"
         page.unroute("**/leaf.js")
         boot.pop().continue_()

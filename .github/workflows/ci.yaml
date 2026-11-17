@@ -269,7 +269,8 @@ jobs:
         run: |
           mkdir -p .tmp/bench-report
           uv run leaf-dev bench documents --sizes 64,128,256 --rounds 2 \
-            --input design --input inspect --input draw --input capture \
+            --input design --input inspect --input pick --input part \
+            --input draw --input capture \
             --input data --input reveal --input search --input matches --input browse \
             | tee .tmp/bench-report/documents.txt
           { echo '```'; cat .tmp/bench-report/documents.txt; echo '```'; } >> "$GITHUB_STEP_SUMMARY"

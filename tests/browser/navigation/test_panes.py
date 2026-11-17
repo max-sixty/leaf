@@ -1207,12 +1207,12 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
         .replace(
             '<main class="layout-workspace">',
-            '<main class="layout-column"><lf-tabs id="reading-tabs" class="layout-flow">'
-            '<lf-tab id="first-tab" label="First" class="layout-flow">',
+            '<main class="layout-column"><lf-tabs id="reading-tabs" flow="page">'
+            '<lf-tab id="first-tab" label="First">',
         )
         .replace(
             "</main>",
-            '</lf-tab><lf-tab id="second-tab" label="Second" class="layout-flow">'
+            '</lf-tab><lf-tab id="second-tab" label="Second">'
             '<lf-pane id="other-reading" label="Other reading">'
             '<div><p id="other-start">Another reading with enough words to preserve its landmark.</p>'
             '<div style="height: 1000px"></div></div></lf-pane></lf-tab></lf-tabs></main>',

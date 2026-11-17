@@ -570,103 +570,68 @@ def test_shipped_widget_purposes_live_in_their_descriptions():
     assert not titled, f"widget purposes are duplicated in title: {', '.join(titled)}"
 
 
-def test_a_playground_control_value_fits_its_kind_at_the_markup_boundary():
+def test_a_widget_takes_the_attributes_any_element_takes():
+    """`class` and `style`, the page's styling hooks, and the attributes that describe
+    any element and record nothing, stand on a widget as on any element; Leaf's own
+    `data-lf-` namespace and `hidden` still meet its schema."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-
-    def errors(attributes, name="setting"):
-        return fragment_errors(
-            '<lf-ask id="kind-ask"><h2>Choose a setting</h2>'
-            '<lf-playground id="kind-playground">'
-            f'<lf-playground-control id="{name}" name="{name}" label="Setting" {attributes}>'
-            "</lf-playground-control>"
-            "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
-            "<lf-playground-output>Use this setting.</lf-playground-output>"
-            "</lf-playground></lf-ask>",
-            registry,
-        )
 
     def refused(attributes):
         return [
-            (e.code, e.values["keyword"], e.values["path"]) for e in errors(attributes)
+            (e.code, e.values["keyword"], e.values["path"])
+            for e in fragment_errors(
+                '<lf-ask id="kind-ask"><h2>Choose a route</h2>'
+                '<lf-options id="kind-options" choose>'
+                f'<lf-option id="route" {attributes}>Page</lf-option>'
+                '<lf-option id="other">Ticket</lf-option>'
+                "</lf-options></lf-ask>",
+                registry,
+            )
         ]
 
-    assert not errors('kind="range" value="-1.5" max="24"')
-    assert not errors('kind="toggle" value="false"')
-    assert not errors('kind="color" value="#A0b1c2"')
-    assert not errors('kind="text" value="yes"')
-    # A name, like an id, may start with a digit: an alert called 5xx keeps its name.
-    assert not errors('kind="toggle" value="false"', name="5xx-pages")
-    # `class` and `style` are the page's styling hooks on a widget as on any element.
-    assert not errors('kind="toggle" value="false" class="route"')
-    assert not errors('kind="toggle" value="false" style="grid-column: 2"')
-    # So are the attributes that describe any element and record nothing.
-    assert not errors(
-        'kind="toggle" value="false" title="Route" lang="en" dir="ltr"'
-        ' aria-describedby="route-note" data-group="routing" data-test_id="r.1"'
+    # A value, like an id, may start with a digit: an alert called 5xx keeps its name.
+    assert not refused('value="5xx-pages"')
+    assert not refused('class="route"')
+    assert not refused('style="grid-column: 2"')
+    assert not refused(
+        'title="Route" lang="en" dir="ltr" aria-describedby="route-note"'
+        ' data-group="routing" data-test_id="r.1"'
     )
-    # Leaf's own data-lf- namespace and `hidden` still validate.
-    assert refused('kind="toggle" value="false" data-lf-said="x"') == [
+    assert refused('data-lf-said="x"') == [
         ("attribute-schema", "additionalProperties", [])
     ]
-    assert refused('kind="toggle" value="false" hidden') == [
-        ("attribute-schema", "additionalProperties", [])
-    ]
-    assert refused('kind="range" value="12"') == [("attribute-schema", "required", [])]
-    assert refused('kind="range" value="twelve" max="24"') == [
-        ("attribute-schema", "pattern", ["value"])
-    ]
-    assert refused('kind="toggle" value="yes"') == [
-        ("attribute-schema", "enum", ["value"])
-    ]
-    assert refused('kind="color" value="red"') == [
-        ("attribute-schema", "pattern", ["value"])
-    ]
+    assert refused("hidden") == [("attribute-schema", "additionalProperties", [])]
 
 
-def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_page):
-    """A preset's setting and an instruction's value slot name a control of their
-    own playground by `name` (a keyed x-refers), and names, choice values and a
-    preset's settings are unique within their owner (x-unique). Each control, choice
-    and preset also carries the id a comment on it records, since without one the
-    comment lands on the whole playground. Both doors refuse a break before any browser
-    draws it: message markup, where a reply's playground otherwise reaches the user with
-    only a static check, and the page's own source."""
+def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_page):
+    """An attribute a member declares unique within its owner (x-unique), such as a
+    playground preset's `for`, refuses a repeat in the same owner, and a preset carries
+    the id a comment on it records, since without one the comment lands on the whole
+    playground. Both doors refuse a break before any browser draws it: message markup,
+    where a reply's playground otherwise reaches the user with only a static check, and
+    the page's own source."""
     page_dir = initialized_page(tmp_path / "page", ("playground",))
 
-    def playground(ident, controls, presets="", output=""):
+    def playground(preset):
         return (
-            f'<lf-playground id="{ident}">{controls}{presets}'
-            "<lf-playground-preview><p>Preview</p></lf-playground-preview>"
-            f"<lf-playground-output>Use {output}.</lf-playground-output>"
-            "</lf-playground>"
+            '<lf-ask id="ask"><h2>Which?</h2><lf-playground id="a">'
+            '<aside><input type="range" name="size" max="4" value="2" /></aside>'
+            f"{preset}"
+            "<lf-playground-output>Use it.</lf-playground-output>"
+            "</lf-playground></lf-ask>"
         )
 
-    tone = (
-        '<lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">'
-        '<lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>'
-        '<lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>'
-        "</lf-playground-control>"
-    )
-    size = (
-        '<lf-playground-control id="size" name="size" label="Size" kind="range" value="2" '
-        'max="4"></lf-playground-control>'
-    )
-
-    def preset(*names):
+    def preset(*names, ident=' id="preset-loud"'):
         return (
-            '<lf-playground-preset id="preset-loud" label="Loud">'
+            f'<lf-playground-preset{ident} label="Loud">'
             + "".join(
-                f'<lf-playground-setting for="{name}" value="bold"></lf-playground-setting>'
+                f'<lf-playground-setting for="{name}" value="4"></lf-playground-setting>'
                 for name in names
             )
             + "</lf-playground-preset>"
         )
 
-    def slot(name):
-        return f'<lf-playground-value for="{name}"></lf-playground-value>'
-
-    def reply(*playgrounds):
-        markup = f'<lf-ask id="ask"><h2>Which?</h2>{"".join(playgrounds)}</lf-ask>'
+    def reply(markup):
         try:
             check_markup(
                 page_dir,
@@ -681,176 +646,32 @@ def test_a_playground_names_its_controls_within_itself(tmp_path, initialized_pag
             return refused.findings
         return []
 
-    def unmatched(name):
-        return {
-            "attr": "for",
-            "target": name,
-            "member": "lf-playground-control",
-            "key": "name",
-            "scope": "lf-playground",
-        }
-
-    # A value slot may stand inside the output's prose, as within a <strong>.
-    assert (
-        reply(playground("a", tone, preset("tone"), f"<strong>{slot('tone')}</strong>"))
-        == []
-    )
+    assert reply(playground(preset("size"))) == []
     assert found(
-        reply(playground("a", tone, preset("tine"))),
-        "unmatched-member",
-        "<lf-playground-setting>",
-        **unmatched("tine"),
-    )
-    # The name of a control in the playground beside it answers nothing here.
-    assert found(
-        reply(playground("a", tone, output=slot("size")), playground("b", size)),
-        "unmatched-member",
-        **unmatched("size"),
-    )
-    assert found(
-        reply(playground("a", tone + tone.replace("Tone", "Again"))),
-        "repeated-key",
-        "<lf-playground-control>",
-        key="name",
-        value="tone",
-    )
-    assert found(
-        reply(playground("a", tone.replace('"quiet" label', '"bold" label'))),
-        "repeated-key",
-        "<lf-playground-choice>",
-        key="value",
-        value="bold",
-    )
-    assert found(
-        reply(playground("a", tone, preset("tone", "tone"))),
+        reply(playground(preset("size", "size"))),
         "repeated-key",
         "<lf-playground-setting>",
         key="for",
-        value="tone",
+        value="size",
     )
-    for unnamed, tag in (
-        (playground("a", tone.replace(' id="tone"', "")), "<lf-playground-control>"),
-        (
-            playground("a", tone.replace(' id="tone-bold"', "")),
-            "<lf-playground-choice>",
-        ),
-        (
-            playground("a", tone, preset("tone").replace(' id="preset-loud"', "")),
-            "<lf-playground-preset>",
-        ),
-    ):
-        assert found(reply(unnamed), "attribute-schema", tag, keyword="required")
-
-    main = (
-        '<lf-ask id="ask"><h2>Which?</h2>'
-        + playground("a", tone + tone, output=slot("tone"))
-        + "</lf-ask>"
+    assert found(
+        reply(playground(preset("size", ident=""))),
+        "attribute-schema",
+        "<lf-playground-preset>",
+        keyword="required",
     )
     (page_dir / "index.html").write_text(
-        re.sub(r"<main>.*?</main>", f"<main>{main}</main>", PAGE, flags=re.DOTALL)
+        re.sub(
+            r"<main>.*?</main>",
+            f"<main>{playground(preset('size', 'size'))}</main>",
+            PAGE,
+            flags=re.DOTALL,
+        )
     )
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(
-        findings, "repeated-key", "<lf-playground-control>", key="name", value="tone"
-    )
-
-
-def test_a_playground_control_stands_in_the_rail_or_inside_its_preview():
-    """A control may stand at any depth in the preview beside the item it changes
-    (x-within) and still belongs to its playground: its name is unique there and a
-    preset's setting names it. One outside every playground, or inside the
-    instruction it would be read into, is refused, naming where it may stand."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
-    tone = (
-        '<lf-playground-control id="{name}" name="{name}" label="Tone" kind="choice" value="quiet">'
-        '<lf-playground-choice id="{name}-quiet" value="quiet" label="Quiet"></lf-playground-choice>'
-        '<lf-playground-choice id="{name}-bold" value="bold" label="Bold"></lf-playground-choice>'
-        "</lf-playground-control>"
-    )
-
-    def errors(rail, beside_item, before="", in_output=""):
-        return fragment_errors(
-            f'<lf-ask id="placed-ask"><h2>Which tone?</h2>{before}'
-            f'<lf-playground id="placed-playground">{rail}'
-            '<lf-playground-preset id="preset-bold" label="Bold">'
-            '<lf-playground-setting for="item-tone" value="bold">'
-            "</lf-playground-setting></lf-playground-preset>"
-            '<lf-playground-preview><div class="item"><p>Item</p>'
-            f'<section class="item-settings">{beside_item}</section></div>'
-            "</lf-playground-preview>"
-            f"<lf-playground-output>Use these tones.{in_output}</lf-playground-output>"
-            "</lf-playground></lf-ask>",
-            registry,
-        )
-
-    assert not errors(tone.format(name="page-tone"), tone.format(name="item-tone"))
-    assert not errors("", tone.format(name="item-tone"))
-    assert [
-        (e.code, e.values["key"])
-        for e in errors(tone.format(name="item-tone"), tone.format(name="item-tone"))
-    ] == [("repeated-key", "name")]
-    (stray,) = errors(
-        tone.format(name="page-tone"),
-        tone.format(name="item-tone"),
-        before=tone.format(name="stray"),
-    )
-    assert (stray.code, stray.values["within"]) == (
-        "not-member",
-        ["lf-playground-preview"],
-    )
-    (read_out,) = errors(
-        tone.format(name="page-tone"),
-        tone.format(name="item-tone"),
-        in_output=tone.format(name="output-tone"),
-    )
-    assert read_out.code == "not-member"
-    # Inside a nested playground's instruction, the outer preview around it is not
-    # the control's own: its nearest playground is the inner one.
-    inner = (
-        '<lf-playground id="inner-playground">'
-        '<lf-playground-control id="inner-tone" name="inner-tone" label="Tone" kind="toggle" '
-        'value="false"></lf-playground-control>'
-        "<lf-playground-preview><p>Inner</p></lf-playground-preview>"
-        "<lf-playground-output>Use it."
-        + tone.format(name="lost-tone")
-        + "</lf-playground-output></lf-playground>"
-    )
-    (nested,) = errors(tone.format(name="page-tone"), inner)
-    assert nested.code == "not-member"
-
-    # A quotation cannot supply a control to the surrounding playground, even if
-    # its preview surrounds the quotation. Its names neither collide nor resolve.
-    quoted = (
-        '<lf-sample id="quoted-control" label="Control example">'
-        + tone.format(name="item-tone")
-        + "</lf-sample>"
-    )
-    assert [e.code for e in fragment_errors(quoted, registry)] == ["not-member"]
-    assert [e.code for e in errors(tone.format(name="page-tone"), quoted)] == [
-        "not-member"
-    ]
-    quoted_records = SourceDocument(
-        f'<lf-playground id="quoted-member-scope">{quoted}'
-        '<lf-playground-output><lf-playground-value for="item-tone">'
-        "</lf-playground-value></lf-playground-output></lf-playground>"
-    ).lf_elements
-    assert [
-        e.code
-        for e in reference_errors(quoted_records, registry, set(), {}, thread_ids=set())
-    ] == ["unmatched-member"]
-    assert [
-        e.code
-        for e in errors(
-            tone.format(name="item-tone"), tone.format(name="page-tone") + quoted
-        )
-    ] == ["not-member"]
-    # The quoted playground itself still owns the controls written inside it.
-    assert not errors(
-        tone.format(name="item-tone"),
-        '<lf-sample id="quoted-playground" label="Playground example">'
-        + inner.replace(tone.format(name="lost-tone"), "")
-        + "</lf-sample>",
+        findings, "repeated-key", "<lf-playground-setting>", key="for", value="size"
     )
 
 

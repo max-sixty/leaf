@@ -144,10 +144,7 @@ ACTION_CREATES = {
 # any authored element. A typed relation selects a package registry map
 # and an equality predicate within that map; the names and values remain vocabulary.
 # `owns` makes the relation one-to-one within a document: the referrer fills its
-# target (`validation.instances.reference_errors`). A keyed relation names a member,
-# not an element id: the `tag` member whose `key` attribute holds the value, which
-# that tag declares unique within an owner (x-unique), looked up in the referrer's own
-# enclosing owner.
+# target (`validation.instances.reference_errors`).
 REFERENCE_SCHEMA = {
     "type": "object",
     "minProperties": 1,
@@ -167,17 +164,12 @@ REFERENCE_SCHEMA = {
                 },
             },
             "owns": {"const": True},
-            "tag": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-            "key": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         },
         "dependentRequired": {
             "via": ["where"],
             "where": ["via"],
             "owns": ["via"],
-            "tag": ["key"],
-            "key": ["tag"],
         },
-        "dependentSchemas": {"key": {"not": {"required": ["via"]}}},
         "additionalProperties": False,
     },
 }
@@ -431,7 +423,17 @@ EXTENSION_SCHEMA = {
             ]
         },
         "x-space": {"enum": ["wide", "available"]},
-        "x-flow": {"const": True},
+        "x-flow": {
+            "oneOf": [
+                {"const": True},
+                {
+                    "type": "object",
+                    "properties": {"when": AWAITING_CONDITION},
+                    "required": ["when"],
+                    "additionalProperties": False,
+                },
+            ]
+        },
         "x-spine": {"const": True},
         "x-bound": {"enum": ["start", "end"]},
         # A default height in CSS pixels, or `true` for a widget that has none and
@@ -447,17 +449,11 @@ EXTENSION_SCHEMA = {
             "required": ["members"],
             "additionalProperties": False,
         },
-        "x-within": {
-            "type": "array",
-            "items": {"type": "string", "pattern": f"^{WIDGET_NAME}$"},
-            "minItems": 1,
-        },
         "x-word": {"type": "string", "pattern": "^[a-z][a-z -]*$"},
         "x-work": {"const": True},
     },
     "dependentRequired": {
         "x-retired-when": ["x-owners"],
-        "x-within": ["x-owners"],
         "x-shows": ["x-owners", "x-refers"],
     },
     "additionalProperties": False,

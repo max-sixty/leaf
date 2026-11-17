@@ -106,7 +106,8 @@ function containedSpace() {
         breaksOut(holder)
       )
         return [];
-      if (!holder.matches(".layout-flow, [data-lf-flow]")) holders.push(at(holder));
+      if (getComputedStyle(holder).getPropertyValue("--lf-flow").trim() !== "1")
+        holders.push(at(holder));
     }
     return [];
   });
@@ -423,9 +424,8 @@ export function misplacedBoxes() {
   // rather than of a list of tags, because the fault is visual and so is the property
   // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
   // and one that grows through a transparent wrapper (a section, a tab's panel) reads
-  // as the exhibit it is. A box that draws one says so where it draws it
-  // (--lf-block-frame: 1, base.css) and the theme reads that declaration to withhold
-  // the room; this is what says so when a box that draws hasn't made it.
+  // as the exhibit it is. Only a flow hands its room on (layouts.css), so a widget
+  // escapes a frame that is one: a section, article or disclosure that draws.
   /** @param {Element} el */
   const draws = (el) => {
     const s = getComputedStyle(el);
@@ -542,7 +542,7 @@ export function misplacedBoxes() {
   }
   // Authored furniture may occupy room outside its parent, as an absolutely
   // positioned label does. Report a wide exhibit that crosses that occupied room.
-  // Notes and sidebars in the document's native flow already own their boxes;
+  // Sidebars in the document's native flow already own their boxes;
   // this reading covers only furniture `marginReading` finds outside the column.
   for (const el of wides) {
     if (!el.checkVisibility()) continue;

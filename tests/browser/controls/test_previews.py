@@ -38,6 +38,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -183,13 +184,12 @@ def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
 
 
 PLAYGROUND_SETTINGS = (
-    '<lf-playground id="pg"><lf-playground-control id="budget" name="budget"'
-    ' label="Page budget" kind="range" value="10" min="0" max="30">'
-    '</lf-playground-control><lf-playground-control id="finance" name="finance"'
-    ' label="Count finance pages" kind="toggle" value="false">'
-    "</lf-playground-control><lf-playground-preview><p>The budget.</p>"
-    "</lf-playground-preview><lf-playground-output>Budget"
-    ' <lf-playground-value for="budget"></lf-playground-value></lf-playground-output>'
+    '<lf-playground id="pg"><aside><label id="budget">Page budget'
+    ' <input type="range" name="budget" min="0" max="30" value="10"></label>'
+    '<label id="finance"><input type="checkbox" name="finance"'
+    ' role="switch"> Count finance pages</label></aside><p>The budget.</p>'
+    "<lf-playground-output>Budget"
+    ' <output for="budget"></output></lf-playground-output>'
     "</lf-playground>"
 )
 
@@ -664,7 +664,8 @@ def test_a_finger_holding_a_thread_s_words_again_reads_it_again(browser, serve):
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, serve):
-    """An age says how long ago, and its preview says when, in the reader's own zone:
+    """An age says how long ago, and its preview says when, in the reader's own zone
+    and as their locale writes it:
     a message's age to a resting pointer, and the message a walk landed the keyboard
     on to `K`, in its head where its age stands, or would where the message above has
     the same one, which a screen reader hears as the message's description; the
@@ -706,7 +707,9 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     )
     browser = request.getfixturevalue(engine)
     context = browser.new_context(
-        viewport={"width": 1200, "height": 900}, timezone_id="America/Los_Angeles"
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
     )
     context.clock.install()
     page = open_page(browser, url, context=context)
@@ -720,7 +723,7 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     expect(preview).to_be_hidden()
     page.keyboard.press("Shift+K")
     expect(question).to_be_focused()
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:22 PM PT")
     assert "lf-preview" in question.evaluate(DESCRIBED)
     # It stands by the head, where the age the message above shares would stand, not
     # by the whole message.
@@ -735,7 +738,7 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     dwelt(page)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("data-lf-route", "focus")
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:22 PM PT")
     page.mouse.move(0, 0)
     page.keyboard.press("Escape")
 
@@ -745,14 +748,14 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     box = age.bounding_box()
     page.mouse.move(box["x"] - 30, box["y"] - 30)
     age.hover()
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:02 PM PT")
     page.mouse.move(0, 0)
     expect(preview).to_be_hidden()
 
     resolved = thread_row(page, settled).locator("time")
     expect(resolved).to_have_attribute("datetime", "2026-08-16T01:30:00Z")
     expect(resolved).not_to_have_attribute("title", re.compile(".*"))
-    assert preview_text(resolved) == "Sat 15 Aug 2026, 18:30 PT"
+    assert " ".join(preview_text(resolved).split()) == "Sat, Aug 15, 2026, 6:30 PM PT"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1048,7 +1051,7 @@ def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, se
     )
     page.mouse.move(1, 1)
     page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     band = page.locator(".lf-rows-group").filter(
         has_text="Should this wait for the vendor's release?"
     )
@@ -1744,13 +1747,13 @@ WIDGET_WORDS = (
     '<lf-suggestion id="sug"><lf-old><p id="old">Refill every feeder each morning.'
     "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"
     "</lf-new></lf-suggestion>"
-    '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone"'
-    ' kind="choice" value="quiet"><lf-playground-choice id="tone-quiet" value="quiet"'
-    ' label="Quiet"></lf-playground-choice><lf-playground-choice id="tone-bold"'
-    ' value="bold" label="Bold"></lf-playground-choice></lf-playground-control>'
-    '<lf-playground-preview><p id="pg-words">The candidate banner reads well.</p>'
-    "</lf-playground-preview><lf-playground-output>Use"
-    ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
+    '<lf-playground id="pg"><aside><fieldset id="tone"><legend>Tone</legend>'
+    '<label id="tone-quiet"><input type="radio" name="tone"'
+    ' value="quiet" checked> Quiet</label><label id="tone-bold">'
+    '<input type="radio" name="tone" value="bold"> Bold</label></fieldset></aside>'
+    '<p id="pg-words">The candidate banner reads well.</p>'
+    "<lf-playground-output>Use"
+    ' <output for="tone"></output></lf-playground-output>'
     "</lf-playground>"
     + "<p>More words.</p>"
     * 4

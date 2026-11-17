@@ -913,41 +913,6 @@ def test_an_export_runs_what_its_served_page_runs(browser, serve, tmp_path):
         assert page.evaluate("() => window.policyOutcomes") == expected, url
 
 
-def test_an_interactive_export_reseats_authored_margin_notes(browser, serve, tmp_path):
-    """Offline reading shares the same initial and width-dependent composition."""
-    serve(
-        leaf_page(
-            "Exported notes",
-            '<h1 id="title">Migration</h1>'
-            '<div class="layout-note"><p id="passage">Advance the migration one cohort at a time.</p>'
-            '<aside class="note" id="note">Keep earlier readers available.</aside></div>',
-        ).replace(
-            '<main class="layout-column">', '<main class="layout-column layout-notes">'
-        )
-    )
-    interactive = tmp_path / "margin-notes.html"
-    result = CliRunner().invoke(
-        cli_model.cli,
-        ["page", "export", str(serve.page_dir), "--out", str(interactive), "--runtime"],
-        env={"LEAF_BROWSER_EXECUTABLE": str(tmp_path / "missing-browser")},
-    )
-    assert result.exit_code == 0, result.output
-    page = browser.new_page(viewport={"width": 1600, "height": 900})
-    page.goto(interactive.as_uri(), wait_until="load")
-    expect(page.locator("body")).to_have_attribute(
-        "data-lf-presented", "1", timeout=HANDOVER_DEADLINE_MS
-    )
-    wide = page.locator("#note").bounding_box()
-    prose = page.locator("#passage").bounding_box()
-    assert wide["x"] >= prose["x"] + prose["width"]
-    page.set_viewport_size({"width": 390, "height": 900})
-    narrow = page.locator("#note").bounding_box()
-    prose = page.locator("#passage").bounding_box()
-    assert narrow["y"] >= prose["y"] + prose["height"]
-    page.set_viewport_size({"width": 1600, "height": 900})
-    assert page.locator("#note").bounding_box() == pytest.approx(wide)
-
-
 def test_an_export_s_preview_takes_escape_before_the_dialog_around_it(
     browser, serve, tmp_path
 ):

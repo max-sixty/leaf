@@ -68,19 +68,19 @@
     syntax: "*";
     inherits: false;
   }
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *):is(
-    .layout-column,
-    .layout-sidebar,
-    .layout-workspace
-  ) {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column,
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar,
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
     --lf-layout-box: 1;
     --lf-block-frame: trim;
     container-name: lf-content-frame;
   }
-  :is(
-    main:not(.layout-column, .layout-sidebar, .layout-workspace),
-    main > [data-lf-views="parts"] > *
-  ):has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
+  main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+      > :is(.layout-column, .layout-sidebar, .layout-workspace)
+    ),
+  main
+    > [data-lf-views="parts"]
+    > :has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
     container-type: inline-size;
     --lf-layout-shell: 1;
   }
@@ -479,22 +479,29 @@
     --lf-free-left: var(--lf-free-end);
     --lf-free-right: var(--lf-free-start);
   }
-  :is(.layout-flow, [data-lf-flow]):dir(ltr) {
+  .layout-flow:dir(ltr),
+  [data-lf-flow]:dir(ltr) {
     --lf-free-start: var(--lf-free-left);
     --lf-free-end: var(--lf-free-right);
   }
-  :is(.layout-flow, [data-lf-flow]):dir(rtl) {
+  .layout-flow:dir(rtl),
+  [data-lf-flow]:dir(rtl) {
     --lf-free-start: var(--lf-free-right);
     --lf-free-end: var(--lf-free-left);
   }
-  :is(.layout-column, .layout-flow, [data-lf-flow])
-    > :is(.layout-flow, [data-lf-flow]) {
+  :is(.layout-column, .layout-flow, [data-lf-flow]) > .layout-flow,
+  :is(.layout-column, .layout-flow, [data-lf-flow]) > [data-lf-flow] {
     --lf-prose-measure: inherit;
   }
   /* A flow's box holds the blocks standing in it, so a flow that otherwise keeps the
    * measure, as a question does, gives it up once one of them asks for more room, in a
    * column or in a sidebar page's wider body. */
-  :is(.layout-flow, [data-lf-flow]):has(
+  .layout-flow:has(
+    > :is([data-lf-space], .layout-note, .layout-sidebar),
+    :is(.layout-flow, [data-lf-flow])
+      > :is([data-lf-space], .layout-note, .layout-sidebar)
+  ),
+  [data-lf-flow]:has(
     > :is([data-lf-space], .layout-note, .layout-sidebar),
     :is(.layout-flow, [data-lf-flow])
       > :is([data-lf-space], .layout-note, .layout-sidebar)
@@ -549,22 +556,27 @@
       }
     }
     @media screen {
-      :is(.layout-column, .layout-flow, [data-lf-flow]) {
+      .layout-column,
+      .layout-flow,
+      [data-lf-flow] {
         > [data-lf-space="wide"] {
           inline-size: min(var(--lf-wide), 100% + var(--lf-free-end));
           max-inline-size: none;
           --lf-breakout: 1;
         }
-        > :is([data-lf-space="available"], .layout-sidebar) {
+        > [data-lf-space="available"],
+        > .layout-sidebar {
           position: relative;
           inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
           max-inline-size: none;
           --lf-breakout: 1;
         }
-        &:dir(ltr) > :is([data-lf-space="available"], .layout-sidebar) {
+        &:dir(ltr) > [data-lf-space="available"],
+        &:dir(ltr) > .layout-sidebar {
           margin-left: calc(-1 * var(--lf-free-start));
         }
-        &:dir(rtl) > :is([data-lf-space="available"], .layout-sidebar) {
+        &:dir(rtl) > [data-lf-space="available"],
+        &:dir(rtl) > .layout-sidebar {
           margin-right: calc(-1 * var(--lf-free-start));
         }
         > table[data-lf-space] {
@@ -596,8 +608,8 @@
      * block breaks out only where it stands directly in a flow, so a flow counts its
      * own children and those of the flows in it, and not a block a plain wrapper keeps
      * in the column. */
-      :is(.layout-column, .layout-flow, [data-lf-flow])
-        > :is(.layout-flow, [data-lf-flow]) {
+      :is(.layout-column, .layout-flow, [data-lf-flow]) > .layout-flow,
+      :is(.layout-column, .layout-flow, [data-lf-flow]) > [data-lf-flow] {
         --lf-note-reach: 0px;
         --lf-wide-reach: 0px;
         --lf-reach-start: 0px;
@@ -605,28 +617,49 @@
           max(var(--lf-note-reach), var(--lf-wide-reach)) - 100%,
           var(--lf-free-end)
         );
-        &:has(> .layout-note, :is(.layout-flow, [data-lf-flow]) > .layout-note) {
+        &:where(.layout-flow):has(
+            > .layout-note,
+            :is(.layout-flow, [data-lf-flow]) > .layout-note
+          ),
+        &:where([data-lf-flow]):has(
+            > .layout-note,
+            :is(.layout-flow, [data-lf-flow]) > .layout-note
+          ) {
           --lf-note-reach: calc(var(--lf-col) + var(--lf-note));
         }
-        &:has(
-          > [data-lf-space="wide"],
-          :is(.layout-flow, [data-lf-flow]) > [data-lf-space="wide"]
-        ) {
+        &:where(.layout-flow):has(
+            > [data-lf-space="wide"],
+            :is(.layout-flow, [data-lf-flow]) > [data-lf-space="wide"]
+          ),
+        &:where([data-lf-flow]):has(
+            > [data-lf-space="wide"],
+            :is(.layout-flow, [data-lf-flow]) > [data-lf-space="wide"]
+          ) {
           --lf-wide-reach: var(--lf-wide);
         }
-        &:has(
-          > :is([data-lf-space="available"], .layout-sidebar),
-          :is(.layout-flow, [data-lf-flow])
-            > :is([data-lf-space="available"], .layout-sidebar)
-        ) {
+        &:where(.layout-flow):has(
+            > :is([data-lf-space="available"], .layout-sidebar),
+            :is(.layout-flow, [data-lf-flow])
+              > :is([data-lf-space="available"], .layout-sidebar)
+          ),
+        &:where([data-lf-flow]):has(
+            > :is([data-lf-space="available"], .layout-sidebar),
+            :is(.layout-flow, [data-lf-flow])
+              > :is([data-lf-space="available"], .layout-sidebar)
+          ) {
           --lf-reach-start: var(--lf-free-start);
           --lf-reach-end: var(--lf-free-end);
         }
-        &:has(
-          > :is([data-lf-space], .layout-note, .layout-sidebar),
-          :is(.layout-flow, [data-lf-flow])
-            > :is([data-lf-space], .layout-note, .layout-sidebar)
-        ) {
+        &:where(.layout-flow):has(
+            > :is([data-lf-space], .layout-note, .layout-sidebar),
+            :is(.layout-flow, [data-lf-flow])
+              > :is([data-lf-space], .layout-note, .layout-sidebar)
+          ),
+        &:where([data-lf-flow]):has(
+            > :is([data-lf-space], .layout-note, .layout-sidebar),
+            :is(.layout-flow, [data-lf-flow])
+              > :is([data-lf-space], .layout-note, .layout-sidebar)
+          ) {
           margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
             calc(-1 * max(0px, var(--lf-reach-end)));
           padding-inline: max(0px, var(--lf-reach-start)) max(0px, var(--lf-reach-end));
@@ -634,7 +667,9 @@
       }
     }
   }
-  :is(.layout-column, .layout-flow, [data-lf-flow]) {
+  .layout-column,
+  .layout-flow,
+  [data-lf-flow] {
     /* A failed upgrade draws prose in place of its exhibit, and a page whose runtime
      * could not start shows each undrawn widget's source. Either is prose, so its host
      * keeps the prose's measure, without the margin a breakout reaches the room by,
@@ -855,7 +890,8 @@
       --lf-top-outer: var(--lf-top);
     }
     @container not style(--lf-track-scroll-behavior: flow) {
-      :is(.layout-track, [data-lf-track]) {
+      .layout-track,
+      [data-lf-track] {
         position: sticky;
         top: calc(var(--lf-top-outer) + var(--lf-sp-4));
         --lf-top: 0px;

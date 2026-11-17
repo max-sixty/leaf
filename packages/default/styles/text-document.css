@@ -149,11 +149,14 @@ lf-text-document .lf-text-document-run:only-child {
   lf-text-document
   .lf-text-document-run {
   content-visibility: visible;
+  /* Each row's rule names the run as its ancestor, which lets Chromium pass over the
+     rule for an element outside one (browser/AGENTS.md, "A rule costs only the
+     elements it could style"); `&::before` nested in `& > *` names none. */
   & > * {
     counter-increment: none;
-    &::before {
-      content: none;
-    }
+  }
+  & > *::before {
+    content: none;
   }
 }
 /* A document scrolls its listing in a box `--lf-bound` tall under a caption that

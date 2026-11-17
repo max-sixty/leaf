@@ -7,31 +7,16 @@
    the library (controls.css) look the same in its widgets. Public parts carry Leaf's
    logical focus, rather than a second native focus ring (components/webawesome.css). */
 :where(:root),
-:is(
-  wa-copy-button,
-  wa-comparison,
-  wa-radio-group,
-  wa-radio,
-  wa-slider,
-  wa-tooltip,
-  wa-select,
-  wa-option,
-  wa-input
-) {
+wa-copy-button,
+wa-comparison,
+wa-radio-group,
+wa-radio,
+wa-slider,
+wa-tooltip,
+wa-select,
+wa-option,
+wa-input {
   --wa-font-family-body: var(--lf-sans);
-  /* Controls inherit typography through their hosts. Reset the surrounding prose's
-     face without overriding the component's size, weight, line height or state ink. */
-  &:not(:root) {
-    font-family: var(--wa-font-family-body);
-    font-style: normal;
-    font-variant: normal;
-    font-stretch: normal;
-    font-feature-settings: normal;
-    font-variation-settings: normal;
-    letter-spacing: normal;
-    word-spacing: normal;
-    text-transform: none;
-  }
   --wa-color-surface-raised: var(--lf-card);
   --wa-color-surface-default: var(--lf-field);
   --wa-color-surface-lowered: var(--lf-card);
@@ -80,4 +65,28 @@
   /* A line tall (`--lf-line`) whatever its type would make it, restated on each
      control so a place that sets the line sets it here too. */
   --wa-form-control-height: var(--lf-line);
+}
+/* Controls inherit typography through their hosts. Reset the surrounding prose's
+   face without overriding the component's size, weight, line height or state ink.
+   `:not(:root)` holds the weight of a class over a control's own rules
+   (webawesome.css); each host is named alone (browser/AGENTS.md, "A rule costs only
+   the elements it could style"). */
+wa-copy-button:not(:root),
+wa-comparison:not(:root),
+wa-radio-group:not(:root),
+wa-radio:not(:root),
+wa-slider:not(:root),
+wa-tooltip:not(:root),
+wa-select:not(:root),
+wa-option:not(:root),
+wa-input:not(:root) {
+  font-family: var(--wa-font-family-body);
+  font-style: normal;
+  font-variant: normal;
+  font-stretch: normal;
+  font-feature-settings: normal;
+  font-variation-settings: normal;
+  letter-spacing: normal;
+  word-spacing: normal;
+  text-transform: none;
 }

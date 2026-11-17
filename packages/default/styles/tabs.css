@@ -20,13 +20,16 @@
   display: block;
   margin: 14px 0;
 }
-:is(lf-tab, lf-parts, lf-part) {
+lf-tab,
+lf-parts,
+lf-part {
   display: block;
 }
 /* A stacked panel's name takes the label font (base.css, `.lf-label`), which a
  * generated name can't wear as a class. A side list's group label is a list's group
  * heading (controls.css, `.lf-rows-head`). */
-:is(lf-tab, lf-part)::before {
+lf-tab::before,
+lf-part::before {
   content: attr(label);
   display: block;
   margin: 18px 0 8px;
@@ -184,7 +187,9 @@ lf-tabs[data-lf-views] > lf-tab {
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block. */
 @media screen {
-  :is(lf-tabs, lf-tab, .lf-tabstrip) {
+  lf-tabs,
+  lf-tab,
+  .lf-tabstrip {
     scroll-padding-block-end: var(--lf-end-room);
   }
   @scope (html[data-lf-interactive]) {
@@ -314,7 +319,8 @@ lf-tabs[data-lf-views] > lf-tab {
      * the item where the user is reading it, and the focused tab stays on screen while
      * they read. A column that scrolled with the page moved the item at each step and
      * left the tab off screen, so the next arrow let go of it (keyboard/controller.js). */
-    :is(lf-tabs[list="side"], lf-parts) {
+    lf-tabs[list="side"],
+    lf-parts {
       --lf-tab-context-h: 0px;
       --lf-tab-outcome-h: 0px;
       --lf-tab-row-h: calc(

@@ -2,7 +2,8 @@
  * natural height underneath. The collection owns summary columns so labels and
  * counts line up across its worktrees. Container queries follow the widget's own width,
  * including when a page seats it beside other evidence. */
-:is(lf-worktree-diffs, :host(lf-worktree-diffs)) {
+:where(lf-worktree-diffs):is(lf-worktree-diffs, :host(lf-worktree-diffs)),
+:host(lf-worktree-diffs) {
   display: block;
   column-gap: var(--lf-sp-3);
   min-width: 0;
@@ -12,14 +13,16 @@
   container-type: inline-size;
 }
 
-:is(lf-worktree, :host(lf-worktree)),
+:where(lf-worktree):is(lf-worktree, :host(lf-worktree)),
+:host(lf-worktree),
 .lf-worktree-disclosure,
 .lf-worktree-summary,
 .lf-worktree-summary > .lf-worktree-stats {
   column-gap: inherit;
 }
 
-:is(lf-worktree, :host(lf-worktree)) {
+:where(lf-worktree):is(lf-worktree, :host(lf-worktree)),
+:host(lf-worktree) {
   display: block;
   min-width: 0;
   max-width: 100%;
@@ -32,12 +35,14 @@
 
 /* Slots distribute the authored members through the same shared grid. No wrapper
  * or movement of the evidence is needed to align its generated summary. */
-:is(lf-worktree-diffs, :host(lf-worktree-diffs)) {
+:where(lf-worktree-diffs):is(lf-worktree-diffs, :host(lf-worktree-diffs)),
+:host(lf-worktree-diffs) {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) repeat(5, auto);
 }
 
-:is(lf-worktree, :host(lf-worktree)) {
+:where(lf-worktree):is(lf-worktree, :host(lf-worktree)),
+:host(lf-worktree) {
   display: grid;
   grid-template-columns: subgrid;
   grid-column: 1 / -1;
@@ -225,7 +230,8 @@ lf-worktree dd {
 }
 
 @container (max-width: 38rem) {
-  :is(lf-worktree, :host(lf-worktree)),
+  :where(lf-worktree):is(lf-worktree, :host(lf-worktree)),
+  :host(lf-worktree),
   .lf-worktree-disclosure {
     display: block;
   }

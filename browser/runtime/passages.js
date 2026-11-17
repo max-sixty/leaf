@@ -88,7 +88,7 @@
    the span the two differ in (`carry`), so a change to the page is searched only around
    it. An anchor asked of a reading again has the answer it had (`findQuote`).
 
-   Shadow trees: only open roots declared through `x-shadow` join the page reading;
+   Shadow trees: only open roots declared through `words.shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
    `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow.js),
@@ -208,13 +208,13 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // elsewhere could match inside the invisible half of a replacement.
 //
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
-// same page follow one declaration: x-retired-when names the decision that removes the
-// element, x-owners the wrapper the decision is recorded on. Composition stamps that
-// relation, owner by owner, into `$decisions` (Python's `registry.contract.stamp_decisions`).
-// Which outcome stands is the application's reading of the log and this tab's own
-// gestures, so the readings take it from the publisher, as `paintSettlements` does,
-// and never back from the mark that paint leaves: a mark a module wrote where the log
-// decided nothing silences no words.
+// same page follow one declaration: state.retired-when names the decision that removes
+// the element, markup.owners the wrapper the decision is recorded on. Composition
+// stamps that relation, owner by owner, into `$decisions` (Python's
+// `registry.contract.stamp_decisions`). Which outcome stands is the application's
+// reading of the log and this tab's own gestures, so the readings take it from the
+// publisher, as `paintSettlements` does, and never back from the mark that paint
+// leaves: a mark a module wrote where the log decided nothing silences no words.
 //
 // `settlements` is that reading per holder id: its tag, and the tags its outcome
 // in force retires.
@@ -547,13 +547,14 @@ const SILENT_TAGS = new Set(["script", "style", "textarea"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // A generated element whose words the file cannot model: one the registry does not
-// declare as an `x-says` edge of the element holding it. Controls and the hidden comment
-// count hold no accepted text, and x-says spans are already in the file-side reading.
+// declare as a `words.says` edge of the element holding it. Controls and the hidden
+// comment count hold no accepted text, and words.says spans are already in the
+// file-side reading.
 /** @param {Element} el */
 const unmodelled = (el) => {
   const attr = el.getAttribute("data-lf-said");
   const parent = el.parentElement;
-  return !(attr && parent && registry[parent.localName]?.["x-says"]?.[attr]);
+  return !(attr && parent && registry[parent.localName]?.words?.says?.[attr]);
 };
 // Automatic control capture uses authored or registry-declared words, never the
 // mutable value of a native editing host. A user's actual Range remains readable.
@@ -575,12 +576,12 @@ const editingBoundary = (el) => isEditing(el) !== isEditing(el.parentElement);
 const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // Whether an element stands within a line of words: HTML's phrasing content
 // (`$passages.phrasing`), or a widget declared to stand among the words around it
-// (x-inline). Every other element, a widget included, starts a block of its own, its
-// words parted from those around it (`enter`), and ends a run-in title's line
-// (`runsIntoLine`).
+// (words.inline). Every other element, a widget included, starts a block of its own,
+// its words parted from those around it (`enter`).
 /** @param {Element} element */
 const phrasing = (element) =>
-  PHRASING.has(element.localName) || Boolean(registry[element.localName]?.["x-inline"]);
+  PHRASING.has(element.localName) ||
+  Boolean(registry[element.localName]?.words?.inline);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
 // marks are somebody else's (`frameOf`). An element that starts nothing — most spans,
@@ -678,14 +679,13 @@ export const authored = (root) => {
     !overIn(isElement(n) ? n : elementOver(n), GENERATED, frame);
 };
 // The composed tree, not the light one: a widget that renders the page's words into an
-// open shadow root (x-shadow) shows the user what its shadow tree holds, and a host's
-// own children stop rendering the moment it has one. A TreeWalker sees none of that — it
-// stops dead at the boundary — so the walk is written out, and it is the same walk in
-// both directions: a host's shadow root stands in for its children, a <slot> in a shadow
-// tree stands for what was assigned to it, and everything else is the light DOM it
-// always was. Nothing
-// here asks which widget it is looking at; a document with no shadow roots in it walks
-// exactly as it did before.
+// open shadow root (words.shadow) shows the user what its shadow tree holds, and a
+// host's own children stop rendering the moment it has one. A TreeWalker sees none of
+// that — it stops dead at the boundary — so the walk is written out, and it is the same
+// walk in both directions: a host's shadow root stands in for its children, a <slot> in
+// a shadow tree stands for what was assigned to it, and everything else is the light
+// DOM it always was. Nothing here asks which widget it is looking at; a document with
+// no shadow roots in it walks exactly as it did before.
 //
 // The order is what earns the recursion. `pageText` builds one string in reading order
 // and indexes every position into it, so shadow text has to arrive at the host's own
@@ -1052,14 +1052,14 @@ export const elementFromPointAcross = (x, y) => {
 };
 
 // A pass that clears its own marks before repainting has to sweep everywhere it can
-// write, and `elementById` above is what widened that: a mark placed on a staged element
-// sits in a tree `document.querySelectorAll` never enters, so the clear would miss it and
-// the mark outlive the reason for it. The runtime's own marks are read back this way, and
-// so is a control the user can focus, for the same reason: both are wherever the
-// markup ended up. Which widgets the page holds is a different question and still the
-// document's:
-// a widget staged inside another's tree is a nesting the registry's x-owners contract
-// does not model, and answering it here would be inventing that contract in a sweep.
+// write, and `elementById` above is what widened that: a mark placed on a staged
+// element sits in a tree `document.querySelectorAll` never enters, so the clear would
+// miss it and the mark outlive the reason for it. The runtime's own marks are read back
+// this way, and so is a control the user can focus, for the same reason: both are
+// wherever the markup ended up. Which widgets the page holds is a different question
+// and still the document's: a widget staged inside another's tree is a nesting the
+// registry's markup.owners contract does not model, and answering it here would be
+// inventing that contract in a sweep.
 /** @template {Element} [E=Element] @param {string} selector @returns {E[]} */
 export const pageQueryAll = (selector) =>
   /** @type {E[]} */ (queryAllUnder(document, selector));
@@ -1098,16 +1098,16 @@ function firstPassing(items, test, from = 0) {
 
 // The page reading's segments a range covers, in reading order, clipped to where it
 // starts and ends: in each piece it touches, from the first segment that is not before
-// its start up to the first that is not before its end, and that one too where it is the
-// end's own text node. A range with both ends in one part touches that part alone, as a
-// passage in a datum is captured in its datum's words (anchor-resolution.js), so
+// its start up to the first that is not before its end, and that one too where it is
+// the end's own text node. A range with both ends in one part touches that part alone,
+// as a passage in a datum is captured in its datum's words (anchor-resolution.js), so
 // selecting a line of one document reads that document. Any other touches the frame and
 // the parts it covers, with the part its start stands in. The frame's marks are in
 // reading order, so the parts it covers run from the first mark not before its start to
-// the first not before its end, with the start's part just before them, and finding them
-// costs a binary search however many parts the page holds. A walk from the range's own
-// root reads whatever that root holds: select-all beside an x-shadow widget composes a
-// range over <html>, and the reading has no position for its <title>.
+// the first not before its end, with the start's part just before them, and finding
+// them costs a binary search however many parts the page holds. A walk from the range's
+// own root reads whatever that root holds: select-all beside a words.shadow widget
+// composes a range over <html>, and the reading has no position for its <title>.
 /** @param {AbstractRange} range */
 export function segmentsIn(range) {
   catchUpReading();
@@ -1325,52 +1325,6 @@ export function excerpt(el, options) {
     text: options.format === "lines" ? linesFrom(segments) : quoteFrom(segments),
     cut: segments.at(-1)?.cut === true,
   };
-}
-/** Whether authored words follow `title` on its line inside `container`, by the markup
- * alone: words its author wrote after it, before a `<br>`, an element outside phrasing
- * content (`phrasing`), or the end of a block holding the title. It is the walk's
- * reading throughout: its tree (a widget's declared tree, a slot's assignment, climbed
- * by `readingParent`), and what its `wrote` reading counts, so Leaf's own apparatus in a
- * widget's tree neither runs on nor ends the line. No style is read, so a line is the
- * same whatever the reader opens, hides or resizes.
- * @param {Element} title @param {Element} container */
-export function runsIntoLine(title, container) {
-  const counts = READINGS.wrote;
-  let past = false;
-  let ended = false;
-  let follows = false;
-  walk(
-    container,
-    (node, ctx) => {
-      if (past && !ended && counts(ctx) && node.data.trim()) follows = ended = true;
-    },
-    (child, ctx) => {
-      if (ended) return true;
-      if (!past) {
-        // What comes before the title holds none of its line, and its own words are no
-        // part of it.
-        if (child !== title) return !readingUnder(title, child);
-        past = true;
-        return true;
-      }
-      if (counts(enter(ctx, child)) && (isHTML(child, "br") || !phrasing(child)))
-        ended = true;
-      return ended;
-    },
-    null,
-    (element, ctx, entering) => {
-      if (
-        !entering &&
-        past &&
-        element !== container &&
-        counts(ctx) &&
-        !phrasing(element) &&
-        readingUnder(title, element)
-      )
-        ended = true;
-    },
-  );
-  return follows;
 }
 // What the page draws now, by what the browser computes for the element each word is
 // drawn in (its slot, its parent, or a shadow root's host), and for each break, the
@@ -2229,14 +2183,14 @@ export function hearPageWords(hear) {
 }
 // A declared shadow stage is part of its document's words — `textNodesUnder` walks into
 // one at its host's place in the string — and no observer crosses the boundary on its
-// own. shadow-stage.js, which is the only door an x-shadow root is built through, hands
-// each one here as it fills it, and again each time it adopts it. The first time forgets
-// the reading of the document the root stands in, which was read without it; from then
-// on the watcher reports the root's changes itself. The words it fills with may be ones
-// the page already marked, which moving collapses each live range of the marks onto the
-// host, so a page that has presented is presented again once the fill has moved them,
-// and its marks resolve in the stage; before then, its first presentation reads them
-// there.
+// own. shadow-stage.js, which is the only door a words.shadow root is built through,
+// hands each one here as it fills it, and again each time it adopts it. The first time
+// forgets the reading of the document the root stands in, which was read without it;
+// from then on the watcher reports the root's changes itself. The words it fills with
+// may be ones the page already marked, which moving collapses each live range of the
+// marks onto the host, so a page that has presented is presented again once the fill
+// has moved them, and its marks resolve in the stage; before then, its first
+// presentation reads them there.
 /** @type {WeakSet<ShadowRoot>} */
 const watchedRoots = new WeakSet();
 /** @param {ShadowRoot} root */
@@ -2471,13 +2425,13 @@ function indexed(segments, chains, marks = []) {
   // the generated element a word of the reading stands in, where it is unmodelled.
   const dynamicWords = new Set();
   for (const { gen } of segments) if (gen && unmodelled(gen)) dynamicWords.add(gen);
-  // A segment's cell is the nearest candidate over it that fences. The chain crosses the
-  // shadow boundary (upFrom), and that is what keeps an x-shadow widget fenced. The parts
-  // were remembered off the light DOM before any module ran, so nothing inside a shadow
-  // tree is among them; a chain that stopped at the root would put a diff's lines in
-  // no cell at all, which reads as ordinary page prose and lets a quote run from the
-  // paragraph above straight into the first changed line. One move further up finds the
-  // host, which is the opaque root it always was.
+  // A segment's cell is the nearest candidate over it that fences. The chain crosses
+  // the shadow boundary (upFrom), and that is what keeps a words.shadow widget fenced.
+  // The parts were remembered off the light DOM before any module ran, so nothing
+  // inside a shadow tree is among them; a chain that stopped at the root would put a
+  // diff's lines in no cell at all, which reads as ordinary page prose and lets a quote
+  // run from the paragraph above straight into the first changed line. One move further
+  // up finds the host, which is the opaque root it always was.
   /** @param {CellChain | null | undefined} chain */
   const cellOf = (chain) => {
     for (let at = chain; at; at = at.up)

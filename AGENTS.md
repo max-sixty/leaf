@@ -84,23 +84,22 @@ cost grows with the page.
 ## Pages across Leaf updates
 
 A page records its authored content, its log and the packages it selects. The Leaf
-that serves, checks or exports it supplies everything else: the runtime, and the
-layer (registry, theme, widgets and package modules) it composes from the page's
-selection. So what changes with Leaf ships together, and what crosses the gap
-between Leaf versions is only what a page keeps: its event log and the records kept
-outside it.
+that serves, checks or exports it supplies everything else: the runtime and the
+state the server sends it, the layer (registry, theme, widgets and package
+modules) it composes from the page's selection, and how it parses and draws what
+the page keeps. So only the event log and the records Leaf keeps outside a page
+cross between Leaf versions.
 
-- **A protocol bump** changes the kernel registry's `$events.protocol`, and every
-  page at another number is refused until the session holding it takes it to the
-  new number, which it does itself on its first command or hook naming the page.
-  Bump it only for a change a Leaf at the same number would misread in the log or
-  in a record kept outside a page. A change to the runtime, the served state, the
-  bundled widgets and their registry entries, the theme or the public package API
-  (`widget-api.js` and its portable part `portable-api.js`) never bumps it. It is
-  Leaf's only version, so a record kept outside a page's log and document, such as
-  its drafts, carries the protocol at which its own shape last changed (`layer-registry.md`,
-  "Page protocol", owns the rules). Bumps are rare, perhaps one in five hundred
-  commits. Once Leaf is released, only a bump may break an existing page.
+- **The page protocol**, the kernel registry's `$events.protocol`, is Leaf's only
+  version: a Leaf serves and writes only pages at its own number. The build refuses
+  any change to a logged event's schema until the number moves. Bump it also where a
+  Leaf at the current number would misread an event or record that another Leaf at
+  that number wrote, such as a logged value given a new meaning. A change to what the
+  serving Leaf supplies keeps the number, even where a logged message or a comment's
+  quote then draws or resolves differently. Bumps are rare, perhaps one in five
+  hundred commits, and once Leaf is released only a bump may break an existing page.
+  `layer-registry.md`, "Page protocol", says how the number is enforced and how
+  records carry it.
 - **A page's own code**, its widgets and scripts, and an installed package's
   modules call the public package API across Leaf versions. While Leaf is in alpha
   an update may change that API without a bump, since a bump would not repair code
@@ -355,6 +354,18 @@ same event, or the message as it now reads, under the same name and from the sam
 (`event_facts.py`). A fact about the past, such as the settings the user had open
 when they wrote, is derived from the log and never stored as a second copy.
 
+### Read what the page states
+
+Leaf takes each fact about a page from where the page states it: the structure HTML
+defines, including the relations it gives its own elements, or a declaration in an
+author's attribute, a registry entry or the event log. A declaration on a plain
+element uses a standard attribute that means the same to every reader; one on Leaf's
+own element uses Leaf's attribute, such as `label`, since no standard defines that
+element. Leaf takes no fact from how content looks or what it says, and reads words
+only to quote, anchor and show them, so restyling a page changes no fact Leaf holds
+and rewording it changes only its words. Any other reading of markup is an exception
+the maintainer agrees to.
+
 ### Keep the layer open
 
 No code outside a content widget's module names it, so a new widget family needs
@@ -388,8 +399,8 @@ there. Size says little: a two-line selector can reach every page.
   the owner, export, move or generate the owner rather than copy it.
 - **What it puts between the author and HTML**: be hesitant to add anything there,
   such as a tag, class, attribute or key for what an HTML element, attribute or CSS
-  property already says, a rule that reads meaning out of the author's markup, or a
-  pass that rewrites it. Authors and agents already write HTML well, and each such
+  property already says, a rule that reads meaning out of the author's markup ("Read
+  what the page states"), or a pass that rewrites it. Authors and agents already write HTML well, and each such
   layer is one more thing every author learns and every later change keeps working.
   Add one only for what HTML can't say.
 - **What it buys**: a behavior a user sees, a request the maintainer made, or a

@@ -404,31 +404,6 @@ FLOATING_PAGE = LONG_PAGE.replace(
     "<div class='fixture-margin-float' id='off-window' style='float: left; clear: left; width: 180px;"
     " margin-left: -900px'>Gone.</div>\n</main>",
 )
-SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
-    "</main>",
-    """<lf-ask id="where-decision"><h2>Which option?</h2>
-<lf-options id="where" choose>
-  <lf-option id="opt-a"><strong>First</strong>
-    <div class="layout-note"><p>An option carrying a note written inside it.</p>
-    <aside class="note" id="boxed-note">Measured over a quarter.</aside></div>
-  </lf-option>
-  <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
-</lf-options></lf-ask>
-</main>""",
-)
-
-
-# A note written level with a change, which is the one restore case that puts two
-# elements in the right margin on the same line.
-NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
-    "</main>",
-    """<div class="layout-note"><lf-suggestion id="sug-level">
-  <lf-old><p id="old-level">About three thousand writes a second at peak.</p></lf-old>
-  <lf-new><p>3,400 writes a second at p99, over the last quarter.</p></lf-new>
-</lf-suggestion><aside class="note" id="level-note">Measured over a quarter, and the number
-moved twice inside it.</aside></div>
-</main>""",
-).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 # Boxes over their container, differing only in what holds them and how. The first two
 # are the rule and neither alone proves it: a page that named both would refuse every
 # wide table the theme puts in a scroller, and one that named neither is the gate before
@@ -511,12 +486,16 @@ CUT_CONTENT = (
 DRAWING_CONTROL_LAYER = {
     "lf-test-drawing-control": {
         "description": "A native offered control inside a drawing viewport.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
+        "author": {
+            "example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
+        },
     }
 }
 DRAWING_CONTROL_WIDGETS = {
@@ -594,7 +573,7 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 # One obligation, so a page has something On Me.
 ONE_OBLIGATION = (
     '<lf-ask id="go-decision"><h2>Ship it?</h2>'
-    '<lf-options id="go" choose>'
+    '<lf-options id="go">'
     '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
     '<lf-option id="go-no"><strong>No</strong></lf-option>'
     "</lf-options></lf-ask>"
@@ -935,7 +914,7 @@ FOCUS_IN_PAGE = """() => {
 # Generated text is blanked before the compare, because a widget may render a clock
 # and a clock is not a press: lf-test-worker's elapsed line re-renders on every poll, so the
 # minute turning during a long sweep read as a press that had reached a widget. What the
-# check is for survives untouched — a stray pick writes `chosen` on the option and a
+# check is for survives untouched — a stray pick writes `selected` on the option and a
 # stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting, the marks Leaf has a box
@@ -950,12 +929,11 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         for (const el of [c, ...c.querySelectorAll("*")]) {
             el.classList?.remove(
                 "lf-mark-hover",
-                "lf-projected-mark",
                 "lf-binding-seat",
             );
             for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
-                "data-lf-proxied", "data-lf-projected-location", "data-lf-over-mark",
-                "data-lf-over-item"])
+                "data-lf-proxied", "data-lf-projected-location", "data-lf-projected-mark",
+                "data-lf-over-mark", "data-lf-over-item"])
                 el.removeAttribute?.(paint);
             // Anchor naming is presentation state. A heading borrows a name by
             // attribute while its link shows, and the layout may copy a name
@@ -999,12 +977,12 @@ AIM_PAINT_PAGE = leaf_page(
     """
 <h1 id="t">Aim paint</h1>
 <lf-ask id="cards-decision"><h2>Which card?</h2>
-<lf-options id="cards" choose>
+<lf-options id="cards">
   <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
   <lf-option id="card-star" ><strong>Starred</strong> A border already the accent.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="rows-decision"><h2>Should we ship?</h2>
-<lf-options id="rows" choose>
+<lf-options id="rows">
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
 </lf-options></lf-ask>
@@ -1431,7 +1409,7 @@ SHORT_CHIP_PAGE = leaf_page(
 rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
 before it ships.</p>
 <lf-ask id="extras-decision"><h2>Which extras should we add?</h2>
-<lf-options id="extras" choose multiple>
+<lf-options id="extras" multiple>
 <lf-option id="x-tray"><lf-gloss tip="Price">£9</lf-gloss>
 <strong>Seed tray</strong> Catches the spill under the south pair.
 </lf-option>

@@ -1,8 +1,6 @@
 """Where keyboard focus goes and returns: scroll boxes' Tab stops, keyboard scrolling,
 hand-back as layers close, focus kept through moves, and the frame audit."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -570,16 +568,16 @@ def test_a_scrolling_box_takes_a_stop_unless_tab_reaches_a_control_in_it(
 EDGE_CONTROLS = {
     "radio": '<p><label><input id="at" type="radio" name="r" checked> Pick</label></p>',
     "playground": (
-        '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone" kind="choice"'
-        ' value="quiet"><lf-playground-choice id="tone-quiet" value="quiet" label="Quiet">'
-        '</lf-playground-choice><lf-playground-choice id="tone-bold" value="bold" label="Bold">'
-        "</lf-playground-choice></lf-playground-control><lf-playground-preview>"
-        "<p>Preview</p></lf-playground-preview><lf-playground-output>Use"
-        ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
+        '<lf-playground id="pg"><aside><fieldset id="tone"><legend>Tone</legend>'
+        '<label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>'
+        '<label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>'
+        "</fieldset></aside>"
+        "<p>Preview</p><lf-playground-output>Use"
+        ' <output for="tone"></output></lf-playground-output>'
         "</lf-playground>"
     ),
     "options": (
-        '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
+        '<lf-options id="op"><lf-option id="op-a">Alpha</lf-option>'
         '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
     ),
     "filter": (
@@ -903,7 +901,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
         expect(page.locator("#later")).to_be_focused()
     else:
         expect(page.locator(".lf-fab-input")).to_be_focused()
-        expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
+        expect(page.locator("#origin")).to_have_attribute("data-lf-projected-mark", "")
     assert page.evaluate("scrollY") == before
 
 

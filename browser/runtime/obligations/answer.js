@@ -17,7 +17,7 @@ import { hasObligationSource } from "./source.js";
 /** @typedef {Exclude<import("../framework/application.js").ObligationRecord, {source: {kind: "update"}}>} AnswerableObligation */
 
 const awaitingWidgets = perVocabulary(() =>
-  tagsDeclaring((entry) => entry["x-awaits"]).join(","),
+  tagsDeclaring((entry) => entry.state?.awaits).join(","),
 );
 /** @param {Element} source @param {Element} commandSource */
 export function ownedObligationControl(source, commandSource) {

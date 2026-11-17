@@ -312,7 +312,7 @@ import {
   itemOutcome,
   onList,
 } from "./queues.js";
-import { agePreview, ago, shortAgo } from "./presence.js";
+import { agePreview, ago, shortAgo, timeOfDay } from "./presence.js";
 import { userChoice } from "./storage.js";
 import { obligationEnding } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
@@ -442,9 +442,6 @@ function navigationWords() {
   const { goTo, walk } = statusContextReading();
   return goTo ?? walk?.text ?? "";
 }
-/** @param {number} at */
-const clock = (at) =>
-  new Date(at).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 // An age the panel shows, which previews the clock time behind it as every age does
 // (presence.js, `agePreview`): short, in a room of its own (`.lf-fp-age`) at a line's
 // end, or in Leaf's voice inside a sentence Leaf says (`spoken`), as a sentence words
@@ -1633,13 +1630,10 @@ export function createFloatingPanel({
     return thread ? threadName(thread) : "this thread";
   };
   const newCount = () => (inventoried() ? threadCounts(threads()).unread : 0);
-  // The drafts Threads lists (`draftsListing`): every message draft but the page's own,
-  // which the field holds.
-  const listedDrafts = () => draftsReading().filter((draft) => draft.part !== "page");
   // Where nothing has news, the On Me mark and the folded leaf wear the unread dot
   // grey for these, and the mark opens Threads on them. The user asked for it on 15
   // November 2026, so a draft put away stays in sight without opening Threads.
-  const keptDrafts = () => listedDrafts().length;
+  const keptDrafts = () => draftsReading().length;
   const openCount = () => (inventoried() ? threadCounts(threads()).open : null);
   // Ordinary open state is implicit, and news is the row's mark (`data-lf-unread`),
   // which says New to assistive tech alone. Only an open thread is news (`isNews`), as
@@ -2813,10 +2807,16 @@ export function createFloatingPanel({
     const now = new Map(offered.map((row) => [row.key, row]));
     // Only the menu standing holds its seats; a menu leaving draws what it showed.
     const seats = showing({ view: "menu" }) ? (opening.menuSeats ??= offered) : offered;
+    // Keyed by row, so a row the menu gains or loses moves the others rather than
+    // redrawing each in its neighbour's place, the copy shortcut's element included.
     return html`<div class="lf-fp-state" ?data-lf-held-lines=${held !== null}>
         ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
-      ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
+      ${repeat(
+        seats,
+        ({ key }) => key,
+        ({ key, draw }) => now.get(key)?.draw(false) ?? draw(true),
+      )}`;
   }
   /** @param {string} group */
   const groupValue = (group) =>
@@ -2984,13 +2984,14 @@ export function createFloatingPanel({
           style=${live.has(error.id) ? nothing : "visibility: hidden"}
         >
           <p class="lf-fp-error-words" aria-hidden="true">
-            <b>${error.message}</b><span class="lf-fp-note">${clock(error.at)}</span>
+            <b>${error.message}</b
+            ><span class="lf-fp-note">${timeOfDay(error.at)}</span>
           </p>
           ${
             canCopy()
               ? guard([error.id], () => {
                   const copy = copyControl("lf-fp-error-copy", {
-                    label: `Copy with page details: ${error.message}, ${clock(error.at)}`,
+                    label: `Copy with page details: ${error.message}, ${timeOfDay(error.at)}`,
                     success: "Error copied",
                     error: "Error not copied",
                     role: "symbol",
@@ -3010,7 +3011,7 @@ export function createFloatingPanel({
             type="button"
             ${offeredAction("word", "lf-fp-dismiss")}
             ?disabled=${!live.has(error.id)}
-            aria-label=${`Dismiss: ${error.message}, ${clock(error.at)}`}
+            aria-label=${`Dismiss: ${error.message}, ${timeOfDay(error.at)}`}
             @click=${() => dismiss(error.id)}
           >
             Dismiss
@@ -3225,7 +3226,7 @@ export function createFloatingPanel({
   // which a second row of tabs would have had to hold.
   function draftsListing() {
     const words = query.trim().toLowerCase();
-    const rows = listedDrafts().map((draft) => {
+    const rows = draftsReading().map((draft) => {
       const inThread = draft.part === "reply" || draft.part === "rewrite";
       const thread = inThread ? threadByKey(draft.name) : null;
       const composed =

@@ -206,7 +206,8 @@ once. Test a reading made from declarations on a widget that declares them, pass
 `serve` as `layer_registry` and `layer_widgets`.
 
 A test over prose compares it with something the machine states: a shown command
-against the click tree, an `x-` key against the guide, a table against its registry.
+against the click tree, a declaration key against the guide, a table against its
+registry.
 Leave wording with no machine side to review.
 
 Current location and visible focus are separate (`focus.js` owns their contract):
@@ -340,11 +341,10 @@ allowance list.
   with `watch_shifts`. Playwright's clicks, keys, viewport resizes, and Back and
   Forward are input; a script's `click()`, a value set by script and server news are
   not. It ignores first
-  presentation, whose remaining defects `known_widget_findings.py` records. Chrome
-  hides a shift for half a second after a click, so a test of a news update's stability
-  delivers the news after that. An input also owns the first frame that reads its
-  rendering settled, which can paint after `rendered` returns, so a test that moves
-  the page itself after an input, to see the move reported, first waits for
+  presentation, whose remaining defects `known_widget_findings.py` records. An input
+  owns every move its rendering makes, up to the first frame that reads that rendering
+  settled, which can paint after `rendered` returns. So a test that delivers news after
+  an input, or moves the page itself, to see the move judged, first waits for
   `lfInputRenderingOpen()` to read false.
 - `words_watch.js` reports typed words leaving the screen without a key or press
   (`browser/AGENTS.md`, "Typed words survive"). A test that closes a box

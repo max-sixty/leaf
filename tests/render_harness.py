@@ -87,6 +87,7 @@ from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.findings import Finding, placed
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
@@ -294,7 +295,7 @@ INLINE_PAGE = leaf_page(
     """
 <h1 id="t">Inline</h1>
 <lf-ask id="opts-decision"><h2>How should sessions work?</h2>
-<lf-options id="opts" choose>
+<lf-options id="opts">
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
@@ -330,8 +331,8 @@ SETTLED_PAGE = leaf_page(
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
 <lf-ask id="transport-decision"><h2>How should sessions travel?</h2>
-<lf-options id="transport" choose settled>
-  <lf-option id="opt-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
+<lf-options id="transport" settled>
+  <lf-option id="opt-lax" selected><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
   <lf-option id="opt-strict"><strong>Strict cookie</strong> Tighter, but a session
   started from an emailed link arrives logged out.</lf-option>
@@ -342,21 +343,24 @@ SETTLED_PAGE = leaf_page(
 )
 
 
-# A decision the page reports rather than offers: no `choose`, so there is nothing to
-# press, and the mark the upgrade puts on the carried option is the page saying which
-# one the document holds. The paragraph above it is the control — a passage nobody has
-# ever doubted was quotable.
-CARRIED_PAGE = leaf_page(
-    "carried",
-    """
-<h1 id="h">Session transport</h1>
-<p id="lede">Where the decision stands, for the record.</p>
+# A decision the page reports rather than offers: quoted in a sample, so there is
+# nothing to press, and the mark the upgrade puts on the carried option is the page
+# saying which one the document holds. The paragraph above it is the control — a
+# passage nobody has ever doubted was quotable.
+CARRIED_DECISION = """<lf-sample id="carried-record" label="the decision on record">
 <lf-options id="carried">
-  <lf-option id="c-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
+  <lf-option id="c-lax" selected><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
   <lf-option id="c-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options>
+</lf-sample>"""
+CARRIED_PAGE = leaf_page(
+    "carried",
+    f"""
+<h1 id="h">Session transport</h1>
+<p id="lede">Where the decision stands, for the record.</p>
+{CARRIED_DECISION}
 """,
 )
 
@@ -411,7 +415,7 @@ SAMPLE_PAGE = leaf_page(
     """
 <h1 id="h">What a decision looks like</h1>
 <lf-sample id="spec" label="a decision">
-  <lf-options id="quoted-group" choose>
+  <lf-options id="quoted-group">
     <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
     <lf-option id="q-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
   </lf-options>
@@ -426,12 +430,12 @@ SAMPLE_PAGE = leaf_page(
       <lf-card id="q-card-tokens"><strong>Tokenize the palette</strong></lf-card>
     </lf-column>
   </lf-board>
-  <lf-options id="quoted-rows" choose>
+  <lf-options id="quoted-rows">
     <lf-option id="q-row-keep">Keep the nightly job</lf-option>
     <lf-option id="q-row-drop">Drop it and poll on demand</lf-option>
   </lf-options>
-  <lf-options id="quoted-settled" choose settled>
-    <lf-option id="q-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
+  <lf-options id="quoted-settled" settled>
+    <lf-option id="q-lax" selected><strong>Lax cookie</strong> Host-only.</lf-option>
     <lf-option id="q-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
     <lf-option id="q-signed" ><strong>Signed token</strong> No store.</lf-option>
   </lf-options>
@@ -442,18 +446,18 @@ SAMPLE_PAGE = leaf_page(
     </lf-suggestion></p>
 </lf-sample>
 <lf-ask id="live-group-decision"><h2>How should the schema migrate?</h2>
-<lf-options id="live-group" choose>
+<lf-options id="live-group">
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="l-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="live-rows-decision"><h2>What should happen to the nightly job?</h2>
-<lf-options id="live-rows" choose>
+<lf-options id="live-rows">
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="live-settled-decision"><h2>How should sessions travel?</h2>
-<lf-options id="live-settled" choose settled>
-  <lf-option id="l-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
+<lf-options id="live-settled" settled>
+  <lf-option id="l-lax" selected><strong>Lax cookie</strong> Host-only.</lf-option>
   <lf-option id="l-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
   <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
 </lf-options></lf-ask>
@@ -489,12 +493,12 @@ SAMPLE_TEXT = (
     "record, the framing it replaces:"
 )
 SAMPLE_MARKUP = """<lf-ask id="rp-live-decision"><h3>How should the schema migrate?</h3>
-<lf-options id="rp-live" choose>
+<lf-options id="rp-live">
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
 <lf-sample id="rp-spec" label="the April thread">
-  <lf-options id="rp-quoted" choose>
+  <lf-options id="rp-quoted">
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
     <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
   </lf-options>
@@ -511,7 +515,7 @@ REPLAYED_PAGE = leaf_page(
     f"""
 <h1 id="t">Rollout</h1>
 <lf-ask id="approach-decision"><h2>How should the schema migrate?</h2>
-<lf-options id="approach" choose>
+<lf-options id="approach">
   <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></lf-ask>
@@ -735,6 +739,14 @@ def page_registry(page):
     return render_gate_model.served(page, page.url, "/registry.json").json()
 
 
+def page_declarations(page):
+    """The element declarations of this page's registry, which is what the render gate
+    hands every reading that takes declarations (`scheme._render_page`). The registry
+    also describes HTML elements and selectors, such as `button`, which no reading asks
+    after as a widget."""
+    return element_declarations(page_registry(page))
+
+
 def post_event(page, url, **kwargs):
     """An event arriving from another tab running this page's current layer."""
     generation = page_registry(page)["$layer"]["generation"]
@@ -945,6 +957,24 @@ def long_press(page, point):
             pointerType: 'touch', clientX: x, clientY: y}))""",
         [point["x"], point["y"]],
     )
+
+
+# Design mode's legend, a box on each item the page names while the mode stands
+# (design.js): the mode as the page shows it.
+DESIGN_LEGEND = ".lf-legend-box"
+# The chrome's root, after `body` (chrome.js), which holds what the runtime states for
+# its own stylesheets, such as the annotation layer hidden (`o`, annotation-layer.js).
+CHROME_ROOT = "html > .lf-chrome"
+
+
+def expect_design_mode(page, on=True):
+    """Wait until Design mode stands, as its legend shows, or with `on` false until it
+    has ended."""
+    legend = page.locator(DESIGN_LEGEND)
+    if on:
+        expect(legend.first).to_be_attached()
+    else:
+        expect(legend).to_have_count(0)
 
 
 def cursor_at(page, x, y):

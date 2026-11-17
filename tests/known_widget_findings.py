@@ -22,16 +22,11 @@ KNOWN: dict[str, set[tuple[str, str]]] = {
     # Formatting replaces raw unified-diff header lines with file/hunk rows.
     # Matching that content-derived height before upgrade needs another renderer.
     "diff": {("lf-diff", "keeps-first-box")},
-    # The live view generates each control's label and native field from its
-    # declarations and arranges the preview beside the controls, so the playground
-    # resizes once on activation. Authoring that structure would repeat the
-    # declarations by hand (#4951).
+    # The live view sets the preview beside the aside and draws the presets'
+    # buttons and the bar of actions, so the playground resizes once on activation.
     "playground": {
         ("lf-playground", "keeps-first-box"),
-        ("lf-playground-choice", "keeps-first-box"),
-        ("lf-playground-control", "keeps-first-box"),
         ("lf-playground-preset", "keeps-first-box"),
-        ("lf-playground-preview", "keeps-first-box"),
     },
     # The authored event list becomes a chart whose labels are packed from measured
     # text. Duplicating that layout in CSS would restore a second renderer.

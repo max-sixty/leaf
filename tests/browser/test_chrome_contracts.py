@@ -21,9 +21,11 @@ from render_cases_layout import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
+    CHROME_ROOT,
     LONG_PAGE,
     PANEL,
     CutOff,
+    expect_design_mode,
     expect_panel_says,
     leaf_page,
     nudge,
@@ -280,6 +282,39 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
     assert max(opening, closing) < whole / 4, moves
 
 
+def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve):
+    """`o` hides the annotation layer (annotation-layer.js). A custom property it set on
+    `html` to hide the margin's change bars was inherited by every element and restyled
+    the whole page: 2 to 3 s of Firefox's main thread on a page of 1.5 million elements,
+    and 65 ms in Chromium. This counts, in the browser's own restyled elements, what
+    `o` restyles against such a property changed on `html`, so a property `o` sets
+    there again fails it. Firefox visiting the page for a rule read through a
+    descendant combinator from `html` restyles nothing, and no count here sees it."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(browser, serve(leaf_page("Notes", "<h1>Page</h1>" + paragraphs)))
+    root = page.locator("html")
+    chrome = page.locator(CHROME_ROOT)
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element.
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    hiding = restyled(lambda: page.keyboard.press("o"))
+    expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
+    showing = restyled(lambda: page.keyboard.press("o"))
+    expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", "")
+    moves = {"hiding": hiding, "showing": showing, "whole page": whole}
+    assert max(hiding, showing) < whole / 4, moves
+
+
 def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):
     """Holding ⌥, the target picker and Design mode arm the page, and over an item the
     hand and the aim's box say a press takes it; in Draw mode and Capture area the
@@ -329,9 +364,9 @@ def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):
     expect(aimed).to_have_id("section")
     moves["picker close"] = restyled(lambda: page.keyboard.press("Escape"))
     moves["Design mode in"] = restyled(lambda: page.keyboard.press("l"))
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     moves["Design mode out"] = restyled(lambda: page.keyboard.press("Escape"))
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     moves["Draw mode in"] = restyled(lambda: page.keyboard.press("w"))
     expect(words).to_have_css("cursor", "crosshair")
     moves["Draw mode out"] = restyled(lambda: page.keyboard.press("Escape"))
@@ -357,7 +392,7 @@ def questions_page(sections: int) -> str:
         + "".join(
             f'<section id="s{g}"><h2>Section {g}</h2>'
             f'<p id="p{g}">Some words about section {g}.</p>'
-            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose>'
+            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}">'
             f'<lf-option id="o{g}-1">One</lf-option>'
             f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-ask></section>'
             for g in range(1, sections + 1)
@@ -479,6 +514,60 @@ def test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks(browser, s
 
     short, long = restyled(8), restyled(48)
     assert long - short < 10, {"8 sections": short, "48 sections": long}
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes(
+    browser, serve
+):
+    """Focus entering the page's column marks `main` and its other ancestors, and Go-to
+    marks `body`. Neither may restyle the cells and links under them that the mark
+    changes nothing for. Two rules read a mark before such a subject, and each made
+    one of these gestures restyle every element of a kind on the page: the fade beside
+    a table's row names, which goes while focus is in the table, restyled every `th`
+    and `td` as focus entered or left `main` (reading.css, the sticky row names), and
+    the contents map's words, which show while the map is pointed at, focused or under
+    Go-to, restyled every link then and as Go-to armed (toc.css). On a page of 30
+    tables of 125 rows, that was 18,873 elements and about 50 ms in Chromium for each
+    focus. Counted in the browser's own restyled elements, a table of six times the
+    rows restyles no more."""
+
+    def restyled(rows):
+        names = "".join(
+            f'<tr><th scope="row"><code>name-{r}</code></th><td>{r} days</td>'
+            f'<td>Words about <a href="#rows">row {r}</a>.</td></tr>'
+            for r in range(rows)
+        )
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Table",
+                    '<h1>Table</h1><p><a id="first" href="#rows">A link</a>.</p>'
+                    '<table id="rows"><thead><tr><th>Name</th><th>Age</th>'
+                    f"<th>Notes</th></tr></thead><tbody>{names}</tbody></table>",
+                )
+            ),
+        )
+        body, main = page.locator("body"), page.locator("main")
+        entering = restyle_counts(
+            page, lambda: (page.locator("#first").focus(), rendered(page))
+        )
+        expect(main).to_have_attribute("data-lf-focus-within", "")
+        page.evaluate("() => document.activeElement.blur()")
+        expect(main).not_to_have_attribute("data-lf-focus-within", "")
+        # The blur's own restyles land before the Go-to count starts.
+        rendered(page)
+        arming = restyle_counts(
+            page, lambda: (page.keyboard.press("g"), rendered(page))
+        )
+        expect(body).to_have_attribute("data-lf-go-to-active", "")
+        page.close()
+        return {"entering": sum(entering), "Go-to": sum(arming)}
+
+    short, long = restyled(20), restyled(120)
+    for gesture in short:
+        assert long[gesture] - short[gesture] < 10, {"20 rows": short, "120 rows": long}
 
 
 @pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
@@ -767,7 +856,7 @@ PHONE_PAGE = leaf_page(
 PHONE_READING_PAGE = leaf_page(
     "phone reading",
     "<h1 id='t'>Phone</h1>"
-    + "<aside class='note'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    + "<aside style='font-size: 13px'><lf-draft id='note'><pre>A draft set in the sidenote's"
     " type.</pre></lf-draft></aside>"
     + "".join(
         f"<p id='p{n}'>Paragraph {n}. "

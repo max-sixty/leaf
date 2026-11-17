@@ -33,7 +33,7 @@ def test_preview_watches_source_without_losing_user_state(browser, watched_previ
     page = open_page(browser, url)
     with sending(page, "the watched user option pick"):
         page.locator("#opt-shim .lf-pick").click()
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     feedback = (directory / "events.jsonl").read_bytes()
     assert b'"kind": "action"' in feedback
     inode = (directory / "events.jsonl").stat().st_ino
@@ -45,7 +45,7 @@ def test_preview_watches_source_without_losing_user_state(browser, watched_previ
     expect(page.get_by_role("heading", name="A watched source revision")).to_be_visible(
         timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
 
     source.write_text("<p>invalid source</p>", encoding="utf-8")
@@ -67,7 +67,7 @@ def test_preview_watches_source_without_losing_user_state(browser, watched_previ
     expect(page.get_by_role("heading", name="Recovered watched source")).to_be_visible(
         timeout=HANDOVER_DEADLINE_MS
     )
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
 
@@ -83,7 +83,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
     open_tab = open_page(browser, url)
     with sending(open_tab, "the user option pick in force"):
         open_tab.locator("#opt-shim .lf-pick").click()
-    expect(open_tab.locator("#opt-shim")).to_have_attribute("chosen", "")
+    expect(open_tab.locator("#opt-shim")).to_have_attribute("selected", "")
     feedback = (directory / "events.jsonl").read_bytes()
     inode = (directory / "events.jsonl").stat().st_ino
     resources = ("leaf.js", "registry.json")
@@ -133,8 +133,8 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
             expect(status).not_to_be_visible(timeout=HANDOVER_DEADLINE_MS)
     for resource, (page, _, documents) in pages.items():
         assert len(documents) >= 2, resource
-        expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    expect(open_tab.locator("#opt-shim")).to_have_attribute("chosen", "")
+        expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
+    expect(open_tab.locator("#opt-shim")).to_have_attribute("selected", "")
     assert (directory / "events.jsonl").read_bytes().startswith(feedback)
     assert (directory / "events.jsonl").stat().st_ino == inode
 

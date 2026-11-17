@@ -108,7 +108,9 @@ widget in the group that asks is its own question with its own answer.
 <section id="material-q" role="group" aria-labelledby="material-h">
   <h2 id="material-h">Which material for the housing?</h2>
   <p>Aluminium costs three times as much and halves the weight.</p>
-  <table id="material-weights">…</table>
+  <table id="material-weights">
+    …
+  </table>
   <lf-options id="material">…</lf-options>
 </section>
 ```

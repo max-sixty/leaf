@@ -219,11 +219,15 @@ export function worksInside(node, container) {
 /** What else the user could aim at, at `node`, at any point on the page, marked words
  * or not: the nearest element around it, as the page renders it (`renderedParent`, so
  * through the slot that draws it), that takes the pointer itself, or null where nothing
- * does. One takes it where it is - a control, native or ARIA (`CONTROLS`), or an
- * element with a title the browser shows, as a link, a titled button or an option's
- * mark; - an element that declares its own preview (`lfPreview`), as a card that says
- * what it holds, or a gloss; - a registered widget that draws its content itself
- * (`content` `data` or `empty`), as code, a diff or a draft does, with all it draws. A
+ * does. One takes it where it is:
+ * - a control, native or ARIA (`CONTROLS`), or an element with a title the browser
+ *   shows, as a link, a titled button or an option's mark;
+ * - an element that declares its own preview (`lfPreview`), as a card that says what
+ *   it holds, or a gloss;
+ * - a registered widget that draws its content itself (`content` `data` or `empty`),
+ *   as code, a diff or a draft does, with all it draws.
+ *
+ * A
  * plain tab stop or scrolling box takes nothing, and neither does what a widget holds
  * of the author's markup, as a pane's words, an option's beside its mark, a
  * suggestion's old and new words or a playground's preview: the verbs a widget declares

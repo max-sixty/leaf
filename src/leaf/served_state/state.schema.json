@@ -46,7 +46,7 @@
           "type": "string"
         },
         "working_grace_ms": {
-          "description": "How long working may go unheard before it reads as quiet, measured on the `now` clock. `activity` is already folded; a package dating a worker's own reports asks `quietSince`, which reads this rather than a copy.",
+          "description": "How long working may go unheard before it reads as quiet, measured on the `now` clock. `activity` is already folded; a package dating a worker's own reports reads `readWork`'s `quiet`, which reads this rather than a copy.",
           "type": "integer"
         },
         "taken": {

@@ -122,8 +122,8 @@ took a median 1 s, and low over none, for 0.85 times xhigh's time (0.75–0.95).
 low removed the occasional line xhigh spent seconds thinking over.
 
 Any event that joins a thread's waiting turns while a line turn holds the thread,
-such as a quick correction or "and also" right after the first message, the user's
-rewrite of it, or a pick on a widget frozen in the thread, replaces that line turn:
+such as a quick correction or "and also" right after the first message or the
+user's rewrite of it, replaces that line turn:
 admission closes it and opens a new one whose pickup names every waiting turn of the
 thread, so the follower lists the new turn and the module asks a line fork about
 them all, and the first line fork's answer, about the turns as they stood, drops,
@@ -337,8 +337,8 @@ def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
     line turn holds, which this replaces; for such an event it opens a line turn
     and records its pickup of the thread's waiting turns. The page's reading this takes once serves both the decision and the
     pickup's (`delivery.record_pickup`), since admission is on the path of every
-    message the user sends. For a thread message to a Claude Code session, the
-    page's diagnostics note why (`fork_admission`): kept back, held by a running
+    message the user sends. For a thread message to a Claude Code session, or an
+    event that replaces a line turn, the page's diagnostics note why (`fork_admission`): kept back, held by a running
     agent turn (`held_by`), or neither, with whether the session's lane was up,
     which is what says why no fork took a message up."""
     from .delivery import record_pickup
@@ -353,8 +353,8 @@ def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
     thread = holding.found.names.get(event["id"])
     replaced = None if thread is None else _line_turn(holding.hold(thread))
     # A line fork answers the thread's waiting turns as they stood when its turn
-    # opened, so any event that joins them, whatever its kind (a further message, a
-    # rewrite, a pick on a widget frozen in the thread), replaces its turn.
+    # opened, so any event that joins them, whatever its kind (a further message or
+    # a rewrite), replaces its turn.
     joins = replaced is not None and any(
         said["id"] == event["id"] for said in holding.found.waiting.get(thread, ())
     )
@@ -387,7 +387,7 @@ def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
                 if replaced is None
                 else page_holding(page, holding.found.threads),
             )
-    if message:
+    if message or joins:
         _note(
             page.page_dir,
             {

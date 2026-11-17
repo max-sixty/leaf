@@ -54,6 +54,7 @@ from render_cases_widgets import (
     prefixed_visual_layer,
 )
 from render_harness import (
+    DESIGN_LEGEND,
     EDITOR_ROOTS,
     FOLLOWER_MARK,
     LONG_PAGE,
@@ -64,6 +65,7 @@ from render_harness import (
     SUBJECT_MARK,
     assert_follows_in_every_frame,
     expect_comment_notes,
+    expect_design_mode,
     field_press,
     gesture_writes,
     judge_watches,
@@ -1758,7 +1760,7 @@ def test_design_legend_tracks_a_height_only_page_reflow(browser, serve):
     target.evaluate("node => node.scrollIntoView({block: 'center'})")
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     legend = page.locator('.lf-legend-box[data-lf-for="p30"]')
     expect(legend).to_be_visible()
 
@@ -2166,7 +2168,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     option = page.locator("#opt-shim")
     before = page.evaluate(PAGE_MARKUP)
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
@@ -2175,7 +2177,7 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
         reference.locator('[role=option][data-lf-command="aim.comment"]')
     ).to_have_count(0)
     page.keyboard.press("Escape")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
     # The mode shows what is on the page rather than waiting for the pointer: a legend
     # box on every item, and on every item but a widget's parts its name — the group
@@ -2241,9 +2243,9 @@ def test_design_mode_comments_on_what_a_press_lands_on_and_nothing_else(browser,
     expect(panel).to_have_count(0)
     page.locator("body").focus()
     expect(page.locator("body")).to_be_focused()
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     expect(page.locator(".lf-inspect")).to_be_hidden()
     expect(page.locator(".lf-legend-box")).to_have_count(0)
 
@@ -2288,7 +2290,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
         ).to_be_hidden()
         page.keyboard.press("Escape")
         expect(hints).to_have_count(0)
-        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page)
         expect(
             page.locator('.lf-legend-box[data-lf-for="subject"] .lf-legend-tag')
         ).to_be_visible()
@@ -2310,7 +2312,7 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
         page.locator("#subject").click()
     expect(hints).to_have_count(0)
     if mode == "l":
-        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page)
     write(page.locator(".lf-fab-input"), "Keep this passage aligned.")
     with sending(page, "the selected element comment"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -2324,9 +2326,9 @@ def test_target_picker_selects_in_the_current_comment_mode(browser, serve, mode,
     if mode == "l":
         page.keyboard.press("Escape")
         expect(page.locator(PANEL_THREAD)).to_have_count(0)
-        expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page)
         page.keyboard.press("Escape")
-        expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page, on=False)
 
 
 # Each route once, with each role taking at least one of them.
@@ -2406,6 +2408,40 @@ def test_design_mode_owns_every_platform_control_from_the_shared_boundary(
     assert disclosure.evaluate("el => el.open"), (
         "Design mode swallowed the disclosure's keyboard activation"
     )
+
+
+def test_a_design_part_is_a_repeat_only_among_its_own_owner_s_parts(browser, serve):
+    """A part's name is its owner's own: a control inside an item the owner holds is
+    that item's part, so a twin there leaves the owner's control unrepeated, and its
+    name says no more than a lone control's would. Naming a part reads only what its
+    owner holds as its own (anchor-resolution.js, `namedParts`): a side tab list's tabs
+    stand beside every document its panels hold, which the press and the picker's
+    announcement each read in full (#4781)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Own parts",
+                '<section id="lone"><h2>Lone</h2><p>Words, then <button>Open</button>'
+                ' and more.</p><p id="held">A held item with <button>Open</button> of'
+                " its own.</p></section>"
+                '<section id="twins"><h2>Twins</h2><p>Words, then <button>Open</button>'
+                " and more.</p><p>Other words, then <button>Open</button> again.</p>"
+                "</section>",
+            )
+        ),
+    )
+    page.keyboard.press("l")
+    labels = page.evaluate("""async () => {
+      const {aimTargets, captured} = await window.__lfCheckApi();
+      return aimTargets({design: true})
+        .filter((t) => t.anchor.part === 'Open')
+        .map((t) => [t.anchor.section, captured(t).label]);
+    }""")
+    repeats = {section: [] for section, _ in labels}
+    for section, label in labels:
+        repeats[section].append("after …" in label or " before " in label)
+    assert repeats == {"lone": [False], "held": [False], "twins": [True, True]}, labels
 
 
 @pytest.mark.parametrize(
@@ -2754,9 +2790,9 @@ def _back_in_design_mode(page):
     expect(page.locator(".lf-composer")).to_be_hidden()
     expect(page.locator(".lf-target-picker-hint")).to_have_count(0)
     page.evaluate(RELEASE_FOCUS)
-    if page.locator("body[data-lf-design-mode]").count() == 0:
+    if page.locator(DESIGN_LEGEND).count() == 0:
         page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
 
 def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carry(
@@ -2932,7 +2968,7 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
     with subtests.test(route="out of the mode"):
         _back_in_design_mode(page)
         page.keyboard.press("Escape")
-        expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+        expect_design_mode(page, on=False)
         selector, position, _ = CONTROL_PRESSES["a label's words"]
         page.locator(selector).click(position=position)
         expect(page.locator("#label-input input").first).to_be_checked()
@@ -2970,7 +3006,7 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
 
     seeded = comments()
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     # The control: the same press on the page is a design comment.
     page.locator("#t").click()
     composer = page.locator(".lf-composer")
@@ -2992,10 +3028,10 @@ def test_design_mode_leaves_the_chrome_working(browser, serve):
 
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     assert comments() == seeded, "a press on the chrome posted a comment"
     exit_mode.click()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode")
+    expect_design_mode(page, on=False)
     open_threads(page)
     expect(panel).to_be_visible()
 
@@ -3047,7 +3083,7 @@ def test_design_mode_leaves_leaves_surfaces_working_inside_a_widget(browser, ser
     reply = thread.locator("leaf-text")
     expect(reply).to_be_visible()
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
     # The control: a press on the diff's own file control is the mode's.
     page.locator("#patch .lf-diff-file-comment").click()
@@ -3134,7 +3170,7 @@ def test_design_mode_leaves_prose_to_the_selection(browser, serve):
     )
     page.keyboard.press("Escape")  # the composer, draft kept; the mode still stands
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     heading.click(position={"x": 4, "y": 4})
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator("#lf-composer-quote")).to_have_text("design · heading · t")
@@ -4380,7 +4416,7 @@ DESIGN_PANE_PAGE = leaf_page(
 def _design_mode(page):
     page.evaluate(RELEASE_FOCUS)
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
 
 # A long page whose paragraphs stand under a header stuck at the window's head, which cuts
@@ -5429,13 +5465,13 @@ def test_design_mode_survives_the_reload_a_new_version_brings(browser, serve):
     this tab's working state, kept the way the panel's open state is."""
     page = open_page(browser, serve(REPLAYED_PAGE))
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     page.reload()
     wait_until_ready(page)
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     expect(page.locator('.lf-legend-box[data-lf-for="approach"]')).to_be_visible()
     page.keyboard.press("Escape")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     page.reload()
     wait_until_ready(page)
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)

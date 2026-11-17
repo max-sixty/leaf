@@ -375,7 +375,7 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
             root["id"],
             "--detach",
             "--text",
-            'This must not partly land.\n\n<lf-diagram id="flow"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            'This must not partly land.\n\n<lf-diagram id="flow">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
     assert refused.exit_code != 0
@@ -470,7 +470,7 @@ def test_a_moving_reply_validates_markup_against_the_prospective_revision(page_d
             "answer",
             "--text",
             "Moved this to the revised answer.\n\n"
-            '<lf-diagram id="answer"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            '<lf-diagram id="answer">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
 
@@ -540,7 +540,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "Ship dark",
             "--text",
             "Pick:\n\n"
-            '<section id="q1-decision" role="group" aria-labelledby="q1-decision-h"><h3 id="q1-decision-h">Pick one</h3><lf-options id="q1">'
+            '<section id="q1-decision" role="group" aria-labelledby="q1-decision-h">\n<h3 id="q1-decision-h">Pick one</h3><lf-options id="q1">'
             '<lf-option id="q1-a"><strong>A</strong>'
             '<span id="thread-label">Label</span></lf-option></lf-options></section>',
         ).exit_code
@@ -557,7 +557,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            'See:\n\n<lf-diagram id="q1"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
+            'See:\n\n<lf-diagram id="q1">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],
     )
     assert clash.exit_code != 0 and "q1" in clash.output
@@ -570,7 +570,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            'See:\n\n<lf-diagram id="thread-label"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+            'See:\n\n<lf-diagram id="thread-label">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],
     )
     assert plain_clash.exit_code != 0 and "thread-label" in plain_clash.output

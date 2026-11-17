@@ -1020,7 +1020,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             "author": "agent",
             "revision": 1,
             "text": "And one for you in here.\n\n"
-            '<section id="reply-decision" role="group" aria-labelledby="reply-decision-h"><h3 id="reply-decision-h">Which baffle?</h3>'
+            '<section id="reply-decision" role="group" aria-labelledby="reply-decision-h">\n<h3 id="reply-decision-h">Which baffle?</h3>'
             '<lf-options id="reply-ask">'
             '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
             '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
@@ -1387,7 +1387,7 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
             "parent": about_obligation,
             "responds": about_obligation,
             "text": "One question first.\n\n"
-            '<section id="follow-ask" role="group" aria-labelledby="follow-ask-h"><h3 id="follow-ask-h">Measure it first?</h3>'
+            '<section id="follow-ask" role="group" aria-labelledby="follow-ask-h">\n<h3 id="follow-ask-h">Measure it first?</h3>'
             '<lf-options id="follow">'
             '<lf-option id="follow-yes">Measure first</lf-option>'
             '<lf-option id="follow-no">Decide now</lf-option>'

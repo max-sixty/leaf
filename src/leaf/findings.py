@@ -872,6 +872,12 @@ _TEXT = {
         f"{at[:-1]}/> at line {v['line']} is self-closing: HTML ignores the slash and"
         f" the element would swallow what follows — write {at[:-1]} …></{at[1:-1]}>"
     ),
+    "split-pre": lambda at, v: (
+        f"{at} holds a <{v['block']}> at line {v['line']}: a blank line inside a block"
+        " of HTML ends the block, and Markdown read the lines after it as Markdown."
+        " Start the <pre> on its own line after a blank line, or write its text in a"
+        " Markdown fence"
+    ),
     "noscript": lambda at, v: (
         f"{at} at line {v['line']}: the browser renders none of its content; write it"
         " plainly or leave it out"
@@ -1100,10 +1106,6 @@ _TEXT = {
     "message-stylesheet": lambda at, v: (
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
         " into; the page serves the one theme its layer composes"
-    ),
-    "widget-in-paragraph": lambda at, v: (
-        f"{at} follows words on its line, so the message's Markdown reads the line as"
-        " a paragraph around it; start it on a line of its own"
     ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"

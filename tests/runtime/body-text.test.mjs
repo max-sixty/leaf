@@ -22,15 +22,17 @@ test("a data body's text drops its <pre>'s layout and the browser's whitespace a
 });
 
 test("an agent's message holding HTML places each tag where Python checked it", async () => {
-  const { loadMarkdown, renderAuthoredMarkdown } = await import("/runtime/markdown.js");
+  const { loadMarkdown, renderAuthoredMarkdown, renderedWords } =
+    await import("/runtime/markdown.js");
   assert.equal(await loadMarkdown(), true);
   const cases = JSON.parse(
     readFileSync(new URL("../message_html_cases.json", import.meta.url)),
   );
   for (const { source, elements, words } of cases) {
+    const markup = renderAuthoredMarkdown(source);
     const body = document.createElement("template");
-    body.innerHTML = renderAuthoredMarkdown(source);
-    assert.equal(body.content.textContent.replace(/\s+/g, " ").trim(), words, source);
+    body.innerHTML = markup;
+    assert.equal(renderedWords(markup).replace(/\s+/g, " ").trim(), words, source);
     assert.deepEqual(
       [...body.content.querySelectorAll("*")].map(
         (element) =>

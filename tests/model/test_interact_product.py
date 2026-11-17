@@ -817,7 +817,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--text",
             (
                 "Pick:\n\n"
-                '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h"><h2 id="pick-decision-h">Pick?</h2>'
+                '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h">\n<h2 id="pick-decision-h">Pick?</h2>'
                 '<lf-options id="lf-pick">'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
                 "</lf-options></section>"
@@ -1691,7 +1691,7 @@ def test_html_the_user_types_stays_words(server, page_dir):
             {
                 "kind": "comment",
                 "revision": 1,
-                "text": 'hi\n\n<lf-diagram id="m"><pre>graph LR\n  A --> B</pre></lf-diagram>',
+                "text": 'hi\n\n<lf-diagram id="m">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
             }
         ).encode(),
     )

@@ -695,7 +695,7 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
                 "create",
                 str(d),
                 "--text",
-                'See this.\n\n<lf-chart id="t-bad"><pre>\n{ marks: [ }\n</pre></lf-chart>',
+                'See this.\n\n<lf-chart id="t-bad">\n<pre>\n{ marks: [ }\n</pre></lf-chart>',
             ],
             capture_output=True,
             text=True,

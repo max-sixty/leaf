@@ -485,13 +485,14 @@ REPLY_HOST_PAGE = leaf_page(
 )
 
 # Claude answering with a question to put and, beside it, the framing that question
-# replaced — quoted, so the reply asks one thing rather than two. The words ride
-# `text` and the widgets ride `markup`, as `leaf thread reply` writes them.
+# replaced — quoted, so the reply asks one thing rather than two. The words come
+# first and the widgets follow as one block of HTML.
 SAMPLE_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SAMPLE_MARKUP = """<section id="rp-live-decision" role="group" aria-labelledby="rp-live-decision-h"><h3 id="rp-live-decision-h">How should the schema migrate?</h3>
+SAMPLE_MARKUP = """<section id="rp-live-decision" role="group" aria-labelledby="rp-live-decision-h">
+<h3 id="rp-live-decision-h">How should the schema migrate?</h3>
 <lf-options id="rp-live">
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>

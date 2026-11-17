@@ -1931,7 +1931,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         serve.page_dir,
         {"responds": root},
         "The **room** photo.\n\n"
-        '<section id="crop" role="group" aria-labelledby="crop-h"><h3 id="crop-h">Should I reshoot it wider?</h3>'
+        '<section id="crop" role="group" aria-labelledby="crop-h">\n<h3 id="crop-h">Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick"><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></section>',
     )
@@ -4871,7 +4871,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<section id="week" role="group" aria-labelledby="week-h"><h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
+        '<section id="week" role="group" aria-labelledby="week-h">\n<h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></section>',
     )
@@ -4916,7 +4916,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<section id="week" role="group" aria-labelledby="week-h"><h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
+        '<section id="week" role="group" aria-labelledby="week-h">\n<h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></section>',
     )
@@ -4998,7 +4998,7 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Choose the first job.\n\n"
-        '<section id="first-job-decision" role="group" aria-labelledby="first-job-decision-h"><h3 id="first-job-decision-h">Which job first?</h3>'
+        '<section id="first-job-decision" role="group" aria-labelledby="first-job-decision-h">\n<h3 id="first-job-decision-h">Which job first?</h3>'
         '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'

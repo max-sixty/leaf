@@ -1282,7 +1282,7 @@ THREAD_OBLIGATIONS = [
         "author": "agent",
         "revision": 1,
         "text": "Which store?\n\n"
-        + '<section id="tq-one-decision" role="group" aria-labelledby="tq-one-decision-h"><h3 id="tq-one-decision-h">Which store?</h3>'
+        + '<section id="tq-one-decision" role="group" aria-labelledby="tq-one-decision-h">\n<h3 id="tq-one-decision-h">Which store?</h3>'
         '<lf-options id="tq-one">'
         '<lf-option id="tq-redis">Redis</lf-option>'
         '<lf-option id="tq-cookie">Signed cookie</lf-option>'
@@ -1294,7 +1294,7 @@ THREAD_OBLIGATIONS = [
         "author": "agent",
         "revision": 1,
         "text": "Pick any that apply.\n\n"
-        + '<section id="tq-set-decision" role="group" aria-labelledby="tq-set-decision-h"><h3 id="tq-set-decision-h">Which extras apply?</h3>'
+        + '<section id="tq-set-decision" role="group" aria-labelledby="tq-set-decision-h">\n<h3 id="tq-set-decision-h">Which extras apply?</h3>'
         '<lf-options id="tq-set" multiple>'
         '<lf-option id="tq-logs">Logs</lf-option>'
         '<lf-option id="tq-metrics">Metrics</lf-option>'
@@ -1508,7 +1508,7 @@ def package_workspace(serve, *, before_reader="", primary=True):
             "author": "agent",
             "revision": 1,
             "text": "Which channel?\n\n"
-            + '<section id="channel-ask" role="group" aria-labelledby="channel-ask-h"><h3 id="channel-ask-h">Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></section>',
+            + '<section id="channel-ask" role="group" aria-labelledby="channel-ask-h">\n<h3 id="channel-ask-h">Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></section>',
         },
         {
             "id": "opening",

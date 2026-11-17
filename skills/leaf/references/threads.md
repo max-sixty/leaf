@@ -53,10 +53,14 @@ message.
 
 A message is Markdown, and HTML in it draws where you write it, as on GitHub: a
 formula inside a sentence, a native table, a bounded log, or a choice ("Ask for a
-pick" below). Native HTML needs no widget wrapper. Start a block of HTML on a line of
-its own. A widget's block runs to the line that closes it, and any other block, such
-as a `<table>` or `<details>`, to the next blank line, after which Markdown resumes.
-Write a `<` meant as text in backticks or as `&lt;`. Ids must be new, used in no
+pick" below). Native HTML needs no widget wrapper. Leaf reads it by CommonMark's
+rules, as GitHub does. Start a block of HTML after a blank line, with its opening tag
+alone on its line. The next blank line ends the block and Markdown resumes, so a blank
+line inside a widget or `<details>` splits it. Text whose blank lines matter, such as
+code, goes in a Markdown fence or in a `<pre>` opening its own line after a blank
+line; inside a widget, leave a blank line before and after it. HTML among words
+belongs to their paragraph, and Markdown still reads the words inside it. Write a `<`
+meant as text in backticks or as `&lt;`. Ids must be new, used in no
 version of the page and no earlier message. Leaf checks the HTML as it checks a page,
 and refuses document settings or a stylesheet for the whole page. An `lf-sample`
 template gives the user a live practice page in the thread (`live-samples.md`).
@@ -65,7 +69,8 @@ template gives the user a live practice page in the thread (`live-samples.md`).
 leaf thread reply <answer.ref> --done <<'EOF'
 The deploy passed.
 
-<details><summary>Deploy log</summary>
+<details>
+<summary>Deploy log</summary>
 <pre>Ready
 Done</pre>
 </details>
@@ -97,7 +102,8 @@ in a `<details>`.
 
 Use `--text` for a one-liner, and `--file`, or a heredoc on stdin, for anything
 longer. A `math` fence holds a display formula, and `<code class="language-math">` a
-formula inside a sentence (`page-authoring.md`, "Markup").
+formula inside a sentence, where Markdown still reads the LaTeX: write `\\{` for `\{`
+and `\*` for `*` (`page-authoring.md`, "Markup").
 
 To send an image, run `leaf page media <page> <file>`
 and put the `path` it prints in your text as a Markdown image.

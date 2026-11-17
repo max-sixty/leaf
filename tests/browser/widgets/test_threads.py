@@ -174,7 +174,7 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
             "revision": 1,
             "text": (
                 "Depends what you want to keep:\n\n"
-                '<section id="ps-decision-region" role="group" aria-labelledby="ps-decision-region-h"><h3 id="ps-decision-region-h">Which store should I write up?</h3>'
+                '<section id="ps-decision-region" role="group" aria-labelledby="ps-decision-region-h">\n<h3 id="ps-decision-region-h">Which store should I write up?</h3>'
                 '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
@@ -386,7 +386,7 @@ def thread_on_a_sent_widget(serve):
             "revision": 1,
             "text": (
                 "Depends what you want to keep:\n\n"
-                '<section id="ps-decision-region" role="group" aria-labelledby="ps-decision-region-h"><h3 id="ps-decision-region-h">Which store should I write up?</h3>'
+                '<section id="ps-decision-region" role="group" aria-labelledby="ps-decision-region-h">\n<h3 id="ps-decision-region-h">Which store should I write up?</h3>'
                 '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'

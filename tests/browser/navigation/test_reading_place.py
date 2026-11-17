@@ -1497,7 +1497,7 @@ def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests)
             "parent": roots[4],
             "revision": 1,
             "text": "Choose the follow-up.\n\n"
-            '<section id="reply-ask" role="group" aria-labelledby="reply-ask-h"><h3 id="reply-ask-h">Which follow-up should be ready?</h3>'
+            '<section id="reply-ask" role="group" aria-labelledby="reply-ask-h">\n<h3 id="reply-ask-h">Which follow-up should be ready?</h3>'
             '<lf-options id="reply-options"><lf-option id="reply-yes">Ready</lf-option>'
             '<lf-option id="reply-no">Wait</lf-option></lf-options></section>',
         },

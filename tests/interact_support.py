@@ -609,7 +609,7 @@ PAGE = f"""<!doctype html>
 </html>
 """
 # PAGE's Plan section is a named group, so a widget a test writes there asks the Plan
-# question (`obligations.framed_widgets`); a test opening the section matches this.
+# question (`obligations.widget_groups`); a test opening the section matches this.
 PLAN_OPENING = '<section id="plan" role="group" aria-label="Plan">'
 # PAGE places no widget whose module only a browser can judge, so `page check` on it
 # and on the versions built from it never starts one (`needs_browser`). A test about a

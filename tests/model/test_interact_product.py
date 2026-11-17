@@ -265,7 +265,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     """A widget that asks on a page stands in a group the author declares and names:
     the group is where going to the obligation starts and its name the obligation's
     prompt, read from the markup with no heading inferred. `page check` refuses a
-    widget no named group holds, and a group without an id; a message's widget, a
+    widget no group holds, and a group without a name or an id; a message's widget, a
     mention in a sample, a widget that asks nothing and one set among words need
     none."""
     registry = registry_storage.load_registry(page_dir)
@@ -316,29 +316,46 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     assert prompts(nested)["g-one"]["target"] == "part"
 
     # A section opened by a heading is no question until its author says so: Leaf
-    # reads no heading to find one. Nor is an unnamed group, or a name pointing at
-    # nothing.
-    for unframed in (
-        first,
-        f'<section id="d"><h2>Choose</h2>{first}</section>',
-        f'<section id="d" role="group"><h2>Choose</h2>{first}</section>',
-        f'<section id="d" role="group" aria-labelledby="gone">{first}</section>',
-        f'<fieldset id="d">{first}</fieldset>',
-    ):
-        assert [code for code, _ in refused(unframed)] == ["unframed-question"], (
-            unframed
-        )
+    # reads no heading to find one.
+    for ungrouped in (first, f'<section id="d"><h2>Choose</h2>{first}</section>'):
+        assert refused(ungrouped) == [
+            ("ungrouped-question", "<lf-options id=g-one>")
+        ], ungrouped
     assert prompts(first)["g-one"] == {"text": "", "target": "g-one"}
-    # An unnamed group is named in the refusal, so the author names that group.
-    (finding,) = question_errors(
-        SourceDocument(f'<main><fieldset id="d">{first}</fieldset></main>'), registry
-    )
-    assert finding.values["group"] == "<fieldset id=d>"
-    # A named group with no id is no place to stand.
-    assert refused(
+
+    # A group holding a question needs a name, which a name pointing at nothing
+    # isn't, and an id, its place to stand. One finding on the group says all it
+    # lacks, however many of its widgets ask.
+    def lacking(body):
+        document = SourceDocument(f"<main>{body}</main>")
+        return [
+            (f.code, f.at, f.values["lacks"])
+            for f in question_errors(document, registry)
+        ]
+
+    assert lacking(
+        f'<section id="d" role="group"><h2>Choose</h2>{first}</section>'
+    ) == [("question-group", "<section id=d>", ["name"])]
+    assert lacking(
+        f'<section id="d" role="group" aria-labelledby="gone">{first}</section>'
+    ) == [("question-group", "<section id=d>", ["name"])]
+    assert lacking(
         f'<section role="group" aria-labelledby="d-h"><h2 id="d-h">Choose</h2>{first}'
         "</section>"
-    ) == [("question-group-id", "<section>")]
+    ) == [("question-group", "<section>", ["id"])]
+    (both,) = question_errors(
+        SourceDocument(f'<main><section role="group">{first}{second}</section></main>'),
+        registry,
+    )
+    assert both.values["lacks"] == ["id", "name"]
+    assert both.values["widgets"] == ["<lf-options id=g-one>", "<lf-options id=g-two>"]
+    assert "aria-labelledby" in str(both)
+    # A fieldset is named by its legend, so that is what its finding asks for.
+    (fieldset,) = question_errors(
+        SourceDocument(f'<main><fieldset id="d">{first}</fieldset></main>'), registry
+    )
+    assert fieldset.values["lacks"] == ["name"]
+    assert "<legend>" in str(fieldset) and "aria-labelledby" not in str(fieldset)
 
     # A settled group, which asks nothing, a sample's widgets, which ask nothing beyond
     # the sample, and a suggestion, which its sentence names, need no group.

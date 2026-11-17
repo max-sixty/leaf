@@ -637,21 +637,21 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
       border-radius: var(--lf-r);
     }
   }
-  /* `across` sets a group's titled options in one row where each gets at least 14rem,
-   * and stacks them all where they don't, so no card is left alone on a second row;
-   * seven or more always stack. It takes the holder's width rather than the reading
-   * column's. Bare-label rows stay a list.
+  /* `across` sets an lf-options' titled options in one row where each gets at least
+   * 14rem, and stacks them all where they don't, so no card is left alone on a second
+   * row; seven or more always stack. It takes the holder's width rather than the
+   * reading column's. Bare-label rows stay a list.
    *
    * The author decides it (the user's choice), because whether the cards still read at
    * a column's share of the row depends on what they hold, which only the author sees.
    * Rejected: Leaf deciding it from content, with rules such as a 16rem options track
-   * beside an lf-ask's figure; cards laid across under any figure before the options;
-   * stacking them where they don't all fit; and options holding pictures reading down,
-   * since a card's share of the row can shrink a capture to under half its width. Each
-   * such rule suits the pages it was written for and fails others.
+   * beside a figure in the question's group; cards laid across under any figure before
+   * the options; stacking them where they don't all fit; and options holding pictures
+   * reading down, since a card's share of the row can shrink a capture to under half
+   * its width. Each such rule suits the pages it was written for and fails others.
    *
-   * The row's width is the author's too: cards take the group's width, which the
-   * group's `data-width` widens (the `lf-options` instructions say which a row needs).
+   * The row's width is the author's too: cards take the lf-options' width, which its
+   * `data-width` widens (the `lf-options` instructions say which a row needs).
    * Rejected: widening a row of three to 18rem a card here. A question's box grows
    * round a block marked `data-lf-space`, which
    * delivery paints from `data-width`, so a row this sheet widened stood past the box

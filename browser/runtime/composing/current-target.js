@@ -10,11 +10,12 @@
    to the innermost addressable element, which in an obligation's answer widget is the
    part the user can name, as an option a focused link sits in.
 
-   A question's frame, the context around its answer widgets, asks nothing itself and
-   holds what the question is about, so focus there names the frame: a press on a
-   control in it, such as a shot's slider, is the user reading the question rather than
-   choosing the shot. That holds answered or not and however many widgets the frame
-   holds, since it is a fact about the markup, not about which obligation is open. */
+   A question's group, the context the author declares round its answer widgets, asks
+   nothing itself and holds what the question is about, so focus there names the group:
+   a press on a control in it, such as a shot's slider, is the user reading the
+   question rather than choosing the shot. That holds answered or not and however many
+   widgets the group holds, since it is a fact about the markup, not about which
+   obligation is open. */
 import { focused } from "../focus.js";
 import { inChrome } from "../passages.js";
 import { aimTargetAt } from "../anchor-resolution.js";
@@ -28,22 +29,22 @@ import { OBLIGATION_CONTROL } from "../obligations/view-elements.js";
 // The innermost question group holding `node` (`obligationPlace`'s context), or null
 // where none does or `node` is in one of that group's answer widgets.
 /** @param {Element} node */
-function frameHolding(node) {
-  const framed = readObligations()
+function groupHolding(node) {
+  const grouped = readObligations()
     .all.map((item) => obligationPlace(item))
     .filter(
       ({ source, context }) =>
         source && context && context !== source && under(node, context),
     );
-  const frame = framed.reduce(
+  const group = grouped.reduce(
     /** @param {Element | null} inner */
     (inner, { context }) => (inner && under(inner, context) ? inner : context),
     null,
   );
-  const answering = framed.some(
-    ({ source, context }) => context === frame && under(node, source),
+  const answering = grouped.some(
+    ({ source, context }) => context === group && under(node, source),
   );
-  return answering ? null : frame;
+  return answering ? null : group;
 }
 
 /** @param {{currentLocationIn: () => Element | null}} options */
@@ -60,7 +61,7 @@ export function createCurrentTarget({ currentLocationIn }) {
     const aim = aimTargetAt(held);
     if (!aim || aim.anchor.datum || aim.anchor.visual || aim.element === held)
       return aim;
-    const frame = frameHolding(held);
-    return frame ? aimTargetAt(frame) : aim;
+    const group = groupHolding(held);
+    return group ? aimTargetAt(group) : aim;
   };
 }

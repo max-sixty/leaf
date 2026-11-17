@@ -947,6 +947,84 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     expect(page.locator("#question-3")).to_be_focused()
 
 
+def test_the_obligation_walk_reaches_a_question_in_view_whatever_its_words(
+    browser, serve
+):
+    """With nothing focused the walk starts from what the window shows, and a question
+    on screen ahead of the first paragraph there is where the user is, though its
+    options make no paragraph: `m` at the top of a page opening with options alone
+    reaches them, and so does `m` with a question's options at the window's top and its
+    heading scrolled away above. A question in view in the column beside the one the
+    reader's pointer is over is not where they are, as a block there is not."""
+    asks = "".join(
+        f"""
+<lf-group id="ask-{index}" label="Question {index}"><h2 id="ask-{index}-h">Question {index}: which route should we take?</h2>
+<p>The premise of question {index}, long enough to read as a line of the page.</p>
+<lf-options id="routes-{index}">
+  <lf-option id="routes-{index}-left">Take the left route through the valley</lf-option>
+  <lf-option id="routes-{index}-right">Take the right route over the ridge</lf-option>
+  <lf-option id="routes-{index}-wait">Wait for better weather before choosing</lf-option>
+</lf-options></lf-group>
+<div style="height: 200px"></div>"""
+        for index in range(1, 4)
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a question of options alone",
+                f"""<lf-group id="ask-0" label="Question 0"><lf-options id="routes-0">
+  <lf-option id="routes-0-left">Take the left route</lf-option>
+  <lf-option id="routes-0-right">Take the right route</lf-option>
+</lf-options></lf-group>{asks}
+<div id="columns" style="display: grid; grid-template-columns: 1fr 1fr; gap: 2rem">
+<div><lf-group id="beside-ask" label="Beside"><lf-options id="beside-routes">
+  <lf-option id="beside-left">Go left beside</lf-option>
+  <lf-option id="beside-right">Go right beside</lf-option>
+</lf-options></lf-group></div>
+<div><p id="read">The words the reader is reading run on in this column, long enough to wrap.</p>
+<lf-group id="read-ask" label="Read"><h2 id="read-ask-h">The question in the column read</h2>
+<lf-options id="read-routes">
+  <lf-option id="read-left">Go left here</lf-option>
+  <lf-option id="read-right">Go right here</lf-option>
+</lf-options></lf-group></div>
+</div><div style="height: 1200px"></div>""",
+            )
+        ),
+    )
+    page.emulate_media(reduced_motion="reduce")
+    page.keyboard.press("m")
+    expect(page.locator("#ask-0")).to_be_focused()
+    page.keyboard.press("Escape")
+
+    options = page.locator("#routes-2")
+    page.mouse.move(220, 450)
+    page.mouse.wheel(0, options.bounding_box()["y"] - 40)
+    page.wait_for_function(
+        "options => Math.abs(options.getBoundingClientRect().top - 40) < 2",
+        arg=options.element_handle(),
+    )
+    scroll_settled(page)
+    expect(page.locator("#ask-2-h")).not_to_be_in_viewport()
+    expect(page.locator("#ask-3-h")).to_be_in_viewport()
+    page.keyboard.press("m")
+    expect(page.locator("#ask-2")).to_be_focused()
+    page.keyboard.press("Escape")
+
+    columns = page.locator("#columns")
+    page.mouse.wheel(0, columns.bounding_box()["y"] - 80)
+    page.wait_for_function(
+        "columns => Math.abs(columns.getBoundingClientRect().top - 80) < 2",
+        arg=columns.element_handle(),
+    )
+    scroll_settled(page)
+    expect(page.locator("#beside-ask")).to_be_in_viewport()
+    read = page.locator("#read").bounding_box()
+    page.mouse.move(read["x"] + read["width"] / 2, read["y"] + 4)
+    page.keyboard.press("m")
+    expect(page.locator("#read-ask")).to_be_focused()
+
+
 def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
     browser, serve
 ):

@@ -92,7 +92,7 @@ import { closestAcross, inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
-import { obligationWord } from "./obligations/answer.js";
+import { obligationEnding, obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
 import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
@@ -582,6 +582,35 @@ export function createQueueWalk({
   // An On Me row arrives where the walk would, whichever list its obligation is on.
   /** @param {QueueItem} item */
   const arriveAtItem = (item) => arriveAt(stopOf(item));
+
+  // A press naming one obligation outright, as a Page Map row or
+  // `obligationActions.open` does, arrives where the walk would and says where the
+  // obligation stands in On Me as `m` landing there would, so every route counts the one
+  // list. One On Me doesn't hold, answered or left with the agent, has no position
+  // there: its word says what it is, and a finished one how it ended.
+  /** @param {Obligation} record */
+  function goToObligation(record) {
+    /** @type {Stop} */
+    const stop = {
+      kind: "obligation",
+      id: record.id,
+      thread: record.thread,
+      obligation: record,
+    };
+    const ready = arriveAt(stop).then((arrived) => {
+      if (!arrived) return false;
+      const word = obligationWord(record);
+      announce(
+        beginWalk("queue", null, () => position(null)) ??
+          (record.status === "open"
+            ? word
+            : [`${word} · `, obligationEnding(record)].flat()),
+      );
+      return true;
+    });
+    void ready.catch(() => {});
+    return ready;
+  }
   // Whether the walk takes the user somewhere for an item that its card does not already
   // offer: its place on the page, or a widget in a thread the page draws no passage for,
   // which the panel opens with the user on the widget. A question can also arrive at
@@ -622,13 +651,14 @@ export function createQueueWalk({
         place: obligationPlace(kept).source,
         kind: "current-location",
       });
-    // What the user reads in the region, where they are without being on any of its
-    // obligations, so the one holding it or the next waiting one is the next.
+    // What the user sees of the region, where they are without being on any of its
+    // obligations, so one on screen ahead of what they read there, else the one
+    // holding it or the next waiting one, is the next.
     const reading = readingBlock(readingRegionFor(within) ?? null, within);
     return walk(
       toward,
       within,
-      reading ? { node: reading, place: reading, kind: "at" } : here,
+      reading ? { node: reading, place: reading, kind: "view" } : here,
     );
   }
 
@@ -652,5 +682,5 @@ export function createQueueWalk({
       ),
   });
 
-  return { arriveAtItem, arrivesAt, onMe, nextWithin };
+  return { arriveAtItem, arrivesAt, goToObligation, onMe, nextWithin };
 }

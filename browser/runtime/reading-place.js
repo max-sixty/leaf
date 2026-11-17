@@ -824,6 +824,22 @@ const shownAtLine = () => {
 };
 export const pageReadingBlock = () => pageReading({ bodies: false });
 
+// Whether the reader sees `node` where they read `block` (`readingBlock`): in the same
+// reading region, on screen where the glides under way leave it, outside a stuck box, and
+// across their column where their pointer or focus names one, as `readingBlock` asks of
+// each block. A walk asks it of its stops, which need hold no words
+// (current-target.js, `stepFrom`).
+/** @param {Element} node @param {Element} block */
+export function seenBeside(node, block) {
+  const region = readingRegionFor(block) ?? null;
+  if ((readingRegionFor(node) ?? null) !== region || !seenAhead(node)) return false;
+  if (stuckBox(node, region?.body ?? null)) return false;
+  const bounds = readingBounds(region);
+  const body = region?.body ?? pageDocument();
+  const column = bounds && body ? readerColumn(bounds, body) : null;
+  return column === null || spans(node, node.getBoundingClientRect(), column);
+}
+
 // The sections whose words or pictures the user sees, by id in page order: the
 // addressable element around each text block and each drawing on screen, on the page
 // and in every reading region it shows. A comment on the page as a whole records them

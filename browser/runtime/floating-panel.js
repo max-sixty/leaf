@@ -2807,10 +2807,16 @@ export function createFloatingPanel({
     const now = new Map(offered.map((row) => [row.key, row]));
     // Only the menu standing holds its seats; a menu leaving draws what it showed.
     const seats = showing({ view: "menu" }) ? (opening.menuSeats ??= offered) : offered;
+    // Keyed by row, so a row the menu gains or loses moves the others rather than
+    // redrawing each in its neighbour's place, the copy shortcut's element included.
     return html`<div class="lf-fp-state" ?data-lf-held-lines=${held !== null}>
         ${part("summary", statusParts(summaryParts))}${part("explain", explains)}
       </div>
-      ${seats.map(({ key, draw }) => now.get(key)?.draw(false) ?? draw(true))}`;
+      ${repeat(
+        seats,
+        ({ key }) => key,
+        ({ key, draw }) => now.get(key)?.draw(false) ?? draw(true),
+      )}`;
   }
   /** @param {string} group */
   const groupValue = (group) =>

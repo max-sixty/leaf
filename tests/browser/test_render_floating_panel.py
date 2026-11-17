@@ -72,7 +72,7 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
-from leaf_dev.browser import panel_tab
+from leaf_dev.browser import open_on_me, panel_tab
 from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, settled
 
 OBLIGATION_PAGE = leaf_page(
@@ -864,7 +864,7 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
         obligation=True,
     )
     page = floating(browser, url)
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     card = page.locator(".lf-fp-on-item", has_text="Which build should ship?")
     expect(card.locator(".lf-msg")).to_have_count(1)
     expect(card.locator("li")).to_have_count(2)
@@ -1930,7 +1930,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "The **room** photo.",
+        "The **room** photo.\n\n"
         '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick" choose><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
@@ -2626,7 +2626,13 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     where its motion has drawn it so far (geometry.js, `covered`): a Tab's arrival at a
     stop at the page's foot while Threads is still opening over it puts the view away,
     as it does once the view stands open, and the stop ends in sight."""
-    foot = '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
+    # The Tab leaves a stop the view never covers, above where it comes to rest: a key
+    # pressed on a stop the user can't see lets go of it first (keyboard/controller.js).
+    foot = (
+        '<p><button id="before">Before the foot</button></p>'
+        '<div style="height:450px"></div>'
+        '<p><button id="foot" style="width:100%">At the foot</button></p></main>'
+    )
     page = floating(browser, serve(LONG_PAGE.replace("</main>", foot, 1), comments=12))
     page.evaluate(
         "() => scrollTo({top: document.scrollingElement.scrollHeight,"
@@ -2641,12 +2647,9 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
         }"""
     )
     dev_browser.open_threads(page)
-    page.evaluate(
-        """async () => {
-          const {focusDestination} = await window.__lfWidgetApi();
-          focusDestination(document.querySelector('#foot'), 'step');
-        }"""
-    )
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#foot")).to_be_focused()
     expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
     seen = page.evaluate(
         """async () => {
@@ -3893,8 +3896,7 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     # Its mark is its own: the question mark is help's, as `?` and the menu's
     # Keyboard shortcuts row say.
     expect(chip.locator("svg")).not_to_have_attribute("data-lf-icon", "question")
-    chip.click()
-    view = page.locator(panel_view("queue"))
+    view = open_on_me(page)
     # While the view stands, its On Me tab carries the count the mark gave up its seat
     # with.
     owed = panel_tab(page, "On Me").locator(".lf-fp-count")
@@ -3949,8 +3951,7 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     )
     assert written.exit_code == 0, written.output
     page = floating(browser, url)
-    page.locator(".lf-fp-on-user").click()
-    view = page.locator(panel_view("queue"))
+    view = open_on_me(page)
     expect(page.get_by_role("combobox", name="Group On Me")).to_have_value("plan")
     # Each goal holds one item under its band, and each card says its place, and no
     # kind.
@@ -4072,9 +4073,10 @@ def test_on_claude_lists_its_work_in_hand_queued_and_done_or_says_it(browser, se
         "Working on 1; 1 up next. Now: Drafting the note's first line."
     )
     expect(summary).to_contain_text("Last done: Tidy the wording")
-    # Its age is a time, which says when to a pointer, as every age the panel shows.
+    # Its age is a time, which says when to a pointer, as every age the panel shows:
+    # its weekday, date, year, time of day and zone, as the browser writes them.
     assert re.fullmatch(
-        r"\w{3} \d{1,2} \w{3} \d{4}, \d{2}:\d{2} .+",
+        r"\w{3},? .+ \d{4}, \d{1,2}:\d{2}.* .+",
         preview_text(summary.locator("time")),
     )
     expect(summary.locator('[data-lf-voice="agent"]')).to_have_text(
@@ -4618,25 +4620,24 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
 
 def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     """Threads and On are walked as the leaf's menu is: one stop for Tab, which the
-    arrows, Home and End move, and from the view the mark's press or Go-to opened, ↓
-    enters its first row. Threads' rows leave out the open state every row there
-    shares, its tab counts the open threads, and the mark that opens On names itself on
-    hover."""
+    arrows, Home and End move, and Go-to stands the user on the view's first row.
+    Threads' rows leave out the open state every row there shares, its tab counts the
+    open threads, and the On Me mark names the Next On Me it presses."""
     url = serve(OBLIGATION_PAGE)
     for text in ("Is the window long enough?", "Who watches the weekend?"):
         panel_comment(serve.page_dir, text)
     page = floating(browser, url)
     on_mark = page.locator(".lf-fp-on-user")
-    expect(on_mark).to_have_attribute("aria-label", "On Me: 2")
+    expect(on_mark).to_have_attribute("aria-label", "Next On Me, 2 waiting on me")
 
-    on_mark.click()
+    page.locator("body").focus()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
     queue = page.locator(panel_view("queue"))
-    expect(queue).to_be_focused()
     expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
     expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
-    page.keyboard.press("ArrowDown")
     expect(cards.first).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(cards.nth(1)).to_be_focused()
@@ -4864,7 +4865,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Which week suits?",
+        "Which week suits?\n\n"
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
@@ -4873,8 +4874,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         viewport={"width": 1280, "height": 800}, has_touch=touch
     )
     page = open_page(browser, url, context=context)
-    page.locator(".lf-fp-on-user").click()
-    answers = page.locator(f"{panel_view('queue')} .lf-fp-answers").first
+    answers = open_on_me(page).locator(".lf-fp-answers").first
     expect(answers).to_be_visible()
     heights = answers.evaluate("""line => {
       line.replaceChildren('Answered.');
@@ -4909,7 +4909,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Which week suits?",
+        "Which week suits?\n\n"
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
@@ -4991,7 +4991,7 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Choose the first job.",
+        "Choose the first job.\n\n"
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
         '<lf-options id="first-job" choose>'
         '<lf-option id="mounts">Put the mounts back</lf-option>'

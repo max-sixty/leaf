@@ -776,24 +776,12 @@ def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(
             "refers-unmatched",
             {"via": "$work.widgets", "where": {"role": "imaginary"}},
         ),
-        (
-            {"tag": "lf-ghost", "key": "name"},
-            "refers-unknown-member",
-            {"member": "lf-ghost"},
-        ),
-        (
-            {"tag": "lf-option", "key": "id"},
-            "refers-unkeyed",
-            {"member": "lf-option", "key": "id"},
-        ),
     ],
 )
 def test_a_typed_reference_names_a_reachable_package_role(
     page_dir, reference, code, values
 ):
-    """A bad package relation fails at the registry door, not on every instance. A
-    keyed relation names its member by a key the member declares unique, so one
-    reference never stands for two members."""
+    """A bad package relation fails at the registry door, not on every instance."""
     registry = vocabulary(page_dir)
     registry["lf-option"]["x-refers"]["for"] = reference
 
@@ -884,7 +872,7 @@ def test_x_awaits_names_the_verbs_that_answer_it(page_dir):
         (
             "lf-card",
             lambda r: r["lf-card"]["x-refers"].update(
-                shows={"tag": "lf-option", "key": "value"}
+                shows={"via": "$work.widgets", "where": {"role": "goal"}}
             ),
             "shows-reference",
         ),

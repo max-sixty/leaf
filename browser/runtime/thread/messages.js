@@ -255,16 +255,16 @@ function threadStands(thread, said) {
 }
 
 // When a message or a run's face was said, in its head (presence.js, `saidAt`): its
-// day, then its clock. A head too narrow for both keeps the day whole and drops the
-// clock onto a line it clips (surfaces.css), so a crowded head still says which day,
-// where an ellipsis cut it to "15 Au…"; the preview reads the time whole.
+// day, then its time. A head too narrow for both keeps the day whole and drops the
+// time onto a line it clips (surfaces.css), so a crowded head still says which day,
+// where an ellipsis cut it to "Nov 1…"; the preview reads the time whole.
 /** @param {string | null | undefined} timestamp */
 export function saidTime(timestamp) {
   const said = saidAt(timestamp);
   return said
     ? html`<time datetime=${timestamp} .lfPreview=${agePreview}
         >${said.day ? html`<span>${said.day}</span> ` : nothing}<span
-          >${said.clock}</span
+          >${said.time}</span
         ></time
       >`
     : nothing;

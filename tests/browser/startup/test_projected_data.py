@@ -1012,7 +1012,7 @@ customElements.define(TAG, class extends LeafElement {
     thread_model.post_reply(
         serve.page_dir,
         {"responds": "question"},
-        "Frozen feed.",
+        "Frozen feed.\n\n"
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])

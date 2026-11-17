@@ -19,7 +19,10 @@
  * than turning toward a tinted canvas's. Mixing in oklab instead leaves the mix's hue
  * powerless at its low chroma in Chromium, so the tripled colour read hue 0, a pink. A
  * grey token mixes to a grey row. */
-:where(lf-call-diff, lf-diff, lf-worktree, lf-worktree-diffs) {
+:where(lf-call-diff),
+:where(lf-diff),
+:where(lf-worktree),
+:where(lf-worktree-diffs) {
   --lf-code-canvas: oklch(from var(--lf-pre-bg) l 0 none);
   --lf-code-add-fill: oklch(
     from color-mix(in oklch, var(--lf-ok) 15%, var(--lf-code-canvas)) l

@@ -15,10 +15,12 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
+    DESIGN_LEGEND,
     PANEL,
     cursor_at,
     cursor_over,
     delivered,
+    expect_design_mode,
     field_press,
     leaf_page,
     open_page,
@@ -883,10 +885,10 @@ def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
 
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
 
 
 def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
@@ -962,9 +964,12 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         ),
     )
     draft = page.locator("#draft")
-    for mode, key, root in (("draw", "w", "html"), ("design", "l", "body")):
+    for mode, key, stands in (
+        ("draw", "w", "html[data-lf-draw-mode]"),
+        ("design", "l", DESIGN_LEGEND),
+    ):
         page.keyboard.press(key)
-        expect(page.locator(root)).to_have_attribute(f"data-lf-{mode}-mode", "")
+        expect(page.locator(stands).first).to_be_attached()
         edit = draft.get_by_role("button", name="Edit", exact=True)
         assert cursor_over(page, edit) != "crosshair"
         edit.click()
@@ -979,10 +984,10 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         expect(draft.locator(".lf-draft-body")).to_have_text(
             f"Revised words in {mode} mode."
         )
-        expect(page.locator(root)).to_have_attribute(f"data-lf-{mode}-mode", "")
+        expect(page.locator(stands).first).to_be_attached()
         expect(page.locator(".lf-drawing-mark")).to_have_count(0)
         page.keyboard.press("Escape")
-        expect(page.locator(root)).not_to_have_attribute(f"data-lf-{mode}-mode", "")
+        expect(page.locator(stands)).to_have_count(0)
 
 
 def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):

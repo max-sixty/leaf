@@ -235,7 +235,7 @@ def _stacked_headers(browser, serve, flow):
     is wide enough to scroll sideways, and another long one after the tabs. In the
     page's flow the strip stands over the root; a set in a section is a framed box,
     whose strip stands over only the set."""
-    flow_class = ' class="layout-flow"' if flow == "page" else ""
+    in_flow = ' flow="page"' if flow == "page" else ""
     path = "src/lib.rs"
     rows = "".join(f"+    let value_{i} = {i};\n" for i in range(200))
     patch = (
@@ -256,12 +256,12 @@ def _stacked_headers(browser, serve, flow):
                 "Stacked headers",
                 "<h1>Stacked</h1>"
                 + ("<section>" if flow == "box" else "")
-                + f'<lf-tabs id="tabs"{flow_class}>'
-                f'<lf-tab id="diff-tab" label="Diff"{flow_class}><lf-diff id="patch"><pre>'
+                + f'<lf-tabs id="tabs"{in_flow}>'
+                '<lf-tab id="diff-tab" label="Diff"><lf-diff id="patch"><pre>'
                 + patch
                 + '</pre></lf-diff><lf-diff id="wide"><pre>'
                 + short
-                + f'</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes"{flow_class}>'
+                + '</pre></lf-diff></lf-tab><lf-tab id="notes-tab" label="Notes">'
                 "<p>Notes.</p></lf-tab></lf-tabs>"
                 + ("</section>" if flow == "box" else "")
                 + '<lf-diff id="after-tabs"><pre>'
@@ -274,7 +274,10 @@ def _stacked_headers(browser, serve, flow):
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 3"
     )
-    expect(page.locator("#tabs")).to_have_css("--lf-views-flow", flow)
+    # A set in the page's flow draws no frame; a boxed one does.
+    expect(page.locator("#tabs")).to_have_css(
+        "border-left-width", "0px" if flow == "page" else "1px"
+    )
     return page
 
 
@@ -414,7 +417,7 @@ def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
     under the strip."""
     page = open_page(request.getfixturevalue(engine), serve(WIDE_TABLE_IN_A_FRAMED_SET))
     resized(page, 1280, 720)
-    expect(page.locator("#views")).to_have_css("--lf-views-flow", "box")
+    expect(page.locator("#views")).to_have_css("border-left-width", "1px")
     # Stick the strip, then stand row 11's link 20px under the strip's top: inside the
     # root's landing band, which the strip covers.
     page.evaluate(
@@ -447,16 +450,15 @@ def test_embedded_tab_selection_preserves_the_document_reading_position(browser,
     source = (
         ROOT_TABS_PAGE.read_text()
         .replace(
-            '<lf-tabs id="root-tabs" class="layout-flow">',
+            '<lf-tabs id="root-tabs" flow="page">',
             '<section><lf-tabs id="root-tabs">',
         )
-        .replace(' class="layout-flow"', "")
         .replace("</lf-tabs>", "</lf-tabs></section>")
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_css("--lf-views-flow", "box")
+    expect(tabs).to_have_css("border-left-width", "1px")
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     evidence.evaluate("el => el.scrollIntoView({block: 'start', behavior: 'instant'})")
     scroll_settled(page)
@@ -532,7 +534,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
     tabs = page.locator("#root-tabs")
-    expect(tabs).to_have_css("--lf-views-flow", "page")
+    expect(tabs).to_have_css("border-left-width", "0px")
     boxes = page.evaluate(
         """() => {
           const box = (el) => {
@@ -646,7 +648,7 @@ def test_a_workspace_page_tab_gives_its_only_block_its_box_before_upgrade(
     """
     source = leaf_page(
         "Workspace page tab",
-        '<header><h1>Review</h1></header><lf-tabs id="views" class="layout-flow">'
+        '<header><h1>Review</h1></header><lf-tabs id="views" flow="page">'
         '<lf-tab id="work" label="Work"><template></template>'
         '<section id="surface"><p>Work here.</p>'
         '</section></lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p>'
@@ -713,11 +715,10 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
             for space in ("wide", "available")
         )
 
-    panel_flow = ' class="layout-flow"' if layout != "workspace" else ""
     content = (
         f'<h1 id="t">Evidence in page tabs</h1><p id="prose">Prose.</p>{tables("out")}'
-        f'<lf-tabs id="root-tabs" class="layout-flow"><lf-tab id="compare" label="Compare"{panel_flow}>{tables("in")}'
-        f'</lf-tab><lf-tab id="notes" label="Notes"{panel_flow}><p>Notes.</p></lf-tab></lf-tabs>'
+        f'<lf-tabs id="root-tabs" flow="page"><lf-tab id="compare" label="Compare">{tables("in")}'
+        '</lf-tab><lf-tab id="notes" label="Notes"><p>Notes.</p></lf-tab></lf-tabs>'
         f'<section><lf-tabs id="boxed"><lf-tab id="boxed-open" label="Boxed">{tables("boxed")}'
         '</lf-tab><lf-tab id="boxed-other" label="Other"><p>Other.</p></lf-tab></lf-tabs>'
         "</section>"
@@ -768,7 +769,7 @@ def test_wide_evidence_in_a_page_tab_takes_the_room_it_would_outside_one(
         for route in boot:
             route.continue_()
         page.unroute_all(behavior="wait")
-    expect(page.locator("#root-tabs")).to_have_css("--lf-views-flow", "page")
+    expect(page.locator("#root-tabs")).to_have_css("border-left-width", "0px")
     assert twins("desktop") == first
     # Wider than the reading column, which a workspace's prose does not keep.
     assert first["in-wide"]["width"] > 720, first
@@ -817,6 +818,38 @@ def test_a_scrolling_tab_panel_keeps_nested_headers_on_its_edge(browser, serve, 
     assert geometry["header"] == pytest.approx(geometry["edge"], abs=0.5), geometry
 
 
+def test_a_queue_entry_shows_the_face_its_item_opens_with(browser, serve):
+    """An item that opens with a <template> shows that markup in its list entry, in
+    place of its label and summary, while `label` stays its accessible name and the open
+    item doesn't show the template. A revision that rewrites the face reaches the list."""
+
+    def queue(added):
+        return leaf_page(
+            "Faces",
+            '<h1 id="title">Review</h1><lf-tabs id="queue" list="side">'
+            '<lf-tab id="plain" label="Overview" summary="What changed">'
+            '<p id="p-plain">Overview.</p></lf-tab>'
+            '<lf-tab id="file" label="README.md" summary="+120 −45 lines">'
+            f'<template><code>README.md</code> <span class="added">+{added}</span>'
+            "</template>"
+            '<p id="p-file">The install section.</p></lf-tab></lf-tabs>',
+        )
+
+    page = open_page(browser, live_url(serve(queue(120))))
+    tabs = page.locator("#queue").get_by_role("tab")
+    expect(tabs.nth(1)).to_have_accessible_name("README.md")
+    expect(tabs.nth(1).locator("code")).to_have_text("README.md")
+    expect(tabs.nth(1).locator(".added")).to_have_text("+120")
+    expect(tabs.nth(1).locator(".lf-tab-summary")).to_have_count(0)
+    expect(tabs.nth(0).locator(".lf-tab-summary")).to_have_text("What changed")
+    tabs.nth(1).click()
+    expect(page.locator("#p-file")).to_be_visible()
+    expect(page.locator("#file")).not_to_contain_text("+120")
+
+    wait_for_revision(page, stamp_page(serve.page_dir, queue(130), "Rerun")["revision"])
+    expect(tabs.nth(1).locator(".added")).to_have_text("+130")
+
+
 def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve):
     """A row's mark, and the words beside it, say its obligations are open until every
     one is answered, and withdrawal retires a request without claiming the user
@@ -853,6 +886,37 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     expect(marks.nth(0)).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
+
+
+def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve):
+    """A side list whose panels ask nothing gives its rows no answer line. A revision that
+    adds the first question to a panel edits inside that panel and leaves the list in
+    place, and the panel's row turns open with it, with no other change to redraw the
+    list."""
+    source = leaf_page(
+        "Questions arrive",
+        '<lf-tabs id="queue" list="side">'
+        '<lf-tab id="first" label="First"><p>Nothing to decide.</p></lf-tab>'
+        '<lf-tab id="last" label="Last"><p id="last-words">Nothing yet.</p></lf-tab>'
+        "</lf-tabs>",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    rows = page.locator("#queue .lf-tab-btn")
+    expect(rows).to_have_count(2)
+    expect(page.locator("#queue .lf-tab-answer")).to_have_count(0)
+    stamp_page(
+        serve.page_dir,
+        source.replace(
+            '<p id="last-words">Nothing yet.</p>',
+            '<lf-options id="pick" choose><lf-option id="pick-a">Go</lf-option></lf-options>',
+        ),
+        "Ask the first question",
+    )
+    wait_for_revision(page, 2)
+    expect(rows.nth(1).locator(".lf-tab-answer")).to_have_attribute(
+        "data-lf-obligations", "open"
+    )
+    expect(rows.nth(0).locator(".lf-tab-answer")).to_have_count(0)
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):
@@ -1626,12 +1690,12 @@ def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(
         "Authored tab flow",
         '<aside><div class="layout-track"><p>Reading route</p></div></aside>'
         '<div class="layout-column"><p id="reading">The document prose track.</p>'
-        '<section class="layout-flow"><lf-tabs id="flow" class="layout-flow">'
-        '<lf-tab id="flow-first" label="First" class="layout-flow">'
-        '<section class="layout-flow"><p id="first-prose">First reading.</p></section>'
+        '<section><lf-tabs id="flow" flow="page">'
+        '<lf-tab id="flow-first" label="First">'
+        '<section><p id="first-prose">First reading.</p></section>'
         '<table data-width="wide"><tr><th>Context</th></tr><tr><td>First.</td></tr></table></lf-tab>'
-        '<lf-tab id="flow-second" label="Second" class="layout-flow">'
-        '<section class="layout-flow"><p id="second-prose">Second reading.</p></section>'
+        '<lf-tab id="flow-second" label="Second">'
+        '<section><p id="second-prose">Second reading.</p></section>'
         '<table data-width="available"><tr><th>Context</th></tr><tr><td>Second.</td></tr></table>'
         "</lf-tab></lf-tabs></section>"
         '<section><lf-tabs id="boxed"><lf-tab id="boxed-first" label="Boxed first">'

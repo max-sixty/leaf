@@ -83,7 +83,7 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"parent": answered},
-        "Choose the backend here.",
+        "Choose the backend here.\n\n"
         '<lf-ask id="backend-decision"><h3>Which backend?</h3>'
         '<lf-options id="backend" choose>'
         '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'

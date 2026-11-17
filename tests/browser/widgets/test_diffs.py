@@ -719,6 +719,9 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     page = open_page(browser, url)
     page.locator("lf-diff summary").first.click()
     page.keyboard.press("Tab")
+    # Tab's glide to the comment button would otherwise carry the refocused header out
+    # of sight, and a key on focus the user can't see lets go of it rather than opening.
+    scroll_settled(page)
     page.locator("lf-diff summary").first.focus()
     page.keyboard.press("ArrowRight")
     # Each step walks from the row the last one landed on, so each waits for its landing.

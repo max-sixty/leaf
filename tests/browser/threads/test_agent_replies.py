@@ -295,9 +295,7 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "The complete answer.
-
-" + ask("stream-reply-choice", "Use it now"),
+        "The complete answer.\n\n" + ask("stream-reply-choice", "Use it now"),
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )

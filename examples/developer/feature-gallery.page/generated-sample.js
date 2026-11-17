@@ -8,12 +8,11 @@ const status = section.querySelector("#bg-generated-sample-status");
 const preview = section.querySelector("#bg-generated-sample-preview");
 const source = `<!doctype html><html lang="en"><head><title>Generated delivery choice</title></head>
 <body><main class="layout-column"><h1>Delivery</h1>
-<section id="delivery-ask" role="group" aria-labelledby="delivery-ask-h">
-<h2 id="delivery-ask-h">Which delivery?</h2>
+<lf-group id="delivery-ask" label="Which delivery?">
 <lf-options id="delivery">
   <lf-option id="standard">Standard delivery</lf-option>
   <lf-option id="express">Express delivery</lf-option>
-</lf-options></section></main></body></html>`;
+</lf-options></lf-group></main></body></html>`;
 
 whileConnected(section, (signal) => {
   let host;

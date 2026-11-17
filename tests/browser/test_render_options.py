@@ -1052,7 +1052,7 @@ def test_a_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve)
           const box = group.getBoundingClientRect();
           const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
           const cells = [...group.children].filter((cell) => cell.checkVisibility());
-          const prose = group.closest('section').querySelector(':scope > p');
+          const prose = group.closest('lf-group').querySelector(':scope > p');
           return {
             id,
             frame: box.width,

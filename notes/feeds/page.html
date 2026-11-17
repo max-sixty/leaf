@@ -122,11 +122,8 @@
                 Three things are ready for you. Everything here is made up.
               </p>
 
-              <section id="ask-venue" role="group" aria-labelledby="ask-venue-h">
-                <hgroup id="venue-head">
-                  <p>Email · from the inbox pass</p>
-                  <h2 id="ask-venue-h">Reply to the venue about Friday's room?</h2>
-                </hgroup>
+              <lf-group id="ask-venue" label="Reply to the venue about Friday's room?">
+                <p>Email · from the inbox pass</p>
                 <p id="venue-context">
                   The Example Hall asked whether 40 seats is still right. The calendar
                   invite has 46 accepted.
@@ -148,13 +145,10 @@ Max</pre>
                     >Brings it back tomorrow.</lf-option
                   >
                 </lf-options>
-              </section>
+              </lf-group>
 
-              <section id="ask-numbers" role="group" aria-labelledby="ask-numbers-h">
-                <hgroup id="numbers-head">
-                  <p>Report · from the weekly numbers pass</p>
-                  <h2 id="ask-numbers-h">Send the team this week's numbers?</h2>
-                </hgroup>
+              <lf-group id="ask-numbers" label="Send the team this week's numbers?">
+                <p>Report · from the weekly numbers pass</p>
                 <table id="numbers-table">
                   <thead>
                     <tr>
@@ -184,13 +178,13 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                   <lf-option id="numbers-send" label="Send to the team"></lf-option>
                   <lf-option id="numbers-skip" label="Skip this week"></lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
 
-              <section id="ask-ci" role="group" aria-labelledby="ask-ci-h">
-                <hgroup id="ci-head">
-                  <p>CI · from the overnight pass</p>
-                  <h2 id="ask-ci-h">Main went red overnight. What should happen?</h2>
-                </hgroup>
+              <lf-group
+                id="ask-ci"
+                label="Main went red overnight. What should happen?"
+              >
+                <p>CI · from the overnight pass</p>
                 <p id="ci-context">
                   One commit broke <code>test_parser</code>. Nothing else landed after
                   it.
@@ -206,7 +200,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                     >Someone else owns it.</lf-option
                   >
                 </lf-options>
-              </section>
+              </lf-group>
             </template>
           </lf-sample>
           <p id="sample-gaps">

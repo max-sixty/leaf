@@ -225,6 +225,16 @@ flowchart TD
             </figcaption>
           </figure>
 
+          <p id="path-beside">
+            Where the thread has grown long enough that Leaf would suggest a range of it
+            to summarize, the module starts a second fork beside the line fork. It folds
+            the thread's earlier discussion into one summary, which Leaf writes as the
+            agent's and tells the main thread of (<code>summary_fork</code>). It answers
+            on its own, so neither the line nor the handover waits for it. The message's
+            delivery to the main thread leaves the suggestion out, and if the fork
+            fails, Leaf tells the main thread the range it suggested.
+          </p>
+
           <p id="path-record">
             Keeping a message back is a turn's pickup in the log, as every hold is: the
             line turn's, which admission records with the message. That pickup is

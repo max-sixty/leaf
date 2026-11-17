@@ -165,6 +165,14 @@ discussion it continues. Each fork's prompt grows with its thread, so a thread's
 forks together grow with its square, which stays small while threads run to
 tens of messages.
 
+Leaf may ask for more forks of the conversation at the same moment, beside the line
+fork (`ask`'s `beside`), each for a duty the line fork's moment suits, such as
+summarizing a long thread's earlier discussion (`summary_fork`). The module makes
+each at once and hands its answer back with the basis Leaf gave it, and Leaf writes
+what it answered by the duty the basis names (`BESIDE`). Each fork answers on its
+own, so none holds back the line or the thread's handover, and a new duty needs
+only its module and its entry in `BESIDE`, with no change to the module.
+
 The line goes in as the agent's own (`thread.post_reply` with the claim's identity),
 acting in the line turn, so it writes nothing once the turn has closed or lapsed
 (`_line_runs`) or another turn holds the thread (`holding.refuse_unheld`). The
@@ -190,6 +198,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Literal, NamedTuple
 
+from . import summary_fork
 from .holding import (
     Hold,
     Holding,
@@ -232,6 +241,11 @@ ANSWER = {
     "required": ["line", "work"],
     "additionalProperties": False,
 }
+
+
+# What Leaf does with the answer of each fork it makes beside a line fork, by the
+# duty its basis names (`ask`'s `beside`).
+BESIDE = {"summary": summary_fork.take_answer}
 
 
 class KeptBack(NamedTuple):
@@ -384,7 +398,7 @@ def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
                 else page_holding(page, holding.found.threads),
             )
     if message or joins:
-        _note(
+        note(
             page.page_dir,
             {
                 "type": "fork_admission",
@@ -438,7 +452,20 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
     fork's question (`ask`); with one, what Leaf did with the line fork's answer
     (`route`), giving the work to a working fork where `work_forks` asks for that. The module then says which agent its
     harness started for that fork's turn (`started`), and, as any agent of the
-    session's run ends, what it ended with (`ended`)."""
+    session's run ends, what it ended with (`ended`). With `beside`, the basis of a
+    fork Leaf asked for beside the line fork (`ask`), what Leaf did with its answer,
+    by the duty it names (`BESIDE`)."""
+    if "beside" in payload:
+        basis = payload["beside"]
+        return BESIDE[basis["duty"]](
+            session_id,
+            basis,
+            answer=payload.get("answer"),
+            failed=payload.get("failed"),
+            usage=payload.get("usage"),
+            elapsed_ms=payload.get("elapsed_ms"),
+            request=payload.get("request"),
+        )
     if "ended" in payload:
         run = payload["ended"]
         return {
@@ -473,8 +500,9 @@ def cmd_fork(session_id: str, payload: dict) -> dict | None:
 
 def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
     """What to fork the conversation with for the thread `basis` names, as
-    `{"prompt", "thread"}`, or None once its line turn no longer runs
-    (`_line_runs`), or no longer holds the thread or the page is no longer the
+    `{"prompt", "thread"}`, with `beside` listing the forks to make beside it, each
+    `{"prompt", "basis"}`, where any is due; or None once its line turn no longer
+    runs (`_line_runs`), or no longer holds the thread or the page is no longer the
     session's, which ends the turn."""
     if not _line_runs(session_id, basis["turn"]):
         return None
@@ -485,13 +513,18 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
                 close_agent_turns(session_id, turn=basis["turn"])
                 return None
             data = _thread_data(page, basis["inputs"])
+            beside = [
+                fork
+                for fork in ([summary_fork.ask(page, data, basis)] if data else [])
+                if fork is not None
+            ]
     except FileNotFoundError:
         return None
     if data is None:
         # Only the session can settle what owes no reply in the thread.
         _hand_over(session_id, basis, "the message owes no reply")
         return None
-    _note(
+    note(
         page_dir,
         {
             "type": "fork_asked",
@@ -501,7 +534,11 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
             "running": [call["tool"] for call in running],
         },
     )
-    return {"prompt": line_prompt(data, running), "thread": basis}
+    return {
+        "prompt": line_prompt(data, running),
+        "thread": basis,
+        **({"beside": beside} if beside else {}),
+    }
 
 
 def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
@@ -524,7 +561,7 @@ def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
     )
 
 
-def _thread_json(data: dict) -> str:
+def thread_json(data: dict) -> str:
     return json.dumps(
         {
             "page": data["page"],
@@ -565,7 +602,7 @@ def line_prompt(data: dict, running: list[dict]) -> str:
 This message comes from Leaf, not the user. The user just wrote in a thread on a Leaf page this session holds, and you are a fork of the session, made to acknowledge them at once while the main session carries on. The main session takes the message from here and does what it asks. Every tool call is denied here, so don't call tools, and reply straight away without thinking it over. {_running_line(running)}
 
 The whole thread, as Leaf delivers it; "events" are the user's messages, oldest first:
-{_thread_json(data)}
+{thread_json(data)}
 
 Leaf posts your line in the thread at once as the agent's working line, until the main session's own words replace it. Write that one line: what the agent will do about the message, in a few of the user's words, as the agent would before starting ("reading the reconnect traces"; "recording your choice and making that change"). Leave the answer to the main session, even where the conversation above holds it.
 
@@ -680,7 +717,7 @@ def route(
 
 def _record(session_id: str, basis: dict, outcome: dict) -> None:
     """Note what came of a kept-back thread in its page's diagnostics."""
-    _note(
+    note(
         Path(basis["page"]),
         {
             "type": "fork_outcome",
@@ -692,7 +729,7 @@ def _record(session_id: str, basis: dict, outcome: dict) -> None:
     )
 
 
-def _note(page_dir: Path, record: dict) -> None:
+def note(page_dir: Path, record: dict) -> None:
     """Append `record` to the page's diagnostics, dropped where the page can't be
     written, as every diagnostic is (`interaction_log`)."""
     from .interaction_log import append_interactions

@@ -75,6 +75,22 @@ rubrics:
       answer, result or finished work, even one the conversation holds; and says
       nothing of a fork, a main session or a hand-over, which the user never sees.
 
+  summary: &summary
+    type: llm-rubric
+    metric: summary-right
+    transform: context.metadata.texts?.summary || 'The fork gave no usable answer.'
+    value: >-
+      The input is the line "The fork gave no usable answer.", which fails, or a
+      conversation between a user and a coding agent, a thread on the agent's page as
+      its log holds it (a `summary` event folds the messages from `from` through
+      `through`), the range of the thread a fork of that conversation was asked to
+      summarize, and the summary Leaf posted from the fork's answer as the agent's,
+      which reads "(no summary)" when Leaf posted none, which fails. Pass only if the summary is Markdown prose that gives the range's
+      decisions, their reasons where the thread gives them, and its open questions,
+      correctly and from the original messages, including those an earlier summary
+      in the range folded; holds every decision the range made; and answers nothing
+      the thread's newest message asks, which is the agent's to answer.
+
 # The words a guardrail and its positive case share.
 words:
   cache-question: &cache-question [lru, ttl]
@@ -1374,3 +1390,108 @@ cases:
       work: hand_over
     assert:
       - *line
+  # A long thread whose delivery would suggest a range to summarize: the summary fork
+  # Leaf makes beside the line fork (`src/leaf/summary_fork.py`), scored on what it
+  # wrote. The range takes in an earlier summary, s1, which leaves out the
+  # three-minute comparison its originals hold, so a summary written only from s1
+  # misses a decision.
+  summary:
+    fork: summary
+    page: turn-end-check/pages/cache.html
+    log:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Why five minutes for the TTL? I worry about stale results.
+        anchor:
+          section: cache-lede
+          quote: TTL at five minutes
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: w1
+        id: m2
+        text: Five minutes comes from how often the index refreshes, every four minutes. I'll check what a shorter TTL would cost in hits.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m3
+        text: Check three minutes too.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m3
+        id: m4
+        text: >-
+          At three minutes the hit rate falls from 74% to 61%. At five it stays at
+          74%, with results four minutes old at p95.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m5
+        text: Keep five minutes, and put the three-minute comparison on the page.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m5
+        id: m6
+        text: "The method section now gives the three-minute run: 61% of queries hit, against 74% at five minutes."
+      - kind: summary
+        author: agent
+        thread: w1
+        id: s1
+        from: m2
+        through: m6
+        text: Five minutes comes from the index's four-minute refresh, so you kept it.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m7
+        text: "The cache needs a size cap too: 2.6 GB is too much for the search hosts."
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m7
+        id: m8
+        text: Capped the TTL cache at 2 GB, evicting the oldest entries first. The hit rate falls from 74% to 71%.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m9
+        text: 71% is fine. Warm it from yesterday's top queries at startup.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m9
+        id: m10
+        text: Startup now warms the cache with yesterday's 10,000 most frequent queries, which takes 40 s.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m11
+        text: Good. What happens when the index rebuilds?
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m11
+        id: m12
+        text: A rebuild flushes the cache, so the hit rate drops to zero for a few minutes.
+    conversation:
+      - from: cache
+      - *cache-reply
+    thread: w1
+    waiting:
+      - kind: reply
+        author: user
+        parent: w1
+        id: m13
+        text: Could we keep serving the old results during a rebuild instead?
+    assert:
+      - *summary

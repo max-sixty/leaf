@@ -513,11 +513,11 @@ def main(
         cmd_pages(payload)
         return
     if fork:
-        # A completion's reply (`completions`), a kept-back thread's forks or the
-        # end of an agent's run (`forks`), or else the clerk's.
+        # A completion's reply (`completions`), a kept-back thread's forks, those
+        # beside them or the end of an agent's run (`forks`), or else the clerk's.
         if "completion" in payload:
             from .completions import cmd_reply as cmd_fork
-        elif "thread" in payload or "ended" in payload:
+        elif "thread" in payload or "ended" in payload or "beside" in payload:
             from .forks import cmd_fork
         else:
             from .clerk import cmd_fork

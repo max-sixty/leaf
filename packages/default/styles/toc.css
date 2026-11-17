@@ -412,27 +412,21 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       font: var(--lf-font-title);
     }
     /* The words fade in as the map reveals them, and a reading of what the page shows
-     * (`checkVisibility`) finds none of them at rest. Whether the map reveals them is a
-     * property the map sets, `--lf-toc-words`, rather than a state in the words' own
-     * rule. Hover and focus mark every ancestor of what they reach, and Go-to marks
-     * `body`, so a mark in the words' rule restyled every link under each element whose
-     * mark changed: every link on the page, map or none, as focus entered `main` or
-     * Go-to armed. Read on the map, a mark restyles the map alone, and its words only
-     * when the map's own state changes
-     * (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes). */
-    lf-toc {
-      --lf-toc-words: 0;
+     * (`checkVisibility`) finds none of them at rest. Focus and Go-to reach these rules
+     * through marks on the map's ancestors and on `body`, so each names the words by
+     * class (`browser/AGENTS.md`, "A rule for focus anywhere in a box"): named `a`,
+     * they restyled every link on the page, map or none, as focus entered `main` or
+     * Go-to armed (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes). */
+    lf-toc :is(.lf-toc-link, .lf-toc-heading) {
+      opacity: 0;
     }
-    lf-toc:is(:hover, [data-lf-focus-within]) {
-      --lf-toc-words: 1;
+    lf-toc:is(:hover, [data-lf-focus-within]) :is(.lf-toc-link, .lf-toc-heading) {
+      opacity: 1;
     }
     @scope (body[data-lf-go-to-active] lf-toc) {
-      :scope:is(lf-toc) {
-        --lf-toc-words: 1;
+      :scope:is(lf-toc) :is(.lf-toc-link, .lf-toc-heading) {
+        opacity: 1;
       }
-    }
-    lf-toc :is(a, .lf-toc-heading) {
-      opacity: var(--lf-toc-words);
     }
     /* The spine is the map's rule, and its markers stand on it, so a section's mark is
        its marker, which shows at rest too: a ring of the mark's colour, where a

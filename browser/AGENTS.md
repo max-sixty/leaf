@@ -488,7 +488,17 @@ only the root's subtree, never its later siblings.
 No `:has()` reads where focus is, by `:focus`, `:focus-visible` or a mark `focus.js`
 writes: each made every focus move restyle much of the page
 (`test_no_has_reads_where_focus_is`). A rule for focus anywhere in a box reads the box's
-`data-lf-focus-within` or `data-lf-focus-visible-within`. A rule for one control's focus
+`data-lf-focus-within` or `data-lf-focus-visible-within` in the box's own compound.
+Chromium answers a change to a state that a compound before the subject reads by
+restyling every element under the changed one that the subject could match, whether or
+not the rule matches there. Focus marks every ancestor of the focused element, `main`
+included, and Go-to marks `body`, so a subject naming only a type, as `td` or `a` does,
+restyled every cell or link on the page as focus entered `main`. What the box holds
+names a class only it carries (toc.css, the map's words), or asks the box for a
+property the box sets by a style query on a container the box names (reading.css, the
+sticky row names). An inherited property restyles everything the box holds when it
+changes, and so does an explicit `inherit` on each element between the box and its
+readers. A rule for one control's focus
 reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
 marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 

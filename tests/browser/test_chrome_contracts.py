@@ -522,6 +522,8 @@ def test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes(
         expect(main).to_have_attribute("data-lf-focus-within", "")
         page.evaluate("() => document.activeElement.blur()")
         expect(main).not_to_have_attribute("data-lf-focus-within", "")
+        # The blur's own restyles land before the Go-to count starts.
+        rendered(page)
         arming = restyle_counts(
             page, lambda: (page.keyboard.press("g"), rendered(page))
         )

@@ -231,7 +231,7 @@ test("which regions ask the user is read from the captured widgets, not the regi
       document: kind === "page" ? { kind, revision: 1 } : { kind, thread: "t" },
       declaration: awaits
         ? {
-            server: {
+            state: {
               awaits: { value: "choose" },
             },
           }

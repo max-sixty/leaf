@@ -116,7 +116,7 @@ connection. Use `disconnectedCallback` only for teardown that must happen at onc
 as cancelling a grab or removing hoisted UI. A `LeafElement` that overrides either
 callback calls the `super` method.
 
-`quoted(element)` is true for a widget inside one whose `server.exhibit` declaration
+`quoted(element)` is true for a widget inside one whose `state.exhibit` declaration
 applies (including its optional `when` condition), such as `lf-sample`. A quoted widget
 never takes the user's edits, so check `quoted` before wiring a choice, a drag grip or
 anything else that sends input back. Its presentation and view state still work.

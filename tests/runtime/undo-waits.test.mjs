@@ -60,8 +60,8 @@ test("Undo waits for a newer action through its send, answer and presentation", 
     ...applicationState.read().document,
     registry: {
       "lf-choice": {
-        server: {
-          state: { decide: { ...spec, writer: "user" } },
+        state: {
+          verbs: { decide: { ...spec, writer: "user" } },
         },
       },
       $states: { "lf-choice": { decide: { writer: "user", definition: {} } } },

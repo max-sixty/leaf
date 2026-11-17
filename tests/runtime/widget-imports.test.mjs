@@ -7,8 +7,8 @@ test("declared creations prepare shadow rules before any child exists", () => {
   scope.innerHTML = '<lf-nursery id="nursery"></lf-nursery>';
   const registry = {
     "lf-nursery": {
-      server: {
-        state: { sow: { creates: { child: "lf-seedling", words: "label" } } },
+      state: {
+        verbs: { sow: { creates: { child: "lf-seedling", words: "label" } } },
       },
     },
     "lf-seedling": {

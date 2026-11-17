@@ -64,9 +64,9 @@ titles only itself.
 
 Read the registry rather than repeating it. `declarationFor(element)` returns the
 widget's entry, whose facts sit in groups by what they are about, as
-`declarationFor(card)?.server?.shows` reads a view's `server.shows`.
+`declarationFor(card)?.state?.shows` reads a view's `state.shows`.
 `matchesWhen(element, when)` says whether the element's attributes satisfy a `when`,
-such as a `server.awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
+such as a `state.awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
 ### Following a reference
@@ -242,7 +242,7 @@ including those with the agent. Each record looks like this:
 }
 ```
 
-A widget's obligation takes its answer and completion from its `server.awaits`
+A widget's obligation takes its answer and completion from its `state.awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
 show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
 is `null` for authored state. `prompt.target` is where the user goes to answer;
@@ -275,7 +275,7 @@ pass, as a `Map` from each region to its obligations; a module that marks every 
 or section in one render reads it, since asking `obligationsIn` once per region costs
 the regions times the obligations.
 `regionsAwaiting(regions)` returns the `Set` of `regions` whose markup holds a widget
-declaring `server.awaits`, whether its obligation has yet to arrive or was withdrawn, as
+declaring `state.awaits`, whether its obligation has yet to arrive or was withdrawn, as
 `lf-tabs` reads it to keep a row's room for an answer. It reads the captured widgets,
 not the regions' elements, and follows each revision, so ask it rather than
 reading the regions' elements in a render.
@@ -299,7 +299,7 @@ Me, and resolves to whether it arrived. A control that calls it prevents `moused
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
-An element declaring `server.shows`, such as a board card, is a view of another widget's
+An element declaring `state.shows`, such as a board card, is a view of another widget's
 answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
 `shownAnswer(element)` reads it in `render()`, which then redraws with every change to
 that widget's state, and returns `null` where the element shows no answer. Otherwise
@@ -334,7 +334,7 @@ lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and `running
 
 ### Page history and reports
 
-A widget that shows the page's history declares `server.history` and reads
+A widget that shows the page's history declares `state.history` and reads
 `readHistory()`: `{phase, events}`, the server's rows, newest first, each carrying its
 thread, whether it was undone, the agent's name as `agent`, and a gesture's words. A
 widget restoring something from `tabStore` compares it with the history once `phase` is

@@ -507,7 +507,7 @@ leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updat
 leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
-                registry entry declares <code>server.awaits</code>, creates an
+                registry entry declares <code>state.awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
                 answer, and lifecycle; an optional <code>lf-ask</code> supplies its
                 heading as the prompt. The widget owns the value, and the agent records
@@ -1838,7 +1838,7 @@ flowchart TD
                   <td>Verb</td>
                   <td>
                     A fold <code>unit</code> and a recorded effect or custom payload
-                    schema, declared under <code>server.state</code>
+                    schema, declared under <code>state.verbs</code>
                   </td>
                   <td>Package, in <code>registry.json</code></td>
                 </tr>
@@ -1890,8 +1890,8 @@ flowchart TD
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
-"server": {
-  "state": {
+"state": {
+  "verbs": {
     "choose": {
       "unit": "widget",
       "record": {"kind": "attribute", "attr": "selected"}
@@ -2212,13 +2212,13 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares <code>server.state</code> verbs,
-                <code>server.awaits.answered</code>, <code>creates</code>, and
+                >: how a package declares verbs (<code>state.verbs</code>),
+                <code>state.awaits.answered</code>, <code>creates</code>, and
                 agent-written verbs.
               </li>
               <li>
-                <a href="/extending/#server.state">Registry keys</a>: the exact
-                definition of <code>server.state</code>, <code>server.awaits</code>, and
+                <a href="/extending/#state.verbs">Registry keys</a>: the exact
+                definition of <code>state.verbs</code>, <code>state.awaits</code>, and
                 the keys beside them.
               </li>
               <li>
@@ -2774,8 +2774,8 @@ flowchart TD
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
               obligation is answered by the actions its
-              <code>server.awaits</code> declaration names, such as a pick, or the Done
-              a multi-select choice offers as its own control. A question in a thread is
+              <code>state.awaits</code> declaration names, such as a pick, or the Done a
+              multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there or a settling reaction, such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and records the
               same way an answer the user gave elsewhere, such as in chat. Done history

@@ -7,7 +7,7 @@
    answered in words navigate through their thread owner instead.
 
    An obligation keeps its source identity. Its prompt.target names where the user arrives:
-   the enclosing widget (an lf-ask or another declaring `server.encloses`), otherwise
+   the enclosing widget (an lf-ask or another declaring `state.encloses`), otherwise
    the widget itself. The source owns the answer and the explicit context bindings.
    Adding an enclosing widget changes neither the obligation nor its answer.
 
@@ -26,7 +26,7 @@
    on every clipped edge keeps its scroll position. DOM measurements and renderer
    nodes never enter the obligation record.
 
-   Blanket actions come from server.awaits.all and invoke each source's declared decision
+   Blanket actions come from state.awaits.all and invoke each source's declared decision
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
@@ -191,7 +191,7 @@ export function createObligationView({
     },
   });
 
-  // One blanket answer per outcome a widget declares one for (server.awaits.all), each
+  // One blanket answer per outcome a widget declares one for (state.awaits.all), each
   // deciding its obligations one at a time so the log records what was consented to rather than
   // one blanket yes — accepting the rest after rejecting one stays honest. The widget's
   // module exposes a method named for its deciding verb that takes the outcome; the
@@ -203,8 +203,8 @@ export function createObligationView({
   // message declares it under its own publication. Which outcomes exist is what the
   // obligations' own declarations answer, so core names none.
   function buildBulkAnswers() {
-    for (const tag of tagsDeclaring((entry) => entry.server?.awaits?.all)) {
-      const outcome = registry[tag].server?.awaits.all;
+    for (const tag of tagsDeclaring((entry) => entry.state?.awaits?.all)) {
+      const outcome = registry[tag].state?.awaits.all;
       if (bulkAnswers.has(outcome)) continue;
       const label = capitalized(outcome);
       bulkAnswers.set(outcome, label);
@@ -441,7 +441,7 @@ export function createObligationView({
 
   // Where the user arrives at a page obligation: the region whose start has to be in
   // front of them for the obligation to make sense. A widget declaring
-  // `server.encloses` is its own frame — one heading, then the context and evidence,
+  // `state.encloses` is its own frame — one heading, then the context and evidence,
   // then the control — and this walk is handed that region rather than the widget
   // inside it, so its arrival is simply its start.
   //
@@ -467,7 +467,7 @@ export function createObligationView({
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.server?.encloses;
+    const declared = context && registry[context.localName]?.state?.encloses;
     if (declared && context === currentLocation) return context;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a

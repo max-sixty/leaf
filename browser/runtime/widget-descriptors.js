@@ -41,7 +41,7 @@ const declaredAncestors = (element) => {
   return ancestors;
 };
 
-// Whether an element stands strictly inside a server.exhibit widget in the authored
+// Whether an element stands strictly inside a state.exhibit widget in the authored
 // document, so what it holds is quoted material rather than controls (`quoted` below).
 // The exhibit itself is no mention, as the server reads it (`obligations.quoted_in`);
 // `tests/exhibit_cases.json` holds both runtimes to one set of cases. Asked of
@@ -129,7 +129,7 @@ export function widgetDescriptor(owner) {
   return replacement;
 }
 
-// Mention, not use: a widget inside one the registry marks server.exhibit is quoted
+// Mention, not use: a widget inside one the registry marks state.exhibit is quoted
 // material. An interactive widget consults this before wiring anything that would carry
 // input back (a choose path, a drag grip), so an exhibit never takes the user's edits.
 // Presentational upgrades and view state run regardless — a quoted diagram still

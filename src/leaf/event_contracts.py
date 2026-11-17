@@ -130,7 +130,7 @@ def command_error(event: dict, contracts: dict) -> Finding | None:
 
 
 def declared_event_error(event: dict, rec: dict, registry: dict):
-    """Why a known widget's verb or detail violates its server.state declaration, or
+    """Why a known widget's verb or detail violates its state.verbs declaration, or
     names a verb the event's own writer does not write."""
     kind = event["kind"]
     tag = rec["tag"]
@@ -143,7 +143,7 @@ def declared_event_error(event: dict, rec: dict, registry: dict):
     named = {"kind": kind, "tag": tag, "verb": event["action"]}
     spec = event_spec(entry, event)
     if spec is None:
-        other = declared_fact(entry, "server.state", {}).get(event["action"])
+        other = declared_fact(entry, "state.verbs", {}).get(event["action"])
         if other is not None:
             return Finding(
                 "foreign-verb",
@@ -364,7 +364,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
-    spec = registry[tag]["server"]["state"][event["action"]]
+    spec = registry[tag]["state"]["verbs"][event["action"]]
     # A created child is new: an id the markup already holds is an authored element,
     # which a user's gesture can mark or move but never write into being.
     created = created_child(event, spec)
@@ -550,7 +550,7 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
     if error := declared_report_error(event, document, registry):
         return error
     tag = document.by_id[event["widget"]]["tag"]
-    spec = registry[tag]["server"]["state"][event["action"]]
+    spec = registry[tag]["state"]["verbs"][event["action"]]
     return record_contract_error(view, event, spec, readings)
 
 

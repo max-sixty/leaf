@@ -56,7 +56,7 @@ from model.interact_contract import vocabulary
             "pattern",
             ["author", "instructions"],
         ),
-        ({"server": {"work": True}}, "additionalProperties", []),
+        ({"state": {"work": True}}, "additionalProperties", []),
     ],
 )
 def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
@@ -259,7 +259,7 @@ def test_init_refuses_instructions_that_a_batch_could_not_carry(
     assert next(iter(events)) in json.dumps(finding.values)
 
 
-@pytest.mark.parametrize("path", [("server", "state", "decide", "unit")], ids="-".join)
+@pytest.mark.parametrize("path", [("state", "verbs", "decide", "unit")], ids="-".join)
 def test_init_refuses_a_declaration_the_vocabulary_would_read_unchecked(
     page_dir, tmp_path, path
 ):
@@ -1018,8 +1018,8 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
 
 @pytest.mark.parametrize("fact", ["$state", "$awaits"])
 def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
-    """`$state` documents the fields of a server.state verb and `$awaits` those of
-    server.awaits, held to their schemas as `$keys` is to a declaration's keys: a field
+    """`$state` documents the fields of a verb (state.verbs) and `$awaits` those of
+    state.awaits, held to their schemas as `$keys` is to a declaration's keys: a field
     the schema
     admits with no member is one an author reads the registry for and finds unsaid."""
     kernel = shipped_core_registry()

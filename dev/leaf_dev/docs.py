@@ -14,7 +14,7 @@ it here from that owner as it reads the source (`page_fixtures.authored_markup`)
   `<meta name="description">`;
 - `.example-packages` inside a catalog link: each bundled package whose element the
   example's markup uses, in package order;
-- `table#all-verbs`'s body: every `server.state` verb the kernel and the bundled packages
+- `table#all-verbs`'s body: every verb (`state.verbs`) the kernel and the bundled packages
   declare, in registry order;
 - `nav.reference-index` and `div.reference-list`: the core layer's `$keys`
   (`browser/registry.json`);
@@ -128,7 +128,7 @@ def verb_rows() -> list[str]:
         for tag, element in json.loads(path.read_text(encoding="utf-8")).items():
             if not tag.startswith("lf-"):
                 continue
-            for verb, verb_state in element.get("server", {}).get("state", {}).items():
+            for verb, verb_state in element.get("state", {}).get("verbs", {}).items():
                 cells = (
                     f"<code>{tag}</code>",
                     f"<code>{verb}</code>",
@@ -205,7 +205,7 @@ def read_json(path: Path) -> dict:
 
 def schema_reference(ref: str) -> str:
     """A `$ref` as a link to the entry that declares its target: a served-state
-    definition, an event kind, or the registry's `server.state`."""
+    definition, an event kind, or the registry's `state.verbs`."""
     uri, _, pointer = ref.partition("#")
     if not uri:
         name = pointer.removeprefix("/$defs/")
@@ -217,7 +217,7 @@ def schema_reference(ref: str) -> str:
         label = f"{owner}'s <code>{field}</code>" if field else name or "served state"
         return f'<a href="#served-{target or "state"}">{label}</a>'
     if uri == "leaf:verb":
-        return '<a href="/extending/#server.state">server.state verb</a>'
+        return '<a href="/extending/#state.verbs">verb (state.verbs)</a>'
     if uri == "leaf:event":
         return '<a href="#events">event</a>'
     kind = uri.removeprefix("leaf:event/").removeprefix("leaf:message/")
@@ -456,7 +456,7 @@ def event_entries() -> list[str]:
             if contract.get(member):
                 notes.append(f"A <code>{member}</code> kind.")
         if writer := contract.get("verb_writer"):
-            notes.append(f"Carries a server.state verb the {writer} writes.")
+            notes.append(f"Carries a verb (state.verbs) the {writer} writes.")
         entries.append(
             schema_entry(
                 f"event-{kind}",

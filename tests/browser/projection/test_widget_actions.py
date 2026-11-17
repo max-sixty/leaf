@@ -81,8 +81,8 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
             "additionalProperties": False,
         },
         "content": "markup",
-        "server": {
-            "state": {
+        "state": {
+            "verbs": {
                 "phase": {
                     "unit": "widget",
                     "record": {"kind": "value", "attr": "phase"},
@@ -188,7 +188,7 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
         "pattern": "^[0-9]+$",
     }
     record = {"kind": "value", "attr": "count"}
-    declarations["lf-tally"].setdefault("server", {})["state"] = {
+    declarations["lf-tally"].setdefault("state", {})["verbs"] = {
         "set": {
             "unit": "widget",
             "record": record,
@@ -301,8 +301,8 @@ def test_lit_parent_moves_before_controller_members_render_selection(
     declarations["lf-owner"].update(
         {
             "content": "members",
-            "server": {
-                "state": {
+            "state": {
+                "verbs": {
                     "move": {
                         "unit": "unit",
                         "record": {"kind": "position", "within": "lf-zone"},
@@ -324,7 +324,7 @@ def test_lit_parent_moves_before_controller_members_render_selection(
         }
     )
     zone["attributes"]["properties"]["restated"] = {"type": "boolean"}
-    zone.setdefault("server", {})["state"] = {
+    zone.setdefault("state", {})["verbs"] = {
         "choose": {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "selected"},
@@ -386,7 +386,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     declarations = json.loads(registry_path.read_text())
     owner = declarations["lf-owner"]
     owner["content"] = "members"
-    owner.setdefault("server", {})["state"] = {
+    owner.setdefault("state", {})["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -411,7 +411,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
         "restated": {"type": "boolean"},
     }
     piece["attributes"].setdefault("required", []).append("pinned")
-    piece.setdefault("server", {})["state"] = {
+    piece.setdefault("state", {})["verbs"] = {
         "move": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "pinned"},
@@ -783,7 +783,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     """The test above takes its decisions in front of the user, on a page that has
     been up long enough for everything to have arrived. Here the log holds it before
     the page opens, which is what puts the anchor pass's skip list on the clock: the
-    registry names the slot a decision retires (server.retired-when), and the registry
+    registry names the slot a decision retires (state.retired-when), and the registry
     arrives over the network, after the module that reads it has evaluated. Replay
     settles the suggestion on the first poll, so the pass that runs with it has to be
     skipping lf-old already — or the page opens with a live mark on words the user

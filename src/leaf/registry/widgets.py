@@ -206,10 +206,10 @@ def _validate_widget_structure(
                 "measured-run", path, tag, input=input_name, attr=run_attr
             )
     said = set(declared_fact(entry, "words.says", {}))
-    if declared_fact(entry, "server.awaits") is not None and not _typed(
+    if declared_fact(entry, "state.awaits") is not None and not _typed(
         properties, "id", "string"
     ):
-        raise registry_error("addressable-id", path, tag, key="server.awaits")
+        raise registry_error("addressable-id", path, tag, key="state.awaits")
     for key in ATTRIBUTE_FACTS:
         declared = declared_fact(entry, key) or ()
         named = {declared} if isinstance(declared, str) else set(declared)
@@ -243,9 +243,9 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
 
     The view names its widget through a plain reference, and its compound owners
     carry the attribute naming the answer they hold. An answer read by member
-    (`server.awaits.key`) is a set of members, which the key names one by one, so the
+    (`state.awaits.key`) is a set of members, which the key names one by one, so the
     key is unique among the members of one widget."""
-    if shows := declared_fact(entry, "server.shows"):
+    if shows := declared_fact(entry, "state.shows"):
         reference = entry["markup"]["refers"].get(shows["attr"])
         if reference is None or reference:
             raise registry_error("shows-reference", path, tag, attr=shows["attr"])
@@ -258,9 +258,9 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
             raise registry_error(
                 "shows-value", path, tag, attr=shows["value"], owners=lacking
             )
-    awaits = declared_fact(entry, "server.awaits") or {}
+    awaits = declared_fact(entry, "state.awaits") or {}
     if key := awaits.get("key"):
-        spec = declared_fact(entry, "server.state", {}).get(awaits["value"], {})
+        spec = declared_fact(entry, "state.verbs", {}).get(awaits["value"], {})
         keyed = [
             member
             for member, declaration in declarations.items()
@@ -274,21 +274,21 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     # A predicate names declared attributes. Booleans test presence or absence;
     # strings must be values the attribute's schema admits, or the widget silently
     # disappears from every consumer.
-    awaits = declared_fact(entry, "server.awaits", {})
-    if declared_fact(entry, "server.encloses"):
+    awaits = declared_fact(entry, "state.awaits", {})
+    if declared_fact(entry, "state.encloses"):
         if "id" not in entry["attributes"].get("required", []):
             raise registry_error("enclosing-id", path, tag)
         if declared_fact(entry, "content") != "markup":
             raise registry_error("enclosing-prose", path, tag)
     conditions = [
-        ("server.awaits", awaits.get("when", {})),
+        ("state.awaits", awaits.get("when", {})),
         *(
-            ("server.awaits", condition.get("when", {}))
+            ("state.awaits", condition.get("when", {}))
             for condition in awaits.get("answered", {}).values()
         ),
         *(
             (fact, rule["when"])
-            for fact in ("server.exhibit", "paint.flow")
+            for fact in ("state.exhibit", "paint.flow")
             if isinstance(rule := declared_fact(entry, fact), dict)
         ),
     ]
@@ -339,7 +339,7 @@ def _validate_widget_interactions(
     awaits: dict,
     path,
 ) -> None:
-    if declared_fact(entry, "server.work"):
+    if declared_fact(entry, "state.work"):
         if declared_fact(entry, "words.inline"):
             raise registry_error("work-inline", path, tag)
         if declared_fact(entry, "content") != "markup":
@@ -347,7 +347,7 @@ def _validate_widget_interactions(
                 "work-content", path, tag, content=declared_fact(entry, "content")
             )
     answered = awaits.get("answered", {})
-    if declared_fact(entry, "server.awaits") is not None and not answered:
+    if declared_fact(entry, "state.awaits") is not None and not answered:
         raise registry_error("awaits-unanswered", path, tag)
     # The user answers their own obligation, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}

@@ -34,14 +34,14 @@ if TYPE_CHECKING:
 # source and document-order occurrence identify every owner, including one with no
 # authored id. Those descendants keep their own declarations; without this key the whole
 # upgraded element is opaque, as a diagram's notation is once its module has drawn a
-# picture. server.retired-when  the outcome under which this element leaves the page: a
+# picture. state.retired-when  the outcome under which this element leaves the page: a
 # decided suggestion's losing slot. The browser builds its anchor pass's skip list from
 # this key too (`quotable` in passages.js), so a reading given the log's outcomes drops
 # here exactly what drops there — and a widget whose decision leaves nothing showing
 # goes with its slots (settledAway there, `gone` here). Its values are also the
 # vocabulary's decision verbs, which is where `obligations` reads them from.
 # markup.owners with content markup  direct prose members remain readable inside a data
-# widget; its other body content is source notation, withheld. server.state, record kind
+# widget; its other body content is source notation, withheld. state.verbs, record kind
 # "body"  the verb whose detail text becomes this element's body once the user sends one
 # (lf-draft's `edit`): replay writes the newest surviving one into the DOM verbatim (a
 # widget's render is absolute), so a reading given the fold's word (rewritten_bodies)
@@ -367,7 +367,7 @@ class _PassageParser:
     first, so a match can name the section it fell in and be re-read within it.
 
     `decided` is the outcome each suggestion stands under (`retirement_outcomes`). A
-    decision retires a slot — the registry's `server.retired-when` names which outcome —
+    decision retires a slot — the registry's `state.retired-when` names which outcome —
     and the browser's anchor pass reads the same key (`quotable` in passages.js), so
     this reading drops it the same way. A decision that leaves its widget with nothing —
     a deletion accepted, an insertion refused — empties the wrapper too (`gone`),
@@ -581,7 +581,7 @@ class _PassageParser:
         retired_by = (parent["retired_by"] if parent else None) or (
             parent["id"]
             if parent
-            and (retiring := entry.get("server", {}).get("retired-when"))
+            and (retiring := entry.get("state", {}).get("retired-when"))
             and self.decided.get(parent["id"]) == retiring
             else None
         )
@@ -624,7 +624,7 @@ class _PassageParser:
         if parent and not silenced:
             self.bearing.add(parent["id"])
         # A body the user rewrote. `rewritten_bodies` already resolved the verb
-        # through this element's server.state, so an id in the dict is the whole test:
+        # through this element's state.verbs, so an id in the dict is the whole test:
         # the fold decides, this pass only applies.
         sub = self.rewrites.get(attrs_d.get("id")) if not silenced else None
         frame = {

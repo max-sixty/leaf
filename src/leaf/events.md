@@ -22,7 +22,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                        | `parent`                                                                                                                                                                               | closes a thread                                                                                                                                                                               |
 | <a id="kind-unresolve"></a>`unresolve`       | user            | `POST /api/event`                                                               | `parent`                                                                                                                                                                               | reopens a resolved thread                                                                                                                                                                     |
 | <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                 | `widget`, `action`, `detail`; server-stamped `meaning`                                                                                                                                 | changes the document through the widget ("Admission")                                                                                                                                         |
-| <a id="kind-report"></a>`report`             | agent or worker | `leaf page report`                                                              | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, under a `server.state` verb declaring `writer: "agent"`)                                                      | provisional widget state, in force until a stamped version settles it                                                                                                                         |
+| <a id="kind-report"></a>`report`             | agent or worker | `leaf page report`                                                              | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, under a verb (`state.verbs`) declaring `writer: "agent"`)                                                     | provisional widget state, in force until a stamped version settles it                                                                                                                         |
 | <a id="kind-pickup"></a>`pickup`             | page            | the delivery transport, or a harness's failure receipt                          | `events`, `phase` (`queued`, `opened` or `failed`), `session`, `turn`; `failure` (when `failed`); `refs`, the `answer.ref` its delivery gave each input owed an answer                 | the named inputs reached the Codex queue, entered an exact agent turn, or were given up with no answer coming; idempotent per event, phase, session and turn; never a `start` (`delivery.py`) |
 | <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                     | `through`, the seq the receipt confirms                                                                                                                                                | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                         |
 | <a id="kind-note"></a>`note`                 | agent           | `leaf page stamp`                                                               | `version`, `revision`, changelog `text`, `restated`, `settles` (the `report` ids it answers and the `todo` ids its `--completes` ends)                                                 | maps a public version to an immutable revision, naming the decisions it takes back                                                                                                            |
@@ -149,7 +149,7 @@ names an agent's event through `schema.agent_name`, and the browser shows that n
 served.
 
 Admission stamps `attention` when the event changes obligations, pending answers,
-work the agent has in hand and its inputs, or widget input whose active `server.state`
+work the agent has in hand and its inputs, or widget input whose active `state.verbs`
 verb declares `attention: true` (`$state`). `workflows.attention_reading` compares
 those readings before and
 after the gesture, and the decision survives later replies, versions and to-do endings,
@@ -212,7 +212,7 @@ event. Every `action` and `report` records:
 - `state`, the operation and detail domain the gesture was admitted under, so under a
   later layer whose domain excludes the value, the event stays in history only
   (`layer-registry.md`).
-- `answer`, on an action whose admission makes its widget's `server.awaits.answered` hold:
+- `answer`, on an action whose admission makes its widget's `state.awaits.answered` hold:
   the thread the answer closes, from the widget's authored `resolves` in the sending
   document, or null. The outcome its deciding verb `withdraws` declines and closes
   nothing.
@@ -240,7 +240,7 @@ list before it, unless the revision marks it `restated`. An absorbed move still 
 as a written-back pick does, but the markup now decides the order an undo would have
 restored, so it can no longer be undone. The door refuses a move made on an older
 revision whose container the newest one authors differently, and any move of a unit
-that shows another widget's answer (`server.shows`): that widget's own action places it,
+that shows another widget's answer (`state.shows`): that widget's own action places it,
 and is the one record of the answer whichever view sent it (`shown_answers.py`).
 
 ## Following the log
@@ -283,7 +283,7 @@ a `read` or `seen` names no account.
 An agent comment opens a thread, and a substantive reply opens or resumes one. Either
 waits on the user only through an obligation: the message's own, declared with
 `--obligation` (id `message:<message>`, its text the prompt), or one a widget in its
-markup declares through `server.awaits`.
+markup declares through `state.awaits`.
 An answering command declares what it leaves: `--done`, nothing further; `--todo
 <title>`, a to-do on the thread for work the reply promises but does not deliver
 (`todos.todo_reading`); or a message obligation or a question in its markup. The
@@ -303,8 +303,8 @@ A harness that gives up on an update writes the failure its answer takes
 to a page obligation, each carrying `failure`, a harness-owned code. Only the harness
 writes `failure`, and the panel draws such a reply as a receipt that answers nothing.
 
-A widget with a local `server.awaits` obligation in a reply's markup declares that
-obligation itself. Frozen in the reply, it stays open until `server.awaits.answered`
+A widget with a local `state.awaits` obligation in a reply's markup declares that
+obligation itself. Frozen in the reply, it stays open until `state.awaits.answered`
 holds. Actions on it before then are not handed over: they carry no receipt and need no
 reply. The action that answers carries the receipt and hands the turn to the agent, and
 undoing it returns the obligation to the user and removes the reply obligation. An
@@ -337,7 +337,7 @@ A message asks by its words or by a widget in its markup, not both: only words a
 widgets', frozen widgets', message requests and user-owned tasks, with a record beside
 them for each update the user handed over (`workflows.handed_over`), read after the
 widget obligations it depends on. `obligations.py` owns a record's statuses and its next
-actor. `$keys.server.awaits` in `browser/registry.json` says when a widget's obligation
+actor. `$keys.state.awaits` in `browser/registry.json` says when a widget's obligation
 exists and what its id is, and `Obligation` in `served_state/state.schema.json` lists
 the served fields. `obligations.collection` selects `all`, `user` and `unanswered` from
 it. To-dos are separate records, and no to-do is made from an obligation.

@@ -13,8 +13,8 @@
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The obligation model (obligations/model.js) reads `server.awaits`, while the obligation view (obligations/view.js)
-     projects the enclosing widget (`server.encloses`) around that source where one exists;
+   - The obligation model (obligations/model.js) reads `state.awaits`, while the obligation view (obligations/view.js)
+     projects the enclosing widget (`state.encloses`) around that source where one exists;
      neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
@@ -314,7 +314,7 @@ export function paintDeclaredWords(root) {
 // one marker now, data-lf-inline, and an inline widget from any layer joins by
 // declaring.
 //
-// Whether the widget quotes what it holds is the third (server.exhibit). An exhibit is
+// Whether the widget quotes what it holds is the third (state.exhibit). An exhibit is
 // a mention, not a use, so every rule saying "this takes input" — the hand, the lift,
 // the joined shape, the reserved strips, the hover wash — stands down inside one. The
 // declaration is the tag's and the question is the occurrence's, which is the shape
@@ -360,7 +360,7 @@ export function markDeclared(root) {
     for (const tag of tags) {
       const declared = declaredFact(registry[tag], key);
       for (const el of elementsIn(root, tag)) {
-        const value = key === "server.exhibit" ? exhibits(el, registry[tag]) : declared;
+        const value = key === "state.exhibit" ? exhibits(el, registry[tag]) : declared;
         if (key === "paint.views") {
           markViews(el);
           continue;

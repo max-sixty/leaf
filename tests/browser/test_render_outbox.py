@@ -1421,7 +1421,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
         "</lf-outer-board>"
     )
-    outer.setdefault("server", {})["state"] = {
+    outer.setdefault("state", {})["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {

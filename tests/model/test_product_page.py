@@ -352,11 +352,11 @@ def test_the_event_log_page_quotes_the_registry():
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
     shown = json.loads("{" + code_block(source, "options-verbs") + "}")
     assert shown == {
-        "server": {
-            "state": entry["server"]["state"],
+        "state": {
+            "verbs": entry["state"]["verbs"],
             "awaits": {
-                "value": entry["server"]["awaits"]["value"],
-                "answered": entry["server"]["awaits"]["answered"],
+                "value": entry["state"]["awaits"]["value"],
+                "answered": entry["state"]["awaits"]["answered"],
             },
         },
     }

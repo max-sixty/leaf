@@ -32,7 +32,7 @@ export function widgetImports(scope, registry) {
   const shadow = tags.some(
     (tag) =>
       registry[tag]?.words?.shadow ||
-      Object.values(registry[tag]?.server?.state ?? {}).some(
+      Object.values(registry[tag]?.state?.verbs ?? {}).some(
         (state) => state.creates && registry[state.creates.child]?.words?.shadow,
       ),
   );

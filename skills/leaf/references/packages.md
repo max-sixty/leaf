@@ -241,7 +241,7 @@ is refused as an idiom holding keys an idiom can't have.
 
 An element declaration holds the JSON Schema of the element's attributes under
 `attributes`, and groups the facts that say how Leaf treats the tag by what they are
-about: `server` (its action verbs and whether it puts an obligation on On Me), `markup`
+about: `state` (its action verbs and whether it puts an obligation on On Me), `markup`
 (where it may stand and what it names), `words` (how its words read), `paint` (how its
 box is laid out before its module draws), `data` (its typed inputs and outputs) and
 `author`, with `content` beside `attributes`. Each is declared because some part of Leaf,
@@ -261,8 +261,8 @@ such as the server or `page check`, needs it without running the widget's module
 }
 ```
 
-A fact is named by its path, such as `server.state`, and the merged registry's `$keys`
-entry defines each; `$state` defines the members of `server.state`, and `$awaits` an
+A fact is named by its path, such as `state.verbs`, and the merged registry's `$keys`
+entry defines each; `$state` defines the members of `state.verbs`, and `$awaits` an
 obligation's answer. What the module alone can answer stays in the module, as a word
 for its kind that depends on the element is its `lfWord()`. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
@@ -292,7 +292,7 @@ role on the page:
 | `words.visual`        | `lf-chart` declares `whole`, `lf-diagram` in `diagram` `parts` |
 | `paint.bound`         | `lf-activity`                                                  |
 | `paint.height`        | `lf-chart`                                                     |
-| `server.history`      | `lf-activity`                                                  |
+| `state.history`       | `lf-activity`                                                  |
 | `paint.views`         | `lf-tabs`                                                      |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module

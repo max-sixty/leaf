@@ -485,8 +485,8 @@ def obligation_value_cases():
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
         registry = {
             "lf-value": {
-                "server": {
-                    "state": {"set": spec},
+                "state": {
+                    "verbs": {"set": spec},
                 },
             }
         }
@@ -826,13 +826,13 @@ def tail_cases() -> list[dict]:
                 "additionalProperties": False,
             },
             "content": "none",
-            "server": {
+            "state": {
                 "awaits": {
                     "when": {"active": [True]},
                     "value": "set",
                     "answered": {"set": {}},
                 },
-                "state": {
+                "verbs": {
                     "set": {
                         "unit": "widget",
                         "record": {"kind": "value", "attr": "value"},

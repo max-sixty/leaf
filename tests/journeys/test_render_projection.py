@@ -472,7 +472,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     declarations["lf-tally"]["attributes"]["properties"]["restated"] = {
         "type": "boolean"
     }
-    declarations["lf-tally"].setdefault("server", {})["state"] = {
+    declarations["lf-tally"].setdefault("state", {})["verbs"] = {
         "step": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "count"},
@@ -549,7 +549,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         (tag, verb)
         for tag, entry in registry.items()
         if tag.startswith("lf-")
-        for verb in declared_fact(entry, "server.state", {})
+        for verb in declared_fact(entry, "state.verbs", {})
     }
     assert {(tag, verb) for _id, tag, _key, verb in in_force} == declared, (
         "the gate applies the state in force, so a declared verb missing from it is a "
@@ -977,7 +977,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         wherever it stands — and `m` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each reach the
     agent live, so only its Done press closes it, as an `answer` action
-    server.awaits.answered names for a `multiple` group. The thread's own reply box is
+    state.awaits.answered names for a `multiple` group. The thread's own reply box is
     the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
     Threads, while `t` reaches a particular thread and `c` reaches its reply box.
@@ -1096,7 +1096,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a `multiple` set, whose server.awaits.answered condition is an `answer` in force.
+    # a `multiple` set, whose state.awaits.answered condition is an `answer` in force.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):

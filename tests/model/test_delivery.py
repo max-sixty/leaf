@@ -379,7 +379,7 @@ def test_recordless_requests_wake_without_user_obligations(
         "unit": "widget",
         "detail": {"type": "object", "properties": {}, "additionalProperties": False},
     }
-    declaration.setdefault("server", {})["state"] = {
+    declaration.setdefault("state", {})["verbs"] = {
         "archive": {**verb, "attention": True},
         "edit": verb,
     }
@@ -1462,7 +1462,7 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     # redeclaring the verb leaves what the earlier messages were about.
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-playground"]["server"]["state"]["tune"].pop(
+        lambda registry: registry["lf-playground"]["state"]["verbs"]["tune"].pop(
             "unsent"
         ),
     )

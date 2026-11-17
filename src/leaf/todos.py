@@ -51,7 +51,7 @@ start, any agent session can end it. Commands run outside a harness all share on
 empty session identity, so Leaf can't tell them apart.
 
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
-live widget that declares `server.work` or holds an unsettled action
+live widget that declares `state.work` or holds an unsettled action
 (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`

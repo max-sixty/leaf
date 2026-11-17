@@ -432,7 +432,7 @@ def mark_declared(
         for key, mark in kernel_marks().items():
             declared = (
                 holds_for(attrs, declared_fact(declaration, key))
-                if key in ("server.exhibit", "paint.flow")
+                if key in ("state.exhibit", "paint.flow")
                 else declared_fact(declaration, key)
             )
             authored = mark.get("authored")

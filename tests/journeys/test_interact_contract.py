@@ -150,11 +150,11 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     def owned(registry):
         # A different host attribute is a different value slot on the same unit.
         task = registry["lf-test-task"]
-        owner = json.loads(json.dumps(task["server"]["state"]["status"]))
+        owner = json.loads(json.dumps(task["state"]["verbs"]["status"]))
         owner["record"] = {"kind": "value", "attr": "owner"}
         task["attributes"]["properties"]["owner"] = {"type": "string"}
         task["attributes"].setdefault("required", []).append("owner")
-        task["server"]["state"]["owner"] = owner
+        task["state"]["verbs"]["owner"] = owner
 
     declare_on_page(page_dir, owned)
 
@@ -168,7 +168,7 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     def withdraws(outcome):
         declare_on_page(
             trial_page,
-            lambda registry: registry["lf-trial"]["server"]["state"]["decide"].update(
+            lambda registry: registry["lf-trial"]["state"]["verbs"]["decide"].update(
                 {"withdraws": outcome}
             ),
         )
@@ -212,10 +212,10 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
                 attr: {"type": "string"},
                 "restated": {"type": "boolean"},
             }
-            entry.setdefault("server", {})["state"] = verbs
+            entry.setdefault("state", {})["verbs"] = verbs
             (widgets / f"{tag}.js").write_text("export default class {}\n")
         if arrangement == "recording-column-position":
-            registry["lf-column"]["server"]["state"]["move"] = {
+            registry["lf-column"]["state"]["verbs"]["move"] = {
                 "unit": "unit",
                 "record": {"kind": "position", "within": "lf-column"},
             }

@@ -212,7 +212,7 @@ def queue_board_registry(registry: dict) -> dict:
     answers spanning units without a presentation-specific package.
     """
     registry = deepcopy(registry)
-    registry["lf-board"].setdefault("server", {})["awaits"] = {
+    registry["lf-board"].setdefault("state", {})["awaits"] = {
         "value": "move",
         "answered": {
             "move": {"empty": {"within": "lf-column", "when": {"label": ["Queued"]}}}
@@ -1385,29 +1385,29 @@ def _mutated_registry_check(page_dir, mutate):
 
 
 def _report_body_record(registry):
-    registry["lf-test-task"]["server"]["state"]["status"]["record"] = {"kind": "body"}
+    registry["lf-test-task"]["state"]["verbs"]["status"]["record"] = {"kind": "body"}
 
 
 def _report_position_record(registry):
-    registry["lf-test-task"]["server"]["state"]["status"]["record"] = {
+    registry["lf-test-task"]["state"]["verbs"]["status"]["record"] = {
         "kind": "position",
         "within": "lf-column",
     }
 
 
 def _report_no_record(registry):
-    del registry["lf-test-task"]["server"]["state"]["status"]["record"]
+    del registry["lf-test-task"]["state"]["verbs"]["status"]["record"]
 
 
 def _report_undeclared_attr(registry):
-    registry["lf-test-task"]["server"]["state"]["status"]["record"]["attr"] = "phase"
+    registry["lf-test-task"]["state"]["verbs"]["status"]["record"]["attr"] = "phase"
 
 
 def _report_says_attr(registry):
     task = registry["lf-test-task"]
     task["attributes"]["required"].append("owner")
     task.setdefault("words", {})["says"] = {"owner": "before"}
-    task["server"]["state"]["status"] = {
+    task["state"]["verbs"]["status"] = {
         "writer": "agent",
         "unit": "widget",
         "record": {"kind": "value", "attr": "owner"},
@@ -1415,7 +1415,7 @@ def _report_says_attr(registry):
 
 
 def _report_authored_detail(registry):
-    registry["lf-test-task"]["server"]["state"]["status"]["detail"] = {
+    registry["lf-test-task"]["state"]["verbs"]["status"]["detail"] = {
         "type": "object",
         "additionalProperties": False,
     }
@@ -1433,11 +1433,11 @@ def _report_without_module(registry):
 
 
 def _user_verb_text(registry):
-    registry["lf-options"]["server"]["state"]["choose"]["text"] = True
+    registry["lf-options"]["state"]["verbs"]["choose"]["text"] = True
 
 
 def _agent_verb_answers(registry):
-    registry["lf-options"]["server"]["state"]["choose"]["writer"] = "agent"
+    registry["lf-options"]["state"]["verbs"]["choose"]["writer"] = "agent"
     registry["lf-options"]["attributes"]["properties"]["overruled"] = {
         "type": "boolean"
     }
@@ -1515,8 +1515,8 @@ def trial_family(root: Path) -> None:
     ):
         declarations[tag] |= {
             "content": "members",
-            "server": {
-                "state": {"decide": deciding_verb(outcomes)},
+            "state": {
+                "verbs": {"decide": deciding_verb(outcomes)},
             },
             "author": {
                 "example": example,
@@ -1524,7 +1524,7 @@ def trial_family(root: Path) -> None:
         }
         declarations[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     # Only the trial says what taking it back would mean.
-    declarations["lf-trial"]["server"]["state"]["decide"]["withdraws"] = "shelve"
+    declarations["lf-trial"]["state"]["verbs"]["decide"]["withdraws"] = "shelve"
     for tag, owners, outcome in (
         ("lf-current", ["lf-trial"], "adopt"),
         ("lf-proposed", ["lf-trial", "lf-pilot"], "shelve"),
@@ -1533,7 +1533,7 @@ def trial_family(root: Path) -> None:
             "markup": {
                 "owners": owners,
             },
-            "server": {
+            "state": {
                 "retired-when": outcome,
             },
         }

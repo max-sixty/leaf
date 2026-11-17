@@ -1204,7 +1204,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
     declarations["lf-drift"]["attributes"]["properties"]["restated"] = {
         "type": "boolean"
     }
-    declarations["lf-drift"].setdefault("server", {})["state"] = {
+    declarations["lf-drift"].setdefault("state", {})["verbs"] = {
         "settle": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "offset"},
@@ -1356,8 +1356,8 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
         "additionalProperties": False,
     },
     "content": "markup",
-    "server": {
-        "state": {
+    "state": {
+        "verbs": {
             "settle": {
                 "detail": {
                     "type": "object",

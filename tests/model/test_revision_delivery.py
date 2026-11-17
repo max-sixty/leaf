@@ -925,7 +925,7 @@ def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     registry = {
         "lf-new-source": {
             "content": "data",
-            "server": {
+            "state": {
                 "awaits": {"value": "choose"},
             },
         },
@@ -1004,7 +1004,7 @@ def test_an_authored_override_holds_only_where_it_means_something():
 def test_exhibit_paint_follows_the_occurrence_condition():
     registry = {
         "lf-sample": {
-            "server": {
+            "state": {
                 "exhibit": {"when": {"interactive": [False]}},
             },
         }

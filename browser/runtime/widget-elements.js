@@ -226,7 +226,7 @@ export function worksInside(node, container) {
  * plain tab stop or scrolling box takes nothing, and neither does what a widget holds
  * of the author's markup, as a pane's words, an option's beside its mark, a
  * suggestion's old and new words or a playground's preview: the verbs a widget declares
- * (`server.state`) say what it records, not that a press on its content acts. A
+ * (`state.verbs`) say what it records, not that a press on its content acts. A
  * thread's words preview the thread only where nothing does, on every route that reads
  * a point (preview.js, `readingAt`); presses don't ask, so a press on a thread's words
  * acts as it always has.

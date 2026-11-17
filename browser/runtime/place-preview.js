@@ -402,14 +402,14 @@ function membersPart(element, parts) {
 
 const widgetStates = readPart((root) => root.effective.widgets);
 // The members a widget's answer picks, as the widget reads its own state: the value of
-// its `server.awaits` verb where that verb records a pick on the members it names
-// (`server.state`), folded from the authored initial values and every action in force
+// its `state.awaits` verb where that verb records a pick on the members it names
+// (`state.verbs`), folded from the authored initial values and every action in force
 // since, so a group authored settled with its pick `selected` marks that pick as the
 // widget does.
 /** @param {Element} widget @returns {ReadonlySet<unknown>} */
 function picked(widget) {
-  const verb = declarationFor(widget)?.server?.awaits?.value;
-  const record = verb ? declarationFor(widget)?.server?.state?.[verb]?.record : null;
+  const verb = declarationFor(widget)?.state?.awaits?.value;
+  const record = verb ? declarationFor(widget)?.state?.verbs?.[verb]?.record : null;
   const value =
     verb && record?.kind === "attribute"
       ? widgetStates().get(widget.id)?.state[verb]?.value

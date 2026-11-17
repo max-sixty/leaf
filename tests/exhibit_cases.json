@@ -1,7 +1,7 @@
 {
   "registry": {
     "lf-sample": {
-      "server": {
+      "state": {
         "exhibit": {
           "when": {
             "interactive": [false]
@@ -12,7 +12,7 @@
     "lf-group": {},
     "lf-pick": {},
     "lf-quote": {
-      "server": {
+      "state": {
         "exhibit": true
       }
     }

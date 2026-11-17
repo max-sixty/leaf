@@ -225,7 +225,7 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
 
   Report a state change onto a page widget, as a worker.
 
-  VERB is one of the widget's agent-written server.state verbs, and each
+  VERB is one of the widget's agent-written verbs (state.verbs), and each
   NAME=VALUE one of its fields: `leaf page report <page> t-parser status
   value=review text="Ready for review"` moves a task. The page shows the report
   at once, marked provisional, until a stamped version writes it into the markup

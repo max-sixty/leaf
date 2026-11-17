@@ -21,7 +21,7 @@
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
  * is never replaced, so there is no failSoft.
  *
- * A card with `shows` is the board's view of another widget's answer (server.shows,
+ * A card with `shows` is the board's view of another widget's answer (state.shows,
  * `shownAnswer`), such as a proposal's pick in its own section. The board draws it in
  * the column whose `value` that answer names, read from the widget's state in this
  * render, so a pick there, an undo, a refusal and a revision's retraction move the card
@@ -251,7 +251,7 @@ customElements.define(
       return Boolean(this.reading?.actions.move?.available);
     }
 
-    // A card showing another widget's answer (server.shows) moves when that answer can
+    // A card showing another widget's answer (state.shows) moves when that answer can
     // change, and every other card when the board's own move can.
     /** @param {Element} card */
     #movable(card) {
@@ -260,10 +260,10 @@ customElements.define(
     }
 
     // The value a column holds for a card showing an answer, null for none: the
-    // attribute the card's server.shows names.
+    // attribute the card's state.shows names.
     /** @param {Element} column @param {Element} card */
     #holds(column, card) {
-      const shows = declarationFor(card)?.server?.shows;
+      const shows = declarationFor(card)?.state?.shows;
       if (!shows) throw new Error("Shown-answer card has no declared column value");
       return column.getAttribute(shows.value) || null;
     }
@@ -328,7 +328,7 @@ customElements.define(
       const held = () => this.#grabbed?.grip === grip;
       // Whether the card is authored to show an answer, read off its markup since the
       // answer's own state may not have loaded yet.
-      const shows = card.hasAttribute(declarationFor(card)?.server?.shows?.attr ?? "");
+      const shows = card.hasAttribute(declarationFor(card)?.state?.shows?.attr ?? "");
       // Columns run the way the page's words do, so left is the previous column only
       // in left-to-right text; the title names the column, which holds whichever way
       // the board lays them out.

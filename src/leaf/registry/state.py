@@ -69,10 +69,10 @@ def validate_widget_state_relations(
             # owners. Capabilities read from the authored owner inventory cannot
             # be supplied by these members. Presentation-only upgrades are allowed.
             owner_keys = (
-                "server.state",
-                "server.awaits",
-                "server.work",
-                "server.history",
+                "state.verbs",
+                "state.awaits",
+                "state.work",
+                "state.history",
                 "data.inputs",
             )
             owned = [key for key in owner_keys if declared_fact(child, key)]
@@ -126,7 +126,7 @@ def validate_widget_record_contracts(
     # the answering action's meaning. On a widget with no local obligation nothing would
     # ever read it, so the name means that or is refused here.
     if "resolves" in properties and not (
-        declared_fact(entry, "server.awaits") or {}
+        declared_fact(entry, "state.awaits") or {}
     ).get("answered"):
         raise registry_error("reserved-resolves", path, tag)
     # One rule set for both writers: they differ in who sends the state, not in
@@ -206,7 +206,7 @@ def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) 
             verb=deciding_verb(entry),
             outcome=withdrawn,
         )
-    retired = declared_fact(entry, "server.retired-when")
+    retired = declared_fact(entry, "state.retired-when")
     if retired is None:
         return
     # Every owner, not the first: a slot that retires under its owner's outcome has
@@ -227,7 +227,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
         raise registry_error("deciding-verbs", path, tag, verbs=deciding)
     if not deciding:
         return
-    spec = entry["server"]["state"][deciding[0]]
+    spec = entry["state"]["verbs"][deciding[0]]
     schema = spec["detail"].get("properties", {}).get("outcome")
     words = schema.get("enum") if isinstance(schema, dict) else None
     if (
@@ -249,7 +249,7 @@ def validate_answered_conditions(
     # state the verb itself keeps: a whole-widget value, an action in force, or, for a
     # verb recording positions, the emptiness of one member container inside the
     # widget.
-    awaits = declared_fact(entry, "server.awaits") or {}
+    awaits = declared_fact(entry, "state.awaits") or {}
     records = awaits.get("records")
     if records:
         binding = declared_fact(entry, "data.inputs", {}).get(records["input"])
@@ -262,15 +262,15 @@ def validate_answered_conditions(
         ):
             raise registry_error("awaits-records", path, tag)
     for verb, condition in (
-        (declared_fact(entry, "server.awaits") or {}).get("answered", {}).items()
+        (declared_fact(entry, "state.awaits") or {}).get("answered", {}).items()
     ):
-        spec = entry["server"]["state"][verb]
+        spec = entry["state"]["verbs"][verb]
         empty = condition.get("empty")
         record = spec.get("record") or {}
         if records:
             if spec["unit"] == "widget" or empty is not None or record:
                 raise registry_error("answering-record", path, tag, verb=verb)
-            if spec["unit"] != entry["server"]["state"][awaits["value"]]["unit"]:
+            if spec["unit"] != entry["state"]["verbs"][awaits["value"]]["unit"]:
                 raise registry_error("answering-record", path, tag, verb=verb)
         elif empty is None:
             if spec["unit"] != "widget":

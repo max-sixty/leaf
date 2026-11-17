@@ -438,7 +438,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     server, page_dir
 ):
     registry = vocabulary(page_dir)
-    registry["lf-suggestion"]["server"]["state"]["label"] = {
+    registry["lf-suggestion"]["state"]["verbs"]["label"] = {
         "detail": {
             "type": "object",
             "properties": {"text": {"type": "string"}},
@@ -514,7 +514,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
 
     registry = registry_storage.require_registry(page_dir)
     registry = deepcopy(registry)
-    registry["lf-suggestion"]["server"]["state"]["label"] = {
+    registry["lf-suggestion"]["state"]["verbs"]["label"] = {
         "detail": {"type": "object"},
         "unit": "widget",
     }

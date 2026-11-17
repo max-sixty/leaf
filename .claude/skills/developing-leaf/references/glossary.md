@@ -127,7 +127,7 @@ For an authored occurrence say *Leaf element*, never *instance* alone.
 | **Addressable element** | An authored element with an id that a user can target |
 
 An element declaration keeps independent properties in separate keys, which the
-registry's `$keys` defines; a fact such as `server.state` declares a capability, not an
+registry's `$keys` defines; a fact such as `state.verbs` declares a capability, not an
 element family.
 
 Don't say *widget entry* for an element declaration, *item* for an addressable element

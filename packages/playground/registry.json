@@ -21,14 +21,14 @@
       "required": ["id"],
       "additionalProperties": false
     },
-    "server": {
+    "state": {
       "awaits": {
         "value": "choose",
         "answered": {
           "choose": {}
         }
       },
-      "state": {
+      "verbs": {
         "choose": {
           "contract": {
             "field": "values",

@@ -18,7 +18,7 @@ def widget_seat_error(
 
     A to-do on a widget stands beside that widget at the page edge, so the widget must
     be live on the page: present under the page's outcomes in force and not quoted
-    exhibit content. And it must be a seat for work: its tag declares `server.work`, or
+    exhibit content. And it must be a seat for work: its tag declares `state.work`, or
     it
     holds an unsettled action, among `workflows` (`workflows.handed_over`)."""
     named = {"widget": widget}
@@ -33,7 +33,7 @@ def widget_seat_error(
     held = any(
         item["subject"] == {"kind": "widget", "id": widget} for item in workflows
     )
-    if not declared_fact(page.registry[rec["tag"]], "server.work") and not held:
+    if not declared_fact(page.registry[rec["tag"]], "state.work") and not held:
         return Finding("no-work-seat", values=named)
     return None
 

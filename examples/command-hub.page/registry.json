@@ -171,8 +171,8 @@
     "markup": {
       "owners": ["lf-atlas-plan", "lf-atlas-task"]
     },
-    "server": {
-      "state": {
+    "state": {
+      "verbs": {
         "status": {
           "writer": "agent",
           "unit": "widget",
@@ -212,8 +212,8 @@
         }
       }
     },
-    "server": {
-      "state": {
+    "state": {
+      "verbs": {
         "state": {
           "writer": "agent",
           "unit": "widget",

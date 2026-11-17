@@ -981,7 +981,7 @@ def folded(page_dir, board="b1"):
     return projection_model.folded_positions(
         board,
         "move",
-        registry["lf-board"]["server"]["state"]["move"]["record"],
+        registry["lf-board"]["state"]["verbs"]["move"]["record"],
         projection_model.AuthoredOrders(document.document.by_id, registry),
         document.projection,
     )
@@ -1035,7 +1035,7 @@ def test_rank_rules_match_the_browser_cases():
     # The append door reads the rank through the detail schema, whose `pattern`
     # searches rather than fully matches, so it must refuse the same cases.
     board = model_layer()["lf-board"]
-    rank = detail_schema(board, board["server"]["state"]["move"])["properties"]["rank"]
+    rank = detail_schema(board, board["state"]["verbs"]["move"])["properties"]["rank"]
     assert not any(schema_error(rank, r) is None for r in RANK_CASES["invalid"])
     assert all(schema_error(rank, r) is None for r in RANK_CASES["valid"])
 
@@ -1057,7 +1057,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
     document = structure_model.SourceDocument(
         f'<main><lf-board id="board">{columns}</lf-board></main>'
     )
-    spec = registry["lf-board"]["server"]["state"]["move"]
+    spec = registry["lf-board"]["state"]["verbs"]["move"]
     desired = {
         ("board", move["card"], "move"): (
             {
@@ -3672,7 +3672,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
 
 
 def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
-    """A draft uses the ordinary server.awaits fold: its edit discharges the decision,
+    """A draft uses the ordinary state.awaits fold: its edit discharges the decision,
     and an honoring version can clear the authored condition without reviving it."""
 
     def command(status, required, body):
@@ -4279,12 +4279,12 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
     showing nothing, exactly as the walk given it does."""
     registry = {
         "lf-old": {
-            "server": {
+            "state": {
                 "retired-when": "accepted",
             },
         },
         "lf-new": {
-            "server": {
+            "state": {
                 "retired-when": "rejected",
             },
         },
@@ -4318,8 +4318,8 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "words": {
                 "verbatim": True,
             },
-            "server": {
-                "state": {
+            "state": {
+                "verbs": {
                     "edit": {
                         "unit": "widget",
                         "record": {"kind": "body"},
@@ -4349,7 +4349,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
                 "state": state_definition(
                     "lf-draft",
                     registry["lf-draft"],
-                    registry["lf-draft"]["server"]["state"]["edit"],
+                    registry["lf-draft"]["state"]["verbs"]["edit"],
                 ),
             },
             "seq": seq,
@@ -4392,8 +4392,8 @@ def test_projected_verbatim_includes_generated_children():
             "words": {
                 "verbatim": True,
             },
-            "server": {
-                "state": {
+            "state": {
+                "verbs": {
                     "add": {
                         "detail": {
                             "type": "object",
@@ -4434,7 +4434,7 @@ def test_projected_verbatim_includes_generated_children():
     from leaf.registry.contract import state_definition
 
     event["meaning"]["state"] = state_definition(
-        "lf-list", registry["lf-list"], registry["lf-list"]["server"]["state"]["add"]
+        "lf-list", registry["lf-list"], registry["lf-list"]["state"]["verbs"]["add"]
     )
     expected = render_gate_readings._expected_verbatim(
         markup, [event], registry, here=1

@@ -1,7 +1,7 @@
 /* The vocabulary's query doors, which is how the layer stays open.
 
    `elementDeclarations` and `tagsDeclaring` are the general iteration doors. `stateSpecs` is
-   the one traversal of every tag's `server.state`, whichever side writes each verb. New code
+   the one traversal of every tag's `state.verbs`, whichever side writes each verb. New code
    that loops over tag names or repeats that traversal is a closed list in another form. CSS selectors
    follow the same rule: a list of framed widget tags is still a closed consumer. */
 
@@ -79,7 +79,7 @@ function indexedState() {
   /** @type {StateIndex["specs"]} */
   const specs = [];
   for (const [tag, entry] of elementDeclarations())
-    for (const [verb, spec] of Object.entries(entry.server?.state ?? {}))
+    for (const [verb, spec] of Object.entries(entry.state?.verbs ?? {}))
       specs.push({ tag, verb, spec });
   /** @type {Map<string, Set<string>>} */
   const recordTags = new Map();
@@ -129,9 +129,9 @@ export const declaredFact = (entry, fact) => {
   return holder?.[fact.slice(dot + 1)];
 };
 
-// How a tag is decided, or null where no verb decides it: `verb`, the `server.state`
+// How a tag is decided, or null where no verb decides it: `verb`, the `state.verbs`
 // verb whose detail `outcome` is the decision, and `retires`, each outcome's member
-// tags that leave the page under it (`server.retired-when`). Composition stamps it into
+// tags that leave the page under it (`state.retired-when`). Composition stamps it into
 // the vocabulary as `$decisions` (Python's `registry.contract.stamp_decisions`), so
 // nothing here re-derives it.
 /** @param {string} tag @returns {Decision | null} */
@@ -142,7 +142,7 @@ export const decisionFor = (tag) => registry.$decisions[tag] ?? null;
 // rows, as a tab set's panel can, costs a native match of each row rather than a
 // script's look at it. The match costs more for each tag it names: on #4781's page,
 // every declared tag took 0.4 s over the 30 panels where the few declaring
-// `server.awaits` took 0.05 s, so a question about some widgets names only theirs.
+// `state.awaits` took 0.05 s, so a question about some widgets names only theirs.
 /** @param {Document | DocumentFragment | Element} root @param {(entry: WidgetDeclaration) => unknown} [holds] */
 export const declaredElements = (root, holds = () => true) => {
   const tags = tagsDeclaring(holds);
@@ -186,7 +186,7 @@ export const matchesWhen = (el, when) =>
 // An occurrence quotes its descendants only while its declared condition holds.
 /** @param {Element} el @param {WidgetDeclaration | null | undefined} entry */
 export const exhibits = (el, entry) => {
-  const rule = entry?.server?.exhibit;
+  const rule = entry?.state?.exhibit;
   return typeof rule === "object" && rule !== null
     ? matchesWhen(el, rule.when)
     : !!rule;

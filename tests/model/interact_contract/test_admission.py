@@ -91,7 +91,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     registry = deepcopy(model_layer())
     entry = element_declaration("lf-review", upgrade=True)
     entry["attributes"]["properties"]["restated"] = {"type": "boolean"}
-    entry.setdefault("server", {})["state"] = {
+    entry.setdefault("state", {})["verbs"] = {
         "review": {
             "unit": unit,
             "detail": {
@@ -130,7 +130,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     assert action["meaning"]["state"]["decides"] is False
 
     # Reusing the verb as a whole-widget decision does not reinterpret that answer.
-    entry["server"]["state"]["review"] |= {"unit": "widget", "decides": True}
+    entry["state"]["verbs"]["review"] |= {"unit": "widget", "decides": True}
     validate_registry(registry, "revised review package")
     assert page_reading(page.reading(1, registry), [action], 1).projection.actions == {}
 
@@ -138,12 +138,12 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
 def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposal():
     registry = deepcopy(model_layer())
     entry = registry["lf-suggestion"]
-    entry["server"]["state"]["review"] = {
+    entry["state"]["verbs"]["review"] = {
         key: value
-        for key, value in entry["server"]["state"]["decide"].items()
+        for key, value in entry["state"]["verbs"]["decide"].items()
         if key not in {"decides", "withdraws"}
     }
-    entry["server"]["awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
+    entry["state"]["awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
     validate_registry(registry, "review package")
     stamp_composition(registry)
     source = (
@@ -174,7 +174,7 @@ def instance_input_registry():
     entry = element_declaration("lf-input-box", upgrade=True)
     entry["attributes"]["properties"]["restated"] = {"type": "boolean"}
     entry["attributes"]["properties"]["shape"] = {"type": "string"}
-    entry.setdefault("server", {})["state"] = {
+    entry.setdefault("state", {})["verbs"] = {
         "submit": {
             "unit": "widget",
             "contract": {"field": "payload", "attribute": "shape"},
@@ -440,7 +440,7 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
     A later version that removes the question leaves the row naming the option the
     user picked, by its title rather than its eyebrow or description, and a withdrawn
     pick stays a row marked undone. A page whose markup holds no widget declaring
-    `server.history` is not served the reading.
+    `state.history` is not served the reading.
     """
     question = model.leaf_page(
         "Route",

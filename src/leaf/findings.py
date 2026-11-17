@@ -356,7 +356,7 @@ def _bearing(at: str, v: dict, value: str) -> str:
 
 
 def _conditions(lacks: dict) -> str:
-    """The `server.awaits.when` conditions a widget never met (`instances.unasked`)."""
+    """The `state.awaits.when` conditions a widget never met (`instances.unasked`)."""
     return " and ".join(
         " or ".join(
             f"`{attr}` is {'set' if value else 'unset'}"
@@ -401,7 +401,7 @@ def _empty_question(at: str, v: dict) -> str:
     return f"{_line(at, v)}: asks the user nothing, " + (
         f"since {widgets}"
         if widgets
-        else "since it holds no widget that asks (one declaring server.awaits); add one,"
+        else "since it holds no widget that asks (one declaring state.awaits); add one,"
         " or ask a question answered in words in a thread message with --obligation"
     )
 
@@ -461,11 +461,11 @@ def _predicate(v: dict, says: str) -> str:
 
 
 def _created(v: dict, says: str) -> str:
-    return f"server.state verb `{v['verb']}` creates <{v['child']}>, {says}"
+    return f"verb `{v['verb']}` (state.verbs) creates <{v['child']}>, {says}"
 
 
 def _answering(v: dict, says: str) -> str:
-    return f"server.awaits answering verb `{v['verb']}` {says}"
+    return f"state.awaits answering verb `{v['verb']}` {says}"
 
 
 def _box(box: dict) -> str:
@@ -685,7 +685,7 @@ _TEXT = {
     ),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
-        " declare it as a verb's record form (server.state) if a version is meant to carry"
+        " declare it as a verb's record form (state.verbs) if a version is meant to carry"
         " it, or write the state on the chrome the module built"
     ),
     "settlement-mark": lambda at, v: (
@@ -1038,8 +1038,8 @@ _TEXT = {
     ),
     "shows-no-answer": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names a widget whose answer no'
-        " view can show: its server.awaits value verb records neither a value nor members"
-        " a server.awaits key names"
+        " view can show: its state.awaits value verb records neither a value nor members"
+        " a state.awaits key names"
     ),
     "shows-without-open": lambda at, v: (
         f"{_line(at, v)}: every <{v['place']}> beside its own has a `{v['value_attr']}`,"
@@ -1288,9 +1288,9 @@ _TEXT = {
             " must declare a string `id` attribute"
         )
     ),
-    "enclosing-id": _declared(lambda v: "server.encloses must require an id"),
+    "enclosing-id": _declared(lambda v: "state.encloses must require an id"),
     "enclosing-prose": _declared(
-        lambda v: "server.encloses must admit prose around the obligations it frames"
+        lambda v: "state.encloses must admit prose around the obligations it frames"
     ),
     "data-contract": _declared(
         lambda v: (
@@ -1369,25 +1369,25 @@ _TEXT = {
     # Its interactions: local work, its obligation, and the state its verbs write.
     "work-inline": _declared(
         lambda v: (
-            "declares server.work but is inline; local work chrome needs a block slot"
+            "declares state.work but is inline; local work chrome needs a block slot"
         )
     ),
     "work-content": _declared(
         lambda v: (
-            f"declares server.work but content is {v['content']}; generated local"
+            f"declares state.work but content is {v['content']}; generated local"
             " chrome may only join authored prose"
         )
     ),
     "awaits-records": _declared(
         lambda v: (
-            "server.awaits.records must name an input (data.inputs) whose contract declares"
+            "state.awaits.records must name an input (data.inputs) whose contract declares"
             " records and whose binding names only an external source attribute"
         )
     ),
     "answering-record": _declared(
         lambda v: _answering(
             v,
-            "must use the same record unit as server.awaits.value, with custom detail and no empty condition",
+            "must use the same record unit as state.awaits.value, with custom detail and no empty condition",
         )
     ),
     "answering-detail": _declared(
@@ -1396,56 +1396,56 @@ _TEXT = {
         )
     ),
     "awaits-unanswered": _declared(
-        lambda v: "server.awaits local obligation declares no `answered` condition"
+        lambda v: "state.awaits local obligation declares no `answered` condition"
     ),
     "awaits-verbs": _declared(
         lambda v: (
-            f"server.awaits answers with verbs {_json(v['verbs'])}, which are"
-            " not server.state verbs the user writes"
+            f"state.awaits answers with verbs {_json(v['verbs'])}, which are"
+            " not verbs (state.verbs) the user writes"
         )
     ),
     "awaits-value": _declared(
-        lambda v: "server.awaits value must name a user-written server.state verb"
+        lambda v: "state.awaits value must name a user-written verb (state.verbs)"
     ),
     "awaits-key": _declared(
         lambda v: (
-            f"server.awaits key `{v['key']}` needs an attribute-record value verb whose"
+            f"state.awaits key `{v['key']}` needs an attribute-record value verb whose"
             f" members declare `{v['key']}` in markup.unique for this widget"
         )
     ),
     "shows-reference": _declared(
         lambda v: (
-            f"server.shows attr `{v['attr']}` must be a markup.refers relation to any element"
+            f"state.shows attr `{v['attr']}` must be a markup.refers relation to any element"
         )
     ),
     "shows-value": _declared(
         lambda v: (
-            f"server.shows value `{v['attr']}` is no attribute of "
+            f"state.shows value `{v['attr']}` is no attribute of "
             + ", ".join(f"<{owner}>" for owner in v["owners"])
         )
     ),
     "awaits-retired": _declared(
         lambda v: (
-            f"server.awaits retires with `{v['flag']}`, but its `when` does not"
+            f"state.awaits retires with `{v['flag']}`, but its `when` does not"
             f" require `{v['flag']}` absent"
         )
     ),
     "awaits-blanket": _declared(
         lambda v: (
-            f"server.awaits blanket answer `{v['outcome']}` is not an outcome of a"
+            f"state.awaits blanket answer `{v['outcome']}` is not an outcome of a"
             " deciding verb that answers its obligation"
         )
     ),
     "unoverruled": _declared(
         lambda v: (
-            "declares agent-written server.state verbs"
+            "declares agent-written verbs (state.verbs)"
             f" {_json(v['verbs'])} but no boolean `overruled` attribute, which a"
             " version sets to overrule a worker's report"
         )
     ),
     "unrestated": _declared(
         lambda v: (
-            "declares user server.state verbs on the whole widget but no boolean"
+            "declares user verbs (state.verbs) on the whole widget but no boolean"
             " `restated` attribute, which a version sets to retract the user's"
             " decision"
         )
@@ -1458,26 +1458,26 @@ _TEXT = {
     ),
     "verb-detail-schema": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` has an invalid detail schema: {v['reason']}"
+            f"verb `{v['verb']}` (state.verbs) has an invalid detail schema: {v['reason']}"
         )
     ),
     "creates-unit": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` creates a child, so its fold unit must"
+            f"verb `{v['verb']}` (state.verbs) creates a child, so its fold unit must"
             " name the detail field carrying the child's id and it declares no record"
             " form"
         )
     ),
     "creates-detail": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` creates a child, so its detail must be"
+            f"verb `{v['verb']}` (state.verbs) creates a child, so its detail must be"
             f" exactly the required id string `{v['unit']}` and the required non-empty"
             f" words `{v['words']}`"
         )
     ),
     "creates-unknown": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` creates unknown child <{v['child']}>"
+            f"verb `{v['verb']}` (state.verbs) creates unknown child <{v['child']}>"
         )
     ),
     "creates-owner": _declared(
@@ -1501,7 +1501,7 @@ _TEXT = {
     ),
     "shared-slot": _declared(
         lambda v: (
-            f"server.state verbs `{v['verbs'][0]}` and `{v['verbs'][1]}` claim the"
+            f"verbs (state.verbs) `{v['verbs'][0]}` and `{v['verbs'][1]}` claim the"
             f" same physical record slot (unit `{v['unit']}`, {v['kind']}"
             + (f" `{v['attr']}`" if v["attr"] else "")
             + "); distinct verbs must record independently"
@@ -1509,74 +1509,74 @@ _TEXT = {
     ),
     "unit-undeclared": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` must declare and require its fold unit"
+            f"verb `{v['verb']}` (state.verbs) must declare and require its fold unit"
             f" `{v['unit']}` in detail"
         )
     ),
     "unit-type": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` fold unit `{v['unit']}` must be a string"
+            f"verb `{v['verb']}` (state.verbs) fold unit `{v['unit']}` must be a string"
         )
     ),
     "record-unit": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` record `{v['kind']}` requires unit:"
+            f"verb `{v['verb']}` (state.verbs) record `{v['kind']}` requires unit:"
             f" {v['unit']!r}"
         )
     ),
     "record-within": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` records a position within unknown"
+            f"verb `{v['verb']}` (state.verbs) records a position within unknown"
             f" widget <{v['within']}>"
         )
     ),
     "body-content": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` records its body, so content must be"
+            f"verb `{v['verb']}` (state.verbs) records its body, so content must be"
             " data; projection states text rather than a prose subtree"
         )
     ),
     "body-nested": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` records its body but admits nested"
+            f"verb `{v['verb']}` (state.verbs) records its body but admits nested"
             f" widgets {_json(v['widgets'])}; a text statement cannot reconstruct"
             " their state"
         )
     ),
     "record-undeclared": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` records undeclared attribute `{v['attr']}`"
+            f"verb `{v['verb']}` (state.verbs) records undeclared attribute `{v['attr']}`"
         )
     ),
     "record-says": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` records words.says attribute"
+            f"verb `{v['verb']}` (state.verbs) records words.says attribute"
             f" `{v['attr']}`, whose value is words the user sees — declared state may not"
             " move the page's words"
         )
     ),
     "record-type": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` record attribute `{v['attr']}` must be"
+            f"verb `{v['verb']}` (state.verbs) record attribute `{v['attr']}` must be"
             " a string or string enum; HTML attributes cannot restore another JSON type"
         )
     ),
     "deciding-verbs": _declared(
         lambda v: (
-            f"server.state verbs {_json(v['verbs'])} all declare `decides: true`;"
+            f"verbs (state.verbs) {_json(v['verbs'])} all declare `decides: true`;"
             " only one verb may decide which members retire"
         )
     ),
     "deciding-verb": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` declares `decides: true`:"
+            f"verb `{v['verb']}` (state.verbs) declares `decides: true`:"
             " the deciding verb folds by widget, is written by the user,"
             " and requires `outcome` as a string enum"
         )
     ),
     "verb-contract": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` binds detail field `{v['field']}` to"
+            f"verb `{v['verb']}` (state.verbs) binds detail field `{v['field']}` to"
             f" attribute `{v['attribute']}`: the field must be declared and the"
             " attribute declared a string"
         )
@@ -1587,14 +1587,14 @@ _TEXT = {
     ),
     "withdraws-outcome": _declared(
         lambda v: (
-            f"server.state verb `{v['verb']}` declares `withdraws: {v['outcome']}`,"
+            f"verb `{v['verb']}` (state.verbs) declares `withdraws: {v['outcome']}`,"
             " which is not a value of its `outcome` field"
         )
     ),
     "retired-when": _declared(
         lambda v: (
-            f"server.retired-when `{v['outcome']}` is invalid: <{v['owner']}>"
-            " declares no deciding server.state verb with that outcome"
+            f"state.retired-when `{v['outcome']}` is invalid: <{v['owner']}>"
+            " declares no deciding verb (state.verbs) with that outcome"
         )
     ),
     "answering-part": _declared(
@@ -1774,7 +1774,7 @@ _TEXT = {
         f"<{v['tag']}> {v['kind']} {v['verb']!r} detail is invalid: {v['error']}"
     ),
     "quoted-widget": lambda at, v: (
-        f"<{v['tag']}> {v['widget']!r} stands inside an exhibit (server.exhibit); quoted"
+        f"<{v['tag']}> {v['widget']!r} stands inside an exhibit (state.exhibit); quoted"
         " material takes no input"
     ),
     "created-exists": lambda at, v: (
@@ -1914,7 +1914,7 @@ _TEXT = {
         f"{v['widget']} is quoted exhibit content, not a live page widget"
     ),
     "no-work-seat": lambda at, v: (
-        f"{v['widget']} has no work seat; its widget declares no server.work and it holds"
+        f"{v['widget']} has no work seat; its widget declares no state.work and it holds"
         " no unsettled action"
     ),
     "plan-depth": lambda at, v: (

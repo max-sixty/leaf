@@ -147,8 +147,8 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                     "words": {
                         "verbatim": True,
                     },
-                    "server": {
-                        "state": {
+                    "state": {
+                        "verbs": {
                             "edit": {
                                 "unit": "widget",
                                 "record": {"kind": "body"},

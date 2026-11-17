@@ -222,7 +222,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
         hold: () => this.#hold(),
         refresh: () => this.#refresh(),
       });
-      this.#verbs = Object.keys(this.#descriptor.declaration.server?.state ?? {});
+      this.#verbs = Object.keys(this.#descriptor.declaration.state?.verbs ?? {});
     }
     this.#regionName = this.#descriptor
       ? null

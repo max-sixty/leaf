@@ -17,7 +17,7 @@ Bookkeeping stays out: `read`, `pickup`, `receipt`, `summary`, `thread_title`,
 appearing as its own row.
 
 `history` is a served reading only a page that renders it pays for: the state
-carries it when the page's markup holds a widget whose entry declares `server.history`.
+carries it when the page's markup holds a widget whose entry declares `state.history`.
 """
 
 from .events import taken_back
@@ -40,16 +40,16 @@ SHOWN = THREAD_KINDS | {
 
 def wants_history(readings) -> bool:
     """Whether any of these documents (`SourceReading`s) holds a widget declaring
-    `server.history` in its own registry."""
+    `state.history` in its own registry."""
     return any(
-        declared_fact(reading.registry.get(record["tag"], {}), "server.history")
+        declared_fact(reading.registry.get(record["tag"], {}), "state.history")
         for reading in readings
         for record in reading.document.lf_elements
     )
 
 
 def _report(event: dict, words: GestureWords) -> dict:
-    spec = declared_fact(words.declaration(event), "server.state", {}).get(
+    spec = declared_fact(words.declaration(event), "state.verbs", {}).get(
         event["action"], {}
     )
     record = spec.get("record") or {}

@@ -59,7 +59,7 @@ How to build an alternative waits for the user's pick.
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
 an edit, and a thread message with `--obligation` for a conversational answer. Any
-widget whose registry entry declares `server.awaits` asks, a package's as well as the
+widget whose registry entry declares `state.awaits` asks, a package's as well as the
 bundled `lf-options`, which asks with no attribute until you mark it `settled`; a
 question about content that asks nothing, such as a chart or a passage, goes in a
 thread on it. Put the widget where the question arises: a question a thread raises, such as which way to do

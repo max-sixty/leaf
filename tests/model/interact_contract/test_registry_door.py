@@ -61,7 +61,7 @@ def test_the_id_of_a_created_child_reads_as_an_element_id(page_dir):
     """A verb that creates a child names it by its fold unit, so the detail field
     carrying it holds an element id, though the declaration spells only a string."""
     entry = vocabulary(page_dir)["lf-options"]
-    schema = registry_contract.detail_schema(entry, entry["server"]["state"]["add"])
+    schema = registry_contract.detail_schema(entry, entry["state"]["verbs"]["add"])
     added = {"option": "ship-option-1", "text": "Ship it"}
     assert registry_schema.schema_error(schema, added) is None
     assert registry_schema.schema_error(schema, {**added, "option": "Ship 1"})
@@ -100,7 +100,7 @@ def test_the_registry_door_refuses_an_open_detail_schema(page_dir, closed):
     """A verb carries only the detail keys it declares, so every reader of a detail
     field reads a declaration rather than whatever a client chose to send."""
     registry = vocabulary(page_dir)
-    detail = registry["lf-suggestion"]["server"]["state"]["decide"]["detail"]
+    detail = registry["lf-suggestion"]["state"]["verbs"]["decide"]["detail"]
     if closed is None:
         del detail["additionalProperties"]
     else:
@@ -133,7 +133,7 @@ def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(
 
     The unrecorded `add` command owns its custom payload and fold unit."""
     registry = vocabulary(page_dir)
-    add = registry["lf-options"]["server"]["state"]["add"]
+    add = registry["lf-options"]["state"]["verbs"]["add"]
     add["detail"][key] = value
     declare_vocabulary(page_dir, registry)
     status, findings = check_findings(page_dir)
@@ -145,7 +145,7 @@ def test_the_registry_door_holds_a_detail_schema_to_the_keys_it_names(
 
 def test_a_custom_detail_can_be_an_empty_closed_object(page_dir):
     registry = vocabulary(page_dir)
-    registry["lf-suggestion"]["server"]["state"]["empty"] = {
+    registry["lf-suggestion"]["state"]["verbs"]["empty"] = {
         "unit": "widget",
         "detail": {"type": "object", "additionalProperties": False},
     }
@@ -177,18 +177,18 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
 @pytest.mark.parametrize(
     ("key", "value"),
     [
-        ("server.awaits", []),
-        ("server.awaits", {"when": {"settled": True}}),
+        ("state.awaits", []),
+        ("state.awaits", {"when": {"settled": True}}),
         ("content", "words"),
         ("markup.owners", []),
         # Each of these names attributes, so an empty one declares nothing while
         # reading as a declaration.
         ("markup.refers", {}),
         ("words.says", []),
-        ("server.state", []),
+        ("state.verbs", []),
         ("words.verbatim", "false"),
-        ("server.work", []),
-        ("server.work", {"seat": "content"}),
+        ("state.work", []),
+        ("state.work", {"seat": "content"}),
     ],
 )
 def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
@@ -208,7 +208,7 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
         (
             lambda registry: registry["lf-gloss"].update(
                 {
-                    "server": {
+                    "state": {
                         "work": True,
                     },
                 }
@@ -220,7 +220,7 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
         (
             lambda registry: registry["lf-diagram"].update(
                 {
-                    "server": {
+                    "state": {
                         "work": True,
                     },
                 }
@@ -328,7 +328,7 @@ def test_check_refuses_a_format_no_boundary_checks(page_dir):
     assert refused.values["reason"].startswith("format 'hostname'")
 
     registry["lf-options"]["attributes"]["properties"]["id"].pop("format")
-    registry["lf-options"]["server"]["state"]["add"]["detail"]["properties"]["option"][
+    registry["lf-options"]["state"]["verbs"]["add"]["detail"]["properties"]["option"][
         "format"
     ] = "hostname"
     declare_vocabulary(page_dir, registry)
@@ -392,7 +392,7 @@ def test_patterns_read_as_the_browser_reads_them(page_dir):
 )
 def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, code):
     registry = vocabulary(page_dir)
-    add = registry["lf-options"]["server"]["state"]["add"]
+    add = registry["lf-options"]["state"]["verbs"]["add"]
     option = registry["lf-option"]
     if mutation == "missing-member":
         del add["creates"]["child"]
@@ -413,7 +413,7 @@ def test_generated_child_declaration_closes_its_boundary(page_dir, mutation, cod
     elif mutation == "wrong-id":
         option["attributes"]["properties"]["id"] = {"type": "integer"}
     elif mutation == "report-creates":
-        registry["lf-test-worker"]["server"]["state"]["state"]["creates"] = {
+        registry["lf-test-worker"]["state"]["verbs"]["state"]["creates"] = {
             "child": "lf-option",
             "words": "doing",
         }
@@ -447,7 +447,7 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
     named.setdefault("data", {})["inputs"] = {
         "feed": {"contract": "measured-scalar", "source": "source"}
     }
-    named.setdefault("server", {})["state"] = {
+    named.setdefault("state", {})["verbs"] = {
         "submit": {
             "unit": "widget",
             "contract": {"field": "values", "attribute": "shape"},
@@ -477,7 +477,7 @@ def test_composition_writes_the_grammar_of_each_name_leaf_looks_up(page_dir):
 @pytest.mark.parametrize("kind", [None, "string"])
 def test_action_detail_schemas_match_the_post_object_contract(page_dir, kind):
     registry = vocabulary(page_dir)
-    detail = registry["lf-suggestion"]["server"]["state"]["decide"]["detail"]
+    detail = registry["lf-suggestion"]["state"]["verbs"]["decide"]["detail"]
     if kind is None:
         del detail["type"]
     else:
@@ -498,7 +498,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     """A child appearing first must not inspect a malformed parent half-validated."""
     registry = vocabulary(page_dir)
     child = registry.pop("lf-old")
-    registry["lf-suggestion"].setdefault("server", {})["state"] = 42
+    registry["lf-suggestion"].setdefault("state", {})["verbs"] = 42
     registry = {"lf-old": child, **registry}
 
     finding = registry_refusal(
@@ -510,7 +510,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
 @pytest.mark.parametrize(
     ("tag", "key", "fallback"),
     [
-        ("lf-options", "server.state", None),
+        ("lf-options", "state.verbs", None),
         ("lf-note", "words.shadow", True),
     ],
 )
@@ -533,9 +533,9 @@ def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
 @pytest.mark.parametrize(
     ("tag", "fact", "needs"),
     [
-        ("lf-old", "server.retired-when", "markup.owners"),
-        ("lf-card", "server.shows", "markup.owners"),
-        ("lf-card", "server.shows", "markup.refers"),
+        ("lf-old", "state.retired-when", "markup.owners"),
+        ("lf-card", "state.shows", "markup.owners"),
+        ("lf-card", "state.shows", "markup.refers"),
     ],
 )
 def test_a_fact_read_through_another_names_the_one_it_lacks(page_dir, tag, fact, needs):
@@ -561,7 +561,7 @@ def test_check_refuses_a_retirement_outcome_its_parent_does_not_decide(page_dir)
     consumer to rediscover the broken reference.
     """
     registry = vocabulary(page_dir)
-    registry["lf-old"].setdefault("server", {})["retired-when"] = "approve"
+    registry["lf-old"].setdefault("state", {})["retired-when"] = "approve"
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
@@ -577,14 +577,14 @@ def test_retirement_verbs_fold_by_the_parent_widget(page_dir, fault):
     or one the agent writes, cannot say which members leave the page."""
     registry = vocabulary(page_dir)
     suggestion = registry["lf-suggestion"]
-    decide = suggestion["server"]["state"]["decide"]
+    decide = suggestion["state"]["verbs"]["decide"]
     if fault == "per-part":
         decide["detail"]["properties"]["part"] = {"type": "string"}
         decide["detail"]["required"].append("part")
         decide["unit"] = "part"
     else:
         # An agent verb never answers an obligation, so the suggestion stops asking one.
-        suggestion["server"].pop("awaits")
+        suggestion["state"].pop("awaits")
         suggestion["attributes"]["properties"].pop("resolves")
         decide["writer"] = "agent"
         suggestion["attributes"]["properties"]["outcome"] = decide.pop("detail")[
@@ -625,7 +625,7 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
     reads the parent's decision before its own check holds it to an outcome."""
 
     def drop_outcome(registry):
-        detail = registry["lf-suggestion"]["server"]["state"]["decide"]["detail"]
+        detail = registry["lf-suggestion"]["state"]["verbs"]["decide"]["detail"]
         del detail["properties"]["outcome"]
         detail["required"].remove("outcome")
 
@@ -641,70 +641,70 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
     [
         (
             "lf-options",
-            "server.awaits",
+            "state.awaits",
             {"when": {"pick": [True]}},
             "predicate-attribute",
-            {"key": "server.awaits", "attr": "pick"},
+            {"key": "state.awaits", "attr": "pick"},
         ),
         (
             "lf-options",
-            "server.exhibit",
+            "state.exhibit",
             {"when": {"pick": [True]}},
             "predicate-attribute",
-            {"key": "server.exhibit", "attr": "pick"},
+            {"key": "state.exhibit", "attr": "pick"},
         ),
         (
             "lf-options",
-            "server.awaits",
+            "state.awaits",
             {"when": {"settled": ["yes"]}},
             "predicate-schema",
-            {"key": "server.awaits", "attr": "settled", "value": "yes"},
+            {"key": "state.awaits", "attr": "settled", "value": "yes"},
         ),
         (
             "lf-options",
-            "server.awaits",
+            "state.awaits",
             {"when": {"id": [True]}},
             None,
-            {"key": "server.awaits", "attr": "id", "value": True},
+            {"key": "state.awaits", "attr": "id", "value": True},
         ),
         (
             "lf-test-task",
-            "server.awaits",
+            "state.awaits",
             {"when": {"status": ["reviewing"]}},
             "predicate-schema",
-            {"key": "server.awaits", "attr": "status", "value": "reviewing"},
+            {"key": "state.awaits", "attr": "status", "value": "reviewing"},
         ),
         (
             "lf-options",
-            "server.exhibit",
+            "state.exhibit",
             {"when": {"id": ["NOT-VALID"]}},
             "predicate-schema",
-            {"key": "server.exhibit", "attr": "id", "value": "NOT-VALID"},
+            {"key": "state.exhibit", "attr": "id", "value": "NOT-VALID"},
         ),
         (
             "lf-options",
-            "server.awaits",
+            "state.awaits",
             {"answered": {"answer": {"when": {"batch": [True]}}}},
             "predicate-attribute",
-            {"key": "server.awaits", "attr": "batch"},
+            {"key": "state.awaits", "attr": "batch"},
         ),
         (
             "lf-options",
-            "server.awaits",
+            "state.awaits",
             {"answered": {"submit": {}}},
             "awaits-verbs",
             {"verbs": ["submit"]},
         ),
         (
             "lf-suggestion",
-            "server.awaits",
+            "state.awaits",
             {"answered": {"decide": {}}, "all": "approve"},
             "awaits-blanket",
             {"outcome": "approve"},
         ),
         (
             "lf-options",
-            "server.awaits",
+            "state.awaits",
             {"when": {"multiple": [True]}, "retired": "settled"},
             "awaits-retired",
             {"flag": "settled"},
@@ -719,9 +719,9 @@ def test_check_holds_predicates_to_presence_or_declared_attribute_values(
     A predicate naming an impossible value silently omits the widget from every
     consumer. An undeclared answering verb leaves its obligation open forever."""
     registry = vocabulary(page_dir)
-    if key == "server.awaits":
+    if key == "state.awaits":
         declaration = {
-            "value": next(iter(registry[tag]["server"]["state"])),
+            "value": next(iter(registry[tag]["state"]["verbs"])),
             "answered": {"choose": {}},
             **declaration,
         }
@@ -738,7 +738,7 @@ def test_check_holds_predicates_to_presence_or_declared_attribute_values(
 
 def test_a_local_obligation_declares_its_answered_condition(page_dir):
     registry = vocabulary(page_dir)
-    registry["lf-test-task"].setdefault("server", {})["awaits"] = {"value": "answer"}
+    registry["lf-test-task"].setdefault("state", {})["awaits"] = {"value": "answer"}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
@@ -753,7 +753,7 @@ def test_a_local_obligation_declares_its_answered_condition(page_dir):
 def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
     """A part record does not answer its whole obligation merely by being in force."""
     registry = queue_board_registry(vocabulary(page_dir))
-    registry["lf-board"]["server"]["awaits"]["answered"]["move"].pop("empty")
+    registry["lf-board"]["state"]["awaits"]["answered"]["move"].pop("empty")
 
     finding = registry_refusal(
         lambda: registry_validation.validate_registry(registry, "test registry")
@@ -838,13 +838,13 @@ def test_an_obligation_role_declares_an_addressable_instance(page_dir):
             "additionalProperties": False,
         },
         "content": "markup",
-        "server": {
+        "state": {
             "awaits": {
                 "when": {"open": [True]},
                 "value": "answer",
                 "answered": {"answer": {}},
             },
-            "state": {
+            "verbs": {
                 "answer": {
                     "detail": {"type": "object", "additionalProperties": False},
                     "unit": "widget",
@@ -857,9 +857,7 @@ def test_an_obligation_role_declares_an_addressable_instance(page_dir):
     status, findings = check_findings(page_dir)
 
     assert status == 1
-    assert found(
-        findings, "addressable-id", "<lf-idless-decision>", key="server.awaits"
-    )
+    assert found(findings, "addressable-id", "<lf-idless-decision>", key="state.awaits")
 
 
 @pytest.mark.parametrize(
@@ -899,7 +897,7 @@ def test_uri_format_checks_absolute_urls_with_browser_syntax():
 
 def test_server_awaits_names_the_verbs_that_answer_it(page_dir):
     registry = vocabulary(page_dir)
-    registry["lf-suggestion"]["server"]["awaits"]["answered"] = {"missing": {}}
+    registry["lf-suggestion"]["state"]["awaits"]["answered"] = {"missing": {}}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)

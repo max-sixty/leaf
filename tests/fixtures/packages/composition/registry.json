@@ -12,8 +12,8 @@
       "required": ["id"],
       "additionalProperties": false
     },
-    "server": {
-      "state": {
+    "state": {
+      "verbs": {
         "review": {
           "unit": "widget",
           "detail": {

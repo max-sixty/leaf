@@ -48,21 +48,21 @@ def matches_when(attrs: dict, when: dict | None) -> bool:
 
 def declared_fact(entry: Mapping, fact: str, default=None):
     """One fact of an element declaration, named by its path: `group.name` for a fact
-    in a group (`server.state`), or the name alone for one at the top (`content`), as
+    in a group (`state.verbs`), or the name alone for one at the top (`content`), as
     `$keys` documents each. `default` where the entry declares none."""
     group, _, name = fact.rpartition(".")
     return (entry.get(group, {}) if group else entry).get(name, default)
 
 
 def holds_for(attrs: dict, rule) -> bool:
-    """Whether a declaration that is a flag or `{when}`, as `server.exhibit` and
+    """Whether a declaration that is a flag or `{when}`, as `state.exhibit` and
     `paint.flow` are, holds for an occurrence with these authored attributes."""
     return matches_when(attrs, rule["when"]) if isinstance(rule, dict) else bool(rule)
 
 
 def exhibits(attrs: dict, entry: dict) -> bool:
     """Whether this occurrence quotes its descendants."""
-    return holds_for(attrs, declared_fact(entry, "server.exhibit"))
+    return holds_for(attrs, declared_fact(entry, "state.exhibit"))
 
 
 def authored_inert(
@@ -433,7 +433,7 @@ def detail_schema(
 
 def decides(spec: dict) -> bool:
     """Whether a verb declares the role that selects retirable members
-    (server.retired-when) or declines the proposal (its `withdraws`). Its required
+    (state.retired-when) or declines the proposal (its `withdraws`). Its required
     `outcome` carries that choice; the same field name on any other verb is
     ordinary domain data.
     The browser reads the role from `$decisions`
@@ -442,16 +442,16 @@ def decides(spec: dict) -> bool:
 
 
 def deciding_verbs(entry: dict) -> list[str]:
-    """Every server.state verb of one declaration that decides; validation holds it to one."""
+    """Every verb (state.verbs) of one declaration that decides; validation holds it to one."""
     return [
         verb
-        for verb, spec in declared_fact(entry, "server.state", {}).items()
+        for verb, spec in declared_fact(entry, "state.verbs", {}).items()
         if decides(spec)
     ]
 
 
 def deciding_verb(entry: dict) -> str | None:
-    """The one deciding server.state verb, or None."""
+    """The one deciding verb (state.verbs), or None."""
     return next(iter(deciding_verbs(entry)), None)
 
 
@@ -463,7 +463,7 @@ def deciding_outcomes(entry: dict) -> list[str]:
     verb = deciding_verb(entry)
     if verb is None:
         return []
-    detail = entry["server"]["state"][verb].get("detail") or {}
+    detail = entry["state"]["verbs"][verb].get("detail") or {}
     schema = detail.get("properties", {}).get("outcome")
     return list(schema.get("enum", [])) if isinstance(schema, dict) else []
 
@@ -472,19 +472,19 @@ def withdrawing_outcome(entry: dict) -> str | None:
     """The outcome of one declaration's deciding verb that declines the proposal
     (`withdraws`), or None."""
     verb = deciding_verb(entry)
-    return entry["server"]["state"][verb].get("withdraws") if verb is not None else None
+    return entry["state"]["verbs"][verb].get("withdraws") if verb is not None else None
 
 
 def verb_writer(spec: dict) -> str:
-    """The side that writes one server.state verb: `agent` where it says so, else `user`.
+    """The side that writes one verb (state.verbs): `agent` where it says so, else `user`.
     The browser reads it from `$states` (`stamp_states`)."""
     return spec.get("writer", "user")
 
 
 def state_specs(entry: dict, *, writer: str | None = None):
-    """The server.state verb declarations on one element declaration, as (verb, spec),
+    """The verb (state.verbs) declarations on one element declaration, as (verb, spec),
     narrowed to the verbs one side writes when `writer` names it."""
-    for verb, spec in declared_fact(entry, "server.state", {}).items():
+    for verb, spec in declared_fact(entry, "state.verbs", {}).items():
         if writer is None or verb_writer(spec) == writer:
             yield verb, spec
 
@@ -597,11 +597,11 @@ def same_state_operation(recorded, current) -> bool:
 
 
 def event_spec(entry: dict, event: dict) -> dict | None:
-    """The server.state verb an action or report names, when its writer sent it: a verb
+    """The verb (state.verbs) an action or report names, when its writer sent it: a verb
     declares one writer, and the kind that carries it says which side sent it
     (`registry.kernel.verb_writers`), so its coordinate is only ever written from one
     side."""
-    spec = declared_fact(entry, "server.state", {}).get(event["action"])
+    spec = declared_fact(entry, "state.verbs", {}).get(event["action"])
     if spec is None or verb_writer(spec) != verb_writers()[event["kind"]]:
         return None
     return spec
@@ -609,15 +609,15 @@ def event_spec(entry: dict, event: dict) -> dict | None:
 
 def retirement_slots(registry: dict) -> dict:
     """owner tag → {outcome verb → the tags that leave the page under it}: every
-    owner/member pair `server.retired-when` relates, the member naming the outcome and
+    owner/member pair `state.retired-when` relates, the member naming the outcome and
     `markup.owners` the widgets whose decision reaches it. Read out of the merged
     registry rather than known here, so which widgets a decision settles is a
     fact about this page's vocabulary and never a list in the code."""
     slots = {}
     for tag, entry in registry.items():
-        if not is_element_name(tag) or not declared_fact(entry, "server.retired-when"):
+        if not is_element_name(tag) or not declared_fact(entry, "state.retired-when"):
             continue
-        outcome = entry["server"]["retired-when"]
+        outcome = entry["state"]["retired-when"]
         for owner in entry["markup"]["owners"]:
             slots.setdefault(owner, {}).setdefault(outcome, []).append(tag)
     return slots
@@ -626,7 +626,7 @@ def retirement_slots(registry: dict) -> dict:
 def stamp_states(registry: dict) -> dict:
     """Write `$states` into a validated vocabulary: tag → verb → {`writer`, the side
     `verb_writer` names; `definition`, the operation `state_definition` records on an
-    admitted event}, for every server.state verb.
+    admitted event}, for every verb (state.verbs).
 
     Each composition stamps it (`registry.layer.stamp_composition`), so the browser
     compares an event's recorded operation with this definition, and reads a verb's
@@ -640,7 +640,7 @@ def stamp_states(registry: dict) -> dict:
             for verb, spec in state_specs(entry)
         }
         for tag, entry in registry.items()
-        if is_element_name(tag) and declared_fact(entry, "server.state")
+        if is_element_name(tag) and declared_fact(entry, "state.verbs")
     }
     return registry
 
@@ -717,7 +717,7 @@ def stamp_grammars(registry: dict) -> dict:
 
 def stamp_decisions(registry: dict) -> dict:
     """Write `$decisions` into a validated vocabulary: owner tag → {`verb`, its deciding
-    server.state verb; `retires`, `retirement_slots`' outcome → member tags}, for every
+    verb (state.verbs); `retires`, `retirement_slots`' outcome → member tags}, for every
     tag that declares a deciding verb.
 
     Each composition stamps it (`registry.layer.stamp_composition`), so the browser
@@ -754,10 +754,10 @@ def require_module(tag: str, entry: dict, registry: dict, path) -> None:
     needs_module = [
         key
         for key in (
-            "server.state",
+            "state.verbs",
             "words.verbatim",
             "words.shadow",
-            "server.history",
+            "state.history",
         )
         if declared_fact(entry, key)
     ] + (

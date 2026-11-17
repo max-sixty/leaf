@@ -82,7 +82,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir):
         },
     )
 
-    del registry["lf-options"]["server"]["state"]["add"]["creates"]
+    del registry["lf-options"]["state"]["verbs"]["add"]["creates"]
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir()
     (overlay / "registry.json").write_text(

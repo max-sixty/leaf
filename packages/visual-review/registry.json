@@ -223,7 +223,7 @@
       "space": "available",
       "height": true
     },
-    "server": {
+    "state": {
       "awaits": {
         "records": {
           "input": "run",
@@ -238,7 +238,7 @@
           }
         }
       },
-      "state": {
+      "verbs": {
         "review": {
           "detail": {
             "type": "object",

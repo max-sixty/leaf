@@ -92,8 +92,8 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
         "markup": {
             "owners": ["lf-test-plan"],
         },
-        "server": {
-            "state": {
+        "state": {
+            "verbs": {
                 "phase": {
                     "writer": "agent",
                     "unit": "widget",

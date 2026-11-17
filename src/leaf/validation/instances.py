@@ -233,18 +233,18 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
 
 
 def unasked(rec: dict, entry: dict) -> dict:
-    """The `server.awaits.when` conditions a widget never met, as attribute and the values
+    """The `state.awaits.when` conditions a widget never met, as attribute and the values
     it would ask at, or none where it asks, was asked, or can be made to ask.
 
-    The flag `server.awaits.retired` names is how an author ends an obligation already
+    The flag `state.awaits.retired` names is how an author ends an obligation already
     asked, such as a settled decision kept with its context, so failing on it alone
     leaves the widget counted. A condition a recorded value writes can still be met
     by a gesture."""
-    awaits = entry["server"]["awaits"]
+    awaits = entry["state"]["awaits"]
     when = awaits.get("when") or {}
     recorded = {
         (spec.get("record") or {}).get("attr")
-        for spec in declared_fact(entry, "server.state", {}).values()
+        for spec in declared_fact(entry, "state.verbs", {}).values()
         if (spec.get("record") or {}).get("kind") == "value"
     }
     return {
@@ -257,7 +257,7 @@ def unasked(rec: dict, entry: dict) -> dict:
 
 
 def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
-    """An enclosing widget (`server.encloses`) supplies a leading title and
+    """An enclosing widget (`state.encloses`) supplies a leading title and
     arrival region for the obligations inside it.
 
     It never owns obligation identity or registration. Any number of sources can select
@@ -280,7 +280,7 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
             continue
         for holder in enclosing_widgets(rec):
             holder_entry = registry.get(holder["tag"], {})
-            if declared_fact(holder_entry, "server.exhibit"):
+            if declared_fact(holder_entry, "state.exhibit"):
                 break
             if encloses(holder_entry):
                 framed[id(holder)].append((rec, unasked(rec, entry)))
@@ -432,7 +432,7 @@ def reference_errors(
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
             elif (
-                attr == declared_fact(entry, "server.shows", {}).get("attr")
+                attr == declared_fact(entry, "state.shows", {}).get("attr")
                 and target not in own
             ):
                 # A view and the answer it shows travel in one document, so a board
@@ -501,13 +501,13 @@ def addressable_instance_errors(lf_elements: list, registry: dict) -> list[Findi
     """
     errors = []
     for rec in lf_elements:
-        declaration = declared_fact(registry.get(rec["tag"], {}), "server.awaits")
+        declaration = declared_fact(registry.get(rec["tag"], {}), "state.awaits")
         if (
             declaration is not None
             and matches_when(rec["attrs"], declaration.get("when"))
             and not rec["attrs"].get("id")
         ):
-            errors.append(found_at("needs-id", rec, role="server.awaits"))
+            errors.append(found_at("needs-id", rec, role="state.awaits"))
     return errors
 
 

@@ -619,7 +619,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     An options group used to be both the state owner and the navigation target. When the
     heading, premise, and evidence stood immediately above it, `d` centred the options
     and made the user scroll backward before they could answer. `lf-ask` encodes that
-    broader unit while the nested server.awaits widget still owns the action: the walk
+    broader unit while the nested state.awaits widget still owns the action: the walk
     rings the region, aligns its opening at the window's head, and stands the user on
     it.
 
@@ -1252,7 +1252,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An enclosing widget (`server.encloses`) states its own arrival region: a heading,
+    An enclosing widget (`state.encloses`) states its own arrival region: a heading,
     the context, then the control. A suggestion can stand mid-sentence, so it can never
     satisfy "an obligation must name itself without context outside the obligation" and
     no region can be written round it. Arriving on the change alone put its own top edge

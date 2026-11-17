@@ -1,4 +1,4 @@
-/* The one traversal of `server.state`, and the generation it belongs to.
+/* The one traversal of `state.verbs`, and the generation it belongs to.
 
    Derived state declarations belong to one complete registry generation. Warming the
    index must not make a later generation inherit the declarations of the one before it,
@@ -43,17 +43,15 @@ test("authoring selectors and shared facts never enter widget state", () => {
   };
   load("mixed-vocabulary", {
     "lf-index-owner": {
-      server: {
-        state: { set: {} },
+      state: {
+        verbs: { set: {} },
       },
     },
     "lf-index-owner.selected": idiom,
     table: idiom,
     ".lede": idiom,
     $keys: {
-      server: {
-        state: "State meanings.",
-      },
+      "state.verbs": "State meanings.",
     },
   });
   assert.deepEqual(
@@ -71,20 +69,20 @@ test("authoring selectors and shared facts never enter widget state", () => {
 test("both writers contribute, and only recorded declarations own a selector", () => {
   load("writers", {
     "lf-index-action": {
-      server: {
-        state: { set: { record: { kind: "value", attr: "phase" } } },
+      state: {
+        verbs: { set: { record: { kind: "value", attr: "phase" } } },
       },
     },
     "lf-index-report": {
-      server: {
-        state: {
+      state: {
+        verbs: {
           measure: { writer: "agent", record: { kind: "value", attr: "phase" } },
         },
       },
     },
     "lf-index-recordless": {
-      server: {
-        state: { settle: {} },
+      state: {
+        verbs: { settle: {} },
       },
     },
   });
@@ -106,8 +104,8 @@ test("both writers contribute, and only recorded declarations own a selector", (
 test("a later generation inherits nothing from the index warmed before it", () => {
   load("warmed", {
     "lf-index-gone": {
-      server: {
-        state: { set: { record: {} } },
+      state: {
+        verbs: { set: { record: {} } },
       },
     },
   });
@@ -118,8 +116,8 @@ test("a later generation inherits nothing from the index warmed before it", () =
 
   load("later", {
     "lf-index-fresh": {
-      server: {
-        state: { measure: {} },
+      state: {
+        verbs: { measure: {} },
       },
     },
   });

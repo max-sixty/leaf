@@ -385,7 +385,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 # user, whatever answers it has to have been built here too:
                 # data-lf-offer is the runtime's own mark for a thing to work, so
                 # this asks the declaration and never the tag.
-                if "value" in declared_fact(registry[rec["tag"]], "server.awaits", {}):
+                if "value" in declared_fact(registry[rec["tag"]], "state.awaits", {}):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
         # Each carried thread must be disclosed for the gate's geometry readings:

@@ -101,7 +101,7 @@ export const obligationsIn = (region, items = readObligations().all) =>
     obligationsByRegion([region], items).get(region)
   );
 
-// The regions among `regions` that hold a widget declaring `server.awaits`, one whose markup
+// The regions among `regions` that hold a widget declaring `state.awaits`, one whose markup
 // asks the user something, in the page or in a message's markup. A region holds it
 // whatever the inventory says of its obligation: before the first reading the
 // obligation isn't listed yet, and once it is withdrawn the inventory lists it as
@@ -121,7 +121,7 @@ export function regionsAwaiting(regions) {
   let ids = awaitingIds.get(widgets);
   if (!ids) {
     ids = [...widgets.values()]
-      .filter(({ declaration }) => declaration.server?.awaits !== undefined)
+      .filter(({ declaration }) => declaration.state?.awaits !== undefined)
       .map(({ id }) => id);
     awaitingIds.set(widgets, ids);
   }

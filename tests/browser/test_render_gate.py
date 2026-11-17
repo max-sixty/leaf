@@ -1361,7 +1361,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             "overruled": {"type": "boolean"},
         }
     )
-    stateful.setdefault("server", {})["state"] = {
+    stateful.setdefault("state", {})["verbs"] = {
         "change": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "user"},

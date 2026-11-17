@@ -199,7 +199,7 @@ lf-options:has(> lf-option > strong) {
  * A quoted group is exhibited, not offered, so every rule granting an input affordance
  * excludes it where it is written (`:not([data-lf-exhibit] *)`), so each new
  * affordance carries its own exclusion. Delivery paints `data-lf-exhibit` from the
- * registry's server.exhibit (`mark_declared`). The guard has an attribute selector's
+ * registry's state.exhibit (`mark_declared`). The guard has an attribute selector's
  * specificity, which a live group's rules need to outrank the rules for a group that
  * only shows its state: without it, a live card's bottom padding loses to the caption
  * room a picked card keeps (below). */

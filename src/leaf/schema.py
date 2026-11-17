@@ -101,7 +101,7 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local obligation is answered: a map from each answering `server.state` verb to
+# When a local obligation is answered: a map from each answering verb (`state.verbs`) to
 # the condition its current state meets. An empty condition means the verb's state
 # stands (a non-empty attribute or value record, otherwise an action in force). `when`
 # narrows the verb to instances whose attributes match; `empty` holds when the one
@@ -454,8 +454,8 @@ FACT_GROUPS = {
         },
         "prepaint": _ATTRIBUTE_NAME,
     },
-    "server": {
-        "state": STATE_SCHEMA,
+    "state": {
+        "verbs": STATE_SCHEMA,
         "awaits": AWAITS_SCHEMA,
         "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "encloses": {"const": True},
@@ -516,8 +516,8 @@ DECLARATION_KEYS = frozenset(
 # member that leaves under its owner's decision reads its owners, and a view of
 # another widget's answer its owners and its reference (`registry.widgets`).
 FACT_NEEDS = {
-    "server.retired-when": ("markup.owners",),
-    "server.shows": ("markup.owners", "markup.refers"),
+    "state.retired-when": ("markup.owners",),
+    "state.shows": ("markup.owners", "markup.refers"),
 }
 # A selector idiom names authored HTML the theme dresses, so it says only how an
 # author writes it, and declares no widget behavior or marks
@@ -637,8 +637,8 @@ LAYER_FACTS = {
 # of them, because the failure is one — the attribute is absent, so the pass reading the
 # fact finds nothing and does nothing, and the widget is simply missing from it with no
 # error anywhere (validate_registry holds every fact here to the entry's attributes).
-# server.retired-when, of the same shape, is not in it: it names an outcome rather than
-# an attribute, and sharing a spelling is no reason to share a check. server.awaits and
+# state.retired-when, of the same shape, is not in it: it names an outcome rather than
+# an attribute, and sharing a spelling is no reason to share a check. state.awaits and
 # data.inputs name attributes too and keep their own loops, having more to say about
 # each than that it exists.
 ATTRIBUTE_FACTS = (

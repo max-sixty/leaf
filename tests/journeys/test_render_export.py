@@ -128,8 +128,8 @@ OFFLINE_REGISTRY = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "server": {
-            "state": {
+        "state": {
+            "verbs": {
                 "choose": {
                     "unit": "widget",
                     "record": {"kind": "value", "attr": "choice"},

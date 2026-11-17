@@ -285,7 +285,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     assert fragment_errors(first, registry) == []
 
     # Evidence can quote another obligation source without giving this obligation a
-    # second live source. The runtime already excludes server.exhibit descendants from
+    # second live source. The runtime already excludes state.exhibit descendants from
     # the obligation list, so the authored boundary must read the same relation.
     with_evidence = (
         '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
@@ -359,7 +359,7 @@ def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
     # The registry's `retired` is what says the flag ended an obligation; a flag
     # that merely stops a widget asking leaves the context framing nothing.
     unretired = copy.deepcopy(registry)
-    del unretired["lf-options"]["server"]["awaits"]["retired"]
+    del unretired["lf-options"]["state"]["awaits"]["retired"]
     assert found(
         fragment_errors(settled_obligation, unretired),
         "empty-question",
@@ -537,7 +537,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     apparatus = {
         tag
         for tag, entry in gallery_registry.items()
-        if declared_fact(entry, "server.exhibit")
+        if declared_fact(entry, "state.exhibit")
     }
     assert apparatus
     eyebrows = re.findall(

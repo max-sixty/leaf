@@ -208,7 +208,7 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // elsewhere could match inside the invisible half of a replacement.
 //
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
-// same page follow one declaration: server.retired-when names the decision that removes
+// same page follow one declaration: state.retired-when names the decision that removes
 // the element, markup.owners the wrapper the decision is recorded on. Composition
 // stamps that relation, owner by owner, into `$decisions` (Python's
 // `registry.contract.stamp_decisions`). Which outcome stands is the application's

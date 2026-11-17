@@ -585,7 +585,7 @@
             <h2>Asking the user</h2>
             <p id="progress-lists-subjects">
               Any widget can ask, whether bundled, from a package or the page’s own, by
-              declaring <a href="#server.awaits"><code>server.awaits</code></a> in its
+              declaring <a href="#state.awaits"><code>state.awaits</code></a> in its
               registry entry, which names the actions that answer it. To ask about
               content that asks nothing, such as a paragraph or a chart, or to leave the
               user a step such as trying a build, the agent opens a thread on that
@@ -2121,11 +2121,11 @@ $ leaf page check PAGE --render</code></pre>
               <dt><a href="#keys">Registry keys</a></dt>
               <dd>
                 The generated reference for declarations such as
-                <code>data.inputs</code> and <code>server.state</code>.
+                <code>data.inputs</code> and <code>state.verbs</code>.
               </dd>
               <dt><a href="/how-it-works/#event-log">Event log</a></dt>
               <dd>
-                How a widget's <code>server.state</code> verbs become logged events and
+                How a widget's verbs (<code>state.verbs</code>) become logged events and
                 folded state.
               </dd>
               <dt>

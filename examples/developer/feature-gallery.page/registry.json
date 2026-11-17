@@ -30,7 +30,7 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "server": {
+    "state": {
       "exhibit": true
     },
     "author": {
@@ -58,7 +58,7 @@
         }
       }
     },
-    "server": {
+    "state": {
       "exhibit": true
     },
     "author": {

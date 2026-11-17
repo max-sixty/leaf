@@ -393,7 +393,7 @@ def record_labels(contract: str, registry: dict) -> set[str]:
     return {
         records["label"]
         for entry in element_declarations(registry).values()
-        if (records := (declared_fact(entry, "server.awaits") or {}).get("records"))
+        if (records := (declared_fact(entry, "state.awaits") or {}).get("records"))
         and entry["data"]["inputs"][records["input"]]["contract"] == contract
     }
 

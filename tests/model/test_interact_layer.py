@@ -4831,7 +4831,7 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
             "property": "value",
         }
     }
-    assert widget["server"]["state"]["review"]["unit"] == "case"
+    assert widget["state"]["verbs"]["review"]["unit"] == "case"
     assert "visual-run" in registry["$data"]["contracts"]
     assert "/widgets/lf-visual-review.js" in layer_files(page)
     assert "author.md" in layer_instructions(page)

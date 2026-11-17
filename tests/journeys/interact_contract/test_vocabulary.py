@@ -39,9 +39,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
             "detail": {"value": "user"},
         },
     )
-    declaration["server"]["state"]["second"] = declaration["server"]["state"].pop(
-        "first"
-    )
+    declaration["state"]["verbs"]["second"] = declaration["state"]["verbs"].pop("first")
     authored.write_text(json.dumps({"lf-thread-local": declaration}))
 
     refused = revisioning_model.activate_source(page_dir)

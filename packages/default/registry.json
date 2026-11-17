@@ -71,7 +71,7 @@
     "paint": {
       "flow": true
     },
-    "server": {
+    "state": {
       "encloses": true
     },
     "author": {
@@ -235,7 +235,7 @@
     "paint": {
       "bound": "start"
     },
-    "server": {
+    "state": {
       "history": true
     },
     "author": {
@@ -269,7 +269,7 @@
       "additionalProperties": false
     },
     "content": "members",
-    "server": {
+    "state": {
       "awaits": {
         "value": "choose",
         "when": {
@@ -290,7 +290,7 @@
           }
         }
       },
-      "state": {
+      "verbs": {
         "choose": {
           "unit": "widget",
           "record": {
@@ -476,8 +476,8 @@
     "paint": {
       "space": "available"
     },
-    "server": {
-      "state": {
+    "state": {
+      "verbs": {
         "move": {
           "unit": "unit",
           "record": {
@@ -545,7 +545,7 @@
         "shows": {}
       }
     },
-    "server": {
+    "state": {
       "shows": {
         "attr": "shows",
         "value": "value"
@@ -705,7 +705,7 @@
       "verbatim": true,
       "text-format": "markdown"
     },
-    "server": {
+    "state": {
       "awaits": {
         "value": "edit",
         "when": {
@@ -715,7 +715,7 @@
           "edit": {}
         }
       },
-      "state": {
+      "verbs": {
         "edit": {
           "unit": "widget",
           "record": {
@@ -751,7 +751,7 @@
         "label": "before"
       }
     },
-    "server": {
+    "state": {
       "exhibit": { "when": { "interactive": [false] } }
     },
     "author": {

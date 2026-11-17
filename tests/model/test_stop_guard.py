@@ -1278,7 +1278,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     if declared == "done-only":
         declare_on_page(
             claimed,
-            lambda registry: registry["lf-options"]["server"]["awaits"].update(
+            lambda registry: registry["lf-options"]["state"]["awaits"].update(
                 answered={"answer": {}}
             ),
         )

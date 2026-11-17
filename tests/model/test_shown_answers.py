@@ -1,4 +1,4 @@
-"""A board card that shows a section's answer (`server.shows`, `shown_answers.py`): the
+"""A board card that shows a section's answer (`state.shows`, `shown_answers.py`): the
 answer stays the section widget's one fact, so the door takes no board move of the
 card, and `page check` and message admission hold the markup's placement of it to that
 answer."""

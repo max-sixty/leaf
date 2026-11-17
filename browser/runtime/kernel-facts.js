@@ -47,7 +47,7 @@ export const marks = declaredMarks;
 
 const kinds = Object.entries(kernel.$events.kinds);
 // The kinds said in a thread, and each widget kind with the side that writes the
-// server.state verb it carries. `contract-types.mjs` derives the matching types.
+// verb (state.verbs) it carries. `contract-types.mjs` derives the matching types.
 export const MESSAGE_KINDS = new Set(
   kinds.filter(([, kind]) => "message" in kind && kind.message).map(([name]) => name),
 );

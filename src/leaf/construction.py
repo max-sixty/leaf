@@ -265,10 +265,10 @@ def constructed_content(
             entry = registry.get(node["tag"], {})
             if (
                 parent is not None
-                and declared_fact(entry, "server.retired-when")
+                and declared_fact(entry, "state.retired-when")
                 and parent["tag"] in declared_fact(entry, "markup.owners", [])
                 and outcomes.get(parent["attrs"].get("id"))
-                == entry["server"]["retired-when"]
+                == entry["state"]["retired-when"]
             ):
                 continue
             node["content"] = visible(node["content"], node)

@@ -203,7 +203,7 @@ def test_a_measurement_run_cannot_also_be_replay_writable(page_dir):
     widget = registry["lf-num"]
     registry["$modules"]["lf-num"] = "widgets/lf-num.js"
     widget["attributes"]["properties"]["restated"] = {"type": "boolean"}
-    widget.setdefault("server", {})["state"] = {
+    widget.setdefault("state", {})["verbs"] = {
         "repin": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "run"},
@@ -223,7 +223,7 @@ def test_a_data_source_attribute_cannot_also_be_replay_writable(page_dir):
     declare_data_input(page_dir, "project-feed", {"type": "array"})
     registry = vocabulary(page_dir)
     widget = registry["lf-test-data"]
-    widget.setdefault("server", {})["state"] = {
+    widget.setdefault("state", {})["verbs"] = {
         "rebind": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "source"},

@@ -26,8 +26,8 @@ test("capture keeps authored values and parentage when rendering moves members",
   adoptRegistry({
     $layer: { generation: "capture-before-render" },
     "lf-outer": {
-      server: {
-        state: {
+      state: {
+        verbs: {
           set: {
             unit: "widget",
             record: { kind: "value", attr: "status", value: "status" },
@@ -59,8 +59,8 @@ test("an attribute record counts only Leaf elements among its members", () => {
   adoptRegistry({
     $layer: { generation: "native-selected" },
     "lf-options": {
-      server: {
-        state: {
+      state: {
+        verbs: {
           choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
         },
       },
@@ -104,7 +104,7 @@ test("an arriving source root keeps its declared parent and exhibit fence", () =
   adoptRegistry({
     $layer: { generation: "initial-arrival" },
     "lf-quoted-parent": {
-      server: {
+      state: {
         exhibit: true,
       },
     },
@@ -144,22 +144,22 @@ test("member state owns each physical slot independently across a hierarchy", ()
   const declarations = {
     $layer: { generation: "independent-member-records" },
     "lf-audit-board": {
-      server: {
-        state: {
+      state: {
+        verbs: {
           move: { unit: "unit", record: { kind: "position", within: "lf-audit-zone" } },
         },
       },
     },
     "lf-audit-zone": {
-      server: {
-        state: {
+      state: {
+        verbs: {
           choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
         },
       },
     },
     "lf-audit-card": {
-      server: {
-        state: {
+      state: {
+        verbs: {
           phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
         },
       },

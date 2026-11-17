@@ -102,7 +102,7 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
         }
     }
     member = deepcopy(layer["lf-old"])
-    member["server"]["retired-when"] = "reject"
+    member["state"]["retired-when"] = "reject"
     layer_3 = registry_storage.layer_record(page_dir)
     assert layer_3 is not None
     widget_paths = set(registry_storage.layer_widgets(layer_3, page_dir))
@@ -130,7 +130,7 @@ def test_two_layers_each_add_a_member_one_decision_retires(order):
     registry = deepcopy(model_layer())
     for tag in order:
         member = deepcopy(registry["lf-old"])
-        member["server"]["retired-when"] = outcome[tag]
+        member["state"]["retired-when"] = outcome[tag]
         registry_layer.merge_layer_declarations(registry, {tag: member})
     registry_validation.validate_registry(registry, "two layers")
     registry_layer.stamp_composition(registry)
@@ -212,7 +212,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
     declaration["attributes"]["properties"] |= {
         name: {"type": "boolean"} for name in ("overruled", "restated")
     } | {"reading": {"type": "string"}}
-    declaration.setdefault("server", {})["state"] = {
+    declaration.setdefault("state", {})["verbs"] = {
         "set": {
             "unit": "widget",
             "detail": {"type": "object", "additionalProperties": False},
@@ -235,7 +235,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
         verb: {
             "writer": writer,
             "definition": registry_contract.state_definition(
-                "lf-local", declaration, declaration["server"]["state"][verb]
+                "lf-local", declaration, declaration["state"]["verbs"][verb]
             ),
         }
         for verb, writer in (("set", "user"), ("measure", "agent"))
@@ -443,12 +443,12 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     def publish_choice(needs_attention):
         pick = _stateful_page_declaration(page_dir, "lf-pick")
         if needs_attention and declaration == "obligation":
-            pick.setdefault("server", {})["awaits"] = {
+            pick.setdefault("state", {})["awaits"] = {
                 "value": "first",
                 "answered": {"first": {}},
             }
         elif needs_attention:
-            pick["server"]["state"]["first"]["attention"] = True
+            pick["state"]["verbs"]["first"]["attention"] = True
         write_json(page_dir / "page" / "registry.json", {"lf-pick": pick})
         (page_dir / "index.html").write_text(
             model.leaf_page(
@@ -612,9 +612,7 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
     )
     assert next(iter(projected.projection.desired.values()))[0]["id"] == first["id"]
 
-    declaration["server"]["state"]["second"] = declaration["server"]["state"].pop(
-        "first"
-    )
+    declaration["state"]["verbs"]["second"] = declaration["state"]["verbs"].pop("first")
     authored.write_text(json.dumps({"lf-local": declaration}))
     refused = revisioning_model.activate_source(page_dir)
 
@@ -818,7 +816,7 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     assert original["meaning"]["state"]["record"] == {"kind": "value", "attr": "value"}
     next_value = "new"
     if change == "slot":
-        declaration["server"]["state"]["first"]["record"]["attr"] = "target"
+        declaration["state"]["verbs"]["first"]["record"]["attr"] = "target"
     elif change == "enum":
         declaration["attributes"]["properties"]["value"]["enum"] = ["new"]
     elif change == "broaden":

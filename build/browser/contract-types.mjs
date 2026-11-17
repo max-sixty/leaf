@@ -26,7 +26,13 @@ import { execFileSync } from "node:child_process";
 import { glob, readFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
-const ANNOTATIONS = new Set(["description", "title", "$schema", "$id", "$comment"]);
+export const ANNOTATIONS = new Set([
+  "description",
+  "title",
+  "$schema",
+  "$id",
+  "$comment",
+]);
 
 function reference(ref) {
   const [uri, pointer = ""] = ref.split("#");

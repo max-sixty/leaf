@@ -161,25 +161,34 @@ def test_inspection_distinguishes_working_css_from_the_observed_revision(page_di
     assert "unknown revision r20" in result.output
 
 
-def test_inspection_counts_shown_words_apart_from_collapsed_ones(page_dir):
-    plain = leaf_page("Words", '<p id="p">One two three.</p>')
+def test_inspection_counts_prose_words_apart_from_collapsed_ones(page_dir):
+    def words(n, first="w"):
+        return " ".join(f"{first}{i}" for i in range(n))
+
+    plain = leaf_page("Words", f'<p id="p">{words(14)}</p>')
     (page_dir / "index.html").write_text(plain)
     write_revision(page_dir, 1, plain.encode())
     (page_dir / "index.html").write_text(
         leaf_page(
             "Words",
-            '<p id="p">One two three.</p>\n'
-            '<details id="source"><summary>The rule</summary>'
-            "<blockquote>Leave its cells' widths to Leaf.</blockquote></details>\n"
-            '<details id="kept" open><summary>Open</summary><p>Four five</p></details>\n'
-            '<p id="later" hidden>Six seven eight</p>',
+            f'<p id="p">{words(14)}</p>\n<p id="q">{words(12, "q")}</p>\n'
+            '<table id="t"><tr><th>Key</th><th>Meaning</th></tr>'
+            f"<tr><td>gap</td><td>{words(13, 'c')}</td></tr></table>\n"
+            f"<pre>{words(20, 'x')}</pre>\n"
+            f'<p id="r">{words(12, "r")}</p>\n'
+            f'<details id="source"><summary>The rule</summary>'
+            f"<blockquote>{words(15, 's')}</blockquote></details>\n"
+            f'<p id="later" hidden>{words(12, "h")}</p>',
         )
     )
     report = cmd_inspect(page_dir, compare_to=1)
-    # The closed summary and the open disclosure show; the closed body and the
-    # hidden paragraph are collapsed.
-    assert report["comparison"]["words"] == {"shown": 5, "collapsed": 9}
-    assert report["words"]["collapsed"] == 9
+    # The table's short cells and the code count nothing; its sentence-long cell
+    # counts.
+    assert report["words"]["shown"] == 14 + 12 + 13 + 12
+    assert report["comparison"]["words"] == {
+        "shown": 12 + 13 + 12,
+        "collapsed": 15 + 12,
+    }
 
 
 def test_inspection_does_not_report_missing_styles_as_zero(page_dir):

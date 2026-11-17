@@ -118,8 +118,8 @@ written as the agent's guidance has it write one (`threads.md`), and Leaf posts 
 text as the agent's `leaf thread` command does, drawing the HTML in it. Where the
 agent offered answers the user picks among, left them the go-ahead for an action it
 takes once they agree, such as a merge, or asked what a step only they can take
-showed them, such as whether a build installed, the message holds an `lf-options`
-group, as "Ask for a pick" has the agent write it, so the pick shows as the group's
+showed them, such as whether a build installed, the message usually holds an
+`lf-options` group, as "Ask for a pick" has the agent write it, so the pick shows as the group's
 state, `1`–`9` answer it, and a reply in words leaves it open, passing it to the
 agent until the agent answers. Any other ask, such as what an error the user saw
 said, is the message with an obligation: On Me lists it until the user replies or settles

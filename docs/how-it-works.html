@@ -1253,12 +1253,12 @@ flowchart TD
                 step the user took that didn't work. The fork writes the message as the
                 agent's guidance has the agent write one. Where the agent left answers
                 the user picks among, or an action it takes once the user agrees, such
-                as merging a pull request, the message holds a choice of them. A step
-                only the user can take, such as trying a build, says what to do, and
-                asks for the user's answer only for what they alone can report or the
-                agent's next step waits on, as a choice where its answers can be listed,
-                such as installed or failed. Leaf skips an ask whose title a question
-                the agent asked already has.
+                as merging a pull request, the message usually holds a choice of them. A
+                step only the user can take, such as trying a build, says what to do,
+                and asks for the user's answer only for what they alone can report or
+                the agent's next step waits on, usually as a choice where its answers
+                can be listed, such as installed or failed. Leaf skips an ask whose
+                title a question the agent asked already has.
               </p>
               <p id="fork-writes">
                 Leaf posts each remaining ask as the agent's message, as the agent's

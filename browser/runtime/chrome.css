@@ -95,10 +95,11 @@
    page armed or disarmed, 1.0 to 1.2 s in Firefox on a page of thirty 4 MB text
    documents. A control keeps its own cursor while armed. Only an armed page or Design
    mode paints the hand, so the rule reads no mark on `body`, whose every change made
-   Firefox visit the whole page; the attribute is named twice to keep the weight it had
-   over the page's own cursor rules for the item, 0-2-1. */
-body [data-lf-over-item][data-lf-over-item] {
-  cursor: pointer;
+   Firefox visit the whole page. Where the aim's press takes an item on the page, it
+   takes it whatever cursor the page gives the item, so the hand covers that cursor, as
+   the crosshair does (integration.css). */
+body [data-lf-over-item] {
+  cursor: pointer !important;
 }
 /* One finger's drag is the capture's, or the stroke's. Draw mode lasts while the user
    moves about the page, so two fingers still pan and zoom it there; a second finger

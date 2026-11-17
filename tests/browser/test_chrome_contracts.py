@@ -24,6 +24,7 @@ from render_harness import (
     LONG_PAGE,
     PANEL,
     CutOff,
+    expect_design_mode,
     expect_panel_says,
     leaf_page,
     nudge,
@@ -329,9 +330,9 @@ def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):
     expect(aimed).to_have_id("section")
     moves["picker close"] = restyled(lambda: page.keyboard.press("Escape"))
     moves["Design mode in"] = restyled(lambda: page.keyboard.press("l"))
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     moves["Design mode out"] = restyled(lambda: page.keyboard.press("Escape"))
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     moves["Draw mode in"] = restyled(lambda: page.keyboard.press("w"))
     expect(words).to_have_css("cursor", "crosshair")
     moves["Draw mode out"] = restyled(lambda: page.keyboard.press("Escape"))

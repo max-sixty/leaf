@@ -13,6 +13,7 @@ from render_harness import (
     RELEASE_FOCUS,
     any_owner_entry,
     cursor_at,
+    expect_design_mode,
     leaf_page,
     open_page,
     open_threads,
@@ -225,18 +226,16 @@ REPLY_TRAVEL_PAGE = leaf_page(
 )
 
 
-def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, serve):
+def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
     """An outline in the chrome says which element, and stops there.
 
     An element anchor wears its outline wherever its element stands, the layer's own
     parts included — that is what lets a design comment about the banner point at the
-    banner. What the outline may not do there is offer the hand: `markAt` refuses a
-    press inside the chrome on purpose, because what the chrome holds keeps its own
-    presses. The Threads button opens the panel and an option takes a pick; neither
-    of them opens a thread. So the pointer stood over a marked question an agent had
-    asked, promising a click nothing took.
-
-    The page's own mark is the control, and it keeps the hand it has always had."""
+    banner. A press there is not the thread's: `markAt` refuses a press inside the
+    chrome on purpose, because what the chrome holds keeps its own presses. The Threads
+    button opens the panel and an option takes a pick; neither of them opens a thread.
+    The cursor over such a mark, which promises no press,
+    `test_an_armed_page_shows_each_place_the_cursor_its_press_keeps` reads."""
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
@@ -246,46 +245,13 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
         "</lf-options></lf-ask>",
         "tv-decision",
     )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "id": "tv-on-page",
-            "author": "user",
-            "revision": 1,
-            "text": "About the page.",
-            "anchor": {"section": "tv-p3"},
-        },
-    )
     page = open_page(browser, url)
     resized(page, 1280, 900)
     open_panel_thread(page, "tv-decisioned")
     rendered(page)
-
-    marks = page.evaluate(
-        """() => [...document.querySelectorAll('.lf-mark-el')].map((el) => ({
-             id: el.id, chrome: Boolean(el.closest('.lf-floating-panel')),
-             cursor: getComputedStyle(el).cursor,
-           }))"""
+    expect(page.locator(".lf-fp-view #tv-decision")).to_have_class(
+        re.compile(r"\blf-mark-el\b")
     )
-    inside = [m for m in marks if m["chrome"]]
-    assert inside and len(inside) < len(marks), (
-        f"this needs a mark in each document to compare; got {marks}"
-    )
-    # The page's mark shows its hand where the pointer rests on its words.
-    words = page.locator("#tv-p3")
-    words.hover()
-    rendered(page)
-    box = words.bounding_box()
-    assert (
-        cursor_at(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-        == "pointer"
-    ), "the page's own mark lost its hand, so the reading below is about nothing"
-    assert all(m["cursor"] != "pointer" for m in inside), (
-        f"a mark in the layer offers the hand and no press is taken there: {inside}"
-    )
-    # And the other half of the sentence, since a cursor is only a promise about a
-    # press: the press itself, on the marked widget's own words, reaching no thread.
     page.locator(".lf-fp-view #tv-decision").click(position={"x": 4, "y": 4})
     rendered(page)
     expect(
@@ -305,7 +271,9 @@ ARMED_PAGE = leaf_page(
     '<p id="passage">Words around <span class="quoted">a marked passage</span> in an'
     " item.</p>"
     '<p id="drafted">Words a draft will stand on.</p>'
+    '<p id="helped">Words in an item that states its own cursor.</p>'
     '<p id="links"><a id="link" href="#items">A link in an item</a></p></section>',
+    head="<style>#items #helped { cursor: help; }</style>",
 )
 # The cursor the user sees at each place, at rest, holding ⌥, and in Design mode
 # (chrome.css, annotation-chrome.css).
@@ -316,6 +284,7 @@ ARMED_CURSORS = {
     "a tab stop in a marked item": ("auto", "auto", "auto"),
     "a marked passage": ("pointer", "pointer", "pointer"),
     "a link in an item": ("pointer", "pointer", "pointer"),
+    "an item that states its own cursor": ("help", "pointer", "pointer"),
 }
 
 
@@ -327,7 +296,8 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     Design mode, where the aim's press takes an item. A control keeps its own cursor in
     either, even inside a marked item, where a press only focuses or works it; so do the
     words no item holds, a draft's item at rest, and a mark in the chrome, which neither
-    press takes. Each place's cursor is read where the pointer is, since each hand is
+    press takes. Where the aim's press takes an item, its hand covers any cursor the page
+    gives the item. Each place's cursor is read where the pointer is, since each hand is
     painted on the element under it (anchor-paint.js, page-geometry.js); a mark of the
     arm on `body` made Firefox visit every element of the page as ⌥ went down or up."""
     url = serve(
@@ -374,6 +344,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
         "a tab stop in a marked item": middle("#stop"),
         "a marked passage": middle("#passage .quoted"),
         "a link in an item": middle("#link"),
+        "an item that states its own cursor": middle("#helped", 20),
     }
 
     def seen(point):
@@ -408,7 +379,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     assert draft == ["auto", "pointer"], draft
     page.keyboard.press("Escape")
 
-    # A mark in the chrome keeps its own cursor, armed or not.
+    # A mark in the chrome keeps its own cursor, armed, in Design mode or neither.
     open_panel_thread(page, "tv-decisioned")
     rendered(page)
     expect(page.locator(".lf-fp-view #tv-decision-region")).to_have_class(
@@ -419,7 +390,11 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     page.keyboard.down("Alt")
     chrome.append(seen(heading))
     page.keyboard.up("Alt")
-    assert chrome == ["auto", "auto"], chrome
+    page.evaluate(RELEASE_FOCUS)
+    page.keyboard.press("l")
+    expect_design_mode(page)
+    chrome.append(seen(heading))
+    assert chrome == ["auto", "auto", "auto"], chrome
 
 
 def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):

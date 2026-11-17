@@ -19,6 +19,7 @@ from render_harness import (
     cursor_at,
     cursor_over,
     delivered,
+    expect_design_mode,
     field_press,
     leaf_page,
     open_page,
@@ -883,10 +884,10 @@ def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
 
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
 
 
 def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):

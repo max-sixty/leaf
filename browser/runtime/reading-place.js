@@ -840,14 +840,12 @@ export function seenWhereRead(block) {
   const body = box ?? pageDocument();
   const reader = bounds && body ? readerColumn(bounds, body) : null;
   const column =
-    reader !== null && spans(block, block.getBoundingClientRect(), reader)
-      ? reader
-      : null;
+    reader !== null && spans(block, shownBox(block), reader) ? reader : null;
   return (node) =>
     readingRegionFor(node)?.id === region?.id &&
     seenAhead(node) &&
     (stuck || !stuckBox(node, box)) &&
-    (column === null || spans(node, node.getBoundingClientRect(), column));
+    (column === null || spans(node, shownBox(node), column));
 }
 
 // The sections whose words or pictures the user sees, by id in page order: the

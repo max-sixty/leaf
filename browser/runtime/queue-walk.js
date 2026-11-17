@@ -600,12 +600,17 @@ export function createQueueWalk({
       obligation: record,
     };
     const key = `${stop.kind}:${stop.id}`;
+    // Read where the obligation's own stop is the one the user stands on, and nowhere
+    // else, so a position another stop declared ends here too.
+    const own = () => {
+      const at = position(null);
+      return at?.target === key ? at : null;
+    };
     const ready = arriveAt(stop).then((arrived) => {
       if (!arrived) return false;
       const word = obligationWord(record);
       announce(
-        (position(null)?.target === key &&
-          beginWalk("queue", null, () => position(null))) ||
+        beginWalk("queue", null, own) ??
           (record.status === "open"
             ? word
             : [`${word} · `, obligationEnding(record)].flat()),

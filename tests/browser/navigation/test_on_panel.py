@@ -760,7 +760,8 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
     where it stands in On Me as `m` landing there says it, counting the same list: with
     the first of three questions answered, the third is the second of three, beside the
     proposal still open. An answered question inside that proposal has no place in On
-    Me, so it says how it ended rather than the proposal's place."""
+    Me, so it says how it ended rather than the proposal's place, and the proposal's
+    place, said a moment before, stands no longer."""
     asks = "".join(
         f"""<lf-group id="ask-{index}" label="Question {index}"><h2>Question {index}</h2>
 <lf-options id="pick-{index}">
@@ -798,6 +799,8 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
     page.locator("#step lf-option-control").first.click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("Escape")
+    open_obligation("widget:plan")
+    expect_walk_position(page, "3 of 3 waiting on me · Rewrite")
     open_obligation("widget:step")
     expect(page.locator("#step-ask")).to_be_focused()
     expect(page.locator(".lf-live")).to_have_text("Options · Answered: Keep it")

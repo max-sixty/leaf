@@ -664,7 +664,9 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     """
     framed = FRAMED_SCROLLER_PAGE[FRAMED_SCROLLER_PAGE.index("<div id='own-frame'") :]
     framed = framed[: framed.index("</lf-board></div>") + len("</lf-board></div>")]
-    framed = framed.replace("id='own-frame'", "id='own-frame' class='layout-flow'")
+    framed = framed.replace("<div id='own-frame'", "<section id='own-frame'").replace(
+        "</lf-board></div>", "</lf-board></section>"
+    )
     source = OWN_MARGIN_FURNITURE.replace(
         "</head>",
         "<style>main { position: relative; max-inline-size: var(--lf-col); "
@@ -693,7 +695,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
         f
         for f in failures
         if f.at == "<lf-board id=framed>"
-        and f.values.get("frame") == "<div id=own-frame>"
+        and f.values.get("frame") == "<section id=own-frame>"
     ], (
         "the gate said nothing about a wide widget escaping a frame that scrolls: "
         f"{failures}"

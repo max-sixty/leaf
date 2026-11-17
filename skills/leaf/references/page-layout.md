@@ -84,15 +84,16 @@ outline.
 
 A `layout-column` is ordinary block flow at the reading measure, centered, with the
 space on both sides available to exhibits. Its blocks' margins collapse and a float
-stands beside the prose, as on any page. Group a nested section with
-`class="layout-flow"` when its children should share that space. Ordinary wrappers
-contain their children: a list, callout or custom grid does not grant a nested exhibit
-room outside its own box. The same `data-width` contract applies at every level.
+stands beside the prose, as on any page. A `section`, `article` or `details` shares
+that space with what it holds, at any depth, so an exhibit in it breaks out as one
+standing in the column does. Other wrappers contain their children: a `div`, list,
+callout or custom grid does not grant a nested exhibit room outside its own box. The
+same `data-width` contract applies at every level.
 
 ```html
 <main class="layout-column">
   <h1>…</h1>
-  <section id="evidence" class="layout-flow">
+  <section id="evidence">
     <h2>…</h2>
     <p>…</p>
     <lf-diff id="changes">…</lf-diff>
@@ -100,10 +101,15 @@ room outside its own box. The same `data-width` contract applies at every level.
 </main>
 ```
 
-Give a tab set `class="layout-flow"` when it should share the document's space
-without a frame. Each panel is either another `layout-flow` or its own Layout.
-Omit the class for a framed tab set inside a section or another panel; its panels
-stay ordinary boxes too. Placement alone never chooses a set's visual flow.
+A section that draws a frame of its own, such as a border or a tint, still shares the
+space: its frame widens with a wide block in it, which runs over the frame's border
+and padding. To keep the block inside the frame, draw the frame on a `div`; to widen
+the frame and keep its padding, put `data-width` on the frame.
+
+Give a tab set `flow="page"` when it should share the document's space without a
+frame; its panels share it too. Omit it for a framed tab set inside a section or
+another panel, whose panels use the room inside the frame. Placement alone never
+chooses a set's visual flow.
 
 To hang a short note in the margin beside the passage it qualifies, float it there
 with the page's own CSS, as Tufte CSS sets sidenotes, and write it just before that
@@ -264,15 +270,15 @@ column and sidebar pages:
   leave free, into both margins.
 
 A `table` with either value is only as wide as its columns need, up to that width.
-A block widens when it is a child of `layout-column`, `layout-flow` or `lf-ask`, whose
-blocks stand in the flow around it, so its words stay on the column beside a wider one.
-A framed holder, such as a callout, needs its own `data-width` to widen; its children
-use the room inside it. A wide child alone does not widen its holder.
+A block widens when it is a child of the `layout-column`, or of a `section`,
+`article`, `details` or `lf-ask` in its flow, whose blocks stand in the flow around it,
+so its words stay on the column beside a wider one. A framed holder, such as a
+callout, needs its own `data-width` to widen; its children use the room inside it. A
+wide child alone does not widen its holder. Write a box that arranges its own
+contents, such as a grid of cards, as a `div`, which keeps them inside it.
 Under the reading face a table scrolls sideways when needed; a page without the face
 gives a table that can outgrow its width a box of its own that scrolls sideways
-(`page-authoring.md`, "Markup"). Use `layout-flow` on unframed section
-wrappers that should share the document's space, not on boxes that arrange their
-own contents.
+(`page-authoring.md`, "Markup").
 
 A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets

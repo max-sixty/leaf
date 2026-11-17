@@ -66,6 +66,13 @@ def failed_widget(page: Page) -> None:
     expect(page.locator("#failed-exhibit > .lf-error")).to_be_visible()
 
 
+def worktree_cases_open(page: Page) -> None:
+    """The larger set of examples opened, its first workbench in view: a wide list of
+    worktrees in a section inside a disclosure."""
+    page.locator("#worktree-example-cases > summary").click()
+    page.locator("#worktree-example-single-case").scroll_into_view_if_needed()
+
+
 def worktree_summaries(page: Page) -> None:
     """Close the initially open worktree so the list's summary columns stand together.
     Press the widget's summary by its class, since the authored evidence in the row
@@ -2471,6 +2478,13 @@ def steps_in_view(page: Page) -> None:
     page.locator("#security-contract-list").scroll_into_view_if_needed()
 
 
+def deep_record_open(page: Page) -> None:
+    """The architecture record opened, its proposed-states diagram in view: a wide
+    drawing in a section inside a disclosure."""
+    page.locator("#security-deep-record > summary").click()
+    page.locator("#security-states").scroll_into_view_if_needed()
+
+
 def disclosures_in_view(page: Page) -> None:
     """Two closed disclosures written one after the other at the page's end."""
     page.locator("#security-source-disclosure").scroll_into_view_if_needed()
@@ -3072,6 +3086,12 @@ STATES = (
         worktree_summaries,
         region="#worktree-example-workbench",
     ),
+    State(
+        "worktree-cases-open",
+        "worktree-diffs",
+        worktree_cases_open,
+        region="#worktree-example-single-case",
+    ),
     State("diff-file-reply", "diff-thread-gallery", diff_file_reply),
     State("diff-moved-reply", "diff-thread-gallery", diff_moved_reply),
     State(
@@ -3483,6 +3503,12 @@ STATES = (
         region="#security-contract-list",
     ),
     State("stacked-disclosures", "security-boundary", disclosures_in_view),
+    State(
+        "deep-record-open",
+        "security-boundary",
+        deep_record_open,
+        region="#security-states",
+    ),
     State(
         "security-flow",
         "security-boundary",

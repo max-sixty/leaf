@@ -1417,7 +1417,7 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 leaf_page(
                     "Board beside contents",
                     margin_content
-                    + '<h1>Board beside contents</h1><section id="boards" class="layout-flow"><h2>Boards</h2>'
+                    + '<h1>Board beside contents</h1><section id="boards"><h2>Boards</h2>'
                     + '<div id="wide" data-width="wide">Wide evidence.</div>'
                     + '<div id="room" data-width="available">Available evidence.</div>'
                     + boards
@@ -2002,7 +2002,7 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     source = leaf_page(
         "Native exhibit tracks",
         '<h1>Evidence</h1><p id="prose">Reading measure.</p>'
-        '<section class="layout-flow"><p id="beside">Beside the breakouts.</p>'
+        '<section><p id="beside">Beside the breakouts.</p>'
         '<div id="wide" data-width="wide">Wide</div>'
         '<div id="available" data-width="available">Available</div></section>'
         '<div id="holder" style="margin-inline-start:40px"><div id="nested" data-width="available">Contained</div></div>'
@@ -2698,17 +2698,12 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     board inside one takes the room exactly as it would standing alone — which is what
     says this is about the box and not about being nested.
 
-    Which boxes those are is read off `--lf-block-frame`, the word a box already says where it
-    draws its frame, so the metric here is held by declaring one and the page's own div by
-    declaring the same one. A list of tags stood in for that reading and shadowed it: the
-    metric declared the frame and was not in the list, and no list a layer writes can
-    reach the div at all.
-
-    The nested section and the note are the two a list of tags could not have named
-    even in principle. A section's rail is drawn by `.nested-frame > .nested-frame`,
-    so it frames what it holds only where it is nested, and a note's box is drawn by `lf-code > pre > lf-note`,
-    a rule on where the code block's module docks it rather than on the tag. Each let a diagram out ~245px over the
-    column until the rule that draws it declared the frame.
+    Every other box here holds its widget by being no flow: only the column and the
+    sections, articles and disclosures in its flow hand their room on (layouts.css), so
+    a box that paints keeps what it holds whatever draws it. That reaches what no list
+    of tags could name: the page's own div, a nested task's rail drawn by
+    `.nested-frame > .nested-frame` only where it is nested, and a code note's box
+    drawn by `lf-code > pre > lf-note`, a rule on where the code block's module docks it.
 
     The row form is the declaration's limit, and the reason the sizing is asserted
     too. A row option is a table hugging its words, and legacy table sizing answers
@@ -2820,7 +2815,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     )
     assert boxes["inOwnBox"]["right"] <= boxes["ownBox"]["right"] + 1, (
         "the diagram crossed the right edge of the box the page drew for it, so a "
-        "project declaring the frame does not get the room held in: diagram out to "
+        "project's own box does not hold the room in: diagram out to "
         f"{boxes['inOwnBox']['right']:.0f}, box ends at {boxes['ownBox']['right']:.0f}"
     )
 
@@ -3044,12 +3039,12 @@ def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_body(browser, se
 def test_a_page_views_sidebar_uses_the_columns_margin(browser, serve):
     source = leaf_page(
         "View composition",
-        '<h1>Release review</h1><lf-tabs id="topics" class="layout-flow">'
-        '<lf-tab id="evidence-view" label="Evidence" class="layout-flow"><div class="layout-sidebar">'
+        '<h1>Release review</h1><lf-tabs id="topics" flow="page">'
+        '<lf-tab id="evidence-view" label="Evidence"><div class="layout-sidebar">'
         '<aside id="route"><div class="layout-track">Read the evidence.</div></aside>'
         '<div class="layout-column"><h2 id="evidence-title">Evidence</h2><p>Compare the counts.</p>'
         '<div id="wide" data-width="available">Evidence</div></div></div></lf-tab>'
-        '<lf-tab id="decision-view" label="Decision" class="layout-flow"><h2>Decision</h2></lf-tab></lf-tabs>',
+        '<lf-tab id="decision-view" label="Decision"><h2>Decision</h2></lf-tab></lf-tabs>',
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)

@@ -11,7 +11,7 @@ DOCUMENT = """
 </div></aside>
 <div class="layout-column" id="body">
   <h1>Review</h1>
-  <section id="evidence" class="layout-flow">
+  <section id="evidence">
     <h2>Evidence</h2>
     <p id="prose">The passage keeps its reading measure.</p>
     <lf-worktree-diffs id="wide"><lf-worktree id="tree" label="Changes" path="/work/leaf"
@@ -64,18 +64,18 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     source = leaf_page(
         "Questions in the flow",
         '<h1>Questions in the flow</h1><p id="prose">Prose sets the column.</p>'
-        '<section class="layout-flow">'
+        "<section>"
         + question.format(id="plain", width="", held="")
         + question.format(id="stated", width=' data-width="available"', held="")
         + question.format(id="holds", width="", held=evidence.format(id="holds"))
         + question.format(
             id="wrapped",
             width="",
-            held="<section>" + evidence.format(id="wrapped") + "</section>",
+            held="<div>" + evidence.format(id="wrapped") + "</div>",
         )
-        + "</section><section>"
+        + "</section><div>"
         + question.format(id="kept", width="", held=evidence.format(id="kept"))
-        + "</section>",
+        + "</div>",
     )
     page = open_page(browser, serve(source))
     resized(page, 1728, 900)
@@ -94,8 +94,8 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     # The block takes the room and the question's box, which its marks stand on, holds it.
     assert boxes["holds-evidence"][0] < 100 and boxes["holds-evidence"][1] > 1628, boxes
     assert boxes["holds"] == boxes["holds-evidence"], boxes
-    # A plain section keeps what it holds, as it does outside a question, and the
-    # question's box keeps to the column with it.
+    # A div keeps what it holds, as it does outside a question, and the question's box
+    # keeps to the column with it.
     for question_id in ("wrapped", "kept"):
         assert boxes[f"{question_id}-evidence"] == boxes[question_id] == column, boxes
     # What the question asks stands by its words, not at the edge of the evidence.
@@ -128,7 +128,7 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
         '<div id="room" data-width="available">Room.</div>'
         + question.format(id="reaches", width="available")
         + question.format(id="widens", width="wide")
-        + f'<section class="layout-flow" dir="{other}">'
+        + f'<section dir="{other}">'
         '<div id="section-block" data-width="available">Evidence.</div></section>'
         "</div></div>",
     ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">', 1)

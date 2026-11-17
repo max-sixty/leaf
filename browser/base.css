@@ -20,10 +20,11 @@
  *
  * The stylesheet uses declarations as open selectors too. A box that draws a frame
  * declares `--lf-block-frame: 1` in the rule that draws it. Style queries use that custom
- * property to trim child margins and to bound wide content. A project box then receives
- * the same behavior without joining a tag list. A box whose edges trim but which draws
- * nothing, such as `main` or a page tab's panel, declares `--lf-block-frame: trim`, so
- * it passes wide room on to its contents rather than withholding it.
+ * property to trim child margins, so a project box receives the same trim without
+ * joining a tag list. A box whose edges trim but which draws nothing, such as `main` or
+ * a page tab's panel, declares `--lf-block-frame: trim`. Neither value decides whether
+ * a box hands the page's room on to its contents; whether it is a flow does
+ * (layouts.css).
  *
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
@@ -155,8 +156,7 @@
  * frame, and the trim finds it through a style query. Every box that draws a frame traps
  * its children's margins, and some boxes trap them without drawing anything (`main`'s
  * padding, a page tab's panel, a goal's float containment), so the declaration has one
- * value for each: `1` draws a frame, and `trim` only trims. The trim reads both; what
- * else a frame does (withholding the page's room, layouts.css) reads `1`.
+ * value for each: `1` draws a frame, and `trim` only trims. The trim reads both.
  * `--lf-block-frame` inherits, so the reset inside holds the claim to the box's own
  * children; a nested frame outranks the reset, which is `*` in the lowest layer of its
  * tier (reading.css).

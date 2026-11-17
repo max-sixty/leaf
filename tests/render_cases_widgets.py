@@ -941,16 +941,15 @@ ROOM_GEOMETRY = (
 }"""
 )
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
-# frame, the option's card, the metric, a native nested section's rail, the note a code block
-# builds, the page's own div) and a wrapper that doesn't (a plain section). The div is
-# the case the theme cannot name: it draws its box in the page's own style and declares
-# the frame there, which is the whole of what a project writes to hold an exhibit inside
-# its own card.
+# frame, the option's card, the metric, a nested task's rail, the note a code block
+# builds, the page's own div) and a wrapper that doesn't (a plain section). The divs are
+# the case the theme cannot name: each draws its box in the page's own style, and being
+# no flow, keeps what it holds inside it.
 FRAMED_WIDE_PAGE = leaf_page(
     "framed",
     """
 <h1 id="t">Framed</h1>
-<section id="loose" class="layout-flow">
+<section id="loose">
   <lf-board id="in-section">
     <lf-column id="s1" label="Todo"><lf-card id="sk1"><strong>One</strong></lf-card></lf-column>
     <lf-column id="s2" label="Done"></lf-column>
@@ -1009,15 +1008,15 @@ graph LR
   </section>
 </div>
 <section id="plan">
-  <section id="t-outer" class="nested-frame"><strong>Rebuild the feeders</strong>
-    <section id="t-inner" class="nested-frame"><strong>Fit the baffles</strong>
+  <div id="t-outer" class="nested-frame"><strong>Rebuild the feeders</strong>
+    <div id="t-inner" class="nested-frame"><strong>Fit the baffles</strong>
       <lf-diagram id="in-task"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
 </pre></lf-diagram>
-    </section>
-  </section>
+    </div>
+  </div>
 </section>
 <lf-code id="walk" hi="2"><pre><code class="language-python">
 def bracket(temp):

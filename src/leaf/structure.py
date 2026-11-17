@@ -785,9 +785,10 @@ class Authoring:
                         "line": line,
                         "attr": attr,
                         "value": attrs[attr],
+                        "attrs": attrs,
                         # Where delivery reads it: it skips a template and what it
                         # holds, which is inert until cloned, and only a block in the
-                        # page's flow takes room (`registry.kernel.authored_inert`).
+                        # page's flow takes room (`registry.contract.authored_inert`).
                         "in_template": "template" in (tag, *ancestors),
                         "content": tag not in {"html", "body", "main"}
                         and "body" in ancestors,

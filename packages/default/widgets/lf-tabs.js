@@ -16,9 +16,9 @@
  * follows those panel entries. A link inside a panel is still fragment travel
  * (history.js).
  *
- * The authored layout-flow declares document flow (`--lf-views-flow`, layouts.css);
- * the package styles its unframed face. This module reads that declaration for
- * scrolling, separately from primary URL/history ownership above. In document flow
+ * The authored `flow="page"` puts the set in the document's flow (`x-flow`), and the
+ * package styles its unframed face. This module reads that attribute for scrolling,
+ * separately from primary URL/history ownership above. In document flow
  * ("page"), the strip sticks at the
  * window's top as a sticky header over the document it indexes, and its panels are sections of the
  * page, taking the page's width. Each is then a view with a place of its own: a switch,
@@ -601,9 +601,7 @@ export class TabSet extends LeafElement {
       (this.#parts
         ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
         : main.querySelector(":scope > lf-tabs") === this);
-    this.#pageFlow = this.#parts
-      ? this.#root
-      : getComputedStyle(this).getPropertyValue("--lf-views-flow").trim() === "page";
+    this.#pageFlow = this.#parts ? this.#root : this.getAttribute("flow") === "page";
     // The strip is named as the chrome names the set (`addressableLabel`): its author's
     // `aria-label`, else the nearest element holding it that has a name, such as its
     // section. The page's navigation stands in no section, and the page's title names it.

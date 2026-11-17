@@ -621,16 +621,16 @@ def test_escape_or_a_pointer_press_lets_go_of_held_keys(browser, serve, gesture)
 
 
 def test_the_help_overlay_answers_to_one_owner(browser, serve):
-    """Open or closed is state with one writer now — it was three writers and
-    two classList read-backs, the exact shape the first norm forbids.
+    """Open or closed is state with one writer — not several writers and
+    classList read-backs, the exact shape the first norm forbids.
 
     A section is its title, so two drafts on a page are one heading and a project
     widget declaring under a heading a standard one already uses joins it. That is
     the scope talking rather than the declaration: "On a draft" names where the
     user would be located, and there is one such place however many modules
-    have something to say about it. Sections used to key on their exact rows, so
-    the same heading twice was two headings — and the user, who has one keyboard
-    and one draft in front of them, got the reference split in half."""
+    have something to say about it. Sections keyed on their exact rows would make
+    the same heading twice two headings — and the user, who has one keyboard
+    and one draft in front of them, would get the reference split in half."""
     html = JOURNEY_V1.replace(
         "</main>",
         '<lf-draft id="draft-second"><pre>A second editable draft.</pre></lf-draft></main>',

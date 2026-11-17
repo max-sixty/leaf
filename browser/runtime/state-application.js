@@ -241,7 +241,7 @@ export function createStateApplication({
         } else presentedNews = { reading: newsReading, observed: reading.observed };
         // The agent's new words are heard, not shown: the On Me mark's dot and each
         // margin marker's already show unread news, so the seat keeps the agent's status.
-        // The user chose this on 25 October over a line counting the messages.
+        // The user chose this over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
         // The leaf answers news as it arrives, with the badge and dots, rather than when
         // a notice held behind the user's own command shows it.

@@ -136,8 +136,8 @@ def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir
 
     `check_markup` runs only on a message holding HTML, and the reference it asks about
     lives in an attribute. An agent sending a screenshot writes it in the words instead,
-    so the shape `media_errors` was written for — here is what it looks like now — came
-    through the one door that never asked, and the log is append-only: a picture the
+    so the shape `media_errors` was written for would come through a door that never
+    asked, and the log is append-only: a picture the
     directory hasn't got is broken for as long as the page exists.
 
     The reading is the link or image destination the runtime resolves rather than a scan

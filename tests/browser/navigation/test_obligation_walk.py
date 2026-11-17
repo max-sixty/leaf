@@ -475,14 +475,13 @@ def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
 def test_an_obligations_digits_are_drawn_whole(browser, serve):
     """A binding badge arrives into room its option already holds, and lands on nothing.
 
-    Every earlier placement borrowed that room instead, and each borrow showed. On the
-    cell's outer corner the chip was half outside a group that clips itself, so no
-    binding badge the product drew had ever been whole — seven of its seventeen pixels gone,
-    and in a bare-label group the first digit was a sliver.
-    Out in the page margin beside the group it was whole and it was in the neighbouring
-    card's prose, because a middle column's margin is another cell. Neither showed up
-    as a failure: a clipped element still reports its whole box and still answers
-    `to_be_visible`, and a chip drawn over words breaks no rule anybody had written.
+    A placement that borrows that room instead shows it. On the cell's outer corner the
+    chip would be half outside a group that clips itself, and in a bare-label group the
+    first digit a sliver. Out in the page margin beside the group it would be whole and
+    in the neighbouring card's prose, because a middle column's margin is another cell.
+    Neither shows up as a failure: a clipped element still reports its whole box and
+    still answers `to_be_visible`, and a chip drawn over words breaks no rule anybody
+    had written.
 
     So the cell holds a place for it, and this asks the two questions that place
     answers — does any ancestor cut it, is it on anybody's words — in both forms,
@@ -493,13 +492,13 @@ def test_an_obligations_digits_are_drawn_whole(browser, serve):
     How far down the column it stands is each form's own answer, so each is asked for the
     fact it states rather than for one number covering both. A card's digit rides at the
     head of that column, beside the title rather than over it; a row's is centred on the
-    row. Pinned as one 8px it was level with a 15px row, and the day the row went to the
-    page's own 17px it was two pixels too high with the gate still green — because what
-    the gate read was the number the theme stated, and the claim beside it, that a row's
-    digit is level with its words, was checked by nothing.
+    row. Pinned as one number, it is level with one row size and too high at another with
+    the gate still green — because what the gate reads is the number the theme states,
+    and the claim beside it, that a row's digit is level with its words, is checked by
+    nothing.
 
     How far in it stands is each form's own relation: edge, digit, then prose for a row;
-    prose opening, then digit, then edge for a card. The two forms deliberately no longer
+    prose opening, then digit, then edge for a card. The two forms deliberately don't
     claim one rail, while every option within a form still claims one stable seat."""
     page = open_page(browser, serve(BINDING_BADGE_PAGE))
     seats = {"card": {}, "row": {}}
@@ -1023,7 +1022,6 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
             '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
             "</lf-options></lf-ask>",
-            "html": True,
         },
     )
     page = open_page(browser, live_url(url))
@@ -1271,8 +1269,8 @@ def test_an_obligation_and_its_thread_are_one_current_target(browser, serve):
 
 def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser, serve):
     """The card a block's thread opens beside an obligation inside the block is the
-    thread the user is at, so `c` writes in its reply. It once closed that card and
-    opened a box on the obligation, answering a reply with a new thread."""
+    thread the user is at, so `c` writes in its reply. Closing that card and opening a
+    box on the obligation would answer a reply with a new thread."""
     url = serve(
         leaf_page(
             "calls",
@@ -1302,9 +1300,9 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
 def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, serve):
     """A question's frame holds what it asks about, so a press on a control there is the
     user reading the question. After `m`, a click that flips the shot or drags its divider
-    once moved `c` onto the shot, because it put focus on the shot's own controls, while
-    a press on its Pixels button left `c` on the question, and once the question was
-    answered every press named the shot. The control is the same press on a shot
+    puts focus on the shot's own controls, which would move `c` onto the shot, while
+    a press on its Pixels button would leave `c` on the question, and once the question
+    was answered every press would name the shot. The control is the same press on a shot
     outside any question, where `c` names the shot."""
     shot = (
         f'alt="the board before and after" before="{SHOT_SRC["before"]}" '
@@ -1393,7 +1391,6 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
             "</lf-options></lf-ask>"
             f'<lf-shot id="follow-shot" alt="the cache before and after" '
             f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -1482,9 +1479,9 @@ OBLIGATION_IN_A_PANE_PAGE = leaf_page(
 def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, serve):
     """An obligation walk lands the decision at the start of the pane that scrolls it, and the
     obligation wears the ring outside its box. The landing keeps the ring's room at the pane's
-    edge, as the browser's own landing does for a box asking for it: the obligation stood
-    flush with the pane's top, the top of its ring cut off under the pane's header
-    rule."""
+    edge, as the browser's own landing does for a box asking for it, where otherwise the
+    obligation would stand flush with the pane's top, the top of its ring cut off under
+    the pane's header rule."""
     page = open_page(browser, serve(OBLIGATION_IN_A_PANE_PAGE))
     resized(page, 1440, 900)
     pane_scroll_behavior(page, page.locator("#ask-detail"), "bounded")
@@ -1516,8 +1513,8 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     obligation's does, so it does not run over the first letter of each line. A
     question that is a full-height workspace's body has only the workspace's gutter
     round it, so its ring stands at a control's gap (layouts.css), inside the window
-    on top and at the sides: inside the question it ran over the heading's first letter
-    and under the panes the question holds."""
+    on top and at the sides: inside the question it would run over the heading's first
+    letter and under the panes the question holds."""
     ask = (
         '<lf-ask id="rollout"><h2>Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"

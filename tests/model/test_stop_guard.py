@@ -175,10 +175,10 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
 ):
     """Each page states its own debt; the protocol they share is stated once.
 
-    Every debt used to carry the whole protocol with it, so a session holding
-    three pages that owed the same thing spent three copies of the same ninety
-    words saying so — most of what the blocking message weighed, and all of it
-    between one page's line and the next.
+    A debt that carried the whole protocol with it would make a session holding
+    three pages that owe the same thing spend three copies of the same words
+    saying so — most of what the blocking message weighs, and all of it between
+    one page's line and the next.
     """
     second = tmp_path / "second-page"
     shutil.copytree(claimed, second)
@@ -902,7 +902,6 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which region?\n\n<lf-options id="thread-region">'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
@@ -1365,7 +1364,6 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
                 "kind": "comment",
                 "author": "agent",
                 "revision": 1,
-                "html": True,
                 "text": f"Sort these follow-ups.\n\n{board}",
             },
         )

@@ -349,7 +349,7 @@ export function misplacedBoxes() {
   if (!main) return [];
   // The column belongs to the page. Visible Leaf chrome still has to fit it, but chrome
   // hidden with opacity or visibility has no box a user can lose. checkVisibility()
-  // ignores both properties unless they are requested, which made a hidden margin label
+  // ignores both properties unless they are requested, so a hidden margin label would
   // look like compact-width overflow.
   /** @type {NodeListOf<Element & {parentElement: HTMLElement}>} */
   const descendants = main.querySelectorAll("*");
@@ -408,12 +408,11 @@ export function misplacedBoxes() {
     return false;
   };
   // The bound a descendant of a wide widget is held to. The column is the wrong one —
-  // the room is exactly what the declaration granted, and several prose rows had all
-  // been reported as standing out in the margin — but "answered for" is wrong too,
+  // the room is exactly what the declaration granted, and prose rows would be
+  // reported as standing out in the margin — but "answered for" is wrong too,
   // and wrong in the direction that costs: a child that paints past its own widget's
   // box does not grow that box, so exempting the subtree makes the widget's rect prove
-  // something about itself alone. This read as answered while both wide widgets also
-  // scrolled, `overflow-x: auto` having caught every descendant a line above.
+  // something about itself alone.
   /** @param {Element} el */
   const insideWide = (el) => {
     for (let a = el.parentElement; a && a !== main; a = a.parentElement)
@@ -480,9 +479,9 @@ export function misplacedBoxes() {
     // by a scroll container above it. The excuse is about the column — a box inside a
     // scroller is drawn only as far as the scroller reaches, so it cannot spill onto
     // the page — and a wide widget's question is a different one: it is measured
-    // against the box that frames it, and a board scrolls, so every card on every
-    // board was excused from the only reading that applies to it. A diagram in a card
-    // was drawn across the neighbouring column and this said the page was clean.
+    // against the box that frames it, and a board scrolls, so the excuse would spare
+    // every card on every board the only reading that applies to it, and a diagram in
+    // a card drawn across the neighbouring column would read as clean.
     if (!pageBox(el) || !el.checkVisibility() || (!wide && answeredFor(el))) continue;
     const b = el.getBoundingClientRect();
     if (b.width < 1) continue;
@@ -574,12 +573,11 @@ export function misplacedBoxes() {
   // page dropped. The user is the only party who loses them, which is why the
   // question is asked here, where the excuse was granted.
   //
-  // Every box and not floats alone. A float is how margin content reaches the margin, so
-  // it was the shape the failure first arrived in; the rule is about the excuse, and
-  // a container grants that to whatever stands inside it. Held to floats it watched
-  // one sidenote and let a question through: a row-form option 30px wider than the
-  // group holding it carried every mark on it past the clip, and four of the examples
-  // shipped a decision with no box to tick.
+  // Every box and not floats alone. A float is how margin content reaches the margin,
+  // but the rule is about the excuse, and a container grants that to whatever stands
+  // inside it. Held to floats it would let a question through: a row-form option 30px
+  // wider than the group holding it carries every mark on it past the clip, leaving a
+  // decision with no box to tick.
   //
   // Across the page, box by box, which names the one box a container lost. Down the
   // page, and the words a box holds itself, are its content's reading after this loop.
@@ -665,20 +663,20 @@ export function misplacedBoxes() {
   }
   // And what a box cuts off of its own content, on an axis it neither scrolls nor
   // marks, read from its scroll extent: lines and words have no box of their own for
-  // the loop above to measure, and a box's height is where a page most often cuts
-  // them. The theme scrolls a <pre> or table sideways only, so one given just a
-  // max-height clips every line past it, and the reader sees a log end where it
-  // doesn't. Read down as well as across, which reverses the rule this pass kept
-  // until then, that a box cut off below is cut on purpose: what cuts on purpose
-  // says so. A bounded block scrolls (data-bound); a closed disclosure skips its
-  // content, which checkVisibility() reads; a line clamp and text-overflow mark the
-  // cut on the axis each marks; and a box under two pixels either way shows nothing to
-  // cut from: a hidden tab, size-contained to no height, and the words a page clips
-  // to a pixel for whoever is listening. A drawing's viewport (--lf-drawing) frames
-  // its own coordinates, as a screenshot frames its crop. A cut shorter than half a line hides no line or word, only the overhang
-  // of a tight line box. A text box scrolls to its caret. Across, the loop above
-  // already named the box a container lost, so the container's own reading adds
-  // only what no box of it carried, such as a run of words that does not wrap.
+  // the loop above to measure, and a box's height is where a page most often cuts them.
+  // The theme scrolls a <pre> or table sideways only, so one given just a max-height
+  // clips every line past it, and the reader sees a log end where it doesn't. Read down
+  // as well as across, rather than taking a box cut off below as cut on purpose: what
+  // cuts on purpose says so. A bounded block scrolls (data-bound); a closed disclosure
+  // skips its content, which checkVisibility() reads; a line clamp and text-overflow
+  // mark the cut on the axis each marks; and a box under two pixels either way shows
+  // nothing to cut from: a hidden tab, size-contained to no height, and the words a
+  // page clips to a pixel for whoever is listening. A drawing's viewport (--lf-drawing)
+  // frames its own coordinates, as a screenshot frames its crop. A cut shorter than
+  // half a line hides no line or word, only the overhang of a tight line box. A text
+  // box scrolls to its caret. Across, the loop above already named the box a container
+  // lost, so the container's own reading adds only what no box of it carried, such as a
+  // run of words that does not wrap.
   const named = new Set([...lost.values()].map(([, a]) => a));
   for (const el of descendants) {
     if (!pageBox(el) || !el.checkVisibility() || el.matches(TEXT_BOX)) continue;
@@ -724,10 +722,11 @@ export function misplacedBoxes() {
 // (eight columns of single tokens) is the honest third case and passes.
 //
 // The finding states the widths and leaves the diagnosis to the author, because the
-// widths carry it and a cause asserted here was wrong: a column of test names written
-// outside <code> holds a table open at 583px beside prose at 118px, and twelve columns
-// of ordinary prose hold one open at 87px each, and "squeezed by what cannot break" was
-// said of both. So every column is listed with its width, and both remedies are offered.
+// widths carry it and a cause asserted here would be wrong: a column of test names
+// written outside <code> holds a table open beside squeezed prose, and twelve columns
+// of ordinary prose hold one open with every column narrow, and "squeezed by what
+// cannot break" would be said of both. So every column is listed with its width, and
+// both remedies are offered.
 //
 // A column wraps when it stands wider with wrapping turned off, and that is the whole
 // reading: every column of a scrolling table is at its longest unbreakable run, so a
@@ -736,34 +735,33 @@ export function misplacedBoxes() {
 // `text-wrap: nowrap` and not `white-space: nowrap`, because the shorthand also
 // collapses white space and would have taken an author's newlines under a page rule
 // setting cells `pre-wrap`; `flex-wrap: nowrap` beside it, because a milestone's chips
-// stacked seven deep in a 114px cell with no text wrapping at all; `!important` on the
+// can stack deep in a narrow cell with no text wrapping at all; `!important` on the
 // descendants too, because a widget's own rule beats an inherited value — a draft's
-// body is `pre-wrap` by the default package's sheet; and not on a text box, whose
-// value wraps inside a box the table never sized. The gate reads its own page, so the
-// probe changes nothing a user sees, and later readings measured the same before
-// and after it.
+// body is `pre-wrap` by the default package's sheet; and not on a text box, whose value
+// wraps inside a box the table never sized. The gate reads its own page, so the probe
+// changes nothing a user sees, and readings with and without it measure the same.
 //
-// The column and not a row or a cell's glyphs, after three readings of line boxes,
-// three of which glyphs are on the page, and one of row height each fell to a measured
-// counterexample: an inline <code> is set at 84% and starts 3px lower on the same
-// line; two lines' glyph boxes overlap at line-height 1; a closed details' body, an
-// unselected tab and anything under content-visibility: hidden are laid out on demand
-// and hand back real rects, so every reading of rects let some hidden line in or some
-// painted line out; and a row is held tall by its tallest cell, so prose squeezed to
-// a word a line beside a <br> list of names — the ordinary walkthrough table — read
-// clean, and an image at width: 100% grew under the probe and hid the wrap beside it.
-// None of that reaches a column's width: hidden content is size-contained and asks for
-// nothing, a neighbour's height is not a width, a fixed-width block or a widget with a
-// scroller of its own asks for exactly what it had, and a <br> line or a <pre> line is
-// its own longest run. The remaining reach the probe lacks is stated so nobody looks
-// for it here: a rule more specific than a tag name that says `!important` outranks
-// it; a widget's shadow tree takes it by inheritance only, and a rule inside the tree
-// beats that; a grid that flows its items onto more rows is a third kind of wrapping
-// the sheet does not turn off; a cell an author caps with a max-width under its
-// longest word, or fills with absolutely positioned words, asks for nothing more and
-// wraps unreported. Each is a table cell holding something a leaf page has not yet
-// put in one. A widget's own chrome in a cell never binds: a group's reply box sits
-// inside the width its labels already ask for, measured.
+// The column and not a row or a cell's glyphs: a reading of line boxes, of which glyphs
+// are on the page, or of row height each falls to a counterexample: an inline <code> is
+// set at 84% and starts 3px lower on the same line; two lines' glyph boxes overlap at
+// line-height 1; a closed details' body, an unselected tab and anything under
+// content-visibility: hidden are laid out on demand and hand back real rects, so every
+// reading of rects lets some hidden line in or some painted line out; and a row is held
+// tall by its tallest cell, so prose squeezed to a word a line beside a <br> list of
+// names — the ordinary walkthrough table — reads clean, and an image at width: 100%
+// grows under the probe and hides the wrap beside it. None of that reaches a column's
+// width: hidden content is size-contained and asks for nothing, a neighbour's height is
+// not a width, a fixed-width block or a widget with a scroller of its own asks for
+// exactly what it had, and a <br> line or a <pre> line is its own longest run. The
+// remaining reach the probe lacks is stated so nobody looks for it here: a rule more
+// specific than a tag name that says `!important` outranks it; a widget's shadow tree
+// takes it by inheritance only, and a rule inside the tree beats that; a grid that
+// flows its items onto more rows is a third kind of wrapping the sheet does not turn
+// off; a cell an author caps with a max-width under its longest word, or fills with
+// absolutely positioned words, asks for nothing more and wraps unreported. Each is a
+// table cell holding something a leaf page has not yet put in one. A widget's own
+// chrome in a cell never binds: a group's reply box sits inside the width its labels
+// already ask for, measured.
 //
 // A column is where its cells stand rather than where they come in the row — a rowspan
 // shifts the next row's cells over, a two-row header names a column twice — and a
@@ -773,7 +771,7 @@ export function misplacedBoxes() {
 // a comment badge the mark pass put in it stays out, through the runtime's own
 // `uiInside`. A cell that says `colspan`, whatever the number, belongs to no column,
 // and the sheet leaves it wrapping — one predicate for both, since a `colspan="1"`
-// read as a column by one and left wrapping by the other went unreported: a note
+// read as a column by one and left wrapping by the other would go unreported: a note
 // across the whole table wraps because it is long, says nothing about a squeeze, and
 // unwrapped would push every column it spans out and name them all.
 // A cell in a hidden or collapsed row has no height. Read from the page, where
@@ -795,25 +793,24 @@ export function misplacedBoxes() {
 // A code block is contained (reading.css, `pre`), so it asks what holds it for no
 // width, and a box that takes its width from its content (a flex item at its default
 // `flex`, a grid `auto` track beside an `fr` track, a table cell, a box sized to fit)
-// sizes without it: two short commands in a flex row stood 30px wide each, with no
-// room inside for a character of their lines. A block is squeezed when it scrolls with
-// less than four times the size of its words inside, about six characters of a
-// monospace face, whatever narrowed it. The floor reads the result, not the cause: a
-// holder with nothing else in it leaves the block no room, but one sized by a heading
-// or a cell's column leaves whatever that text's length and font give it, a few
-// characters or many. On the pages it was measured on, every block such a holder left
-// measured 0–34px inside at 360–1920px, under 2.6 times its 13.5px font, and every
-// block that read well measured 77px or more, from a `flex-grow` column beside a nav
-// at 360px to the column. Tracks too many for the window narrow a block below the
-// floor too, such as
-// four `minmax(0, 1fr)` tracks at 390px (44px inside), which giving the block a width
-// would not fix and stacking the tracks at that width does, so the words offer both. A
-// sheet that lifted the containment, to read the width the block's holder would give
-// it, also reported a `flex: auto` item beside another, whose basis grew with its lines
-// and took room from its sibling, and it reset every scrolling block to its start. The
-// finding carries the width inside the block and whether a table cell holds it, since
-// the remedy there is the table's: move a long command out, or write a short one as
-// inline <code>.
+// sizes without it: two short commands in a flex row can stand with no room inside for
+// a character of their lines. A block is squeezed when it scrolls with less than four
+// times the size of its words inside, about six characters of a monospace face,
+// whatever narrowed it. The floor reads the result, not the cause: a holder with
+// nothing else in it leaves the block no room, but one sized by a heading or a cell's
+// column leaves whatever that text's length and font give it, a few characters or many.
+// The floor sits between the two: on the pages it was measured on, every block such a
+// holder left was 0–34px inside at 360–1920px, under 2.6 times its 13.5px font, and
+// every block that read well was 77px or more, from a `flex-grow` column beside a nav
+// at 360px to the column. Tracks too many for the window narrow a block below the floor
+// too, such as four `minmax(0, 1fr)` tracks at 390px (44px inside), which giving the
+// block a width would not fix and stacking the tracks at that width does, so the words
+// offer both. A sheet that lifts the containment, to read the width the block's holder
+// would give it, also reports a `flex: auto` item beside another, whose basis grows
+// with its lines and takes room from its sibling, and it resets every scrolling block
+// to its start. The finding carries the width inside the block and whether a table cell
+// holds it, since the remedy there is the table's: move a long command out, or write a
+// short one as inline <code>.
 //
 // Whether a box scrolls depends on the window, so the gate reads this at every width
 // of its sweep, and reports it as advice: the box still scrolls with every word in

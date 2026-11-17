@@ -258,8 +258,8 @@ def markdown_markup(source: str) -> str:
 
 
 def message_markup(text: str) -> str:
-    """The markup an agent's message holding HTML draws (`html` on its event): its
-    Markdown read as a message, with the raw HTML in it kept, as the browser renders
+    """The markup an agent's message draws: its Markdown read as a message, with the
+    raw HTML in it kept, as the browser renders
     it (markdown.js, `renderAuthoredMarkdown`). Every reading of the message's
     elements, its check among them, parses this."""
     return markdown_dialect(True, html=True).render(text)
@@ -267,9 +267,8 @@ def message_markup(text: str) -> str:
 
 def holds_html(text: str) -> bool:
     """Whether an agent's Markdown holds raw HTML, by whether keeping it changes what
-    the message draws. Only a message written with a `leaf thread` command keeps
-    it, and one whose readings agree carries no `html`."""
-    return message_markup(text) != markdown_dialect(True).render(text)
+    the message draws. Raw HTML opens with `<`, so text without one holds none."""
+    return "<" in text and message_markup(text) != markdown_dialect(True).render(text)
 
 
 def feed_markdown(parser, source: str) -> None:
@@ -879,14 +878,14 @@ class SourceReading:
         quote scoped to that id searches.
 
         The two halves come from different readings because they are different
-        facts, and taking both off the character scan cost the second one. Words
+        facts, and taking both off the character scan costs the second one. Words
         are what the scan holds. Where an element *sits* is structure, so it comes
         from the parser's record of what was open — and an element that says
         nothing is somewhere all the same. Keyed on words, an image-only option and
-        a card holding one diagram were in no chain at all, so `action_rests_on`
-        dropped them from what an action rests on (a floor stopped replaying), and
-        `markup_value` read a version that honoured a pick on such an option as
-        showing no pick, which is the state gate refusing the very version that
+        a card holding one diagram would be in no chain at all, so `action_rests_on`
+        would drop them from what an action rests on (a floor would stop replaying),
+        and `markup_value` would read a version that honoured a pick on such an option
+        as showing no pick, which is the state gate refusing the very version that
         agreed with the user."""
         return _spoken(self.passages)
 

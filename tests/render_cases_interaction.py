@@ -1309,7 +1309,6 @@ THREAD_OBLIGATIONS = [
         "id": "c-which",
         "author": "agent",
         "revision": 1,
-        "html": True,
         "text": "Which store?\n\n"
         + '<lf-ask id="tq-one-decision"><h3>Which store?</h3>'
         '<lf-options id="tq-one">'
@@ -1322,7 +1321,6 @@ THREAD_OBLIGATIONS = [
         "id": "c-any",
         "author": "agent",
         "revision": 1,
-        "html": True,
         "text": "Pick any that apply.\n\n"
         + '<lf-ask id="tq-set-decision"><h3>Which extras apply?</h3>'
         '<lf-options id="tq-set" multiple>'
@@ -1332,15 +1330,14 @@ THREAD_OBLIGATIONS = [
     },
 ]
 
-# A widget the shipped packages no longer have: one the user owes an answer on that
-# also seats a thread of its own. A thread anchored on any obligation splits the user's list
-# from the unanswered decisions while the agent has the next word, taking the obligation off
-# the list without answering it (`obligations.anchors_with_agent`); a seat is where a
-# user most often starts one. `lf-options` supplied the pair until 292de9c made the
-# user's cell an add form and dropped its seat, so the pair is declared here
-# rather than borrowed from whichever shipped entry happens to carry it: the reading
-# under test is the layer's, and the tag it runs on is the layer's business rather than
-# the test's. Its module seats the threads (`widgets/seated-ask.js`).
+# A widget the shipped packages don't have: one the user owes an answer on that also
+# seats a thread of its own. A thread anchored on any obligation splits the user's list
+# from the unanswered decisions while the agent has the next word, taking the obligation
+# off the list without answering it (`obligations.anchors_with_agent`); a seat is where
+# a user most often starts one. The pair is declared here rather than borrowed from
+# whichever shipped entry happens to carry it: the reading under test is the layer's,
+# and the tag it runs on is the layer's business rather than the test's. Its module
+# seats the threads (`widgets/seated-ask.js`).
 SEATED_OBLIGATION_TAG = "lf-verdict"
 SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "description": "A proposal the user settles with one press and may talk over first in a seat "
@@ -1538,7 +1535,6 @@ def package_workspace(serve, *, before_reader="", primary=True):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "Which channel?\n\n"
             + '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
         },

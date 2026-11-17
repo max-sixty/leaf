@@ -88,15 +88,11 @@ def said(item):
 def test_every_rule_of_the_interface_names_a_declared_font():
     """A face Leaf's interface draws is one of a closed set, named where it is used.
 
-    The interface set each face where it stood, and drifted into near-duplicates: the
-    floating panel at 13px and 12px beside the chrome's 14px and 11.5px, a row's end a
-    pixel under whatever row held it, line heights from 1.2 to 1.5, weights of 450, 650
-    and 700. Each looked deliberate where it was written. A rule of the interface, one
-    that names an `lf-` element or class, now names a font, so a new face is a new font
-    in the theme's one list of them (styles/tokens.css), where it is seen beside the
-    others. The widgets' own faces had drifted the same way: a card, a note on a line
-    of source, a review and a playground's instruction each set the small sans on a
-    leading of 1.35, 1.5 or 1.55.
+    A face set where it stands, in the interface or a widget, drifts into
+    near-duplicates: sizes, line heights and weights a pixel or a step apart, each of
+    which looks deliberate where it was written. A rule of the interface, one that
+    names an `lf-` element or class, names a font, so a new face is a new font in the
+    theme's one list of them (styles/tokens.css), where it is seen beside the others.
 
     Asked of the source rather than of a rendered page, because that is where the face
     is chosen, and every sheet is read whether or not a page draws its rules: the

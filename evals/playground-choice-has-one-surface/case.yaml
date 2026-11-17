@@ -1,14 +1,9 @@
-# From Codex session 01a0fec0-dd0e-7f01-896f-f4f9e7264b5b: a before/after
-# cue comparison offered the same four whole treatments as presets and a choice
-# control, after reading the playground instructions. The cold generation prompt
-# passed both arms; this case resumes from the duplicated draft before handoff.
-# On b5d0ad501, the final draft replay passed 0/2 baseline and 2/2 head runs
-# across Claude Code and Codex. Both baseline runs kept a separate choice control;
-# Claude also duplicated it with candidate buttons. Both head runs selected
-# the examples directly. This measures repeated selection surfaces, including
-# the preset/control duplication in the recorded draft.
-# Now a probe given a page with its packages, it passed Claude Code 2 of 2, Codex 2 of 2
-# at b90df8d3a2.
+# A Codex session's before/after cue comparison offered the same four whole
+# treatments as presets and a choice control, after reading the playground
+# instructions. A cold generation prompt doesn't reproduce it, so this case resumes
+# from the duplicated draft before handoff. A failing answer keeps a separate choice
+# control, or duplicates it with candidate buttons. This measures repeated selection
+# surfaces, including the preset/control duplication in the recorded draft.
 description: playground-choice-has-one-surface
 metadata:
   purpose: "Playground: each design decision has one selection surface; presets

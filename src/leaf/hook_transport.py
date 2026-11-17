@@ -113,7 +113,7 @@ boundary keeps Codex's tool hook, which runs after every call, from reading its 
 each time (`state.status_check_due`). Only a working status, at a tool boundary, is reminded: a turn waiting
 on the user or between turns runs none, and a closed or listening page shows no
 line to renew. Whether the work has moved on is the agent's judgement; the hook only
-says how long the line has stood. This was the user's choice (28 October 2026) over
+says how long the line has stood. This was the user's choice over
 Leaf reading the turn's liveness, or its current step, from the hooks itself.
 
 The prompt hook and a tool boundary also carry what Leaf's clerk wrote or found at

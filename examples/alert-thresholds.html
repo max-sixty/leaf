@@ -122,8 +122,12 @@
         gap: var(--lf-sp-1) var(--lf-sp-3);
       }
 
-      .alert-head h3 {
+      .alert-head h3,
+      .alert-head p {
         margin: 0;
+      }
+
+      .alert-head h3 {
         font-size: var(--lf-t-5);
       }
 
@@ -439,10 +443,10 @@
             </dl>
             <div class="alert-pair" id="alert-rate" data-alert="rate">
               <article class="alert-evidence" id="alert-rate-evidence">
-                <header class="alert-head">
+                <hgroup class="alert-head">
                   <h3><code>payments-5xx-rate</code></h3>
-                  <span class="alert-today">Today: over 1%, pages</span>
-                </header>
+                  <p class="alert-today">Today: over 1%, pages</p>
+                </hgroup>
                 <p class="alert-what">
                   Share of requests returning a 5xx, over 5 minutes.
                 </p>
@@ -522,10 +526,10 @@
             </div>
             <div class="alert-pair" id="alert-latency" data-alert="latency">
               <article class="alert-evidence" id="alert-latency-evidence">
-                <header class="alert-head">
+                <hgroup class="alert-head">
                   <h3><code>payments-p99-latency</code></h3>
-                  <span class="alert-today">Today: over 800 ms, pages</span>
-                </header>
+                  <p class="alert-today">Today: over 800 ms, pages</p>
+                </hgroup>
                 <p class="alert-what">p99 latency over 10 minutes.</p>
                 <table class="alert-replay" id="alert-latency-replay">
                   <thead>
@@ -604,10 +608,10 @@
             </div>
             <div class="alert-pair" id="alert-declines" data-alert="declines">
               <article class="alert-evidence" id="alert-declines-evidence">
-                <header class="alert-head">
+                <hgroup class="alert-head">
                   <h3><code>card-auth-decline-spike</code></h3>
-                  <span class="alert-today">Today: over 2×, opens a ticket</span>
-                </header>
+                  <p class="alert-today">Today: over 2×, opens a ticket</p>
+                </hgroup>
                 <p class="alert-what">
                   Card authorization declines against their 7-day baseline, for 15
                   minutes.
@@ -676,10 +680,10 @@
             </div>
             <div class="alert-pair" id="alert-webhooks" data-alert="webhooks">
               <article class="alert-evidence" id="alert-webhooks-evidence">
-                <header class="alert-head">
+                <hgroup class="alert-head">
                   <h3><code>webhook-backlog</code></h3>
-                  <span class="alert-today">Today: over 5,000, pages</span>
-                </header>
+                  <p class="alert-today">Today: over 5,000, pages</p>
+                </hgroup>
                 <p class="alert-what">Undelivered merchant webhooks in the queue.</p>
                 <table class="alert-replay" id="alert-webhooks-replay">
                   <thead>
@@ -750,10 +754,10 @@
             </div>
             <div class="alert-pair" id="alert-ledger" data-alert="ledger">
               <article class="alert-evidence" id="alert-ledger-evidence">
-                <header class="alert-head">
+                <hgroup class="alert-head">
                   <h3><code>ledger-reconciliation-lag</code></h3>
-                  <span class="alert-today">Today: over 90 min, off</span>
-                </header>
+                  <p class="alert-today">Today: over 90 min, off</p>
+                </hgroup>
                 <p class="alert-what">
                   Minutes since the last successful ledger reconciliation run.
                 </p>
@@ -835,10 +839,10 @@
             </div>
             <div class="alert-pair" id="alert-cert" data-alert="cert">
               <article class="alert-evidence" id="alert-cert-evidence">
-                <header class="alert-head">
+                <hgroup class="alert-head">
                   <h3><code>gateway-cert-expiry</code></h3>
-                  <span class="alert-today">Today: under 14 days, opens a ticket</span>
-                </header>
+                  <p class="alert-today">Today: under 14 days, opens a ticket</p>
+                </hgroup>
                 <p class="alert-what">
                   Days until the payment gateway’s TLS certificate expires.
                 </p>

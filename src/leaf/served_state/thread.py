@@ -21,8 +21,8 @@ def _answers_live_reply(event: dict, live_reply: dict) -> bool:
 
     A provisional reply is reserved under a delivery attempt and addressed to a
     response, and the durable answer names itself by either. Reading only the response
-    address let an answer whose address had moved stand beside its own placeholder, and
-    the panel drew the draft rather than the answer the log held.
+    address would let an answer whose address has moved stand beside its own
+    placeholder, and the panel draw the draft rather than the answer the log holds.
     """
     return any(
         event.get(named) == live_reply[named] for named in ("attempt", "responds")
@@ -82,9 +82,11 @@ def browser_thread(
 
     A provisional reply joins its thread once it has words. Before then the input's
     workflow says the agent is replying, and an empty message would only reserve a
-    bubble with nothing in it."""
+    bubble with nothing in it. An agent's message whose Markdown holds HTML carries
+    `html` (`thread_context.logged_fragment`), which the browser draws as markup."""
     events, threads = work.events, work.threads
     reading, thread_obligations = work.thread, work.thread_obligations
+    fragments = reading.structure.fragments
     unread = unread_content(
         events, threads, reading.thread_by_name, reading.thread_by_widget
     )
@@ -110,7 +112,7 @@ def browser_thread(
             for item in thread_obligations["unanswered"]
             if item["thread"] == thread_id and item["source"]["kind"] == "widget"
         }
-        for message_id, fragment in reading.structure.fragments.items():
+        for message_id, fragment in fragments.items():
             if obligation_sources.intersection(fragment.by_id):
                 protected.add(message_id)
         summaries = summaries_for[thread_id]
@@ -122,6 +124,7 @@ def browser_thread(
             {
                 **_named(message),
                 **_answer_key(message, first_answers),
+                **({"html": True} if message["id"] in fragments else {}),
                 "content_version": content_version(message),
             }
             for message in thread["msgs"]

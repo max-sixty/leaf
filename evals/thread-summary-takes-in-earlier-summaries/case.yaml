@@ -1,12 +1,7 @@
-# Added when a session summarized one long thread three times in fourteen minutes and
-# left three "Earlier discussion" summaries in a row: each new range started where the
-# last summary ended, following a hint that offered only the messages no summary yet
-# covered. The hint now starts at the earliest summary in force, and the threads
-# reference says a range may take in earlier summaries, which the new one replaces.
-# Scores proposed commands, not execution. With the change: Claude Code base 6/6 and
-# head 6/6 across both contexts, Codex 4/4 on each arm. A scratch context giving the
-# old hint, which started after sum-one, scored base 3/4 and head 4/4 on Claude Code.
-# Stated plainly, the case guards the behavior rather than separating the arms.
+# Scores threads.md, "Summarize a long discussion": a range may take in the summaries
+# already in a thread, which the new one replaces. The default context carries a
+# summary_hint spanning sum-one, as Leaf offers it; `asked-to-tidy` carries none,
+# and the user asks for the fold. Scores proposed commands, not execution.
 description: thread-summary-takes-in-earlier-summaries
 metadata:
   purpose:

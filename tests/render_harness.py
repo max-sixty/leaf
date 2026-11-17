@@ -2030,8 +2030,8 @@ def panel_field(page):
 def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
     (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
-    Resolve's Next thread, the next On Me item after an answer, or a stance's Close
-    (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
+    Resolve's Next thread, a stance's Close, or the page's own, Open latest or Next On
+    Me (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
     key that makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
 

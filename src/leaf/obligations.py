@@ -117,12 +117,13 @@ def framed_widgets(content: list, registry: dict):
     words (`words.inline`), such as a suggestion, has none: its sentence and its own words
     name it.
 
-    The author declares the question, its region and its name, and Leaf reads no
-    heading to find them. An `lf-ask` round the question declared it until 16 November
-    2026. The user then chose plain HTML, and of the two forms built that day, a
-    section opened by the question's heading, which Leaf found by its leading-title
-    rule, and a group the author names, chose the group, so that a question's region
-    and name are data the author writes rather than a reading of its headings."""
+    The author declares the question's region and name, and Leaf reads no heading to
+    find them: the user chose data the author writes over a reading of the page's
+    headings. Finding the section a heading opens round the widget is the alternative a
+    later change might reach for; it fails because it infers a region the author never
+    marked, so a section of prose round several questions would become their region.
+    A widget of Leaf's own round the question is the other; it fails because a group in
+    plain HTML already says what such a tag would."""
 
     def walk(nodes: list, group: dict | None):
         for node in nodes:

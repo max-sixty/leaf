@@ -1187,7 +1187,9 @@
        * of its children, what its heading and context leave, and tells it so, so a
        * widget composing its own regions there, such as a playground, fills the window
        * below a premise, straight under the heading, or alone in a group the
-       * workspace's header names. Any other section keeps its document flow.
+       * workspace's header names. Any other section keeps its document flow: on
+       * every section, the rule would stretch a body of prose's last block to the
+       * window's foot and tell each widget in it to fill the window.
        * The context keeps its own height, and the answer keeps at least its own: a
        * list of options takes its content's height below a long premise, and a
        * playground the minimum of its stage and bar (playground/defaults.css), and the

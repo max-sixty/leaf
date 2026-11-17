@@ -1252,10 +1252,10 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
 
     A question's group is its arrival: its name, the context, then the control. A
     suggestion stands mid-sentence, named by its own words, so no group holds it
-    (`words.inline`). Arriving on the change alone put its own top edge at the window's
-    head and took the sentence with it, leaving the user on the change with nothing on
-    screen saying what they would be accepting. Leaf reads no heading for it: the
-    section's heading stays above the window.
+    (`words.inline`). Arriving on the change alone would put its own top edge at the
+    window's head and take the sentence with it, leaving the user on the change with
+    nothing on screen saying what they would be accepting. Leaf reads no heading for
+    it: the section's heading stays above the window.
     """
     page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
     resized(page, 900, 500)
@@ -1340,8 +1340,8 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
     with subtests.test("the region an arrival takes in fits above the floating panel"):
         # The region is measured against the landing band. The floating panel's row
         # stands over the window's foot, so a region measured against the whole window
-        # put the sentence at the top of the screen and the change it was chosen for
-        # under the row. The window is sized so the sentence fits in the window but not
+        # would put the sentence at the top of the screen and the change it is chosen
+        # for under the row. The window is sized so the sentence fits in the window but not
         # above the panel's band: the arrival lands on the change alone, and the change
         # stays where the user can read it.
         measure = """() => {
@@ -1384,8 +1384,9 @@ def test_an_obligation_inside_a_card_is_brought_into_that_card(browser, serve):
     The placement moves whichever scroller the group belongs to, and for a group on the
     page that is never the card's. So the answer's own box comes into view first, which
     is the one pass that moves a nested scroller. Handing the placement the group alone
-    left the answer unscrolled in its card, with the ring on a question whose control
-    the user could not see — and the walk's next press repeated the same non-arrival.
+    would leave the answer unscrolled in its card, with the ring on a question whose
+    control the user can't see, and the walk's next press would repeat the same
+    non-arrival.
     """
     page = open_page(browser, serve(OBLIGATION_IN_A_CARD_PAGE))
     resized(page, 900, 500)

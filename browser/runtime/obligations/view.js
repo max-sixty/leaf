@@ -448,11 +448,13 @@ export function createObligationView({
   // above the source.
   //
   // A suggestion declares no group: it is an edit to a phrase, and what explains it is
-  // the sentence it stands in. Landing on the change alone put its own top edge under
-  // the window's head and took that sentence with it, leaving the user at ✓ Accept with
-  // nothing on screen saying what they were accepting. So the block holding it is its
-  // region where that fits. Leaf reads no heading or neighbouring block for a region:
-  // the author declares the region of anything else that asks.
+  // the sentence it stands in. Landing on the change alone would put its own top edge
+  // under the window's head and take that sentence with it, leaving the user at
+  // ✓ Accept with nothing on screen saying what they are accepting. So the block
+  // holding it is its region where that fits. Leaf reads no heading or neighbouring
+  // block for a region, since the author declares the region of anything else that
+  // asks: the heading over the change, or the block before it, would be a region Leaf
+  // inferred, and a block before a change can be another question's.
   /** @param {Element} item @param {Element | null} frame @param {Element} currentLocation */
   function arrivalRegion(item, frame, currentLocation) {
     if (frame && frame === currentLocation) return frame;

@@ -135,7 +135,9 @@ lf-playground:has(> .lf-playground-split) {
        the minimum its rows set, so where it stands in a box that scrolls, such as the
        section of a question's group that is the workspace's body, that box scrolls
        to its bar and keeps the panel's room after it; where it is the body itself, it
-       scrolls, and a scroller's automatic minimum is none. */
+       scrolls, and a scroller's automatic minimum is none. A minimum of zero would let
+       it shrink below its rows inside a group that scrolls, where its rows overflow its
+       box and the panel's room falls outside the scroll. */
     lf-playground {
       margin-block: 0;
       --lf-full-height: inherit;

@@ -2594,7 +2594,7 @@ def playground_controls(page: Page) -> None:
     control = page.get_by_role("slider", name="Concurrent release events")
     control.focus()
     control.press("ArrowRight")
-    page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+    page.locator(".lf-playground-controls-region").scroll_into_view_if_needed()
 
 
 def playground_instruction(page: Page) -> None:
@@ -2605,10 +2605,12 @@ def playground_instruction(page: Page) -> None:
 
 
 def playground_tall_stage(page: Page) -> None:
-    """The last alert's controls, pressed far down a stage taller than the window."""
-    control = page.locator("lf-playground-preview lf-playground-control").last
-    control.scroll_into_view_if_needed()
-    control.get_by_role("radio").last.click()
+    """The last alert's last choice, pressed far down a stage taller than the window."""
+    choice = page.locator(
+        ".lf-playground-preview-body label:has(> input[type=radio])"
+    ).last
+    choice.scroll_into_view_if_needed()
+    choice.get_by_role("radio").click()
     page.mouse.move(0, 0)
 
 
@@ -2961,7 +2963,7 @@ STATES = (
         "playground-text",
         "notification-playground",
         playground_text,
-        region='lf-playground-control:has(> input[type="text"])',
+        region="lf-playground :has(> input[placeholder])",
     ),
     State("drawing-comment", "feature-gallery", drawing_comment),
     State("drawing-comment-hover", "feature-gallery", drawing_comment_hover),

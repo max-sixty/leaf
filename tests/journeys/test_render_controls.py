@@ -191,18 +191,19 @@ CONTROL_STABILITY_PAGE = leaf_page(
 
 <lf-ask id="stable-playground-decision"><h2>How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
-  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range"
-    value="12" min="0" max="24" step="1" unit="px"></lf-playground-control>
-  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
-  </lf-playground-control>
-  <lf-playground-preview id="stable-playground-preview">
+  <aside>
+    <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
+    <fieldset id="tone"><legend>Tone</legend>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
+    </fieldset>
+  </aside>
+  <div id="stable-playground-preview">
     <article id="stable-playground-card"><strong>Release card</strong><p>The ceiling doubles per approval.</p></article>
-  </lf-playground-preview>
+  </div>
   <lf-playground-output id="stable-playground-instruction">Use a
-    <lf-playground-value for="radius"></lf-playground-value> corner radius and a
-    <lf-playground-value for="tone"></lf-playground-value> tone.
+    <output for="radius"></output>px corner radius and a
+    <output for="tone"></output> tone.
   </lf-playground-output>
 </lf-playground></lf-ask>
 <lf-diff id="stable-diff"><pre>
@@ -319,17 +320,14 @@ RING_CASES = (
             # picture, rings the picture (details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # The rail's working density, where a choice's gap is narrowest beside the
-            # next face; a candidate card is the choice, so the card wears its radio's
-            # ring (playground/defaults.css).
-            "notification-playground": (
+            # next face, and a candidate's radio in its card: each is the page's own
+            # label, which wears the plain choice face's ring (page-controls.css).
+            "notification-playground": tuple(
                 (
-                    "#tone input[type=radio]",
-                    ".lf-choice[data-lf-control-focus-visible]",
-                ),
-                (
-                    "#format input[type=radio]",
-                    "> lf-playground-choice[data-lf-control-focus-visible]",
-                ),
+                    f"#{field} input[type=radio]",
+                    ":not([data-lf-offer]))[data-lf-control-focus-visible]",
+                )
+                for field in ("tone", "format")
             ),
             "pr-walkthrough": (
                 ("#pr-path-tree > summary", "[data-lf-mark]"),

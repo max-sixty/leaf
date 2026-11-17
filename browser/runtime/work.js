@@ -5,7 +5,7 @@
 import { declarationFor, layerFact, registry } from "./registry.js";
 import { readPart } from "./semantic-state.js";
 import { hasObligationSource } from "./obligations/source.js";
-import { obligationsIn } from "./obligations/place.js";
+import { obligationsByRegion } from "./obligations/place.js";
 import { elementById } from "./passages.js";
 import { quietSince } from "./presence.js";
 import { quoted } from "./widget-descriptors.js";
@@ -21,6 +21,10 @@ import { addressableName } from "./addressable-names.js";
  * @typedef {ReturnType<ReturnType<typeof widgetController>["read"]>} WidgetReading
  * @typedef {(element: Element) => WidgetReading} ReadWidget
  * @typedef {Extract<import("./framework/application.js").ObligationRecord, {source: {kind: "widget"}}>} WidgetObligation
+ * @typedef {{held: Map<Node, import("./framework/application.js").ObligationRecord[]>, asking: Set<string>, stopped: Map<Element, boolean>}} Open
+ *   The open widget obligations as one reading reads them: those each goal holds, placed
+ *   once for every goal of the scope (`obligationsByRegion`); the ids of the widgets that
+ *   own one; and each goal's `stopped`, which a parent's reads again.
  */
 /** @returns {Record<string, WorkRole>} */
 const widgets = () => layerFact("$work")?.widgets ?? {};
@@ -140,14 +144,14 @@ const done = ({ element: goal, role }, read) => {
   return role.done.some((value) => value === roleState(goal, role, read));
 };
 
-// The elements of the obligations waiting on the user that `goal` holds (`obligationsIn`) and owns
-// itself: in its scope, under no nearer goal, and not a goal.
-/** @param {Element} goal @param {readonly WidgetObligation[]} open */
+// The elements of the obligations waiting on the user that `goal` holds (`obligationsByRegion`)
+// and owns itself: in its scope, under no nearer goal, and not a goal.
+/** @param {Element} goal @param {Open} open */
 function interventions(goal, open) {
   const scope = workAncestor(goal, "scope");
   return (
-    obligationsIn(goal, open)
-      // `obligationsIn` holds widgets' obligations, which each name their widget.
+    (open.held.get(goal) ?? [])
+      // `open.held` holds widgets' obligations, which each name their widget.
       .map((item) =>
         item.source.kind === "widget" ? elementById(item.source.id) : null,
       )
@@ -163,23 +167,29 @@ function interventions(goal, open) {
   );
 }
 
-/** @param {WorkEntry<"goal">} entry @param {readonly WidgetObligation[]} open @param {Element[]} nested @param {ReadWidget} read @returns {boolean} */
-function stopped(entry, open, nested, read) {
+/** @param {WorkEntry<"goal">} entry @param {Open} open @param {ReadWidget} read @returns {boolean} */
+function stopped(entry, open, read) {
+  const { element: goal } = entry;
+  let result = open.stopped.get(goal);
+  if (result === undefined) {
+    result = stoppedNow(entry, open, read);
+    open.stopped.set(goal, result);
+  }
+  return result;
+}
+/** @param {WorkEntry<"goal">} entry @param {Open} open @param {ReadWidget} read @returns {boolean} */
+function stoppedNow(entry, open, read) {
   const { element: goal, role } = entry;
   if (read(goal).thread.heldBy) return true;
-  if (nested.length) return true;
+  if (interventions(goal, open).length) return true;
   if (!role.stopped.some((value) => value === roleState(goal, role, read)))
     return false;
-  if (open.some((item) => item.source.id === goal.id)) return true;
+  if (open.asking.has(goal.id)) return true;
   const children = workEntries(goal, "goal", { direct: true });
-  return children.length
-    ? children.some((child) =>
-        stopped(child, open, interventions(child.element, open), read),
-      )
-    : true;
+  return children.length ? children.some((child) => stopped(child, open, read)) : true;
 }
 
-/** @param {WorkEntry<"goal">} entry @param {readonly WidgetObligation[]} open @param {ReadWidget} read */
+/** @param {WorkEntry<"goal">} entry @param {Open} open @param {ReadWidget} read */
 function goalView(entry, open, read) {
   const { element: goal, role } = entry;
   const descendants = workEntries(goal, "goal");
@@ -199,7 +209,6 @@ function goalView(entry, open, read) {
     role.stopped.some((value) => value === latestReport.detail.value)
       ? latestReport.ts
       : null;
-  const nested = interventions(goal, open);
   const held = Boolean(read(goal).thread.heldBy);
   return {
     element: goal,
@@ -207,7 +216,7 @@ function goalView(entry, open, read) {
     state,
     title: addressableName(goal) || goal.id,
     done: done(entry, read),
-    stopped: stopped(entry, open, nested, read),
+    stopped: stopped(entry, open, read),
     held,
     leaves: progressLeaves.map(({ element }) => element),
     finished: progressLeaves.filter((leaf) => done(leaf, read)).length,
@@ -238,8 +247,18 @@ export function readWork(scope) {
     }
     return reading;
   };
-  const open = openWidgetObligations();
-  const goals = workEntries(scope, "goal").map((goal) => goalView(goal, open, read));
+  const obligations = openWidgetObligations();
+  const entries = workEntries(scope, "goal");
+  /** @type {Open} */
+  const open = {
+    held: obligationsByRegion(
+      entries.map(({ element }) => element),
+      obligations,
+    ),
+    asking: new Set(obligations.map((item) => item.source.id)),
+    stopped: new Map(),
+  };
+  const goals = entries.map((goal) => goalView(goal, open, read));
   const byElement = new Map(goals.map((goal) => [goal.element, goal]));
   const workers = workEntries(scope, "worker").map((worker) =>
     workerView(worker, read),

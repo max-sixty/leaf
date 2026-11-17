@@ -1253,11 +1253,12 @@ flowchart TD
                 step the user took that didn't work. The fork writes the message as the
                 agent's guidance has the agent write one. Where the agent left answers
                 the user picks among, or an action it takes once the user agrees, such
-                as merging a pull request, the message holds a choice of them. A step
-                only the user can take, such as trying a build, says what to do, and
-                asks for a reply only for what the user alone can report or the agent's
-                next step waits on. Leaf skips an ask whose title a question the agent
-                asked already has.
+                as merging a pull request, the message usually holds a choice of them. A
+                step only the user can take, such as trying a build, says what to do,
+                and asks for the user's answer only for what they alone can report or
+                the agent's next step waits on, usually as a choice where its answers
+                can be listed, such as installed or failed. Leaf skips an ask whose
+                title a question the agent asked already has.
               </p>
               <p id="fork-writes">
                 Leaf posts each remaining ask as the agent's message, as the agent's
@@ -2850,7 +2851,9 @@ flowchart TD
                 Opens a question on On Me and makes the thread read
                 <em>Your turn</em>. A reply or settling reaction answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
-                such as trying a build, is asked the same way. Once the user answers
+                such as trying a build, is asked this way where only words can give its
+                answer, such as what an error said; where its outcomes can be listed,
+                its message usually offers them as options. Once the user answers
                 elsewhere, such as in chat, the agent resolves the thread.
               </li>
               <li id="updates-written-reopen">

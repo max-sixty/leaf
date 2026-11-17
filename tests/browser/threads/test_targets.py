@@ -269,14 +269,18 @@ def test_a_mark_in_the_layer_promises_no_press_the_layer_will_not_take(browser, 
            }))"""
     )
     inside = [m for m in marks if m["chrome"]]
-    outside = [m for m in marks if not m["chrome"]]
-    assert inside and outside, (
+    assert inside and len(inside) < len(marks), (
         f"this needs a mark in each document to compare; got {marks}"
     )
-    assert all(m["cursor"] == "pointer" for m in outside), (
-        f"the page's own mark lost its hand, so the reading below is about nothing: "
-        f"{outside}"
-    )
+    # The page's mark shows its hand where the pointer rests on its words.
+    words = page.locator("#tv-p3")
+    words.hover()
+    rendered(page)
+    box = words.bounding_box()
+    assert (
+        cursor_at(page, box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        == "pointer"
+    ), "the page's own mark lost its hand, so the reading below is about nothing"
     assert all(m["cursor"] != "pointer" for m in inside), (
         f"a mark in the layer offers the hand and no press is taken there: {inside}"
     )

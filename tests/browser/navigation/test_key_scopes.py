@@ -571,7 +571,6 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
             "-        return request.remote_addr\n"
             "+        return request.token.id\n"
             "</pre></lf-diff>",
-            "html": True,
         },
     )
     told(page)

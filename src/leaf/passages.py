@@ -258,8 +258,8 @@ def markdown_markup(source: str) -> str:
 
 
 def message_markup(text: str) -> str:
-    """The markup an agent's message holding HTML draws (`html` on its event): its
-    Markdown read as a message, with the raw HTML in it kept, as the browser renders
+    """The markup an agent's message draws: its Markdown read as a message, with the
+    raw HTML in it kept, as the browser renders
     it (markdown.js, `renderAuthoredMarkdown`). Every reading of the message's
     elements, its check among them, parses this."""
     return markdown_dialect(True, html=True).render(text)
@@ -267,9 +267,8 @@ def message_markup(text: str) -> str:
 
 def holds_html(text: str) -> bool:
     """Whether an agent's Markdown holds raw HTML, by whether keeping it changes what
-    the message draws. Only a message written with a `leaf thread` command keeps
-    it, and one whose readings agree carries no `html`."""
-    return message_markup(text) != markdown_dialect(True).render(text)
+    the message draws. Raw HTML opens with `<`, so text without one holds none."""
+    return "<" in text and message_markup(text) != markdown_dialect(True).render(text)
 
 
 def feed_markdown(parser, source: str) -> None:

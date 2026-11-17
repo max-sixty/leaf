@@ -452,7 +452,6 @@ def test_recordless_requests_wake_without_user_obligations(
             "kind": "comment",
             "author": "agent",
             "revision": latest_revision(page_dir),
-            "html": True,
             "text": "An optional command:\n\n"
             + '<lf-archive id="thread-row">Archive this</lf-archive>',
         },
@@ -682,7 +681,6 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "And which region first?\n\n" + '<lf-options id="rg">'
             '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
             "</lf-options>",
@@ -694,7 +692,6 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "Which mitigations should I carry into the patch?\n\n"
             + '<lf-options id="gm">'
             '<lf-option id="m-cap"><small class="tag">recommended</small>'
@@ -890,7 +887,6 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "Here is the proposed answer.\n\n"
             + '<lf-suggestion id="thread-answer" resolves="c-target">'
             "<lf-old><p>Old words.</p></lf-old>"
@@ -973,7 +969,6 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             "text": f"Recovery context {index}.",
         }
         if index == 2:
-            message["html"] = True
             message["revision"] = 1
             message["text"] += (
                 '\n\n<lf-options id="thread-commands">'
@@ -1112,7 +1107,6 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "kind": "reply",
             "author": "agent",
             "parent": root["id"],
-            "html": True,
             "text": "Which mitigations?\n\n" + '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             "</lf-options>",
@@ -1416,7 +1410,6 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
             **agent,
             "kind": "comment",
             "revision": 1,
-            "html": True,
             "text": "Try this one.\n\n" + playground("sent", "sent-card"),
         },
     )

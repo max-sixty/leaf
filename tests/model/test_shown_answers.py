@@ -156,9 +156,7 @@ def test_every_column_value_is_one_the_widget_can_answer():
 
 
 def test_a_card_shows_only_a_widget_whose_answer_names_a_value():
-    page = leaf_page(
-        "Proposals", board({"open": ["plan"]}).replace('shows="plan"', 'shows="plan"')
-    )
+    page = leaf_page("Proposals", board({"open": ["plan"]}))
     assert found(shown_findings(page), "shows-no-answer", target="plan")
 
 
@@ -194,6 +192,6 @@ def test_a_card_in_a_reply_shows_widgets_of_the_same_reply():
 )
 def test_an_answer_names_a_value_only_when_its_picks_agree_on_one(answer, named):
     by_id = SourceDocument(
-        section("rail") + '<lf-option id="rail-added">Ask</lf-option>'
+        section("rail", extra='<lf-option id="rail-added">Ask</lf-option>')
     ).by_id
     assert named_value(answer, "value", by_id) == named

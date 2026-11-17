@@ -292,7 +292,6 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         '<lf-options id="stream-reply-choice">'
         '<lf-option id="stream-reply-now">Use it now</lf-option>'
         "</lf-options></lf-ask>",
-        html=True,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -876,7 +875,6 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
             '<lf-card id="fb-cache"><strong>Cache</strong></lf-card></lf-column>'
             '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
-            "html": True,
         },
     )
     page = open_page(browser, url)

@@ -19,7 +19,7 @@
    visible source control instead. A revision restores the source identity, leaving
    exact control retention to the widget that replaces that control.
 
-   Every widget arrival shares the same retained-intent travel. Frozen thread sources
+   Every widget arrival shares the same retained-intent travel. Thread sources
    are materialized at their exact owning message through the thread owner. A page
    source arrives at the window's head, at the group holding it, or, for a change set
    among words, at the block holding it, where either fits. A destination already readable
@@ -103,13 +103,13 @@ export function createObligationView({
     Boolean(candidate && items.some((item) => item.id === candidate.id));
   const unansweredIds = () => new Set(readObligations().unanswered.map(({ id }) => id));
 
-  // A thread obligation is part of the application reading before its frozen markup has a
-  // live reader node. Navigation and activation are the two boundaries that need that
-  // node, so materialize the existing thread projection there rather than
+  // A thread obligation is part of the application reading before its message's markup
+  // has a live reader node. Navigation and activation are the two boundaries that need
+  // that node, so materialize the existing thread projection there rather than
   // narrowing the semantic inventory to what happens to be in the DOM.
   //
   // Bulk answers reuse existing nodes and materialize only those not built yet.
-  // Explicit arrivals reveal the addressed frozen turn, then use the canonical
+  // Explicit arrivals reveal the addressed message, then use the canonical
   // destination policy to select and present its current reader.
   //
   // An obligation a held turn carries has no node until its thread shows what it holds
@@ -198,7 +198,7 @@ export function createObligationView({
   // offered while an ask it would take is open.
   //
   // Built from the obligations each reading carries rather than written out above, so the second
-  // widget to declare one gets its control by declaring it, and a widget in a frozen
+  // widget to declare one gets its control by declaring it, and a widget in a thread
   // message declares it under its own publication. Which outcomes exist is what the
   // obligations' own declarations answer, so core names none.
   function buildBulkAnswers() {
@@ -521,7 +521,7 @@ export function createObligationView({
     // Materializing an obligation can yield before its destination opens a narrowed thread.
     // The arrival is this walk's deferred invocation; its returned tail is separate.
     const arriveAtRecord = bindQueuedWork(arrive);
-    // A frozen source must exist before its owner can reveal a projected record.
+    // A thread source must exist before its owner can reveal a projected record.
     if (hasObligationSource(next, "widget") && next.thread)
       await materializeObligation(next, next.message, mayArrive);
     if (hasObligationSource(next, "widget") && next.source.unit) {

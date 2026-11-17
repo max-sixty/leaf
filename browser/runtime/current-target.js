@@ -2,7 +2,7 @@
    Every feature reads this interpretation (glossary, Current target).
 
    An ordinary page node represents itself. So does a node inside any obligation source,
-   answered or not: an obligation frozen into a reply is the user's current target when
+   answered or not: an obligation in a reply is the user's current target when
    they work on it, rather than the page obligation the thread discusses.
 
    A presentation can represent its source target in authored flow or chrome, as its

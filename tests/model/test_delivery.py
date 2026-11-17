@@ -445,7 +445,7 @@ def test_recordless_requests_wake_without_user_obligations(
         events_model.read_events(page_dir), first["seq"]
     ) == [repeated, undone, fresh]
 
-    # The same declaration belongs to a widget frozen into a thread message.
+    # The same declaration belongs to a widget in a thread message.
     thread = append_command(
         page_dir,
         {
@@ -456,9 +456,9 @@ def test_recordless_requests_wake_without_user_obligations(
             + '<lf-archive id="thread-row">Archive this</lf-archive>',
         },
     )
-    frozen = action("archive", "thread-row")
-    assert frozen["attention"]
-    assert "answer" not in frozen["meaning"]
+    thread_move = action("archive", "thread-row")
+    assert thread_move["attention"]
+    assert "answer" not in thread_move["meaning"]
     assert owed_answers(page_dir) == []
     append_command(
         page_dir,
@@ -469,7 +469,7 @@ def test_recordless_requests_wake_without_user_obligations(
             "text": "Archived.",
         },
     )
-    assert not any(item["input"] == frozen["id"] for item in work().workflows)
+    assert not any(item["input"] == thread_move["id"] for item in work().workflows)
     assert action("archive", "thread-row")["attention"]
 
 
@@ -659,7 +659,7 @@ def test_a_delivered_reply_carries_the_thread_it_lands_in(page_dir, capsys):
 
 
 def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsys):
-    """An action names a widget, and a widget an agent sent lives in frozen
+    """An action names a widget, and a widget an agent sent lives in
     thread markup rather than in any version. Neither the id nor the option it
     chose means anything without the message that asked, so the envelope
     resolves the widget to its thread and brings the markup along. An undo
@@ -720,7 +720,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert thread["id"] == asked["id"]
     # The HTML, because `m-cap` is a word only the question spells out.
     assert 'id="m-cap"' in thread["messages"][0]["text"]
-    # And the pick in words, read from that frozen message: the group is left
+    # And the pick in words, read from that message: the group is left
     # out because it only encloses the option chosen in it.
     assert shown[0]["says"] == {"m-cap": "Cap retries Bound retry load."}
     assert shown[0]["names"] == {"m-cap": "Cap retries"}

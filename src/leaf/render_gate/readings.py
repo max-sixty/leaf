@@ -14,11 +14,11 @@ from itertools import pairwise
 from leaf.findings import Finding, element_at
 from leaf.passages import SourceReading, page_passages
 from leaf.projection import (
-    frozen_thread_reading,
     logged_words,
     page_reading,
     retirement_holders,
     retirement_outcomes,
+    thread_markup_reading,
 )
 from leaf.registry.contract import (
     MODULES,
@@ -152,9 +152,9 @@ def _projected_verbatim(document, registry, projection, authored_ids, source):
 
 
 def _expected_verbatim(markup, events, registry, here):
-    """Expected preserving-owner readings in the page and frozen thread.
+    """Expected preserving-owner readings in the page and thread markup.
 
-    Page actions are bounded by the immutable revision being rendered. Frozen message
+    Page actions are bounded by the immutable revision being rendered. Message
     markup has no later authored revision and therefore uses the thread's whole
     action window. Both use the same passage projection as comment capture.
     """
@@ -166,7 +166,7 @@ def _expected_verbatim(markup, events, registry, here):
         page.document.ids,
         ("page", None),
     )
-    thread = frozen_thread_reading(events, registry)
+    thread = thread_markup_reading(events, registry)
     for event_id, fragment in thread.structure.fragments.items():
         expected.update(
             _projected_verbatim(
@@ -307,7 +307,7 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
     # `verbatim` promises the words the page renders. Source provenance was
-    # captured before upgrade, so anonymous page and frozen-message owners have the
+    # captured before upgrade, so anonymous page and message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
     # side is the settled projection, so a page that never applied that projection is
     # already reported by the readiness wait and supplies no comparison.

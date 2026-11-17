@@ -10,7 +10,7 @@ from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
 
 
-def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
+def test_candidate_vocabulary_can_change_after_thread_widget_actions(page_dir):
     """A thread widget keeps the contract under which its user command was admitted."""
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir, "lf-thread-local")

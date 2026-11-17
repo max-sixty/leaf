@@ -66,7 +66,7 @@ import { raiseError } from "./errors.js";
  * activeActionAnchor: ThreadPresentationOptions["activeActionAnchor"],
  * targetPickerOpen: () => boolean,
  * anchorPlacement: ThreadPresentationOptions["anchorPlacement"],
- * anchorPaint: ReturnType<typeof import("./annotation-overlay/anchor-paint.js").createAnchorPaint> | null,
+ * anchorPaint: ReturnType<typeof import("./anchor-paint.js").createAnchorPaint>,
  * anchorControls: ThreadPresentationOptions["anchorControls"],
  * drawingPaint: ThreadPresentationOptions["drawingPaint"],
  * pageGeometry: ThreadPresentationOptions["pageGeometry"],
@@ -419,7 +419,7 @@ function createApplication(dependencies) {
     renderMarginThread: (host, thread, outlets) =>
       follow(() => renderMarginThread(host, thread, inlineView, outlets)),
     placedAt: dependencies.anchorPlacement.placedAt,
-    marksFor: (id) => dependencies.anchorPaint?.marksFor(id) ?? [],
+    marksFor: (id) => dependencies.anchorPaint.marksFor(id),
     currentLocationObligation:
       dependencies.annotationCommands.currentLocationObligation,
     scrollToElement: dependencies.anchorTravel.scrollToElement,

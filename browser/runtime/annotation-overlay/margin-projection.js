@@ -3,7 +3,7 @@
    The application supplies the neutral annotation inventory and its live target/action
    directory. This renderer selects clusters and controls from those readings; it does
    not gather Threads, the On lists, workflows or contributed actions. Shared contribution
-   controls retain native entries across page and frozen-Thread seats. This renderer's
+   controls retain native entries across page and Thread seats. This renderer's
    Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
    lanes and packing. Page Map consumes the inventory independently of this renderer.
 
@@ -134,7 +134,7 @@ import { keys, paintKeys } from "../keyboard/scopes.js";
 import { pageRung, pageScope } from "../keyboard/register.js";
 import { nativeLayerHolding, skipped } from "../shadow-tree.js";
 
-import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
+import { annotationsHidden, watchAnnotations } from "../annotation-layer.js";
 import { repaint } from "../repaint.js";
 import { chromeRoot, chromeForeground } from "../chrome.js";
 import { arrivalOf, declareSide } from "../current-target.js";
@@ -187,7 +187,7 @@ import { retainUserIntent } from "../user-intent.js";
  * openPageMap: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["openPageMap"],
  * pageMapDialogContains: ReturnType<typeof import("../page-map-dialog.js").createPageMapDialog>["pageMapDialogContains"],
  * currentLocationObligation: () => Element | null,
- * marksFor: ReturnType<typeof import("./anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
+ * marksFor: ReturnType<typeof import("../anchor-paint.js").createAnchorPaint>["marksFor"]}} dependencies */
 export function createMarginProjection({
   inventory,
   refreshInventory,

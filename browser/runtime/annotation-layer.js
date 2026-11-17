@@ -22,13 +22,13 @@
    changed, and a rule reading it through a descendant combinator made Firefox visit
    every element: 2 to 3 s of Firefox's main thread on a page of 1.5 million. */
 import { signal } from "/runtime/framework.js";
-import { tabStore } from "../tab-store.js";
-import { chromeRoot } from "../chrome.js";
-import { pageCommand } from "../keyboard/register.js";
-import { notice } from "../notifications.js";
-import { coarsePointer } from "../pointer.js";
+import { tabStore } from "./tab-store.js";
+import { chromeRoot } from "./chrome.js";
+import { pageCommand } from "./keyboard/register.js";
+import { notice } from "./notifications.js";
+import { coarsePointer } from "./pointer.js";
 
-import { ANNOTATIONS_KEY } from "../restore-state.js";
+import { ANNOTATIONS_KEY } from "./restore-state.js";
 
 const hidden = signal(false);
 /** @type {Set<(hidden: boolean) => void>} */
@@ -48,7 +48,6 @@ export function mountAnnotationControls() {
     title: () => (hidden.value ? "show annotations" : "hide annotations"),
     touch: () => (hidden.value ? "Show annotations" : "Hide annotations"),
     menu: "annotate",
-    when: () => watchers.size > 0,
     run: () => {
       setAnnotationsHidden(!hidden.value);
       notice(

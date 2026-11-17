@@ -11,7 +11,7 @@
 
    A region needs an id that names it in the next document too, since that is where a
    revision restores its place. A block of the page's own document with an id takes one
-   from it. Any other block, an anonymous one or one in a message's frozen markup, whose
+   from it. Any other block, an anonymous one or one in a message's markup, whose
    ids repeat the page's, takes an id that names this element in this document alone:
    it answers every geometry question and keeps its place while it stands, and a
    replacement document starts it afresh rather than guess which block it was.

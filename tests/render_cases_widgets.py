@@ -15,7 +15,7 @@ from leaf.registry import storage as registry_storage
 from leaf.structure import SourceDocument
 
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
-# controlled independently, for page and frozen-message presentation journeys.
+# controlled independently, for page and thread-message presentation journeys.
 PAGE_WIDGET = """\
 import { html, live } from "/vendor/lit.js";
 import { keeps, layerFact, LeafElement } from "/runtime/widget-api.js";

@@ -33,7 +33,7 @@
    draws no quote either.
 
    Immutable descriptors contain generated presentation only. Retained native editors,
-   a container's places and presses, and frozen message widgets keep their mechanical
+   a container's places and presses, and widgets in messages keep their mechanical
    lifetime outside those values. The card draws its messages as every reader of a
    whole thread does, folds and working message included (transcript.js), around them
    its head's controls and its reply box. The owner alone renders its native card root,

@@ -34,7 +34,7 @@ from .event_facts import EventFacts
 from .events import bare_reaction, is_reaction
 from .files import revision_path
 from .passages import page_passages
-from .projection import FrozenThreadReading, retirement_outcomes
+from .projection import ThreadMarkupReading, retirement_outcomes
 from .publishing import authored_digest, authored_files
 from .refusals import Refused
 from .registry.storage import layer_metadata
@@ -223,7 +223,7 @@ def _apply_document_state(
 
 
 def _apply_thread_state(
-    state: dict, thread: FrozenThreadReading, facts: EventFacts
+    state: dict, thread: ThreadMarkupReading, facts: EventFacts
 ) -> None:
     # The panel's own document, listed and projected the way the version's is, and
     # for the same reason: a widget an agent sent is a widget, and the user

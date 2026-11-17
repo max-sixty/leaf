@@ -618,8 +618,8 @@ def delivery_sheets(
 
     `runtime/stylesheets.js` constructs these synchronously while it evaluates, so
     every document running the layer carries their text without a request or await.
-    Shared chrome and marks are always present; physical annotation sheets are absent
-    in page mode. The chrome ends with the packages' restyling of it (`/chrome.css`,
+    Shared chrome and marks are always present; the physical annotation chrome is
+    absent in page mode. The chrome ends with the packages' restyling of it (`/chrome.css`,
     `layer.chrome_restyle`). The browser constructs only the sheets this carrier
     actually holds.
     """
@@ -632,13 +632,9 @@ def delivery_sheets(
         "marks": text("/runtime/marks.css"),
     }
     if annotation_mode(document) == "overlay":
-        sheets["annotations"] = {
-            name: text(path)
-            for name, path in (
-                ("chrome", "/runtime/annotation-overlay/annotation-chrome.css"),
-                ("marks", "/runtime/annotation-overlay/annotation-marks.css"),
-            )
-        }
+        sheets["annotations"] = text(
+            "/runtime/annotation-overlay/annotation-chrome.css"
+        )
     return runtime_element(
         "script",
         {"type": "application/json", "data-lf-sheets": True},

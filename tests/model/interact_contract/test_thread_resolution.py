@@ -102,7 +102,7 @@ def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
     assert threads["question"]["resolved"]["id"] == closed["id"]
 
 
-def test_late_answer_to_a_frozen_widget_reopens_without_repeating_its_obligation(
+def test_late_answer_to_a_thread_widget_reopens_without_repeating_its_obligation(
     server, page_dir
 ):
     """Reopening restores the thread while its completed choice stays answered."""

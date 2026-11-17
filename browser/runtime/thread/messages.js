@@ -441,39 +441,39 @@ function* islandElements(island) {
  * from, against the reading adopted before it: `retired`, the widget ids an island
  * held that its message's island in this reading doesn't, as when an edit rewrote
  * the message or left it no HTML; and `commit`, which makes this reading's islands
- * the adopted ones once the page adopts it. `frozen` is null for a message drawn
+ * the adopted ones once the page adopts it. `prepared` is null for a message drawn
  * as Markdown alone. A message whose island is unchanged costs one lookup.
  * @param {readonly {message: {id: string, attempt?: string | null},
- *   frozen: PreparedAuthoredMessage | null | undefined}[]} entries
+ *   prepared: PreparedAuthoredMessage | null | undefined}[]} entries
  */
 export function islandChange(entries) {
   /** @type {[string, PreparedAuthoredMessage | null, PreparedAuthoredMessage | null][]} */
   const changed = [];
   /** @type {string[]} */
   const retired = [];
-  for (const { message, frozen = null } of entries) {
+  for (const { message, prepared = null } of entries) {
     const key = message.attempt ?? message.id;
     const prior = adoptedIslands.get(key) ?? null;
-    if (prior === frozen) continue;
-    changed.push([key, prior, frozen]);
+    if (prior === prepared) continue;
+    changed.push([key, prior, prepared]);
     for (const id of prior?.descriptors.descriptors.keys() ?? [])
-      if (!frozen?.descriptors.descriptors.has(id)) retired.push(id);
+      if (!prepared?.descriptors.descriptors.has(id)) retired.push(id);
   }
   return {
     retired,
     commit() {
-      for (const [key, prior, frozen] of changed) {
+      for (const [key, prior, prepared] of changed) {
         for (const element of prior ? islandElements(prior) : [])
           if (keptElements.get(element.id)?.element === element)
             keptElements.delete(element.id);
-        if (!frozen) {
+        if (!prepared) {
           adoptedIslands.delete(key);
           continue;
         }
-        adoptedIslands.set(key, frozen);
-        for (const element of islandElements(frozen))
+        adoptedIslands.set(key, prepared);
+        for (const element of islandElements(prepared))
           if (!keptElements.has(element.id))
-            keptElements.set(element.id, { element, document: frozen.body.document });
+            keptElements.set(element.id, { element, document: prepared.body.document });
       }
     },
   };

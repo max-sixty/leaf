@@ -1299,7 +1299,7 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
     expect(email.get_by_role("checkbox")).to_be_checked()
 
 
-def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
+def test_thread_obligation_reveals_its_exact_message_in_a_selective_primary(
     browser, serve
 ):
     """A message-only primary materializes the widget's turn, though it draws another."""
@@ -2152,7 +2152,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
 def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     browser, serve
 ):
-    """An authored owner replacement carries the thread's session and frozen widgets."""
+    """An authored owner replacement carries the thread's session and widgets."""
     page = open_page(browser, live_url(package_workspace(serve)))
     page.evaluate(
         """() => {

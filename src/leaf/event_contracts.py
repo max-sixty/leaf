@@ -347,7 +347,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     document = view.document(revision)
     # One reading of the panel's document for the whole door: the id universe the
     # declaration is looked up in and the projection a record is judged against
-    # are the same frozen fragments, and parsing them twice would be two readings
+    # are the same message fragments, and parsing them twice would be two readings
     # that could only ever agree.
     thread = readings.thread
     thread_by_id = thread.by_id
@@ -379,8 +379,8 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
 def record_contract_error(view, event, spec, readings, page_owned=True):
     """Check either writer's effect against its owner's current projected members.
 
-    Reports always name page widgets. User actions may instead name frozen thread
-    markup; only page positions have a revision floor and a stale-rank check.
+    Reports always name page widgets. User actions may instead name widgets in
+    thread markup; only page positions have a revision floor and a stale-rank check.
     """
     record_kind = (spec.get("record") or {}).get("kind")
     if record_kind not in {"position", "attribute"}:

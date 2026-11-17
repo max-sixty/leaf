@@ -47,9 +47,9 @@ const workflow = (id, stage, changes = {}) =>
     ...changes,
   });
 
-// The document a thread's frozen board is captured into: the reply `e2` in thread
+// The document a board sent in a thread is captured into: the reply `e2` in thread
 // `e1` holds the board `feeder-board`.
-const FROZEN_BOARD = {
+const THREAD_BOARD = {
   registry: {},
   revision: 1,
   descriptors: new Map([
@@ -186,7 +186,7 @@ test("a fork's working line is the thread's live step while its update reads On 
         attention: { kind: "waiting", reason: "workflow", workflow: "root" },
       }),
     ],
-    FROZEN_BOARD,
+    THREAD_BOARD,
     new Map(),
     [workflow("root", "sent", { at_work: true })],
   );
@@ -229,11 +229,11 @@ test("a thread an open to-do holds waits on the agent under the to-do's title", 
   });
 });
 
-test("a frozen move that owes nothing leaves an owed thread on the user alone", () => {
+test("a thread move that owes nothing leaves an owed thread on the user alone", () => {
   // The server's reading: the agent asked over a board it sent, and the user moved a
   // card without answering. The move stands in the thread but does not hold it.
-  const { threads, workflows } = servedReading("frozen move owes nothing");
-  const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
+  const { threads, workflows } = servedReading("thread move owes nothing");
+  const [record] = readThreadRecords(threads, THREAD_BOARD, new Map(), workflows);
   assert.deepEqual(threadAttention(record, "Claude"), {
     kind: "needs_user",
     word: { text: "Your turn", voice: "agent" },
@@ -261,7 +261,7 @@ test("a send this tab has not delivered ranks below the served workflows of its 
   assert.equal(strongestWorkflow([]), null);
 });
 
-test("page widget workflows are revision-bounded independently of frozen widgets", () => {
+test("page widget workflows are revision-bounded independently of thread widgets", () => {
   const widget = workflow("widget", "working", {
     revision: 2,
     subject: { kind: "widget", id: "choice" },
@@ -270,8 +270,8 @@ test("page widget workflows are revision-bounded independently of frozen widgets
   });
   assert.equal(isPageWidgetWorkflow(widget, 1), false);
   assert.equal(isPageWidgetWorkflow(widget, 2), true);
-  const frozen = { ...widget, subject: { kind: "widget", id: "frozen" } };
-  assert.equal(isPageWidgetWorkflow({ ...frozen, thread: "root" }, 2), false);
+  const threadWidget = { ...widget, subject: { kind: "widget", id: "thread-widget" } };
+  assert.equal(isPageWidgetWorkflow({ ...threadWidget, thread: "root" }, 2), false);
 });
 
 test("a thread the user is still sending waits on that send", () => {
@@ -546,10 +546,10 @@ test("pending thread gestures fold in the order the user made them, as the log w
   assert.deepEqual(fold(resolved, undo).resolved, resolved.resolved);
 });
 
-test("a frozen message widget keeps its exact workflow in the message and thread", () => {
+test("a thread widget keeps its exact workflow in the message and thread", () => {
   // The server's reading of a card the user moved on a board the agent sent.
-  const { threads, workflows } = servedReading("frozen move owes nothing");
-  const [record] = readThreadRecords(threads, FROZEN_BOARD, new Map(), workflows);
+  const { threads, workflows } = servedReading("thread move owes nothing");
+  const [record] = readThreadRecords(threads, THREAD_BOARD, new Map(), workflows);
   assert.deepEqual(
     record.msgs.map((message) => message.workflows.map(({ id }) => id)),
     [[], ["e3"]],

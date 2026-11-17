@@ -310,7 +310,7 @@ def _page_log(events: list[dict]) -> list[dict]:
     a page widget (`verb_writers`), each undo of one, and each stamp, which maps a
     version to its revision and names the decisions it takes back.
 
-    A widget frozen into a message belongs to its thread, so the file leaves its actions
+    A widget in a message belongs to its thread, so the file leaves its actions
     out with the thread. A stamp's changelog is the agent's words to the user, so a
     blank replaces it, since the record's schema requires text. An event's `session`
     names the agent's session, and the page has no use for it.

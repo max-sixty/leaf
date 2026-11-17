@@ -1367,7 +1367,7 @@ def test_sample_templates_bind_the_parents_producer_sources(page_dir):
     ]
 
 
-def test_thread_read_reads_frozen_construction(page_dir):
+def test_thread_read_reads_message_construction(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     publish(page_dir)
     root = append_carried_log_record(
@@ -1376,7 +1376,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Choose a route.\n\n<lf-options id="frozen"><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
+            "text": 'Choose a route.\n\n<lf-options id="route"><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
         },
     )
     append_command(
@@ -1385,7 +1385,7 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "kind": "action",
             "author": "user",
             "revision": 1,
-            "widget": "frozen",
+            "widget": "route",
             "action": "choose",
             "detail": {"value": ["second"]},
         },
@@ -1398,9 +1398,9 @@ def test_thread_read_reads_frozen_construction(page_dir):
     [message] = reading["content"]
     assert message["text"].startswith("Choose a route.\n\n<lf-options")
     assert message["content"][0]["content"] == ["Choose a route."]
-    frozen = construction_nodes(message["content"])
-    assert "selected" in frozen["second"]["attrs"]
-    assert frozen["frozen"]["edit"] == {
+    nodes = construction_nodes(message["content"])
+    assert "selected" in nodes["second"]["attrs"]
+    assert nodes["route"]["edit"] == {
         "kind": "thread",
         "thread": root["id"],
     }
@@ -2188,7 +2188,7 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
 
 
 def test_any_id_names_one_subject_for_every_command(page_dir):
-    """A page widget names itself, and a message, a widget frozen into one, or any
+    """A page widget names itself, and a message, a widget in one, or any
     other event a thread holds names that thread, for `page state`, `status --on`
     and the thread commands alike. Narrowed to a widget, the reading holds what
     stands inside it: the obligation carries the pick on its choice."""
@@ -2885,7 +2885,7 @@ def test_a_source_can_change_contract_without_an_immutable_document(page_dir):
     assert data_model.source_file(page_dir, "project-feed").exists()
 
 
-def test_a_source_bound_only_by_frozen_reply_html_can_be_set(page_dir):
+def test_a_source_bound_only_by_reply_html_can_be_set(page_dir):
     """A widget sent by an agent is still a data consumer. Its binding enters the
     page-lifetime index even though no authored version contains its seat."""
     declare_data_input(
@@ -2928,7 +2928,7 @@ def test_a_source_bound_only_by_frozen_reply_html_can_be_set(page_dir):
 
 
 def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
-    """A later frozen thread does not redirect the active page's producer contract.
+    """A later thread message does not redirect the active page's producer contract.
     Its incompatible reading cannot become the page's valid payload.
     """
     declare_data_input(
@@ -4149,7 +4149,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
         page_dir,
         {
             "kind": "comment",
-            "id": "frozen-data",
+            "id": "thread-data",
             "revision": 1,
             "author": "agent",
             "text": 'The captured feed.\n\n<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
@@ -4183,7 +4183,7 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
                 "project-feed"
             ]
             for records, label, captured in documents
-            if label in {"revision r1", "revision r4", "event 'frozen-data' markup"}
+            if label in {"revision r1", "revision r4", "event 'thread-data' markup"}
         ] == ["rows", "rows", "current-rows"]
         expected = {
             "project-feed": {
@@ -4299,7 +4299,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
     }
     with_modules(registry, "lf-draft")
     page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
-    frozen = '<lf-draft id="frozen-draft">\n<pre>Frozen authored.</pre></lf-draft>'
+    reply = '<lf-draft id="reply-draft">\n<pre>Reply authored.</pre></lf-draft>'
 
     def action(identity, text, seq):
         return {
@@ -4330,7 +4330,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "id": "c-scope",
             "author": "user",
             "revision": 1,
-            "text": "Keep the frozen answer current.",
+            "text": "Keep the reply's answer current.",
             "seq": 1,
         },
         {
@@ -4339,18 +4339,18 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "author": "agent",
             "parent": "c-scope",
             "revision": 1,
-            "text": f"Here it is:\n\n{frozen}",
+            "text": f"Here it is:\n\n{reply}",
             "seq": 2,
         },
         action("page-draft", "Page future.", 3),
-        action("frozen-draft", "Frozen current.", 4),
+        action("reply-draft", "Reply current.", 4),
     ]
 
     expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
 
     assert expected == {
         ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Frozen current."}],
+        ("event", "r-scope", 0): [{"text": "Reply current."}],
     }
 
 

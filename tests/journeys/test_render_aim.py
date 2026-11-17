@@ -340,7 +340,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
     ], "the margin entry action reached the durable log despite Design mode"
     page.close()
 
-    # The same hoist exists inside frozen markup in a thread. Its target belongs
+    # The same hoist exists inside a message's markup in a thread. Its target belongs
     # to that thread document, so the margin owner hands Design mode the exact
     # element rather than making it reconstruct ownership from a diagnostic id or path.
     url = serve(leaf_page("inline margin entry action", '<h1 id="h">Review</h1>'))

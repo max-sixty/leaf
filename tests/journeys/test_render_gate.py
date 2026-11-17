@@ -999,7 +999,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
 
     Generated paint must resolve against the page's live cascade. A missing custom
     property is valid CSS syntax, so a generated SVG silently falls back to black, in
-    `lf-paint` on the page and frozen into a reply alike. A fallback is the control: it
+    `lf-paint` on the page and in a reply alike. A fallback is the control: it
     names an absent property but resolves to a shipped color. The
     native SVG is the other control: a gradient reference is valid paint even though
     it is not a color.

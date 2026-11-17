@@ -34,7 +34,7 @@ test("overlapping message reads share preparation and retain it through surface 
     await globalThis.messagePreparation.released.promise;
   `)}`;
   adoptRegistry({
-    $layer: { generation: "frozen-message-preparation" },
+    $layer: { generation: "message-preparation" },
     "lf-message-preparation": {},
     $modules: { "lf-message-preparation": "widgets/lf-message-preparation.js" },
   });
@@ -90,7 +90,7 @@ test("adopting an edit's island retires the widgets the wording before it held",
     { ...message, text: sentText },
     "edited-thread",
   );
-  islandChange([{ message, frozen: sent }]).commit();
+  islandChange([{ message, prepared: sent }]).commit();
   assert.equal(messageHolding("edited-first-a")?.message, "edited-message");
 
   const rewritten = await prepareAuthoredMessage(
@@ -104,15 +104,15 @@ test("adopting an edit's island retires the widgets the wording before it held",
     await prepareAuthoredMessage({ ...message, text: sentText }, "edited-thread"),
     sent,
   );
-  const edit = islandChange([{ message, frozen: rewritten }]);
+  const edit = islandChange([{ message, prepared: rewritten }]);
   assert.deepEqual(edit.retired, ["edited-first", "edited-first-a"]);
   assert.equal(messageHolding("edited-first-a")?.message, "edited-message");
   edit.commit();
   assert.equal(messageHolding("edited-first-a"), null);
   assert.equal(messageHolding("edited-second-a")?.message, "edited-message");
-  assert.deepEqual(islandChange([{ message, frozen: rewritten }]).retired, []);
+  assert.deepEqual(islandChange([{ message, prepared: rewritten }]).retired, []);
 
-  const withdrawn = islandChange([{ message, frozen: null }]);
+  const withdrawn = islandChange([{ message, prepared: null }]);
   assert.deepEqual(withdrawn.retired, ["edited-second", "edited-second-a"]);
   withdrawn.commit();
   assert.equal(messageHolding("edited-second-a"), null);
@@ -227,7 +227,7 @@ test("failed message preparation reaches every waiting state read and later read
     'throw new Error("message initializer failed");',
   )}`;
   adoptRegistry({
-    $layer: { generation: "failed-frozen-message-preparation" },
+    $layer: { generation: "failed-message-preparation" },
     "lf-message-failure": {},
     $modules: { "lf-message-failure": "widgets/lf-message-failure.js" },
   });

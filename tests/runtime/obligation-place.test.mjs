@@ -249,7 +249,7 @@ test("which regions ask the user is read from the captured widgets, not the regi
     descriptors: new Map([
       descriptor("ask", "page", true),
       descriptor("note", "page", false),
-      descriptor("frozen", "thread", true),
+      descriptor("sent", "thread", true),
     ]),
   };
   assert.ok(applicationState.adopt(servedState(), captured));
@@ -257,7 +257,7 @@ test("which regions ask the user is read from the captured widgets, not the regi
   document.body.innerHTML =
     '<main id="page"><section id="asks"><div><div id="ask"></div></div></section>' +
     `<section id="notes"><div id="note"></div>${rows}</section>` +
-    '<section id="message"><div id="frozen"></div></section></main>';
+    '<section id="message"><div id="sent"></div></section></main>';
   const regions = ["page", "asks", "notes", "message"].map((id) =>
     document.getElementById(id),
   );

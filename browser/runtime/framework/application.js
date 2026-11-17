@@ -749,7 +749,7 @@ const namesRecord = (item) => item.kind !== "todo";
 // publisher shares each widget's group across publications, so a widget whose entries
 // did not move reads the group it read before. Entries group by widget id alone: the
 // selected server view already bounds page history to the captured revision and thread
-// history to its frozen document, and widget ids are unique across both, so filtering
+// history to its thread markup, and widget ids are unique across both, so filtering
 // again by the event's authored revision would discard carried decisions from an
 // earlier revision.
 /** @param {SemanticRoot} root @returns {WidgetIndex} */

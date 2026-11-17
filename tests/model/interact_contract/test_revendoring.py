@@ -327,10 +327,10 @@ def test_message_markup_uses_the_current_layer(page_dir, in_sample):
     assert markup in event["text"]
 
 
-def test_revendoring_can_change_frozen_thread_widget_vocabulary(
+def test_revendoring_can_change_thread_widget_vocabulary(
     page_dir,
 ):
-    """Re-vendoring can change a frozen widget's current declaration."""
+    """Re-vendoring can change a thread widget's current declaration."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     append_carried_log_record(

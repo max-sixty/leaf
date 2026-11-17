@@ -161,7 +161,7 @@ def test_a_card_shows_only_a_widget_whose_answer_names_a_value():
 
 
 def test_a_card_in_a_reply_shows_widgets_of_the_same_reply():
-    """Frozen markup's answers are its own widgets', in the thread that holds them; a
+    """Thread markup's answers are its own widgets', in the thread that holds them; a
     card in a reply naming a widget on the page would read state from another
     document."""
     page = SourceDocument(PAGE)

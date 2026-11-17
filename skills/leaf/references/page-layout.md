@@ -329,10 +329,11 @@ comment there shows as a pin on its block.
 
 ## Page-owned annotations
 
-By default Leaf draws comment markers, passage highlights and threads over the page.
+By default Leaf draws comment markers and threads over the page.
 `data-annotations="page"` on `body` turns these off for a page that shows comments in
 its own layout; comments, On Me obligations, Undo and live revisions still work, and comments open
-in the Leaf panel. To show conversations in the page's own layout, register a
+in the Leaf panel. Leaf still marks commented words on such a page: pointing at them
+previews their thread, and a press opens it. To show conversations in the page's own layout, register a
 presentation as `module-annotations.md`, "Page annotation presentation", describes,
 rather than rebuilding the event log in page code.
 

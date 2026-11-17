@@ -7,9 +7,9 @@
  * preview owner (`pointMark`).
  */
 
-import { ringBox, visibleFocus } from "../focus.js";
-import { shownParts } from "../geometry.js";
-import { cancelRender, nextRender } from "../rendering.js";
+import { ringBox, visibleFocus } from "./focus.js";
+import { shownParts } from "./geometry.js";
+import { cancelRender, nextRender } from "./rendering.js";
 import {
   readingOrder,
   readingPlace,
@@ -17,23 +17,23 @@ import {
   targetParts,
   targetSegments,
   targetSurface,
-} from "../resolved-target.js";
+} from "./resolved-target.js";
 import {
   closestAcross,
   elementFromPointAcross,
   pageWords,
   rangeOf,
-} from "../passages.js";
-import { presentDocument } from "../semantic-state.js";
-import { WORKS } from "../control-selectors.js";
-import { bareReaction } from "../thread/model.js";
-import { threadNamed } from "../thread/state.js";
-import { threadPreview } from "../thread/messages.js";
-import { declareRanges, pointRange } from "../preview.js";
-import { renderedParent, shadowHost, upFrom } from "../shadow.js";
+} from "./passages.js";
+import { presentDocument } from "./semantic-state.js";
+import { WORKS } from "./control-selectors.js";
+import { bareReaction } from "./thread/model.js";
+import { threadNamed } from "./thread/state.js";
+import { threadPreview } from "./thread/messages.js";
+import { declareRanges, pointRange } from "./preview.js";
+import { renderedParent, shadowHost, upFrom } from "./shadow.js";
 import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
-import { keepsOnOne } from "../keeps.js";
-import { RUNTIME_PAINT_ATTRIBUTE } from "../page-paint.js";
+import { keepsOnOne } from "./keeps.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "./page-paint.js";
 
 const MARK = "lf-mark";
 const PENDING = "lf-pending";
@@ -100,13 +100,13 @@ function piecesAt(tree, at) {
 // the thread whose margin entry the pointer is on; each is null where there is none.
 /** @typedef {Element | Range} Mark */
 /** @param {{targetPaint: ReturnType<typeof import("./visual-mark-paint.js").createVisualMarkPaint>,
- * pointer: typeof import("../pointer.js").pointerAt,
+ * pointer: typeof import("./pointer.js").pointerAt,
  * currentLocationThreadId: () => string | null,
  * currentLocationObligation: () => Element | null,
  * rowThread: (under: Element | null) => string | null, threadRow: (id: string) => Element | null,
  * marginThread: () => string | null,
- * placedAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["placedAt"],
- * pendingAt: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["pendingAt"],
+ * placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"],
+ * pendingAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["pendingAt"],
  * settle: () => void}} capabilities */
 export function createAnchorPaint({
   targetPaint,
@@ -139,7 +139,7 @@ export function createAnchorPaint({
   const inText = new Map();
   // Each passage painted, by its thread: its place in reading order, and the segments
   // and ranges placement gave it.
-  /** @typedef {{order: number, segments: readonly import("../passages.js").Segment[], ranges: readonly Range[]}} Painted */
+  /** @typedef {{order: number, segments: readonly import("./passages.js").Segment[], ranges: readonly Range[]}} Painted */
   /** @type {Map<string, Painted>} */
   const passages = new Map();
   /** @type {Map<string, readonly Range[]>} */
@@ -197,7 +197,7 @@ export function createAnchorPaint({
     paintDurable(REACT);
   });
 
-  // The highlights' rules name the elements whose words they paint (annotation-marks.css),
+  // The highlights' rules name the elements whose words they paint (marks.css),
   // so each such element carries MARKED_WORDS while it holds a comment's, a reaction's or
   // the draft's words, hidden or shown. A mark then takes its colours from its own
   // element's tokens and `color-scheme` in every engine, with or without highlight
@@ -525,7 +525,7 @@ export function createAnchorPaint({
   // so is one placed where the last paint marked nothing for it and chose not to mark it
   // for nothing, as a resolved thread, since only a paint of the page knows where it
   // falls among the marks.
-  /** @param {import("../anchor-placement.js").Placed} placed */
+  /** @param {import("./anchor-placement.js").Placed} placed */
   function replace({ threads: ids, pending }) {
     if (pending) {
       const before = outlined();
@@ -715,7 +715,7 @@ export function createAnchorPaint({
   // and the highlight painting them as they stand, and the hover stays bound to them;
   // only a pass that changes a mark, or the order of the threads marked, builds them
   // again.
-  /** @param {NonNullable<ReturnType<ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>["read"]>>} reading */
+  /** @param {NonNullable<ReturnType<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["read"]>>} reading */
   function paint({ readings, draft, action }) {
     const before = outlined();
     const last = new Map(marked);

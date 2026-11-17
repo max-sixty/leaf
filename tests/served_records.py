@@ -220,7 +220,7 @@ def build() -> dict:
             # The agent asks a question over a board it sent, and the user moves a
             # card on it without answering: the thread is the user's to answer, and
             # the move, which owes nothing, stands in it without holding it.
-            "frozen move owes nothing": _served(
+            "thread move owes nothing": _served(
                 (
                     {"kind": "comment", "text": "Lay the feeder work out on a board."},
                     {

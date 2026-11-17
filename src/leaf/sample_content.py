@@ -47,7 +47,7 @@ def _refused(code: str, reference: str, **values) -> Rejected:
 
 
 def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
-    """Capture an authored target in the child's current page or frozen markup.
+    """Capture an authored target in the child's current page or thread markup.
 
     Browser admission receives targets already captured in a rendered document.
     A fixture has no such observation, so the existing file-side capture proves

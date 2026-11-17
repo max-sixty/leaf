@@ -594,7 +594,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
 
 
 def test_a_message_sample_starts_from_its_message_html(server, page_dir):
-    """A template in a message's frozen markup allocates like a page's, addressed by
+    """A template in a message's markup allocates like a page's, addressed by
     its message: a fixture script in that markup seeds one child, and a selection of
     the page's threads seeds another."""
     publish(page_dir)

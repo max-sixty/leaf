@@ -94,8 +94,8 @@ export function invalidPaints() {
 // A widget this page uses whose module never defined its element. The page's own
 // occurrences are the population, because a page imports the modules its markup asks for
 // and no others (widget-loader.js) — asked of the whole declared vocabulary this reports
-// every tag the page simply does not contain. `document`, not the page, so a widget frozen
-// into an agent's reply answers here too. That a declared module exists at all is a layer
+// every tag the page simply does not contain. `document`, not the page, so a widget in
+// an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
 /** @param {readonly string[]} modules the tags a module upgrades */
 export const missingUpgrades = (modules) =>

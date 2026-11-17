@@ -186,7 +186,7 @@ structured editor values, required names and bounds. The widget declaration stay
 with its package. Without the attribute, the base payload schema applies.
 
 Page checks refuse unknown contract names. Admission reads the attribute from the
-authored revision, or from the frozen message holding a thread widget, and resolves
+authored revision, or from the message holding a thread widget, and resolves
 it using the command’s revision registry. Changing only the selected contract keeps
 any earlier action whose value fits the new schema. The log keeps the original action
 and its schema.

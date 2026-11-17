@@ -200,7 +200,7 @@ event. Every `action` and `report` records:
 
 - `scope`, `page` or `thread`. Together with the event's revision, `scope` names the
   document the widget was in (`events.event_document`): the revision for a page event,
-  the frozen markup that sent it for a thread event.
+  the thread markup for a thread event.
 - `unit`, the fold unit. Leaf keys each widget event by `[widget, unit, action]`: the
   widget, the unit of its state the event changes, and the verb. Every action at a key
   competes, so a later action of the same verb on the same unit supersedes an earlier
@@ -225,7 +225,7 @@ Recorded effects own their payload schema (`registry.contract.detail_schema`), a
 every payload is a closed object. Both writers share the applicability gates: selected
 ids belong to the recording widget, and a position names an owned unit, an admissible
 destination and a valid rank (`registry.contract.RANK`) in the named revision. Reports
-name page widgets; user actions may also name widgets in frozen thread markup.
+name page widgets; user actions may also name widgets in thread markup.
 
 ### Position moves
 
@@ -308,13 +308,12 @@ to a page obligation, each carrying `failure`, a harness-owned code. Only the ha
 writes `failure`, and the panel draws such a reply as a receipt that answers nothing.
 
 A widget with a local `awaits` obligation in a reply's markup declares that
-obligation itself. Frozen in the reply, it stays open until `awaits.answered`
-holds. Actions on it before then are not handed over: they carry no receipt and need no
-reply. The action that answers carries the receipt and hands the turn to the agent, and
-undoing it returns the obligation to the user and removes the reply obligation. An
-action on a frozen widget that answers no obligation, such as a card moved on a board
-sent in a reply, keeps a delivery receipt and owes no reply, as a page action does
-(`workflows.py`).
+obligation itself. It stays open until `awaits.answered` holds. Actions on it before
+then are not handed over: they carry no receipt and need no reply. The action that
+answers carries the receipt and hands the turn to the agent, and undoing it returns
+the obligation to the user and removes the reply obligation. An action on a thread
+widget that answers no obligation, such as a card moved on a board sent in a reply,
+keeps a delivery receipt and owes no reply, as a page action does (`workflows.py`).
 
 While a thread is open, the user's message after a state-answered obligation in it hands
 that obligation to the agent, still open, until the agent answers that turn or ends the
@@ -331,14 +330,14 @@ reopens later, until the resolve is taken back or a message asks one again
 message that first asked it set, opens each again whatever ended it: each keeps its id
 and words and stands on the reply until the user's next message or a settling reaction
 answers it (`obligations.question_ids`).
-The delivery of the user's reply lists a frozen widget's question up its thread in
+The delivery of the user's reply lists a thread widget's question up its thread in
 `waiting`, since no revision can write that widget's state (`obligations.waiting_in_thread`).
 A message asks by its words or by a widget in its markup, not both: only words answer
 `obligation: true`, so beside a widget it would outlast the user's pick, and
 `thread create` and `thread reply` refuse the pair.
 
 `work_reading.WorkReading.all_obligations` is the one inventory of obligations: page
-widgets', frozen widgets', message requests and user-owned tasks, with a record beside
+widgets', thread widgets', message requests and user-owned tasks, with a record beside
 them for each update the user handed over (`workflows.handed_over`), read after the
 widget obligations it depends on. `obligations.py` owns a record's statuses and its next
 actor. `$keys.awaits` in `browser/registry.json` says when a widget's obligation

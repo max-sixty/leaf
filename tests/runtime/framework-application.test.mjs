@@ -1472,23 +1472,23 @@ test("the publisher carries the server's obligation reading, page obligations be
 
   const read = state(2);
   const page = wireObligation("question", "section", "choice", "lf-choice");
-  const frozen = {
-    ...wireObligation("frozen-ask", "section", "frozen-choice", "lf-choice", "root-1"),
+  const threadAsk = {
+    ...wireObligation("thread-ask", "section", "thread-choice", "lf-choice", "root-1"),
     status: "withdrawn",
     next_actor: null,
   };
-  read.browser.views[1].obligations = [page, frozen];
+  read.browser.views[1].obligations = [page, threadAsk];
   app.adopt(read);
 
   const record = page;
   assert.deepEqual(app.read().effective.obligations, {
     phase: "ready",
-    all: [record, frozen],
+    all: [record, threadAsk],
     user: [record],
     unanswered: [record],
     byId: new Map([
       [record.id, record],
-      [frozen.id, frozen],
+      [threadAsk.id, threadAsk],
     ]),
   });
   assert.throws(() => {

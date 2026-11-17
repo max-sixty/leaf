@@ -471,7 +471,7 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
 def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
     """A tag the document never had still upgrades in the panel.
 
-    The frozen markup an agent's reply carries is the third boundary that can
+    The markup an agent's reply carries is the third boundary that can
     introduce a widget, and `buildMsgBody` instantiates it synchronously once the
     panel builds a body — so the module has to be in hand before the state that
     carries the reply is applied, not fetched on a mutation once the element is

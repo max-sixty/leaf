@@ -147,6 +147,29 @@ test("a drawing that doesn't hold a message's widgets drops only a question's gr
   assert.equal(drawn.textContent.includes("Roll back now?"), false);
 });
 
+// A group holding no question is a named part of the message, so a drawing that holds
+// none of its widgets keeps its label and its prose.
+test("a drawing that doesn't hold a message's widgets keeps a group that asks nothing", async () => {
+  adoptRegistry({
+    $layer: { generation: "message-group-kept" },
+    "lf-group": { "reading-role": "group", says: { label: "before" } },
+  });
+  assert.equal(await loadMarkdown(), true);
+  const prepared = await prepareAuthoredMessage(
+    {
+      id: "kept-message",
+      text: 'Intro.\n\n<lf-group id="kept-evidence" label="Evidence">\n<p>Two runs agree.</p>\n</lf-group>',
+    },
+    "kept-thread",
+  );
+  const drawn = document.createElement("div");
+  drawn.innerHTML = prepared.body.heldElsewhere;
+  assert.equal(drawn.querySelector("h3")?.textContent, "Evidence");
+  assert.equal(drawn.querySelector("p:last-child")?.textContent, "Two runs agree.");
+  assert.equal(drawn.querySelector("lf-group, [id]"), null);
+  assert.equal(prepared.body.text, "Intro. Evidence Two runs agree.");
+});
+
 test("failed message preparation reaches every waiting state read and later reads", async (t) => {
   const initializer = `data:text/javascript,${encodeURIComponent(
     'throw new Error("message initializer failed");',

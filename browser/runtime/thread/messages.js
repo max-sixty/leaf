@@ -386,7 +386,8 @@ const keptElements = new Map();
 // an element whose declaration's `reading-role` is `group` (`obligations.widget_groups`
 // in Python), is its question, so it goes whole with it rather than leaving the
 // question's words with nothing to answer them. Any other group stays, less its
-// widgets, as a figure keeps its caption when its chart goes.
+// widgets, as a figure keeps its caption when its chart goes: its label as a heading
+// over what it holds, since the drawing upgrades none of its elements.
 /** The innermost named group holding `element`, or null.
  * @param {Element} element @returns {Element | null} */
 function groupRound(element) {
@@ -402,11 +403,16 @@ function heldElsewhere(message) {
     const declaration = declarationFor(element);
     if (declaration?.awaits && !declaration.inline) groupRound(element)?.remove();
   }
-  for (const element of copy.content.querySelectorAll("*"))
+  for (const element of copy.content.querySelectorAll("*")) {
+    const declaration = declarationFor(element);
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declarationFor(element)?.inline)
-      element.replaceWith(...element.childNodes);
-    else element.remove();
+    else if (declaration?.inline) element.replaceWith(...element.childNodes);
+    else if (declaration?.["reading-role"] === "group") {
+      const title = document.createElement("h3");
+      title.textContent = element.getAttribute("label") ?? "";
+      element.replaceWith(title, ...element.childNodes);
+    } else element.remove();
+  }
   return copy.innerHTML;
 }
 

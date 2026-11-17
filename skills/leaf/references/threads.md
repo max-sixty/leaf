@@ -299,9 +299,12 @@ one is not an answer.
 When a thread's topic has moved on, or settled detail buries the current exchange,
 summarize the earlier discussion as part of answering new input, without waiting to
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
-with `leaf page state <page> <message>` and choose a contiguous range that fits the
-topic, starting and ending on spoken messages rather than reactions. Leave out
-messages whose wording still matters to the current exchange. No message but the
+with `leaf page state <page> <message>` and choose a contiguous range, starting and
+ending on spoken messages rather than reactions. Leave out messages whose wording
+still matters to the current exchange. A range may take in summaries already in the
+thread, and the new summary replaces them. Take them in, as the hint does, so the
+user reads one account of the earlier discussion rather than a row of summaries, and
+write it from the originals rather than only the older summaries. No message but the
 thread's first may stay unsummarized above any summary. Leaf refuses a range that
 would leave one there, a fold without prose included, and names a wider range it
 accepts; write that summary to cover the added messages too. Summarize the range's
@@ -313,8 +316,7 @@ leaf thread summarize <page> --from <first-message-id> --through <last-message-i
 ```
 
 The summary replaces the range in the thread, and the originals stay available to
-unfold. It answers nothing. When summarizing again, read the originals rather than
-only the older summary. A recap in an ordinary reply folds nothing.
+unfold. It answers nothing. A recap in an ordinary reply folds nothing.
 
 To fold messages
 without a summary, pass an empty `--text`:

@@ -1125,7 +1125,8 @@ def test_an_answer_about_two_decisions_stays_on_the_card_that_carried_it(
     is answered the server moves it to the second, but the open view keeps it on the
     card the user answered, drawn once."""
     source = TWO_DECISIONS_PAGE.replace(
-        '<lf-group id="timeline-ask"', '<section id="both-outer"><lf-group id="timeline-ask"'
+        '<lf-group id="timeline-ask"',
+        '<section id="both-outer"><lf-group id="timeline-ask"',
     ).replace(
         "Wait a week</lf-option>\n</lf-options></lf-group>",
         "Wait a week</lf-option>\n</lf-options></lf-group></section>",

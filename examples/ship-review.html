@@ -41,7 +41,10 @@
                 <strong>Keep the resend workaround in the patch</strong>
                 <span class="tag">review · mobile</span> After 20 seconds the client
                 resends the queued batch; 500 forced stalls all recovered.
-                <lf-group id="off-workaround-decision" label="Patch decision: ship with the resend">
+                <lf-group
+                  id="off-workaround-decision"
+                  label="Patch decision: ship with the resend"
+                >
                   <lf-options id="off-workaround-review">
                     <lf-option id="off-workaround-approve" for="off-t-resync" selected>
                       Ship with the resend and keep chasing the upstream fix.
@@ -82,7 +85,10 @@
         <dt>Upstream fix</dt>
         <dd>acknowledged, no release date</dd>
       </dl>
-      <lf-group id="off-release-decision" label="Ship the iOS patch with the resend workaround?">
+      <lf-group
+        id="off-release-decision"
+        label="Ship the iOS patch with the resend workaround?"
+      >
         <p>
           The first patch would carry automatic resend after 20 seconds, reconnect
           telemetry and the support playbook described above. The upstream fix and

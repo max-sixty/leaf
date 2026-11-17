@@ -143,7 +143,10 @@ things as they are and take the action, so declining is an answer too. Put the e
 action and the evidence the user needs in the question's heading and prose:
 
 ```html
-<lf-group id="publish-report-question" label="Publish this report to the team workspace?">
+<lf-group
+  id="publish-report-question"
+  label="Publish this report to the team workspace?"
+>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
     <lf-option id="publish-report-keep" label="Keep it private"></lf-option>

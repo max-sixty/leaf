@@ -114,7 +114,10 @@
             <strong>Hold until 14:32.</strong> Escalate to Finance at 14:30; roll back
             sooner if a customer guardrail fails.
           </p>
-          <lf-group id="lp-rollback-region" label="Roll back now, or hold for Ledger's trace?">
+          <lf-group
+            id="lp-rollback-region"
+            label="Roll back now, or hold for Ledger's trace?"
+          >
             <lf-options id="lp-rollback">
               <lf-option id="lp-rollback-now" label="Roll back to checkout-v1">
                 Returns all traffic from checkout-v2 to the stable release without

@@ -74,9 +74,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
                 + options
                 + "</lf-tab></lf-tabs>"
             )
-        return (
-            f'<lf-group id="ask-{name}" label="Choose {name}?">{options}</lf-group>'
-        )
+        return f'<lf-group id="ask-{name}" label="Choose {name}?">{options}</lf-group>'
 
     first = question("first")
     if not nested_source:

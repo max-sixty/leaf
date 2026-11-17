@@ -115,7 +115,11 @@ cart:{user_id}            →  cart:{user_id}:{currency}
           Rolling back fixed Tuesday; shipping multi-currency carts again needs either a
           dual-read migration or a cache warmed before the switch.
         </p>
-        <lf-group id="detail-fix-ask" label="How should 4.3 change the cache key?" class="gist">
+        <lf-group
+          id="detail-fix-ask"
+          label="How should 4.3 change the cache key?"
+          class="gist"
+        >
           <p>
             Both ship multi-currency carts without a cold cache; they differ in risk and
             effort.

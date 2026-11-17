@@ -1092,11 +1092,15 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   display: block;
 }
 :where([data-lf-reading-role="group"]) > [data-lf-said="label"],
-:where([data-lf-reading-role="group"][label]):not(:has(> [data-lf-said="label"]))::before {
+:where([data-lf-reading-role="group"][label]):not(
+    :has(> [data-lf-said="label"])
+  )::before {
   display: block;
   font-weight: bold;
 }
-:where([data-lf-reading-role="group"][label]):not(:has(> [data-lf-said="label"]))::before {
+:where([data-lf-reading-role="group"][label]):not(
+    :has(> [data-lf-said="label"])
+  )::before {
   content: attr(label);
 }
 /* A framed box that holds authored content is an inline-size container, so a widget

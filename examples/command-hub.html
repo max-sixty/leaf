@@ -141,7 +141,10 @@
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <lf-group id="decision-dedupe-region" label="What should the host do with the stalled work?">
+              <lf-group
+                id="decision-dedupe-region"
+                label="What should the host do with the stalled work?"
+              >
                 <p>
                   I recommend restarting, which keeps the durable work and replaces the
                   stalled process.
@@ -173,7 +176,10 @@
             >
               <strong>Choose the zero-row behavior</strong> This policy is consequential
               enough to wait for an explicit choice.
-              <lf-group id="decision-zero-region" label="What should happen when a nightly imports zero rows?">
+              <lf-group
+                id="decision-zero-region"
+                label="What should happen when a nightly imports zero rows?"
+              >
                 <p>
                   I recommend failing and paging, since zero rows is a failure until
                   proved otherwise.
@@ -220,7 +226,10 @@
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <lf-group id="decision-schema-region" label="What should the host do with the schema branch?">
+              <lf-group
+                id="decision-schema-region"
+                label="What should the host do with the schema branch?"
+              >
                 <p>I recommend landing it now, while the evidence is current.</p>
                 <lf-options id="decision-schema">
                   <lf-option id="schema-land" label="Land it now" recommended>
@@ -248,7 +257,10 @@
               below, paste its CSV output into the draft, and remove
               <code>customer_name</code> and <code>billing_email</code> before saving.
               Saving the draft tells the orchestrator that w-8 can resume.
-              <lf-group id="decision-ledger-fixture-region" label="Which replica-only ledger fixture should the worker use?">
+              <lf-group
+                id="decision-ledger-fixture-region"
+                label="Which replica-only ledger fixture should the worker use?"
+              >
                 <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
     where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
                 <lf-draft id="ledger-cargo" required>
@@ -292,7 +304,10 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <lf-group id="decision-api-region" label="What should the host do with atlas/public-api?">
+              <lf-group
+                id="decision-api-region"
+                label="What should the host do with atlas/public-api?"
+              >
                 <p>I recommend landing it, since the public contract is ready.</p>
                 <lf-options id="decision-api">
                   <lf-option id="api-land" label="Land" recommended>

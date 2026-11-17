@@ -42,10 +42,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
         keyword="required",
     )
 
-    group = (
-        '<lf-group id="pick-decision" label="Which one?">'
-        '<lf-options id="pick"{}>'
-    )
+    group = '<lf-group id="pick-decision" label="Which one?"><lf-options id="pick"{}>'
     group += '<lf-option id="opt-a" label="A"{}></lf-option>'
     group += '<lf-option id="opt-b" label="B"></lf-option></lf-options></lf-group>'
     (page_dir / "index.html").write_text(

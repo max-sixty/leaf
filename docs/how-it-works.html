@@ -471,7 +471,10 @@ leaf server start ./review</code></pre>
                   The importer receives bursts of records faster than it can process
                   them. Its queue has room for 1,000 records.
                 </p>
-                <lf-group id="queue-question" label="When the queue fills, what should happen?">
+                <lf-group
+                  id="queue-question"
+                  label="When the queue fills, what should happen?"
+                >
                   <lf-options id="queue-policy">
                     <lf-option id="block-producer" label="Pause the producer"
                       >Keep every queued record; wait for space before accepting
@@ -509,8 +512,9 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                 registry entry declares <code>awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
                 answer, and lifecycle; the <code>lf-group</code> the author puts around
-                it supplies the prompt in its <code>label</code>. The widget owns the value, and the agent records the decision in
-                a stamped revision. The browser fetches the revised HTML and state.
+                it supplies the prompt in its <code>label</code>. The widget owns the
+                value, and the agent records the decision in a stamped revision. The
+                browser fetches the revised HTML and state.
               </p>
               <details id="decision-example">
                 <summary>Example: answer a page choice</summary>
@@ -2281,7 +2285,10 @@ flowchart TD
               label="Permission for a sample report"
               interactive
             >
-              <lf-group id="sample-publish-report-decision" label="Publish the sample report?">
+              <lf-group
+                id="sample-publish-report-decision"
+                label="Publish the sample report?"
+              >
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
                   <lf-option

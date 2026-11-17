@@ -385,7 +385,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     expect(page.locator(".lf-fp-view #tv-decision-region")).to_have_class(
         re.compile(r"\blf-mark-el\b")
     )
-    heading = middle(".lf-fp-view #tv-decision-region h3", 20)
+    heading = middle('.lf-fp-view #tv-decision-region > [data-lf-said="label"]', 20)
     chrome = [seen(heading)]
     page.keyboard.down("Alt")
     chrome.append(seen(heading))

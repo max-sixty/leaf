@@ -1357,12 +1357,14 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
         """
 <h1 id="title">Authored block widths</h1>
 <p id="prose">Standard prose.</p>
-<lf-group id="wide" label="Which case?" data-width="wide">
+<section id="wide" data-width="wide">
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
-  <lf-options id="options"><lf-option id="option">One</lf-option></lf-options>
-</lf-group>
+  <lf-group id="case" label="Which case?">
+    <lf-options id="options"><lf-option id="option">One</lf-option></lf-options>
+  </lf-group>
+</section>
 """,
     )
     page = open_page(browser, live_url(serve(source)))

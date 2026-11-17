@@ -939,7 +939,8 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
 def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_sample(
     browser, serve
 ):
-    """An obligation's heading begins at the edge of the frame that holds it."""
+    """An obligation's title begins at the edge of the frame that holds it, and a later
+    one keeps a third-level heading's room above it."""
     page = open_page(
         browser,
         serve(
@@ -967,17 +968,17 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     for root in (page, page.frame_locator("#sample iframe")):
         gap = root.locator("main").evaluate(
             """main => {
-                const heading = main.querySelector('section > h2');
+                const heading = main.querySelector('lf-group > [data-lf-said="label"]');
                 return heading.getBoundingClientRect().top
                   - main.getBoundingClientRect().top
                   - parseFloat(getComputedStyle(main).paddingTop);
             }"""
         )
-        assert abs(gap) < 1, f"the first question leaves {gap}px above its heading"
+        assert abs(gap) < 1, f"the first question leaves {gap}px above its title"
 
     framed_gap = page.locator("#own-frame").evaluate(
         """frame => {
-            const heading = frame.querySelector('section > h2');
+            const heading = frame.querySelector('lf-group > [data-lf-said="label"]');
             const style = getComputedStyle(frame);
             return heading.getBoundingClientRect().top
               - frame.getBoundingClientRect().top
@@ -986,14 +987,14 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
         }"""
     )
     assert abs(framed_gap) < 1, (
-        f"a framed question leaves {framed_gap}px above its heading"
+        f"a framed question leaves {framed_gap}px above its title"
     )
-    later_gap = page.locator("#later-ask > h2").evaluate(
+    later_gap = page.locator('#later-ask > [data-lf-said="label"]').evaluate(
         """heading => heading.getBoundingClientRect().top
           - document.querySelector('#between-asks').getBoundingClientRect().bottom"""
     )
-    assert abs(later_gap - 48) < 1, (
-        f"a question later in the page keeps {later_gap}px rather than 48px above its heading"
+    assert abs(later_gap - 32) < 1, (
+        f"a question later in the page keeps {later_gap}px rather than 32px above its title"
     )
 
 

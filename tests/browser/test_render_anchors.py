@@ -521,7 +521,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     page.evaluate(
         """() => {
           const start = document.querySelector('#context').firstChild;
-          const end = document.querySelector('#question').firstChild;
+          const end = document.querySelector('#decision > [data-lf-said="label"]').firstChild;
           const range = document.createRange();
           range.setStart(start, 0);
           range.setEnd(end, end.length);

@@ -928,7 +928,7 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
         "() => document.activeElement === document.body && getSelection().focusNode === null"
     )
 
-    third = page.locator("#question-3 h2")
+    third = page.locator('#question-3 > [data-lf-said="label"]')
     goal = page.evaluate(
         "() => parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop) + 8"
     )
@@ -1492,7 +1492,7 @@ def test_an_obligation_landed_in_a_pane_keeps_its_ring_inside_the_pane(browser, 
 
 ASK_WORDS = """() => {
   const words = document.createRange();
-  words.selectNodeContents(document.querySelector('#rollout h2'));
+  words.selectNodeContents(document.querySelector('#rollout > [data-lf-said="label"]'));
   return {words: words.getClientRects()[0].left};
 }"""
 

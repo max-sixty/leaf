@@ -1172,7 +1172,7 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
     """An obligation in front of the user whose arrival region is not still moves the page,
     since the arrival puts the region's start at the top of the window, and a press
     that moves the page records where the user was reading. A draft's region is the
-    group its question declares, which runs up from the heading that names it."""
+    group its question declares, which runs up from the title that names it."""
     context = "".join(f"<p>Context paragraph {n}.</p>" for n in range(8))
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(40))
     url = serve(
@@ -1195,7 +1195,8 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
         ".getBoundingClientRect().top - 70, behavior: 'instant'})"
     )
     assert page.evaluate(
-        "document.getElementById('context').getBoundingClientRect().bottom < 0"
+        "document.querySelector('#invitation > [data-lf-said=\"label\"]')"
+        ".getBoundingClientRect().bottom < 0"
     )
     reading = page.evaluate("document.scrollingElement.scrollTop")
     entries = page.evaluate("history.length")

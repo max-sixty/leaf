@@ -922,7 +922,10 @@ details::details-content {
  * the frame's query holds, and once it has evaluated `:nth-child()` for a parent's
  * children, it restyles all of them whenever a child is inserted or removed. The
  * margin's rows are `.lf-ui` siblings, so without the check, sending a comment
- * restyled every row (test_sending_a_comment_restyles_only_the_rows_it_changes). */
+ * restyled every row (test_sending_a_comment_restyles_only_the_rows_it_changes).
+ * A named group's title is generated words (base.css), but it is the group's first
+ * block, so it takes the start edge and the block under it keeps its margin; the
+ * exception sits in :where(), so the rule weighs what it did. */
 @layer lf-reading-face {
   @container style(--lf-block-frame: 1) or style(--lf-block-frame: trim) {
     * {
@@ -931,7 +934,19 @@ details::details-content {
   }
 }
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
-  :where(:not(.lf-ui, [data-lf-gen])):nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
+  :where(
+    :not(
+      .lf-ui,
+      [data-lf-gen]:where(:not([data-lf-reading-role="group"] > [data-lf-said]))
+    )
+  ):nth-child(
+    1
+      of
+      :not(
+        .lf-ui,
+        [data-lf-gen]:where(:not([data-lf-reading-role="group"] > [data-lf-said]))
+      )
+  ) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }

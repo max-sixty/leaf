@@ -205,7 +205,9 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     open_panel_thread(page, "c-store")
-    assert "Which store" in drag(page.locator("#ps-decision-region > h3"))
+    assert "Which store" in drag(
+        page.locator('#ps-decision-region > [data-lf-said="label"]')
+    )
     # The release raises the button from the rendering it queues (`nextRender`).
     rendered(page)
     expect(page.locator(".lf-fab-input")).to_be_hidden()

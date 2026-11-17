@@ -304,7 +304,7 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     item = page.locator("#session-triage-decision")
     assert item.evaluate("node => getComputedStyle(node).display") == "block"
     assert (
-        item.locator(":scope > h2").evaluate(
+        item.locator(':scope > [data-lf-said="label"]').evaluate(
             "heading => getComputedStyle(heading).marginTop"
         )
         != "0px"

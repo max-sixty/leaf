@@ -1232,7 +1232,11 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
             "nodes => nodes.map(node => JSON.parse(node.dataset.lfKey)[1])"
         )
 
-    assert identities("main > section", "id") == ["first-ask", "second-ask", "gone-ask"]
+    assert identities("main > lf-group", "id") == [
+        "first-ask",
+        "second-ask",
+        "gone-ask",
+    ]
     assert asked() == [
         "widget:first-options",
         "widget:second-options",
@@ -1242,7 +1246,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     stamp_page(serve.page_dir, second, "reverse the questions, remove the third")
     wait_for_revision(page, 2)
 
-    assert identities("main > section", "id") == ["second-ask", "first-ask"]
+    assert identities("main > lf-group", "id") == ["second-ask", "first-ask"]
     # An open view keeps its cards where they stand while the user reads it; the
     # inventory's new order shows at the next opening.
     expect(page.locator(cards)).to_have_count(2)

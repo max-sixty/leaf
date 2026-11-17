@@ -1318,12 +1318,15 @@ export function createFloatingPanel({
         exits: Boolean(close),
       };
     }
-    if (!key)
+    if (!key) {
+      const lead = standing(null, true);
       return {
         says: "status",
-        words: [...standing(null, true), ...status().summaryParts],
+        lead,
+        words: [...lead, ...status().summaryParts],
         offer: pagePress(),
       };
+    }
     return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
   }
   // The press offered alone on the page: Open latest while the page shows an older
@@ -1399,8 +1402,14 @@ export function createFloatingPanel({
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldHint(key, input, drawn = null) {
-    const { words } = fieldReading(key, input, drawn);
+    const { words, lead = [] } = fieldReading(key, input, drawn);
     const parts = [words].flat();
+    // Where the user stands, before the status, is drawn apart from it, so the ink a
+    // status that asks wears stays the status's (floating-panel.css).
+    if (lead.length)
+      return html`<span class="lf-fp-standing">${statusParts(lead)}</span>${statusParts(
+          parts.slice(lead.length),
+        )}`;
     return wordsText(words) &&
       (!voiceOf(words) ||
         parts.some(

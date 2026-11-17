@@ -358,12 +358,13 @@ when they wrote, is derived from the log and never stored as a second copy.
 
 Leaf takes each fact about a page from where the page states it: the structure HTML
 defines, including the relations it gives its own elements, or a declaration in an
-author's attribute, a registry entry or the event log. A declaration uses a standard
-attribute only where it means the same to every reader, and Leaf's own attributes only
-on Leaf's elements. Leaf takes no fact from how content looks or what it says, and
-reads words only to quote, anchor and show them, so restyling a page changes no fact
-Leaf holds and rewording it changes only its words. Any other reading of markup is an
-exception the maintainer agrees to.
+author's attribute, a registry entry or the event log. A declaration on a plain
+element uses a standard attribute that means the same to every reader; one on Leaf's
+own element uses Leaf's attribute, such as `label`, since no standard defines that
+element. Leaf takes no fact from how content looks or what it says, and reads words
+only to quote, anchor and show them, so restyling a page changes no fact Leaf holds
+and rewording it changes only its words. Any other reading of markup is an exception
+the maintainer agrees to.
 
 ### Keep the layer open
 

@@ -1528,6 +1528,31 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     assert "ship-later" in drawn.by_id
     assert said() == {"form": "choice", "chosen": ["now"]}
 
+    # An option the user wrote lives in the log, so their pick of it shows on any
+    # wording that keeps the widget.
+    route = comment(page_dir, "--text", "Which route?\n\n" + options("route", "a"))
+    route = json.loads(route.stdout)
+    for action, detail in [
+        ("add", {"option": "route-mine", "text": "Mine"}),
+        ("choose", {"value": ["route-mine"]}),
+    ]:
+        append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 2,
+                "widget": "route",
+                "action": action,
+                "detail": detail,
+            },
+        )
+    reworded = edit(route["id"], "Which route, then?\n\n" + options("route", "a"))
+    assert reworded.exit_code == 0, reworded.output
+    assert {
+        (f["at"], f["values"]["kept"]) for f in json.loads(reworded.stdout)["findings"]
+    } == {("<lf-options id=route>", True)}
+
     # Keeping the widget but not the option the user chose leaves their answer
     # showing nowhere.
     replaced = edit(asked["id"], "Ship it?\n\n" + options("ship", "later"))

@@ -1271,22 +1271,25 @@ def _answered_widgets(
     events: list, message: str, rewritten: SourceDocument | None
 ) -> list[Finding]:
     """What a rewrite of `message` to the markup `rewritten` (None for words alone)
-    does to each widget in it the user has acted on: their latest action stays
+    does to each widget in it the user has acted on. Their latest action stays
     recorded against the ids it rests on (`meaning.depends`: the widget, its unit
-    and the options it chose), so it shows on whatever markup the rewrite leaves
-    under those ids, and not at all once one is gone. Advice, since the agent may
-    mean either."""
+    and the options it chose), so it shows wherever the new markup keeps those ids,
+    and not once one is gone; a child the user created through the widget lives in
+    the log (`meaning.creates`), so no wording needs to hold it. Advice, since the
+    agent may mean either."""
     drawn = thread_structure(events).fragments.get(message)
     if drawn is None:
         return []
     withdrawn = taken_back(events)
-    acted = {
-        event["widget"]: set(event["meaning"].get("depends") or [event["widget"]])
+    acted = [
+        event
         for event in events
         if event["kind"] == "action"
         and event["id"] not in withdrawn
         and event["widget"] in drawn.by_id
-    }
+    ]
+    created = {e["meaning"]["unit"] for e in acted if e["meaning"].get("creates")}
+    rests = {e["widget"]: set(e["meaning"]["depends"]) - created for e in acted}
     kept = rewritten.ids if rewritten is not None else set()
     return [
         Finding(
@@ -1295,7 +1298,7 @@ def _answered_widgets(
             {"message": message, "kept": ids <= kept},
             severity="advice",
         )
-        for widget, ids in acted.items()
+        for widget, ids in rests.items()
     ]
 
 

@@ -55,8 +55,8 @@ def desktop_viewport(page_dir: Path) -> Desktop:
     fixed = RENDER_VIEWPORT["width"], RENDER_VIEWPORT["height"]
     if _pinned():
         return Desktop(*fixed, f"fixed, pinned by {PIN_VARIABLE}")
-    views = read_user_views(page_dir, None)["sessions"]
-    if not views:
+    view = _reader_view(page_dir)
+    if view is None:
         # Authors who knew the user's window but read only "fixed" went looking for a
         # way to set it; the words say it follows the user once they open the page.
         return Desktop(
@@ -64,7 +64,7 @@ def desktop_viewport(page_dir: Path) -> Desktop:
             "fixed, since no browser has shown the page in a day; once the user"
             " opens it, the check reads their window",
         )
-    window = views[0]["viewport"]
+    window = view["viewport"]
     return Desktop(round(window["width"]), round(window["height"]), "the user's window")
 
 
@@ -77,15 +77,25 @@ def user_engine(page_dir: Path) -> str:
     `Gecko/` token in its user agent; Firefox on iOS, a WebKit, names itself `FxiOS`."""
     if _pinned():
         return "chromium"
-    views = read_user_views(page_dir, None)["sessions"]
-    if not views:
+    view = _reader_view(page_dir)
+    if view is None:
         return "chromium"
-    agent = views[0]["identity"]["browser"]["user_agent"]
+    agent = view["identity"]["browser"]["user_agent"]
     return "firefox" if "Gecko/" in agent and "Firefox/" in agent else "chromium"
 
 
+def _reader_view(page_dir: Path) -> dict | None:
+    """The view of the browser that last reported showing the page to its reader, or
+    None where none has in the last day. A browser a script drives says so
+    (`navigator.webdriver`) and is passed over: an agent that opened the live page in
+    a headless Chromium while its reader's Firefox tab stood hidden, and so silent,
+    would otherwise have the check draw in Chromium at the agent's window."""
+    views = read_user_views(page_dir, None)["sessions"]
+    return next((v for v in views if not v["identity"]["browser"]["webdriver"]), None)
+
+
 def _pinned() -> bool:
-    """Whether the caller pins what the check reads to the fixed window in Chrome."""
+    """Whether the caller pins what the check reads to the fixed window in Chromium."""
     pin = os.environ.get(PIN_VARIABLE)
     if pin not in (None, "", "fixed"):
         raise ValueError(f"{PIN_VARIABLE} takes only 'fixed', not {pin!r}")

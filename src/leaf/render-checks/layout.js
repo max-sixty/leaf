@@ -964,10 +964,12 @@ export function squeezedBoxes() {
 // far each column gets differs by engine, which is why the check draws in the reader's
 // (`render_gate/browser.py`).
 //
-// A name is a `<code>` whose words hold no space, so a command or a sentence's code
-// wrapping at its spaces is not one. Short is a third of the table's width, the room
-// the theme keeps whole for a name a row heading holds: a longer identifier breaks
-// because the theme lets it, rather than holding its column open. A name's lines are
+// A name is a `<code>` that is the whole of its cell's words and holds no space: the
+// code in a sentence breaks at a hyphen where the sentence's line ends, as prose does,
+// and a command wraps at its spaces. A row heading's name is the theme's to keep
+// whole, up to a third of the column, so a longer one breaks by design and is left
+// out. Short is a third of the table's width: a longer identifier breaks because the
+// theme lets it, rather than holding its column open. A name's lines are
 // its text's line boxes, read with a range, whose tops differ by more than a pixel
 // from line to line; its whole width is their widths summed. A table that scrolls is
 // `squeezedBoxes`'s to report, since every column there stands at its least width
@@ -977,6 +979,15 @@ export function squeezedBoxes() {
 export function brokenNames() {
   const page = pageDocument();
   if (!page) return [];
+  // A cell's words, leaving out what Leaf drew in it, such as a comment's badge.
+  /** @param {Element} cell */
+  const cellWords = (cell) => {
+    let text = "";
+    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+    for (let node; (node = walker.nextNode());)
+      if (!uiInside(node.parentElement, cell)) text += node.textContent;
+    return text.trim();
+  };
   const found = [];
   const range = document.createRange();
   for (const table of page.querySelectorAll("table")) {
@@ -985,10 +996,12 @@ export function brokenNames() {
     const third = table.getBoundingClientRect().width / 3;
     /** @type {string[]} */
     const names = [];
-    for (const code of table.querySelectorAll("code")) {
-      if (code.closest("table") !== table) continue;
+    for (const code of table.querySelectorAll("td code, th:not([scope=row]) code")) {
+      const cell = code.closest("td, th");
+      if (!cell || cell.closest("table") !== table) continue;
       const name = code.textContent?.trim() ?? "";
-      if (!name || /\s/.test(name) || !code.checkVisibility()) continue;
+      if (!name || /\s/.test(name) || cellWords(cell) !== name) continue;
+      if (!code.checkVisibility()) continue;
       range.selectNodeContents(code);
       const drawn = [...range.getClientRects()].filter((rect) => rect.width > 1);
       const tops = drawn.map((rect) => rect.top).sort((a, b) => a - b);

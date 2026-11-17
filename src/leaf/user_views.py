@@ -62,11 +62,16 @@ _SHOWN_WINDOW = _object(
     {"x": _NUMBER, "y": _NUMBER, "width": _NONNEGATIVE, "height": _NONNEGATIVE}
 )
 # The rendering identity is the document's own snapshot (`runtime/page-identity.js`);
-# of it the server reads only the browser's user agent, which picks the engine
-# `page check --render` draws with (`render_gate.command.user_engine`).
+# of it the server reads only its browser: whether a script drives it, as an agent's
+# does, and its user agent, which picks the engine `page check --render` draws with
+# (`render_gate.command.user_engine`).
 _IDENTITY = {
     "type": "object",
-    "properties": {"browser": _object({"user_agent": {"type": "string"}})},
+    "properties": {
+        "browser": _object(
+            {"user_agent": {"type": "string"}, "webdriver": {"type": "boolean"}}
+        )
+    },
     "required": ["browser"],
 }
 _CHECK_BASIS = {

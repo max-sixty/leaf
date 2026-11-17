@@ -16,7 +16,7 @@ CHROME = (
 )
 IDENTITY = {
     "delivery": {"runtime": "captured-runtime"},
-    "browser": {"user_agent": CHROME},
+    "browser": {"user_agent": CHROME, "webdriver": False},
 }
 
 

@@ -244,6 +244,15 @@ def test_the_render_check_draws_in_the_engine_of_the_last_reported_browser(
     view = report(sequence=len(agents) + 1)
     view["identity"]["browser"]["user_agent"] = next(iter(agents))
     user_views.observe_user_view(tmp_path, view)
+    # An agent's own browser opening the page later, such as a headless Chromium a
+    # script drives, is not the reader's, and leaves the check where the reader is.
+    now += timedelta(minutes=1)
+    driven = report(session="b" * 32)
+    driven["identity"]["browser"]["webdriver"] = True
+    driven["viewport"] = {"width": 1280, "height": 720}
+    user_views.observe_user_view(tmp_path, driven)
+    assert user_engine(tmp_path) == "firefox"
+    assert desktop_viewport(tmp_path).json()["width"] == 900
     monkeypatch.setenv(PIN_VARIABLE, "fixed")
     assert user_engine(tmp_path) == "chromium"
 

@@ -5149,7 +5149,8 @@ def test_a_firefox_reader_s_check_launches_the_installed_firefox_or_chrome(
     calls.clear()
     assert browser_model.launch_browser(Playwright(False), "firefox") == (
         "a chromium",
-        "Chrome",
+        "Chrome, since the reader's Firefox didn't launch: BrowserType.launch: no"
+        " firefox",
     )
     assert calls == [
         ("firefox", {"channel": "moz-firefox"}),

@@ -99,8 +99,14 @@ def launch_browser(p, engine: str = "chromium", **options):
     if engine == "firefox":
         try:
             return p.firefox.launch(channel="moz-firefox", **options), "Firefox"
-        except PlaywrightError:
-            pass  # no Firefox where the channel looks, so the page reads in Chromium
+        except PlaywrightError as error:
+            # The page reads in Chromium, and the name says why it isn't the reader's.
+            missed = str(error).strip().splitlines()[0]
+            browser, name = launch_browser(p, **options)
+            return (
+                browser,
+                f"{name}, since the reader's Firefox didn't launch: {missed}",
+            )
     if named := named_executable():
         _, executable = named
         return p.chromium.launch(executable_path=executable, **options), executable

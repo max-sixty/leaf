@@ -3402,7 +3402,7 @@ EOF</code></pre>
               <dd>
                 A fork made with <code>$.model.fork</code>, which resends the main
                 thread's last request with one question from Leaf and returns text in 2
-                to 3 s. It can't call tools. It writes the working message and sorts the
+                to 3 s. It can't call tools. It writes the working line and sorts the
                 message.
               </dd>
               <dt id="term-working-fork">Working fork</dt>
@@ -3426,9 +3426,9 @@ EOF</code></pre>
               <dt id="term-kept-back">Kept back</dt>
               <dd>
                 A new thread message a line turn holds from the main thread while a line
-                fork writes its working message and sorts it: an agent turn admission
-                opens with the message, which ends as the line fork answers or lapses 30
-                s after it opened.
+                fork writes its working line and sorts it. Admission opens the line turn
+                with the message, and the turn ends as the line fork returns its line
+                and judgment, or lapses 30 s after it opened.
               </dd>
               <dt id="term-holds">Holds</dt>
               <dd>
@@ -3502,13 +3502,13 @@ EOF</code></pre>
               When the user writes in a thread with no other waiting message, while the
               session's pages follower runs, and no running fork's turn took the thread,
               admission opens a line turn that picks the message up, which keeps it from
-              the main thread, and the module asks a line fork for the working message.
+              the main thread, and the module asks a line fork for the working line.
               From then until the agent answers, the message reads
               <a href="#stages-working">On it</a>. The line fork reads the message
-              against the conversation, writes the working message, and sorts the
-              message by who should do the work. Leaf posts the line as the agent's and
-              sends the message where the sort says. If no line comes, the line turn
-              lapses 30 s after it opened, as any unconfirmed agent turn does
+              against the conversation, writes the working line, and sorts the message
+              by who should do the work. Leaf posts the line as the agent's and sends
+              the message where the sort says. If no line comes, the line turn lapses 30
+              s after it opened, as any unconfirmed agent turn does
               (<code>activity.STARTING_GRACE</code>), and the message is the main
               thread's; Leaf ends the turn at once when the line fork fails or the
               newest message owes no reply.
@@ -3518,10 +3518,10 @@ EOF</code></pre>
                 <pre>
 flowchart TD
   accTitle: The path of one thread message
-  accDescr: The user writes in a thread. Leaf keeps the message back from the main thread, and it reads On it. A line fork writes the working message and sorts the message. Work a fork can finish beside the main thread goes to a working fork, which answers in the thread, and the main thread hears what it did. Anything else goes to the main thread.
+  accDescr: The user writes in a thread. Leaf keeps the message back from the main thread, and it reads On it. A line fork writes the working line and sorts the message. Work a fork can finish beside the main thread goes to a working fork, which answers in the thread, and the main thread hears what it did. Anything else goes to the main thread.
   msg["The user writes in a thread"]
   kept["Leaf keeps it back; it reads On it"]
-  line["A line fork writes the working message and sorts the message"]
+  line["A line fork writes the working line and sorts the message"]
   fork["A working fork"]
   answer["It answers in the thread"]
   told["The main thread hears what it did"]
@@ -3551,10 +3551,10 @@ flowchart TD
               by that mark, and a line fork's late or repeated step, as a reloaded hooks
               module can send, does nothing once its line turn no longer runs. Its ways
               out are an agent turn's: the turn closing, which writes the session's
-              agent turns, or lapsing. A line turn that has ended keeps nothing. The
-              lane decides only whether admission opens one, since the line fork runs in
-              the hooks module rather than the follower. This adds a pickup to each
-              kept-back message, and an entry to the session's agent turns.
+              agent turns, or lapsing. A line turn that has ended keeps nothing. Whether
+              the follower runs decides only whether admission opens one, since the line
+              fork runs in the hooks module rather than the follower. This adds a pickup
+              to each kept-back message, and an entry to the session's agent turns.
             </p>
 
             <section id="sorting">
@@ -3574,7 +3574,7 @@ flowchart TD
                       as a lookup, research that writes only its own scratch files, or a
                       dispatch to another session
                     </th>
-                    <td><code>take</code></td>
+                    <td><code class="nowrap">take</code></td>
                     <td>A working fork, which answers it</td>
                   </tr>
                   <tr id="sort-hand-over">
@@ -3583,7 +3583,7 @@ flowchart TD
                       user's answer to a question the main thread asked, or steering its
                       current work
                     </th>
-                    <td><code>hand_over</code></td>
+                    <td><code class="nowrap">hand_over</code></td>
                     <td>
                       The main thread, at its next tool boundary, or woken if idle
                     </td>
@@ -3625,14 +3625,14 @@ flowchart TD
                   <pre>
 sequenceDiagram
   accTitle: A working fork takes a message and answers it
-  accDescr: The user writes. Leaf keeps the message back while a line fork writes the working message and judges take. Leaf posts the line, closes the line turn, opens a turn for a working fork, records its pickup and spawns it, and tells the main thread a fork has the thread. A further message reaches the fork at its next tool boundary. The fork replies in the thread. When its run ends, Leaf tells the main thread what it did.
+  accDescr: The user writes. Leaf keeps the message back while a line fork writes the working line and judges take. Leaf posts the line, closes the line turn, opens a turn for a working fork, records its pickup and spawns it, and tells the main thread a fork has the thread. A further message reaches the fork at its next tool boundary. The fork replies in the thread. When its run ends, Leaf tells the main thread what it did.
   participant U as User
   participant L as Leaf
   participant W as Working fork
   participant M as Main
   U-&gt;&gt;L: message
   Note over L: line fork: the line, take
-  L-&gt;&gt;U: working message
+  L-&gt;&gt;U: working line
   L-&gt;&gt;W: turn, pickup, spawn
   L--&gt;&gt;M: a fork has it
   U-&gt;&gt;L: another message
@@ -3807,7 +3807,7 @@ flowchart TD
               acknowledgement.
             </p>
             <figure id="acting-figure" class="diagram-figure">
-              <lf-diagram id="acting-flow" data-height="430" parts="all">
+              <lf-diagram id="acting-flow" data-height="448" parts="all">
                 <pre>
 flowchart TD
   accTitle: Who a leaf command acts as
@@ -3816,7 +3816,7 @@ flowchart TD
   names("Does it begin leaf --turn?")
   main["It acts as the main thread"]
   open("Is that turn an open agent turn of the session?")
-  inturn["Its replies and starts act in that turn, on what it holds"]
+  inturn["Its replies, starts and acknowledgements act in that turn, on what it holds"]
   refused["Refused, whatever the command"]
   cmd --&gt; names
   names -- no --&gt; main
@@ -4242,7 +4242,7 @@ flowchart TD
                   ><code>src/leaf/forks.py</code></a
                 >: its header holds the states a thread moves through and why the line
                 fork runs as it does; <code>_take</code> and <code>ended</code> hold the
-                rules this page names for a working fork's take and end, and
+                rules this tab names for a working fork's take and end, and
                 <code>work_prompt</code> and <code>resume_prompt</code> the fork's task,
                 which names its turn.
               </li>

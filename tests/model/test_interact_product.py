@@ -1528,6 +1528,15 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     assert "ship-later" in drawn.by_id
     assert said() == {"form": "choice", "chosen": ["now"]}
 
+    # Keeping the widget but not the option the user chose leaves their answer
+    # showing nowhere.
+    replaced = edit(asked["id"], "Ship it?\n\n" + options("ship", "later"))
+    assert replaced.exit_code == 0, replaced.output
+    told = json.loads(replaced.stdout)
+    assert [(f["code"], f["values"]["kept"]) for f in told["findings"]] == [
+        ("edit-answered-widget", False)
+    ]
+
     withdrawn = edit(asked["id"], "Withdrawn: the plan changed.")
     assert withdrawn.exit_code == 0, withdrawn.output
     told = json.loads(withdrawn.stdout)

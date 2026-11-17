@@ -2142,7 +2142,8 @@ _TEXT = {
         + (
             ", so it shows on the markup this edit leaves there"
             if v["kept"]
-            else ", and this edit removes it, so the thread no longer shows that answer"
+            else ", and this edit removes what it chose, so the thread no longer shows"
+            " that answer"
         )
     ),
 }

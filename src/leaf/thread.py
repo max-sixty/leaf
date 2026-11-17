@@ -1271,30 +1271,31 @@ def _answered_widgets(
     events: list, message: str, rewritten: SourceDocument | None
 ) -> list[Finding]:
     """What a rewrite of `message` to the markup `rewritten` (None for words alone)
-    does to each widget in it the user has acted on: their action stays recorded
-    against the widget's id, so it shows on whatever markup the rewrite leaves under
-    that id, and nowhere once the id is gone. Advice, since the agent may mean
-    either."""
+    does to each widget in it the user has acted on: their latest action stays
+    recorded against the ids it rests on (`meaning.depends`: the widget, its unit
+    and the options it chose), so it shows on whatever markup the rewrite leaves
+    under those ids, and not at all once one is gone. Advice, since the agent may
+    mean either."""
     drawn = thread_structure(events).fragments.get(message)
     if drawn is None:
         return []
     withdrawn = taken_back(events)
-    acted = dict.fromkeys(
-        event["widget"]
+    acted = {
+        event["widget"]: set(event["meaning"].get("depends") or [event["widget"]])
         for event in events
         if event["kind"] == "action"
         and event["id"] not in withdrawn
         and event["widget"] in drawn.by_id
-    )
-    kept = rewritten.by_id if rewritten is not None else {}
+    }
+    kept = rewritten.ids if rewritten is not None else set()
     return [
         Finding(
             "edit-answered-widget",
             element_at(drawn.by_id[widget]["tag"], widget),
-            {"message": message, "kept": widget in kept},
+            {"message": message, "kept": ids <= kept},
             severity="advice",
         )
-        for widget in acted
+        for widget, ids in acted.items()
     ]
 
 

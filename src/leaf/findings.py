@@ -884,8 +884,8 @@ _TEXT = {
         f" the element would swallow what follows — write {at[:-1]} …></{at[1:-1]}>"
     ),
     "split-pre": lambda at, v: (
-        f"{at} holds a paragraph at line {v['line']}: a blank line inside a block of"
-        " HTML ends the block, and Markdown read the lines after it as paragraphs."
+        f"{at} holds a <{v['block']}> at line {v['line']}: a blank line inside a block"
+        " of HTML ends the block, and Markdown read the lines after it as Markdown."
         " Start the <pre> on its own line after a blank line, or write its text in a"
         " Markdown fence"
     ),

@@ -11,7 +11,7 @@ from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
 from leaf.findings import Finding, Rejected
-from leaf.passages import SourceReading
+from leaf.passages import JOINS_WORDS_TAGS, SourceReading
 from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
@@ -226,27 +226,34 @@ def drawn(markup: str, findings: list[Finding]) -> str:
 
 
 def split_preformatted(frag: SourceDocument) -> list[Finding]:
-    """Each `<pre>` holding a `<p>`, which only a message's Markdown draws there: a
+    """Each `<pre>` holding a block, such as a `<p>`, `<ul>` or `<h1>`, which HTML's
+    content model keeps out of a `<pre>` and only a message's Markdown draws there: a
     blank line inside a block of HTML ends the block, a `<pre>` within it included,
-    and Markdown reads the lines after it as paragraphs. The text keeps its words but
-    loses its blank lines, its indents and any asterisks or underscores, and the HTML
-    stays well formed, so no other check reports it."""
-    return [
-        Finding("split-pre", "<pre>", {"line": SourceDocument._position(paragraph)[0]})
-        for pre in frag.tree.descendants
-        if isinstance(pre, turbohtml.Element) and pre.tag == "pre"
-        for paragraph in [
-            next(
-                (
-                    inner
-                    for inner in pre.descendants
-                    if isinstance(inner, turbohtml.Element) and inner.tag == "p"
-                ),
-                None,
+    and Markdown reads the lines after it as its own blocks. The text loses its blank
+    lines, its indents and any list marks, `#` or asterisks, and the HTML stays well
+    formed, so no other check reports it. A block is any HTML element outside phrasing
+    content (`$passages.phrasing`); a custom element is phrasing content."""
+    findings = []
+    for pre in frag.tree.descendants:
+        if not (isinstance(pre, turbohtml.Element) and pre.tag == "pre"):
+            continue
+        block = next(
+            (
+                inner
+                for inner in pre.descendants
+                if isinstance(inner, turbohtml.Element)
+                and inner.namespace is turbohtml.Namespace.HTML
+                and inner.tag not in JOINS_WORDS_TAGS
+                and "-" not in inner.tag
+            ),
+            None,
+        )
+        if block is not None:
+            line = SourceDocument._position(block)[0]
+            findings.append(
+                Finding("split-pre", "<pre>", {"line": line, "block": block.tag})
             )
-        ]
-        if paragraph is not None
-    ]
+    return findings
 
 
 def message_markup_errors(

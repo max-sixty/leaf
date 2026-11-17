@@ -1975,17 +1975,18 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
 
 def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
     """A blank line ends a block of HTML, a `<pre>` inside a widget included, and
-    Markdown reads the lines after it as paragraphs, so the code loses its blank lines
-    and indents while the HTML stays well formed. A fence, or a `<pre>` opening its own
-    line after a blank line, keeps them."""
+    Markdown reads the lines after it as its own blocks, such as paragraphs or a list,
+    so the code loses its blank lines, indents and marks while the HTML stays well
+    formed. A fence, or a `<pre>` opening its own line after a blank line, keeps them."""
     published(page_dir)
     code = "def a():\n    return 1\n\ndef b():\n    return 2"
-    split = comment(
-        page_dir,
-        "--text",
-        f'Here:\n\n<lf-code id="split">\n<pre>{code}</pre>\n</lf-code>',
-    )
-    assert split.exit_code != 0 and "split-pre" in split.output, split.output
+    for split in (code, "steps:\n\n- build\n- ship"):
+        refused = comment(
+            page_dir,
+            "--text",
+            f'Here:\n\n<lf-code id="split">\n<pre>{split}</pre>\n</lf-code>',
+        )
+        assert refused.exit_code != 0 and "split-pre" in refused.output, refused.output
     for kept in (
         f'<lf-code id="fenced">\n\n```python\n{code}\n```\n\n</lf-code>',
         f'<lf-code id="own-line">\n\n<pre>{code}</pre>\n\n</lf-code>',

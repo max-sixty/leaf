@@ -73,7 +73,7 @@ def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
     author punctuated it. A straight quote opening a title is no closing mark, so the
     chip before it still reads apart. The runtime's `says` shows the same words."""
     document = structure_model.SourceDocument(
-        '<main><lf-option id="punctuated" label="Leave it">; the send keeps '
+        '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps '
         "<code>Foo</code>'s place (<code>beta</code>).</lf-option>"
         '<lf-option id="chipped"><small class="tag">recommended</small>'
         "<strong>Apply</strong>Ship it.</lf-option>"
@@ -227,8 +227,8 @@ def test_a_comment_carries_the_neighbours_that_tell_two_copies_apart(page_dir):
     # row — the runtime writes controls between options, words this reading doesn't
     # hold. The runtime reads its side back the same way, and only a full match counts.
     assert (
-        anchor["prefix"] == "risk: low Backfill first"
-    )  # the option's own chip band, then its title
+        anchor["prefix"] == "st effort: med risk: low"
+    )  # the end of the option's title, then its chip band
     assert anchor["suffix"] == ". My take: do this first"
 
 
@@ -1454,7 +1454,7 @@ def test_a_widgets_said_attribute_is_quotable_like_any_other_passage(page_dir):
     )
     published(page_dir)
     for quote, section in (
-        ("risk: low Backfill first", "backfill-first"),
+        ("Backfill first effort: med", "backfill-first"),
         ("Traffic 312 daily visits", "k-visits"),
     ):
         result = comment(page_dir, "--quote", quote, "--text", "x")

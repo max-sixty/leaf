@@ -5981,9 +5981,10 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
         ),
         (
             '<section id="pick-q" role="group" aria-label="What should a full store do?">'
-            '<lf-options id="pick"><lf-option id="drop" label="Drop the oldest documents"><small class="tag ok">'
-            "recommended</small>Editing "
-            'continues.</lf-option><lf-option id="pause" label="Pause editing' &quot;">Nothing leaves.</lf-option></lf-options></section>",
+            '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
+            "recommended</small><strong>Drop the oldest documents</strong> Editing "
+            'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
+            "</strong> Nothing leaves.</lf-option></lf-options></section>",
             "recommended Drop",
         ),
     ],

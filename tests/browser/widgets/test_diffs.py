@@ -1090,9 +1090,9 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
         serve.page_dir,
         root,
         "Which should it be?",
-        '<lf-options id="mount"><lf-option id="mount-steel">'
-        '<small class="tag ok">recommended</small> <strong>Keep steel</strong>'
-        '</lf-option><lf-option id="mount-plastic" label="Go back to plastic' &quot;">Lighter.</lf-option></lf-options>",
+        '<lf-options id="mount"><lf-option id="mount-steel" label="Keep steel" '
+        'recommended></lf-option><lf-option id="mount-plastic" label="Go back to '
+        'plastic">Lighter.</lf-option></lf-options>',
     )
     page = open_page(browser, url)
     rendered(page)

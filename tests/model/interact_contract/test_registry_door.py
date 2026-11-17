@@ -771,7 +771,7 @@ def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
             "colour",
         ),
         ("lf-option", "markup.refers", {"for": {}, "about": {}}, "about"),
-        ("lf-option", "markup.unique", {"label": "lf-options"}, "label"),
+        ("lf-option", "markup.unique", {"tone": "lf-options"}, "tone"),
     ],
 )
 def test_check_refuses_a_key_naming_an_attribute_the_widget_has_not_got(

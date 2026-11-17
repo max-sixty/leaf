@@ -422,30 +422,19 @@ def test_a_pick_names_only_options_its_group_holds():
     assert admit([*STATED_LOG, added], pick)["detail"] == {"value": ["live-mine"]}
 
 
-@pytest.mark.parametrize(
-    "option_title",
-    [
-        "<strong>Fast path</strong>",
-        "<hgroup><p>Quick delivery</p><h2>Fast path</h2></hgroup>",
-        "<header><hgroup><p>Quick delivery</p><h2>Fast path</h2></hgroup></header>",
-    ],
-    ids=["strong", "hgroup", "header-hgroup"],
-)
-def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
-    option_title,
-):
+def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
     """The served history words a pick from the document it was made in.
 
     A later version that removes the question leaves the row naming the option the
-    user picked, by its title rather than its eyebrow or description, and a withdrawn
-    pick stays a row marked undone. A page whose markup holds no widget declaring
-    `state.history` is not served the reading.
+    user picked, by its label rather than its words, and a withdrawn pick stays a row
+    marked undone. A page whose markup holds no widget declaring `state.history` is not
+    served the reading.
     """
     question = model.leaf_page(
         "Route",
-        f"""<h1>Route</h1>
+        """<h1>Route</h1>
 <lf-options id="route">
-  <lf-option id="fast">{option_title} ships on Friday.</lf-option>
+  <lf-option id="fast" label="Fast path">Ships on Friday.</lf-option>
   <lf-option id="slow">Slow path</lf-option>
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",

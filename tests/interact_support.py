@@ -805,7 +805,10 @@ def let_a_pick_settle_a_thread(page_dir, thread):
     source.write_text(
         source.read_text()
         .replace(PICKS_GROUP, f'<lf-options id="picks" resolves="{thread}">')
-        .replace('<lf-option id="flag-first">', '<lf-option id="flag-first" selected>')
+        .replace(
+            '<lf-option id="flag-first" label="Flag first">',
+            '<lf-option id="flag-first" label="Flag first" selected>',
+        )
     )
 
 

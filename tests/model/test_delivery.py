@@ -694,8 +694,8 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?\n\n"
             + '<lf-options id="gm">\n'
-            '<lf-option id="m-cap"><small class="tag">recommended</small>'
-            "<strong>Cap retries</strong> Bound retry load.</lf-option>"
+            '<lf-option id="m-cap" label="Cap retries" recommended>'
+            "Bound retry load.</lf-option>"
             '<lf-option id="m-alert" label="Alert"></lf-option>'
             "</lf-options>",
         },
@@ -722,7 +722,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     assert 'id="m-cap"' in thread["messages"][0]["text"]
     # And the pick in words, read from that frozen message: the group is left
     # out because it only encloses the option chosen in it.
-    assert shown[0]["says"] == {"m-cap": "recommended Cap retries Bound retry load."}
+    assert shown[0]["says"] == {"m-cap": "Cap retries Bound retry load."}
     assert shown[0]["names"] == {"m-cap": "Cap retries"}
 
     # In force, so a later delivery in this thread carries what the user
@@ -830,7 +830,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     assert session_model.cmd_wait(page_dir) == 0
     _, _, [undone] = delivered(capsys)
     assert undone["says"] == {
-        "flag-first": "effort: low risk: med Flag first Ship dark."
+        "flag-first": "Flag first effort: low risk: med Ship dark."
     }
     assert undone["names"] == {"flag-first": "Flag first"}
 

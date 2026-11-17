@@ -651,7 +651,7 @@ def _fixed(capsys, page_dir, words: str, replacement: str) -> dict:
             "Ship behind a flag.",
             "dark.",
             "behind a flag.",
-            "Flag first Ship behind a flag.",
+            "risk: med Ship behind a flag.",
         ),
         # The quote crosses a link and a code span; the word that changes doesn't.
         (

@@ -28,7 +28,7 @@ OWN = {
         value
         in {"inherit", "0", "var(--lf-code-size)", "max(var(--lf-entry-floor), 1em)"}
     ),
-    "font-weight": lambda value: value in {"inherit", "400", "500", "600"},
+    "font-weight": lambda value: value in {"inherit", "bolder", "400", "500", "600"},
     "line-height": lambda value: (
         value in {"inherit", "0", "1", "var(--lf-ui-lh)", "var(--lf-code-line)"}
     ),

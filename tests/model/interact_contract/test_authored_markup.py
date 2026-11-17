@@ -105,7 +105,8 @@ def test_a_reference_names_any_element_the_page_holds(page_dir, target):
     naming no element."""
     (page_dir / "index.html").write_text(
         PAGE.replace('<section id="plan"', '<section id="Plan_Notes"').replace(
-            '<lf-option id="flag-first">', f'<lf-option id="flag-first" for="{target}">'
+            '<lf-option id="flag-first" label="Flag first">',
+            f'<lf-option id="flag-first" label="Flag first" for="{target}">',
         )
     )
     _status, findings = check_findings(page_dir)

@@ -189,6 +189,6 @@ question asked.
 Immutable inputs are read once for as long as the process keeps the page's memory
 (`page_memory`): a stored revision through `revision_artifact.read_revision`, a
 candidate through the one `SourceReading` its check takes, which the revision it
-activates adopts, and each logged markup fragment through
+activates adopts, and each logged wording's markup through
 `thread_context.logged_fragment`. Markup a writer hands in is parsed afresh at its
 gate.

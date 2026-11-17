@@ -17,6 +17,13 @@ silently into something the user relies on, such as an admitted event or a
 stored decision. Every check, option and special case costs every later
 maintainer, so remove one that buys nothing the agent's next attempt would not.
 
+A reasonable choice is the agent's to make. Leaf helps it choose well and
+reflects back what a choice does, and refuses only input that would break a
+guarantee whatever the agent meant. Where a choice harms the user only in some
+cases, as an edit that relabels an option the user already picked does, Leaf
+accepts it and tells the agent what it did, rather than refusing every choice
+of that kind to stop the worst one.
+
 ## Stage
 
 Leaf has no users, deployment, database or persisted state that constrains new
@@ -298,8 +305,8 @@ components read through selectors and never write, holding no renderer nodes,
 promises or DOM attributes. Widgets draw the complete state, unset and undecided
 values included, and undo never rebuilds widgets or replays authored actions
 into the DOM. A page widget's state is bounded by
-the document version; a widget frozen into a thread message is bounded by its
-thread's window.
+the document version; a widget in a thread message is bounded by its thread's
+window.
 
 A renderer repaints only when something it read through a selector has changed,
 or when whoever changes an input outside the state, such as a draft, calls its

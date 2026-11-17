@@ -48,6 +48,7 @@ from leaf.render_checks import (
     RENDER_VIEWPORT,
     PageNotReady,
     asked_again,
+    open_render_page,
     rendered,
     start_near_work,
     wait_for_probe,
@@ -228,7 +229,7 @@ def run_page_code(browser, url: str) -> list[Finding]:
     never reached; [] is a pass."""
     from playwright.sync_api import Error as PlaywrightError
 
-    page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
+    page = open_render_page(browser, viewport=RENDER_VIEWPORT, color_scheme="light")
     code = PageCode(page)
     try:
         page.goto(asked_again(url))

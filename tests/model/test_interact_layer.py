@@ -4541,7 +4541,7 @@ def test_package_refuses_sources_aliased_to_page_owned_state(
     assert not (layer / "registry.json").exists()
 
 
-def test_page_init_refuses_a_duplicate_package_selection(tmp_path, monkeypatch):
+def test_page_init_selects_a_package_named_twice_once(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "solo"
     package.mkdir()
@@ -4559,8 +4559,9 @@ def test_page_init_refuses_a_duplicate_package_selection(tmp_path, monkeypatch):
         ],
     )
 
-    assert result.exit_code == 2
-    assert "each --package selection may appear only once" in result.output
+    assert result.exit_code == 0, result.output
+    layer = json.loads((tmp_path / "page" / "layer.json").read_text())
+    assert len(layer["packages"]) == 1
 
 
 def test_page_init_refuses_an_empty_package_selection_before_writing(

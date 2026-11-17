@@ -805,18 +805,20 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     from .findings import Rejected
     from .registry.storage import require_registry
     from .thread import fit_title, widget_asks
+    from .thread_context import thread_structure
     from .validation.admission import checked_text
 
     registry = require_registry(page_dir)
     # The asks the agent made there, by title: the threads it opened to ask
     # something, in words or with a widget that asks.
+    drawing = thread_structure(page.events).fragments
     asked_in = {
         event["title"].casefold()
         for event in page.events
         if event["kind"] == "comment"
         and event["author"] == "agent"
         and "title" in event
-        and (event.get("obligation") or widget_asks(event, registry))
+        and (event.get("obligation") or widget_asks(drawing.get(event["id"]), registry))
     }
     for item in asks:
         title, text = fit_title(item["title"]), item["text"]

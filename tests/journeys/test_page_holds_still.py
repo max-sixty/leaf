@@ -166,9 +166,11 @@ def thread_page(serve):
     read = append_agent_reply(
         d, notes, "A short first paragraph.\n\nThe paragraph being read. " + WORDS * 2
     )["id"]
+    # The first two steps take a line each, so with `read` at the reading line the
+    # last message starts inside the window and the reply box below it.
     for n in range(4):
         user(notes, f"And then {n}?")
-        append_agent_reply(d, notes, f"Then step {n}. " + WORDS)
+        append_agent_reply(d, notes, f"Then step {n}. " + (WORDS if n > 1 else ""))
     long = panel_comment(d, "What changed?", {"section": "long"}, "agent")
     user(long, "Show me the lines.")
     lines = append_agent_reply(d, long, LINES)["id"]

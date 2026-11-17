@@ -213,6 +213,10 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
     )
     assert refused(third["id"], reaction["id"]) == "summary-endpoints"
 
+    # One message is a range too; the next summary overlaps it and replaces it.
+    alone = summarize(second["id"], second["id"])
+    assert alone.exit_code == 0, alone.output
+
     described = summarize(second["id"], third["id"])
     assert described.exit_code == 0, described.output
     assert json.loads(described.output)["through"] == third["id"]
@@ -569,9 +573,10 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
     """The hint is the range admission takes, so following it is never refused and
     never leaves older discussion in full above a summary. A rewrite that
     retires a summary leaves its run uncovered above a later one. Where that run is
-    long enough, the hint names it. Where it is too short, the hint names the next
-    long-enough run widened over it, replacing the later summary between them, so a
-    short stretch left above a summary doesn't stop every later hint."""
+    long enough, the hint names it and the later summary. Where it is too short, the
+    hint names the next long-enough run widened over it, so a short stretch left above
+    a summary doesn't stop every later hint. Either way the hint replaces the later
+    summary, and following it leaves the thread one summary."""
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
     )
@@ -601,7 +606,139 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
     if widened:
         assert hint == {"from": reply["id"], "through": newer[4]["id"]}
     else:
-        assert hint == {"from": root["id"], "through": reply["id"]}
+        assert hint == {"from": root["id"], "through": folded[-1]["id"]}
+    assert (
+        command_findings(
+            "thread",
+            "summarize",
+            page_dir,
+            "--from",
+            hint["from"],
+            "--through",
+            hint["through"],
+            "--text",
+            "Earlier.",
+        )
+        == []
+    )
+    read = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert read.exit_code == 0, read.output
+    assert [s["text"] for s in json.loads(read.output)["thread"]["summaries"]] == [
+        "Earlier."
+    ]
+
+
+def test_a_summary_hint_spans_the_summaries_above_its_run(page_dir):
+    """A thread summarized once and grown long again is offered one range from its
+    earlier summary through the new run, so following each hint leaves one summary
+    of the earlier discussion rather than a row of them. It takes in a fold of
+    progress alone, and starts on a message the thread still says, though the user
+    took back the first message an earlier summary named."""
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Plan the rollout."}
+    )
+    spoken = [root]
+
+    def say(author, parent=root):
+        spoken.append(
+            append_carried_log_record(
+                page_dir,
+                {
+                    "kind": "reply",
+                    "author": author,
+                    "parent": parent["id"],
+                    "text": f"Detail {len(spoken)}.",
+                },
+            )
+        )
+
+    progress = [
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking.",
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    thread_model.cmd_summarize(page_dir, progress[0]["id"], progress[-1]["id"], "")
+    say("user")
+    # A reply to it keeps the message in its place once the user takes it back, and
+    # a fold without prose outlives that.
+    say("agent", parent=spoken[1])
+    for author in ("user", "agent"):
+        say(author)
+    thread_model.cmd_summarize(page_dir, spoken[1]["id"], spoken[4]["id"], "")
+    append_carried_log_record(
+        page_dir, {"kind": "undo", "author": "user", "undoes": spoken[1]["id"]}
+    )
+    for author in ("user", "agent", "user", "agent", "user", "agent"):
+        say(author)
+
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [spoken[-1]],
+        page_view_model.PageView(page_dir).within,
+    )
+    assert digest["summary_hint"] == {
+        "from": progress[0]["id"],
+        "through": spoken[-3]["id"],
+    }
+
+    thread_model.cmd_summarize(
+        page_dir, progress[0]["id"], spoken[-3]["id"], "All of it."
+    )
+    read = CliRunner().invoke(
+        cli_model.cli, ["page", "state", str(page_dir), root["id"]]
+    )
+    assert read.exit_code == 0, read.output
+    [summary] = json.loads(read.output)["thread"]["summaries"]
+    assert summary["text"] == "All of it."
+
+
+def test_a_summary_hint_replaces_whole_the_summaries_it_reaches_into(page_dir):
+    """The hint stops short of the newest exchange, so it may end inside a summary
+    that reaches into it. Admission replaces that summary whole, so the hint is
+    widened over the messages it uncovers, and following it is never refused."""
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+
+    def say(author, text="Next?", **extra):
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                "parent": root["id"],
+                "text": text,
+                **extra,
+            },
+        )
+
+    first = say("agent", "y" * 1000)
+    m = [root, first, *(say(author) for author in ("user", "agent", "user", "agent"))]
+    m.append(say("user"))
+    progress = say("agent", "Checking.", ephemeral=True)
+    thread_model.cmd_summarize(page_dir, root["id"], first["id"], "The opening.")
+    thread_model.cmd_summarize(page_dir, m[2]["id"], m[5]["id"], "The middle.")
+    thread_model.cmd_summarize(page_dir, m[6]["id"], progress["id"], "")
+    # Retiring the opening summary leaves its two long messages to suggest.
+    thread_model.cmd_edit(page_dir, first["id"], "y" * 1000 + " Revised.")
+
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [m[-1]],
+        page_view_model.PageView(page_dir).within,
+    )
+    hint = digest["summary_hint"]
+    assert hint == {"from": root["id"], "through": m[5]["id"]}
     assert (
         command_findings(
             "thread",

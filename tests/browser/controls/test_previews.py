@@ -790,7 +790,7 @@ after <a id="to-stall" href="#stall">the reconnect stall</a>; the vendor's notes
 <a id="to-site" href="https://example.com/notes">on their site</a>; the group meets
 at <a id="to-meeting" href="#meeting">the settled meeting point</a>, and support
 has <a id="to-support" href="#support">its own heading</a>.</p>
-<section id="stall"><p>offline editing</p><h2>iOS reconnect stall</h2>
+<section id="stall"><hgroup><p>offline editing</p><h2>iOS reconnect stall</h2></hgroup>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
 <lf-group id="decision" label="Patch decision"><lf-options id="decision-options">

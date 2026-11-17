@@ -164,6 +164,50 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
     }
 
 
+def test_an_edit_moves_what_its_message_asks():
+    """A message asks with the widgets its latest wording holds: an edit that takes a
+    choice out withdraws its question, one that adds a choice asks it, and the panel
+    draws each message's current HTML."""
+    events: list[dict] = [
+        {
+            "kind": "comment",
+            "id": "thread",
+            "author": "agent",
+            "text": "Choose a route.\n\n"
+            + OPTIONS.format(attrs="").replace('id="', 'id="root-'),
+        },
+        {"kind": "comment", "id": "plain", "author": "agent", "text": "Which store?"},
+        {
+            "kind": "edit",
+            "id": "withdraw",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "s1",
+            "message": "thread",
+            "text": "Withdrawn: the later thread asks instead.",
+        },
+        {
+            "kind": "edit",
+            "id": "ask",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "s1",
+            "message": "plain",
+            "text": "Which store?\n\n"
+            + OPTIONS.format(attrs="").replace('id="', 'id="store-'),
+        },
+    ]
+    state = model.reading(page(), events)
+    asked = {item["id"]: item["message"] for item in served_obligations(state)["all"]}
+    assert asked == {"widget:store-choice": "plain"}
+    drawn = {
+        message["id"]: message.get("html", False)
+        for thread in model.threads(state).values()
+        for message in thread["msgs"]
+    }
+    assert drawn == {"thread": False, "plain": True}
+
+
 def test_partial_and_completed_empty_values_are_distinct_from_no_answer_and_undo_reopens():
     document = page("multiple")
     events: list[dict] = [

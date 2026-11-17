@@ -168,11 +168,6 @@
           "description": "The acknowledgement cursor, the greatest `through` a `receipt` in the log holds: the updates through it reached their durable consumer.",
           "type": "integer"
         },
-        "handed": {
-          "description": "The messages the claimant's line forks handed to its main thread that no pickup has taken in yet (`forks.HANDED`), from which, with `fork_lane`, the fold reads the threads Leaf keeps back.",
-          "type": "array",
-          "items": { "type": "string" }
-        },
         "pending": {
           "description": "How many of the user's events past the cursor the agent hasn't taken in.",
           "type": "integer"
@@ -206,27 +201,24 @@
           "type": "boolean"
         },
         "agent_turns": {
-          "description": "The turns of the agents the claimant's session runs beside its main thread, such as a fork that took a thread's work, that are open and not yet lapsed or that the page's log names, by turn id: the agent's id in its harness, or null until the harness starts it, when each opened and was last renewed, and when it closed or null while it is open (`state.agent_turn_stamps`).",
+          "description": "The turns of the agents the claimant's session runs beside its main thread, line turns and working forks', that are open and not yet lapsed or that the page's log names, by turn id: its role, the agent's id in its harness, or null until the harness starts it, when each opened and was last renewed, and when it closed or null while it is open (`state.agent_turn_stamps`).",
           "type": "object",
           "additionalProperties": {
             "type": "object",
             "properties": {
+              "role": { "enum": ["line", "fork"] },
               "agent": { "type": ["string", "null"] },
               "opened": { "type": "string" },
               "renewed": { "type": "string" },
               "closed": { "type": ["string", "null"] }
             },
-            "required": ["agent", "opened", "renewed", "closed"],
+            "required": ["role", "agent", "opened", "renewed", "closed"],
             "additionalProperties": false
           }
         },
         "input_wakes": {
           "description": "Whether the nudge the claimant's next input gets would start a turn of its session's (`Harness.input_wakes`).",
           "type": "boolean"
-        },
-        "fork_lane": {
-          "description": "When the claimant's fork lane came up, in seconds since the epoch, or null while none runs (`forks.lane_since`).",
-          "type": ["number", "null"]
         },
         "session_cwd": {
           "description": "Where the claimant was working when it claimed the page, or null for a page nothing claimed.",
@@ -315,7 +307,6 @@
         "session_alive",
         "live_turn",
         "cursor",
-        "handed",
         "pending",
         "agent",
         "claim_session",
@@ -326,7 +317,6 @@
         "turn_takes_input",
         "agent_turns",
         "input_wakes",
-        "fork_lane",
         "session_cwd",
         "activity",
         "workflows",
@@ -1417,7 +1407,7 @@
             "agent": { "type": "string" },
             "key": { "type": "string" },
             "html": {
-              "description": "An agent's message whose Markdown holds HTML (`thread_context.logged_fragment`), which the browser draws as markup.",
+              "description": "An agent's message whose current Markdown holds HTML (`thread_context.thread_structure`), which the browser draws as markup.",
               "const": true
             },
             "content_version": { "type": "string" },

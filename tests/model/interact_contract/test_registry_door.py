@@ -151,17 +151,6 @@ def test_a_custom_detail_can_be_an_empty_closed_object(page_dir):
     registry_validation.validate_registry(registry, "test registry")
 
 
-def test_the_resolves_attribute_belongs_to_a_widget_with_a_local_obligation(page_dir):
-    """Admission reads `resolves` off the widget whose obligation an action answers, so the
-    name on a widget that asks nothing declares a thread nothing would ever close."""
-    registry = vocabulary(page_dir)
-    registry["lf-board"]["attributes"]["properties"]["resolves"] = {"type": "string"}
-    declare_vocabulary(page_dir, registry)
-    status, findings = check_findings(page_dir)
-    assert status != 0
-    assert found(findings, "reserved-resolves", "<lf-board>")
-
-
 def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
     """A widget that folds user decisions needs an explicit withdrawal route;
     its closed schema must admit the marker that retracts a decision."""

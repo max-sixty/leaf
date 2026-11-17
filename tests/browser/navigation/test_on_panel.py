@@ -239,12 +239,12 @@ SEEN_SHARE = """async (selector) => {
 }"""
 
 
-def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve):
-    """Once the server reads a reply as answering the question it was sent under, while
-    more waits on the user, the panel field's end offers Next On Me. The caret stays in
-    the card's reply box, where `m` is a letter typed, so the press stands without its
-    key and still walks to the next item, whose key it then says. An answer that leaves
-    nothing On Me offers nothing."""
+def test_the_field_s_end_offers_next_on_me_while_on_me_lists_anything(browser, serve):
+    """While anything waits on the user, the panel field's end offers Next On Me with
+    `m`, and still does once an answer leaves one item there. With the caret in the
+    card's reply box, where `m` is a letter typed, the press stands without its key and
+    still walks to the next item, whose key it then says. Once nothing is On Me, the
+    field's end offers it no more."""
     url = serve(QUEUE_PAGE)
     d = serve.page_dir
     asked = append_carried_log_record(
@@ -272,6 +272,9 @@ def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve)
     )
     page = open_page(browser, url)
     expect_on_me(page, 2)
+    press = field_press(page)
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(press.locator("kbd")).to_have_text("m")
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 2 waiting on me · Reply")
     page.keyboard.press("Enter")
@@ -280,7 +283,6 @@ def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve)
     with sending(page, "the reply"):
         page.keyboard.press("ControlOrMeta+Enter")
     expect_on_me(page, 1)
-    press = field_press(page)
     expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
     expect(box).to_be_focused()
     expect(press.locator("kbd")).to_have_count(0)

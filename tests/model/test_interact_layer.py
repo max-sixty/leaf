@@ -2031,20 +2031,23 @@ def _strip_arguments(selector):
 def test_a_rule_s_subject_names_a_key():
     """No subject in the sheets a page composes is keyed only through a list, as
     `:is(.a, .b)`, `:where(p, li)` or a nested `&` under two selectors are, unless a
-    compound before it names a key (browser/AGENTS.md, "A rule's subject names a
-    key"). Each such rule cost every element Chromium restyled a match; about 120 of
-    them raised the style of 20,000 plain rows from 20 ms to 76 ms (Chromium 158, 16
-    November 2026). A subject that can name no key, as `*` and a frame's edge trims,
-    has no list to split, so the test leaves it alone."""
+    compound before it names a key (browser/AGENTS.md, "A rule costs only the
+    elements it could style"). Chromium matched each such rule against every element
+    it restyled: about 120 of them raised its style of 20,000 plain rows from 20 ms to
+    76 ms (Chromium 158, 16 November 2026), where Firefox, which files a list under
+    each member, took 5 ms either way. A subject that can name no key, as `*` and a
+    frame's edge trims, has no list to split, so the test leaves it alone."""
 
     def keys(compound):
         """The parts of the compound that name a key: a type, class, id or attribute,
-        or an `:is()` or `:where()` of one selector whose subject names one."""
+        a shadow host (`:host()`), or an `:is()` or `:where()` of one selector whose
+        subject names one."""
         return [
             part
             for part in _simple_selectors(compound.split("::")[0])
             if part[0].isalpha()
             or part[0] in ".#["
+            or part.startswith(":host")
             or (
                 part.startswith((":is(", ":where("))
                 and len(arguments := _arguments(part)) == 1
@@ -2057,11 +2060,17 @@ def test_a_rule_s_subject_names_a_key():
 
     def listed(compound):
         """Whether the compound is keyed only through a list whose every member names
-        a key, which separate selectors would each file under it."""
+        a key, which separate selectors would each file under it, written in the
+        compound or in an `:is()` or `:where()` of one selector."""
         return not key(compound) and any(
             part.startswith((":is(", ":where("))
-            and len(arguments := _arguments(part)) > 1
-            and all(key(each[-1]) for each in arguments)
+            and (
+                (
+                    len(arguments := _arguments(part)) > 1
+                    and all(key(each[-1]) for each in arguments)
+                )
+                or (len(arguments) == 1 and listed(arguments[0][-1]))
+            )
             for part in _simple_selectors(compound.split("::")[0])
         )
 
@@ -2081,17 +2090,25 @@ def test_a_rule_s_subject_names_a_key():
         other than a type every page's elements stand in."""
         return any(part not in ("html", "body", "main") for part in keys(compound))
 
-    sheets = [
+    # Each file a page composes, its imports included, read once, so a finding names
+    # the file it stands in and a file two sheets import is read once.
+    files = {}
+    for sheet in [
         *_PAGE_SIDE_SHEETS,
         schema_model.ASSETS / "layouts.css",
         schema_model.ASSETS / "state.css",
-    ]
+    ]:
+        root = (
+            schema_model.ASSETS
+            if sheet.is_relative_to(schema_model.ASSETS)
+            else sheet.parent
+        )
+        for each in (sheet, *layer_model.imported_sheets(sheet, root)):
+            files.setdefault(each.resolve(), None)
     found = []
-    for sheet in sheets:
+    for sheet in files:
         where = sheet.relative_to(ROOT)
-        for _conditions, _enclosing, selector, _declarations in _style_rules(
-            sheet, whole=True
-        ):
+        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
             subject = _split_top(selector, " >+~")[-1]
             if listed(subject) and not any(map(filtered, ancestors(selector))):
                 found.append(f"{where}: {selector}")

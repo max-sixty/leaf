@@ -150,8 +150,8 @@ lf-text-document .lf-text-document-run:only-child {
   .lf-text-document-run {
   content-visibility: visible;
   /* Each row's rule names the run as its ancestor, which lets Chromium pass over the
-     rule for an element outside one (browser/AGENTS.md, "A rule's subject names a
-     key"); `&::before` nested in `& > *` names none. */
+     rule for an element outside one (browser/AGENTS.md, "A rule costs only the
+     elements it could style"); `&::before` nested in `& > *` names none. */
   & > * {
     counter-increment: none;
   }

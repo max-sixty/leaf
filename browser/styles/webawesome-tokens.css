@@ -69,8 +69,8 @@ wa-input {
 /* Controls inherit typography through their hosts. Reset the surrounding prose's
    face without overriding the component's size, weight, line height or state ink.
    `:not(:root)` holds the weight of a class over a control's own rules
-   (webawesome.css); each host is named alone, the key a rule is filed under
-   (browser/AGENTS.md, "A rule's subject names a key"). */
+   (webawesome.css); each host is named alone (browser/AGENTS.md, "A rule costs only
+   the elements it could style"). */
 wa-copy-button:not(:root),
 wa-comparison:not(:root),
 wa-radio-group:not(:root),

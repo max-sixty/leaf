@@ -428,8 +428,8 @@ the browser's own. A rendering callback does its layout reads before its writes,
 a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
 in Chromium so can a read of the page's selection, such as `rangeCount`. On a Leaf page a
 forced style also lays out whatever in `body` is out of date, a closed tab's panel
-included, since `body` is a size container (notes/browser-support.md, "A style read
-lays out a size container's contents in Chromium").
+included: `body` is a size container, and a size query reads it
+(notes/browser-support.md, "A style read lays out a size container's contents").
 
 A box that follows page content is positioned by CSS, with an anchor, a sticky offset
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over
@@ -501,21 +501,22 @@ where highlight styles inherit, and there it pins every mark to the root's token
 `color-scheme`, and makes Chromium restyle every element when even a non-inheriting
 custom property changes on `html`.
 
-### A rule's subject names a key
+### A rule costs only the elements it could style
 
-Chromium files each style rule under one id, class, attribute or type its subject
-names, alone or in an `:is()` or `:where()` of one selector, or in a nested rule's `&`
-when the rule it stands in has one selector. A rule filed under none is tested against
-every element on every restyle, unless a compound before the subject names one, which
-Chromium's ancestor filter rejects quickly. A list files under none, so `:is(.a, .b)`,
-`:where(p, li)` and `&::after` under two selectors each cost every element a match: on
-16 November 2026, about 120 such rules raised Chromium's style of 20,000 plain rows
-from 20 ms to 76 ms. Write each member as a selector of its own, as `.a, .b`. Where the
-members weigh differently, name the key at no weight before the list, as
-`:where(.a):is(.a, .b[x])`, which keeps the list's weight, and name one in a nested
-rule under a list, as `&:where(.a)::after`. A subject that can name none, such as `*`
-or a frame's edge trims (`reading.css`), costs its share on every element, so write one
-only for what every element needs. Check: `test_a_rule_s_subject_names_a_key`.
+A rule should cost only the elements it could style. In Chromium, a rule costs every
+element unless it names a key: Chromium files each rule under one id, class, attribute
+or type its subject names, and skips a rule at once for an element whose ancestors lack
+the key an ancestor compound names. A key counts alone, in an `:is()` or `:where()` of
+one selector, or in a nested rule's `&` when the rule it stands in has one selector. A
+list names none, so `:is(.a, .b)`, `:where(p, li)` and `&::after` under two selectors
+each cost every element a match. Write each member as a selector of its own, as
+`.a, .b`. Where a lighter member must keep the list's weight, name the key at no weight
+before the list, as `:where(.a):is(.a, .b[x])`, and in a nested rule under a list name
+one, as `&:where(.a)::after`. Or give the rule an ancestor that names one, as
+`:where(svg) :where(:not(foreignObject *))` does. A subject that can name none, such as
+`*` or a frame's edge trims (`reading.css`), costs every element, so write one only for
+what every element needs. Check: `test_a_rule_s_subject_names_a_key`, whose docstring
+holds the measurement.
 
 ### Layouts, styles and controls
 

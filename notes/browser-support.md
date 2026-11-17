@@ -1113,26 +1113,30 @@ the end of a run or into a run a split has just made (`lf-text-document.js`,
 `regroup`). Recheck by running that reproduction: once the moved row reads its line
 number, a text document may move rows to a run's head again.
 
-### A style read lays out a size container's contents in Chromium
+### A style read lays out a size container's contents
 
 Playwright Chromium 158.0.8127.18 (build 1254) answers `getComputedStyle` for an
-element whose style is out of date inside a size container by laying out everything
-out of date in that container, once any rule under `@container` has matched an
-element in the document, a style query included. Every Leaf page meets both: `body` is
-the `lf-shell` inline-size container (base.css), and the reading face's style queries
-match on every page. So a script's style read in `body` pays for layout too, inside a
-closed tab's `hidden="until-found"` panel as well, which the read unlocks. On
-2026-11-16, 20,000 `div` rows in such a panel, shown again after `display: none`, took
-20 ms of style and 46 ms of the layout the read forced (a trace's `UpdateLayoutTree`
-and `Layout`); with no Leaf sheets, and so no container, the read took 6.5 ms. Page
-search's first read inside a closed tab pays it for the whole panel (`passages.js`,
-`searchableWords`). In Playwright Firefox 159 the same read of shown rows took as long
-as laying them out, 48 to 50 ms, against 7 ms with no Leaf sheets. Leaf
-leaves it: the container gives a narrow column and a widget's `100cqi` the shell's
-width. Recheck with a plain page of 20,000 `div` rows, `body { container-type:
-inline-size }` and `@container style(--x: 1) { div { color: red } }`: time
-`getComputedStyle(lastRow).color` after toggling the rows' parent's `display`. 54 ms
-there against 7 ms without the `@container` rule.
+element whose style is out of date inside a size container by laying out everything out
+of date in that container, once a size query is evaluated against the container,
+whether it matches or not; a style query doesn't do it. Playwright Firefox 159 does it
+for the size container alone. Leaf's `body` is the `lf-shell` inline-size container
+(base.css), and `@container lf-shell (width < 640px)` queries it (`layouts.css`,
+`packages/default/styles/tabs.css`), so on a Leaf page a script's style read inside
+`body` pays for layout too, inside a closed tab's `hidden="until-found"` panel as well,
+which the read unlocks. On 2026-11-16, 20,000 `div` rows in such a panel, shown again
+after `display: none`, took 20 ms of style and 46 ms of the layout the read forced in
+Chromium (a trace's `UpdateLayoutTree` and `Layout`), and 6.5 ms for the whole read
+with no Leaf sheets. Page search's first read inside a closed tab pays it for the
+whole panel (`passages.js`, `searchableWords`). Leaf leaves it for now, since the
+container gives a narrow column and a widget's `100cqi` the shell's width. Rewriting
+the two `lf-shell` size queries would cost less than giving up the container and may
+lift it in Chromium, though not in Firefox; it is untested on a Leaf page, where the
+`cqi` lengths read the same container. Recheck on a plain page of 20,000 `div` rows
+under `body { container-type: inline-size }`, timing `getComputedStyle(lastRow).color`
+after toggling the rows' parent's `display`: in Chromium, 46 to 47 ms with
+`@container (max-width: 1px) { div { color: red } }`, which matches nothing, and 7.5 ms with
+`@container style(--x: 1) { div { color: red } }` in its place; in Firefox, 33 to 35
+ms with either rule or none, against 6 ms without the container.
 
 ### Styling content Firefox skips
 

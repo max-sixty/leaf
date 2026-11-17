@@ -459,72 +459,40 @@ a[data-lf-external]::after,
    contour of each shape it draws, as that shape's stroke, so a diamond's mark follows
    its sides: no outline, brackets, veil or gap. The stroke is important, as the
    outline is, so a drawing's own stroke rules leave the mark standing while it shows;
-   its words keep their own. A comment's mark there takes the quieter contour ink. */
-:where(svg *:not(foreignObject *)):where([data-lf-aimed]),
-:where(svg *:not(foreignObject *)):where([data-lf-traced]),
-:where(svg *:not(foreignObject *)):where([data-lf-proxied]),
-:where(svg *:not(foreignObject *)):where([data-lf-mark]),
-:where(svg *:not(foreignObject *)):where([data-lf-projected-location]) {
+   its words keep their own. A comment's mark there takes the quieter contour ink.
+   `svg` stands as an ancestor of its own, by which Chromium passes over these rules
+   outside a drawing (browser/AGENTS.md, "A rule costs only the elements it could
+   style"). */
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ) {
   --lf-shape-ink: var(--lf-band-ink, var(--lf-accent));
   --lf-shape-w: var(--lf-band-w, var(--lf-focus-ring-w));
   outline-style: none !important;
   clip-path: none;
   box-shadow: none;
 }
-:where(svg *:not(foreignObject *)):where([data-lf-aimed]):where(
-    path,
-    rect,
-    circle,
-    ellipse,
-    line,
-    polyline,
-    polygon
-  ),
-:where(svg *:not(foreignObject *)):where([data-lf-traced]):where(
-    path,
-    rect,
-    circle,
-    ellipse,
-    line,
-    polyline,
-    polygon
-  ),
-:where(svg *:not(foreignObject *)):where([data-lf-proxied]):where(
-    path,
-    rect,
-    circle,
-    ellipse,
-    line,
-    polyline,
-    polygon
-  ),
-:where(svg *:not(foreignObject *)):where([data-lf-mark]):where(
-    path,
-    rect,
-    circle,
-    ellipse,
-    line,
-    polyline,
-    polygon
-  ),
-:where(svg *:not(foreignObject *)):where([data-lf-projected-location]):where(
-    path,
-    rect,
-    circle,
-    ellipse,
-    line,
-    polyline,
-    polygon
-  ),
-:where(svg *:not(foreignObject *)):where([data-lf-aimed])
-  :where(path, rect, circle, ellipse, line, polyline, polygon),
-:where(svg *:not(foreignObject *)):where([data-lf-traced])
-  :where(path, rect, circle, ellipse, line, polyline, polygon),
-:where(svg *:not(foreignObject *)):where([data-lf-proxied])
-  :where(path, rect, circle, ellipse, line, polyline, polygon),
-:where(svg *:not(foreignObject *)):where([data-lf-mark])
-  :where(path, rect, circle, ellipse, line, polyline, polygon),
-:where(svg *:not(foreignObject *)):where([data-lf-projected-location])
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ):where(path, rect, circle, ellipse, line, polyline, polygon),
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  )
   :where(path, rect, circle, ellipse, line, polyline, polygon) {
   stroke: var(--lf-shape-ink) !important;
   stroke-width: var(--lf-shape-w) !important;
@@ -781,39 +749,21 @@ summary {
 }
 /* Adjacent whole threads are ruled apart; parts belong to their author's
    transcript. An outlet contains only whole cards, its resolved group and the comment
-   box; there, inert outgoing pixels may stand between the live neighbors. Each
-   selector names its subject's class first, at no weight, the key a rule is filed
-   under (browser/AGENTS.md, "A rule's subject names a key"). */
-:where(.lf-page-thread):is(
-  .lf-page-thread:not(.lf-primary-part, [inert])
-    + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-  [data-lf-thread-surface]
-    > .lf-page-thread:not([inert])
-    ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
-),
-:where(.lf-resolved-threads):is(
-  .lf-page-thread:not(.lf-primary-part, [inert])
-    + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-  [data-lf-thread-surface]
-    > .lf-page-thread:not([inert])
-    ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
-) {
+   box; there, inert outgoing pixels may stand between the live neighbors. */
+.lf-page-thread:not(.lf-primary-part, [inert])
+  + .lf-page-thread:not(.lf-primary-part, [inert]),
+.lf-page-thread:not(.lf-primary-part, [inert]) + .lf-resolved-threads,
+[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-page-thread:not([inert]),
+[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads {
   margin-top: var(--lf-sp-3);
 }
-:where(.lf-page-thread):is(
-    .lf-page-thread:not(.lf-primary-part, [inert])
-      + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-    [data-lf-thread-surface]
-      > .lf-page-thread:not([inert])
-      ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
-  )::before,
-:where(.lf-resolved-threads):is(
-    .lf-page-thread:not(.lf-primary-part, [inert])
-      + :is(.lf-page-thread:not(.lf-primary-part, [inert]), .lf-resolved-threads),
-    [data-lf-thread-surface]
-      > .lf-page-thread:not([inert])
-      ~ :is(.lf-page-thread:not([inert]), .lf-resolved-threads)
-  )::before {
+.lf-page-thread:not(.lf-primary-part, [inert])
+  + .lf-page-thread:not(.lf-primary-part, [inert])::before,
+.lf-page-thread:not(.lf-primary-part, [inert]) + .lf-resolved-threads::before,
+[data-lf-thread-surface]
+  > .lf-page-thread:not([inert])
+  ~ .lf-page-thread:not([inert])::before,
+[data-lf-thread-surface] > .lf-page-thread:not([inert]) ~ .lf-resolved-threads::before {
   content: "";
   position: absolute;
   inset-inline: var(--lf-sp-1);

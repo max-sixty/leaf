@@ -80,8 +80,8 @@
 /* A reaction's states, wherever one shows them: a strip's token, and a reaction among
    the response bar's choices, whose role keeps only its own resting ground (the
    response face, below). The margin draws a reaction as an entry (below). A reaction
-   is named first at no weight, the key the rule is filed under, and the list after it
-   keeps the rule's weight (browser/AGENTS.md, "A rule's subject names a key"). */
+   is named first at no weight, and the list after it keeps the rule's weight
+   (browser/AGENTS.md, "A rule costs only the elements it could style"). */
 :where(.lf-reaction):is(.lf-reaction, .lf-response-face[aria-pressed]),
 .lf-response-face[aria-pressed] {
   color: var(--lf-muted);
@@ -1365,43 +1365,20 @@ wa-copy-button.lf-icon-action {
    when another thread on the same carrier has active agent work. Progress stays in the
    status words and the one arrival pulse rather than competing for the attention
    colour. */
-:where(
-    .lf-margin-face[data-lf-agent-workflow],
-    .lf-page-map-action[data-lf-agent-workflow]
-  )
-  .lf-margin-entry-icon,
-:where(
-    .lf-margin-face[data-lf-agent-workflow],
-    .lf-page-map-action[data-lf-agent-workflow]
-  )
-  .lf-margin-entry-glyph,
-:where(
-    .lf-margin-face[data-lf-agent-workflow],
-    .lf-page-map-action[data-lf-agent-workflow]
-  )
-  .lf-margin-kind {
+:where(.lf-margin-face[data-lf-agent-workflow])
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
+:where(.lf-page-map-action[data-lf-agent-workflow])
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-work);
 }
-:where(
-    .lf-margin-face[data-lf-kinds~="comment"],
-    .lf-page-map-action[data-lf-map-item^="comment:"]
-  )
-  .lf-margin-entry-icon,
-:where(
-    .lf-margin-face[data-lf-kinds~="comment"],
-    .lf-page-map-action[data-lf-map-item^="comment:"]
-  )
-  .lf-margin-entry-glyph,
-:where(
-    .lf-margin-face[data-lf-kinds~="comment"],
-    .lf-page-map-action[data-lf-map-item^="comment:"]
-  )
-  .lf-margin-kind {
+:where(.lf-margin-face[data-lf-kinds~="comment"])
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
+:where(.lf-page-map-action[data-lf-map-item^="comment:"])
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-thread);
 }
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"] .lf-margin-entry-icon,
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"] .lf-margin-entry-glyph,
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"] .lf-margin-kind {
+:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-turn-ink);
 }
 /* A row that says the thread's word at its end, in Threads and the Page Map, says the

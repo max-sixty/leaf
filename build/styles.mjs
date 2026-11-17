@@ -315,7 +315,8 @@ function rewrite(selector, map) {
  * key its compound, as a face's list of classes does (`:is(.lf-btn, .lf-icon-action)`).
  * A compound keyed by no class, id, type or attribute files its rule under none, and
  * Chromium tests such a rule against every element on every restyle
- * (browser/AGENTS.md, "A rule's subject names a key"); one alternative each keys it.
+ * (browser/AGENTS.md, "A rule costs only the elements it could style"); one
+ * alternative each keys it.
  * Every rule here weighs nothing (`weightless`), so the copies rank as the one did.
  * @param {any[]} written
  * @returns {any[][]} */

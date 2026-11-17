@@ -65,7 +65,9 @@ An empty box's words are Leaf's too, since the agent didn't write them, and each
 in an ellipsis: a comment box's (“Reply…”, “Comment…”) and a search's prompt (“Find
 text…”, “Filter files…”). Words nobody says are the interface's, in its ordinary face: the
 name of a control, list or thing (“On Me”, “Threads”, a thread's title, Draw mode), and
-where the user stands (“3 of 11”, a time).
+where the user stands (“3 of 11”, a time). A seat that also carries the agent's words,
+as the comment field does, holds only the agent's and Leaf's: there Leaf says the names
+and places too, since the interface's upright face would read as the agent's.
 Neither they nor Leaf's italic words narrate the agent from outside (“Claude is
 working”, “Waiting for Claude”), which puts a third party between the user and the
 agent; Leaf names the agent only where the agent isn't the one acting, as in “Queued

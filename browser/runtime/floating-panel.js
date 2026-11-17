@@ -240,6 +240,7 @@ import { keys } from "./keyboard/scopes.js";
 import { pageCommand, pageDoor, pageRung } from "./keyboard/register.js";
 import {
   advertisesKeys,
+  labelOf,
   parsed,
   spell,
   titleOf as rowTitle,
@@ -408,6 +409,10 @@ const GROUPS = Object.freeze([
 ]);
 // Rows held elsewhere, so the menu and its groups leave them out: by the menu's foot.
 const FOLD = "panel.floating.fold";
+// Versions, a destination of the Go-to sequence, whose keys Open latest wears before
+// Versions' own key for the latest while `g` would open the sequence (`latestPress`).
+const VERSIONS = "version.open";
+const GO_TO_OPEN = "navigation.go-to.open";
 // A thread's row in Threads, which names the thread by its key.
 const THREAD_ROW = ".lf-fp-thread[data-lf-key]";
 const HELD_ELSEWHERE = Object.freeze(["keyboard", `command:${FOLD}`]);
@@ -1177,8 +1182,10 @@ export function createFloatingPanel({
   // with the key that makes it; the page field's other readings end in the press the
   // moment offers (`offer`), else in Comment and the key that enters the field. Every
   // reading, and the words standing before the reply, are said by the agent or by
-  // Leaf, each in its face (voice.js), and read dim (floating-panel.css). A stance's
-  // name and the words quoted are nobody's.
+  // Leaf, each in its face (voice.js), and read dim (floating-panel.css). The field
+  // carries the agent's words, so nothing in it is nobody's: Leaf says a stance's name,
+  // where the user stands and the words quoted, since the interface's upright face would
+  // read as the agent's (the user's choice, 16 November 2026).
   const HIDDEN = "Annotations hidden";
   // A notice offering a press after the user's own gesture is newer than any error the
   // field says, so while it passes it says its words over that error,
@@ -1227,8 +1234,8 @@ export function createFloatingPanel({
       ? leafSays(`${counted(comparisonChanges().length, "change")} since ${base.name}`)
       : null;
     const parts = [
-      stance,
-      shown,
+      stance === null ? null : leafSays(stance),
+      shown === null ? null : leafSays(shown),
       compared,
       annotationsHidden() ? leafSays(HIDDEN) : null,
     ].filter((part) => part !== null);
@@ -1268,9 +1275,11 @@ export function createFloatingPanel({
         offers: true,
         words: [
           ...standing(stance, true),
-          [navigationWords(), `“${excerptWords(selectedWords.quote, 60)}”`]
-            .filter(Boolean)
-            .join(" · "),
+          leafSays(
+            [navigationWords(), `“${excerptWords(selectedWords.quote, 60)}”`]
+              .filter(Boolean)
+              .join(" · "),
+          ),
         ],
       };
     // A notice says its words in the empty field's, and the press it offers, such as
@@ -1286,7 +1295,11 @@ export function createFloatingPanel({
       const own = notice.press ? noticePress(notice.press) : null;
       const close = own || !stance ? null : stanceClose();
       const lead =
-        notice.news || key ? (stance ? [`${stance} · `] : []) : standing(stance, true);
+        notice.news || key
+          ? stance
+            ? [leafSays(`${stance} · `)]
+            : []
+          : standing(stance, true);
       return {
         says: "notice",
         words: [...lead, ...[noticeWords(notice.message)].flat()],
@@ -1303,12 +1316,15 @@ export function createFloatingPanel({
         exits: Boolean(close),
       };
     }
-    if (!key)
+    if (!key) {
+      const lead = standing(null, true);
       return {
         says: "status",
-        words: [...standing(null, true), ...status().summaryParts],
+        lead,
+        words: [...lead, ...status().summaryParts],
         offer: pagePress(),
       };
+    }
     return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
   }
   // The press offered alone on the page: Open latest while the page shows an older
@@ -1351,8 +1367,8 @@ export function createFloatingPanel({
     const away = Boolean(position) && !currentLocationIn(host);
     const settled = drawn.resolvedBy ? leafSays(drawn.resolvedBy) : RESOLVED;
     const word = away ? null : drawn.resolved ? settled : drawn.attention?.word;
-    if (!word) return position;
-    return voiced([word, ...(position ? [` · ${position}`] : [])]);
+    if (!word) return position && voiced(leafSays(position));
+    return voiced([word, ...(position ? [leafSays(` · ${position}`)] : [])]);
   }
   // What the focused field says: the word it says at rest, as every comment box does
   // with the caret in, which the user chose over naming where the
@@ -1384,8 +1400,14 @@ export function createFloatingPanel({
   /** @param {string | null} key @param {Element | null} input
    * @param {import("./thread/thread-card.js").DrawnThread | null} [drawn] */
   function fieldHint(key, input, drawn = null) {
-    const { words } = fieldReading(key, input, drawn);
+    const { words, lead = [] } = fieldReading(key, input, drawn);
     const parts = [words].flat();
+    // Where the user stands, before the status, is drawn apart from it, so the ink a
+    // status that asks wears stays the status's (floating-panel.css).
+    if (lead.length)
+      return html`<span class="lf-fp-standing">${statusParts(lead)}</span>${statusParts(
+          parts.slice(lead.length),
+        )}`;
     return wordsText(words) &&
       (!voiceOf(words) ||
         parts.some(
@@ -1674,6 +1696,22 @@ export function createFloatingPanel({
   //   Versions, opens over the menu, so its way back returns there.
   // - `keys`: the page's keys it acts on itself while it stands, and `claims`, those it
   //   rests (the declaration on the view, below).
+  // Versions' key for the live page, from an older version: what Open latest does, where
+  // a version's digit opens that version pinned, so it stays as later versions land. It
+  // puts Versions away as a digit does (`showVersion`); its row in the list is a
+  // finger's route.
+  /** @type {import("./keyboard/bindings.js").Command} */
+  const latestRow = {
+    id: "panel.floating.versions.latest",
+    keys: ["l"],
+    title: "latest version",
+    touch: false,
+    when: () => {
+      const { latest } = versionsReading();
+      return latest.shown !== null && !latest.disabled;
+    },
+    run: () => putAwayThen(() => versionPicker.latest()),
+  };
   /** @type {PanelViews} */
   const VIEWS = Object.freeze({
     menu: {
@@ -1770,6 +1808,7 @@ export function createFloatingPanel({
             showVersion(chosen.entry);
           },
         },
+        latestRow,
       ],
       claims: (binding) => {
         const { key, mods } = parsed(binding);
@@ -5131,16 +5170,29 @@ export function createFloatingPanel({
   }
   // Open latest, which the field's end offers while the page shows an older version
   // than the latest, as its words say first (`standing`), when no other press is
-  // offered there (`pagePress`), with no key, since none opens the latest. Its verb says
-  // it acts: "Latest" alone, in the dim face every word at the field's end wears, read
-  // as a status. The menu's row that opens the latest offers it too.
+  // offered there (`pagePress`). Its verb and its keys say it acts, as every other
+  // press at the field's end says its key: "Latest" alone, in the dim face every word
+  // at the field's end wears, read as a status. Its keys are Versions' `g V` and then
+  // Versions' own `l` (`latestRow`), which opens the live page as the press does, where
+  // a version's digit there opens that version pinned; they stand only while `g` would
+  // open the Go-to sequence now, so not while the caret is in a box. The menu's row
+  // that opens the latest offers it too.
   /** @returns {import("./composing/input.js").BoxPress | null} */
   function latestPress() {
     const { latest } = versionsReading();
     if (latest.shown === null || latest.disabled) return null;
-    // The press puts nothing away: a revision installed under an open thread hands
-    // back the reply being written there (version.js, `restoreEditingContinuity`).
-    return { word: "Open latest", keys: [], run: () => versionPicker.latest() };
+    return {
+      word: "Open latest",
+      // Read at each ask, as a notice's press's key is (`noticePress`).
+      get keys() {
+        return activeCommandLabel([GO_TO_OPEN])
+          ? [...commandSteps(VERSIONS), labelOf(latestRow)]
+          : [];
+      },
+      // The press puts nothing away: a revision installed under an open thread hands
+      // back the reply being written there (version.js, `restoreEditingContinuity`).
+      run: () => versionPicker.latest(),
+    };
   }
 
   // ---------- gestures ----------

@@ -643,6 +643,12 @@
     leaf-text[data-lf-says="status"]::part(placeholder) {
     color: color-mix(in srgb, var(--lf-fp-asks) 84%, transparent);
   }
+  /* Where the user stands, before the status (floating-panel.js, `fieldHint`), keeps
+     the empty field's quiet face whatever ink the status wears: the user's own choices
+     ask nothing of them. */
+  .lf-fp-field leaf-text[data-lf-says="status"] .lf-fp-standing {
+    color: var(--lf-quiet);
+  }
   .lf-floating-panel[data-lf-asks] {
     --lf-fp-asks: var(--lf-ink);
   }

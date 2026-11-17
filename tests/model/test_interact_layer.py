@@ -2036,7 +2036,14 @@ def test_a_rule_s_subject_names_a_key():
     it restyled: about 120 of them raised its style of 20,000 plain rows from 20 ms to
     76 ms (Chromium 158, 16 November 2026), where Firefox, which files a list under
     each member, took 5 ms either way. A subject that can name no key, as `*` and a
-    frame's edge trims, has no list to split, so the test leaves it alone."""
+    frame's edge trims, has no list to split, so the test leaves it alone.
+
+    Chromium's selector stats, not this test, measure what a rule costs: its ancestor
+    filter is a Bloom filter, so an ancestor's key passes over a rule only where its
+    hash misses the bits the element's ancestors set. On a Leaf page's rows,
+    `[data-lf-turn="user"]` alone matched those bits and its rule was matched in full
+    on every row, and naming `.lf-margin-face` beside it let the filter reject it
+    (Chromium 158, 16 November 2026)."""
 
     def keys(compound):
         """The parts of the compound that name a key: a type, class, id or attribute,

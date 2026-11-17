@@ -1377,7 +1377,9 @@ wa-copy-button.lf-icon-action {
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-thread);
 }
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
+.lf-margin-face[data-lf-turn="user"]
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
+.lf-page-map-action[data-lf-turn="user"]
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-turn-ink);
 }

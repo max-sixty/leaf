@@ -111,5 +111,3 @@ For recordings compared inside `lf-motion`, use its shared transport as the moti
 package's author instructions describe. Leaf
 accepts MP4 and WebM video and MP3, M4A, Ogg and WAV audio. An export embeds each
 recording whole, a third larger, so trim recordings to what the reader needs.
-
-Put invented examples inside `lf-sample` and make them visibly fictional.

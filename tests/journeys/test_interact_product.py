@@ -24,6 +24,7 @@ import leaf.validation.command as checking_command
 from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf.registry import storage as registry_storage
+from leaf.thread_context import logged_fragment
 from leaf_dev.example_data import authored_sources, named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
@@ -132,7 +133,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
             event
             for line in example.with_suffix(".jsonl").read_text().split("\n")
             if line.strip()
-            and ((event := json.loads(line)).get("html") or event.get("obligation"))
+            and (logged_fragment(event := json.loads(line)) or event.get("obligation"))
         ]
         if not fragments:
             continue
@@ -203,15 +204,14 @@ def test_reply_validates_widget_markup(page_dir):
             ],
         )
 
-    bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
+    bad = reply('<lf-diagram id="f">\n<pre>graph LR</pre><b>x</b></lf-diagram>')
     assert bad.exit_code != 0
     assert "its body is one <pre> holding the text" in bad.output
-    good = reply('<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
+    good = reply('<lf-diagram id="f">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
     assert good.exit_code == 0, good.output
     event = events_model.read_events(page_dir)[-1]
     assert event["kind"] == "reply"
     assert event["author"] == "agent"
-    assert event["html"] is True
     assert event["text"].startswith("See:\n\n<lf-diagram")
 
 
@@ -266,7 +266,7 @@ def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_d
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            'See:\n\n<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>\n'
+            'See:\n\n<lf-diagram id="f">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>\n'
             '<script type="module">throw new Error("inert-message-script")</script>',
         ],
     )
@@ -296,12 +296,10 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            'Fixed in `poll()`.\n\n<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
+            'Fixed in `poll()`.\n\n<lf-diagram id="fix">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],
     )
     assert result.exit_code == 0, result.output
     wire = {e["kind"]: e for e in page_state(page_dir)["events"]}
     assert wire["comment"]["text"] == "two things:\n\n- one\n- **two**"
-    assert "html" not in wire["comment"]
-    assert wire["reply"]["html"] is True
     assert wire["reply"]["text"].startswith("Fixed in `poll()`.\n\n<lf-diagram")

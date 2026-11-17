@@ -1551,7 +1551,6 @@ def thread_reply(
             resolve_dir(destination),
             {"parent": message},
             text,
-            html=True,
             validate_source=True,
             **options,
         )
@@ -1575,7 +1574,7 @@ def thread_reply(
     # An answer that declares nothing must carry a widget that asks; `post_reply`
     # refuses it otherwise (`undeclared-answer`).
     options["asks_back"] = not declared and answers
-    return post_response(destination, text, html=True, **options)
+    return post_response(destination, text, **options)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")

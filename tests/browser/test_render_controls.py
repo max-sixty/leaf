@@ -329,6 +329,3 @@ def test_live_samples_preserve_optimistic_refusal_and_child_escape(browser, serv
     panel_settled(child, open=False)
     page.keyboard.press("Escape")
     expect(sample).to_be_focused()
-
-
-import pytest

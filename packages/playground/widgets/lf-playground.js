@@ -661,15 +661,21 @@ customElements.define(
       }
     }
 
+    // A choice records the controls' values. It still matches when a reload restored
+    // one of its values before that contributor registered, and ignores a name the
+    // settings hold that neither the choice nor any control does, such as a field an
+    // earlier revision had.
     #chosen() {
       const choice = this.state?.choose;
-      return Boolean(
-        choice &&
-        "action" in choice &&
-        choice.action &&
+      if (!choice || !("action" in choice) || !choice.action) return false;
+      const recorded = /** @type {Configuration} */ (choice.detail.values);
+      const waiting = Object.entries(this.#pendingValues).filter(([name]) =>
+        Object.hasOwn(recorded, name),
+      );
+      return (
         choice.detail.instruction === this.#instruction() &&
-        configurationJSON(choice.detail.values) ===
-          configurationJSON({ ...this.#pendingValues, ...this.values }),
+        configurationJSON(recorded) ===
+          configurationJSON({ ...Object.fromEntries(waiting), ...this.#values })
       );
     }
 

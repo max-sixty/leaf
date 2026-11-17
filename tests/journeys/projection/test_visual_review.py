@@ -5,8 +5,6 @@ from browser.projection.test_visual_review import SELECTED, VISUAL_REVIEW_GALLER
 from playwright.sync_api import expect
 from render_harness import expect_on_me, open_page, sending, undo
 
-from leaf_dev.browser import open_on_me
-
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
@@ -15,6 +13,7 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     page = open_page(browser, serve(VISUAL_REVIEW_GALLERY))
     widget = page.locator("#visual-review-run")
     case = widget.locator(SELECTED)
+    count = page.locator(".lf-fp-on-user")
     expect_on_me(page, 3)
     first = "open-mobile-package-catalog"
     second = "keep-mobile-destinations"
@@ -37,7 +36,7 @@ def test_visual_review_cases_are_independent_on_me_obligations(browser, serve):
     expect(case.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
     # The On Me row uses the same destination, even while another case is shown.
-    open_on_me(page)
+    count.click()
     card = page.locator(".lf-fp-on-item").filter(
         has=page.get_by_text("Optional packages get focused destinations", exact=True)
     )

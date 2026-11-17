@@ -15,6 +15,7 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
+    post_event,
     put_preview_away,
     resized,
     round_trip,
@@ -1737,3 +1738,42 @@ def test_playground_candidates_keep_previews_operable_and_submit_one_choice(
     expect(
         page.get_by_text("Checkout · deployed · 18 checks passed", exact=True)
     ).to_be_visible()
+
+
+def test_a_choice_made_while_the_settings_hold_a_retired_field_reads_as_chosen(
+    browser, serve
+):
+    """Settings the log holds for a name no control of this revision draws, such as a
+    field an earlier revision had, stay out of what a choice records, so the page's
+    contract still admits it, and the button then offers to undo the choice rather
+    than send the same settings again."""
+    url = serve(named_source("notification-playground"))
+    page = open_page(browser, url)
+    playground = page.locator("#notification-playground")
+    choose = playground.locator(".lf-playground-submit")
+    values = playground.evaluate("root => ({...root.values})")
+    response = post_event(
+        page,
+        url.rsplit("/versions/", 1)[0] + "/api/event",
+        data={
+            "kind": "action",
+            "revision": events_model.read_events(serve.page_dir)[-1]["revision"],
+            "widget": "notification-playground",
+            "action": "tune",
+            "detail": {"values": {**values, "retired": "kept"}},
+        },
+    )
+    assert response.ok
+    wait_for(
+        lambda: playground.evaluate(
+            "root => root.state?.tune?.detail?.values?.retired"
+        ),
+        lambda retired: retired == "kept",
+        failure="the page never read the other tab's settings",
+    )
+
+    choose.press("Enter")
+    expect(choose).to_have_text("Undo choice")
+    round_trip(page)
+    expect(choose).to_have_text("Undo choice")
+    assert actions(serve.page_dir)[-1]["detail"]["values"] == values

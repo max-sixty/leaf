@@ -46,7 +46,6 @@ from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -148,7 +147,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         if view.count():
             page.locator(".lf-fp-close").click()
             panel_settled(page, open=False)
-        open_on_me(page)
+        page.locator(".lf-fp-on-user").click()
         panel_settled(page, view="queue")
         expect(view.locator(f'{items}[data-lf-list="you"]')).to_have_count(count)
         if not count:

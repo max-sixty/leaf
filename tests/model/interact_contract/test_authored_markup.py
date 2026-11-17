@@ -400,7 +400,6 @@ def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
                 "author": "agent",
                 "revision": 1,
                 "text": f"Try:\n\n{sample}",
-                "html": True,
             },
         ]
         findings = sample_holder_findings(
@@ -464,8 +463,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
-            "text": 'An answer\n\n<lf-code id="duplicate"><pre><code class="language-python">1</code></pre></lf-code>',
-            "html": True,
+            "text": 'An answer\n\n<lf-code id="duplicate">\n<pre><code class="language-python">1</code></pre></lf-code>',
         },
     )
     (page_dir / "index.html").write_text(
@@ -796,7 +794,7 @@ def test_sample_fixture_refusals_reach_page_check(
     [
         ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown-widget"),
         (
-            '<lf-code id="child"><pre><code class="language-python">1</code></pre></lf-code>',
+            '<lf-code id="child">\n<pre><code class="language-python">1</code></pre></lf-code>',
             "ids-taken",
         ),
         (
@@ -812,7 +810,6 @@ def test_sample_fixture_message_markup_uses_the_message_gate(page_dir, markup, c
                 "kind": "comment",
                 "author": "agent",
                 "text": f"Example\n\n{markup}",
-                "html": True,
             }
         ]
     )

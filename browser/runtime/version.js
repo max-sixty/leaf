@@ -449,40 +449,17 @@ function menuRows(state, notes, active) {
 /** @param {import("../types/contract.js").ServedState | null} state */
 function pickerModel(state) {
   const active = runtime.active;
-  const base = diffOn.value ? diffBase.value : null;
   const offered = state !== null && versionsOffered();
   const behind = active !== null && behindCurrent();
   const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
-  const currentLabel = runtime.currentLabel ?? "Draft";
-  const newer = behind ? `; ${active.label} available` : "";
   return Object.freeze({
-    picker: Object.freeze({
-      offered,
-      token: currentVersionToken(),
-      compared: diffOn.value || diffPendingBase.value !== null,
-      news: behind,
-      keyTitle: offered
-        ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading a comparison with ${diffPendingBase.value.name}${newer}`
-          : base
-            ? `${currentLabel}: showing what changed since ${base.name} — pick a version, or press Compare again to stop${newer}`
-            : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
-        : currentLabel,
-      ariaLabel: offered
-        ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading comparison with ${diffPendingBase.value.name}; open versions${newer}`
-          : base
-            ? `${currentLabel}: comparing with ${base.name}; open versions${newer}`
-            : `${currentLabel}: open versions${newer}`
-        : currentLabel,
-    }),
+    picker: Object.freeze({ offered, token: currentVersionToken() }),
     latest: Object.freeze({
       // The agent's latest save failed its check, so the page shows the last one that
       // passed; `error` is what the check said.
       failed: sourceFailed,
       error: state && sourceFailed ? state.source_error : null,
       disabled: sourceFailed,
-      keyTitle: state && sourceFailed ? state.source_error : "Open the current page",
       label: latestVersionLabel({
         failed: sourceFailed,
         activeLabel: behind ? active.label : null,
@@ -499,10 +476,7 @@ function pickerModel(state) {
       base:
         (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ??
         null,
-      currentRevision: runtime.currentRevision,
       on: diffOn.value,
-      pendingBase: diffPendingBase.value,
-      baseRevision: diffBase.value?.revision ?? null,
     }),
   });
 }

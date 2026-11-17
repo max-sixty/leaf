@@ -1292,7 +1292,6 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
             "parent": "native-thread",
             "text": "Choose a channel.\n\n"
             '<lf-options id="native-channel"><lf-option id="native-email">Email</lf-option></lf-options>',
-            "html": True,
         },
     ]:
         append_carried_log_record(serve.page_dir, event)
@@ -1365,7 +1364,6 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
                 '<lf-options id="channel">'
                 '<lf-option id="email">Email</lf-option></lf-options>'
             )
-            event["html"] = True
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     reader = page.locator("#reader")
@@ -1396,7 +1394,6 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
             "revision": 1,
             "text": "Which extras?\n\n"
             '<lf-options id="extras" multiple><lf-option id="extra-chat" selected>Chat</lf-option></lf-options>',
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -1675,7 +1672,6 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
             "parent": "question",
             "text": "Choose a direction.\n\n"
             '<lf-options id="direction"><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
-            "html": True,
         },
     ]:
         append_carried_log_record(serve.page_dir, event)
@@ -2006,8 +2002,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
             "author": "agent",
             "revision": 1,
             "text": "Which channel?\n\n"
-            '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
-            "html": True,
+            '<lf-ask id="channel-ask">\n<h3>Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
         },
     )
     page = open_page(browser, url)

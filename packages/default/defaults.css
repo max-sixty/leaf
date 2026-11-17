@@ -21,7 +21,7 @@
  *
  * Every such rule names the attribute it styles, because data-lf-said is the wider
  * claim that these words are the page's — a widget's own label wears it bare
- * (relabel) — and a rule matching it bare styles whatever a widget says next. The
+ * (control-labels.js) — and a rule matching it bare styles whatever a widget says next. The
  * chosen-option mark is a direct child of lf-option and came out as a chip band
  * at the head of the card. */
 

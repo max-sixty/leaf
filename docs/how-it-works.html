@@ -1253,11 +1253,12 @@ flowchart TD
                 step the user took that didn't work. The fork writes the message as the
                 agent's guidance has the agent write one. Where the agent left answers
                 the user picks among, or an action it takes once the user agrees, such
-                as merging a pull request, the message holds a choice of them. A step
-                only the user can take, such as trying a build, says what to do, and
-                asks for a reply only for what the user alone can report or the agent's
-                next step waits on. Leaf skips an ask whose title a question the agent
-                asked already has.
+                as merging a pull request, the message usually holds a choice of them. A
+                step only the user can take, such as trying a build, says what to do,
+                and asks for the user's answer only for what they alone can report or
+                the agent's next step waits on, usually as a choice where its answers
+                can be listed, such as installed or failed. Leaf skips an ask whose
+                title a question the agent asked already has.
               </p>
               <p id="fork-writes">
                 Leaf posts each remaining ask as the agent's message, as the agent's
@@ -1475,8 +1476,7 @@ flowchart TD
                   <td>Obligation</td>
                   <td>
                     An input or answer owed by the user or agent. It holds its source,
-                    typed answer, next actor, and status: open, answered, answered
-                    elsewhere or withdrawn.
+                    typed answer, next actor, and status: open, answered or withdrawn.
                   </td>
                   <td>
                     <code>widget:</code>, <code>message:</code> or <code>update:</code>,
@@ -2310,8 +2310,8 @@ flowchart TD
               HTML structure, element declarations, dependencies, and recorded user
               decisions. An invalid save keeps the last valid revision live and reports
               the error. <code>leaf page check --render</code> additionally opens the
-              page in Chrome in both color schemes to check for console errors,
-              invisible widgets, and horizontal overflow.
+              page in the reader’s browser to check for console errors, invisible
+              widgets, and horizontal overflow.
             </p>
           </section>
           <section id="edits">
@@ -2778,10 +2778,10 @@ flowchart TD
               <code>state.awaits</code> declaration names, such as a pick, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there or a settling reaction, such as 👍. The
-              agent ends its to-dos with <code>leaf task end</code>, and records the
-              same way an answer the user gave elsewhere, such as in chat. Done history
-              records the outcome, including withdrawn obligations and failed or dropped
-              to-dos.
+              agent ends its to-dos with <code>leaf task end</code>, and ends a thread
+              question the user answered elsewhere, such as in chat, by resolving its
+              thread. Done history records the outcome, including withdrawn obligations
+              and failed or dropped to-dos.
             </p>
 
             <p id="progress-lists-thread">
@@ -2851,7 +2851,9 @@ flowchart TD
                 Opens a question on On Me and makes the thread read
                 <em>Your turn</em>. A reply or settling reaction answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
-                such as trying a build, is asked the same way. Once the user answers
+                such as trying a build, is asked this way where only words can give its
+                answer, such as what an error said; where its outcomes can be listed,
+                its message usually offers them as options. Once the user answers
                 elsewhere, such as in chat, the agent resolves the thread.
               </li>
               <li id="updates-written-reopen">

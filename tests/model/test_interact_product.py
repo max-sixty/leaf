@@ -53,7 +53,7 @@ from leaf.registry import storage as registry_storage
 from leaf.registry.contract import declared_fact, element_declarations
 from leaf.structure import SourceDocument
 from leaf.themes import DEFAULT_THEME
-from leaf.thread_context import thread_digest
+from leaf.thread_context import logged_fragment, thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.admission import (
     check_markup,
@@ -744,7 +744,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         )
 
     def question(decision_id, markup):
-        return f'<lf-ask id="{decision_id}"><h2>Pick?</h2>{markup}</lf-ask>'
+        return f'<lf-ask id="{decision_id}">\n<h2>Pick?</h2>{markup}</lf-ask>'
 
     # `flag-first` is an option on the page (PAGE fixture) — refused.
     clash = reply(
@@ -836,7 +836,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--text",
             (
                 "Pick:\n\n"
-                '<lf-ask id="pick-decision"><h2>Pick?</h2>'
+                '<lf-ask id="pick-decision">\n<h2>Pick?</h2>'
                 '<lf-options id="lf-pick">'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
@@ -1464,6 +1464,39 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     assert events_model.read_events(page_dir) == before
 
 
+def test_an_agent_message_drawing_html_keeps_its_words(page_dir):
+    """A message that draws HTML stays as it was sent, since the user may have acted
+    on what it drew, and an edit gives no HTML to a message that draws none. The
+    append door refuses both, so an edit from any writer meets the rule."""
+    from leaf.event_log import EventRefused
+
+    publish(page_dir)
+    drawn, plain = (
+        append_command(
+            page_dir,
+            {"kind": "comment", "author": "agent", "revision": 1, "text": text},
+        )
+        for text in ("Ship it?\n\n<b>Tonight</b>", "Ship it tonight?")
+    )
+    before = events_model.read_events(page_dir)
+    for target, text, refusal in [
+        (drawn, "Ship it tomorrow?", "edit-holds-html"),
+        (plain, "Ship it <b>tomorrow</b>?", "edit-adds-html"),
+    ]:
+        with pytest.raises(EventRefused) as refused:
+            append_command(
+                page_dir,
+                {
+                    "kind": "edit",
+                    "author": "agent",
+                    "message": target["id"],
+                    "text": text,
+                },
+            )
+        assert refused_on(refused.value).code == refusal
+    assert events_model.read_events(page_dir) == before
+
+
 def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
     """A rewrite replaced the words its message had when the user made it, and
     taking back an earlier rewrite later changes nothing it replaced."""
@@ -1665,26 +1698,25 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     assert events_model.read_events(page_dir)[-1]["text"] == "Revised."
 
 
-def test_html_enters_only_through_the_cli_gate(server, page_dir):
-    """The browser door refuses the field rather than silently dropping it: every
-    message the log holds with `html` has been through `check_markup`, which is what
-    lets the thread structure and the panel index it unasked."""
+def test_html_the_user_types_stays_words(server, page_dir):
+    """Only an agent's message draws its HTML, and every one has been through
+    `check_markup`, which is what lets the thread structure and the panel index it
+    unasked. A tag the user types through the browser door is words: the message
+    holds no markup."""
     publish(page_dir)
-    before = events_model.read_events(page_dir)
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
             {
                 "kind": "comment",
                 "revision": 1,
-                "text": 'hi\n\n<lf-diagram id="m"><pre>graph LR\n  A --> B</pre></lf-diagram>',
-                "html": True,
+                "text": 'hi\n\n<lf-diagram id="m">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
             }
         ).encode(),
     )
-    assert status == 400
-    assert "html" in json.loads(body)["error"]
-    assert events_model.read_events(page_dir) == before
+    assert status == 200, body
+    message = events_model.read_events(page_dir)[-1]
+    assert (message["author"], logged_fragment(message)) == ("user", None)
 
 
 @pytest.mark.parametrize(

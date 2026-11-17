@@ -58,7 +58,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD, on_view_tab, open_on_me
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -276,8 +276,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On Me by pointer, its tab beside the leaf's menu: out with the panel's view.
-    open_on_me(page)
+    # On Me by pointer: out with the panel's view.
+    toggle.click()
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -325,8 +325,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     out()
 
-    # And On Me's tab pressed from the keyboard.
-    on_view_tab(page, "On Me").press("Enter")
+    toggle.focus()
+    page.keyboard.press("Enter")
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -562,7 +562,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
             "author": "agent",
             "revision": 1,
             "text": "The patch, for the record.\n\n"
-            '<lf-diff id="msg-diff"><pre>'
+            '<lf-diff id="msg-diff">\n<pre>'
             "diff --git a/gateway/limits.py b/gateway/limits.py\n"
             "--- a/gateway/limits.py\n"
             "+++ b/gateway/limits.py\n"
@@ -571,7 +571,6 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
             "-        return request.remote_addr\n"
             "+        return request.token.id\n"
             "</pre></lf-diff>",
-            "html": True,
         },
     )
     told(page)

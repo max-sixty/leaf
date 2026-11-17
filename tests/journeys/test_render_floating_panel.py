@@ -81,10 +81,11 @@ from render_harness import (
 def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     """An open view's foot keeps no room for anything but its padding, and nothing lies
     over it: not the line over the field, which would repeat where the words go, nor
-    news arriving in it, which the view shows. At the view's end its last words stand
-    just above its padding, in a long Threads list and a long thread the user types at
-    the end of. New reply alone stands at its foot, on the panel's ground and inside the
-    view, clear of the user's own last turn while the answer to it waits below."""
+    news arriving in it, which the view shows. At the view's end a long Threads list's
+    last row stands just above its padding, and the last words of a long thread the user
+    types at the end of stand a message's gap above the field, as over a next message.
+    New reply alone stands at its foot, on the panel's ground and inside the view, clear
+    of the user's own last turn while the answer to it waits below."""
     url = serve(LONG_PAGE, comments=12)
     long_root = panel_comment(serve.page_dir, "Walk me through the whole rollout.")
     for step in range(8):
@@ -102,14 +103,15 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
         )
     page = floating(browser, url)
 
-    def at_end(parts):
+    def at_end(parts, *, gap=False):
         page.locator(".lf-fp-view:not([data-lf-leaving])").evaluate(
             "view => view.scrollTop = view.scrollHeight"
         )
         settled(page)
         foot = page.evaluate(FOOT, [parts, 0])
         assert foot["said"] == [], foot
-        assert 0 <= foot["below"] < 10, foot
+        room = foot["gap"] - foot["pad"] if gap else 0
+        assert 0 <= foot["below"] - room < 10, foot
 
     open_threads(page)
     inventory = page.locator(panel_view("threads"))
@@ -127,7 +129,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     field(page).click()
     page.keyboard.type("Could")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-drafted", "")
-    at_end(".lf-msg")
+    at_end(".lf-msg", gap=True)
 
     # The answer to the user's turn waits below the fold behind New reply, and its
     # arrival goes unsaid over the view that holds it.

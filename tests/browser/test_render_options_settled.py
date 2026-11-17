@@ -19,7 +19,7 @@ from render_harness import (
     command_reference_rows,
     compare_with,
     open_page,
-    page_registry,
+    page_declarations,
     reported_browser_errors,
     round_trip,
     select,
@@ -198,7 +198,9 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     # closed, and nothing it does opens one.
     assert row.get_attribute("aria-expanded") == "true"
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", page_declarations(page)
+        )
         == []
     ), "opening the group left an attribute on a widget its entry never declared"
 

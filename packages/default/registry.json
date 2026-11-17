@@ -442,19 +442,24 @@
   },
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",
-    "x-instructions": "The first `lf-tabs` written directly in `main` owns the page's view history and URL. Give a set `class=\"layout-flow\"` to share the document's space without a frame, as page-layout.md describes; omit it for a boxed tab set. Visual flow does not choose history ownership. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
+    "x-instructions": "The first `lf-tabs` written directly in `main` owns the page's view history and URL. Give a set `flow=\"page\"` to share the document's space without a frame, as page-layout.md describes; omit it for a boxed tab set. Visual flow does not choose history ownership. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
     "type": "object",
     "properties": {
       "id": { "type": "string" },
       "list": {
         "type": "string",
         "enum": ["side"]
+      },
+      "flow": {
+        "type": "string",
+        "enum": ["page"]
       }
     },
     "required": ["id"],
     "additionalProperties": false,
     "x-content": "members",
     "x-views": { "members": "lf-tab" },
+    "x-flow": { "when": { "flow": ["page"] } },
     "x-example": "<lf-tabs id=\"views\">\n  <lf-tab id=\"tab-implementation\" label=\"Implementation\">\n    <p id=\"rollout-plan\">Wire the first site this week.</p>\n  </lf-tab>\n  <lf-tab id=\"tab-vision\" label=\"Vision\">\n    <p id=\"product-vision\">Keep the original outcome and constraints in reach.</p>\n  </lf-tab>\n</lf-tabs>"
   },
   "lf-tally": {
@@ -496,7 +501,8 @@
     },
     "required": ["id", "label"],
     "additionalProperties": false,
-    "x-owners": ["lf-tabs"]
+    "x-owners": ["lf-tabs"],
+    "x-flow": true
   },
   "lf-parts": {
     "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",

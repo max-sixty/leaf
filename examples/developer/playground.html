@@ -11,6 +11,18 @@
         display: table;
         width: 100%;
       }
+
+      #priority {
+        display: grid;
+        margin: 0;
+        padding: 0;
+        border: 0;
+      }
+
+      #priority > legend {
+        padding: 0;
+        font-weight: 600;
+      }
     </style>
   </head>
   <body>
@@ -32,110 +44,58 @@
               value="normal"
             ></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preview>
-            <table id="job-accelerators">
-              <thead>
-                <tr>
-                  <th>Training job</th>
-                  <th>Accelerator</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr>
-                  <th>Embeddings</th>
-                  <td>
-                    <lf-playground-control
-                      id="embeddings"
-                      name="embeddings"
-                      label="Embeddings accelerator"
-                      kind="choice"
-                      appearance="select"
-                      value="cpu"
-                    >
-                      <lf-playground-choice
-                        id="embeddings-cpu"
-                        value="cpu"
-                        label="CPU"
-                      ></lf-playground-choice>
-                      <lf-playground-choice
-                        id="embeddings-a10"
-                        value="a10"
-                        label="A10"
-                      ></lf-playground-choice>
-                      <lf-playground-choice
-                        id="embeddings-a100"
-                        value="a100"
-                        label="A100"
-                      ></lf-playground-choice>
-                      <lf-playground-choice
-                        id="embeddings-h100"
-                        value="h100"
-                        label="H100"
-                      ></lf-playground-choice>
-                    </lf-playground-control>
-                  </td>
-                </tr>
-                <tr>
-                  <th>Ranking</th>
-                  <td>
-                    <lf-playground-control
-                      id="ranking"
-                      name="ranking"
-                      label="Ranking accelerator"
-                      kind="choice"
-                      appearance="select"
-                      value="cpu"
-                    >
-                      <lf-playground-choice
-                        id="ranking-cpu"
-                        value="cpu"
-                        label="CPU"
-                      ></lf-playground-choice>
-                      <lf-playground-choice
-                        id="ranking-a10"
-                        value="a10"
-                        label="A10"
-                      ></lf-playground-choice>
-                      <lf-playground-choice
-                        id="ranking-a100"
-                        value="a100"
-                        label="A100"
-                      ></lf-playground-choice>
-                      <lf-playground-choice
-                        id="ranking-h100"
-                        value="h100"
-                        label="H100"
-                      ></lf-playground-choice>
-                    </lf-playground-control>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-            <lf-playground-control
-              id="priority"
-              name="priority"
-              label="Scheduling priority"
-              kind="choice"
-              value="normal"
+          <table id="job-accelerators">
+            <thead>
+              <tr>
+                <th>Training job</th>
+                <th>Accelerator</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th>Embeddings</th>
+                <td>
+                  <label id="embeddings"
+                    >Embeddings accelerator
+                    <select name="embeddings">
+                      <option id="embeddings-cpu" value="cpu" selected>CPU</option>
+                      <option id="embeddings-a10" value="a10">A10</option>
+                      <option id="embeddings-a100" value="a100">A100</option>
+                      <option id="embeddings-h100" value="h100">H100</option>
+                    </select></label
+                  >
+                </td>
+              </tr>
+              <tr>
+                <th>Ranking</th>
+                <td>
+                  <label id="ranking"
+                    >Ranking accelerator
+                    <select name="ranking">
+                      <option id="ranking-cpu" value="cpu" selected>CPU</option>
+                      <option id="ranking-a10" value="a10">A10</option>
+                      <option id="ranking-a100" value="a100">A100</option>
+                      <option id="ranking-h100" value="h100">H100</option>
+                    </select></label
+                  >
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <fieldset id="priority">
+            <legend>Scheduling priority</legend>
+            <label id="priority-normal"
+              ><input type="radio" name="priority" value="normal" checked />
+              Normal</label
+            ><label id="priority-high"
+              ><input type="radio" name="priority" value="high" /> High</label
             >
-              <lf-playground-choice
-                id="priority-normal"
-                value="normal"
-                label="Normal"
-              ></lf-playground-choice>
-              <lf-playground-choice
-                id="priority-high"
-                value="high"
-                label="High"
-              ></lf-playground-choice>
-            </lf-playground-control>
-          </lf-playground-preview>
+          </fieldset>
           <lf-playground-output
-            >Configure embeddings to use
-            <lf-playground-value for="embeddings"></lf-playground-value> and ranking to
-            use <lf-playground-value for="ranking"></lf-playground-value>, both with
-            <lf-playground-value for="priority"></lf-playground-value> scheduling
-            priority. Record these example settings.</lf-playground-output
+            >Configure embeddings to use <output for="embeddings"></output> and ranking
+            to use <output for="ranking"></output>, both with
+            <output for="priority"></output> scheduling priority. Record these example
+            settings.</lf-playground-output
           >
         </lf-playground>
       </section>

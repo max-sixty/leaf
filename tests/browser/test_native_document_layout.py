@@ -9,12 +9,11 @@ DOCUMENT = """
 <aside id="route"><div class="layout-track">
   <p>Read the evidence before deciding.</p><nav><a href="#evidence">Evidence</a></nav>
 </div></aside>
-<div class="layout-column layout-notes" id="body">
+<div class="layout-column" id="body">
   <h1>Review</h1>
-  <section id="evidence" class="layout-flow">
+  <section id="evidence">
     <h2>Evidence</h2>
-    <div class="layout-note"><p id="prose">The passage keeps its reading measure.</p>
-      <aside class="note" id="note">A short qualification.</aside></div>
+    <p id="prose">The passage keeps its reading measure.</p>
     <lf-worktree-diffs id="wide"><lf-worktree id="tree" label="Changes" path="/work/leaf"
       status="clean" files="0" additions="0" deletions="0" open>
       <p>Readable before JavaScript.</p>
@@ -25,7 +24,7 @@ DOCUMENT = """
 """
 
 
-def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, serve):
+def test_native_sidebar_is_placed_before_widget_activation(browser, serve):
     source = leaf_page("native startup", DOCUMENT, layout="sidebar")
     url = serve(source)
     for width in (1600, 720):
@@ -36,12 +35,11 @@ def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, se
         page.locator("#prose").wait_for(state="visible")
         page.locator("#after").wait_for(state="attached")
         displayed(page)
-        read = """() => Object.fromEntries(['route','body','prose','note','wide','after']
+        read = """() => Object.fromEntries(['route','body','prose','wide','after']
           .map(id => [id,document.getElementById(id).getBoundingClientRect().toJSON()]))"""
         before = page.evaluate(read)
         assert before["prose"]["width"] == min(720, width - 48)
         assert (before["route"]["top"] < before["body"]["top"]) == (width == 720)
-        assert (before["note"]["left"] >= before["prose"]["right"]) == (width == 1600)
         for route in held:
             route.continue_()
         page.unroute("**/leaf.js")
@@ -50,34 +48,33 @@ def test_native_sidebar_and_note_are_placed_before_widget_activation(browser, se
 
 
 def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
-    """A question's section that is a flow (`layout-flow`) draws no box of its own
-    around its blocks, so they stand in the page's flow: its words and its options keep
-    the prose's edge, and a block declaring more room takes it. A plain section keeps
-    what it holds in the column, inside a question or round it. The words used to go
-    with the question's box, 480px left of the page's column."""
+    """A question's section draws no box of its own around its blocks, so they stand
+    in the page's flow: its words and its options keep the prose's edge, and a block
+    declaring more room takes it. A div keeps what it holds in the column, inside a
+    question or round it. The words used to go with the question's box, 480px left of
+    the page's column."""
     options = (
         '<lf-options id="{id}-options" choose>'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
     )
     question = (
-        '<section id="{id}"{flow}><h2 id="{id}-head">Ship it?</h2>'
+        '<section id="{id}"><h2 id="{id}-head">Ship it?</h2>'
         '<p id="{id}-premise">Because it fits.</p>{held}' + options + "</section>"
     )
     evidence = '<div id="{id}-evidence" data-width="available">Evidence.</div>'
-    flow = ' class="layout-flow"'
     source = leaf_page(
         "Questions in the flow",
         '<h1>Questions in the flow</h1><p id="prose">Prose sets the column.</p>'
-        '<section class="layout-flow">'
-        + question.format(id="plain", flow=flow, held="")
-        + question.format(id="holds", flow=flow, held=evidence.format(id="holds"))
+        "<section>"
+        + question.format(id="plain", held="")
+        + question.format(id="holds", held=evidence.format(id="holds"))
         + question.format(
             id="wrapped",
-            flow=flow,
-            held="<section>" + evidence.format(id="wrapped") + "</section>",
+            held="<div>" + evidence.format(id="wrapped") + "</div>",
         )
-        + question.format(id="kept", flow="", held=evidence.format(id="kept"))
-        + "</section>",
+        + "</section><div>"
+        + question.format(id="kept", held=evidence.format(id="kept"))
+        + "</div>",
     )
     page = open_page(browser, serve(source))
     resized(page, 1728, 900)
@@ -96,8 +93,8 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     # The block takes the room and the question's box, which its marks stand on, holds it.
     assert boxes["holds-evidence"][0] < 100 and boxes["holds-evidence"][1] > 1628, boxes
     assert boxes["holds"] == boxes["holds-evidence"], boxes
-    # A plain section keeps what it holds, and the question's box keeps to the column
-    # with it.
+    # A div keeps what it holds, as it does outside a question, and the question's box
+    # keeps to the column with it.
     for question_id in ("wrapped", "kept"):
         assert boxes[f"{question_id}-evidence"] == boxes[question_id] == column, boxes
     # What the question asks stands by its words, not at the edge of the evidence.
@@ -117,7 +114,7 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     other = "rtl" if direction == "ltr" else "ltr"
     options = '<lf-options id="{id}-o" choose><lf-option id="{id}-y">Yes</lf-option>'
     question = (
-        f'<section id="{{id}}" class="layout-flow" dir="{other}"><h3 id="{{id}}-h">Ship it?</h3>'
+        f'<section id="{{id}}" dir="{other}"><h3 id="{{id}}-h">Ship it?</h3>'
         '<div id="{id}-block" data-width="{width}">Evidence.</div>'
         + options
         + "</lf-options></section>"
@@ -130,7 +127,7 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
         '<div id="room" data-width="available">Room.</div>'
         + question.format(id="reaches", width="available")
         + question.format(id="widens", width="wide")
-        + f'<section class="layout-flow" dir="{other}">'
+        + f'<section dir="{other}">'
         '<div id="section-block" data-width="available">Evidence.</div></section>'
         "</div></div>",
     ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">', 1)
@@ -150,6 +147,40 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     assert widens[start] == prose[start] and boxes["widens"] == widens, boxes
     for held in ("reaches-h", "widens-h"):
         assert boxes[held] == prose, (held, boxes)
+
+
+def test_a_section_that_carries_a_layout_keeps_its_blocks_in_its_arrangement(
+    browser, serve
+):
+    """A section shares the column's room with what it holds, unless it carries a
+    Layout that arranges its children: tiles keep each wide block in its own cell, side
+    by side, with the section at the column's width. As a flow, the tiles gave both
+    blocks the column's room and drew them over each other. A plain section beside it
+    is the control, whose block takes the room."""
+    cell = '<div id="{id}" data-width="available">Evidence {id}.</div>'
+    source = leaf_page(
+        "Tiles in the column",
+        '<h1>Tiles in the column</h1><p id="prose">Prose sets the column.</p>'
+        '<section id="tiles" class="layout-tiles">'
+        + cell.format(id="first")
+        + cell.format(id="second")
+        + '</section><section id="plain">'
+        + cell.format(id="room")
+        + "</section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1600, 900)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      ['prose', 'tiles', 'first', 'second', 'room'].map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, [Math.round(box.left), Math.round(box.right), Math.round(box.top)]];
+      }))""")
+    prose, tiles = boxes["prose"], boxes["tiles"]
+    assert boxes["room"][0] < prose[0] and boxes["room"][1] > prose[1], boxes
+    assert tiles[:2] == prose[:2], boxes
+    first, second = boxes["first"], boxes["second"]
+    assert first[2] == second[2] and first[1] < second[0], boxes
+    assert tiles[0] <= first[0] and second[1] <= tiles[1], boxes
 
 
 def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
@@ -269,67 +300,3 @@ def test_annotations_read_the_native_prose_track_with_authored_geometry(
     assert reading["computed"]["right"] == pytest.approx(
         reading["actual"]["right"], abs=0.5
     )
-
-
-@pytest.mark.parametrize("direction", ["ltr", "rtl"])
-def test_note_rows_fit_their_column_without_moving_other_columns(
-    browser, serve, subtests, direction
-):
-    source = leaf_page(
-        "note tracks",
-        """<section class="layout-column layout-notes" id="noted">
-          <p id="intro">The passage and its note share a reading axis.</p>
-          <section class="layout-flow"><section class="layout-flow">
-            <div class="layout-note" id="row">
-              <p id="passage">A passage with a qualification.</p>
-              <aside class="note" id="qualification">The qualification belongs to
-                this passage, before the next exhibit.</aside>
-            </div>
-            <div id="exhibit">The next exhibit.</div>
-          </section></section>
-          <div class="layout-column" id="nested"><p id="nested-prose">
-            An independent nested column keeps its own axis.</p></div>
-        </section>
-        <section class="layout-column"><p id="plain">
-          An unrelated column has no notes and remains centered.</p></section>
-        <section class="layout-column"><p id="outer-prose">
-          An inner column's note never moves this outer prose.</p>
-          <section class="layout-column layout-notes" id="inner">
-            <div class="layout-note"><p id="inner-prose">An independent passage.</p>
-              <aside class="note" id="inner-note">Its independent qualification.</aside>
-            </div>
-          </section>
-        </section>""",
-        layout=None,
-        head=f"""<style>body {{margin:0}} main {{direction:{direction}}}</style>""",
-    )
-    page = open_page(browser, serve(source))
-    for width in (1600, 1200, 1152, 1151, 900, 390):
-        with subtests.test(width=width):
-            page.set_viewport_size({"width": width, "height": 900})
-            boxes = page.evaluate("""() => Object.fromEntries(
-              ['intro','passage','qualification','exhibit','plain','nested','nested-prose','outer-prose','inner-prose','inner-note']
-                .map(id => [id,document.getElementById(id).getBoundingClientRect().toJSON()]))""")
-            passage, note = boxes["passage"], boxes["qualification"]
-            assert passage["width"] == min(720, width - 48)
-            assert note["width"] <= passage["width"]
-            assert boxes["intro"]["left"] == passage["left"]
-            assert boxes["plain"]["left"] == max(24, (width - 720) / 2)
-            assert boxes["outer-prose"]["left"] == boxes["plain"]["left"]
-            inner, inner_note = boxes["inner-prose"], boxes["inner-note"]
-            assert inner["width"] == min(720, width - 48) - 48
-            assert inner_note["width"] <= inner["width"]
-            nested = boxes["nested"]
-            assert boxes["nested-prose"]["left"] == nested["left"] + max(
-                24, (nested["width"] - 720) / 2
-            )
-            assert boxes["exhibit"]["top"] - note["bottom"] >= 24
-            if width >= 1152:
-                assert note["top"] == passage["top"]
-                if direction == "ltr":
-                    assert note["left"] - passage["right"] == 24
-                else:
-                    assert passage["left"] - note["right"] == 24
-            else:
-                assert note["top"] - passage["bottom"] == 8
-                assert note["left"] == passage["left"]

@@ -12,7 +12,6 @@ imports none: the page service sorts every event by these kinds, including in a 
 hook that validates nothing."""
 
 import json
-from collections.abc import Mapping
 from functools import cache
 
 from leaf.state import KERNEL_REGISTRY
@@ -108,15 +107,3 @@ def kernel_marks() -> dict:
     return {
         key: mark for key, mark in _kernel()["$marks"].items() if key != "description"
     }
-
-
-def authored_inert(key: str, declaration: Mapping, *, content: bool) -> str | None:
-    """Why an occurrence's authored override of the mark `key` means nothing on its
-    element, or None where it holds. The override holds where its `authored_on` says,
-    and the condition it fails is the reason (`content`, a block in the page's flow,
-    which `main`, `body` and `html` aren't; `declared`, a tag declaring the mark).
-    Delivery paints only an override that holds (`revision_delivery.mark_declared`),
-    and `page check` names the rest."""
-    condition = kernel_marks()[key]["authored_on"]
-    holds = content if condition == "content" else bool(declaration.get(key))
-    return None if holds else condition

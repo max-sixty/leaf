@@ -405,27 +405,19 @@
           contract="data-explorer-values"
           submit-label="Build query"
         >
-          <lf-playground-control
-            id="limit"
-            name="limit"
-            label="Maximum results"
-            kind="range"
-            value="4"
-            min="1"
-            max="6"
-            step="1"
-          ></lf-playground-control>
+          <aside>
+            <label id="limit"
+              >Maximum results
+              <input type="range" name="limit" min="1" max="6" value="4"
+            /></label>
+          </aside>
           <lf-playground-preset id="preset-up-to-4-results" label="Up to 4 results">
             <lf-playground-setting for="limit" value="4"></lf-playground-setting>
           </lf-playground-preset>
           <lf-playground-preset id="preset-up-to-6-results" label="Up to 6 results">
             <lf-playground-setting for="limit" value="6"></lf-playground-setting>
           </lf-playground-preset>
-          <lf-playground-preview id="release-query-preview">
-            <release-query-explorer
-              id="release-query-explorer"
-            ></release-query-explorer>
-          </lf-playground-preview>
+          <release-query-explorer id="release-query-explorer"></release-query-explorer>
           <lf-playground-output id="release-query-instruction">
             Implement the default release query in <code>release-report.sql</code> and
             show the query plus its result-table test.

@@ -19,7 +19,14 @@ import {
 import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, queryAllUnder, shadowHost, under, upFrom } from "./shadow.js";
+import {
+  declaredRoot,
+  inUi,
+  queryAllUnder,
+  shadowHost,
+  under,
+  upFrom,
+} from "./shadow.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,
@@ -491,15 +498,36 @@ const controlFaces = (control) => [control, ...(control.labels ?? [])];
 /** @param {Element} control */
 const controlIdentity = (control) =>
   (control instanceof HTMLLabelElement ? control.control : null) ?? control;
+// The owner's parts named `name`: the controls whose nearest addressable is `owner`.
+// The walk comes down the trees `upFrom` climbs back out of, `owner`'s own and the
+// declared roots in it, and steps over each addressable it meets with all that one
+// holds, whose controls are that addressable's own parts. So naming a part costs what
+// its owner holds as its own, not what its members hold: a side tab's owner, the tabs
+// widget, holds every tab's document, which a query of the owner read in full on each
+// press on a tab and each picker hint that announced one (#4781).
 /** @param {Element} owner @param {string} name */
-const namedParts = (owner, name) =>
-  [...new Set(queryAllUnder(owner, WORKS).map(controlIdentity))].filter(
+function namedParts(owner, name) {
+  /** @type {Set<Element>} */
+  const controls = new Set();
+  /** @param {Element} element */
+  const visit = (element) => {
+    const root = declaredRoot(element);
+    for (const scope of root ? [element, root] : [element])
+      for (let child = scope.firstElementChild; child; child = child.nextElementSibling)
+        if (!isAddressable(child)) {
+          if (child.matches(WORKS)) controls.add(controlIdentity(child));
+          visit(child);
+        }
+  };
+  visit(owner);
+  return [...controls].filter(
     (control) =>
       control !== owner &&
       under(control, owner) &&
       addressableAt(control) === owner &&
       controlName(control) === name,
   );
+}
 // What a press in Design mode can take as a part: a control, or a picture.
 const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
 /** @typedef {{segments: import("./passages.js").Segment[], at: Map<Element, number>}} BlockWords */

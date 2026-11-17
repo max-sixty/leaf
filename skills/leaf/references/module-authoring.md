@@ -253,8 +253,8 @@ native disclosures, links and authored content need no such wait.
   again without that member when the animation ends. Only the selected member is
   saved. Pass `null` as a second argument to get null where neither the address nor
   the tab names a member, and choose then. A holder whose members share the
-  surrounding page's flow declares `--lf-views-flow: page` in its stylesheet (the
-  default is `box`), so Layouts can seat a member's sidebar in the page margin.
+  surrounding page's flow declares `x-flow`, as its members do, so a member's wide
+  blocks and sidebar take the page's room.
 
 ## Rendering
 

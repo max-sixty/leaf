@@ -51,6 +51,7 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -173,9 +174,8 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
             "Remove the old heading",
         )
     page = open_page(browser, url)
-    mark = page.locator(".lf-fp-on-user")
     expect_on_me(page, 1)
-    mark.click()
+    open_on_me(page)
     row = page.locator('.lf-fp-on-item[data-lf-list="you"]')
     expect(row).to_contain_text(question)
     expect(row.get_by_role("button", name="Reply", exact=True)).to_be_visible()
@@ -264,9 +264,10 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     The stream placeholder exists before the final event, so its owner must not freeze
     the absence of markup at construction. The answer completes the reply the open
-    thread was already streaming, so it shows as it lands. A later prose edit keeps both
-    that owner and the island the durable reply introduced. The panel's view reads it:
-    a passage's margin card draws no reply markup, which opens in the panel.
+    thread was already streaming, so it shows as it lands. The panel's view reads it:
+    a passage's margin card draws no reply markup, which opens in the panel. A message
+    holding HTML is frozen whole (`leaf thread edit` refuses it), so no later edit
+    reaches this one.
     """
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "Answer me here")
@@ -288,11 +289,12 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "The complete answer.",
+        "The complete answer.\n\n"
         '<section id="stream-reply-ask"><h3>Use this answer?</h3>'
         '<lf-options id="stream-reply-choice" choose>'
         '<lf-option id="stream-reply-now">Use it now</lf-option>'
         "</lf-options></section>",
+        html=True,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -301,40 +303,13 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     told(page)
     expect(message).to_have_attribute("data-lf-event", reply["id"])
-    expect(message.locator(".lf-msg-text")).to_have_text("The complete answer.")
+    expect(message.locator(".lf-msg-text > p")).to_have_text("The complete answer.")
     expect(message.locator("#stream-reply-choice")).to_have_count(1)
     expect(page.locator(PANEL_NEWS)).to_be_hidden()
-    page.evaluate(
-        "() => { window.__streamWidget = document.querySelector("
-        "'#stream-reply-choice'); }"
-    )
-
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "edit",
-            "author": "agent",
-            "agent": "Codex",
-            "session": "codex-thread",
-            "message": reply["id"],
-            "text": "The complete edited answer.",
-        },
-    )
-    told(page)
-    # The edit shows at once, or behind the view's notice where it would move what
-    # the user reads.
-    edited = page.locator(f"{PANEL_NEWS}:not([hidden])")
-    expect(
-        edited.or_(message.locator(".lf-msg-text", has_text="edited")).first
-    ).to_be_visible()
-    if edited.count():
-        edited.click()
-    expect(message.locator(".lf-msg-text")).to_have_text("The complete edited answer.")
     assert page.evaluate(
-        f"""() => window.__streamMessage === document.querySelector(
-          '.lf-fp-view .lf-msg[data-lf-event="{reply["id"]}"]')
-          && window.__streamWidget === document.querySelector('#stream-reply-choice')"""
-    ), "the durable reply or its authored island was replaced after the edit"
+        "() => window.__streamMessage === document.querySelector("
+        f"'.lf-fp-view .lf-msg[data-lf-event=\"{reply['id']}\"]')"
+    ), "the durable reply replaced its stream placeholder rather than completing it"
 
 
 def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(

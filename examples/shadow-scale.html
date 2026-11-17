@@ -32,7 +32,7 @@
         font-size: 15px;
         color: var(--ws-ink-2);
       }
-      #shadow-workspace lf-playground-preview {
+      #shadow-playground .lf-playground-stage {
         align-content: stretch;
         padding: 0;
         border: 0;
@@ -566,9 +566,11 @@
             this.#parts.role = el("div", "ws-eyebrow");
             this.#parts.title = el("h3", "ws-title");
             named.append(this.#parts.role, this.#parts.title);
+            // The playground's submission and Reset are the page's own buttons, written
+            // in its markup; the inspector's head holds them.
             const actions = el("div", "ws-actions");
-            this.#parts.reset = el("button", "ws-reset", "Reset");
-            this.#parts.save = el("button", "ws-save");
+            this.#parts.reset = this.querySelector(':scope > button[type="reset"]');
+            this.#parts.save = this.querySelector(':scope > button[type="submit"]');
             actions.append(this.#parts.reset, this.#parts.save);
             head.append(named, actions);
 
@@ -642,10 +644,6 @@
               DEFAULT_SCALE,
               this.#parts.inspector,
             );
-            this.#playground.registerActions({
-              submit: this.#parts.save,
-              reset: this.#parts.reset,
-            });
             this.#playground.registerInstructionProvider(({ scale }) => {
               const tokens = LEVELS.map(
                 ([key]) => `--shadow-${key}: ${shadowCss(scale[key], scale.colour)};`,
@@ -735,17 +733,13 @@
   <body>
     <main class="layout-workspace density-working" id="shadow-workspace">
       <header><h1>Shadow scale</h1></header>
-      <section id="shadow-ask" class="layout-flow">
+      <section id="shadow-ask">
         <h2>How should the DecisionCard's three elevations cast their shadows?</h2>
-        <lf-playground
-          id="shadow-playground"
-          submit-label="Save decision"
-          actions="page"
-          data-width="available"
-        >
-          <lf-playground-preview id="shadow-preview">
-            <shadow-workshop id="shadow-workshop"></shadow-workshop>
-          </lf-playground-preview>
+        <lf-playground id="shadow-playground" data-width="available">
+          <shadow-workshop id="shadow-workshop">
+            <button type="reset" class="ws-reset">Reset</button>
+            <button type="submit" class="ws-save">Save decision</button>
+          </shadow-workshop>
           <lf-playground-output id="shadow-instruction">
             Keep the current shadow tokens in <code>src/styles/tokens.css</code>.
           </lf-playground-output>

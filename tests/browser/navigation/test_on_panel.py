@@ -10,7 +10,6 @@ from render_cases_interaction import live_url, panel_comment
 from render_harness import (
     PANEL,
     expect_panel_says,
-    field_press,
     holding,
     leaf_page,
     open_page,
@@ -29,6 +28,7 @@ from render_harness import (
 from browser.navigation import expect_walk_position, walk_position
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import ON_ME_MARK
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -239,16 +239,16 @@ SEEN_SHARE = """async (selector) => {
 }"""
 
 
-def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve):
-    """Once the server reads a reply as answering the question it was sent under, while
-    more waits on the user, the panel field's end offers Next On Me. The caret stays in
-    the card's reply box, where `m` is a letter typed, so the press stands without its
-    key and still walks to the next item, whose key it then says. An answer that leaves
-    nothing On Me offers nothing."""
+def test_the_on_me_mark_presses_next_on_me_and_wears_its_key(browser, serve):
+    """While On Me lists anything, the On Me mark presses Next On Me, landing where `m`
+    lands, and wears `m` beside its count while `m` would make the same press. In a
+    card's reply box `m` is a letter typed, so the key goes while the caret stands
+    there, and the press alone still walks on from there; once the walk has taken the
+    user out of the box the key is back. Its coming and going moves no part of the
+    mark."""
     url = serve(QUEUE_PAGE)
-    d = serve.page_dir
     asked = append_carried_log_record(
-        d,
+        serve.page_dir,
         {
             "kind": "comment",
             "author": "user",
@@ -257,8 +257,8 @@ def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve)
             "anchor": {"section": "cadence"},
         },
     )
-    append_carried_log_record(
-        d,
+    question = append_carried_log_record(
+        serve.page_dir,
         {
             "kind": "reply",
             "author": "agent",
@@ -272,27 +272,25 @@ def test_an_answer_offers_the_next_item_on_me_at_the_field_s_end(browser, serve)
     )
     page = open_page(browser, url)
     expect_on_me(page, 2)
-    page.keyboard.press("m")
+    mark = page.locator(ON_ME_MARK)
+    key = mark.locator(".lf-fp-on-key kbd")
+    expect(mark).to_have_accessible_name(
+        re.compile(r"^Next On Me, 2 waiting on me(,|$)")
+    )
+    expect(key).to_have_text("m")
+    seat = mark.bounding_box()
+    mark.click()
     expect_walk_position(page, "1 of 2 waiting on me · Reply")
-    page.keyboard.press("Enter")
+    expect(page.locator(f'.lf-msg[data-lf-event="{question["id"]}"]')).to_be_focused()
+    page.keyboard.press("c")
     box = page.locator(f'.lf-page-thread[data-lf-thread="{asked["id"]}"] leaf-text')
-    write(box, "Weekly.")
-    with sending(page, "the reply"):
-        page.keyboard.press("ControlOrMeta+Enter")
-    expect_on_me(page, 1)
-    press = field_press(page)
-    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
     expect(box).to_be_focused()
-    expect(press.locator("kbd")).to_have_count(0)
-    press.click()
+    expect(key).to_have_count(0)
+    assert mark.bounding_box() == seat
+    mark.click()
+    expect_walk_position(page, "2 of 2 waiting on me · Options")
     expect(page.locator("#channel-ask")).to_be_focused()
-    expect(press.locator("kbd")).to_have_text("m")
-
-    with sending(page, "the pick"):
-        page.locator("#beta").click()
-    expect_on_me(page, 0)
-    round_trip(page)
-    expect(press).to_have_count(0)
+    expect(key).to_have_text("m")
 
 
 def test_travel_puts_away_a_panel_view_standing_over_where_it_lands(browser, serve):

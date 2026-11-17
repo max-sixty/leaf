@@ -16,9 +16,9 @@
  * follows those panel entries. A link inside a panel is still fragment travel
  * (history.js).
  *
- * The authored layout-flow declares document flow (`--lf-views-flow`, layouts.css);
- * the package styles its unframed face. This module reads that declaration for
- * scrolling, separately from primary URL/history ownership above. In document flow
+ * The authored `flow="page"` puts the set in the document's flow (`x-flow`), and the
+ * package styles its unframed face. This module reads that attribute for scrolling,
+ * separately from primary URL/history ownership above. In document flow
  * ("page"), the strip sticks at the
  * window's top as a sticky header over the document it indexes, and its panels are sections of the
  * page, taking the page's width. Each is then a view with a place of its own: a switch,
@@ -72,8 +72,9 @@
  * check, with the answer's own words where the panel holds one obligation. So a queue shows each obligation's state
  * and how far the user has worked through it, and an undo that reopens an obligation puts the
  * open mark back. Which obligations a panel holds is `obligationsByRegion` (obligations/place.js), read from the
- * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel
- * authors an obligation keeps the mark's room either way, so an answer moves no row. While the
+ * admitted obligation inventory, so a tally of the queue counts the same obligations. A row whose panel's
+ * markup asks the user something keeps the mark's room either way (`regionsAwaiting`), so an answer
+ * moves no row. While the
  * version diff is on, each tab counts the marked passages its panel holds, including
  * inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
@@ -87,6 +88,7 @@ import {
   agentName,
   PRESS,
   obligationsByRegion,
+  regionsAwaiting,
   answerWords,
   under,
   backgroundFlash,
@@ -97,7 +99,6 @@ import {
   claimTraversals,
   compoundReadingRegionId,
   cycledRow,
-  elementsDeclaring,
   keepView,
   keeps,
   layoutChanged,
@@ -405,6 +406,8 @@ export class TabSet extends LeafElement {
     let byPanel;
     const held = (/** @type {Element} */ panel) =>
       (byPanel ??= obligationsByRegion(this.#panels)).get(panel) ?? [];
+    // The panels whose markup asks the user something, whose rows keep the answer's room.
+    const asking = this.#side ? regionsAwaiting(this.#panels) : new Set();
     return html`${this.#edge("start")}${
         this.#side
           ? repeat(
@@ -425,14 +428,14 @@ export class TabSet extends LeafElement {
                   ${repeat(
                     run.panels,
                     (panel) => panel,
-                    (panel) => this.#tab(panel, held),
+                    (panel) => this.#tab(panel, held, asking),
                   )}
                 </div>`,
             )
           : repeat(
               this.#panels,
               (panel) => panel,
-              (panel) => this.#tab(panel, held),
+              (panel) => this.#tab(panel, held, asking),
             )
       }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
   }
@@ -442,10 +445,10 @@ export class TabSet extends LeafElement {
     return active ? this.#buttons.get(active) : undefined;
   }
 
-  /** @param {Element} panel @param {(panel: Element) => NonNullable<ReturnType<ReturnType<typeof obligationsByRegion>["get"]>>} held */
-  #tab(panel, held) {
+  /** @param {Element} panel @param {(panel: Element) => NonNullable<ReturnType<ReturnType<typeof obligationsByRegion>["get"]>>} held @param {ReadonlySet<Node>} asking */
+  #tab(panel, held, asking) {
     const changed = comparisonChanges(panel).length;
-    const hasAnswer = this.#side && elementsDeclaring(panel, "x-awaits").length > 0;
+    const hasAnswer = asking.has(panel);
     const items = hasAnswer ? held(panel) : [];
     // Withdrawn items are already left out; an answer given elsewhere ends one too.
     const done = items.filter((item) => item.status !== "open");
@@ -621,9 +624,7 @@ export class TabSet extends LeafElement {
       (this.#parts
         ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
         : main.querySelector(":scope > lf-tabs") === this);
-    this.#pageFlow = this.#parts
-      ? this.#root
-      : getComputedStyle(this).getPropertyValue("--lf-views-flow").trim() === "page";
+    this.#pageFlow = this.#parts ? this.#root : this.getAttribute("flow") === "page";
     // The strip is named as the chrome names the set (`addressableLabel`): its author's
     // `aria-label`, else the nearest element holding it that has a name, such as its
     // section. The page's navigation stands in no section, and the page's title names it.

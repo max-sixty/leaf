@@ -4,7 +4,8 @@
  * itself, so its widgets keep their chips on a page that takes no theme. At a class's
  * weight, as the reading theme's `.tag` is, so the two agree wherever both apply, and
  * first in the package, so a widget's own rule for where its chip sits wins a tie. */
-:is(.lf-chip, :where(lf-option) > .tag) {
+.lf-chip,
+:where(lf-option) > .tag {
   display: inline-block;
   font: var(--lf-font-chip);
   padding: var(--lf-chip-pad);
@@ -18,19 +19,23 @@
   vertical-align: middle;
   align-self: center;
 }
-:is(.lf-chip[data-lf-tone="ok"], :where(lf-option) > .tag.ok) {
+.lf-chip[data-lf-tone="ok"],
+:where(lf-option) > .tag.ok {
   --lf-tone-tint: var(--lf-ok-tint);
   --lf-tone-ink: var(--lf-ok-ink);
 }
-:is(.lf-chip[data-lf-tone="warn"], :where(lf-option) > .tag.warn) {
+.lf-chip[data-lf-tone="warn"],
+:where(lf-option) > .tag.warn {
   --lf-tone-tint: var(--lf-warn-tint);
   --lf-tone-ink: var(--lf-warn-ink);
 }
-:is(.lf-chip[data-lf-tone="danger"], :where(lf-option) > .tag.danger) {
+.lf-chip[data-lf-tone="danger"],
+:where(lf-option) > .tag.danger {
   --lf-tone-tint: var(--lf-danger-tint);
   --lf-tone-ink: var(--lf-danger-ink);
 }
-:is(.lf-chip[data-lf-tone], :where(lf-option) > .tag:is(.ok, .warn, .danger)) {
+.lf-chip[data-lf-tone],
+:where(lf-option) > .tag:is(.ok, .warn, .danger) {
   background: var(--lf-tone-tint);
   color: var(--lf-tone-ink);
 }

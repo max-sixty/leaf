@@ -123,7 +123,6 @@ def _validate_widget_structure(
     for key, named in (
         ("x-owners", entry.get("x-owners", [])),
         ("x-unique", entry.get("x-unique", {}).values()),
-        ("x-within", entry.get("x-within", [])),
     ):
         if unknown := sorted(set(named) - set(declarations)):
             raise registry_error(
@@ -274,11 +273,10 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             ("x-awaits", condition.get("when", {}))
             for condition in awaits.get("answered", {}).values()
         ),
-        (
-            "x-exhibit",
-            entry["x-exhibit"]["when"]
-            if isinstance(entry.get("x-exhibit"), dict)
-            else {},
+        *(
+            (key, entry[key]["when"])
+            for key in ("x-exhibit", "x-flow")
+            if isinstance(entry.get(key), dict)
         ),
     ]
     for declaration, condition in conditions:

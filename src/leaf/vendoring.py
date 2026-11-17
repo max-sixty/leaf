@@ -158,7 +158,7 @@ def renew_layer(
     names, and say what still holds the page back, for its agent to act on.
 
     A plugin update that bumps the page protocol reaches a session once it loads the
-    update (`layer-registry.md`, "Page protocol", says when), and its
+    update (`session_runtime.py` says when), and its
     Leaf then refuses every page the session holds until the agent runs the
     `leaf page init` the refusal names. That init keeps the page's log, and so
     its threads and decisions, its source and its selection, so it asks nothing of

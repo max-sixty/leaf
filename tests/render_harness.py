@@ -87,13 +87,14 @@ from leaf import schema as schema_model
 from leaf import state as cleanup_model
 from leaf import structure as structure_model
 from leaf.findings import Finding, placed
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf.render_gate import scheme as render_gate_model
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
-    ON_ME_MARK,
     PANEL,
     chromium_metrics,
+    on_view_tab,
     panel_view,
     scroll_settled,
     slow_cpu,
@@ -735,6 +736,14 @@ def page_registry(page):
     return render_gate_model.served(page, page.url, "/registry.json").json()
 
 
+def page_declarations(page):
+    """The element declarations of this page's registry, which is what the render gate
+    hands every reading that takes declarations (`scheme._render_page`). The registry
+    also describes HTML elements and selectors, such as `button`, which no reading asks
+    after as a widget."""
+    return element_declarations(page_registry(page))
+
+
 def post_event(page, url, **kwargs):
     """An event arriving from another tab running this page's current layer."""
     generation = page_registry(page)["$layer"]["generation"]
@@ -945,6 +954,21 @@ def long_press(page, point):
             pointerType: 'touch', clientX: x, clientY: y}))""",
         [point["x"], point["y"]],
     )
+
+
+# Design mode's legend, a box on each item the page names while the mode stands
+# (design.js): the mode as the page shows it.
+DESIGN_LEGEND = ".lf-legend-box"
+
+
+def expect_design_mode(page, on=True):
+    """Wait until Design mode stands, as its legend shows, or with `on` false until it
+    has ended."""
+    legend = page.locator(DESIGN_LEGEND)
+    if on:
+        expect(legend.first).to_be_attached()
+    else:
+        expect(legend).to_have_count(0)
 
 
 def cursor_at(page, x, y):
@@ -2002,9 +2026,8 @@ def panel_field(page):
 def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
     (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
-    Resolve's Next thread, the next On Me item after an answer, or a stance's Close
-    (floating-panel.js, `fieldReading`). Its word is `.lf-compose-press-word`, and the
-    key that makes it the `kbd` after it."""
+    Resolve's Next thread, or a stance's Close (floating-panel.js, `fieldReading`). Its
+    word is `.lf-compose-press-word`, and the key that makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
 
 
@@ -2159,9 +2182,9 @@ OPEN_THREAD_COUNT = """async () => {
 def expect_open_threads(page, count):
     """Wait until the page's reading holds `count` open threads (`OPEN_THREAD_COUNT`).
 
-    The count stands on the Threads tab, behind a press on the On Me mark, so this
-    reads it without one, leaving focus, the open view and any card as they are; where
-    the tab itself is the subject, read `threads_tab`'s `.lf-fp-count`."""
+    The count stands on the Threads tab, behind a press on the leaf, so this reads it
+    without one, leaving focus, the open view and any card as they are; where the tab
+    itself is the subject, read `threads_tab`'s `.lf-fp-count`."""
     page.evaluate(OPEN_THREAD_COUNT)
     try:
         page.wait_for_function(
@@ -2226,9 +2249,10 @@ def panel_control(page, key, at=None):
     """Return the panel's control for the page's control row `key`, opening the leaf's
     menu, and the list `at` names (`panel_menu`), where the row stands there.
 
-    On Me (`queue`) is the row's mark, standing while no view or stance does, and
-    Threads (`threads`) the tab at the foot of On, which the mark opens to reach it
-    (`leaf_dev.browser.threads_tab`). Every other row is the menu's, by its key:
+    On Me (`queue`) and Threads (`threads`) are the On view's tabs at the foot of the
+    leaf's menu, which the leaf opens to reach them (`leaf_dev.browser.on_view_tab`);
+    the On Me mark at the row's end presses Next On Me while On Me lists anything.
+    Every other row is the menu's, by its key:
     `versions`, `leaves` (All pages, under `navigate` where other pages are live),
     `latest`, `blanket:accept`, `command:<id>` for a page command such as
     `command:history.undo` or `command:draw.mode.enter` (under `annotate`). The way out
@@ -2236,7 +2260,7 @@ def panel_control(page, key, at=None):
     and the page comment is `page_comment`'s, offering selected words as
     `selection_field`'s."""
     if key == "queue":
-        control = page.locator(ON_ME_MARK)
+        control = on_view_tab(page, "On Me")
     elif key == "threads":
         control = threads_tab(page)
     else:

@@ -3,6 +3,7 @@
 @import "./styles/components/surfaces.css";
 @import "./styles/components/reading.css";
 @import "./styles/vendor/webawesome-native.css";
+@import "./styles/vendor/page-controls.css";
 @import "./styles/components/controls.css";
 @import "./styles/components/response.css";
 @import "./styles/components/integration.css";

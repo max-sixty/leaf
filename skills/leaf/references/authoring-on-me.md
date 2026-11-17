@@ -102,8 +102,8 @@ the claim and its evidence. Only a question about the whole record comes last.
 
 Where evidence, option pictures or option cards set across need more than the prose's
 width, set `data-width` on the block that holds them, such as the `lf-options`, figure
-or playground, and give the question's section `class="layout-flow"`, so the block takes
-the room while the question's words keep the column's edge (`page-layout.md`, "Bounds
+or playground, so the block takes the room while the question's words keep the
+column's edge (`page-layout.md`, "Bounds
 and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
 it to the region that differs, and scale it down as far as that difference still reads,

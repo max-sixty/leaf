@@ -78,8 +78,7 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # carries onto its child's body (`$authored` in the kernel registry).
 PAGE_ALLOCATIONS = kernel_authored()["allocations"]
 # The `lf-` classes an author writes: those the kernel's selector idioms name, such as
-# `lf-btn` on a button that wears Leaf's face (browser/registry.json). A page's own
-# names never take one of Leaf's faces, so where it wants one it writes Leaf's name.
+# `lf-scroll` on a box the page scrolls (browser/registry.json).
 AUTHORED_CLASSES = frozenset(
     name
     for key in json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))
@@ -785,9 +784,10 @@ class Authoring:
                         "line": line,
                         "attr": attr,
                         "value": attrs[attr],
+                        "attrs": attrs,
                         # Where delivery reads it: it skips a template and what it
                         # holds, which is inert until cloned, and only a block in the
-                        # page's flow takes room (`registry.kernel.authored_inert`).
+                        # page's flow takes room (`registry.contract.authored_inert`).
                         "in_template": "template" in (tag, *ancestors),
                         "content": tag not in {"html", "body", "main"}
                         and "body" in ancestors,

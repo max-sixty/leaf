@@ -30,6 +30,7 @@ from render_harness import (
     LONG_PAGE,
     consume_browser_errors,
     example_media,
+    expect_design_mode,
     expect_panel_says,
     expect_preview_words,
     http_error_console,
@@ -188,7 +189,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     words = "Phone final review: image and greeting checked."
     page.keyboard.type(words)
     expect(field).to_have_js_property("value", words)
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     with sending(page, "the file comment after image inspection"):
         page.keyboard.press("ControlOrMeta+Enter")
     sent = events_model.read_events(serve.page_dir)[-1]

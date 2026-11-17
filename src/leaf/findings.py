@@ -702,9 +702,10 @@ _TEXT = {
         ' overflow-x: auto and class="lf-scroll"'
     ),
     "outside-frame": lambda at, v: (
-        f"{at} stands {v['past']}px outside the {v['frame']} that frames it — declare"
-        " --lf-block-frame: 1 in the rule that draws the frame, so the box holds the"
-        " room in as well as the margins"
+        f"{at} stands {v['past']}px outside the {v['frame']} that frames it — to widen"
+        " the frame with it, put data-width on the frame; to hold it inside, draw the"
+        " frame on a div, since a section, article or details hands the page's room on"
+        " to what it holds"
     ),
     "past-room": lambda at, v: (
         f"{at} stands {v['past']}px past the room the page has for a wide widget"
@@ -768,14 +769,16 @@ _TEXT = {
     "contained-space": lambda at, v: (
         f"{at} declares {v['space']} space but stays inside "
         + ", ".join(v["holders"])
-        + "; to let it break out with the words around it staying on the column, give"
-        ' the unframed wrappers class="layout-flow"; to widen a frame around it, put'
-        " data-width on the frame"
+        + "; to let it break out with the words around it staying on the column, write"
+        " each unframed wrapper as a section, article or details, which hands the"
+        " page's room on, or drop it; to widen a frame around it, put data-width on"
+        " the frame"
     ),
     "words-off-column": lambda at, v: (
         f"{at} reaches past the column's start edge and takes its words with it, so"
-        " they no longer line up with the page's; put data-width on the block inside"
-        ' that needs the room, and give this wrapper class="layout-flow"'
+        " they no longer line up with the page's; move data-width to the block inside"
+        " that needs the room, which a section, article or details around it hands"
+        " the page's room"
     ),
     "squeezed-table": _squeezed,
     "squeezed-code": _squeezed_code,
@@ -876,6 +879,8 @@ _TEXT = {
     "inert-allocation": lambda at, v: (
         f"{_bearing(at, v, _json(v['value']))} has no effect: "
         + {
+            "flow": "the element takes no width of its own, so put it on the block"
+            " inside that needs the room",
             "content": "only a block inside body, other than main, takes it, so put"
             " it on the block that needs it",
             "declared": "only a widget that draws into a box of a stated height"
@@ -932,11 +937,6 @@ _TEXT = {
     ),
     "not-member": lambda at, v: (
         f"{_line(at, v)}: must be a direct member of "
-        + " or ".join(f"<{owner}>" for owner in v["owners"])
-        + " or stand inside its "
-        + " or ".join(f"<{region}>" for region in v["within"])
-        if v["within"]
-        else f"{_line(at, v)}: must be a direct member of "
         + " or ".join(f"<{owner}>" for owner in v["owners"])
         + (f", found <{v['parent']}>" if v["parent"] else "")
     ),
@@ -995,10 +995,6 @@ _TEXT = {
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
         f" {v['first_line']} in the same <{v['scope']}>"
-    ),
-    "unmatched-member": lambda at, v: (
-        f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no <{v["member"]}'
-        f' {v["key"]}="{v["target"]}"> in its <{v["scope"]}>'
     ),
     "unknown-reference": lambda at, v: (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" names no element in this version'
@@ -1296,17 +1292,6 @@ _TEXT = {
         lambda v: (
             f"x-data input `{v['input']}` names `{v['attr']}` as `measured`:"
             " that attribute must be required and declare a nonempty string"
-        )
-    ),
-    "refers-unknown-member": _declared(
-        lambda v: (
-            f"x-refers `{v['attr']}` names unknown element declaration <{v['member']}>"
-        )
-    ),
-    "refers-unkeyed": _declared(
-        lambda v: (
-            f"x-refers `{v['attr']}` names <{v['member']}> by `{v['key']}`,"
-            f" which <{v['member']}> does not declare in x-unique"
         )
     ),
     "refers-unknown-map": _declared(

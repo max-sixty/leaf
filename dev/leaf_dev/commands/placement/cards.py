@@ -294,7 +294,7 @@ Sunday batch jobs.</lf-option>
 <lf-option id="choice-days"><strong>Keep it for three days</strong> Saves most of the
 cost.</lf-option>
 </lf-options>
-<section id="wide" class="layout-flow">
+<section id="wide">
 <h2>Where each region stands</h2>
 <p id="wide-lede">Every region's state, its traffic and its error budget.</p>
 <table id="wide-table" data-width="available">
@@ -753,7 +753,7 @@ STYLE = """<style>
 def window_sections(tiles: dict[Window, list[str]]) -> str:
     """The tiles, a section for each window, which a page holding `STYLE` shows."""
     return "\n".join(
-        f'<section id="window-{window.size[0]}x{window.size[1]}" class="layout-flow">\n'
+        f'<section id="window-{window.size[0]}x{window.size[1]}">\n'
         f"<h2>{window.size[0]}×{window.size[1]} window"
         f"{', under a finger' if window.touch else ''}</h2>\n"
         f'<div class="layout-tiles placements" data-width="available">\n'

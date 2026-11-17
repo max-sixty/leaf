@@ -15,7 +15,7 @@
  * stays a hand-moved integer rather than a digest of these schemas, since Leaf orders
  * protocols: it refuses a newer Leaf's page and renews an older one.
  *
- * What a page sends, the x-state verbs its layer declares and the served state are
+ * What a page sends, the verbs (state.verbs) its layer declares and the served state are
  * not among them: the Leaf serving a page also supplies its runtime and composes its
  * layer (`runtime_selection.py`), so no older reader or sender meets them.
  */
@@ -46,7 +46,7 @@ function bare(schema) {
 const same = (a, b) => isDeepStrictEqual(bare(a), bare(b));
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
- * served state, the x-state verb and the widget declaration schema, which only the
+ * served state, the verb (state.verbs) and the widget declaration schema, which only the
  * generated types read. */
 export const baselineSchemas = ({
   served: _served,

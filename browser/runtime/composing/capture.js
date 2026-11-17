@@ -31,13 +31,13 @@ export const selectionAnchor = (sel) => anchorForRange(pageRange(sel));
 // the runtime's own layer. That is the line between a user reaching for a passage and
 // one working the chrome, and it is the question every caller here is really asking.
 //
-// Whether anything is selected is asked of the range the user drew (`pageRange`), not of
-// `isCollapsed`. A drag wholly inside an x-shadow widget comes back from Chrome with both
-// ends clamped to the host's one place in the light DOM, so the selection reports itself
-// collapsed while it paints and copies the words: code dragged across in a rendered diff
-// raised no Comment field, and `c` opened a comment on the page with no passage at all.
-// The anchor's side is still read off the clamped node, which is the host's place, and
-// so answers for the widget the words are in.
+// Whether anything is selected is asked of the range the user drew (`pageRange`), not
+// of `isCollapsed`. A drag wholly inside a words.shadow widget comes back from Chrome
+// with both ends clamped to the host's one place in the light DOM, so the selection
+// reports itself collapsed while it paints and copies the words: code dragged across in
+// a rendered diff raised no Comment field, and `c` opened a comment on the page with no
+// passage at all. The anchor's side is still read off the clamped node, which is the
+// host's place, and so answers for the widget the words are in.
 /** @param {Selection | null} sel @returns {sel is Selection} */
 const drawn = (sel) => sel !== null && sel.rangeCount > 0 && !pageRange(sel).collapsed;
 export const pageSelection = () => {

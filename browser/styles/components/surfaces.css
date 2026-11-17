@@ -1,4 +1,4 @@
-/* The rules that dress both sides of a shadow boundary. A widget declaring x-shadow
+/* The rules that dress both sides of a shadow boundary. A widget declaring words.shadow
  * renders into a tree no document selector reaches (runtime/shadow-stage.js), and the
  * controls, threads and composer a widget seats there are the layer's own. So what they
  * need is stated here, once: the stage copies the composed shadow.css into each declared
@@ -10,7 +10,7 @@
    .lf-ui, since an invisible word is apparatus the anchor pass must not offer — a
    quote resolved into a clipped box would paint a mark nobody can see. Out of flow,
    so it holds no room, and unpadded, since a holder that pads every child, as a
-   `choose` group pads its cells, would make it a box that cuts off its own words;
+   live option group pads its cells, would make it a box that cuts off its own words;
    the covered-words gate skips this class.
 
    And out of the selection, which the clip does not do on its own: a word standing
@@ -80,8 +80,8 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 /* Where a widget upgrade fails, it fails soft into this box, in the document or in an
- * x-shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the theme
- * gives other labels (.tag, figcaption), with figures of one width. */
+ * words.shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the
+ * theme gives other labels (.tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
   background: var(--lf-danger-tint);
@@ -213,9 +213,9 @@ a[data-lf-external]::after,
  * list of the tags and roles that count, so a role a widget reaches for next year is a
  * pressable the day its module names it.
  *
- * In this file, because a widget declaring x-shadow builds its controls in a tree the
- * document's stylesheet does not reach, and a floor that stopped at the light DOM would
- * be a floor the newest kind of widget is the one to fall through. */
+ * In this file, because a widget declaring words.shadow builds its controls in a tree
+ * the document's stylesheet does not reach, and a floor that stopped at the light DOM
+ * would be a floor the newest kind of widget is the one to fall through. */
 /* Every box's outline stands where the box says its marks stand (base.css, "Where it
    stands"), so a ring a carrier draws on its own box stands there without restating
    it. A box that says nothing keeps the property's initial 0. */

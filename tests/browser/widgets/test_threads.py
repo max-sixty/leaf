@@ -176,7 +176,7 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
             "text": (
                 "Depends what you want to keep:\n\n"
                 '<lf-ask id="ps-decision-region">\n<h3>Which store should I write up?</h3>'
-                '<lf-options id="ps-decision" choose>'
+                '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
                 "</lf-options></lf-ask>"
@@ -389,7 +389,7 @@ def thread_on_a_sent_widget(serve):
             "text": (
                 "Depends what you want to keep:\n\n"
                 '<lf-ask id="ps-decision-region">\n<h3>Which store should I write up?</h3>'
-                '<lf-options id="ps-decision" choose>'
+                '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
                 "</lf-options></lf-ask>"

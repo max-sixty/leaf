@@ -24,7 +24,7 @@
             Postgres removed the Redis hop in load tests (p99 41 ms to 29 ms) but needs
             the migration in the runbook. Redis is what production runs today.
           </p>
-          <lf-options id="deck-store-choice" choose>
+          <lf-options id="deck-store-choice">
             <lf-option id="deck-store-redis"
               ><strong>Keep Redis</strong> No migration this release.</lf-option
             >
@@ -53,7 +53,7 @@
         <lf-ask id="deck-beta-ask">
           <h3>Which platforms get the 2.4 beta?</h3>
           <p>Each platform adds a day of smoke testing.</p>
-          <lf-options id="deck-beta-choice" choose multiple>
+          <lf-options id="deck-beta-choice" multiple>
             <lf-option id="deck-beta-mac">macOS</lf-option>
             <lf-option id="deck-beta-linux">Linux</lf-option>
             <lf-option id="deck-beta-win">Windows</lf-option>
@@ -66,7 +66,7 @@
             <pre>
 Thanks for the report. 2.4 moves session lookups off the slow path; logins should feel faster from Friday.</pre>
           </lf-draft>
-          <lf-options id="deck-support-choice" choose>
+          <lf-options id="deck-support-choice">
             <lf-option id="deck-support-send"><strong>Send it</strong></lf-option>
             <lf-option id="deck-support-hold"><strong>Don't send it</strong></lf-option>
           </lf-options>
@@ -74,7 +74,7 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
         <lf-ask id="deck-publish-ask">
           <h3>Post the release notes to #eng on Friday?</h3>
           <p>Posts the notes, with the upgrade note as you leave it.</p>
-          <lf-options id="deck-publish-choice" choose>
+          <lf-options id="deck-publish-choice">
             <lf-option id="deck-publish-hold"
               ><strong>Keep them as a draft</strong></lf-option
             >

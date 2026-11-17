@@ -859,10 +859,10 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
         '<lf-tab id="only" label="Only withdrawn">'
-        '<lf-options id="only-options" choose><lf-option id="only-pick">Only</lf-option></lf-options>'
+        '<lf-options id="only-options"><lf-option id="only-pick">Only</lf-option></lf-options>'
         '</lf-tab><lf-tab id="mixed" label="Answer and withdrawal">'
-        '<lf-options id="answered-options" choose><lf-option id="answered-pick" chosen>Keep</lf-option></lf-options>'
-        '<lf-options id="withdrawn-options" choose><lf-option id="withdrawn-pick">Retire</lf-option></lf-options>'
+        '<lf-options id="answered-options"><lf-option id="answered-pick" selected>Keep</lf-option></lf-options>'
+        '<lf-options id="withdrawn-options"><lf-option id="withdrawn-pick">Retire</lf-option></lf-options>'
         "</lf-tab></lf-tabs>",
     )
     page = open_page(browser, live_url(serve(source)))
@@ -877,8 +877,8 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     )
     stamp_page(
         serve.page_dir,
-        source.replace('id="only-options" choose', 'id="only-options"').replace(
-            'id="withdrawn-options" choose', 'id="withdrawn-options"'
+        source.replace('id="only-options"', 'id="only-options" settled').replace(
+            'id="withdrawn-options"', 'id="withdrawn-options" settled'
         ),
         "Retire unanswered requests",
     )
@@ -908,7 +908,7 @@ def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve)
         serve.page_dir,
         source.replace(
             '<p id="last-words">Nothing yet.</p>',
-            '<lf-options id="pick" choose><lf-option id="pick-a">Go</lf-option></lf-options>',
+            '<lf-options id="pick"><lf-option id="pick-a">Go</lf-option></lf-options>',
         ),
         "Ask the first question",
     )
@@ -930,7 +930,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             """<lf-tabs id="queue" list="side">
 <lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
   <lf-ask id="ask-a"><h3 id="q-a">What happens to a?</h3>
-    <lf-options id="o-a" choose>
+    <lf-options id="o-a">
       <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
       <lf-option id="o-a-close"><strong>Escalate to engineering</strong> Send the logs.</lf-option>
       <lf-option id="o-a-long"><strong>Escalate to the international engineering incident response team</strong> Send all logs.</lf-option>

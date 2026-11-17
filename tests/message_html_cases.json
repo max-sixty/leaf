@@ -12,13 +12,13 @@
     "words": "Before Load**12** After bold"
   },
   {
-    "source": "Pick one:\n\n<lf-options id=\"pick\" choose>\n<lf-option id=\"pick-a\">**A**</lf-option>\n</lf-options>",
+    "source": "Pick one:\n\n<lf-options id=\"pick\">\n<lf-option id=\"pick-a\">**A**</lf-option>\n</lf-options>",
     "html": true,
     "elements": ["p", "lf-options#pick", "lf-option#pick-a"],
     "words": "Pick one: **A**"
   },
   {
-    "source": "<lf-options id=\"pick\" choose><lf-option id=\"pick-a\">**A**</lf-option></lf-options>",
+    "source": "<lf-options id=\"pick\"><lf-option id=\"pick-a\">**A**</lf-option></lf-options>",
     "html": true,
     "elements": ["p", "lf-options#pick", "lf-option#pick-a", "strong"],
     "words": "A"
@@ -68,13 +68,13 @@
     "words": "Here: def a(): return 1 def b(): return 2 After bold"
   },
   {
-    "source": "Which?\n<lf-options id=\"store\" choose><lf-option id=\"store-a\">A</lf-option></lf-options>\nMore *words*",
+    "source": "Which?\n<lf-options id=\"store\"><lf-option id=\"store-a\">A</lf-option></lf-options>\nMore *words*",
     "html": true,
     "elements": ["p", "br", "lf-options#store", "lf-option#store-a", "br", "em"],
     "words": "Which? A More words"
   },
   {
-    "source": "Pick <lf-options id=\"inline\" choose><lf-option id=\"inline-a\">A</lf-option></lf-options> now",
+    "source": "Pick <lf-options id=\"inline\"><lf-option id=\"inline-a\">A</lf-option></lf-options> now",
     "html": true,
     "elements": ["p", "lf-options#inline", "lf-option#inline-a"],
     "words": "Pick A now"

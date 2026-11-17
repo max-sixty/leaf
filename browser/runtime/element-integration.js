@@ -28,6 +28,6 @@ export const elementIntegration = {
   data: (/** @type {Element} */ element, /** @type {() => void} */ stage) =>
     new ElementData(element, stage),
   shadows: (/** @type {Element} */ element) =>
-    registry[element.localName]?.["x-shadow"],
+    registry[element.localName]?.words?.shadow,
 };
 installElementIntegration(elementIntegration);

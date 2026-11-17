@@ -348,7 +348,7 @@ export class Trace extends LeafElement {
     });
   }
   // The recording, set by whoever hosts the widget: Leaf from the bound source (the
-  // registry's `x-data.trace.property`), or null while that source has none.
+  // registry's `data.inputs.trace.property`), or null while that source has none.
   static properties = { value: { attribute: false } };
 
   constructor() {

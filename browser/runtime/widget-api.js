@@ -77,7 +77,7 @@ export {
 } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-// A view's reading and writing of another widget's answer (x-shows).
+// A view's reading and writing of another widget's answer (state.shows).
 export { shownAnswer } from "./shown-answer.js";
 export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
@@ -144,12 +144,7 @@ export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
-export {
-  declarationFor,
-  elementsDeclaring,
-  layerFact,
-  matchesWhen,
-} from "./registry.js";
+export { declarationFor, layerFact, matchesWhen } from "./registry.js";
 export {
   flashDuration,
   foldDuration,

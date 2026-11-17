@@ -1225,11 +1225,13 @@ def stage_reach_cases(page):
 FILM_DECLARATION = {
     tag: {
         "description": f"A <{tag}> page widget.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
     }
     for tag in ("lf-film", "lf-loader")
 }
@@ -1429,7 +1431,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     nothing wrong with it — for a price, which is the shortest thing an author is likely to
     put in one. A suggestion swapping one short word is the same case in a second tag,
     there because the gate dispatches on the declaration: the day the wrapper took a box
-    it stood in front of this floor, and only x-inline says whose floor is whose.
+    it stood in front of this floor, and only words.inline says whose floor is whose.
 
     The floor a gloss does keep is the height, since a line of words is a line tall under
     any layout. Both halves are asserted, because a floor deleted outright passes the
@@ -1457,13 +1459,13 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     # Asked without the declaration, the same floor flags it — so what passes the page
     # is the declaration, not a floor gone missing.
     undeclared = json.loads(json.dumps(page_declarations(page)))
-    del undeclared["lf-suggestion"]["x-inline"]
+    del undeclared["lf-suggestion"]["words"]["inline"]
     assert [
         box
         for box in render_checks_model.evaluate_probe(page, "tinyBoxes", undeclared)
         if box["tag"] == "lf-suggestion"
     ], (
-        "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
+        "with words.inline stripped the gate stays quiet, so the floor is gone rather than declared"
     )
 
     # Flattened, the same glosses are a collapse and the gate says so — the reading the

@@ -930,7 +930,7 @@ html[data-lf-draw-mode] {
 
   /* Design mode shows the page's bones: every item (a widget, a section, a heading with
      an id) wears a dashed legend box drawn from its geometry like the aim's (paintLegend),
-     one pixel outside its border box. Every item but a widget's parts (x-owners) also
+     one pixel outside its border box. Every item but a widget's parts (markup.owners) also
      wears its tag and id above the corner; parts are named under the pointer. Dashed,
      because a legend is structural and a solid contour is a gesture's. Under the pointer
      the aim marks one item (`[data-lf-aimed]`) with its full name (.lf-inspect). No pointer

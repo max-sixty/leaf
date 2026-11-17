@@ -8,13 +8,13 @@ module owes.
 Leaf keeps every kind of state a widget has; the module writes no storage or server
 code of its own. Choose by what the state is:
 
-| State                                                                                      | Kept through                                                                                                     | Who sees it                                                                                                         | How the widget hears of a change                                                                           |
-| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `x-state` ([package-data.md, "User state"](package-data.md#user-state)), recorded by the controller | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | `render()` runs with the new `this.state`, whether this tab, another one, Undo or a new version changed it |
-| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                      | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
-| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                         | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
-| Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                  | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
-| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                           | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
+| State                                                                                      | Kept through                                                                                                         | Who sees it                                                                                                         | How the widget hears of a change                                                                           |
+| ------------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `state.verbs` ([package-data.md, "User state"](package-data.md#user-state)), recorded by the controller | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | `render()` runs with the new `this.state`, whether this tab, another one, Undo or a new version changed it |
+| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                          | every tab in this browser, until sent                                                                               | `watchDraft`                                                                                               |
+| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                             | this tab                                                                                                            | only this tab writes it; read it during setup                                                              |
+| Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                      | everyone                                                                                                            | Leaf sets the property, and `render()` runs                                                                |
+| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                               | whoever reads the file                                                                                              | `watch(callback)`                                                                                          |
 
 Undo tells the first row from the third. Record a change the user would expect Undo to
 take back, and that a comment on the page may be about. Keep in the tab what Undo should
@@ -33,7 +33,7 @@ markup has a controller, and only under the `id` it had at upgrade: if the id ch
 user adds through a `creates` verb, such as a new option, has none; its parent draws it
 from its own state and passes the member's asynchronous drawing to
 `controller.present(promise)`. Leaf itself draws what the declaration alone decides,
-such as hiding a suggestion's `lf-old` once it is accepted (`x-retired-when`).
+such as hiding a suggestion's `lf-old` once it is accepted (`state.retired-when`).
 
 `read()` returns an immutable `{authored, state, memberships, thread, provenance,
 actions}`. `authored` is the state the page's markup sets, and `state` that with every
@@ -120,7 +120,7 @@ the module draws.
 
 ## Bound data and projections
 
-A widget reads a bound data source through the property its `x-data` input names
+A widget reads a bound data source through the property its input (`data.inputs`) names
 ([package-data.md, "External or derived data"](package-data.md#external-or-derived-data)),
 `"property": "value"` for most widgets. Before each update the delivery moves, Leaf
 sets that property to the source's value, or `null` while there is no readable value,

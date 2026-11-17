@@ -863,7 +863,7 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     )
     await_presentation(page, url, failures)
     page.locator("#saved-state-recall").wait_for(state="visible")
-    page.locator("#heat-opt-window[chosen]").wait_for(state="visible")
+    page.locator("#heat-opt-window[selected]").wait_for(state="visible")
     state_response = read_state(context.request, state_url)
     check(
         state_response.headers.get("leaf-state-source") == "durable",

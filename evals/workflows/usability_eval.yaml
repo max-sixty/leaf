@@ -900,7 +900,7 @@ cases:
 
           batch_200 (the final canonical page, state and agent replies): The page states that copying uses batches of 200 documents. Judge the current plan, rather than a quoted request or rejected proposal.
 
-          next_pick (phase 1 reply): Among what needs doing next, the message includes taking in the user's pick of the tenant-by-tenant approach, such as marking it chosen on the page. Treating how traffic moves as still undecided fails.
+          next_pick (phase 1 reply): Among what needs doing next, the message includes taking in the user's pick of the tenant-by-tenant approach, such as marking it selected on the page. Treating how traffic moves as still undecided fails.
 
           The final active page uses batches of 200 and explains the replica disk-queue reason in place. It preserves the user's tenant-by-tenant rollout choice as current, incorporates that choice instead of asking again, answers the batch comment and stamps the revised page without discarding unrelated state.
         transform: context.metadata.texts?.['evidence'] ?? ''

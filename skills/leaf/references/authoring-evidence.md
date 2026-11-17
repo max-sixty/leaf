@@ -50,7 +50,7 @@ named for what the part is, since the thread reports it to you. For `lf-diagram`
 entry says which boxes `parts="all"` makes commentable.
 
 A comment's mark stays where its part was when the mark was drawn, so a part that moves
-leaves its mark behind. Draw moving parts in a page widget that declares `x-visual`
+leaves its mark behind. Draw moving parts in a page widget that declares `words.visual`
 parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media

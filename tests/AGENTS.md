@@ -206,7 +206,8 @@ once. Test a reading made from declarations on a widget that declares them, pass
 `serve` as `layer_registry` and `layer_widgets`.
 
 A test over prose compares it with something the machine states: a shown command
-against the click tree, an `x-` key against the guide, a table against its registry.
+against the click tree, a declaration key against the guide, a table against its
+registry.
 Leave wording with no machine side to review.
 
 Current location and visible focus are separate (`focus.js` owns their contract):

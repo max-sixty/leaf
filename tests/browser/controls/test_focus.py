@@ -578,7 +578,7 @@ EDGE_CONTROLS = {
         "</lf-playground>"
     ),
     "options": (
-        '<lf-options id="op" choose><lf-option id="op-a">Alpha</lf-option>'
+        '<lf-options id="op"><lf-option id="op-a">Alpha</lf-option>'
         '<lf-option id="op-b">Beta, the second choice</lf-option></lf-options>'
     ),
     "filter": (

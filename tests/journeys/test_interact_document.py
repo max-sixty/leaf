@@ -10,6 +10,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     _report,
     _tasks_version,
     append_carried_log_record,
@@ -278,19 +279,23 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
     """A package member can belong to different families without validator changes."""
     label = {
         "description": "A package's shared label.",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-owners": ["lf-option", "lf-card"],
+        "attributes": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "markup": {
+            "owners": ["lf-option", "lf-card"],
+        },
     }
     declare_on_page(page_dir, lambda registry: registry.__setitem__("lf-label", label))
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            "<lf-options>",
+            PAGE_GROUP,
             '<lf-board id="labels"><lf-column id="labels-column" label="Ideas">'
             '<lf-card id="labels-card"><lf-label>cheap</lf-label>A</lf-card>'
-            "</lf-column></lf-board><lf-options>",
+            "</lf-column></lf-board>" + PAGE_GROUP,
         ).replace(
             '<lf-option id="flag-first">',
             '<lf-option id="flag-first"><lf-label>small</lf-label>',
@@ -309,16 +314,16 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
 
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / "index.html").write_text(
-        PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="">')
+        PAGE.replace('id="backfill-first">', 'id="backfill-first" selected="">')
     )
     assert check(page_dir).exit_code == 0
     (page_dir / "index.html").write_text(
-        PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="yes">')
+        PAGE.replace('id="backfill-first">', 'id="backfill-first" selected="yes">')
     )
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(
-        findings, "attribute-schema", "<lf-option>", keyword="type", path=["chosen"]
+        findings, "attribute-schema", "<lf-option>", keyword="type", path=["selected"]
     )
 
 
@@ -331,8 +336,9 @@ def test_an_unanswered_proposal_may_become_authored_content(page_dir):
     """
     suggest(page_dir, markup=insert)
     kept = PAGE.replace(
-        "<lf-options>",
-        '<p id="thistle-plan">Switch the north feeder to thistle in autumn.</p><lf-options>',
+        PAGE_GROUP,
+        '<p id="thistle-plan">Switch the north feeder to thistle in autumn.</p>'
+        + PAGE_GROUP,
     )
     (page_dir / "index.html").write_text(kept)
     result = check(page_dir)
@@ -352,8 +358,8 @@ def test_retiring_suggestion_markup_is_independent_of_its_answer(page_dir):
     suggest(page_dir)
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            "<lf-options>",
-            '<p id="refill-rule">Refill every feeder each morning.</p><lf-options>',
+            PAGE_GROUP,
+            '<p id="refill-rule">Refill every feeder each morning.</p>' + PAGE_GROUP,
         )
     )
     append_carried_log_record(
@@ -610,7 +616,9 @@ def declare_other_rows(page_dir, kind):
         registry["lf-other-data"] = {
             **registry["lf-test-data"],
             "description": "A differently typed test input.",
-            "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+            "data": {
+                "inputs": {"data": {"contract": "other-rows", "source": "source"}}
+            },
         }
 
     declare_on_page(page_dir, declare)

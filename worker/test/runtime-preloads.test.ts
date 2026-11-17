@@ -19,15 +19,13 @@ it("an arriving widget scope requires its own upgrade while template contents st
         "lf-arrival": "widgets/lf-arrival.js",
         "lf-unused": "widgets/lf-unused.js",
       },
-      "lf-arrival": { "x-content": "empty" },
-      "lf-unused": { "x-content": "empty" },
+      "lf-arrival": { content: "empty" },
+      "lf-unused": { content: "empty" },
       table: {
-        "x-content": "markup",
-        "x-example": "<table></table>",
+        author: { example: "<table></table>" },
       },
       "lf-arrival.selected": {
-        "x-content": "markup",
-        "x-example": '<lf-arrival class="selected"></lf-arrival>',
+        author: { example: '<lf-arrival class="selected"></lf-arrival>' },
       },
     } as unknown as import("../../browser/runtime/widget-imports.js").Registry;
     expect(registeredTags(scope, registry)).toEqual(["lf-arrival"]);
@@ -68,8 +66,8 @@ it("bundles each document's static graph without fetching optional modules or ch
             "lf-used": "widgets/lf-used.js",
             "lf-unused": "widgets/lf-unused.js",
           },
-          "lf-used": { "x-content": "empty" },
-          "lf-unused": { "x-content": "empty" },
+          "lf-used": { content: "empty" },
+          "lf-unused": { content: "empty" },
         }),
       );
       const sources = {

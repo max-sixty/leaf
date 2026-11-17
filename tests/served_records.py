@@ -230,7 +230,7 @@ def build() -> dict:
                         "parent": "e1",
                         "responds": "e1",
                         "text": "Here is the board. Which card goes first?\n\n"
-                        + model_layer()["lf-board"]["x-example"],
+                        + model_layer()["lf-board"]["author"]["example"],
                         "obligation": True,
                     },
                     {
@@ -440,10 +440,10 @@ QUIET = "2026-09-19T11:30:00+00:00"
 
 OBLIGATION_PAGE = leaf_page(
     "Served queues",
-    '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
+    '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick">'
     '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
     "</lf-options></lf-ask>"
-    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
+    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship">'
     '<lf-option id="ship-now">Now</lf-option><lf-option id="ship-later">Later</lf-option>'
     "</lf-options></lf-ask>",
 )
@@ -482,7 +482,13 @@ def obligation_value_cases():
     ):
         spec = {"unit": unit, **({"record": record} if record else {})}
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
-        registry = {"lf-value": {"x-state": {"set": spec}}}
+        registry = {
+            "lf-value": {
+                "state": {
+                    "verbs": {"set": spec},
+                },
+            }
+        }
         source = SourceReading(SourceDocument(markup), registry)
         held = {}
         entries = []
@@ -539,7 +545,7 @@ def obligation_value_cases():
             }
         )
 
-    attribute = {"kind": "attribute", "attr": "chosen"}
+    attribute = {"kind": "attribute", "attr": "selected"}
     add("attribute authored empty", attribute, initial=[])
     add("attribute completed empty", attribute, initial=[], answered=True)
     add(
@@ -693,10 +699,10 @@ def gesture_sequence() -> dict:
 TAIL_PAGE = leaf_page(
     "Served tails",
     '<p id="p">Two questions.</p>'
-    '<lf-ask id="kinds-ask"><h2>Which kinds?</h2><lf-options id="kinds" choose multiple>'
+    '<lf-ask id="kinds-ask"><h2>Which kinds?</h2><lf-options id="kinds" multiple>'
     '<lf-option id="red">Red</lf-option><lf-option id="blue">Blue</lf-option>'
     "</lf-options></lf-ask>"
-    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
+    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship">'
     '<lf-option id="now">Now</lf-option><lf-option id="later">Later</lf-option>'
     "</lf-options></lf-ask>",
 )
@@ -805,25 +811,32 @@ def tail_cases() -> list[dict]:
     registry = {
         **model_layer(),
         "lf-value-ask": {
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "active": {"type": "boolean"},
-                "value": {
-                    "type": ["boolean", "integer", "array", "object"],
-                    "items": {"type": "string"},
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "active": {"type": "boolean"},
+                    "value": {
+                        "type": ["boolean", "integer", "array", "object"],
+                        "items": {"type": "string"},
+                    },
                 },
+                "required": ["id"],
+                "additionalProperties": False,
             },
-            "required": ["id"],
-            "additionalProperties": False,
-            "x-content": "none",
-            "x-awaits": {
-                "when": {"active": [True]},
-                "value": "set",
-                "answered": {"set": {}},
-            },
-            "x-state": {
-                "set": {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
+            "content": "none",
+            "state": {
+                "awaits": {
+                    "when": {"active": [True]},
+                    "value": "set",
+                    "answered": {"set": {}},
+                },
+                "verbs": {
+                    "set": {
+                        "unit": "widget",
+                        "record": {"kind": "value", "attr": "value"},
+                    }
+                },
             },
         },
     }

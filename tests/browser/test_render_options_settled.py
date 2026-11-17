@@ -349,8 +349,8 @@ def test_a_settled_obligation_keeps_its_heading_above_the_answer(browser, serve)
             "revision": 1,
             "text": "And settled in here.\n\n"
             '<lf-ask id="th-done-decision"><h3>Where, again?</h3>'
-            '<lf-options id="th-done" choose settled>'
-            '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
+            '<lf-options id="th-done" settled>'
+            '<lf-option id="th-redis" selected><strong>Redis</strong></lf-option>'
             '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
             "</lf-options></lf-ask>",
         },

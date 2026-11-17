@@ -131,7 +131,7 @@ def test_init_allows_a_destination_schema_that_rejects_recorded_values(page_dir)
             "detail": {"value": "first"},
         },
     )
-    declaration["properties"]["value"]["maxLength"] = 1
+    declaration["attributes"]["properties"]["value"]["maxLength"] = 1
     authored.write_text(json.dumps({"lf-local": declaration}))
 
     result = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
@@ -164,7 +164,7 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
 
     registry = vocabulary(page_dir)
     task = registry["lf-test-task"]
-    task.pop("x-state")
+    task["state"].pop("verbs")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
@@ -206,7 +206,7 @@ def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
 
     registry = vocabulary(page_dir)
     diagram = registry["lf-diagram"]
-    diagram.pop("x-visual")
+    diagram["words"].pop("visual")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-diagram": diagram}))
@@ -251,12 +251,12 @@ def test_revendoring_serializes_with_a_browser_action_entering_the_log(
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
-            "</section>", registry["lf-board"]["x-example"] + "\n</section>"
+            "</section>", registry["lf-board"]["author"]["example"] + "\n</section>"
         )
     )
     publish(page_dir)
     board = registry["lf-board"]
-    board["x-state"]["move"]["record"]["within"] = "lf-options"
+    board["state"]["verbs"]["move"]["record"]["within"] = "lf-options"
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-board": board}))
@@ -284,7 +284,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     publish(page_dir)
     registry = vocabulary(page_dir)
     task = registry["lf-test-task"]
-    task.pop("x-state")
+    task["state"].pop("verbs")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
@@ -303,7 +303,9 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
         "report",
         "activation",
     ]
-    assert "x-state" not in registry_storage.load_registry(page_dir)["lf-test-task"]
+    assert "verbs" not in registry_storage.load_registry(page_dir)["lf-test-task"].get(
+        "state", {}
+    )
 
 
 @pytest.mark.parametrize("in_sample", [False, True])
@@ -337,7 +339,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
     )
     markup = (
         '<lf-ask id="thread-choice-decision"><h3>Which option?</h3>'
-        '<lf-options id="thread-choice" choose>'
+        '<lf-options id="thread-choice">'
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )
@@ -349,7 +351,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
 
     registry = vocabulary(page_dir)
     options = registry["lf-options"]
-    options["x-state"]["decide"] = {
+    options["state"]["verbs"]["decide"] = {
         "decides": True,
         "detail": {
             "type": "object",
@@ -360,7 +362,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         "unit": "widget",
     }
     option = registry["lf-option"]
-    option["x-retired-when"] = "keep"
+    option.setdefault("state", {})["retired-when"] = "keep"
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(

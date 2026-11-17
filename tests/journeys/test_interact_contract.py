@@ -9,6 +9,7 @@ import tinycss2.parser
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     append_carried_log_record,
     assert_revendor_serializes_writer,
     check,
@@ -127,11 +128,13 @@ def test_boolean_attribute_subschemas_validate_without_crashing(
 ):
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-options"]["properties"].update(choose=subschema),
+        lambda registry: registry["lf-options"]["attributes"]["properties"].update(
+            pinned=subschema
+        ),
     )
     version = page_dir / "index.html"
     version.write_text(
-        version.read_text().replace("<lf-options>", '<lf-options id="opts" choose>')
+        version.read_text().replace(PAGE_GROUP, '<lf-options id="opts" pinned>')
     )
 
     result = check(page_dir)
@@ -147,11 +150,11 @@ def test_physical_record_slots_remain_local_to_the_coordinate(page_dir):
     def owned(registry):
         # A different host attribute is a different value slot on the same unit.
         task = registry["lf-test-task"]
-        owner = json.loads(json.dumps(task["x-state"]["status"]))
+        owner = json.loads(json.dumps(task["state"]["verbs"]["status"]))
         owner["record"] = {"kind": "value", "attr": "owner"}
-        task["properties"]["owner"] = {"type": "string"}
-        task.setdefault("required", []).append("owner")
-        task["x-state"]["owner"] = owner
+        task["attributes"]["properties"]["owner"] = {"type": "string"}
+        task["attributes"].setdefault("required", []).append("owner")
+        task["state"]["verbs"]["owner"] = owner
 
     declare_on_page(page_dir, owned)
 
@@ -165,7 +168,7 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     def withdraws(outcome):
         declare_on_page(
             trial_page,
-            lambda registry: registry["lf-trial"]["x-state"]["decide"].update(
+            lambda registry: registry["lf-trial"]["state"]["verbs"]["decide"].update(
                 {"withdraws": outcome}
             ),
         )
@@ -202,17 +205,17 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
     widgets.mkdir(parents=True, exist_ok=True)
 
     def record(registry):
-        registry["lf-column"]["properties"]["tint"] = {"type": "string"}
+        registry["lf-column"]["attributes"]["properties"]["tint"] = {"type": "string"}
         for tag, (attr, verbs) in recorders.items():
             entry = registry[tag]
-            entry["properties"] |= {
+            entry["attributes"]["properties"] |= {
                 attr: {"type": "string"},
                 "restated": {"type": "boolean"},
             }
-            entry["x-state"] = verbs
+            entry.setdefault("state", {})["verbs"] = verbs
             (widgets / f"{tag}.js").write_text("export default class {}\n")
         if arrangement == "recording-column-position":
-            registry["lf-column"]["x-state"]["move"] = {
+            registry["lf-column"]["state"]["verbs"]["move"] = {
                 "unit": "unit",
                 "record": {"kind": "position", "within": "lf-column"},
             }
@@ -473,7 +476,7 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
             "kind": "comment",
             "author": "agent",
             "text": "A widget example\n\n"
-            '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget" choose><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
+            '<lf-ask id="message-ask"><h2>Route</h2><lf-options id="message-widget"><lf-option id="message-option">Existing</lf-option></lf-options></lf-ask>',
         },
         {
             "kind": "comment",

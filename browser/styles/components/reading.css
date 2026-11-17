@@ -237,7 +237,7 @@
      * edges, and every row, the outer columns, the header row and the last row stand
      * flush with them. An outward ring there lost the side on the table's edge. Room
      * outside the table would have to come from a negative margin, which overflows any
-     * scroller holding the table flush, as an x-bound box does. */
+     * scroller holding the table flush, as a paint.bound box does. */
     tr,
     th,
     td {
@@ -365,12 +365,11 @@ dl.lf-facts dd {
      * keeps `--output-dir`. `anywhere` (above) gives a name a one-character minimum, and
      * a table's automatic layout sets every column the same share of the way from its
      * minimum to its widest, so a column of names beside a column of sentences got
-     * almost none: at 720px `--output-dir` stood as `--output-` over `dir`, and
-     * `x-awaits` as `x-`, `await` and `s` beside 560px of prose. So the name is a box of
-     * its own width, which the column can't go under, up to a third of the reading
-     * column, or of the nearest size container where that is narrower (the body, unless
-     * a box nearer declares one). A longer name breaks inside its box rather than hold
-     * the column open.
+     * almost none: at 720px `--output-dir` stood as `--output-` over `dir` beside
+     * 560px of prose. So the name is a box of its own width, which the column can't go
+     * under, up to a third of the reading column, or of the nearest size container
+     * where that is narrower (the body, unless a box nearer declares one). A longer
+     * name breaks inside its box rather than hold the column open.
      *
      * The rule takes a `<th scope="row">` whose only element is the code, because that
      * is where the page's author says which cell names the row: in pages written since

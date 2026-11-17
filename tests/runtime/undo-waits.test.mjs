@@ -59,7 +59,11 @@ test("Undo waits for a newer action through its send, answer and presentation", 
   applicationState.captureDocument({
     ...applicationState.read().document,
     registry: {
-      "lf-choice": { "x-state": { decide: { ...spec, writer: "user" } } },
+      "lf-choice": {
+        state: {
+          verbs: { decide: { ...spec, writer: "user" } },
+        },
+      },
       $states: { "lf-choice": { decide: { writer: "user", definition: {} } } },
     },
     authored: new Map([

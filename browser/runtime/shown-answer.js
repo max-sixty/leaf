@@ -1,13 +1,13 @@
-/* A view of another widget's answer (state.shows), such as a board card standing in the
+/* A view of another widget's answer (`shows`), such as a board card standing in the
    column of the pick its section holds.
 
    The answer stays its widget's. Reading it here reads that widget's own published
    state, so a view drawing it in `render()` follows every pick, undo, refusal and
-   revision the widget does; changing it here sends the widget's own `state.awaits.value`
+   revision the widget does; changing it here sends the widget's own `awaits.value`
    command through its controller, the same command its own control sends, so a view
    records no fact of its own. Python's `shown_answers.py` owns the contract and reads
    the same rule for `page check`: an answer names a value when it is one string, a
-   `value` record's attribute or the picked members' `state.awaits.key` all naming the
+   `value` record's attribute or the picked members' `awaits.key` all naming the
    same one, and names none otherwise. */
 import { declarationFor } from "./registry.js";
 import { authoredScope, elementById } from "./passages.js";
@@ -31,7 +31,7 @@ const namedValue = (answer, keyOf) => {
   return only !== undefined && other === undefined ? only : null;
 };
 
-/** The answer one view element shows, or null where it shows none: no `state.shows`, no
+/** The answer one view element shows, or null where it shows none: no `shows`, no
  * widget by that id in its own document, a widget whose answer no view can show, a
  * quoted one, or one whose state has not loaded.
  * `value` is the value the answer names now (null for none), `available` whether the
@@ -40,15 +40,15 @@ const namedValue = (answer, keyOf) => {
  * what `dispatch` returns, or null where the widget can't take `value`. */
 /** @param {Element} view */
 export function shownAnswer(view) {
-  const shows = declarationFor(view)?.state?.shows;
-  const id = shows && view.getAttribute(shows.attr);
+  const shows = declarationFor(view)?.shows;
+  const id = shows && view.getAttribute(shows.reference);
   if (!id) return null;
   const owner = elementById(id, authoredScope(view));
   if (!owner) return null;
-  const awaits = declarationFor(owner)?.state?.awaits;
+  const awaits = declarationFor(owner)?.awaits;
   const verb = awaits?.value;
   if (!verb || !awaits) return null;
-  const record = declarationFor(owner)?.state?.verbs?.[verb]?.record;
+  const record = declarationFor(owner)?.verbs?.[verb]?.record;
   if (record?.kind !== "value" && !(record?.kind === "attribute" && awaits.key))
     return null;
   // A quoted widget is a mention with no state to show.

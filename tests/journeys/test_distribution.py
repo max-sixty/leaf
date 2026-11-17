@@ -77,13 +77,14 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     )
     source = source.replace(
         "</main>",
+        '<section id="prepared-q" role="group" aria-label="Which label?">'
         '<lf-playground id="prepared-playground">'
         '<aside><label id="label">Label <input name="label" '
         'value="Prepared"></label></aside>'
         "<p>Native initial drawing works.</p>"
         "<lf-playground-output>Use "
         '<output for="label"></output>.'
-        "</lf-playground-output></lf-playground></main>",
+        "</lf-playground-output></lf-playground></section></main>",
     )
     (page_dir / "index.html").write_text(source)
     leaf("page", "check", page_dir, "--render")

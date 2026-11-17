@@ -21,8 +21,6 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "author": {
-      "example": "<lf-burn id=\"search-burn\" objective=\"99.95\" window=\"7d\" consumed=\"0.33\"></lf-burn>"
-    }
+    "example": "<lf-burn id=\"search-burn\" objective=\"99.95\" window=\"7d\" consumed=\"0.33\"></lf-burn>"
   }
 }

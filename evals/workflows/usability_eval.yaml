@@ -137,7 +137,7 @@ cases:
           either keeping assessment on the agent or asking about that proposed
           boundary is valid. Do not require exactly seven obligations.
           The decisions must exist on the live page or in its threads; proposed
-          commands or markup left only in chat do not count. A bare lf-ask question
+          commands or markup left only in chat do not count. A question section with no widget
           or conversational obligation does not record a choice; a thread or reply
           needs an answering widget in its markup.
           Do not require exact wording, IDs, order, or a particular choice widget.
@@ -384,7 +384,7 @@ cases:
           missing acceptance criteria.
           A question only in chat, an unexecuted command, a question inserted into
           the document, or a reply to an existing thread fails this placement check.
-          Both a plain-text question and a question using lf-ask inside the new
+          Both a plain-text question and a question using a section inside the new
           thread are valid for placement. Obligation registration is scored separately.
           The completed report retains its supplied facts and no acceptance
           criteria are invented. Canonical thread placement does not prove browser
@@ -415,7 +415,7 @@ cases:
           Judge successful executed commands and admitted messages, not promises
           or examples. The missing-information question is sent as a thread
           message using the --obligation flag, which registers that message's
-          canonical user obligation. It does not substitute an lf-ask in markup
+          canonical user obligation. It does not substitute a question section in markup
           or a document widget for this plain conversational request. The user's
           prompt does not prescribe the flag; this metric measures whether the
           agent chooses the message API from its shipped instructions.
@@ -515,7 +515,7 @@ cases:
           Judge successful executed commands and admitted messages, not promises
           or examples. The missing-information question is sent as a thread
           message using the --obligation flag, which registers that message's
-          canonical user obligation. It does not substitute an lf-ask in markup
+          canonical user obligation. It does not substitute a question section in markup
           or a document widget for this plain conversational request. The user's
           prompt does not prescribe the flag; this metric measures whether the
           agent chooses the message API from its shipped instructions.
@@ -574,7 +574,7 @@ cases:
           Judge successful executed commands and admitted messages, not promises
           or examples. The missing-information question is sent as a thread
           message using the --obligation flag, which registers that message's
-          canonical user obligation. It does not substitute an lf-ask in markup
+          canonical user obligation. It does not substitute a question section in markup
           or a document widget for this plain conversational request. The user's
           prompt does not prescribe the flag; this metric measures whether the
           agent chooses the message API from its shipped instructions.

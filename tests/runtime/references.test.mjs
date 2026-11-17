@@ -1,4 +1,4 @@
-/* Where a `markup.refers` attribute resolves: in the referrer's own message before the
+/* Where a `refers` attribute resolves: in the referrer's own message before the
    page, never in another message, and for a keyed contract in the referrer's own
    scope. And a verb handed an attribute its entry doesn't declare is the caller's
    error. `navigateToDatum` and widget data inputs both read references this way. */
@@ -13,9 +13,7 @@ beforeEach(() => {
   for (const tag of Object.keys(registry)) delete registry[tag];
   Object.assign(registry, {
     "lf-driver": {
-      markup: {
-        refers: { for: {} },
-      },
+      refers: { for: {} },
     },
     "lf-target": {},
   });
@@ -88,14 +86,10 @@ test("a keyed reference names the member its own scope holds, never an id", () =
   Object.assign(registry, {
     "lf-scope": {},
     "lf-member": {
-      markup: {
-        unique: { name: "lf-scope" },
-      },
+      unique: { name: "lf-scope" },
     },
     "lf-keyed": {
-      markup: {
-        refers: { for: { tag: "lf-member", key: "name" } },
-      },
+      refers: { for: { tag: "lf-member", key: "name" } },
     },
   });
   document.body.innerHTML = `<main>

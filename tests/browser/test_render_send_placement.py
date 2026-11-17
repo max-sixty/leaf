@@ -1299,7 +1299,9 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     100%, which only pans it sideways, and a pane the page scrolls scrolls nothing
     itself. So a comment ⌥-clicked into the shot stands beside it rather than over it,
     and one on words in the pane takes the window's room: the answer that arrives grows
-    the card, rather than scrolling inside a card the shot or the pane cuts short."""
+    the card, rather than scrolling inside a card the shot or the pane cuts short. The
+    answer grows a card beside the shot past the window's foot, which lifts it
+    (thread-preview.js, `rises`)."""
     shot = None
     if subject.startswith("shot"):
         page = open_page(browser, serve(named_source("release-notes")))
@@ -1342,7 +1344,9 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
         for event in reversed(event_log.read_events(serve.page_dir))
         if event["kind"] == "comment"
     )["id"]
-    append_agent_reply(serve.page_dir, root, "Because each tenant restores alone. " * 8)
+    append_agent_reply(
+        serve.page_dir, root, "Because each tenant restores alone. " * 12
+    )
     told(page)
     expect(card.locator(".lf-msg")).to_have_count(2)
     rendered(page)

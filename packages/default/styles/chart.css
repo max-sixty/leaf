@@ -10,7 +10,7 @@ lf-chart .lf-chart-drawing {
   font: var(--lf-font-fine);
   color: var(--lf-muted);
 }
-/* Where the runtime runs, the chart's box is laid out before it draws (paint.height), and the source
+/* Where the runtime runs, the chart's box is laid out before it draws (`height`), and the source
  * waiting in it is code for the drawing rather than words for the reader. */
 @scope (html[data-lf-interactive] lf-chart) {
   :scope:is(lf-chart):not(.lf-rendered) > pre {

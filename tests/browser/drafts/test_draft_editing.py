@@ -594,7 +594,7 @@ def test_a_click_on_a_reply_s_draft_opens_it_in_the_panel(browser, serve):
             "--text",
             "Here it is:"
             + "\n\n"
-            + ('<lf-draft id="reply-draft"><pre>The note to send.</pre></lf-draft>'),
+            + ('<lf-draft id="reply-draft">\n<pre>The note to send.</pre></lf-draft>'),
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -617,9 +617,9 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
         serve(
             leaf_page(
                 "Draft in an Ask",
-                '<h1>Release note</h1><lf-ask id="note-decision">'
-                "<h2>How should the note read?</h2>"
-                f'<lf-draft id="note" required><pre>{original}</pre></lf-draft></lf-ask>',
+                '<h1>Release note</h1><section id="note-decision" role="group" aria-labelledby="note-decision-h">'
+                '<h2 id="note-decision-h">How should the note read?</h2>'
+                f'<lf-draft id="note" required><pre>{original}</pre></lf-draft></section>',
             )
         ),
     )

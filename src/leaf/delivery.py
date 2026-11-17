@@ -314,7 +314,7 @@ _DELIVERED_EVENT = {
             "unsent": described(
                 "On the user's message or edit about a widget, one their thread is "
                 "anchored in or was sent in, the work they had made there without "
-                "sending it (`$state.unsent`), as it stood when they wrote: what "
+                "sending it (`$verbs.unsent`), as it stood when they wrote: what "
                 "the widget showed them (`thread_context.unsent_at_messages`). "
                 "Absent where none stood.",
                 _GESTURES,

@@ -58,7 +58,7 @@ variants:
           The agent opens a new thread asking for the missing latency budget and
           registers the plain message as a user obligation with --obligation.
           The question remains owed until answered. A status detail, question only
-          in chat, an lf-ask widget, or a claim to have registered it without a
+          in chat, a question section on the page, or a claim to have registered it without a
           command is insufficient. The report is unchanged, no budget is invented,
           and the page remains available for the answer rather than being closed.
   finished:

@@ -888,7 +888,7 @@ def picture(page_dir: Path, message: str) -> dict:
 def report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     """Report a state change onto a page widget, as a worker.
 
-    VERB is one of the widget's agent-written verbs (state.verbs), and each NAME=VALUE
+    VERB is one of the widget's agent-written `verbs`, and each NAME=VALUE
     one of its fields: `leaf page report <page> t-parser status value=review text="Ready
     for review"` moves a task. The page shows the report at once, marked provisional,
     until a stamped version writes it into the markup or overrules it.
@@ -1527,7 +1527,7 @@ def thread_reply(
     **options,
 ) -> dict | None:
     """Answer a delivered update by its `answer.ref` alone, or post into the
-    thread PAGE MESSAGE names, which is refused while that thread owes an answer.
+    thread PAGE MESSAGE names, which answers nothing that thread owes.
     The text is Markdown, and HTML in it draws, checked here.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
@@ -1640,7 +1640,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
-    A to-do on a widget needs a widget that declares state.work or holds an
+    A to-do on a widget needs a widget that declares `work` or holds an
     unsettled update. A thread attachment provides discussion context;
     replying does not complete the task. To leave the user something to do or
     answer, send a message with --obligation instead."""

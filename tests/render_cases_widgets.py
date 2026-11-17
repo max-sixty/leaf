@@ -79,17 +79,13 @@ PAGE_DECLARATION = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "state": {
-            "verbs": {
-                "choose": {
-                    "unit": "widget",
-                    "record": {"kind": "value", "attr": "choice"},
-                }
-            },
+        "verbs": {
+            "choose": {
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "choice"},
+            }
         },
-        "author": {
-            "example": '<lf-local id="local-example" choice="idle"></lf-local>',
-        },
+        "example": '<lf-local id="local-example" choice="idle"></lf-local>',
     }
 }
 
@@ -191,12 +187,8 @@ GENERIC_VISUAL_LAYER: dict[str, dict] = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "visual": {"parts": "parts"},
-        },
-        "author": {
-            "example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
-        },
+        "visual": {"parts": "parts"},
+        "example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
     }
 }
 
@@ -243,8 +235,8 @@ def prefixed_visual_layer(*prefixes):
                 "properties": {"id": entry["attributes"]["properties"]["id"]},
                 "required": ["id"],
             },
-            "words": {**entry["words"], "visual": {"prefixes": list(prefixes)}},
-            "author": {"example": '<lf-test-visual id="visual"></lf-test-visual>'},
+            "visual": {"prefixes": list(prefixes)},
+            "example": '<lf-test-visual id="visual"></lf-test-visual>',
         }
     }
 
@@ -269,13 +261,9 @@ SHADOW_VISUAL_LAYER = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "shadow": True,
-            "visual": {"parts": "parts"},
-        },
-        "author": {
-            "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
-        },
+        "shadow": True,
+        "visual": {"parts": "parts"},
+        "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
     }
 }
 SHADOW_VISUAL_WIDGETS = {
@@ -982,7 +970,7 @@ FRAMED_WIDE_PAGE = leaf_page(
     <lf-column id="q2" label="Done"></lf-column>
   </lf-board>
 </lf-sample>
-<lf-ask id="pick-decision"><h2>Should the option include evidence?</h2>
+<section id="pick-decision" role="group" aria-labelledby="pick-decision-h"><h2 id="pick-decision-h">Should the option include evidence?</h2>
 <lf-options id="pick">
   <lf-option id="opt-a"><strong>With evidence</strong>
     <lf-diagram id="in-card"><pre>
@@ -992,8 +980,8 @@ graph LR
 </pre></lf-diagram>
   </lf-option>
   <lf-option id="opt-b"><strong>Without</strong></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="row-pick-decision"><h2>Where should the cable run?</h2>
+</lf-options></section>
+<section id="row-pick-decision" role="group" aria-labelledby="row-pick-decision-h"><h2 id="row-pick-decision-h">Where should the cable run?</h2>
 <lf-options id="row-pick">
   <lf-option id="row-a">Along the fence line
     <lf-diagram id="in-row"><pre>
@@ -1007,7 +995,7 @@ graph LR
 </pre></lf-diagram>
   </lf-option>
   <lf-option id="row-b">Under the lawn in a trench</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-board id="evidence">
   <lf-column id="e1" label="Todo"><lf-card id="ek1"><strong>With evidence</strong>
     <lf-diagram id="in-board-card"><pre>
@@ -1238,24 +1226,26 @@ OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
 SCROLLED = "() => document.scrollingElement.scrollTop > 0"
 
 
+# The question's group is named by `aria-label`, so aiming at its heading, which carries
+# no id, aims at the question.
 WHERE_I_STAND_PAGE = leaf_page(
     "where i stand",
     """
 <h1 id="t">Current location</h1>
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
-<lf-ask id="shape-decision"><h2>Which material?</h2>
+<section id="shape-decision" role="group" aria-label="Which material?"><h2>Which material?</h2>
 <lf-options id="shape">
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, and the
   <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="settled-decision"><h2>Should we keep it?</h2>
+</lf-options></section>
+<section id="settled-decision"><h2>Should we keep it?</h2>
 <lf-options id="settled" settled>
   <lf-option id="st-keep" selected><strong>Keep it</strong> Decided last week, with the
   <a href="https://example.invalid/keep">note behind it</a>.</lf-option>
   <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <p id="p2">A passage carrying
 <lf-suggestion id="sug-window">
   <lf-old>Refill every feeder each morning.</lf-old>

@@ -50,9 +50,10 @@
 // scrollport that grows at its foot by no more than that growth, as a floating card
 // sized to its thread does, is stationary for this: it keeps its other edges. One that declares it stands on its
 // foot (`data-lf-rises`), as the floating panel's thread view stands on its row and
-// a margin card on the edge it holds, may instead rise at its head by no more than
-// that growth, carrying all it holds, and its own head, up by its rise: the one case
-// where news may carry controls (`appendGrowth`).
+// a margin card on the edge it holds, may instead rise at its head, and grow at its
+// foot as well, by no more than that growth together, carrying all it holds, and its
+// own head, up by its rise: the one case where news may carry controls
+// (`appendGrowth`).
 // Layout coordinates remove scrolling; sticky descendants retain their
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, or a popover's implicit anchor, the
@@ -2680,8 +2681,11 @@
   //
   // A scrollport that declares it stands on its foot (`data-lf-rises`), as the floating
   // panel's thread view stands on its row and a margin card on the edge it holds
-  // (thread-preview.js), instead rises at its head as it grows with
-  // that growth, by no more than it, keeping its other edges. Its holdings are then
+  // (thread-preview.js), instead rises at its head as it grows with that growth,
+  // keeping its sides. It may grow at its foot too, by the rest: a margin card held by
+  // its top grows down to the window's foot and rises for the rest in one frame. Its
+  // rise and its foot's growth together come to no more than the growth. Its
+  // holdings are then
   // read from its head, which carries them all up by its rise, and so does every box
   // standing on its foot with it (its stand): what stands in that stand above the
   // scrollport, such as the view's name, rises with it by the same distance and no
@@ -2722,7 +2726,11 @@
         )
       );
     };
-    // Whether `node` keeps every edge but its head, which rises; how far, or 0.
+    // How far `node`'s foot moved down on screen.
+    const drop = (node) => boxAt(node, last).bottom - boxAt(node, first).bottom;
+    // Whether `node` keeps its sides while its head rises and its foot holds or
+    // grows; how far the head rose, or 0. A rising port's growth bounds the two
+    // together.
     const headRise = (node) => {
       const rects = around.map(({ at }) => boxAt(node, at));
       if (!rects.every(Boolean)) return 0;
@@ -2730,9 +2738,10 @@
       return rise >= 1 &&
         rects.every(
           (rect) =>
-            ["left", "right", "bottom"].every(
+            ["left", "right"].every(
               (edge) => Math.abs(rect[edge] - rects[0][edge]) < 1,
             ) &&
+            rect.bottom - rects[0].bottom > -1 &&
             rects[0].top - rect.top > -1 &&
             rects[0].top - rect.top < rise + 1,
         )
@@ -2827,7 +2836,7 @@
         !(
           stable(port, true) ||
           footGrowth(port, grown, true) ||
-          (rise && rise < grown + 1)
+          (rise && rise + drop(port) < grown + 1)
         ) ||
         !around.every(
           ({ at }) =>
@@ -2840,11 +2849,16 @@
         )
       )
         return [];
-      // The boxes standing on their foot with a rising port, each risen as far.
+      // The boxes standing on their foot with a rising port, each risen and grown
+      // down as far.
       let stand = port;
       if (rise)
         for (const owner of ancestryAt(port, first).slice(1)) {
-          if (Math.abs(headRise(owner) - rise) >= 1) break;
+          if (
+            Math.abs(headRise(owner) - rise) >= 1 ||
+            Math.abs(drop(owner) - drop(port)) >= 1
+          )
+            break;
           stand = owner;
         }
       if (

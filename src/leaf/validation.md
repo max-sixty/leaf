@@ -156,21 +156,21 @@ written for.
 
 The browser resolves an anchor and records it in the log, so `leaf thread create` reads
 the active revision's file the way the anchor pass reads the DOM. `passages.py`'s
-header comment owns that reading: what the registry's `words.says`, `words.verbatim` and
-`state.retired-when` contribute, and where a fence stops a quote. Both runtimes take
+header comment owns that reading: what the registry's `says`, `verbatim` and
+`retired-when` contribute, and where a fence stops a quote. Both runtimes take
 whitespace collapse from the kernel's `$passages`.
 
 A quote never spans a fence, so a passage the file cannot read is refused when the
 comment is written rather than detaching later in the user's browser; anchor on the
 widget's element (`--section`) instead. A file-side quote must also be unique in its
 declared section, and widget source, retired text and repeated passages are refused.
-Direct members declared by `markup.owners` with `content: markup` retain their own prose
+Direct members declared by `owners` with `content: markup` retain their own prose
 reading inside a data widget; the rest of its source body remains withheld. A widget
 preserves those authored member nodes independently of its source rendering.
 Runtime anchors were resolved against rendered words, so admission does not recapture
 them.
 
-The render gate holds each `words.verbatim` owner to the file reading
+The render gate holds each `verbatim` owner to the file reading
 (`readings._verbatim_findings`). It pairs each owner with its source by document-order
 occurrence, so no authored id is needed, and compares the rendered words with the
 passage a user can point at: user body rewrites in force replace authored words,

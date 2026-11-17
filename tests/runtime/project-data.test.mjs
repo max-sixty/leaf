@@ -11,14 +11,10 @@ createDataProjection({ invalidateDom() {} });
 test("a widget's marks become its datums, and a nested widget keeps its own", () => {
   adoptRegistry({
     "lf-marked": {
-      data: {
-        inputs: { rows: { contract: "rows", source: "source" } },
-      },
+      inputs: { rows: { contract: "rows", source: "source" } },
     },
     "lf-marked-inner": {
-      data: {
-        inputs: { rows: { contract: "rows", source: "source" } },
-      },
+      inputs: { rows: { contract: "rows", source: "source" } },
     },
   });
   const { projectMarked } = createDataProjection({ invalidateDom() {} });
@@ -86,10 +82,8 @@ test("a widget's marks become its datums, and a nested widget keeps its own", ()
 test("a draw reported after a newer value arrived keeps the revision it drew", async () => {
   adoptRegistry({
     "lf-valued": {
-      data: {
-        inputs: {
-          text: { contract: "text-document", source: "source", property: "value" },
-        },
+      inputs: {
+        text: { contract: "text-document", source: "source", property: "value" },
       },
     },
   });
@@ -167,17 +161,13 @@ test("a draw reported after a newer value arrived keeps the revision it drew", a
 test("a value the widget holds keeps its revision however many newer ones arrive", async () => {
   adoptRegistry({
     "lf-held": {
-      data: {
-        inputs: {
-          rows: { contract: "rows", source: "source", property: "value" },
-          notes: { contract: "rows", source: "notes", property: "notes" },
-        },
+      inputs: {
+        rows: { contract: "rows", source: "source", property: "value" },
+        notes: { contract: "rows", source: "notes", property: "notes" },
       },
     },
     "lf-held-text": {
-      data: {
-        inputs: { text: { contract: "rows", source: "source", property: "value" } },
-      },
+      inputs: { text: { contract: "rows", source: "source", property: "value" } },
     },
   });
   // A widget that keeps drawing the first rows it was handed, as a held reading does,

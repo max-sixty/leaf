@@ -526,11 +526,11 @@ FAR_CHOICE_PAGE = leaf_page(
     """
 <h1 id="h">Far</h1>
 {paras}
-<lf-ask id="picks-decision"><h2>Should we keep the mounts?</h2>
+<section id="picks-decision" role="group" aria-labelledby="picks-decision-h"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
 <lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
   <lf-option id="opt-b" selected>Replace the mounts</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 ).format(
     paras="\n".join(
@@ -1417,12 +1417,12 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     outer = declarations["lf-outer-board"]
     outer["attributes"]["properties"]["restated"] = {"type": "boolean"}
     outer["content"] = "members"
-    outer.setdefault("author", {})["example"] = (
+    outer["example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
         "</lf-outer-board>"
     )
-    outer.setdefault("state", {})["verbs"] = {
+    outer["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -1433,7 +1433,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     }
     standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
     declarations["lf-column"] = standard["lf-column"]
-    declarations["lf-column"]["markup"]["owners"].append("lf-outer-board")
+    declarations["lf-column"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { LeafElement } from "/runtime/widget-api.js";
@@ -2852,9 +2852,7 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
                     "additionalProperties": False,
                 },
                 "content": "markup",
-                "author": {
-                    "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
-                },
+                "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
             }
         },
         layer_widgets={
@@ -2903,7 +2901,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "author": "agent",
             "revision": 1,
             "parent": "question",
-            "text": 'Here is the detail.\n\n<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
+            "text": 'Here is the detail.\n\n<lf-preparation id="detail">\n<p>Supporting detail</p></lf-preparation>',
         },
     )
     append_command(

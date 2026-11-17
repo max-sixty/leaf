@@ -4,7 +4,7 @@ Presentation findings here are advice for whoever writes the widget. Output cont
 violations are errors, shared with `page check --render`: a page cannot rely on invalid
 data, and the finding names the producer whose author must fix it.
 
-The report renders the package's worked examples (`author.example`) under the layer the
+The report renders the package's worked examples (`example`) under the layer the
 package appears in (`packages.package_layer_inputs`), and reads only the tags the
 package's own `registry.json` declares. Examples share a page where their ids allow,
 so an example that points at another's element finds it, and a page costs one render
@@ -52,7 +52,6 @@ from leaf.layer import checked_layer_inputs, compose_layer
 from leaf.packages import package_layer_inputs
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry.contract import (
-    declared_fact,
     element_declarations,
     read_registry_declarations,
 )
@@ -121,7 +120,7 @@ def example_pages(registry: dict, tags: list[str]) -> list[tuple[str, str]]:
     pages = []
     ids = set()
     for tag in tags:
-        if (example := declared_fact(registry[tag], "author.example")) is None:
+        if (example := registry[tag].get("example")) is None:
             continue
         own = SourceDocument(example, fragment=True).ids
         if not pages or own & ids:

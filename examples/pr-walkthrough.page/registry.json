@@ -120,20 +120,14 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "data": {
-      "inputs": {
-        "request": {
-          "contract": "pull-request",
-          "source": "source",
-          "property": "value"
-        }
+    "inputs": {
+      "request": {
+        "contract": "pull-request",
+        "source": "source",
+        "property": "value"
       }
     },
-    "paint": {
-      "height": true
-    },
-    "author": {
-      "instructions": "Place one empty element before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description, so surrounding prose can carry the reviewer's analysis."
-    }
+    "height": true,
+    "instructions": "Place one empty element before the agent-authored walkthrough and bind it to the page's pull-request source. The widget labels the original author description, so surrounding prose can carry the reviewer's analysis."
   }
 }

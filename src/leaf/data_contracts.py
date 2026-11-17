@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from .files import latest_revision
 from .findings import Finding, element_at
 from .refusals import Refused
-from .registry.contract import declared_fact, element_declarations
+from .registry.contract import element_declarations
 from .registry.schema import (
     json_validator,
     json_value,
@@ -79,9 +79,7 @@ def data_bindings(lf_elements: list, registry: dict):
     element-by-input relation walks it through this one generator.
     """
     for ordinal, rec in enumerate(lf_elements):
-        for input_name, spec in declared_fact(
-            registry.get(rec["tag"], {}), "data.inputs", {}
-        ).items():
+        for input_name, spec in registry.get(rec["tag"], {}).get("inputs", {}).items():
             source = rec["attrs"].get(spec.get("source"))
             if isinstance(source, str) and re.fullmatch(DATA_SOURCE_NAME, source):
                 yield ordinal, rec, input_name, spec, source
@@ -158,12 +156,10 @@ def data_document_readings(
         )
     declarations = {
         rec["tag"]: {
-            "data": {
-                "inputs": declaration,
-            },
+            "inputs": declaration,
         }
         for rec in document.lf_elements
-        if (declaration := declared_fact(registry.get(rec["tag"], {}), "data.inputs"))
+        if (declaration := registry.get(rec["tag"], {}).get("inputs"))
     }
     records = [
         {
@@ -175,7 +171,7 @@ def data_document_readings(
                     "id",
                     *(
                         spec["source"]
-                        for spec in declarations[rec["tag"]]["data"]["inputs"].values()
+                        for spec in declarations[rec["tag"]]["inputs"].values()
                         if "source" in spec
                     ),
                 }
@@ -308,16 +304,14 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
 def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> list:
     """Authored measurements whose bound source has completed a later run.
 
-    An input (`data.inputs`) that declares `measured` joins the live half (its source)
+    An input (`inputs`) that declares `measured` joins the live half (its source)
     to the frozen half (the run receipt attribute it names). Invalid attributes stay
     with widget validation, and an unset source says only that no later run is known, so
     neither becomes advice here.
     """
     entries = []
     for rec in lf_elements:
-        for spec in declared_fact(
-            registry.get(rec["tag"], {}), "data.inputs", {}
-        ).values():
+        for spec in registry.get(rec["tag"], {}).get("inputs", {}).values():
             if "measured" not in spec:
                 continue
             source = rec["attrs"].get(spec.get("source"))
@@ -387,8 +381,8 @@ def record_labels(contract: str, registry: dict) -> set[str]:
     return {
         records["label"]
         for entry in element_declarations(registry).values()
-        if (records := (declared_fact(entry, "state.awaits") or {}).get("records"))
-        and entry["data"]["inputs"][records["input"]]["contract"] == contract
+        if (records := (entry.get("awaits") or {}).get("records"))
+        and entry["inputs"][records["input"]]["contract"] == contract
     }
 
 

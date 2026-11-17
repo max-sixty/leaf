@@ -127,9 +127,9 @@ def test_a_keyboard_arrival_brings_its_card_once_its_row_is_shown(browser, serve
     user leaves goes at once, and the obligation's comes once the margin shows its row, as it
     would for an arrival whose row was already there."""
     item = (
-        '<lf-ask id="work"><h2>Choose</h2><lf-options id="options">'
+        '<section id="work" role="group" aria-labelledby="work-h"><h2 id="work-h">Choose</h2><lf-options id="options">'
         '<lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
     )
     url = serve(PANE_PIN_PAGE.replace('<p id="pane-end">The last finding.</p>', item))
     left = answered_comment(serve.page_dir, "First finding", {"section": "pane-top"})
@@ -861,16 +861,16 @@ SEATED_PANE_PAGE = leaf_page(
     '<lf-pane id="seat-pane" label="Left"><div>'
     + _PARAGRAPH
     * 2
-    + '<lf-ask id="seat-ask"><h3>Should the nightly export keep writing one file per'
+    + '<section id="seat-ask" role="group" aria-labelledby="seat-ask-h"><h3 id="seat-ask-h">Should the nightly export keep writing one file per'
     " tenant or roll every tenant up into one archive tonight</h3>"
     '<lf-options id="seat-choice">'
     '<lf-option id="sa"><strong>One file per tenant</strong></lf-option>'
     '<lf-option id="sb"><strong>One archive</strong></lf-option>'
-    "</lf-options></lf-ask>" + _PARAGRAPH * 8 + "</div></lf-pane>"
+    "</lf-options></section>" + _PARAGRAPH * 8 + "</div></lf-pane>"
     '<lf-pane id="seat-beside" label="Right"><div><p>A short pane beside it.</p></div>'
     "</lf-pane></div>",
     head="<style>#seat-panes { display: grid; grid-template-columns: 1fr 1fr;"
-    " gap: var(--lf-sp-4); } lf-ask h3 { text-align: justify; }</style>",
+    " gap: var(--lf-sp-4); } #seat-ask h3 { text-align: justify; }</style>",
     layout="workspace",
 )
 

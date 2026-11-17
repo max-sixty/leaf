@@ -181,9 +181,9 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     """Presentation is not a state answer; every Decision route needs the same reading."""
     source = leaf_page(
         "Slow decision",
-        '<h1>Slow decision</h1><lf-ask id="decision"><h2>Proceed?</h2>'
+        '<h1>Slow decision</h1><section id="decision" role="group" aria-labelledby="decision-h"><h2 id="decision-h">Proceed?</h2>'
         '<lf-options id="pick"><lf-option id="yes">Proceed</lf-option>'
-        '<lf-option id="no">Wait</lf-option></lf-options></lf-ask>',
+        '<lf-option id="no">Wait</lf-option></lf-options></section>',
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -575,12 +575,8 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "shadow": True,
-        },
-        "author": {
-            "example": '<lf-probe id="probe"></lf-probe>',
-        },
+        "shadow": True,
+        "example": '<lf-probe id="probe"></lf-probe>',
     }
     widget = """import {once, shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""

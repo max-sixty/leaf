@@ -604,7 +604,7 @@ def handed_over(
     actions = []
     for projection, settlement in documents:
         for coordinate, (source, spec) in projection.actions.items():
-            # Work the user hasn't sent is no update (`$state.unsent`).
+            # Work the user hasn't sent is no update (`$verbs.unsent`).
             if source["author"] != "user" or spec.get("unsent"):
                 continue
             item = obligation_by_source.get(

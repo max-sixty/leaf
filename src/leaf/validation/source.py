@@ -35,6 +35,7 @@ from leaf.thread_context import (
 from leaf.validation.instances import (
     inert_allocation_advice,
     instance_errors,
+    question_errors,
     reference_errors,
     suggestion_errors,
 )
@@ -118,6 +119,7 @@ def _instance_errors(
     if registry is None:
         return []
     errors = instance_errors(parser, registry)
+    errors.extend(question_errors(parser, registry))
     errors.extend(inert_allocation_advice(parser, registry))
     errors.extend(
         reference_errors(

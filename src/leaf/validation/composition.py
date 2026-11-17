@@ -1,7 +1,7 @@
 """Registry composition and current declaration validation."""
 
 from leaf.data_contracts import declared_data_bindings
-from leaf.registry.contract import declared_fact, gathering, registry_error
+from leaf.registry.contract import gathering, registry_error
 from leaf.registry.layer import merged_registry, stamp_composition
 from leaf.registry.validation import validate_registry
 from leaf.structure import SourceDocument
@@ -15,10 +15,7 @@ def validate_registry_examples(registry: dict, source) -> dict:
     refusing with the first problem in each (`registry.contract.gathering`)."""
     with gathering() as unit:
         for tag, entry in registry.items():
-            if (
-                tag.startswith("$")
-                or (example := declared_fact(entry, "author.example")) is None
-            ):
+            if tag.startswith("$") or (example := entry.get("example")) is None:
                 continue
             with unit():
                 _validate_example(tag, example, registry, source)

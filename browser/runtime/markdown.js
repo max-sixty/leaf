@@ -58,7 +58,10 @@ export const renderMarkdown = (text, message = true) => render(text, message);
 // An agent's message holding HTML (`html` on its served message) reads as a message
 // that keeps the raw HTML in it, as Python checked it (`leaf.passages.message_markup`).
 // Every other reading shows a tag as the words that spell it, since what the user
-// types is no markup Leaf checked.
+// types is no markup Leaf checked. The HTML reads by CommonMark's rules, as GitHub
+// reads a comment's, which agents already write to. Rejected: a widget's block running
+// past blank lines to its closing tag, and a `<code>` holding its words as written,
+// since no author knows either rule from Markdown.
 /** @param {string} text */
 export const renderAuthoredMarkdown = (text) => renderAuthored(text);
 // The words a user sees in rendered Markdown, for a surface that shows them as plain
@@ -97,22 +100,21 @@ export function inlineMarkdownFragment(text, message = true) {
   return parsed.content;
 }
 
-// The written files in `scope` whose `paint.prepaint` attribute names Markdown and that
+// The written files in `scope` whose `prepaint` attribute names Markdown and that
 // hold no rendering yet: a revision's or a message's, since delivery renders only the
 // first document's (`revision_delivery.mark_declared`).
 /** @param {Element | Document | DocumentFragment} scope */
 const unpaintedFiles = (scope) =>
-  declaredElements(scope, (entry) => entry.paint?.prepaint).filter(
+  declaredElements(scope, (entry) => entry.prepaint).filter(
     (element) =>
-      element.getAttribute(String(declarationFor(element)?.paint?.prepaint)) ===
-        "markdown" &&
+      element.getAttribute(String(declarationFor(element)?.prepaint)) === "markdown" &&
       element.querySelector(":scope > pre") &&
       !element.querySelector(":scope > [data-lf-prepaint]"),
   );
 
-// A declaration whose data body is Markdown words (`words.text-format`).
+// A declaration whose data body is Markdown words (`text-format`).
 /** @param {import("../types/contract.js").WidgetDeclaration} entry */
-const wordsAreMarkdown = (entry) => entry.words?.["text-format"] === "markdown";
+const wordsAreMarkdown = (entry) => entry["text-format"] === "markdown";
 
 // Registry text formatting belongs to the layer, so a package declaration cannot
 // make file-side passages read words the browser leaves as raw Markdown.
@@ -131,7 +133,7 @@ export async function loadDeclaredMarkdown(scope) {
     );
 }
 
-// Each element declaring `words.text-format` shows its data body's rendering in place
+// Each element declaring `text-format` shows its data body's rendering in place
 // of its `<pre>`. Only presentation nodes are formatted. Source documents stay intact
 // for typed state, revision patching and provenance; arrivals call this after capture,
 // before connection. Their import preparation has already made the parser ready, so
@@ -706,58 +708,6 @@ function sourcePositions(markdown) {
 // The blocks the parser emits whole, with no opening and closing pair.
 const BLOCK_LEAVES = new Set(["fence", "code_block", "hr"]);
 
-// A line that opens a custom element: a widget's tag, or a page's own.
-const ELEMENT_OPENING = /^<([a-z][a-z0-9]*-[a-z0-9-]*)(?=[\s/>]|$)/i;
-// A custom element opening a line holds raw HTML to the line that closes it, as
-// CommonMark's `<pre>` does, blank lines included: a widget's body is its own, such as
-// code whose blank lines would otherwise end the block and become Markdown
-// (`leaf.passages._html_block` reads the same).
-/** @param {import("markdown-it").StateBlock} state @param {number} start
- * @param {number} end @param {boolean} silent */
-function elementBlock(state, start, end, silent) {
-  /** @param {number} line */
-  const words = (line) =>
-    state.src.slice(
-      parserItem(state.bMarks, line) + parserItem(state.tShift, line),
-      parserItem(state.eMarks, line),
-    );
-  /** @param {number} line */
-  const indent = (line) => parserItem(state.sCount, line) - state.blkIndent;
-  if (indent(start) >= 4) return false;
-  const opening = ELEMENT_OPENING.exec(words(start));
-  if (!opening) return false;
-  if (silent) return true;
-  const closing = new RegExp(`</${parserItem(opening, 1)}>`, "i");
-  let line = start;
-  while (line < end && (line === start || indent(line) >= 0))
-    if (closing.test(words(line++))) break;
-  state.line = line;
-  const token = state.push("html_block", "", 0);
-  token.map = [start, line];
-  token.content = state.getLines(start, line, state.blkIndent, true);
-  return true;
-}
-
-// A `<code>` opening tag, its attributes as CommonMark spells an HTML attribute.
-const CODE_OPENING =
-  /^<code(?:\s+[^\s"'>/=]+(?:\s*=\s*(?:[^\s"'=<>`]+|'[^']*'|"[^"]*"))?)*\s*>/i;
-// A `<code>` element in an agent's message holds its words as written, as a Markdown
-// code span does, so a formula's LaTeX keeps each backslash and asterisk Markdown would
-// read as an escape or emphasis (`leaf.passages._code_element`).
-/** @param {import("markdown-it").StateInline} state @param {boolean} silent */
-function codeElement(state, silent) {
-  const opening = CODE_OPENING.exec(state.src.slice(state.pos));
-  if (!opening) return false;
-  const from = state.pos + opening[0].length;
-  const close = state.src.slice(from).search(/<\/code>/i);
-  if (close < 0) return false;
-  const end = from + close + "</code>".length;
-  if (!silent)
-    state.push("html_inline", "", 0).content = state.src.slice(state.pos, end);
-  state.pos = end;
-  return true;
-}
-
 // The parser for a reading (`renderMarkdown`, `renderAuthoredMarkdown`), which
 // passages.py reads the same (`markdown_dialect`).
 /** @param {typeof import("/vendor/markdown-it.esm.js")} module @param {boolean} message
@@ -768,12 +718,6 @@ export function makeMarkdown(module, message, html = false) {
     breaks: message,
     linkify: true,
   }).use(module.taskLists, { enabled: false });
-  if (html) {
-    markdown.block.ruler.before("html_block", "element_block", elementBlock, {
-      alt: ["paragraph", "reference", "blockquote"],
-    });
-    markdown.inline.ruler.before("html_inline", "code_element", codeElement);
-  }
   if (message) {
     markdown.disable(["lheading", "code"]);
     // CommonMark takes all of a fence's opening line as its info string and shows none

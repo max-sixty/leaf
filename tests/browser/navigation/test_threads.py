@@ -347,7 +347,7 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
             "The linked destination begins here.</lf-shadow-reading>"
         )
         declaration = element_declaration("lf-shadow-reading", upgrade=True)
-        declaration.setdefault("words", {})["shadow"] = True
+        declaration["shadow"] = True
         layer_registry = {"lf-shadow-reading": declaration}
         layer_widgets = {
             "lf-shadow-reading.js": """

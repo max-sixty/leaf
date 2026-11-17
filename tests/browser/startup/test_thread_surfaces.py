@@ -84,18 +84,14 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
             "additionalProperties": False,
         },
         "content": "empty",
-        "data": {
-            "inputs": {
-                "rows": {
-                    "contract": "text-document",
-                    "source": "source",
-                    "property": "value",
-                }
-            },
+        "inputs": {
+            "rows": {
+                "contract": "text-document",
+                "source": "source",
+                "property": "value",
+            }
         },
-        "author": {
-            "example": '<lf-test-surface id="surface-example"></lf-test-surface>',
-        },
+        "example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
 import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
@@ -364,9 +360,7 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
             "properties": {"id": {"type": "string"}},
             "additionalProperties": False,
         },
-        "author": {
-            "example": '<lf-test-card id="card-example">A card.</lf-test-card>',
-        },
+        "example": '<lf-test-card id="card-example">A card.</lf-test-card>',
     }
     module = """
 import {nothing} from '/vendor/lit.js';
@@ -437,10 +431,10 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
             "Page annotation view",
             """
       <h1 id="title">Review</h1>
-      <lf-ask id="choice-question"><h2>Which route?</h2>
+      <section id="choice-question" role="group" aria-labelledby="choice-question-h"><h2 id="choice-question-h">Which route?</h2>
         <lf-options id="routes"><lf-option id="route-a">Route A</lf-option>
         <lf-option id="route-b">Route B</lf-option></lf-options>
-      </lf-ask>
+      </section>
       <p id="subject">The export keeps one file per tenant.</p>
       <aside id="review" aria-label="Review"></aside>
     """,
@@ -592,18 +586,14 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
             "additionalProperties": False,
         },
         "content": "empty",
-        "data": {
-            "inputs": {
-                "rows": {
-                    "contract": "text-document",
-                    "source": "source",
-                    "property": "value",
-                }
-            },
+        "inputs": {
+            "rows": {
+                "contract": "text-document",
+                "source": "source",
+                "property": "value",
+            }
         },
-        "author": {
-            "example": '<lf-test-seat id="sample"></lf-test-seat>',
-        },
+        "example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
 import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
@@ -753,18 +743,14 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
             "additionalProperties": False,
         },
         "content": "empty",
-        "data": {
-            "inputs": {
-                "rows": {
-                    "contract": "text-document",
-                    "source": "source",
-                    "property": "value",
-                }
-            },
+        "inputs": {
+            "rows": {
+                "contract": "text-document",
+                "source": "source",
+                "property": "value",
+            }
         },
-        "author": {
-            "example": '<lf-test-seat id="seat"></lf-test-seat>',
-        },
+        "example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
 import {LeafElement,setChildren} from '/runtime/widget-api.js';

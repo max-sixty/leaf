@@ -96,8 +96,8 @@ CURRENT_OBLIGATION = """() => {
 def _obligations_in_turn(page, into: Path) -> tuple[list[Path], bool]:
     """The window at each open obligation `m` reaches from the top, as far as MOST_SCREENS,
     and whether the walk goes on past them. Which obligation a press reached is the runtime's
-    own mark, so the walk covers whatever `m` does, a suggestion as much as an
-    `lf-ask`. The walk stops at its last item rather than wrapping, so a press that
+    own mark, so the walk covers whatever `m` does, a suggestion as much as a
+    question. The walk stops at its last item rather than wrapping, so a press that
     reaches an item it has already stood on has reached the end."""
     shots, seen = [], set()
     while True:

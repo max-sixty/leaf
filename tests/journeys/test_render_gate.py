@@ -1036,9 +1036,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
             "additionalProperties": False,
         },
         "content": "markup",
-        "author": {
-            "example": "<lf-piece>Example</lf-piece>",
-        },
+        "example": "<lf-piece>Example</lf-piece>",
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     modules = {
@@ -1128,12 +1126,12 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         ),
         "r-paint": '<lf-paint id="sent"></lf-paint>',
         "r-list": (
-            '<lf-ask id="an-set-decision"><h3>What should I carry into the patch?</h3>'
+            '<section id="an-set-decision" role="group" aria-labelledby="an-set-decision-h"><h3 id="an-set-decision-h">What should I carry into the patch?</h3>'
             '<lf-options id="an-set" multiple>'
             '<lf-option id="an-chase">Chase them monthly</lf-option>'
             '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
             '<lf-option id="an-say">Say what the spinner is</lf-option>'
-            "</lf-options></lf-ask>"
+            "</lf-options></section>"
         ),
     }
     for reply, markup in replies.items():
@@ -1299,14 +1297,14 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
         cut = page.index(start)
         return page[:cut] + page[page.index(end, cut) + len(end) :]
 
-    option = INLINE_PAGE[INLINE_PAGE.index("<lf-ask") :]
-    option = option[: option.index("</lf-ask>") + len("</lf-ask>")]
+    option = INLINE_PAGE[INLINE_PAGE.index('<section id="opts-decision"') :]
+    option = option[: option.index("</section>") + len("</section>")]
     # The question the granted figure holds takes its words off the column, which the
     # gate rightly advises against (`words-off-column`); the figure's table stays.
     framed = without(
         tables(FRAMED_TABLES_PAGE, '<table id="bare">'),
-        '<lf-ask id="figure-asked">',
-        "</lf-ask>",
+        '<section id="figure-asked"',
+        "</section>",
     )
     page = AUTHORED_LINES_PAGE.replace(
         "</main>",
@@ -1492,10 +1490,10 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 <p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
 <div id="strip"><button>Summary</button><button>Release scope</button>
 <button>Owner handoff</button></div>
-<div id="card"><lf-ask id="go-decision"><h2>Ship it?</h2>
+<div id="card"><section id="go-decision" role="group" aria-labelledby="go-decision-h"><h2 id="go-decision-h">Ship it?</h2>
 <p>The release passed its checks.</p><lf-options id="go">
 <lf-option id="go-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
+</lf-options></section></div>
 """,
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--lf-sp-4); }
@@ -1714,15 +1712,13 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
         "lf-callout"
     ]
     callout["attributes"]["properties"]["parts"] = {"type": "string", "minLength": 1}
-    callout.setdefault("words", {})["visual"] = {"parts": "parts"}
+    callout["visual"] = {"parts": "parts"}
     prefixed = prefixed_visual_layer("out", "inn")["lf-test-visual"]
     layer = {
         **GENERIC_VISUAL_LAYER,
         "lf-test-visual-prefixed": {
             **prefixed,
-            "author": {
-                "example": '<lf-test-visual-prefixed id="example"></lf-test-visual-prefixed>'
-            },
+            "example": '<lf-test-visual-prefixed id="example"></lf-test-visual-prefixed>',
         },
         "lf-callout": callout,
     }
@@ -1762,7 +1758,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     """Bug-backs for the module contracts the gate enforces, one project widget each,
     on one page, beside the DevTools issues the page owns.
 
-    `lf-callout` declares words.verbatim while its module renders other words in the
+    `lf-callout` declares `verbatim` while its module renders other words in the
     body's stead (quotes would strand on words the screen no longer shows).
     `author-card` is the clean control beside it: a page script's own custom element
     with a shadow root it attached itself, which the gate accepts, since the passage
@@ -1773,7 +1769,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     The word pass stops at a shadow boundary on purpose — which widgets the page holds
     is the document's question — so an element a module stages into its own tree keeps
     its declarations and gets no pass, and the failure is silence: no error, no missing
-    box. It stages a declared lf-reading whose declaration names a words.says word, and
+    box. It stages a declared lf-reading whose declaration names a `says` word, and
     the gate is asked for it. A staged element rather than a module that wipes its own
     body after the pass has run, which is the same failure by a route that races the
     module's own render, and a bug-back that has to win a race is a bug-back that
@@ -1795,11 +1791,11 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     declarations = json.loads(registry_path.read_text())
     for tag in ("lf-stager", "lf-veil"):
         # Each module shows a tree of its own rather than the body, and declares it.
-        declarations[tag]["words"].pop("verbatim")
-        declarations[tag].setdefault("words", {})["shadow"] = True
+        declarations[tag].pop("verbatim")
+        declarations[tag]["shadow"] = True
     veil = declarations["lf-veil"]
     veil["attributes"]["properties"]["label"] = {"type": "string"}
-    veil.setdefault("words", {})["says"] = {"label": "before"}
+    veil["says"] = {"label": "before"}
     registry_path.write_text(json.dumps(declarations, indent=2))
     modules = {
         "lf-stager": (

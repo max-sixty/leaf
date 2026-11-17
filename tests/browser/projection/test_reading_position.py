@@ -437,7 +437,7 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     add_test_widget(package, "lf-shadow-reading", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-shadow-reading"].setdefault("words", {})["shadow"] = True
+    declarations["lf-shadow-reading"]["shadow"] = True
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
         """import { once, shadowStage } from "/runtime/widget-api.js";
@@ -678,11 +678,11 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
     """Obligation repaint keeps the reading of the panel's On Me view the user scrolled."""
     questions = "".join(
-        f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
+        f'<section id="ask-{index}" role="group" aria-labelledby="ask-{index}-h"><h2 id="ask-{index}-h">Question {index} about this project</h2>'
         f'<lf-options id="options-{index}">'
         f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
         f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
         for index in range(30)
     )
     page = open_page(
@@ -846,11 +846,9 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
             "additionalProperties": False,
         },
         "content": "markup",
-        "author": {
-            "example": '<lf-owned-scroll id="example">'
-            "<div data-scroll-body><button>Control</button></div>"
-            "</lf-owned-scroll>",
-        },
+        "example": '<lf-owned-scroll id="example">'
+        "<div data-scroll-body><button>Control</button></div>"
+        "</lf-owned-scroll>",
     }
     module = """
 import {registerReadingRegion} from '/runtime/widget-api.js';

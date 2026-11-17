@@ -344,7 +344,7 @@ def test_a_chart_is_drawn_for_the_room_it_has_rather_than_scaled_into_it(
 
 
 def test_a_chart_draws_into_the_box_its_data_height_states(browser, serve):
-    """The page lays a chart's box out before Plot draws (paint.height), so the drawing fills
+    """The page lays a chart's box out before Plot draws (`height`), so the drawing fills
     that box rather than sizing it: with a legend Plot sets above it, the legend and the
     drawing together end at the box's foot, and the box keeps the height it had at first
     paint. Drawn at the options' own height instead, the legend overhangs the box."""
@@ -543,7 +543,8 @@ def test_a_chart_in_a_closed_thread_draws_at_its_visible_width_when_opened(
             "author": "agent",
             "parent": "c-chart",
             "revision": 1,
-            "text": "Like this:\n\n" + chart_markup("msg-chart", MESSAGE_CHART),
+            "text": "Like this:\n\n"
+            + chart_markup("msg-chart", MESSAGE_CHART).replace("><pre>", ">\n<pre>"),
         },
     )
     page = open_page(browser, url)

@@ -26,12 +26,10 @@ test("capture keeps authored values and parentage when rendering moves members",
   adoptRegistry({
     $layer: { generation: "capture-before-render" },
     "lf-outer": {
-      state: {
-        verbs: {
-          set: {
-            unit: "widget",
-            record: { kind: "value", attr: "status", value: "status" },
-          },
+      verbs: {
+        set: {
+          unit: "widget",
+          record: { kind: "value", attr: "status", value: "status" },
         },
       },
     },
@@ -59,10 +57,8 @@ test("an attribute record counts only Leaf elements among its members", () => {
   adoptRegistry({
     $layer: { generation: "native-selected" },
     "lf-options": {
-      state: {
-        verbs: {
-          choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
-        },
+      verbs: {
+        choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
       },
     },
     "lf-option": {},
@@ -81,15 +77,11 @@ test("native idioms never become widget descriptors or authored widget ancestors
     "lf-nested": {},
     table: {
       description: "A table idiom.",
-      author: {
-        example: "<table></table>",
-      },
+      example: "<table></table>",
     },
     "lf-nested.selected": {
       description: "A selected widget idiom.",
-      author: {
-        example: '<lf-nested class="selected"></lf-nested>',
-      },
+      example: '<lf-nested class="selected"></lf-nested>',
     },
   });
   const staged = stageWidgetDescriptors(document.querySelector("main"), {
@@ -104,9 +96,7 @@ test("an arriving source root keeps its declared parent and exhibit fence", () =
   adoptRegistry({
     $layer: { generation: "initial-arrival" },
     "lf-quoted-parent": {
-      state: {
-        exhibit: true,
-      },
+      exhibit: true,
     },
     "lf-arrival": {},
   });
@@ -144,24 +134,18 @@ test("member state owns each physical slot independently across a hierarchy", ()
   const declarations = {
     $layer: { generation: "independent-member-records" },
     "lf-audit-board": {
-      state: {
-        verbs: {
-          move: { unit: "unit", record: { kind: "position", within: "lf-audit-zone" } },
-        },
+      verbs: {
+        move: { unit: "unit", record: { kind: "position", within: "lf-audit-zone" } },
       },
     },
     "lf-audit-zone": {
-      state: {
-        verbs: {
-          choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
-        },
+      verbs: {
+        choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
       },
     },
     "lf-audit-card": {
-      state: {
-        verbs: {
-          phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
-        },
+      verbs: {
+        phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
       },
     },
   };

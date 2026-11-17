@@ -3,7 +3,7 @@
 Open a thread when the answer depends on the user. Add `--obligation` to put the
 message on their On Me list until they answer. The message itself supplies the
 request; no widget is needed, though a question whose answers you can list
-takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
+usually takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
 for a diagram or image, a declared part for one box within a visual, or nothing for
 the page as a whole:
 
@@ -53,10 +53,14 @@ message.
 
 A message is Markdown, and HTML in it draws where you write it, as on GitHub: a
 formula inside a sentence, a native table, a bounded log, or a choice ("Ask for a
-pick" below). Native HTML needs no widget wrapper. Start a block of HTML on a line of
-its own. A widget's block runs to the line that closes it, and any other block, such
-as a `<table>` or `<details>`, to the next blank line, after which Markdown resumes.
-Write a `<` meant as text in backticks or as `&lt;`. Ids must be new, used in no
+pick" below). Native HTML needs no widget wrapper. Leaf reads it by CommonMark's
+rules, as GitHub does. Start a block of HTML after a blank line, with its opening tag
+alone on its line. The next blank line ends the block and Markdown resumes, so a blank
+line inside a widget or `<details>` splits it. Text whose blank lines matter, such as
+code, goes in a Markdown fence or in a `<pre>` opening its own line after a blank
+line; inside a widget, leave a blank line before and after it. HTML among words
+belongs to their paragraph, and Markdown still reads the words inside it. Write a `<`
+meant as text in backticks or as `&lt;`. Ids must be new, used in no
 version of the page and no earlier message. Leaf checks the HTML as it checks a page,
 and refuses document settings or a stylesheet for the whole page. An `lf-sample`
 template gives the user a live practice page in the thread (`live-samples.md`).
@@ -65,7 +69,8 @@ template gives the user a live practice page in the thread (`live-samples.md`).
 leaf thread reply <answer.ref> --done <<'EOF'
 The deploy passed.
 
-<details><summary>Deploy log</summary>
+<details>
+<summary>Deploy log</summary>
 <pre>Ready
 Done</pre>
 </details>
@@ -97,7 +102,8 @@ in a `<details>`.
 
 Use `--text` for a one-liner, and `--file`, or a heredoc on stdin, for anything
 longer. A `math` fence holds a display formula, and `<code class="language-math">` a
-formula inside a sentence (`page-authoring.md`, "Markup").
+formula inside a sentence, where Markdown still reads the LaTeX: write `\\{` for `\{`
+and `\*` for `*` (`page-authoring.md`, "Markup").
 
 To send an image, run `leaf page media <page> <file>`
 and put the `path` it prints in your text as a Markdown image.
@@ -111,7 +117,8 @@ leaf thread reply <page> <message> --text "The monitoring window has ended."
 
 Use the whole `answer.ref` when answering a delivered update or posting progress on
 it. The reference identifies the page, thread and exact input being answered.
-Use the page and message id to add a message when the thread owes no reply.
+A message posted by page and message id answers nothing, so an answer its thread
+owes stays owed.
 While the session an update was delivered to holds the page,
 `leaf page state` shows the same `ref` on the update's `answer`. A reply on a `ref`
 delivered before the user's newer correction does not answer that correction.
@@ -120,7 +127,7 @@ Successful answers check the saved `index.html` and make it the active revision
 with the answer; the first answer on a revision also notes the advice `page check`
 gives. Progress and failure reports use the active revision without checking or
 publishing an in-progress draft. Rerunning an
-answer with the same `ref` adds nothing.
+answer with the same `ref`, text and flags adds nothing.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
 "Replies"). Use `leaf thread reply` instead when the answer needs a question back,
@@ -163,7 +170,7 @@ Every answer declares whose move it leaves:
   `message:<its id>` on On Me until their next reply or a settling reaction answers
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
-  the message asks instead ("Ask for a pick").
+  the message usually asks instead ("Ask for a pick").
 
   Where their reply left a question standing, as when they asked something back or
   the step is still to do, give `--obligation` its id, repeating the flag for each
@@ -174,7 +181,9 @@ Every answer declares whose move it leaves:
 
 - `--todo "<what you owe>"`: yours. It promises work it does not deliver, and opens
   that to-do on the thread under the reply's id until `leaf task end <page> <reply-id>`
-  ([Long-running work](conversation-loop.md#long-running-work)).
+  ([Long-running work](conversation-loop.md#long-running-work)). A later `--done` on
+  the same reference posts its reply in the thread, and Leaf names the to-do still
+  open for `leaf task end`.
 - `--done`: nobody's. It delivers what the message asked for and leaves the user
   nothing to decide.
 
@@ -190,13 +199,15 @@ finished work.
 ### Ask for a pick
 
 When a message asks the user to choose among answers you can list, such as which of two
-ways to proceed or whether to take an action, send the answers in the message as an
-`<lf-options id="…">` group holding an `<lf-option id="…">` for each, rather than
-listing them in words. The user answers with a press in the thread, and the group waits
-on them until they do, so the message takes no `--obligation`, which the command refuses
-beside it. The message's text asks the question and gives your reason, so the group
-needs no `lf-ask`. Title each option by what choosing it does and mark the one you
-advise (`authoring-on-me.md`, "What a question holds").
+ways to proceed, whether to take an action or whether a step they took worked, you can
+send the answers in the message as an `<lf-options id="…">` holding an
+`<lf-option id="…">` for each. Picking an option is generally quicker and easier for
+the user than typing a reply, so a choice usually serves them better than answers
+listed in words. The user answers with a press in the thread, and the `lf-options`
+waits on them until they do, so the message takes no `--obligation`, which the command
+refuses beside it. The message's text asks the question and gives your reason, so the
+`lf-options` needs no heading or group round it. Title each option by what choosing it
+does and mark the one you advise (`authoring-on-me.md`, "What a question holds").
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'

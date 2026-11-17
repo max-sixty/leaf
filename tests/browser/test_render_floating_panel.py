@@ -72,22 +72,22 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
-from leaf_dev.browser import open_on_me, panel_tab
+from leaf_dev.browser import panel_tab
 from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, settled
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",
     """<h1 id="t">Ask</h1>
-<lf-ask id="schema-decision"><h3>How should the schema migrate?</h3>
+<section id="schema-decision" role="group" aria-labelledby="schema-decision-h"><h3 id="schema-decision-h">How should the schema migrate?</h3>
 <lf-options id="schema">
   <lf-option id="shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="queue-decision"><h3>Which queue takes the retries?</h3>
+</lf-options></section>
+<section id="queue-decision" role="group" aria-labelledby="queue-decision-h"><h3 id="queue-decision-h">Which queue takes the retries?</h3>
 <lf-options id="queues">
   <lf-option id="fast"><strong>The fast queue</strong> Shared.</lf-option>
   <lf-option id="slow"><strong>The slow queue</strong> Its own.</lf-option>
-</lf-options></lf-ask>""",
+</lf-options></section>""",
 )
 
 
@@ -864,7 +864,7 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
         obligation=True,
     )
     page = floating(browser, url)
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
     card = page.locator(".lf-fp-on-item", has_text="Which build should ship?")
     expect(card.locator(".lf-msg")).to_have_count(1)
     expect(card.locator("li")).to_have_count(2)
@@ -1931,9 +1931,9 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         serve.page_dir,
         {"responds": root},
         "The **room** photo.\n\n"
-        '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
+        '<section id="crop" role="group" aria-labelledby="crop-h">\n<h3 id="crop-h">Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick"><lf-option id="crop-wider">Wider</lf-option>'
-        '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
+        '<lf-option id="crop-same">As it is</lf-option></lf-options></section>',
     )
     summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
@@ -3898,7 +3898,8 @@ def test_obligations_are_answered_where_they_are_read_on_me(browser, serve):
     # Its mark is its own: the question mark is help's, as `?` and the menu's
     # Keyboard shortcuts row say.
     expect(chip.locator("svg")).not_to_have_attribute("data-lf-icon", "question")
-    view = open_on_me(page)
+    chip.click()
+    view = page.locator(panel_view("queue"))
     # While the view stands, its On Me tab carries the count the mark gave up its seat
     # with.
     owed = panel_tab(page, "On Me").locator(".lf-fp-count")
@@ -3953,7 +3954,8 @@ def test_on_me_groups_by_the_plan_and_on_claude_heads_with_its_progress(browser,
     )
     assert written.exit_code == 0, written.output
     page = floating(browser, url)
-    view = open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
+    view = page.locator(panel_view("queue"))
     expect(page.get_by_role("combobox", name="Group On Me")).to_have_value("plan")
     # Each goal holds one item under its band, and each card says its place, and no
     # kind.
@@ -4622,24 +4624,25 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
 
 def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     """Threads and On are walked as the leaf's menu is: one stop for Tab, which the
-    arrows, Home and End move, and Go-to stands the user on the view's first row.
-    Threads' rows leave out the open state every row there shares, its tab counts the
-    open threads, and the On Me mark names the Next On Me it presses."""
+    arrows, Home and End move, and from the view the mark's press or Go-to opened, ↓
+    enters its first row. Threads' rows leave out the open state every row there
+    shares, its tab counts the open threads, and the mark that opens On names itself on
+    hover."""
     url = serve(OBLIGATION_PAGE)
     for text in ("Is the window long enough?", "Who watches the weekend?"):
         panel_comment(serve.page_dir, text)
     page = floating(browser, url)
     on_mark = page.locator(".lf-fp-on-user")
-    expect(on_mark).to_have_attribute("aria-label", "Next On Me, 2 waiting on me")
+    expect(on_mark).to_have_attribute("aria-label", "On Me: 2")
 
-    page.locator("body").focus()
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+m")
+    on_mark.click()
     queue = page.locator(panel_view("queue"))
+    expect(queue).to_be_focused()
     expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
     expect(panel_tab(page, "Threads").locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
+    page.keyboard.press("ArrowDown")
     expect(cards.first).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(cards.nth(1)).to_be_focused()
@@ -4868,15 +4871,16 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice">'
+        '<section id="week" role="group" aria-labelledby="week-h">\n<h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
-        '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+        '<lf-option id="next">Next week</lf-option></lf-options></section>',
     )
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
     )
     page = open_page(browser, url, context=context)
-    answers = open_on_me(page).locator(".lf-fp-answers").first
+    page.locator(".lf-fp-on-user").click()
+    answers = page.locator(f"{panel_view('queue')} .lf-fp-answers").first
     expect(answers).to_be_visible()
     heights = answers.evaluate("""line => {
       line.replaceChildren('Answered.');
@@ -4912,9 +4916,9 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice">'
+        '<section id="week" role="group" aria-labelledby="week-h">\n<h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
-        '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
+        '<lf-option id="next">Next week</lf-option></lf-options></section>',
     )
     told(page)
     expect(on_me.locator(".lf-fp-num")).to_have_text("1")
@@ -4994,11 +4998,11 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Choose the first job.\n\n"
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<section id="first-job-decision" role="group" aria-labelledby="first-job-decision-h">\n<h3 id="first-job-decision-h">Which job first?</h3>'
         '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
     )
     page = floating(browser, url)
     page.locator("body").focus()

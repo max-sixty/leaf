@@ -27,10 +27,11 @@ posts every uncaught error and unhandled rejection, every widget that fails soft
 every fault the runtime reports about the page itself, as an `error` event; that is
 the event `leaf wait` delivers. It first writes the same words to the console after
 `leaf: `, and the run reads them there rather than the browser's own error channels,
-so the check and the watcher fail on one set, spelled the same way and naming the
-same source location. The console line, not the post, because Firefox, which the check
-draws in for a reader who uses it (`browser.launch_browser`), hands the run no post's
-body. The preview server is read-only, so the posts are answered here and reach no log
+so the check and the watcher fail on the same reports, spelled the same way and naming
+the same source location; past the twenty a load the runtime posts, the check reads
+on. The console line, not the post, because Firefox, which the check draws in for a
+reader who uses it (`browser.launch_browser`), hands the run no post's body. The
+preview server is read-only, so the posts are answered here and reach no log
 (`scheme.answer_reports`).
 
 A failed browser run also reports failed network requests. Those readings explain a

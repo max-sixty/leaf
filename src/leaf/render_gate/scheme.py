@@ -96,7 +96,9 @@ def answer_reports(page) -> None:
     Every other event goes through, so a page that writes without a gesture still
     draws the server's refusal. Firefox hands the route no post's body over WebDriver
     BiDi, so there every post is refused here, under a 200 as well, since a refusal
-    from the server would read as a failed request beside the page's real reports."""
+    from the server would read as a failed request beside the page's real reports.
+    Firefox puts no failed fetch in its console, so a page there that writes without
+    a gesture goes unreported either way."""
     bookkeeping = kinds_declaring("bookkeeping")
 
     refused = Refused("a render check records no reading")

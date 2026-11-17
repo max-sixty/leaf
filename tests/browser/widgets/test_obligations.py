@@ -1523,7 +1523,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # On Me's tab opens it and takes the focus into the panel, which holds the
+    # The mark's press opens On Me and takes the focus into the panel, which holds the
     # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")

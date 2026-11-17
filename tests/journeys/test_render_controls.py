@@ -450,8 +450,8 @@ RING_CASES = (
         (),
         {"ship-review": ((".lf-react-palette:popover-open .lf-react", FLOOR_RING),)},
     ),
-    # On Me, which `g M` opens standing on its first card.
-    ("On Me", ("g", "Shift+m"), {"ship-review": ((None, FLOOR_RING),)}),
+    # On Me opens on its view; the walk's first step lands on a card.
+    ("On Me", ("ArrowDown",), {"ship-review": ((None, FLOOR_RING),)}),
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, FLOOR_RING),)}),
     # The leaf's menu, opened by its press into its search; ↓ lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, FLOOR_RING),)}),
@@ -555,6 +555,7 @@ RING_SCOPE_SURFACE = {
 
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
+    "On Me": ".lf-fp-on-user",
     "the leaf's menu": ".lf-fp-leaf",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "a reaction palette": f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",

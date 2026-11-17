@@ -46,7 +46,6 @@ from render_harness import (
 
 from browser.threads import PANEL_REPLY, open_panel_thread, thread_row
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -851,7 +850,8 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     """On Me's card for an ask represents the ask, as an On row did: focusing the
     card rings the ask, and its digits answer it there."""
     page = open_page(browser, serve(STORE_ASK_PAGE))
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
+    panel_settled(page, view="queue")
     card = page.locator(""".lf-fp-on-item[data-lf-key='["widget","widget:store"]']""")
     card.focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")

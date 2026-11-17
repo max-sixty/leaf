@@ -752,40 +752,19 @@
     display: flex;
   }
   /* Both are symbols (controls.css), a line tall, so the way out stands a symbol's
-     width, the leaf's. The On Me mark stands wider: its symbol, then its count's room
-     with the count at its end, then, where keys are shown, the room of the key it wears
-     while it presses Next On Me (floating-panel.js, `nextOnMeKey`). Each room holds
-     whether or not it is filled, so neither a count arriving or gaining a digit nor the
-     key coming and going moves anything, the field's end included. The key reads in
-     the face a key wears at the field's end (response.css). */
+     width, the leaf's. The On Me mark stands wider, its symbol and its count's room
+     centred in it, so a count arriving moves no symbol. The count starts its room, by
+     the symbol: at the room's end, on 16 November 2026, one digit stood a digit's width
+     off it, which the user judged worse. */
   .lf-fp-quick > .lf-fp-on-user {
-    --lf-fp-on-key: 0px;
-    width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + var(--lf-fp-on-key) + 14px));
+    width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + 14px));
     grid-auto-flow: column;
-    justify-content: start;
     gap: 4px;
-    padding-inline-start: 7px;
     font-variant-numeric: tabular-nums;
   }
   .lf-fp-on-user > .lf-fp-num {
     min-width: 2ch;
-    text-align: end;
-  }
-  .lf-fp-on-user > .lf-fp-on-key {
-    display: none;
-  }
-  @media not (pointer: coarse) {
-    .lf-fp-quick > .lf-fp-on-user {
-      --lf-fp-on-key: calc(4px + var(--lf-key-badge-size));
-    }
-    .lf-fp-on-user > .lf-fp-on-key {
-      display: inline-flex;
-      min-width: var(--lf-key-badge-size);
-    }
-  }
-  .lf-fp-on-user .lf-key-badge {
-    background: transparent;
-    color: var(--lf-quiet);
+    text-align: start;
   }
   /* A view's Close at the end of its head line or its tabs (floating-panel.js,
      `viewClose`) is a symbol a press tall, as the presses before it are. */

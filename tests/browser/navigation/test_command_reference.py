@@ -242,8 +242,7 @@ def test_the_reference_keeps_its_complete_keyboard_layer(browser, serve):
     expect(page_control).to_be_focused()
 
 
-# On Me stands for the panel's views: its tab beside the leaf's menu is the row's
-# control.
+# On Me stands for the panel's views: its mark is the row's control.
 @pytest.mark.parametrize(
     ("command", "suffix", "surface"),
     [
@@ -265,11 +264,12 @@ def test_the_reference_enters_named_go_to_destinations(
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
         expect(destination).to_be_hidden()
-        tab = panel_control(page, "queue")
-        tab.press("Enter")
+        panel_control(page, "queue").press("Enter")
         expect(destination).to_be_visible()
-        # A tab pressed leaves the user on it, as the On view's other tabs do.
-        expect(tab).to_be_focused()
+        page.wait_for_function(
+            "selector => document.querySelector(selector).contains(document.activeElement)",
+            arg=surface,
+        )
         page.keyboard.press("g")
         page.keyboard.press(f"Shift+{suffix.lower()}")
         expect(destination).to_be_hidden()

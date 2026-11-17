@@ -58,11 +58,11 @@ from leaf.registry.contract import (
 from leaf.registry.storage import read_page_registry
 from leaf.render_checks import (
     RENDER_VIEWPORT,
-    SERVED_TIMEOUT_MS,
     close_render_page,
     evaluate_probe,
     install_driver,
     observe_output_documents,
+    open_render_page,
     output_values,
     wait_for_probe,
     wait_until_ready,
@@ -175,8 +175,7 @@ def _readings(
     """Changed startup boxes, unshown keys, held scrollers and published outputs."""
     from playwright.sync_api import Error as PlaywrightError
 
-    page = browser.new_page(viewport=RENDER_VIEWPORT)
-    page.set_default_timeout(SERVED_TIMEOUT_MS)
+    page = open_render_page(browser, viewport=RENDER_VIEWPORT)
     install_driver(page)
     errors = []
     collect_page_errors(page, errors)

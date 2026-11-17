@@ -27,7 +27,7 @@ log and its session's agent turns; nothing stores the state itself:
 
 | State | Means | Entered by |
 | --- | --- | --- |
-| kept back | a running line turn holds the thread's waiting messages while a line fork writes its line | while the session's lane is up, a user message that is its thread's only waiting message, in a thread no running agent turn took, or one in a thread a running line turn holds, which it replaces: admission opens the line turn and records its pickup of the thread's waiting messages (`kept_from_main_at_admission`) |
+| kept back | a running line turn holds the thread's waiting messages while a line fork writes its line | while the session's lane is up, a user message that is its thread's only waiting message, in a thread no running agent turn took, or any event that joins the waiting turns of a thread a running line turn holds, which it replaces: admission opens the line turn and records its pickup of the thread's waiting messages (`kept_from_main_at_admission`) |
 | taken | a working fork does the work in a turn of its own, which holds the thread until another turn takes it (`holding.py`) | the line fork judging `take`, where the module makes working forks (`_take`) |
 | with the session | delivered as any input is | the agent turn ending with the thread unanswered: the line posted, a failed line fork, a line turn or an unconfirmed fork's turn lapsing (`activity.STARTING_GRACE`), a working fork's run ending (`ended`); or the main thread's answer taking the thread from either |
 
@@ -121,16 +121,18 @@ conversations xhigh thought over 5 of its 35 lines, taking up to 3.5 s where a l
 took a median 1 s, and low over none, for 0.85 times xhigh's time (0.75–0.95). So
 low removed the occasional line xhigh spent seconds thinking over.
 
-Another message while a line turn holds the thread, as a quick correction or "and
-also" right after the first, replaces that line turn: admission closes it and opens a
-new one whose pickup names every waiting message of the thread, so the follower lists
-the new turn and the module asks a line fork about them all, and the first line
-fork's answer, about the first message alone, drops, since its turn no longer runs
-(`_line_runs`). A user's rewrite of a message stays with the line turn, whose line
-then responds to a message that no longer carries the thread's answer and goes in
-nowhere, so the thread goes to the main thread bare (`_line`). A thread with the
-session stays there until the session answers it, and a message after that answer
-is kept back again.
+Any event that joins a thread's waiting turns while a line turn holds the thread,
+such as a quick correction or "and also" right after the first message, the user's
+rewrite of it, or a pick on a widget frozen in the thread, replaces that line turn:
+admission closes it and opens a new one whose pickup names every waiting turn of the
+thread, so the follower lists the new turn and the module asks a line fork about
+them all, and the first line fork's answer, about the turns as they stood, drops,
+since its turn no longer runs (`_line_runs`). With the lane down, no follower would
+list a new turn, so the event joins the running line turn, whose line then responds
+to a turn that no longer carries the thread's answer and goes in nowhere, and the
+thread goes to the main thread bare, nudged (`_line`). A thread with the session
+stays there until the session answers it, and a message after that answer is kept
+back again.
 
 Each way out of a line turn is one every agent turn already has: closing it, which
 writes the session's agent turns that the watch's reading stamps
@@ -329,11 +331,11 @@ def page_holding(page: PageTransaction, threads: dict | None = None) -> Holding:
 def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
     """Whether the input `event`, just admitted, is one the main thread doesn't owe
     (`holding.owed_by`), which keeps it from the main thread's deliveries: one in a
-    thread a running agent turn holds, a working fork's or a line turn's, or a
-    thread message to a Claude Code session whose lane is up, in a thread `_keeps`
-    gives a line turn or a running line turn holds, which this replaces; for such a
-    message it opens a line turn and records its pickup of the thread's waiting
-    messages. The page's reading this takes once serves both the decision and the
+    thread a running agent turn holds, a working fork's or a line turn's, or, while
+    a Claude Code session's lane is up, a thread message in a thread `_keeps` gives
+    a line turn, or any event that joins the waiting turns of a thread a running
+    line turn holds, which this replaces; for such an event it opens a line turn
+    and records its pickup of the thread's waiting turns. The page's reading this takes once serves both the decision and the
     pickup's (`delivery.record_pickup`), since admission is on the path of every
     message the user sends. For a thread message to a Claude Code session, the
     page's diagnostics note why (`fork_admission`): kept back, held by a running
@@ -342,17 +344,27 @@ def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
     from .delivery import record_pickup
 
     holding = page_holding(page)
+    held = holding.of(event["id"])
+    owes = owed_by(held.holder)
     claim = page.active_claim
-    message = (
-        claim is not None
-        and claim["harness"] == "claude-code"
-        and event["kind"] in kinds_declaring("message")
-    )
-    lane = message and lane_up(claim["id"])
+    if claim is None or claim["harness"] != "claude-code":
+        return owes["kind"] != "main"
+    message = event["kind"] in kinds_declaring("message")
     thread = holding.found.names.get(event["id"])
-    turn = None
     replaced = None if thread is None else _line_turn(holding.hold(thread))
-    if lane and thread is not None and (replaced or _keeps(holding, thread, event)):
+    # A line fork answers the thread's waiting turns as they stood when its turn
+    # opened, so any event that joins them, whatever its kind (a further message, a
+    # rewrite, a pick on a widget frozen in the thread), replaces its turn.
+    joins = replaced is not None and any(
+        said["id"] == event["id"] for said in holding.found.waiting.get(thread, ())
+    )
+    lane = (message or joins) and lane_up(claim["id"])
+    turn = None
+    if (
+        lane
+        and thread is not None
+        and (joins or (message and _keeps(holding, thread, event)))
+    ):
         if replaced is not None:
             # The line fork writing about the thread's earlier messages would answer
             # without this one, so a new line turn takes them all and the old one's
@@ -375,8 +387,6 @@ def kept_from_main_at_admission(page: PageTransaction, event: dict) -> bool:
                 if replaced is None
                 else page_holding(page, holding.found.threads),
             )
-    held = holding.of(event["id"])
-    owes = owed_by(held.holder)
     if message:
         _note(
             page.page_dir,
@@ -725,6 +735,11 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
         close_agent_turns(session_id, turn=basis["turn"])
         return {"outcome": "dropped", "text": text}
     except (Rejected, Refused) as error:
+        if not _line_runs(session_id, basis["turn"]):
+            # An event that joined the thread replaced the line turn as the line
+            # went in, so the line is stale, as `route` finds of a later step.
+            why = "its line turn no longer runs"
+            return {"outcome": "dropped", "why": why, "text": text}
         # The message's own checks refused it, so the thread goes to the session
         # bare, and the note says why.
         why = f"the message was refused: {error}"

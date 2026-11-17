@@ -2334,6 +2334,42 @@ def test_a_message_while_kept_back_gives_a_new_line_fork_both(claimed, lane):
     assert deliverable(claimed) == []
 
 
+def test_a_rewrite_while_kept_back_gives_a_new_line_fork_the_new_words(claimed, lane):
+    """The user's rewrite of their message while the line fork writes about it joins
+    the thread's waiting turns as a further message does, though it is no message:
+    it replaces the line turn, the new line fork is asked with the rewritten words,
+    and its take goes through, while the first fork's answer drops."""
+    first = said(claimed, "Why 30 s?")
+    earlier = basis(claimed, first["id"], first["id"])
+    edit = append_carried_log_record(
+        claimed,
+        {"kind": "edit", "author": "user", "message": first["id"], "text": "Why 40 s?"},
+    )
+    with PageTransaction(claimed) as page:
+        assert forks_model.kept_from_main_at_admission(page, edit)
+    [(thread, inputs)] = kept_back(claimed)
+    later = basis(claimed, thread, *inputs)
+    assert later["turn"] != earlier["turn"]
+    assert earlier["turn"] not in state_model.open_agent_turns("s1")
+    assert deliverable(claimed) == []
+
+    stale = forks_model.route(
+        "s1", earlier, answer=judged("checking 30 s", "take"), failed=None
+    )
+    assert stale["outcome"] == "dropped"
+    question = forks_model.ask("s1", later, [])
+    assert question is not None and "Why 40 s?" in question["prompt"]
+    taken = forks_model.route(
+        "s1",
+        later,
+        answer=judged("checking 40 s", "take"),
+        failed=None,
+        work_forks=True,
+    )
+    assert taken["outcome"] == "take", taken
+    assert deliverable(claimed) == []
+
+
 def test_a_thread_the_session_owes_stays_with_it_and_a_follow_up_is_forked(
     claimed, lane, capsys
 ):

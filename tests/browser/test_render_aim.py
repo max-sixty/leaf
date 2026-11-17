@@ -1390,9 +1390,11 @@ POINTED_WITHIN = {
     ),
     # A target's first line: its own row stands there already, so a comment pointed at
     # it joins that row, an obligation's marker's, rather than standing pushed below it.
+    # The group is named by `aria-label`, so its heading carries no id and points at the
+    # group rather than being a target of its own.
     "first line": (
         (
-            '<section id="within" role="group" aria-labelledby="within-h"><h2 id="within-h">Which way?</h2><lf-options id="route">'
+            '<section id="within" role="group" aria-label="Which way?"><h2>Which way?</h2><lf-options id="route">'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
             "</lf-option></lf-options></section>"
         ),

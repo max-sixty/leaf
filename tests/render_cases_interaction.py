@@ -837,7 +837,8 @@ LIVE_KEYS_V3 = LIVE_KEYS_V2.replace(
 
 # The decision as the same live page states it, so a revision below can be written by
 # taking it out or putting other words in its place.
-LIVE_KEYS_DECISION = """<section id="lk-decision" role="group" aria-labelledby="lk-decision-h"><h2 id="lk-decision-h">Which one?</h2>
+LIVE_KEYS_ASKS = '<h2 id="lk-decision-h">Which one?</h2>'
+LIVE_KEYS_DECISION = f"""<section id="lk-decision" role="group" aria-labelledby="lk-decision-h">{LIVE_KEYS_ASKS}
 <lf-options id="lk-options">
   <lf-option id="lk-one">One</lf-option>
   <lf-option id="lk-two">Two</lf-option>
@@ -851,7 +852,7 @@ LIVE_KEYS_OBLIGATION_REWRITTEN = LIVE_KEYS_V1.replace(
 ).replace(
     LIVE_KEYS_DECISION,
     LIVE_KEYS_DECISION.replace(
-        "<h2>Which one?</h2>", "<h2>Which one, now the costs are in?</h2>"
+        LIVE_KEYS_ASKS, LIVE_KEYS_ASKS.replace("?", ", now the costs are in?")
     ).replace(
         '<lf-option id="lk-two">Two</lf-option>',
         '<lf-option id="lk-two">Two</lf-option>\n'
@@ -862,8 +863,9 @@ LIVE_KEYS_OBLIGATION_REWRITTEN = LIVE_KEYS_V1.replace(
 # The apparatus a user works a question with, all of it named, and all of it inside the
 # widget a revision replaces whole: a field to write in, a box to open, and a box to scroll.
 LIVE_KEYS_APPARATUS = LIVE_KEYS_V1.replace(
-    "<h2>Which one?</h2>",
-    """<h2>Which one?</h2>
+    LIVE_KEYS_ASKS,
+    LIVE_KEYS_ASKS
+    + """
 <p><label for="lk-note">In a word</label> <input id="lk-note" name="lk-note" type="text"></p>
 <details id="lk-why"><summary>Why this is being asked</summary><p>Because the costs landed.</p></details>
 <div id="lk-evidence" style="height: 3rem; overflow-y: auto"><p>One line.</p><p>Another line.</p><p>A third line.</p><p>A fourth line.</p><p>A fifth line.</p></div>""",
@@ -872,7 +874,7 @@ LIVE_KEYS_APPARATUS = LIVE_KEYS_V1.replace(
 # and every named thing in it arrives as a new node.
 LIVE_KEYS_APPARATUS_REWRITTEN = LIVE_KEYS_APPARATUS.replace(
     "<title>Live keys first</title>", "<title>Live keys rewritten</title>"
-).replace("<h2>Which one?</h2>", "<h2>Which one, now the costs are in?</h2>")
+).replace(LIVE_KEYS_ASKS, LIVE_KEYS_ASKS.replace("?", ", now the costs are in?"))
 
 # And a revision that withdraws the question, which is the one with nowhere to put the
 # user back.

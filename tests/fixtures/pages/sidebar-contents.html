@@ -72,22 +72,24 @@
           </p>
         </section>
 
-        <section id="rotation-switch" role="group" aria-labelledby="rotation-switch-h">
-          <h2 id="rotation-switch-h">Switch the services</h2>
+        <section id="rotation-switch">
+          <h2>Switch the services</h2>
           <p id="rotation-switch-order">
             Update the vault entry the services read, then restart them one region at a
             time, starting with the region that has the least traffic at this hour.
           </p>
-          <lf-options id="rotation-first-region">
-            <lf-option id="rotation-first-apac">
-              <strong>Asia-Pacific first</strong> Its traffic is lowest in a European
-              morning window.
-            </lf-option>
-            <lf-option id="rotation-first-west">
-              <strong>US West first</strong> Its traffic is lowest just after the payout
-              batch.
-            </lf-option>
-          </lf-options>
+          <section id="rotation-first" role="group" aria-label="Which region restarts first?">
+            <lf-options id="rotation-first-region">
+              <lf-option id="rotation-first-apac">
+                <strong>Asia-Pacific first</strong> Its traffic is lowest in a European
+                morning window.
+              </lf-option>
+              <lf-option id="rotation-first-west">
+                <strong>US West first</strong> Its traffic is lowest just after the payout
+                batch.
+              </lf-option>
+            </lf-options>
+          </section>
           <h3 id="rotation-checkout">Checkout</h3>
           <p>
             Restart checkout's pods in batches of a quarter. Watch the declined payments

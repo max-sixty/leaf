@@ -420,8 +420,6 @@ def test_a_harness_step_waiting_on_the_user_outlasts_the_working_grace():
         "turn_closed": None,
         "turn_takes_input": False,
         "agent_turns": {},
-        "fork_lane": None,
-        "handed": [],
     }
     voice = {"author": "agent", "agent": "Agent", "session": "session-1"}
     events = [

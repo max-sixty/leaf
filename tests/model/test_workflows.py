@@ -864,8 +864,6 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "listening": True,
         "session_alive": True,
         "agent_turns": {},
-        "fork_lane": None,
-        "handed": [],
     }
     reply = {
         "state": "active",

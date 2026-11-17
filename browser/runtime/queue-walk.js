@@ -66,7 +66,8 @@
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
    control, so they keep it, while any other move the user makes ends it. Without one it
-   counts from the block they read in the region (reading-place.js, `readingBlock`), as a
+   counts from what they see of the region, the block they read there (reading-place.js,
+   `readingBlock`) or a stop in view ahead of it (current-target.js, `stepFrom`), as a
    place they are at without being on it, and with none in sight it counts from where
    they are. That obligation, kept by identity
    so a revision replacing its node keeps it, is the one place this walk keeps, and only

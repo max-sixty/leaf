@@ -48,6 +48,7 @@ from browser.widgets import (
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
+from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
@@ -1100,7 +1101,9 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
     expect(group).to_have_css("display", "grid")
     expect(group.locator("lf-option").first).to_have_css("display", "flow-root")
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", element_declarations(page_registry(page))
+        )
         == []
     )
 

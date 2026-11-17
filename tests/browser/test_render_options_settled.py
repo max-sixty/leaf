@@ -30,6 +30,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
+from leaf.registry.contract import element_declarations
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -198,7 +199,9 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     # closed, and nothing it does opens one.
     assert row.get_attribute("aria-expanded") == "true"
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", element_declarations(page_registry(page))
+        )
         == []
     ), "opening the group left an attribute on a widget its entry never declared"
 

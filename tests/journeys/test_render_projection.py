@@ -78,7 +78,7 @@ from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
-from leaf.registry.contract import declared_fact
+from leaf.registry.contract import declared_fact, element_declarations
 from leaf.registry.storage import layer_record
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as scheme_model
@@ -1063,7 +1063,9 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # consumer but shallowSigs, which reads what no version can assert as state one
     # authored.
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", element_declarations(page_registry(page))
+        )
         == []
     ), "the Done press left an attribute on a widget its entry never declared"
     actions = [
@@ -1083,7 +1085,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     assert (
         render_checks_model.evaluate_probe(
-            other, "undeclaredAttrs", page_registry(other)
+            other, "undeclaredAttrs", element_declarations(page_registry(other))
         )
         == []
     ), "replaying the answer left an attribute the entry never declared"

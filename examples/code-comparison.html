@@ -309,8 +309,14 @@
           label="Compare"
           summary="Tune both treatments and keep one"
         >
-          <section id="code-comparison-ask">
-            <h2>Which code-reader treatment should the agent keep?</h2>
+          <section
+            id="code-comparison-ask"
+            role="group"
+            aria-labelledby="code-comparison-ask-h"
+          >
+            <h2 id="code-comparison-ask-h">
+              Which code-reader treatment should the agent keep?
+            </h2>
             <lf-playground
               id="code-comparison-playground"
               contract="code-comparison-values"

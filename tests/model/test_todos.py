@@ -2003,7 +2003,7 @@ def test_explicit_message_obligations_need_no_html(page_dir, route):
     assert (item["thread"], item["message"], item["prompt"]) == (
         thread or message["id"],
         message["id"],
-        {"text": "Which environment?", "target": None},
+        {"text": "Which environment?", "labelledby": None, "target": None},
     )
     assert ("message", identity) in kinds(state["queues"]["on_user"])
     assert "html" not in message

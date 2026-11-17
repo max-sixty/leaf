@@ -1180,9 +1180,10 @@
       /* A section told it has a definite height, as a question that is the workspace's
        * body or a page tab's one block is, gives its answer, the last of its children,
        * what its heading and context leave, and tells it so, so a widget composing its
-       * own regions there, such as a playground, fills the window below a premise as
-       * well as straight under the heading. The context keeps its own height, and the
-       * answer keeps at least its own: a list of options takes its content's height
+       * own regions there, such as a playground, fills the window below a premise,
+       * straight under the heading, or alone in a group the workspace's header names.
+       * The context keeps its own height, and the answer keeps at least its own: a
+       * list of options takes its content's height
        * below a long premise, and the section scrolls, where a playground, which fits
        * its parts to any height it is given, says it may shrink (playground/defaults.css).
        * Every child hears the height the section is told, the context's included, so
@@ -1196,16 +1197,8 @@
         > * {
           flex: none;
         }
-        &:has(
-          > :nth-last-child(1 of :not(script, style, template)):not(
-              :nth-child(1 of :not(script, style, template))
-            )
-        ) {
-          --lf-full-height: inherit;
-        }
-        > :nth-last-child(1 of :not(script, style, template)):not(
-            :nth-child(1 of :not(script, style, template))
-          ) {
+        --lf-full-height: inherit;
+        > :nth-last-child(1 of :not(script, style, template)) {
           flex: 1 1 0;
           margin-block: 0;
         }

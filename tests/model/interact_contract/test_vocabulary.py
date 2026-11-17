@@ -409,7 +409,9 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
         write_json(page_dir / "page" / "registry.json", {"lf-pick": pick})
         (page_dir / "index.html").write_text(
             model.leaf_page(
-                "Choice", '<lf-pick id="choice" value="author">Pick</lf-pick>'
+                "Choice",
+                '<section id="ask" role="group" aria-label="Which pick?">'
+                '<lf-pick id="choice" value="author">Pick</lf-pick></section>',
             )
         )
         publish(page_dir)

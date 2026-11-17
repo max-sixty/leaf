@@ -55,8 +55,10 @@ def test_inline_settlement_retains_focus_when_its_controls_are_replaced(browser,
     url = serve(
         leaf_page(
             "Inline settlement",
-            '<h1>Review the plan</h1><lf-verdict id="proposal" asks>'
-            "Should these jobs share a visit?</lf-verdict>"
+            '<h1>Review the plan</h1><section id="proposal-q" role="group"'
+            ' aria-label="Should these jobs share a visit?">'
+            '<lf-verdict id="proposal" asks>'
+            "Should these jobs share a visit?</lf-verdict></section>"
             '<label>Another thought <input id="later"></label>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
@@ -1015,8 +1017,8 @@ ATTACHED_THREAD_PAGE = leaf_page(
     "an element and its thread",
     """<h1>Cache review</h1>
 <p id="passage" tabindex="0">The budget note covers latency budgets for the cache.</p>
-<section id="cache-ask">
-  <h2>Which cache should we keep?</h2>
+<section id="cache-ask" role="group" aria-labelledby="cache-ask-h">
+  <h2 id="cache-ask-h">Which cache should we keep?</h2>
   <lf-options id="cache" choose>
     <lf-option id="cache-disk">Keep the disk cache</lf-option>
     <lf-option id="cache-memory">Keep the memory cache</lf-option>

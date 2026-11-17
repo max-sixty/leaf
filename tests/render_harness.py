@@ -294,7 +294,7 @@ INLINE_PAGE = leaf_page(
     "inline",
     """
 <h1 id="t">Inline</h1>
-<section id="opts-decision"><h2>How should sessions work?</h2>
+<section id="opts-decision" role="group" aria-labelledby="opts-decision-h"><h2 id="opts-decision-h">How should sessions work?</h2>
 <lf-options id="opts" choose>
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
@@ -442,12 +442,12 @@ SAMPLE_PAGE = leaf_page(
       <lf-new>Refill when the camera shows it half-empty.</lf-new>
     </lf-suggestion></p>
 </lf-sample>
-<section id="live-group-decision"><h2>How should the schema migrate?</h2>
+<section id="live-group-decision" role="group" aria-labelledby="live-group-decision-h"><h2 id="live-group-decision-h">How should the schema migrate?</h2>
 <lf-options id="live-group" choose>
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="l-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></section>
-<section id="live-rows-decision"><h2>What should happen to the nightly job?</h2>
+<section id="live-rows-decision" role="group" aria-labelledby="live-rows-decision-h"><h2 id="live-rows-decision-h">What should happen to the nightly job?</h2>
 <lf-options id="live-rows" choose>
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
@@ -489,7 +489,7 @@ SAMPLE_TEXT = (
     "Two shapes for the same question — first the one I'd ship, then, for the "
     "record, the framing it replaces:"
 )
-SAMPLE_MARKUP = """<section id="rp-live-decision"><h3>How should the schema migrate?</h3>
+SAMPLE_MARKUP = """<section id="rp-live-decision" role="group" aria-labelledby="rp-live-decision-h"><h3 id="rp-live-decision-h">How should the schema migrate?</h3>
 <lf-options id="rp-live" choose>
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
@@ -511,7 +511,7 @@ REPLAYED_PAGE = leaf_page(
     "replayed",
     f"""
 <h1 id="t">Rollout</h1>
-<section id="approach-decision"><h2>How should the schema migrate?</h2>
+<section id="approach-decision" role="group" aria-labelledby="approach-decision-h"><h2 id="approach-decision-h">How should the schema migrate?</h2>
 <lf-options id="approach" choose>
   <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>

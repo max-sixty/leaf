@@ -179,7 +179,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-old>Keep the broad sweep.</lf-old>
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
-<section id="stable-options-decision"><h2>Which control should stay?</h2>
+<section id="stable-options-decision" role="group" aria-labelledby="stable-options-decision-h"><h2 id="stable-options-decision-h">Which control should stay?</h2>
 <lf-options id="stable-options" choose>
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
@@ -189,7 +189,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-tab id="stable-tab-b" label="Second">Second panel.</lf-tab>
 </lf-tabs>
 
-<section id="stable-playground-decision"><h2>How should the release card look?</h2>
+<section id="stable-playground-decision" role="group" aria-labelledby="stable-playground-decision-h"><h2 id="stable-playground-decision-h">How should the release card look?</h2>
 <lf-playground id="stable-playground" submit-label="Use these settings">
   <aside>
     <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
@@ -762,7 +762,7 @@ AIM_PAGE = leaf_page(
       </lf-column>
       <lf-column id="aim-done" label="Done"></lf-column>
     </lf-board>
-    <section id="aim-ask"><h2>Which jobs?</h2>
+    <section id="aim-ask" role="group" aria-labelledby="aim-ask-h"><h2 id="aim-ask-h">Which jobs?</h2>
       <lf-options id="aim-jobs" choose multiple>
         <lf-option id="aim-mounts">Replace the mounts</lf-option>
         <lf-option id="aim-bath">Heat the bird bath</lf-option>

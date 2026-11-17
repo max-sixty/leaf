@@ -149,8 +149,8 @@ handoff and save it.
         </p>
       </section>
 
-      <section id="route-ask">
-        <h2>How should a card hand its thread to the panel?</h2>
+      <section id="route-ask" role="group" aria-labelledby="route-ask-h">
+        <h2 id="route-ask-h">How should a card hand its thread to the panel?</h2>
         <p>
           Each candidate starts from the card a <kbd>t</kbd> walk opens. B and C add
           <em>Open in panel</em> to the card's head, beside Resolve and Close. The card

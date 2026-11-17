@@ -3,6 +3,7 @@
 import re
 
 from leaf.findings import Finding, element_at
+from leaf.gesture_words import group_name
 from leaf.obligations import framed_widgets, local_obligation_entry, shown_in
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
@@ -226,40 +227,60 @@ def parts_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     ]
 
 
-def question_advice(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Each widget a page asks with stands under a heading that titles its question,
-    leading the element around it (`obligations.framed_widgets`): the heading is the
-    question's words on On Me and in what the agent hears, and its place in the outline
-    and in heading navigation. A widget with words of its own needs none: one set among
-    words (`x-inline`) is named by them, and one asking about each record of its data
-    (`x-awaits.records`) by each record's label. A message's widget needs none either,
-    since the message names what it asks, so only a page's documents are checked.
-
-    It is advice rather than a refusal: an untitled question still asks and records its
-    answer, and On Me names it by the words nearest it (`addressableLabel`), so nothing
-    the user relies on breaks."""
+def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
+    """Each widget a page asks with stands in a group the author names
+    (`obligations.framed_widgets`): the group is the question, the region On Me selects
+    and the ring draws round, and its name is the question's words on On Me and in
+    what the agent hears. Leaf reads both from the author's markup and infers neither,
+    so a widget no group holds, or whose group is unnamed, names no question, and a
+    group without an id is no place to stand. A widget with words of its own needs no
+    group: one set among words (`x-inline`) is named by them, and one asking about each
+    record of its data (`x-awaits.records`) by each record's label. A message's widget
+    needs none either, since the message names what it asks, so only a page's
+    documents are checked."""
+    nodes = {
+        node["attrs"]["id"]: node
+        for node in document.authoring.nodes
+        if node["attrs"].get("id")
+    }
     # A widget inside SVG keeps its exact source rather than a node, and so is no
     # widget the walk reads.
-    untitled = {
-        id(node)
-        for node, frame in framed_widgets(document.authoring.content, registry)
-        if frame is None
+    groups = {
+        id(node): group
+        for node, group in framed_widgets(document.authoring.content, registry)
     }
-    return [
-        Finding(
-            "untitled-question",
-            element_at(rec["tag"], rec["attrs"].get("id", "")),
-            {"line": rec["line"]},
-            severity="advice",
-        )
-        for rec in document.lf_elements
-        if local_obligation_entry(entry := registry.get(rec["tag"]) or {})
-        and not entry.get("x-inline")
-        and "records" not in entry["x-awaits"]
-        and matches_when(rec["attrs"], entry["x-awaits"].get("when"))
-        and not shown_in(rec, registry)
-        and id(document.authoring.node_of(rec)) in untitled
-    ]
+    errors = []
+    for rec in document.lf_elements:
+        entry = registry.get(rec["tag"]) or {}
+        if not (
+            local_obligation_entry(entry)
+            and not entry.get("x-inline")
+            and "records" not in entry["x-awaits"]
+            and matches_when(rec["attrs"], entry["x-awaits"].get("when"))
+            and not shown_in(rec, registry)
+            and (key := id(document.authoring.node_of(rec))) in groups
+        ):
+            continue
+        group = groups[key]
+        at = element_at(rec["tag"], rec["attrs"].get("id", ""))
+        if group is None or not group_name(group, nodes)[0]:
+            unnamed = group and element_at(group["tag"], group["attrs"].get("id", ""))
+            errors.append(
+                Finding(
+                    "unframed-question",
+                    at,
+                    {"line": rec["line"], "group": unnamed or None},
+                )
+            )
+        elif not group["attrs"].get("id"):
+            errors.append(
+                Finding(
+                    "question-group-id",
+                    element_at(group["tag"]),
+                    {"line": group["line"], "widget": at},
+                )
+            )
+    return errors
 
 
 def relation_mismatch(

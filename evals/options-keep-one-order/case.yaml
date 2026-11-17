@@ -25,7 +25,7 @@ vars:
     The page so far holds ten proposals, each put to the user like these two:
 
     ```html
-    <section id="ask-resolve-glyph">
+    <section id="ask-resolve-glyph" role="group" aria-labelledby="resolve-glyph">
       <h3 id="resolve-glyph">Resolve and Reopen are a bare ✓: one press hides the thread, and reopening looks like a status</h3>
       <p>
         A card's Resolve is a ✓ beside ✕. One press closes the card, removes the
@@ -47,7 +47,7 @@ vars:
       </lf-options>
     </section>
 
-    <section id="ask-answer-control">
+    <section id="ask-answer-control" role="group" aria-labelledby="answer-control">
       <h3 id="answer-control">A question asked in words shows no way to answer it</h3>
       <p>
         A question asked in words renders as an ordinary paragraph, and the only
@@ -141,8 +141,8 @@ variants:
         Earlier decisions on the page look like this one:
 
         ```html
-        <section id="d43">
-          <h3>#43 How strong should the window-height requirements be?</h3>
+        <section id="d43" role="group" aria-labelledby="d43-h">
+          <h3 id="d43-h">#43 How strong should the window-height requirements be?</h3>
           <p>
             Clipped controls and sideways scroll stay refusals, now also at the new height.
             The question is the two that aren't checked: a workspace's decision in view, and a
@@ -240,8 +240,8 @@ variants:
         An earlier decision on the page reads:
 
         ```html
-        <section id="skill-ask">
-          <h2>Should the grind workflow become a skill?</h2>
+        <section id="skill-ask" role="group" aria-labelledby="skill-ask-h">
+          <h2 id="skill-ask-h">Should the grind workflow become a skill?</h2>
           <p>
             Every agent tonight read the same brief, and three of its rules came from
             friction an agent hit. No skill covers a batch of agents over the TODO

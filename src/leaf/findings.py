@@ -987,10 +987,20 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "untitled-question": lambda at, v: (
-        f"{_line(at, v)}: asks the user, but no heading titles its question; put the"
-        " question in a <section> with an id, opened by its heading, alone or in an"
-        " <hgroup> or <header>"
+    "unframed-question": lambda at, v: (
+        f"{_line(at, v)}: asks the user, but "
+        + (
+            f"the group holding it, {v['group']}, has no name; give it aria-labelledby"
+            " naming the heading that asks the question"
+            if v["group"]
+            else "no named group holds its question; write the question, its heading,"
+            ' premise and this widget, as <section id="…" role="group"'
+            ' aria-labelledby="…">, naming the heading by its id'
+        )
+    ),
+    "question-group-id": lambda at, v: (
+        f"{_line(at, v)}: the group holding {v['widget']}'s question needs an id, the"
+        " place the question stands"
     ),
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'

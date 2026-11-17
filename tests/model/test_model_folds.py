@@ -864,7 +864,7 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
     for the whole answer it completes to)."""
     page = model.leaf_page(
         "Tail",
-        '<p id="p">One.</p><section id="ask"><h2>Which?</h2>'
+        '<p id="p">One.</p><section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2>'
         '<lf-options id="pick" choose><lf-option id="one">One</lf-option>'
         '<lf-option id="two">Two</lf-option></lf-options></section>',
     )

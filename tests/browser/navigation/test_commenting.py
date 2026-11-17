@@ -402,7 +402,7 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
 ROOM_IN_THE_MARGIN = (1440, 900)
 AN_ASK_THEN_READING = leaf_page(
     "An ask, then reading",
-    '<h1>An ask, then reading</h1><section id="route"><h2>Which route?</h2>'
+    '<h1>An ask, then reading</h1><section id="route" role="group" aria-labelledby="route-h"><h2 id="route-h">Which route?</h2>'
     '<lf-options id="routes" choose>'
     '<lf-option id="left">Take the left route</lf-option>'
     '<lf-option id="right">Take the right route</lf-option>'
@@ -486,7 +486,7 @@ def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
                 "A sample",
                 '<h1>A sample</h1><lf-sample id="practice" label="Practice" window>'
                 '<template id="practice-page" data-sample><h1>Practice</h1>'
-                '<section id="route"><h2>Which route?</h2><lf-options id="routes" choose>'
+                '<section id="route" role="group" aria-labelledby="route-h"><h2 id="route-h">Which route?</h2><lf-options id="routes" choose>'
                 '<lf-option id="left">Take the left route</lf-option>'
                 '<lf-option id="right">Take the right route</lf-option>'
                 "</lf-options></section></template></lf-sample>",
@@ -572,9 +572,9 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
             "mid-sentence",
             """
 <h1 id="t">Mid-sentence</h1>
-<section id="shape-decision"><h2>Galvanised steel for the frame?</h2>
+<section id="shape-decision" role="group" aria-labelledby="shape-decision-h"><h2 id="shape-decision-h">Galvanised steel for the frame?</h2>
 <lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></section>
-<section id="picked-decision"><h2>Should we keep it?</h2>
+<section id="picked-decision" role="group" aria-labelledby="picked-decision-h"><h2 id="picked-decision-h">Should we keep it?</h2>
 <lf-options id="picked" choose>
   <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
@@ -809,7 +809,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
             "seated",
             """
 <h1 id="t">Seated</h1>
-<section id="shape-decision"><h2>Which material?</h2>
+<section id="shape-decision" role="group" aria-labelledby="shape-decision-h"><h2 id="shape-decision-h">Which material?</h2>
 <lf-options id="shape" choose>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>

@@ -87,8 +87,8 @@ QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
     """
 <h1 id="title">Field day</h1>
-<section id="map-ask">
-  <h3>Which map should the sample team carry?</h3>
+<section id="map-ask" role="group" aria-labelledby="map-ask-h">
+  <h3 id="map-ask-h">Which map should the sample team carry?</h3>
   <lf-options id="map" choose>
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>

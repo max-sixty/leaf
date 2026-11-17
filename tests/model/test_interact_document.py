@@ -1638,7 +1638,7 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
   <footer><p>Finish</p></footer>"""
     version.write_text(
         PAGE.replace("<main>", '<main class="layout-workspace">').replace(
-            PAGE[PAGE.index('<section id="plan">') : PAGE.index("</main>")], regions
+            PAGE[PAGE.index('<section id="plan"') : PAGE.index("</main>")], regions
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
@@ -2159,8 +2159,8 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
     has a thread to move; the version has to be refused before it goes out."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '<section id="plan">',
-            '<section id="plan"><svg viewBox="0 0 10 10">'
+            '<section id="plan" role="group" aria-label="Plan">',
+            '<section id="plan" role="group" aria-label="Plan"><svg viewBox="0 0 10 10">'
             '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
         )
     )
@@ -2218,7 +2218,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread",
             "create",
             "--text",
-            'Which store?\n\n<section id="t-ask"><h3>Store?</h3><lf-options id="t-store" choose>'
+            'Which store?\n\n<section id="t-ask" role="group" aria-labelledby="t-ask-h"><h3 id="t-ask-h">Store?</h3><lf-options id="t-store" choose>'
             '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></section>",
         ).output.splitlines()
@@ -3348,7 +3348,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "author": "agent",
             "revision": 1,
             "html": True,
-            "text": 'Which mitigations?\n\n<section id="gm-decision"><h2>Which mitigations?</h2>'
+            "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h"><h2 id="gm-decision-h">Which mitigations?</h2>'
             '<lf-options id="gm" choose multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
@@ -3403,14 +3403,14 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-test-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-test-task>
       <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
       <lf-test-task id="future" status="active"><strong>Future review</strong>
-        <section id="future-decision"><h3>Review it now?</h3>
+        <section id="future-decision" role="group" aria-labelledby="future-decision-h"><h3 id="future-decision-h">Review it now?</h3>
           <lf-options id="future-review" choose>
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
         </section>
       </lf-test-task>
       <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
-        <section id="decision-decision"><h3>Which way out?</h3>
+        <section id="decision-decision" role="group" aria-labelledby="decision-decision-h"><h3 id="decision-decision-h">Which way out?</h3>
           <lf-options id="decision-options" choose>
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
@@ -3589,7 +3589,7 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
         '<lf-sample id="sample"><lf-options id="example" choose>'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-sample>"
-        '<section id="real-decision"><h3>What next?</h3>'
+        '<section id="real-decision" role="group" aria-labelledby="real-decision-h"><h3 id="real-decision-h">What next?</h3>'
         '<lf-options id="real" choose><lf-option id="real-a">A</lf-option>'
         '<lf-option id="real-b">B</lf-option></lf-options></section>'
         "</lf-test-task></lf-test-plan>"
@@ -3615,7 +3615,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
     for nothing, and the pick wakes no agent."""
     markup = (
         '<lf-sample id="practice" interactive>'
-        '<section id="practice-ask"><h3>Which queue policy?</h3>'
+        '<section id="practice-ask" role="group" aria-labelledby="practice-ask-h"><h3 id="practice-ask-h">Which queue policy?</h3>'
         '<lf-options id="practice-policy" choose>'
         '<lf-option id="practice-a">A</lf-option>'
         '<lf-option id="practice-b">B</lf-option></lf-options></section>'

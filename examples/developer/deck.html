@@ -18,8 +18,8 @@
         for the end.
       </p>
       <lf-deck id="deck-catch-up">
-        <section id="deck-store-ask">
-          <h3>Which session store ships in 2.4?</h3>
+        <section id="deck-store-ask" role="group" aria-labelledby="deck-store-ask-h">
+          <h3 id="deck-store-ask-h">Which session store ships in 2.4?</h3>
           <p>
             Postgres removed the Redis hop in load tests (p99 41 ms to 29 ms) but needs
             the migration in the runbook. Redis is what production runs today.
@@ -50,8 +50,8 @@
             >
           </lf-suggestion>
         </section>
-        <section id="deck-beta-ask">
-          <h3>Which platforms get the 2.4 beta?</h3>
+        <section id="deck-beta-ask" role="group" aria-labelledby="deck-beta-ask-h">
+          <h3 id="deck-beta-ask-h">Which platforms get the 2.4 beta?</h3>
           <p>Each platform adds a day of smoke testing.</p>
           <lf-options id="deck-beta-choice" choose multiple>
             <lf-option id="deck-beta-mac">macOS</lf-option>
@@ -59,8 +59,14 @@
             <lf-option id="deck-beta-win">Windows</lf-option>
           </lf-options>
         </section>
-        <section id="deck-support-ask">
-          <h3>Send this reply to the support thread about slow logins?</h3>
+        <section
+          id="deck-support-ask"
+          role="group"
+          aria-labelledby="deck-support-ask-h"
+        >
+          <h3 id="deck-support-ask-h">
+            Send this reply to the support thread about slow logins?
+          </h3>
           <p>It goes out under your name, with any edit you make to it.</p>
           <lf-draft id="deck-support-draft">
             <pre>
@@ -71,8 +77,12 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
             <lf-option id="deck-support-hold"><strong>Don't send it</strong></lf-option>
           </lf-options>
         </section>
-        <section id="deck-publish-ask">
-          <h3>Post the release notes to #eng on Friday?</h3>
+        <section
+          id="deck-publish-ask"
+          role="group"
+          aria-labelledby="deck-publish-ask-h"
+        >
+          <h3 id="deck-publish-ask-h">Post the release notes to #eng on Friday?</h3>
           <p>Posts the notes, with the upgrade note as you leave it.</p>
           <lf-options id="deck-publish-choice" choose>
             <lf-option id="deck-publish-hold"

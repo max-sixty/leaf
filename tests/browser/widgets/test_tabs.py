@@ -859,10 +859,10 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
         "Question outcomes",
         '<lf-tabs id="queue" list="side">'
         '<lf-tab id="only" label="Only withdrawn">'
-        '<lf-options id="only-options" choose><lf-option id="only-pick">Only</lf-option></lf-options>'
+        '<section id="only-options-q" role="group" aria-label="Keep it?"><lf-options id="only-options" choose><lf-option id="only-pick">Only</lf-option></lf-options></section>'
         '</lf-tab><lf-tab id="mixed" label="Answer and withdrawal">'
-        '<lf-options id="answered-options" choose><lf-option id="answered-pick" chosen>Keep</lf-option></lf-options>'
-        '<lf-options id="withdrawn-options" choose><lf-option id="withdrawn-pick">Retire</lf-option></lf-options>'
+        '<section id="answered-options-q" role="group" aria-label="Keep it?"><lf-options id="answered-options" choose><lf-option id="answered-pick" chosen>Keep</lf-option></lf-options></section>'
+        '<section id="withdrawn-options-q" role="group" aria-label="Retire it?"><lf-options id="withdrawn-options" choose><lf-option id="withdrawn-pick">Retire</lf-option></lf-options></section>'
         "</lf-tab></lf-tabs>",
     )
     page = open_page(browser, live_url(serve(source)))
@@ -929,7 +929,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "a late queue",
             """<lf-tabs id="queue" list="side">
 <lf-tab id="t-a" label="ESC-4107 · Northwind Labs" summary="Company-wide SSO outage · Severity 1">
-  <section id="ask-a"><h3 id="q-a">What happens to a?</h3>
+  <section id="ask-a" role="group" aria-labelledby="q-a"><h3 id="q-a">What happens to a?</h3>
     <lf-options id="o-a" choose>
       <lf-option id="o-a-fix"><strong>Fix</strong> Ship the patch.</lf-option>
       <lf-option id="o-a-close"><strong>Escalate to engineering</strong> Send the logs.</lf-option>

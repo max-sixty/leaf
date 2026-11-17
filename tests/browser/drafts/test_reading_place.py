@@ -133,7 +133,7 @@ def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, regi
         else lines
     )
     question = (
-        '<section id="ask"><h2>Which way?</h2><lf-options id="way" choose>'
+        '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which way?</h2><lf-options id="way" choose>'
         '<lf-option id="way-one"><strong>One</strong> the first way.</lf-option>'
         '<lf-option id="way-two"><strong>Two</strong> the second way.</lf-option>'
         "</lf-options></section>"

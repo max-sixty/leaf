@@ -427,7 +427,7 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
             "Page annotation view",
             """
       <h1 id="title">Review</h1>
-      <section id="choice-question"><h2>Which route?</h2>
+      <section id="choice-question" role="group" aria-labelledby="choice-question-h"><h2 id="choice-question-h">Which route?</h2>
         <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
         <lf-option id="route-b">Route B</lf-option></lf-options>
       </section>

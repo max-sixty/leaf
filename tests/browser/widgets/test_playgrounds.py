@@ -39,7 +39,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 CONTRIBUTOR_PAGE = leaf_page(
     "query configuration",
     """
-<section id="query-ask"><h1>Choose the alert query</h1>
+<section id="query-ask" role="group" aria-labelledby="query-ask-h"><h1 id="query-ask-h">Choose the alert query</h1>
 <lf-playground id="query-config">
   <aside>
   <fieldset id="stream"><legend>Event stream</legend><label id="stream-checkout"><input type="radio" name="stream" value="checkout" checked /> Checkout</label><label id="stream-billing"><input type="radio" name="stream" value="billing" /> Billing</label></fieldset>
@@ -360,7 +360,7 @@ def test_keyboard_can_take_a_range_while_the_preview_preserving_press_is_held(
             leaf_page(
                 "Keyboard during a range press",
                 """
-<section id="ring-ask"><h1>Choose a ring</h1>
+<section id="ring-ask" role="group" aria-labelledby="ring-ask-h"><h1 id="ring-ask-h">Choose a ring</h1>
 <lf-playground id="ring">
   <aside><label id="width">Width <input type="range" name="width" min="1" max="4" value="2" /></label></aside>
   <label>Candidate<input value="Focus treatment"></label>
@@ -617,14 +617,14 @@ def test_narrow_playground_keeps_complete_preset_labels_operable(browser, serve)
     source = leaf_page(
         "Complete preset labels",
         f"""<h1>Tune alert policy</h1>
-<lf-playground id="policy">
+<section id="policy-q" role="group" aria-label="Which alert policy?"><lf-playground id="policy">
   <lf-playground-preset id="policy-preset" label="{label}">
     <lf-playground-setting for="threshold" value="6"></lf-playground-setting>
   </lf-playground-preset>
   <p>Six minutes catches the incident with time to act.</p>
   <label id="threshold">Threshold <input type="range" name="threshold" min="1" max="10" value="5" /></label>
   <lf-playground-output>Use a <output for="threshold"></output> minute threshold.</lf-playground-output>
-</lf-playground>""",
+</lf-playground></section>""",
     )
     page = open_page(browser, serve(source))
     resized(page, 390, 844)
@@ -688,10 +688,11 @@ def test_a_playground_reports_a_contributor_view_that_cannot_draw_its_edit(
 
 SHORT_WORKSPACE_PLAYGROUND = leaf_page(
     "Short alert workspace",
-    "<header><h1>Tune alert policies</h1>"
+    '<header><h1 id="tune-h">Tune alert policies</h1>'
     "<p>Compare the last month of incidents before setting the latency window. "
     "Keep every real incident visible while reducing unnecessary pages for the "
     "on-call engineer.</p></header>"
+    '<section id="tune" role="group" aria-labelledby="tune-h">'
     '<lf-playground id="short-config" data-width="available">'
     '<lf-playground-preset id="preset-suggested-window" label="Suggested window">'
     '<lf-playground-setting for="latency" value="5"></lf-playground-setting>'
@@ -703,7 +704,7 @@ SHORT_WORKSPACE_PLAYGROUND = leaf_page(
     + "Include alert evidence, validation, routing and deployment instructions. "
     * 100
     + '<span id="instruction-end">Finish with the rollback procedure.</span>'
-    "</lf-playground-output></lf-playground>",
+    "</lf-playground-output></lf-playground></section>",
     layout="workspace",
 )
 
@@ -791,7 +792,7 @@ def test_a_playground_followed_by_a_note_keeps_its_actions_off_the_note(browser,
     # at 900px.
     source = leaf_page(
         "Alert workspace with a note",
-        '<section id="noted-ask" class="layout-flow"><h1>Tune alert policies</h1>'
+        '<section id="noted-ask" role="group" aria-labelledby="noted-ask-h"><h1 id="noted-ask-h">Tune alert policies</h1>'
         '<lf-playground id="noted-config" data-width="available">'
         + "<p>Checkout latency fired seven times last month.</p>"
         * 12
@@ -820,7 +821,7 @@ def test_a_small_playground_keeps_its_controls_next_to_its_content(browser, serv
     instruction below it aren't separated from the evidence by an empty well."""
     source = leaf_page(
         "Small configuration",
-        '<lf-playground id="small-playground">'
+        '<section id="small-playground-q" role="group" aria-label="Which configuration?"><lf-playground id="small-playground">'
         '<aside><fieldset id="priority"><legend>Priority</legend>'
         '<label id="priority-normal"><input type="radio" name="priority" value="normal" checked> Normal</label>'
         '<label id="priority-urgent"><input type="radio" name="priority" value="urgent"> Urgent</label>'
@@ -828,7 +829,7 @@ def test_a_small_playground_keeps_its_controls_next_to_its_content(browser, serv
         "<table><tbody><tr><th>Daily export</th><td>Ready</td></tr>"
         "<tr><th>Weekly digest</th><td>Ready</td></tr></tbody></table>"
         "<lf-playground-output>Run the two jobs.</lf-playground-output>"
-        "</lf-playground>",
+        "</lf-playground></section>",
     )
     page = open_page(browser, serve(source))
     for width in (640, 390):
@@ -852,7 +853,7 @@ def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
     than what stands on it."""
     source = leaf_page(
         "Stage",
-        '<section id="stage-ask"><h1>Choose a density</h1>'
+        '<section id="stage-ask" role="group" aria-labelledby="stage-ask-h"><h1 id="stage-ask-h">Choose a density</h1>'
         '<lf-playground id="stage-playground">'
         '<aside><label id="rows">Rows <input type="range" name="rows" min="1" max="8" value="4" /></label>'
         '<fieldset id="mode"><legend>Mode</legend>'
@@ -1061,7 +1062,7 @@ def test_a_playground_opens_its_instruction_over_the_page(browser, serve):
     source = leaf_page(
         "Instruction popover",
         '<button id="outside">Before playground</button>'
-        '<section id="fold-ask" class="layout-flow"><h1>Choose a density</h1>'
+        '<section id="fold-ask" role="group" aria-labelledby="fold-ask-h"><h1 id="fold-ask-h">Choose a density</h1>'
         '<lf-playground id="fold-playground" data-width="available">'
         '<aside><label id="rows">Rows <input type="range" name="rows" min="1" max="8" value="4" /></label></aside>'
         "<p>Rows of the report.</p>"
@@ -1212,12 +1213,12 @@ def test_playgrounds_keep_their_own_radios_from_the_first_paint(browser, serve):
             for value in "ab"
         )
         return (
-            f'<lf-playground id="{ident}"><aside><fieldset><legend>Mode</legend>'
+            f'<section id="{ident}-q" role="group" aria-label="Which mode?"><lf-playground id="{ident}"><aside><fieldset><legend>Mode</legend>'
             f"{radios}</fieldset>"
             f'<label id="{ident}-kept"><input type="radio" name="kept" value="x"'
             ' form="outer"> Kept apart</label></aside><p>Preview</p>'
             f'<lf-playground-output id="{ident}-task">Use'
-            ' <output for="mode"></output>.</lf-playground-output></lf-playground>'
+            ' <output for="mode"></output>.</lf-playground-output></lf-playground></section>'
         )
 
     source = leaf_page(
@@ -1245,7 +1246,7 @@ def test_reset_and_a_preset_rewrite_the_fields_they_set(browser, serve):
     lowercase."""
     source = leaf_page(
         "Number and colour",
-        '<lf-playground id="tuned"><aside>'
+        '<section id="tuned-q" role="group" aria-label="Which number and colour?"><lf-playground id="tuned"><aside>'
         '<label id="count">Count <input type="number" name="count" value="5"></label>'
         '<label id="accent">Accent <input type="color" name="accent"'
         ' value="#4f766f"></label></aside>'
@@ -1253,7 +1254,7 @@ def test_reset_and_a_preset_rewrite_the_fields_they_set(browser, serve):
         '<lf-playground-setting for="accent" value="#8B4A5F"></lf-playground-setting>'
         "</lf-playground-preset><p>Preview</p>"
         '<lf-playground-output>Use <output for="count"></output>.</lf-playground-output>'
-        "</lf-playground>",
+        "</lf-playground></section>",
     )
     page = open_page(browser, serve(source))
     playground = page.locator("#tuned")
@@ -1338,7 +1339,7 @@ PAGE_ACTIONS_PAGE = leaf_page(
     "page-drawn playground",
     """
 <style>tile-tool button { font-size: 19px; }</style>
-<section id="tile-ask"><h1>Choose the tile size</h1>
+<section id="tile-ask" role="group" aria-labelledby="tile-ask-h"><h1 id="tile-ask-h">Choose the tile size</h1>
 <lf-playground id="tile-config">
   <tile-tool><button type="submit" class="tile-save">Keep this size</button>
     <button type="reset">Reset</button></tile-tool>
@@ -1536,10 +1537,10 @@ def test_a_rail_taller_than_the_window_keeps_its_bar_whole_under_its_controls(
     )
     source = leaf_page(
         "Tall rail",
-        '<h1>Tall rail</h1><lf-playground id="tall-rail" data-width="available">'
+        '<h1>Tall rail</h1><section id="tall-rail-q" role="group" aria-label="Which settings?"><lf-playground id="tall-rail" data-width="available">'
         + f"<aside>{controls}</aside>"
         + "<p>The stage runs past the window.</p>" * 60
-        + "<lf-playground-output>Use these settings.</lf-playground-output></lf-playground>",
+        + "<lf-playground-output>Use these settings.</lf-playground-output></lf-playground></section>",
     )
     page = open_page(browser, serve(source))
     resized(page, 1280, 700)
@@ -1567,7 +1568,8 @@ def test_a_quoted_playground_shows_its_markup_with_its_fields_disabled(browser, 
     """A quotation takes no input and sends nothing: its fields show the values
     it quotes, disabled, and it draws no regions, presets or actions."""
     source = PLAYGROUND_PAGE.replace(
-        '<section id="card-playground-ask">',
+        '<section id="card-playground-ask" role="group"'
+        ' aria-labelledby="card-playground-ask-h">',
         '<lf-sample id="playground-example" label="card playground">',
     ).replace("</section>", "</lf-sample>")
     page = open_page(browser, serve(source))
@@ -1598,7 +1600,7 @@ def test_a_comment_names_the_playground_member_it_points_at(browser, serve, subt
     comment records the id and names the member."""
     source = leaf_page(
         "Pick a word",
-        """<section id="word-ask"><h2>Which word should a box say?</h2>
+        """<section id="word-ask" role="group" aria-labelledby="word-ask-h"><h2 id="word-ask-h">Which word should a box say?</h2>
 <lf-playground id="word-playground">
   <lf-playground-preset id="start-today" label="Start from today">
     <lf-playground-setting for="word" value="today"></lf-playground-setting>
@@ -1672,7 +1674,8 @@ def test_playground_candidates_keep_previews_operable_and_submit_one_choice(
 ):
     source = leaf_page(
         "Choose the notification",
-        """<lf-playground id="candidates">
+        """<section id="candidates-q" role="group" aria-label="Which notification?">
+<lf-playground id="candidates">
   <aside><label id="radius">Corner radius <input type="range" name="radius" min="0" max="24" value="10" /></label></aside>
     <fieldset id="format"><legend>Notification</legend>
       <div id="format-banner"><label><input type="radio" name="format" value="banner" checked /> Banner</label>
@@ -1685,7 +1688,7 @@ def test_playground_candidates_keep_previews_operable_and_submit_one_choice(
       </div>
     </fieldset>
   <lf-playground-output>Build the <output for="format"></output>.</lf-playground-output>
-</lf-playground>""",
+</lf-playground></section>""",
     )
     page = open_page(browser, serve(source))
     playground = page.locator("#candidates")

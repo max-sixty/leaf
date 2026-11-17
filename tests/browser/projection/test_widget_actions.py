@@ -865,7 +865,7 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
     first = leaf_page(
         "Carried decision",
         """<h1>Plan</h1>
-<section id="cz-ask"><h2>Which comes first?</h2>
+<section id="cz-ask" role="group" aria-labelledby="cz-ask-h"><h2 id="cz-ask-h">Which comes first?</h2>
   <lf-options id="cz-options" choose>
     <lf-option id="cz-flag">Flag</lf-option>
     <lf-option id="cz-backfill">Backfill</lf-option>

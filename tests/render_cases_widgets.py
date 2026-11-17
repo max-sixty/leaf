@@ -961,7 +961,7 @@ FRAMED_WIDE_PAGE = leaf_page(
     <lf-column id="q2" label="Done"></lf-column>
   </lf-board>
 </lf-sample>
-<section id="pick-decision"><h2>Should the option include evidence?</h2>
+<section id="pick-decision" role="group" aria-labelledby="pick-decision-h"><h2 id="pick-decision-h">Should the option include evidence?</h2>
 <lf-options id="pick" choose>
   <lf-option id="opt-a"><strong>With evidence</strong>
     <lf-diagram id="in-card"><pre>
@@ -972,7 +972,7 @@ graph LR
   </lf-option>
   <lf-option id="opt-b"><strong>Without</strong></lf-option>
 </lf-options></section>
-<section id="row-pick-decision"><h2>Where should the cable run?</h2>
+<section id="row-pick-decision" role="group" aria-labelledby="row-pick-decision-h"><h2 id="row-pick-decision-h">Where should the cable run?</h2>
 <lf-options id="row-pick" choose>
   <lf-option id="row-a">Along the fence line
     <lf-diagram id="in-row"><pre>
@@ -1223,7 +1223,7 @@ WHERE_I_STAND_PAGE = leaf_page(
 <h1 id="t">Current location</h1>
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
-<section id="shape-decision"><h2>Which material?</h2>
+<section id="shape-decision" role="group" aria-labelledby="shape-decision-h"><h2 id="shape-decision-h">Which material?</h2>
 <lf-options id="shape" choose>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, and the
   <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>

@@ -53,7 +53,7 @@ def expect_on_me(page, count):
 QUEUE_PAGE = leaf_page(
     "What waits on you",
     '<h1 id="h">Release</h1><p id="cadence">We publish a build every week.</p>'
-    '<section id="channel-ask"><h2>Which channel first?</h2>'
+    '<section id="channel-ask" role="group" aria-labelledby="channel-ask-h"><h2 id="channel-ask-h">Which channel first?</h2>'
     '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
     '<lf-option id="both">Both at once</lf-option></lf-options></section>'
     '<p id="notes">Release notes come from merged titles.</p>',
@@ -216,11 +216,11 @@ UNDER_PANEL_PAGE = leaf_page(
     "Stops under the panel",
     '<h1 id="h">Release</h1>'
     + FILLER
-    + '<section id="mid-ask"><h2>Which channel first?</h2>'
+    + '<section id="mid-ask" role="group" aria-labelledby="mid-ask-h"><h2 id="mid-ask-h">Which channel first?</h2>'
     '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
     '<lf-option id="both">Both at once</lf-option></lf-options></section>'
     + FILLER
-    + '<section id="foot-ask"><h2>Ship notes with it?</h2>'
+    + '<section id="foot-ask" role="group" aria-labelledby="foot-ask-h"><h2 id="foot-ask-h">Ship notes with it?</h2>'
     '<lf-options id="notes" choose><lf-option id="yes">Yes</lf-option>'
     '<lf-option id="no">No</lf-option></lf-options></section>'
     '<p id="tail">The notes go out with the build.</p>',
@@ -354,7 +354,7 @@ BOUNDED_FOOT_PAGE = leaf_page(
     + FILLER
     + '<section id="bounded" data-bound="start" style="height: 220px">'
     + "".join(f"<p>Log line {i} of the bounded block.</p>" for i in range(12))
-    + '<section id="bound-ask"><h2>Ship notes with it?</h2>'
+    + '<section id="bound-ask" role="group" aria-labelledby="bound-ask-h"><h2 id="bound-ask-h">Ship notes with it?</h2>'
     '<lf-options id="bound" choose><lf-option id="yes">Yes</lf-option>'
     '<lf-option id="no">No</lf-option></lf-options></section></section>'
     '<p id="end">The end.</p>',
@@ -438,8 +438,8 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
 
     def item(key, label):
         return (
-            f'<lf-tab id="t-{key}" label="{label}"><section id="{key}-decision">'
-            f'<h2>Pick the {key}</h2><lf-options id="{key}" choose>'
+            f'<lf-tab id="t-{key}" label="{label}"><section id="{key}-decision" role="group" aria-labelledby="{key}-decision-h">'
+            f'<h2 id="{key}-decision-h">Pick the {key}</h2><lf-options id="{key}" choose>'
             f'<lf-option id="{key}-a">Alpha</lf-option>'
             f'<lf-option id="{key}-b">Beta</lf-option></lf-options></section></lf-tab>'
         )
@@ -451,7 +451,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
                 "A tallied queue",
                 '<header><h1>Queue</h1><p><lf-tally id="left" for="queue" next>'
                 "</lf-tally></p></header>"
-                '<section id="outside-decision"><h2>Outside</h2>'
+                '<section id="outside-decision" role="group" aria-labelledby="outside-decision-h"><h2 id="outside-decision-h">Outside</h2>'
                 '<lf-options id="outside" choose><lf-option id="outside-a">Out</lf-option>'
                 "</lf-options></section>"
                 '<lf-tabs id="queue" list="side">'
@@ -657,7 +657,7 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
         serve(
             leaf_page(
                 "One decision",
-                '<h1>One decision</h1><section id="only-decision"><h2>Pick one</h2>'
+                '<h1>One decision</h1><section id="only-decision" role="group" aria-labelledby="only-decision-h"><h2 id="only-decision-h">Pick one</h2>'
                 '<lf-options id="only" choose>'
                 '<lf-option id="first">First</lf-option>'
                 '<lf-option id="second">Second</lf-option></lf-options></section>',
@@ -754,7 +754,7 @@ def test_on_me_says_when_a_revision_removes_its_last_obligation(browser, serve):
     """An empty On Me list says the panel rendered, rather than looking broken."""
     source = leaf_page(
         "One decision",
-        '<h1>One decision</h1><section id="only-decision"><h2>Pick one</h2>'
+        '<h1>One decision</h1><section id="only-decision" role="group" aria-labelledby="only-decision-h"><h2 id="only-decision-h">Pick one</h2>'
         '<lf-options id="only" choose>'
         '<lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options></section>',
@@ -805,7 +805,7 @@ def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
     notice's words and comes back to them."""
     source = leaf_page(
         "One decision",
-        '<h1>One decision</h1><section id="only-decision"><h2>Pick one</h2>'
+        '<h1>One decision</h1><section id="only-decision" role="group" aria-labelledby="only-decision-h"><h2 id="only-decision-h">Pick one</h2>'
         '<lf-options id="only" choose>'
         '<lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options></section>',
@@ -865,7 +865,7 @@ def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     ask and `Shift+m` walks back to the suggestion."""
     filler = "".join(f"<p>Paragraph {n} of the release notes.</p>" for n in range(30))
     asks = "".join(
-        f'<section id="ask-{n}"><h2>Question {n}</h2><lf-options id="pick-{n}" choose>'
+        f'<section id="ask-{n}" role="group" aria-labelledby="ask-{n}-h"><h2 id="ask-{n}-h">Question {n}</h2><lf-options id="pick-{n}" choose>'
         f'<lf-option id="yes-{n}">Yes</lf-option><lf-option id="no-{n}">No</lf-option>'
         "</lf-options></section>"
         for n in range(10)

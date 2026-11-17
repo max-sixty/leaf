@@ -1134,7 +1134,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
         '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
     )
     question = (
-        '<section id="question"><h2>Decision?</h2><lf-options id="options" choose>'
+        '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Decision?</h2><lf-options id="options" choose>'
         '<lf-option id="yes">Yes</lf-option></lf-options></section>'
     )
     second = first.replace("</main>", question + "</main>")
@@ -1290,7 +1290,7 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
             '<h1>Route history</h1><lf-activity id="feed"></lf-activity>' + destination,
         ).replace("</head>", executable + "</head>")
 
-    route = """<section id="route-ask"><h2>Which route?</h2>
+    route = """<section id="route-ask" role="group" aria-labelledby="route-ask-h"><h2 id="route-ask-h">Which route?</h2>
       <lf-options id="route" choose>
         <lf-option id="route-fast">Fast path</lf-option>
         <lf-option id="route-slow">Slow path</lf-option>

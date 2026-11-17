@@ -782,9 +782,10 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
     choice group."""
     body = (
         '<h1>Retention</h1><p id="own">Words.</p><p id="controls"></p>'
+        '<section id="window-q" role="group" aria-label="How long?">'
         '<lf-options id="window" choose><lf-option id="short"><strong>30 days</strong>'
         ' In budget.</lf-option><lf-option id="long"><strong>90 days</strong>'
-        " Covers the hold.</lf-option></lf-options>"
+        " Covers the hold.</lf-option></lf-options></section>"
     )
     faces = """() => Object.fromEntries(['press', 'field', 'window', 'short'].map((id) => {
         const style = getComputedStyle(document.getElementById(id));

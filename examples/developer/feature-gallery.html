@@ -416,8 +416,8 @@
                 it. Answer the question and come back to it: its controls stay clear.
               </li>
             </ul>
-            <section id="bg-choice-ask">
-              <h3>Which map should the sample team carry?</h3>
+            <section id="bg-choice-ask" role="group" aria-labelledby="bg-choice-ask-h">
+              <h3 id="bg-choice-ask-h">Which map should the sample team carry?</h3>
               <lf-options id="bg-choice" choose>
                 <lf-option id="bg-choice-street">Street map</lf-option>
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
@@ -587,8 +587,12 @@
               <lf-old><p>Keep the practice walk indoors.</p></lf-old>
               <lf-new>
                 <p>Take the practice walk outside.</p>
-                <section id="bg-route-ask">
-                  <h4>Which route should the walk follow?</h4>
+                <section
+                  id="bg-route-ask"
+                  role="group"
+                  aria-labelledby="bg-route-ask-h"
+                >
+                  <h4 id="bg-route-ask-h">Which route should the walk follow?</h4>
                   <lf-options id="bg-route" choose closed>
                     <lf-option id="bg-route-garden">Through the garden</lf-option>
                     <lf-option id="bg-route-river">Along the river</lf-option>
@@ -722,8 +726,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Other questions can stay unanswered. The pick stays through unrelated
                 page edits until its author explicitly restates the request.
               </p>
-              <section id="bg-picnic-decision">
-                <h4>Book the covered picnic shelter?</h4>
+              <section
+                id="bg-picnic-decision"
+                role="group"
+                aria-labelledby="bg-picnic-decision-h"
+              >
+                <h4 id="bg-picnic-decision-h">Book the covered picnic shelter?</h4>
                 <p>
                   Reserve the park's covered shelter for the sample group's Saturday
                   lunch.
@@ -1057,8 +1065,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               the stove's card to Drop, or grab it and press the arrows, and its
               section's pick follows. Undo takes either gesture back in both places.
             </p>
-            <section id="bg-board-stove">
-              <h3>Replace the sample camp stove</h3>
+            <section
+              id="bg-board-stove"
+              role="group"
+              aria-labelledby="bg-board-stove-h"
+            >
+              <h3 id="bg-board-stove-h">Replace the sample camp stove</h3>
               <p id="bg-board-stove-case">
                 The old stove takes ten minutes to boil a litre.
               </p>
@@ -1070,8 +1082,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 <lf-option id="bg-board-stove-drop" value="drop">Drop</lf-option>
               </lf-options>
             </section>
-            <section id="bg-board-flask">
-              <h3>Pack a second sample flask</h3>
+            <section
+              id="bg-board-flask"
+              role="group"
+              aria-labelledby="bg-board-flask-h"
+            >
+              <h3 id="bg-board-flask-h">Pack a second sample flask</h3>
               <p id="bg-board-flask-case">One flask ran dry on the last long walk.</p>
               <lf-options id="bg-board-flask-choice" choose>
                 <lf-option id="bg-board-flask-next" value="next">Next</lf-option>
@@ -1276,7 +1292,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     "id": "api-question",
                     "kind": "comment",
                     "author": "agent",
-                    "text": "Which channel should the announcement use?\n\n<section id=\"channel-ask\">\n<h3>Announcement channel</h3>\n<lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options>\n</section>",
+                    "text": "Which channel should the announcement use?\n\n<section id=\"channel-ask\" role=\"group\" aria-labelledby=\"channel-ask-h\">\n<h3 id=\"channel-ask-h\">Announcement channel</h3>\n<lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options>\n</section>",
                     "html": true
                   },
                   {
@@ -1798,8 +1814,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               so the question, the chart and every option fit one window; narrow the
               window and the cards stack.
             </p>
-            <section id="bg-across-ask">
-              <h3>Which trail should the sample team hike on Saturday?</h3>
+            <section id="bg-across-ask" role="group" aria-labelledby="bg-across-ask-h">
+              <h3 id="bg-across-ask-h">
+                Which trail should the sample team hike on Saturday?
+              </h3>
               <p id="bg-across-premise">
                 The team walks at a sample pace of 300 m of climb an hour, and the last
                 bus leaves the trailhead at 17:00.
@@ -1858,8 +1876,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               size it was drawn at, and stand apart, so no drawing runs into the next
               option's title.
             </p>
-            <section id="bg-pictured-ask">
-              <h3>Should the sample queue group its tickets by owner?</h3>
+            <section
+              id="bg-pictured-ask"
+              role="group"
+              aria-labelledby="bg-pictured-ask-h"
+            >
+              <h3 id="bg-pictured-ask-h">
+                Should the sample queue group its tickets by owner?
+              </h3>
               <lf-options id="bg-pictured-choice" choose data-width="wide">
                 <lf-option id="bg-pictured-group">
                   <strong>Group by owner</strong> A heading over each owner's tickets.
@@ -1942,7 +1966,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 label="ESC-4107 · Northwind Labs"
                 summary="sev 1 · 9 h · suggested fix"
               >
-                <section id="bg-side-4107-ask">
+                <section
+                  id="bg-side-4107-ask"
+                  role="group"
+                  aria-labelledby="bg-side-4107-question"
+                >
                   <h3 id="bg-side-4107-question">What happens to ESC-4107?</h3>
                   <p id="bg-side-4107-what">
                     SSO fails for every Northwind user since their IdP certificate
@@ -2218,8 +2246,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </figure>
           </section>
 
-          <section id="bg-default-presentation">
-            <h2>
+          <section
+            id="bg-default-presentation"
+            role="group"
+            aria-labelledby="bg-default-presentation-h"
+          >
+            <h2 id="bg-default-presentation-h">
               <strong>Evidence widgets</strong
               ><span class="bg-feature-detail">: charts and structured views</span>
             </h2>
@@ -3310,8 +3342,12 @@ switch --readers checkout-api,orders-api</code></pre>
                       <lf-column id="bg-layout-done" label="Done"></lf-column>
                     </lf-board>
                     <footer>
-                      <section id="bg-layout-ask">
-                        <h3>Is this candidate ready?</h3>
+                      <section
+                        id="bg-layout-ask"
+                        role="group"
+                        aria-labelledby="bg-layout-ask-h"
+                      >
+                        <h3 id="bg-layout-ask-h">Is this candidate ready?</h3>
                         <lf-options id="bg-layout-decision" choose>
                           <lf-option id="bg-layout-ship">Ship this candidate</lf-option>
                           <lf-option id="bg-layout-hold"
@@ -3641,8 +3677,12 @@ flag or command it touches, such as `--config`.
           </section>
         </lf-tab>
       </lf-tabs>
-      <section id="bg-inline-sample-section">
-        <h2>Interactive sample on this page</h2>
+      <section
+        id="bg-inline-sample-section"
+        role="group"
+        aria-labelledby="bg-inline-sample-section-h"
+      >
+        <h2 id="bg-inline-sample-section-h">Interactive sample on this page</h2>
         <p>These choices use this page's state and Undo.</p>
         <lf-sample id="bg-inline-sample" interactive label="Delivery choices">
           <lf-options id="bg-delivery-choice" choose>

@@ -13,7 +13,7 @@
    has no page target; a comment from there addresses the whole page.
 
    Each feature derives its answer from that target: the obligation view finds the
-   obligation source or the section it stands at alone; `c` and `e` use its semantic
+   obligation source or the group it stands at alone; `c` and `e` use its semantic
    target; walks use its position in page order. An open obligation represented by its
    card still wears its ring and takes its digits. At an element represented by its own
    thread, `c` continues the thread, `r` settles it, and `m` and `t` step from the target.
@@ -85,12 +85,12 @@ export function declareSide(bridge, { beside = false } = {}) {
 }
 
 // The innermost obligation whose source, or whose own place, is or holds `node`: the
-// section framing a widget, or the element a to-do is on. A section framing several
-// sources cannot identify one of them on its own, so only a source stands for such an
-// obligation (`obligationPlace`). Obligations nest, as a question inside a proposal's
-// new text does, so the nearest place holding the node names the obligation rather than
-// the kind of place: in the inner question's section the user is on that question, not
-// on the proposal whose source holds it. Of two standing at one
+// group the author declares round a widget, or the element a to-do is on. A group
+// holding several sources cannot identify one of them on its own, so only a source
+// stands for such an obligation (`obligationPlace`). Obligations nest, as a question
+// inside a proposal's new text does, so the nearest place holding the node names the
+// obligation rather than the kind of place: in the inner question's group the user is
+// on that question, not on the proposal whose source holds it. Of two standing at one
 // place, the first the inventory lists names it. `items` may be a selection, such as
 // those waiting on the user, placed as the whole `inventory` places them. Only the
 // obligations whose place names one of the node's ancestors are placed

@@ -883,14 +883,13 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
 ):
     """A framed holder, a callout, requests its own width on column and sidebar pages:
     its evidence stays inside that frame, and a wide child alone does not widen it. A
-    question's section that is a flow (`layout-flow`) frames nothing, so it takes no
-    width of its own: a wide child stands in the page's flow and the section's box grows
+    question's section draws no frame, so it takes no width of its own: a wide child stands in the page's flow and the section's box grows
     round it. Workspace holders and explicitly bounded cells keep the room their
     containing region grants."""
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
-        '<section id="{id}" class="layout-flow"><h3>Ship it?</h3>{table}'
+        '<section id="{id}" role="group" aria-labelledby="{id}-h"><h3 id="{id}-h">Ship it?</h3>{table}'
         '<lf-options id="{id}-o" '
         'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></section>'
     )
@@ -905,9 +904,10 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<aside class="callout" id="contained-c">'
         + table.format(id="contained-c")
         + "</aside>"
+        + '<section id="list-q" role="group" aria-label="Raise the limit?">'
         + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
-        + "</lf-options>"
+        + "</lf-options></section>"
     )
     measure = """() => Object.fromEntries(
       ['prose', 'ask', 'granted-c', 'contained-c', 'holds', 'holds-t', 'callout', 'list']

@@ -1104,7 +1104,7 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
 
 TALL_OBLIGATION_PAGE = leaf_page(
     "A tall Ask",
-    '<h1>Route</h1><section id="way"><h2>Which way?</h2>'
+    '<h1>Route</h1><section id="way" role="group" aria-labelledby="way-h"><h2 id="way-h">Which way?</h2>'
     + "".join(
         f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
     )
@@ -1394,7 +1394,7 @@ POINTED_WITHIN = {
     # it joins that row, an obligation's marker's, rather than standing pushed below it.
     "first line": (
         (
-            '<section id="within"><h2>Which way?</h2><lf-options id="route" choose>'
+            '<section id="within" role="group" aria-labelledby="within-h"><h2 id="within-h">Which way?</h2><lf-options id="route" choose>'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
             "</lf-option></lf-options></section>"
         ),
@@ -3827,10 +3827,10 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
 <p><label for="name">Name</label> <input id="name" type="text" value="Ada"></p>
-<lf-options id="ship" choose>
+<section id="ship-q" role="group" aria-label="When to ship?"><lf-options id="ship" choose>
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
-</lf-options>""",
+</lf-options></section>""",
             )
         ),
     )

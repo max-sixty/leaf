@@ -276,8 +276,8 @@ variants:
         </article>
         </main>
       question: |
-        <section id="next-touch-question">
-          <h3>Should #59 be the next extraction scope?</h3>
+        <section id="next-touch-question" role="group" aria-labelledby="next-touch-question-h">
+          <h3 id="next-touch-question-h">Should #59 be the next extraction scope?</h3>
           <p>Tapping a discussion should select it even when an older message still has
           focus. I recommend this independent fix next; extraction and verification are
           my work, and choosing a scope does not authorize landing it.</p>
@@ -403,8 +403,8 @@ variants:
           and one for the registry proposal, and reads the canonical queues with
           leaf page state after registration before handing over or waiting.
           Each decision needs an answering widget offering acceptance and rejection,
-          on the page or in an agent thread or reply, optionally framed by a section.
-          A question section with no widget or conversational obligation does not record a choice.
+          on the page, in the named group of its question, or in an agent thread or
+          reply. A question with no widget or conversational obligation does not record a choice.
           A status line, chat list, ordinary HTML
           comparison, or promise to add questions later fails. Home must remain
           settled; it must not acquire a new request for approval. Do not require
@@ -612,10 +612,10 @@ variants:
           painting over Leaf's panels, how a page restyles Leaf's interface, how
           installs get the kernel) and each of the two recommended refactors (grid
           stack, change detector) becomes a registered On Me obligation on the page before
-          handoff. Each choice needs an answering widget, optionally
-          framed by a section, since a reply asking about one would settle a thread
-          question without deciding it. The widget can be on the page or in a
-          thread. Each decision is answerable on its
+          handoff. Each choice needs an answering widget, since a reply asking about
+          one would settle a thread question without deciding it. The widget can be
+          on the page, in the named group of its question, or in a thread. Each
+          decision is answerable on its
           own; one obligation that accepts both recommended refactors together passes only
           if it states why each is clear-cut. The answer reads canonical queues
           with leaf page state after registering. Fail if any of these stays only

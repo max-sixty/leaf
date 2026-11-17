@@ -383,7 +383,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     url = serve(
         leaf_page(
             "Inline rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -459,7 +460,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     url = serve(
         leaf_page(
             "Inline reply rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -1349,7 +1351,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
         """
 <h1 id="title">Authored block widths</h1>
 <p id="prose">Standard prose.</p>
-<section id="wide" data-width="wide">
+<section id="wide" data-width="wide" role="group" aria-label="Which case?">
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
@@ -1872,7 +1874,7 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     table += f"<tbody>{row * 2}</tbody></table>"
     body = (
         "<h1>Tables of prose</h1>"
-        '<section id="asked"><h2>Which copy should a session read?</h2>'
+        '<section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice" choose>'
         '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'

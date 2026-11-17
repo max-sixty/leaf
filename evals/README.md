@@ -294,8 +294,8 @@ flowchart TD
           file="/absolute/path/to/change.diff"
           label="Exact retained change"
         ></lf-eval-cite>
-        <section id="keyboard-review">
-          <h4>Keep the keyboard change?</h4>
+        <section id="keyboard-review" role="group" aria-labelledby="keyboard-review-h">
+          <h4 id="keyboard-review-h">Keep the keyboard change?</h4>
           <lf-options id="keyboard" choose>
             <lf-option id="keyboard-approve"><strong>Approve change</strong></lf-option>
             <lf-option id="keyboard-revisit"><strong>Revisit change</strong></lf-option>

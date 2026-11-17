@@ -1125,7 +1125,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         ),
         "r-paint": '<lf-paint id="sent"></lf-paint>',
         "r-list": (
-            '<section id="an-set-decision"><h3>What should I carry into the patch?</h3>'
+            '<section id="an-set-decision" role="group" aria-labelledby="an-set-decision-h"><h3 id="an-set-decision-h">What should I carry into the patch?</h3>'
             '<lf-options id="an-set" choose multiple>'
             '<lf-option id="an-chase">Chase them monthly</lf-option>'
             '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
@@ -1490,7 +1490,7 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 <p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
 <div id="strip"><button>Summary</button><button>Release scope</button>
 <button>Owner handoff</button></div>
-<div id="card"><section id="go-decision"><h2>Ship it?</h2>
+<div id="card"><section id="go-decision" role="group" aria-labelledby="go-decision-h"><h2 id="go-decision-h">Ship it?</h2>
 <p>The release passed its checks.</p><lf-options id="go" choose>
 <lf-option id="go-yes"><strong>Yes</strong></lf-option>
 </lf-options></section></div>

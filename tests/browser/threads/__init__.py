@@ -476,8 +476,11 @@ def seated_page(serve, kind):
     return serve(
         leaf_page(
             "seat",
-            f'<h1>Review the plan</h1>{SEAT_FILLER}<lf-verdict id="proposal" asks>'
-            f"Should these jobs share a visit?</lf-verdict>{SEAT_FILLER}",
+            f"<h1>Review the plan</h1>{SEAT_FILLER}"
+            '<section id="proposal-q" role="group"'
+            ' aria-label="Should these jobs share a visit?">'
+            '<lf-verdict id="proposal" asks>Should these jobs share a visit?</lf-verdict>'
+            f"</section>{SEAT_FILLER}",
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,

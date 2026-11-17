@@ -3313,8 +3313,8 @@ FRAMED_TABLES_PAGE = leaf_page(
 <table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
-<section id="figure-asked">
-<h2>Which session ends?</h2>
+<section id="figure-asked" role="group" aria-labelledby="figure-asked-h">
+<h2 id="figure-asked-h">Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
 <lf-options id="figure-asked-choice" choose>
 <lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
@@ -3322,8 +3322,8 @@ FRAMED_TABLES_PAGE = leaf_page(
 </lf-options>
 </section>
 </figure>
-<section id="asked">
-<h2>Which session moves?</h2>
+<section id="asked" role="group" aria-labelledby="asked-h">
+<h2 id="asked-h">Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
 <lf-options id="asked-choice" choose>
 <lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
@@ -3849,7 +3849,7 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     column, and a box pulled off the leading edge, which no scroll reaches, is also
     clipped out. A box sized past only the trailing edge is reached by the root's
     sideways scroll, so it is not clipped out."""
-    item = """<section id="{id}" class="layout-flow"><h2>Which one?</h2>
+    item = """<section id="{id}" role="group" aria-labelledby="{id}-h"><h2 id="{id}-h">Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
 </section>"""

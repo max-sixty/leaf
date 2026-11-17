@@ -2,9 +2,9 @@
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
-A widget source owns identity; the element framing it contributes only prompt words
-and arrival (`framed_widgets`). A `records` declaration expands a widget's bound external
-input using its data contract's record list and key. Each record owns the stable
+A widget source owns identity; the group the author declares round it contributes
+only prompt words and arrival (`framed_widgets`). A `records` declaration expands a
+widget's bound external input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
@@ -69,7 +69,7 @@ from leaf.events import (
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.gesture_words import element_name, leading_title, leading_title_node
+from leaf.gesture_words import element_name, group_name
 from leaf.page_memory import Slot
 from leaf.projection import (
     AuthoredOrders,
@@ -97,60 +97,41 @@ def local_obligation_entry(entry: dict) -> bool:
     return entry.get("x-awaits") is not None
 
 
-_HEADINGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
-# The page's column and what holds it: a heading leading them titles the page, not each
-# question in it, as the browser's `holderNaming` stops short of the column.
-_PAGE = frozenset({"html", "body", "main"})
+def _is_group(node: dict) -> bool:
+    """Whether the author declares `node` a group: `role="group"`, or a `<fieldset>`,
+    which is one natively."""
+    return (
+        node["tag"] == "fieldset"
+        or "group" in (node["attrs"].get("role") or "").split()
+    )
 
 
 def framed_widgets(content: list, registry: dict):
-    """Each widget in `content` that can ask, as its authoring node and its frame: the
-    nearest element around it, short of the page's column, whose leading title
-    (`gesture_words.leading_title_node`) is a heading standing before the widget, as a
-    `<section>` opened by the question's heading is, or None. The frame's heading is the
-    widget's prompt, and the frame is where the obligation stands and going to it starts
-    while it frames no other (`obligations/place.js` in the browser), so the frame needs
-    an id: a titled element without one frames nothing, and the widget in it reads as
-    untitled rather than taking a heading further out. A widget set among words
-    (`x-inline`), such as a suggestion, has none: its sentence and its own words name
-    it.
+    """Each widget in `content` that can ask, as its authoring node and its question:
+    the innermost element round it that the author declares a group (`_is_group`), or
+    None. The group's name (`gesture_words.group_name`) is the widget's prompt, and the
+    group is where the obligation stands and going to it starts while it holds no
+    other (`obligations/place.js` in the browser), so the group needs an id to be a
+    place, as `page check` requires. Python reads only the authored source, so a group
+    the runtime draws, such as a control's own, holds no question. A widget set among
+    words (`x-inline`), such as a suggestion, has none: its sentence and its own words
+    name it.
 
-    Plain HTML says the frame, so no widget declares one. `lf-ask` did until 16
-    November 2026, when the user chose the section, which already says what the tag
-    said, over a tag of Leaf's around it."""
+    The author declares the question, its region and its name, and Leaf reads no
+    heading to find them. An `lf-ask` round the question declared it until 16 November
+    2026. The user then chose plain HTML, and of the two forms built that day, a
+    section opened by the question's heading, which Leaf found by its leading-title
+    rule, and a group the author names, chose the group, so that a question's region
+    and name are data the author writes rather than a reading of its headings."""
 
-    def titled_from(node: dict) -> int | None:
-        """The index of the child holding the heading that titles `node`, or None."""
-        title = None if node["tag"] in _PAGE else leading_title_node(node)
-        if not title or title["tag"] not in _HEADINGS:
-            return None
-        return next(
-            index
-            for index, child in enumerate(node["content"])
-            if child is title
-            or (
-                isinstance(child, dict)
-                and child["tag"] in {"header", "hgroup"}
-                and leading_title_node(child) is title
-            )
-        )
-
-    def walk(nodes: list, frame: dict | None):
+    def walk(nodes: list, group: dict | None):
         for node in nodes:
             if isinstance(node, str):
                 continue
             entry = registry.get(node["tag"]) or {}
             if local_obligation_entry(entry):
-                yield node, None if entry.get("x-inline") else frame
-            at = titled_from(node)
-            if at is None:
-                yield from walk(node["content"], frame)
-                continue
-            # What stands before the heading is outside what it titles.
-            yield from walk(node["content"][:at], frame)
-            yield from walk(
-                node["content"][at:], node if node["attrs"].get("id") else None
-            )
+                yield node, None if entry.get("x-inline") else group
+            yield from walk(node["content"], node if _is_group(node) else group)
 
     yield from walk(content, None)
 
@@ -270,7 +251,7 @@ def update_obligation(
         "source": {"kind": "update", "id": source, "subject": subject},
         "thread": thread,
         "message": message,
-        "prompt": {"text": None, "target": subject["id"]},
+        "prompt": {"text": None, "labelledby": None, "target": subject["id"]},
         "answer": {"value": None, "event": event_reference(answer)} if answer else None,
         "status": "answered" if answer else "open",
         "next_actor": next_actor,
@@ -465,10 +446,10 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
-    every obligation whose prompt target (its frame, `framed_widgets`) is the innermost
-    to enclose it. So a note on one obligation's option, or on a part of a frame holding
-    one obligation, leaves its framed sibling out, while one on the frame's heading or on
-    a section holding the frame is about them all. `within` is the document's
+    every obligation whose prompt target (its group, `framed_widgets`) is the innermost
+    to enclose it. So a note on one obligation's option, or on a part of a group
+    holding one obligation, leaves its sibling in the group out, while one on the
+    group's name or on a section holding the group is about them all. `within` is the document's
     containment (`Passages.enclosing`). A datum identity narrows an owning widget's
     record obligations to the exact case being discussed.
 
@@ -690,9 +671,10 @@ class ObligationSources(NamedTuple):
 
     `asking` holds each declared widget, with whether it stands inside an exhibit
     (`shown_in`).
-    `prompts` maps each one's id to its prompt: the words naming it, its frame's heading
-    (`framed_widgets`) or else its own name, and `target`, the id of the element going
-    to it starts at, its frame or else itself.
+    `prompts` maps each one's id to its prompt: `text`, the words naming it, its group's
+    name (`framed_widgets`) or else its own; `labelledby`, the id of the element its
+    group's name comes from, or None; and `target`, the id of the element going to it
+    starts at, its group or else itself.
 
     These depend on the document and the vocabulary alone, and finding them is most
     of the cost of reading a page's obligations. A stored revision's reading
@@ -717,15 +699,22 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
         for record in document.lf_elements
         if local_obligation_entry(registry.get(record["tag"]) or {})
     ]
-    prompts = {
-        identity: {
-            "text": leading_title(frame) if frame else element_name(node, registry),
-            "target": frame["attrs"]["id"] if frame else identity,
+    prompts = {}
+    for document in documents:
+        nodes = {
+            node["attrs"]["id"]: node
+            for node in document.authoring.nodes
+            if node["attrs"].get("id")
         }
-        for document in documents
-        for node, frame in framed_widgets(document.authoring.content, registry)
-        if (identity := node["attrs"].get("id"))
-    }
+        for node, group in framed_widgets(document.authoring.content, registry):
+            if not (identity := node["attrs"].get("id")):
+                continue
+            text, labelledby = group_name(group, nodes) if group else ("", None)
+            prompts[identity] = {
+                "text": text or element_name(node, registry),
+                "labelledby": labelledby,
+                "target": (group["attrs"].get("id") if group else None) or identity,
+            }
     return ObligationSources(
         tuple((record, shown_in(record, registry)) for record in declared), prompts
     )
@@ -861,6 +850,7 @@ class _ObligationReducer:
                     "message": None,
                     "prompt": {
                         "text": datum[records["label"]],
+                        "labelledby": None,
                         "target": self.prompts[owner]["target"],
                     },
                     "answer": {
@@ -1124,7 +1114,7 @@ def thread_obligation_readings(
             "source": {"kind": "message", "id": question.removeprefix("message:")},
             "thread": identity,
             "message": message["id"],
-            "prompt": {"text": first[question], "target": None},
+            "prompt": {"text": first[question], "labelledby": None, "target": None},
             "answer": None,
             "status": "open",
             "next_actor": "user",

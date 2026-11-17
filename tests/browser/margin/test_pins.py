@@ -304,7 +304,7 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     top-right corner, so the pin stands beside the group instead, however many cards
     it holds."""
     body = (
-        '<section id="a"><h2>Close #1176 as won\'t-fix?</h2>'
+        '<section id="a" role="group" aria-labelledby="a-h"><h2 id="a-h">Close #1176 as won\'t-fix?</h2>'
         f'<lf-options id="o" choose>{options}</lf-options></section>'
     )
     page = open_page(
@@ -337,7 +337,7 @@ def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
         "</lf-option>"
         for n in range(1, 5)
     )
-    body = f'<section id="q"><h2>Which way?</h2><lf-options id="c" choose>{options}</lf-options></section>'
+    body = f'<section id="q" role="group" aria-labelledby="q-h"><h2 id="q-h">Which way?</h2><lf-options id="c" choose>{options}</lf-options></section>'
     comments = [_comment_on(f"c-{n}") for n in range(1, 5)]
     page = open_page(
         browser,
@@ -632,8 +632,8 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
       <div id="ask-body">
         <p>The change, summarised in a paragraph long enough to read as one.</p>
         <div style="height: 1200px"></div>
-        <section id="body-ask">
-          <h3>Which follow-up comes first?</h3>
+        <section id="body-ask" role="group" aria-labelledby="body-ask-h">
+          <h3 id="body-ask-h">Which follow-up comes first?</h3>
           <lf-options id="body-choice" choose>
             <lf-option id="body-bench">Benchmark selected-row demand</lf-option>
             <lf-option id="body-dryrun">Close the dry-run gap</lf-option>
@@ -642,8 +642,8 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
         <div style="height: 1200px"></div>
       </div>
       <footer>
-        <section id="foot-ask">
-          <h3>Merge this revision?</h3>
+        <section id="foot-ask" role="group" aria-labelledby="foot-ask-h">
+          <h3 id="foot-ask-h">Merge this revision?</h3>
           <lf-options id="foot-choice" choose>
             <lf-option id="foot-approve">Approve and merge</lf-option>
             <lf-option id="foot-hold">Hold for the benchmark</lf-option>
@@ -708,8 +708,8 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
     source = leaf_page(
         "A slotted Ask",
         '<div><h1>Reading region</h1><div id="reader-host">'
-        '<section id="slotted-ask">'
-        "<h3>Which channel?</h3>"
+        '<section id="slotted-ask" role="group" aria-labelledby="slotted-ask-h">'
+        '<h3 id="slotted-ask-h">Which channel?</h3>'
         '<button id="ask-help" style="position:absolute; top:0; right:0; '
         'width:120px; height:44px">Explain channels</button>'
         '<lf-options id="channel" choose><lf-option id="email">Email</lf-option>'
@@ -964,7 +964,7 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
         '<div id="right"><button id="neighbour" style="position:relative">A button'
         "</button></div></div>"
         '<section><h2 id="heading">A question</h2><p id="words">Some words about it.</p>'
-        '<section id="q"><h3 id="question">Which one?</h3>'
+        '<section id="q" role="group" aria-labelledby="question"><h3 id="question">Which one?</h3>'
         f'<lf-options id="o" choose multiple>{options}</lf-options></section></section>'
         + "".join(
             f'<section><h2>Section {n}</h2><p id="far-{n}">Words about section {n},'

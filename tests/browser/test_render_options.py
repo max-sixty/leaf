@@ -312,9 +312,9 @@ def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
 
 
 @pytest.mark.parametrize("cards", [False, True], ids=["rows", "cards"])
-def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
-    """Standalone options, their add field and Done own working digits, aligned down
-    their form's badge column."""
+def test_a_questions_options_own_their_digit_bindings(browser, serve, cards):
+    """A question's options, their add field and Done own working digits, aligned
+    down their form's badge column."""
     one = "<strong>One</strong> First choice." if cards else "One"
     two = "<strong>Two</strong> Second choice." if cards else "Two"
     page = open_page(
@@ -322,11 +322,13 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
         serve(
             leaf_page(
                 "standalone options",
-                '<h1>Which apply?</h1><button id="outside">Outside</button>'
+                '<button id="outside">Outside</button>'
+                '<section id="apply" role="group" aria-labelledby="apply-h">'
+                '<h1 id="apply-h">Which apply?</h1>'
                 '<lf-options id="choices" choose multiple>'
                 f'<lf-option id="one">{one}</lf-option>'
                 f'<lf-option id="two">{two}</lf-option>'
-                "</lf-options>",
+                "</lf-options></section>",
             )
         ),
     )
@@ -338,7 +340,7 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
     expect(page.locator("#two")).not_to_have_attribute("chosen", "")
     unhinted = done.bounding_box()
     page.keyboard.press("m")
-    expect(group).to_be_focused()
+    expect(page.locator("#apply")).to_be_focused()
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
     expect(hints).to_have_text(["1", "2", "3", "4"])
     # Done's digit sits inside the button, out of flow: wearing it moves no edge.
@@ -371,7 +373,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
         serve(
             leaf_page(
                 "stable option numbers",
-                '<h1>Stable numbers</h1><section id="question"><h2>Which apply?</h2>'
+                '<h1>Stable numbers</h1><section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Which apply?</h2>'
                 '<lf-options id="choices" choose multiple>'
                 '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
                 "</lf-options></section>",
@@ -944,21 +946,21 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
         serve(
             leaf_page(
                 "First Ask",
-                """<section id="page-ask"><h2>Choose the route</h2>
+                """<section id="page-ask" role="group" aria-labelledby="page-ask-h"><h2 id="page-ask-h">Choose the route</h2>
 <lf-options id="page-options" choose><lf-option id="page-route">Route A</lf-option></lf-options>
 </section>
 <p id="between-asks">Context before another question.</p>
-<section id="later-ask"><h2>Choose the backup</h2>
+<section id="later-ask" role="group" aria-labelledby="later-ask-h"><h2 id="later-ask-h">Choose the backup</h2>
   <lf-options id="later-options" choose><lf-option id="later-route">Route B</lf-option></lf-options>
 </section>
 <div id="own-frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
-  <section id="framed-ask"><h2>Choose the route</h2>
+  <section id="framed-ask" role="group" aria-labelledby="framed-ask-h"><h2 id="framed-ask-h">Choose the route</h2>
     <lf-options id="framed-options" choose><lf-option id="framed-route">Route A</lf-option></lf-options>
   </section>
 </div>
 <lf-sample id="sample" label="a first Ask">
   <template id="sample-page" data-sample>
-    <section id="sample-ask"><h2>Choose the route</h2>
+    <section id="sample-ask" role="group" aria-labelledby="sample-ask-h"><h2 id="sample-ask-h">Choose the route</h2>
       <lf-options id="sample-options" choose><lf-option id="sample-route">Route A</lf-option></lf-options>
     </section>
   </template>
@@ -1010,13 +1012,13 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<section id="cell-decision"><h2>Where should a session live?</h2>
+<section id="cell-decision" role="group" aria-labelledby="cell-decision-h"><h2 id="cell-decision-h">Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" choose data-width="available">
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
 </lf-options></section>
-<section id="rows-decision"><h2>Which jobs are worth starting?</h2>
+<section id="rows-decision" role="group" aria-labelledby="rows-decision-h"><h2 id="rows-decision-h">Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-rows" choose multiple data-width="available">
   <lf-option id="cr-drill">A revocation drill</lf-option>
@@ -1025,7 +1027,7 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<section id="page-decision"><h2>Who owns the migration?</h2>
+<section id="page-decision" role="group" aria-labelledby="page-decision-h"><h2 id="page-decision-h">Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" choose data-width="available">
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
@@ -1658,7 +1660,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
             leaf_page(
                 "ten routes",
                 '<h1 id="h">Ten routes</h1>'
-                '<section id="routes-decision"><h2>Which routes survive?</h2>'
+                '<section id="routes-decision" role="group" aria-labelledby="routes-decision-h"><h2 id="routes-decision-h">Which routes survive?</h2>'
                 f'<lf-options id="routes" choose multiple>{options}</lf-options>'
                 "</section>",
             )
@@ -1849,15 +1851,15 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, sub
     source = leaf_page(
         "Block references",
         """<h1>Follow-up</h1>
-<lf-options id="follow" choose>
+<section id="follow-q" role="group" aria-label="What next?"><lf-options id="follow" choose>
   <lf-option id="short" for="plan">Ship it.</lf-option>
   <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
   fix until the vendor names a release.</lf-option>
-</lf-options>
-<lf-options id="same" choose>
+</lf-options></section>
+<section id="same-q" role="group" aria-label="Ship or hold?"><lf-options id="same" choose>
   <lf-option id="same-ship" for="stall">Ship it.</lf-option>
   <lf-option id="same-hold" for="stall">Hold it.</lf-option>
-</lf-options>
+</lf-options></section>
 <section id="plan"><h2>Release plan</h2><p>Monday.</p></section>
 <section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
 </section>""",
@@ -2712,6 +2714,7 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
         serve(
             leaf_page(
                 "option shapes",
+                '<section id="shapes-q" role="group" aria-label="How should it roll out?">'
                 '<lf-options id="shapes" choose>'
                 '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
                 "</lf-option>"
@@ -2719,7 +2722,7 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
                 "<em>half</em> now.</lf-option>"
                 '<lf-option id="paragraph"><strong>Hold it</strong>'
                 "<p>The cohort waits for the fix.</p></lf-option>"
-                "</lf-options>",
+                "</lf-options></section>",
             )
         ),
     )

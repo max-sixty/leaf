@@ -1,5 +1,5 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
- * through unread conversations. Each authored child is a card, a section framing a
+ * through unread conversations. Each authored child is a card, the named group of a
  * question or a decision widget the user answers there with its own controls. A card waits while it
  * holds an obligation open on the user (`obligationsIn`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open

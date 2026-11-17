@@ -103,7 +103,7 @@ def test_a_reference_names_any_element_the_page_holds(page_dir, target):
     whose id a widget couldn't carry included, and `page check` refuses only a value
     naming no element."""
     (page_dir / "index.html").write_text(
-        PAGE.replace('<section id="plan">', '<section id="Plan_Notes">').replace(
+        PAGE.replace('<section id="plan"', '<section id="Plan_Notes"').replace(
             '<lf-option id="flag-first">', f'<lf-option id="flag-first" for="{target}">'
         )
     )
@@ -154,8 +154,9 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
             + tabs.format(id="boxed-tabs", flow=""),
         )
         .replace(
-            '<div id="plan-choice-decision">',
-            '<section id="plan-choice-decision" data-width="available">',
+            '<div id="plan-choice-decision" role="group" aria-labelledby="plan-choice-question">',
+            '<section id="plan-choice-decision" role="group"'
+            ' aria-labelledby="plan-choice-question" data-width="available">',
         )
         .replace("<lf-options>", '<lf-options id="plan-choice" choose>')
         .replace(
@@ -224,8 +225,8 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     """Child documents keep their own ids, widgets, passages, and validation reading."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template id="practice" data-sample><section id="nested-ask">'
-        '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
+        '<template id="practice" data-sample><section id="nested-ask" role="group" aria-labelledby="nested-ask-h">'
+        '<h2 id="nested-ask-h">Hidden question</h2><lf-options id="nested-options" choose>'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></section></template></main>"
     )

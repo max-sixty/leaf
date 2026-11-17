@@ -14,6 +14,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     FLOW_PAGE,
     PAGE,
+    PLAN_OPENING,
     ROOT,
     SHIPPED_PACKAGES,
     STATED_TIMEOUT,
@@ -59,7 +60,7 @@ from leaf.validation.admission import (
     check_markup,
     revision_publication,
 )
-from leaf.validation.instances import question_advice, reference_errors
+from leaf.validation.instances import question_errors, reference_errors
 from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
@@ -260,12 +261,13 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_a_question_on_a_page_stands_under_its_heading(page_dir):
-    """A widget that asks on a page is advised to stand under a heading leading the
-    element around it, which names its obligation; a message's widget, a mention in a
-    sample, a widget that asks nothing and one set among words need none. The heading
-    is the obligation's prompt, and the element it opens is where going to the
-    obligation starts."""
+def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
+    """A widget that asks on a page stands in a group the author declares and names:
+    the group is where going to the obligation starts and its name the obligation's
+    prompt, read from the markup with no heading inferred. `page check` refuses a
+    widget no named group holds, and a group without an id; a message's widget, a
+    mention in a sample, a widget that asks nothing and one set among words need
+    none."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one" choose>'
@@ -274,74 +276,104 @@ def test_a_question_on_a_page_stands_under_its_heading(page_dir):
     )
     second = first.replace("one", "two").replace("One", "Two")
 
-    def untitled(body):
+    def refused(body):
         document = SourceDocument(f"<main>{body}</main>")
-        return [
-            finding.at
-            for finding in question_advice(document, registry)
-            if finding.code == "untitled-question" and finding.severity == "advice"
-        ]
+        return [(f.code, f.at) for f in question_errors(document, registry)]
 
     def prompts(body):
         document = SourceDocument(f"<main>{body}</main>")
         return obligations_model.obligation_sources(document, registry).prompts
 
-    # A heading in an hgroup after its eyebrow, a subheading, context before the
-    # heading, and several widgets sharing one context all title their questions.
-    for titled in (
-        f'<section id="d"><h2>Choose</h2><p>Context.</p>{first}</section>',
-        f'<section id="d"><hgroup><p>#5</p><h2>Choose</h2></hgroup>{first}</section>',
-        f'<section id="d"><p>#5</p><h2>Choose</h2>{first}</section>',
-        f'<section id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></section>',
-        f'<article id="d"><h2>Choose</h2>{first}{second}</article>',
+    # aria-labelledby names the question by the heading's words, however the heading
+    # stands in the group; several widgets in one group share it.
+    group = '<section id="d" role="group" aria-labelledby="d-h">{}</section>'
+    for named in (
+        group.format(f'<h2 id="d-h">Choose</h2><p>Context.</p>{first}'),
+        group.format(f'<hgroup><p>#5</p><h2 id="d-h">Choose</h2></hgroup>{first}'),
+        group.format(f'<p>Context.</p>{first}<h2 id="d-h">Choose</h2>'),
     ):
-        assert untitled(titled) == [], titled
-    assert prompts(f'<section id="d"><h2>Choose</h2>{first}{second}</section>') == {
-        "g-one": {"text": "Choose", "target": "d"},
-        "g-two": {"text": "Choose", "target": "d"},
+        assert refused(named) == [], named
+        assert prompts(named)["g-one"] == {
+            "text": "Choose",
+            "labelledby": "d-h",
+            "target": "d",
+        }, named
+    shared = group.format(f'<h2 id="d-h">Choose</h2>{first}{second}')
+    assert prompts(shared)["g-two"] == prompts(shared)["g-one"]
+    # Several labels join, and the first is where the name comes from; an aria-label
+    # names it with no element, and a fieldset's legend names it natively.
+    assert prompts(
+        '<h2 id="area">Storage</h2><section id="d" role="group"'
+        f' aria-labelledby="area d-h"><h3 id="d-h">Which store?</h3>{first}</section>'
+    )["g-one"] == {"text": "Storage Which store?", "labelledby": "area", "target": "d"}
+    labelled = f'<div id="d" role="group" aria-label="Which store?">{first}</div>'
+    assert refused(labelled) == []
+    assert prompts(labelled)["g-one"] == {
+        "text": "Which store?",
+        "labelledby": None,
+        "target": "d",
     }
-    # The nearest titled element frames a question with parts. One without an id frames
-    # nothing, so its widget reads as untitled rather than taking the heading further
-    # out, and a heading after the widget titles what follows it, not the widget.
-    nested = (
-        '<section id="outer"><h2>Choose</h2>'
-        f'<section id="inner"><h3>First part</h3>{first}</section></section>'
+    fieldset = (
+        f'<fieldset id="d"><legend id="d-l">Which store?</legend>{first}</fieldset>'
     )
-    assert untitled(nested) == []
-    assert prompts(nested)["g-one"] == {"text": "First part", "target": "inner"}
-    for unframed in (
-        nested.replace(' id="inner"', ""),
-        f'<section id="d">{first}<h3>Next part</h3></section>',
-    ):
-        assert prompts(unframed)["g-one"] == {"text": "", "target": "g-one"}, unframed
-        assert untitled(unframed) == ["<lf-options id=g-one>"], unframed
+    assert refused(fieldset) == []
+    assert prompts(fieldset)["g-one"] == {
+        "text": "Which store?",
+        "labelledby": "d-l",
+        "target": "d",
+    }
+    # The innermost group is the question.
+    nested = group.format(
+        '<h2 id="d-h">Choose</h2><fieldset id="part"><legend>First part</legend>'
+        f"{first}</fieldset>"
+    )
+    assert prompts(nested)["g-one"]["target"] == "part"
 
-    # A container whose leading title is not a heading frames nothing, nor does the
-    # page's column, whose heading titles the page.
-    for bare in (
+    # A section opened by a heading is no question until its author says so: Leaf
+    # reads no heading to find one. Nor is an unnamed group, or a name pointing at
+    # nothing.
+    for unframed in (
         first,
-        f'<section id="d"><p>Context.</p>{first}</section>',
-        f'<section id="d"><strong>Choose</strong>{first}</section>',
-        f"<h1>The page</h1>{first}",
+        f'<section id="d"><h2>Choose</h2>{first}</section>',
+        f'<section id="d" role="group"><h2>Choose</h2>{first}</section>',
+        f'<section id="d" role="group" aria-labelledby="gone">{first}</section>',
+        f'<fieldset id="d">{first}</fieldset>',
     ):
-        assert untitled(bare) == ["<lf-options id=g-one>"], bare
-    assert prompts(first)["g-one"] == {"text": "", "target": "g-one"}
+        assert [code for code, _ in refused(unframed)] == ["unframed-question"], (
+            unframed
+        )
+        assert prompts(unframed)["g-one"]["labelledby"] is None
+    assert prompts(first)["g-one"] == {
+        "text": "",
+        "labelledby": None,
+        "target": "g-one",
+    }
+    # An unnamed group is named in the refusal, so the author names that group.
+    (finding,) = question_errors(
+        SourceDocument(f'<main><fieldset id="d">{first}</fieldset></main>'), registry
+    )
+    assert finding.values["group"] == "<fieldset id=d>"
+    # A named group with no id is no place to stand.
+    assert refused(
+        f'<section role="group" aria-labelledby="d-h"><h2 id="d-h">Choose</h2>{first}'
+        "</section>"
+    ) == [("question-group-id", "<section>")]
 
     # A widget that asks nothing, a sample's widgets, which ask nothing beyond the
-    # sample, and a suggestion, which its sentence names, need no heading.
-    assert untitled(first.replace(" choose", "")) == []
-    assert untitled(first.replace(" choose", " choose settled")) == []
+    # sample, and a suggestion, which its sentence names, need no group.
+    assert refused(first.replace(" choose", "")) == []
+    assert refused(first.replace(" choose", " choose settled")) == []
     for mode in ("", " interactive"):
         assert (
-            untitled(f'<lf-sample id="s" label="a question"{mode}>{first}</lf-sample>')
+            refused(f'<lf-sample id="s" label="a question"{mode}>{first}</lf-sample>')
             == []
         )
     suggestion = (
         '<lf-suggestion id="s"><lf-old>daily</lf-old><lf-new>weekly</lf-new>'
         "</lf-suggestion>"
     )
-    assert untitled(f"<p>Refill {suggestion}.</p>") == []
-    # A message's widget is named by the message, so its markup needs no heading.
+    assert refused(f"<p>Refill {suggestion}.</p>") == []
+    # A message's widget is named by the message, so its markup needs no group.
     assert fragment_errors(first, registry) == []
 
 
@@ -552,7 +584,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
         return [
             (e.code, e.values["keyword"], e.values["path"])
             for e in fragment_errors(
-                '<section id="kind-ask"><h2>Choose a route</h2>'
+                '<section id="kind-ask" role="group" aria-labelledby="kind-ask-h"><h2 id="kind-ask-h">Choose a route</h2>'
                 '<lf-options id="kind-options" choose>'
                 f'<lf-option id="route" {attributes}>Page</lf-option>'
                 '<lf-option id="other">Ticket</lf-option>'
@@ -586,7 +618,7 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
 
     def playground(preset):
         return (
-            '<section id="ask"><h2>Which?</h2><lf-playground id="a">'
+            '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2><lf-playground id="a">'
             '<aside><input type="range" name="size" max="4" value="2" /></aside>'
             f"{preset}"
             "<lf-playground-output>Use it.</lf-playground-output>"
@@ -771,7 +803,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     assert ok.exit_code == 0, ok.output
     # And a new version taking the reply's id fails check.
     (page_dir / "index.html").write_text(
-        PAGE.replace('<section id="plan">', '<section id="plan"><p id="q1">stolen</p>')
+        PAGE.replace(PLAN_OPENING, PLAN_OPENING + '<p id="q1">stolen</p>')
     )
     status, findings = check_findings(page_dir)
     assert status == 1
@@ -784,9 +816,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     instead, silently. One rule over both places an id can be authored: a version, and
     the widget markup in Claude's reply."""
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            '<section id="plan">', '<section id="plan"><p id="lf-msg-7">mine</p>'
-        )
+        PAGE.replace(PLAN_OPENING, PLAN_OPENING + '<p id="lf-msg-7">mine</p>')
     )
     status, findings = check_findings(page_dir)
     assert status == 1
@@ -806,7 +836,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--text",
             (
                 "Pick:\n\n"
-                '<section id="pick-decision"><h2>Pick?</h2>'
+                '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h"><h2 id="pick-decision-h">Pick?</h2>'
                 '<lf-options id="lf-pick" choose>'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
                 "</lf-options></section>"

@@ -816,7 +816,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     first = leaf_page(
         "Widgets first",
         """
-<section id="wd-store-ask"><h2>Which store?</h2>
+<section id="wd-store-ask" role="group" aria-labelledby="wd-store-ask-h"><h2 id="wd-store-ask-h">Which store?</h2>
 <lf-options id="wd-store" choose>
   <lf-option id="wd-keep">Keep the store
   <img src="/page/held.svg" alt="Leaf" data-evidence="/media/051bee487bfb5d13.png">
@@ -827,7 +827,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
 </lf-option>
   <lf-option id="wd-drop">Drop the store</lf-option>
 </lf-options></section>
-<section id="wd-when-ask"><h2>Which schedule?</h2>
+<section id="wd-when-ask" role="group" aria-labelledby="wd-when-ask-h"><h2 id="wd-when-ask-h">Which schedule?</h2>
 <lf-options id="wd-when" choose>
   <lf-option id="wd-now">Start now</lf-option>
   <lf-option id="wd-later">Start later</lf-option>
@@ -836,16 +836,19 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     )
     second = (
         first.replace("Widgets first", "Widgets second")
-        .replace('<section id="wd-store-ask">', '\n<section id="wd-store-ask">')
+        .replace(
+            '<section id="wd-store-ask" role="group" aria-labelledby="wd-store-ask-h">',
+            '\n<section id="wd-store-ask" role="group" aria-labelledby="wd-store-ask-h">',
+        )
         .replace(
             '<lf-option id="wd-later">Start later</lf-option>',
             '<lf-option id="wd-later">Start later</lf-option>\n'
             '  <lf-option id="wd-never">Do not start at all</lf-option>',
         )
         .replace(
-            '<section id="wd-when-ask">',
+            '<section id="wd-when-ask" role="group" aria-labelledby="wd-when-ask-h">',
             '<p><lf-tally id="arriving-tally" for="wd-when-ask" next></lf-tally></p>'
-            '<section id="wd-when-ask">',
+            '<section id="wd-when-ask" role="group" aria-labelledby="wd-when-ask-h">',
         )
     )
     page = open_page(
@@ -902,7 +905,7 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
         return f"""<lf-tabs id="tp-views">
   <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
   <lf-tab id="tp-ask-tab" label="Ask">
-    <section id="tp-store-ask"><h2>Which store?</h2>
+    <section id="tp-store-ask" role="group" aria-labelledby="tp-store-ask-h"><h2 id="tp-store-ask-h">Which store?</h2>
     <lf-options id="tp-store" choose>
       <lf-option id="tp-keep">Keep the store</lf-option>
       <lf-option id="tp-drop">Drop the store</lf-option>
@@ -1010,7 +1013,7 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
         '<p id="served-selection">A passage with a saved caret.</p></section>'
         '<div style="height:1600px"></div>'
         '<h2 id="destination">Destination</h2>'
-        '<section id="question"><h2>A decision?</h2>'
+        '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">A decision?</h2>'
         '<lf-options id="answer" choose><lf-option id="yes">Yes</lf-option>'
         "</lf-options></section>",
     )
@@ -1073,7 +1076,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     )
     first = leaf_page("Questions arriving", '<h1 id="h">Decisions</h1>' + reading)
     questions = "".join(
-        f'<section id="question-{i}"><h2>Decision {i}?</h2>'
+        f'<section id="question-{i}" role="group" aria-labelledby="question-{i}-h"><h2 id="question-{i}-h">Decision {i}?</h2>'
         f'<lf-options id="options-{i}" choose>'
         f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></section>'
         for i in range(3)
@@ -1133,7 +1136,7 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     )
     second = first.replace("</section>", paragraph + "</section>").replace(
         "</main>",
-        '<section id="question"><h2>Decision?</h2>'
+        '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Decision?</h2>'
         '<lf-options id="options" choose><lf-option id="yes">Yes</lf-option>'
         "</lf-options></section></main>",
     )
@@ -1195,7 +1198,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     owner."""
 
     def question(identity, label):
-        return f"""<section id="{identity}-ask"><h2>{label}?</h2>
+        return f"""<section id="{identity}-ask" role="group" aria-labelledby="{identity}-ask-h"><h2 id="{identity}-ask-h">{label}?</h2>
   <lf-options id="{identity}-options" choose>
     <lf-option id="{identity}-yes">Yes</lf-option>
   </lf-options>

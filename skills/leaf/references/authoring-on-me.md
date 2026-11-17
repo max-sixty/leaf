@@ -85,14 +85,26 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 ## On the page
 
-Make each question answerable where On Me takes the user: pressing `m` brings its
-section to the top of the window, leaving earlier content out of view. Put each
-question in a `<section>` with an id, opened by a heading that asks it without leaning
-on the prose around it, with any eyebrow beside it in an `<hgroup>`: that heading is the question's
-words on On Me and in the answer you receive. Inside it, build the question around the
-material the user judges: why it arises, the current state and its evidence. Shared
-evidence and its limits come before the answering control; optional detail follows
-it. Each widget in the section that asks is its own question with its own answer.
+Make each question answerable where On Me takes the user: pressing `m` selects the
+whole question and brings its start to the top of the window, leaving earlier content
+out of view. Write each question as a group you name: a `<section>` with an id,
+`role="group"` and `aria-labelledby` naming the id of a heading that asks the question
+on its own, without leaning on the prose around it, with any eyebrow beside the heading
+in an `<hgroup>`. The group is the region `m` selects, and the words it
+is named by are the question's words on On Me and in the answer you receive; Leaf reads
+both from that markup, so `page check` refuses a widget that asks with no named group
+round it. Inside the group, build the question around the material the user judges:
+why it arises, the current state and its evidence. Shared evidence and its limits come
+before the answering control; optional detail follows it. Each widget in the group that
+asks is its own question with its own answer.
+
+```html
+<section id="material-q" role="group" aria-labelledby="material-h">
+  <h2 id="material-h">Which material for the housing?</h2>
+  <p>Aluminium costs three times as much and halves the weight.</p>
+  <lf-options id="material" choose>…</lf-options>
+</section>
+```
 
 On a quick-answer page, open with the question and put optional detail in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
@@ -103,8 +115,7 @@ the claim and its evidence. Only a question about the whole record comes last.
 Where evidence, option pictures or option cards set across need more than the prose's
 width, set `data-width` on the block that holds them, such as the `lf-options`, figure
 or playground, so the block takes the room while the question's words keep the
-column's edge (`page-layout.md`, "Bounds
-and widths"). Size an option's picture
+column's edge (`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
 it to the region that differs, and scale it down as far as that difference still reads,
 so all the options fit the window together. A difference of size or extent, such as how
@@ -126,8 +137,12 @@ things as they are and take the action, so declining is an answer too. Put the e
 action and the evidence the user needs in the question's heading and prose:
 
 ```html
-<section id="publish-report-question">
-  <h2>Publish this report to the team workspace?</h2>
+<section
+  id="publish-report-question"
+  role="group"
+  aria-labelledby="publish-report-heading"
+>
+  <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report" choose>
     <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>

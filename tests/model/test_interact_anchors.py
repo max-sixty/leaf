@@ -464,7 +464,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
     )
     frozen = (
-        '<section id="thread-ask"><h2>Choose one</h2>'
+        '<section id="thread-ask" role="group" aria-labelledby="thread-ask-h"><h2 id="thread-ask-h">Choose one</h2>'
         '<lf-options id="thread-picks" choose><lf-option id="thread-option">'
         "Thread option</lf-option></lf-options></section>"
     )
@@ -1726,7 +1726,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "author": "agent",
             "revision": 1,
             "html": True,
-            "text": 'Which mitigations?\n\n<section id="gm-decision"><h3>Which mitigations?</h3>'
+            "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h"><h3 id="gm-decision-h">Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm" choose>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
@@ -1763,7 +1763,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "html": True,
                     "text": (
                         f"Choose {suffix}\n\n"
-                        f'<section id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
+                        f'<section id="group-{suffix}-decision" role="group" aria-labelledby="group-{suffix}-decision-h"><h3 id="group-{suffix}-decision-h">Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}" choose>'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
                         "</lf-options></section>"
@@ -1882,7 +1882,7 @@ def test_message_html_may_not_dress_the_document_it_is_put_into(page_dir, native
     Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
-        '<section id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h"><h3 id="d1-decision-h">Choose one</h3><lf-options id="d1" choose>'
         '<lf-option id="d1-a">A</lf-option></lf-options></section>'
     )
     if native:
@@ -1921,7 +1921,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
         comment(
             page_dir,
             "--text",
-            'Pick one:\n\n<section id="ps-decision"><h3>Which store?</h3>'
+            'Pick one:\n\n<section id="ps-decision" role="group" aria-labelledby="ps-decision-h"><h3 id="ps-decision-h">Which store?</h3>'
             '<lf-options id="ps-q" choose>'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
@@ -1956,7 +1956,7 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
     author's to write, as in the page itself."""
     published(page_dir)
     widget = (
-        '<section id="d1-decision"><h3>Choose one</h3><lf-options id="d1" choose>'
+        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h"><h3 id="d1-decision-h">Choose one</h3><lf-options id="d1" choose>'
         '<lf-option id="d1-a">A</lf-option></lf-options></section>'
     )
     if native:

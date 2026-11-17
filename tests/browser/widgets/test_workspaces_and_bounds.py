@@ -309,8 +309,8 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
 
     def item(key):
         return (
-            f'<lf-tab id="t-{key}" label="{key}"><section id="{key}-decision">'
-            f'<h2>Pick the {key}</h2><div style="height: 900px"></div>'
+            f'<lf-tab id="t-{key}" label="{key}"><section id="{key}-decision" role="group" aria-labelledby="{key}-decision-h">'
+            f'<h2 id="{key}-decision-h">Pick the {key}</h2><div style="height: 900px"></div>'
             f'<lf-options id="{key}" choose><lf-option id="{key}-a">Alpha</lf-option>'
             "</lf-options></section></lf-tab>"
         )
@@ -480,8 +480,8 @@ SECTIONED_PANE_PAGE = leaf_page(
 THREE_PART_OBLIGATION_PAGE = leaf_page(
     "a three-part obligation as the workspace",
     """
-  <section id="workspace-ask">
-    <h2>Which release should go out?</h2>
+  <section id="workspace-ask" role="group" aria-labelledby="workspace-ask-h">
+    <h2 id="workspace-ask-h">Which release should go out?</h2>
     <div id="ask-context" style="height: 900px">The context the user weighs.</div>
     <lf-options id="workspace-options" choose>
       <lf-option id="workspace-ship">Ship it</lf-option>
@@ -746,7 +746,7 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
     elif container == "pane":
         reading = reading.replace(
             '<button id="reading-end">',
-            """<section id="release-ask"><h2>What should the review record?</h2>
+            """<section id="release-ask" role="group" aria-labelledby="release-ask-h"><h2 id="release-ask-h">What should the review record?</h2>
               <p>Comment on the code before making your final call. A selection records
                 your review decision; it does not deploy code or mark tests as passed.</p>
               <p>Ship with changes keeps the retry budget within the deadline.

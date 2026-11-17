@@ -336,7 +336,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
-        '<section id="thread-choice-decision"><h3>Which option?</h3>'
+        '<section id="thread-choice-decision" role="group" aria-labelledby="thread-choice-decision-h"><h3 id="thread-choice-decision-h">Which option?</h3>'
         '<lf-options id="thread-choice" choose>'
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></section>"

@@ -498,7 +498,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     """Neither a pane nor the obligation inside it turns visible prose into separate
     quotation islands."""
     content = """<div id="split">
-      <lf-pane id="decision-pane" label="Decision"><section id="decision">
+      <lf-pane id="decision-pane" label="Decision"><section id="decision" role="group" aria-labelledby="question">
         <h2 id="question">Which plan should lead?</h2>
         <lf-options id="plans" choose>
           <lf-option id="steady">Keep the steady plan.</lf-option>

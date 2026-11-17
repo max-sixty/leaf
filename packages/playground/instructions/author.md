@@ -5,8 +5,8 @@ rather than a second selector elsewhere. `lf-options` remains useful for a fixed
 that needs no playground controls or composed preview. To critique a document or
 source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
 
-Put the playground in a section opened by the heading that asks its question, with any
-context that lives outside it (`references/authoring-on-me.md`, "On the page"). Keep
+Put the playground in the named group that asks its question, with any context that
+lives outside it (`references/authoring-on-me.md`, "On the page"). Keep
 behavior that one page uses in that page's module, which can define custom elements, add
 state to the playground and derive its output. Behavior several pages reuse belongs in a
 package (`references/packages.md`, "Package reach").
@@ -172,8 +172,8 @@ one of them, the comment records its id, which tells you which one they mean.
     border-color: var(--lf-accent);
   }
 </style>
-<section id="notification-ask">
-  <h2>Which deployment notification should we build?</h2>
+<section id="notification-ask" role="group" aria-labelledby="notification-ask-h">
+  <h2 id="notification-ask-h">Which deployment notification should we build?</h2>
   <lf-playground
     id="notification-playground"
     submit-label="Create notification"

@@ -13,8 +13,8 @@ vars:
     content is a question section:
 
     ```html
-    <section id="rollout">
-      <h2>Which region should take the first rollout of the new billing service?</h2>
+    <section id="rollout" role="group" aria-labelledby="rollout-h">
+      <h2 id="rollout-h">Which region should take the first rollout of the new billing service?</h2>
       <lf-options id="region" choose>...</lf-options>
     </section>
     ```

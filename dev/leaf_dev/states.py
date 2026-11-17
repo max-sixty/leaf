@@ -2023,7 +2023,7 @@ def gallery_drawing(page: Page) -> None:
 
 
 def gallery_ask_figure(page: Page) -> None:
-    """A question's section enclosing a chart, with its question at the window's top so
+    """A question's group enclosing a chart, with its question at the window's top so
     the chart and every option either share the window or run past it."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     settle(page)
@@ -2467,7 +2467,7 @@ def obligation_marker_by_keyboard(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open obligation, a question's section, reached with `m`: its ring and its
+    """The next open obligation, a question's group, reached with `m`: its ring and its
     marker in view."""
     page.keyboard.press("m")
     page.locator("[data-lf-obligation]").first.wait_for()

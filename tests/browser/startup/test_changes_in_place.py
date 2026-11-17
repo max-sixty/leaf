@@ -615,8 +615,9 @@ def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
     version was saved after: that is the comparison's reading, not the card's."""
     options = PAGE.replace(
         '<p id="d">',
+        '<section id="g-q" role="group" aria-label="When to ship?">'
         '<lf-options id="g" choose><lf-option id="g-a">Ship now</lf-option>'
-        '<lf-option id="g-b">Ship later</lf-option></lf-options>\n<p id="d">',
+        '<lf-option id="g-b">Ship later</lf-option></lf-options></section>\n<p id="d">',
     )
     url = live_url(serve(options))
     d = serve.page_dir

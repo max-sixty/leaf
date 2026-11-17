@@ -31,7 +31,7 @@ def test_a_live_page_embeds_at_its_own_origin_and_cannot_run_its_data(browser, s
     source = leaf_page(
         "Boundaries",
         """<h1 id="h">Boundaries</h1>
-<section id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+<section id="decision" role="group" aria-labelledby="decision-h"><h2 id="decision-h">Proceed?</h2><lf-options id="pick" choose>
 <lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
 </lf-options></section>""",
         head="""<script type="module">
@@ -653,7 +653,7 @@ def test_a_sample_starts_its_page_as_it_nears_the_window(browser, serve):
 
 
 # A choice whose press shows at once on a page that has come up.
-CHOICE = """<section id="decision"><h2>Proceed?</h2><lf-options id="pick" choose>
+CHOICE = """<section id="decision" role="group" aria-labelledby="decision-h"><h2 id="decision-h">Proceed?</h2><lf-options id="pick" choose>
 <lf-option id="yes">Proceed</lf-option><lf-option id="no">Wait</lf-option>
 </lf-options></section>"""
 

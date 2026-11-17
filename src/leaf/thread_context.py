@@ -418,7 +418,9 @@ MESSAGE_FIELDS = (
 # grows with the thread until it alone outgrows the output it prints
 # into. That is the one shape acknowledgement cannot recover from: the ack rule
 # says to rerun with more capacity, and a rerun prints the same oversize header,
-# so nothing can ever be acked and the wait repeats forever.
+# so nothing can ever be acked and the wait repeats forever. A fork's prompt has no
+# such output to outgrow and the fork can't page, so it takes each thread whole
+# (`batch_threads`).
 SHOWN = 8
 
 # What one gesture on a sent widget is, unfolded. `author` for the same reason a
@@ -443,18 +445,23 @@ def ends_kept(items: list, pin: frozenset = frozenset()) -> list:
 
 
 def thread_digest(
-    thread: dict, omit: frozenset = frozenset(), pin: frozenset = frozenset()
+    thread: dict,
+    omit: frozenset = frozenset(),
+    pin: frozenset = frozenset(),
+    *,
+    whole: bool = False,
 ) -> dict:
     """One thread as a reader away from the panel needs it: its current page
     location or prior anchor when detached, who closed it, and what was said.
 
     `omit` drops messages by log sequence, which is how a delivery carries the
     exchange its own events land in without printing them twice. `pin` keeps a
-    message the bound would otherwise drop. `elided` says how many went, so a
-    reader can tell a short thread from a shortened one and knows to
-    page through the rest with `leaf page state <page> <message> --after`."""
+    message the bound would otherwise drop, and `whole` keeps every one. `elided`
+    says how many went, so a reader can tell a short thread from a shortened one
+    and knows to page through the rest with `leaf page state <page> <message>
+    --after`."""
     kept = [m for m in thread["msgs"] if m["seq"] not in omit]
-    shown = ends_kept(kept, pin)
+    shown = kept if whole else ends_kept(kept, pin)
     return {
         "id": thread["id"],
         "title": thread["title"],
@@ -470,7 +477,9 @@ def thread_digest(
     }
 
 
-def batch_threads(events: list, batch: list, within: dict) -> list:
+def batch_threads(
+    events: list, batch: list, within: dict, *, whole: bool = False
+) -> list:
     """The threads a delivered batch lands in, with what was said before it.
 
     Every named thread carries its current metadata, even when the batch
@@ -503,7 +512,10 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     The actions are unfolded because folding wants the declarations that say
     what a verb's unit is, and they need no window: no version bounds thread
     markup and no retraction floor reaches it, and undo is the whole of what
-    unseats one."""
+    unseats one.
+
+    `whole` carries every message and gesture, for a reader that can't page
+    through the rest, as a fork can't (`forks.line_prompt`)."""
     names = thread_names(events)
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)
@@ -546,12 +558,12 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     for t in named:
         if t not in threads:
             continue
-        acted = ends_kept(gestures.get(t, []))
+        acted = gestures.get(t, []) if whole else ends_kept(gestures.get(t, []))
         spoken_for = {a["widget"] for a in acted} | acted_in.get(t, set())
         pin = frozenset(
             sent for widget in spoken_for for sent in declaring.get(widget, ())
         )
-        digest = thread_digest(threads[t], delivered, pin)
+        digest = thread_digest(threads[t], delivered, pin, whole=whole)
         summaries = summaries_for[t]
         digest["summaries"] = summaries
         covered = {identity for summary in summaries for identity in summary["covers"]}

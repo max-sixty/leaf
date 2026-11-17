@@ -539,11 +539,16 @@ def _users_words_in_a_thread(event: dict) -> bool:
 
 
 def batch_data(
-    page_dir: Path, transaction, batch: list[dict], *, responses: dict | None = None
+    page_dir: Path,
+    transaction,
+    batch: list[dict],
+    *,
+    responses: dict | None = None,
+    whole: bool = False,
 ) -> dict:
     """Capture one complete ordered page batch, less what `freeze_delivery` writes
     for its transport: the address of a thread reply, and the `handling` that follows
-    from it."""
+    from it. `whole` carries each thread whole (`thread_context.batch_threads`)."""
     from .event_facts import EventFacts
     from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
@@ -621,7 +626,7 @@ def batch_data(
         "page": str(page_dir),
         "claim": transaction.delivery_owner,
         "through_seq": max(event["seq"] for event in batch),
-        "threads": batch_threads(events, batch, reader.within),
+        "threads": batch_threads(events, batch, reader.within, whole=whole),
         "events": captured,
     }
 

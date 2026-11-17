@@ -1654,8 +1654,8 @@ def test_one_fork_works_a_thread_while_its_turn_runs(claimed, lane, capsys):
     carries it. One that arrives in the fork's last moments, which its run never
     carries, goes to the main thread as the run ends, even where a receipt passed
     the log meanwhile, rather than to the same fork resumed, since Leaf decides
-    whether to keep a message back only as it admits it, as the user accepted on
-    2026-11-15. A resumed fork whose message the user took back still holds the
+    whether to keep a message back only as it admits it, as the user accepted. A
+    resumed fork whose message the user took back still holds the
     thread's next one; a thread the main thread took over by answering, while the
     fork still runs, gives its next message to the main thread; and a thread a
     running fork took by answering a message in it gives its next message to that

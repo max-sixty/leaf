@@ -25,7 +25,7 @@ PICKUP_GRACE = timedelta(minutes=2)
 # How long an agent turn is believed before its start is confirmed (`agent_turn_end`).
 # Nothing confirms a line turn's start, so this bounds a line turn (`forks.py`), and a
 # working fork's turn opens at the take, whose start its harness confirms within
-# this. On this machine's pages to 2026-11-15, 147 line forks answered within 20 s of
+# this. On this machine's pages, 147 line forks answered within 20 s of
 # the message (median 2.4 s), and 77 working forks' starts were confirmed within
 # 0.7 s of the take.
 STARTING_GRACE = timedelta(seconds=30)

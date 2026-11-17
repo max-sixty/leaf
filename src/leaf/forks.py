@@ -133,20 +133,19 @@ opened drops its entry (`state.open_agent_turn`). The lane only says, at admissi
 that a follower runs to list the line turn for the module; its line fork runs in the
 module, so the follower exiting or being killed ends nothing that was listed.
 
-The user chose on 2026-11-15 to hold a kept-back message this way, by the line turn's
-pickup in the log as a working fork holds its thread, over the separate hold Leaf
-kept until then: a line holder the reading gave each thread admitted since the lane
-came up, a record outside the log of the messages each line fork handed over, and a
-30 s bound the follower enforced with a nudge. Three rare paths changed with it,
-which they accepted, counted on this machine's pages to that day:
+The user chose to hold a kept-back message this way, by the line turn's pickup in the
+log as a working fork holds its thread, over a hold of its own: a line holder the
+reading gives each thread admitted since the lane came up, a record outside the log
+of the messages each line fork handed over, and a bound the follower enforces with a
+nudge. Such a hold is a second answer to which turn holds a thread, kept partly
+outside the log, so every reader that asks the log would have to ask it too. The
+user accepted three rare paths with it:
 
 - A message in a working fork's last moments, which its run never carries, goes to
   the main thread as the run ends rather than to the same fork resumed, since Leaf
   decides whether to keep a message back only as it admits it.
-- An agent turn whose start nothing confirms lapses after 30 s rather than a minute,
-  a working fork's included, which bounds a line turn as the 30 s bound did; 147
-  line forks answered within 20 s of the message. A working fork's turn opens at the
-  take, and each of 77 fork starts was confirmed within 0.7 s of it.
+- An agent turn whose start nothing confirms, a working fork's included, lapses after
+  `activity.STARTING_GRACE`, which bounds a line turn too.
 - A line turn that lapses nudges no one, so an idle session no watch follows finds
   the message at its next prompt.
 

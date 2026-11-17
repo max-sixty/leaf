@@ -102,7 +102,7 @@ let remote: boolean | undefined;
 let lineForks = true;
 // Whether a thread whose line fork judged the work a fork's goes to a fork that does
 // it (`workFork`): `LEAF_FORK_WORK=on` in Claude Code's environment, while the design
-// in docs/forks.html is tried.
+// in How it works' Forks tab (docs/how-it-works.html) is tried.
 let workForks = false;
 
 // The summary `hooks.json` gives the background watch's wake, which Claude Code

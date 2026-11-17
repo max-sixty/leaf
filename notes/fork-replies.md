@@ -8,9 +8,9 @@ answer 48 s and 100 s ([waits on real pages](leaf-run-sessions.md#waits-on-real-
 
 On main, `src/leaf/forks.py` holds the states a thread moves through, keeping a
 message back and the working line a fork posts, and `hooks/claude-code.ts`
-(`lineFork`) makes the fork. The Forks guide (`docs/forks.html`) is the design's home. This
-note holds the research behind it: what Claude Code lets a hooks module fork, measured,
-and how well the fork judges what to answer. The main thread is the session's own
+(`lineFork`) makes the fork. How it works' Forks tab (`docs/how-it-works.html`)
+explains what is built. This note holds the research behind it: what Claude Code lets
+a hooks module fork, measured, and how well the fork judges what to answer. The main thread is the session's own
 conversation, as against the forks and subagents made from it.
 
 On 2026-11-05 the user took answering out of this fork. A `$.model.fork` fork can't
@@ -273,17 +273,17 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
 
 ### The design
 
-The design's home is the [Forks](../docs/forks.html) guide in How it works,
-published at `/forks/`: the path of a thread message, who holds a message, who acts,
-what the main thread hears when a fork ends, follow-ups and flurries, the main thread
-as coordinator, and which parts are built and which planned. The user set its model
+How it works' Forks tab ([`docs/how-it-works.html`](../docs/how-it-works.html),
+published at `/how-it-works/#forks`) explains what is built: the path of a thread
+message, who holds a message, who acts, what the main thread hears when a fork ends,
+follow-ups and flurries, and the main thread as coordinator. The user set its model
 on 2026-11-10 (forks do the questions and small tasks they can, significant work
 becomes a to-do the main thread schedules, and the main thread coordinates), and
 chose the same day that a thread's follow-ups go to the fork that answered it. On
 2026-11-11 they chose the clerk's lines over the fork's own SendMessage for telling
 the main thread what a fork did, with Leaf waking an idle session for a to-do a fork
-opened (the guide's "How a fork tells the main thread" says why). The research above
-and the steps below stay here.
+opened (the tab's "How a fork tells the main thread" says why). The research above,
+and the steps below with the parts still to build, stay here.
 
 Steps 1 to 3 take pages to protocol 44: a Leaf at protocol 43 doesn't know that a
 fork's pickup holds the message, and picks the message up again for the main thread
@@ -392,6 +392,20 @@ them, `clerk` and the new `agent-turns`, start at 44.
    what it did, in the clerk's lines (built); a thread's further messages go to the
    fork that answered it (built); and the shipped instructions say what forks and the
    main thread each do, scored with `evals/` before and after.
+
+   The three-way sort splits today's `hand_over`. Significant work (a change to the
+   session's files, branch, page or pull requests, or research long enough to need
+   progress of its own) becomes a to-do on its thread that the agent owes until it
+   ends it, so the main thread takes it in its own order instead of being interrupted
+   by it. Input the main thread needs now (the user's answer to a question it asked,
+   or steering its current work) still goes to it, since it changes the work a to-do
+   would wait behind. Research sits on the line between small and significant: a
+   fork can do it, but when it runs for minutes it needs progress lines of its own,
+   so the line fork decides by the message. Such a message has no working fork, and
+   who opens its to-do is still to be designed; a working fork that finds a task
+   bigger than it looked already makes it a to-do. If a fork per thread proves
+   wasteful, one standing fork per session would take every small message in turn:
+   cheaper, but slower when messages in several threads arrive together.
 
    Follow-ups are built, behind the same flag. Where a thread's last answer names a
    fork's turn that has closed in the session's present generation

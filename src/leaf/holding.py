@@ -68,9 +68,9 @@ pick up, answer or start on only the messages it holds or no turn holds
 (`refuse_unheld`), so a fork whose thread another turn took can neither take it
 back, nor answer it, nor show itself at work on it.
 
-`docs/forks.html`, "Who holds a message", explains the rule with the rest of the
-fork design; `session-lifetime.md`, "Turns and generations", is the contract other
-modules rely on.
+How it works' Forks tab (`docs/how-it-works.html`), "Who holds a message",
+explains the rule with the rest of the fork design; `session-lifetime.md`, "Turns and
+generations", is the contract other modules rely on.
 """
 
 from collections.abc import Callable

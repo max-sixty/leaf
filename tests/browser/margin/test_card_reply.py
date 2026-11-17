@@ -30,6 +30,7 @@ from render_harness import (
     sending,
     told,
     write,
+    write_draft_elsewhere,
 )
 
 from browser.margin import (
@@ -660,6 +661,87 @@ def test_news_during_a_card_s_ride_lands_at_its_end(browser, serve):
     ), transcript.evaluate(
         "list => [list.scrollHeight, list.clientHeight, list.scrollTop]"
     )
+
+
+# Where each of the card's first four turns is drawn in its transcript's content, which
+# a scroll leaves where it was: its top against the transcript's, plus the scroll.
+TURNS_IN_CONTENT = """card => {
+  const list = card.querySelector('.lf-thread-transcript');
+  const top = list.getBoundingClientRect().top - list.scrollTop;
+  return [...list.querySelectorAll(':scope > .lf-msg')].slice(0, 4)
+    .map(turn => turn.getBoundingClientRect().top - top);
+}"""
+
+
+@pytest.mark.parametrize(
+    "scroll,engine",
+    [
+        ("wheel", "browser"),
+        ("answer", "browser"),
+        ("wheel", "firefox_browser"),
+        ("unheard", "browser"),
+    ],
+)
+def test_a_scroll_during_a_card_s_ride_carries_the_ride_on_from_where_it_left_it(
+    request, serve, scroll, engine
+):
+    """A scroll of the transcript while a send's turns still ride, the user's wheel or
+    an answer landing at its end, moves the turns as any scroll does. A reading
+    landing then, here the reply's draft written in another tab, carries the ride on
+    from where that scroll left them, rather than riding it again from where they
+    stood before it, even where the reading comes before the scroll's event, as it
+    can after a scroll made in a frame's callbacks. Firefox scrolls the transcript
+    itself as the ride's carry shrinks, which a ride taking every scroll as the
+    send's would restart on."""
+    page, preview, transcript, _stood = sending_from_a_full_card(
+        request.getfixturevalue(engine), serve
+    )
+    sent = transcript.evaluate("list => list.scrollTop")
+    if scroll == "unheard":
+        # The wheel's scroll event is held until the reading has landed.
+        page.evaluate(
+            """() => addEventListener('scroll', window.__heldScroll = event =>
+              event.stopImmediatePropagation(), {capture: true})"""
+        )
+    if scroll in ("wheel", "unheard"):
+        transcript.hover()
+        page.mouse.wheel(0, -100)
+    else:
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "revision": 1,
+                "parent": LONG_THREAD_ROOT["id"],
+                "responds": preview.locator(".lf-msg").last.get_attribute(
+                    "data-lf-event"
+                ),
+                "text": "Noted, the weekend shift as well.",
+            },
+        )
+        told(page)
+    page.wait_for_function(
+        "sent => document.querySelector('.lf-margin-preview .lf-thread-transcript')"
+        ".scrollTop !== sent",
+        arg=sent,
+    )
+    scroll_settled(page, ".lf-margin-preview .lf-thread-transcript")
+    scrolled = preview.evaluate(TURNS_IN_CONTENT)
+    draft = "Or Monday.\nOr Tuesday.\nOr Wednesday."
+    write_draft_elsewhere(page, f"reply:{LONG_THREAD_ROOT['id']}", draft)
+    editor = preview.get_by_role("textbox", name="Reply", exact=True)
+    expect(editor).to_have_js_property("value", draft)
+    rendered(page)
+    landed = preview.evaluate(TURNS_IN_CONTENT)
+    page.evaluate(
+        """() => {
+          removeEventListener('scroll', window.__heldScroll, {capture: true});
+          window.__lfHeld.splice(0).forEach(motion => motion.finish());
+        }"""
+    )
+    assert landed == pytest.approx(scrolled, abs=1), (scrolled, landed)
 
 
 def test_a_press_on_a_moving_card_reaches_what_it_aims_at(browser, serve):

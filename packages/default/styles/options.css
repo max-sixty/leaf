@@ -687,7 +687,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
    * shortfall from that row by 999, which pushes it past one bound or the other.
    * `auto-fit` keeps a column the spanning Add and Done cells stand in, so the count,
    * not the cells, sets the floor. */
-  lf-options[across]:not([settled]):not(:where([data-lf-exhibit]) *):has(> lf-option[label]) {
+  lf-options[across]:not([settled]):not(:where([data-lf-exhibit]) *):has(
+      > lf-option[label]
+    ) {
     --lf-option-count: 99;
     --lf-options-row-width: calc(
       var(--lf-option-count) * (14rem + var(--lf-cell-gap)) - var(--lf-cell-gap)

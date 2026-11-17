@@ -18,9 +18,9 @@ list is a complete answer.
 ## Asks waiting on the user
 
 Leaf's guidance for asking and for threads, the agent's own, comes after this
-check: what goes On Me (`conversation-loop.md`, "The On lists"), how a question
-reads in a thread, when it asks with a choice, and how the agent keeps a thread
-current.
+check: what goes On Me (`conversation-loop.md`, "The On lists"), which action asks
+for permission and which is a step, how a question reads in a thread, when it asks
+with a choice, and how the agent keeps a thread current.
 Name each ask that guidance puts On Me which the agent left to the user, in its
 replies or anywhere in the conversation, where no On Me item holds it and the user
 hasn't answered it since. Leaf puts each ask On Me as the agent's own, the agent's
@@ -31,12 +31,7 @@ each, give:
   "Reloading the plugin").
 - `text`: the message that asks it, written as that guidance says the agent writes
   one, a choice included, which Leaf posts as the agent's `leaf thread` command
-  would. For a step the user takes, such as running a command or trying a build, say
-  what to do. Ask for a reply only for what the user alone can report, such as what
-  the build showed them, or where the agent's next step waits on it, such as a merge
-  waiting on the user's approval, since the reply is what tells the agent to go on.
-  The agent checks for itself whatever else it can, such as a file deleted or an
-  issue filed.
+  would. It marks an option recommended only where the agent advised it.
 - `passage`: where the ask concerns one passage of the page, a few of its words,
   exactly as the page shows them and found nowhere else on it, which the ask then
   stands on; otherwise empty, and it stands on the page as a whole.

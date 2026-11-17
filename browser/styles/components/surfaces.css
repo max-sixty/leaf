@@ -225,7 +225,7 @@ a[data-lf-external]::after,
 }
 /* A visible focus destination wears the layer's band unless its own rule supplies
    a carrier, or another mark on it carries it: a comment's mark
-   (`.lf-projected-mark`, visual-mark-paint.js), or the location ring round the decision
+   (`[data-lf-projected-mark]`, visual-mark-paint.js), or the location ring round the decision
    the user stands in (`[data-lf-projected-location]`, target-paint.js). Each stands where the
    box says, as this band does. Controls and reading destinations follow browser focus
    visibility. Current location remains separate, so pointer focus can reveal controls
@@ -233,7 +233,9 @@ a[data-lf-external]::after,
    A box that says nothing stands its band at a control's gap. At no weight, so a
    carrier's band wins. Retargeting shadow hosts and a label press's intermediate nodes
    get no band. */
-:where([data-lf-focus-visible]:not(.lf-projected-mark, [data-lf-projected-location])) {
+:where(
+  [data-lf-focus-visible]:not([data-lf-projected-mark], [data-lf-projected-location])
+) {
   outline: var(--lf-focus-ring);
   outline-offset: var(--lf-ring-at, var(--lf-focus-ring-gap));
 }

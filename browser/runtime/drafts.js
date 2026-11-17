@@ -611,12 +611,14 @@ export const draftContexts = () => [...draftCache.keys()];
 // ---------- the drafts list ----------
 // Every message draft holding words or a drawing, as this document shows it, in no
 // order: a generation it is sending stands on screen as the message, not as a draft.
-// It is the one list every view of drafts reads: Threads' Drafts band and the On Me
-// mark's dot (floating-panel.js), and each draft's margin entry. It publishes when
+// The page's own draft isn't listed: the floating panel's field shows it and no view of
+// drafts does, so listing it would repaint every view of drafts as the field's words
+// start and end. It is the one list every view of drafts reads: Threads' Drafts band and the
+// On Me mark's dot (floating-panel.js), and each draft's margin entry. It publishes when
 // a draft starts or stops holding something or what it is about changes, so a
 // keystroke in a draft already listed costs one comparison and repaints nothing; a
 // view reads the draft's words where it draws them (`loadDraft`).
-/** @typedef {NonNullable<ReturnType<typeof draftSubject>> & {context: string, payload: DraftPayload | undefined}} ListedDraft */
+/** @typedef {{part: DraftPart, name: string, context: string, payload: DraftPayload | undefined}} ListedDraft */
 /** @type {Map<string, ListedDraft>} */
 const listing = new Map();
 const listed = signal(/** @type {readonly ListedDraft[]} */ (Object.freeze([])));
@@ -636,7 +638,7 @@ const listsAlike = (was, now) =>
 /** @param {string} ctx */
 function listDraft(ctx) {
   const subject = draftSubject(ctx);
-  if (!subject) return;
+  if (!subject || subject.part === "page") return;
   const record = activeDraftRecord(ctx);
   const holds = Boolean(record?.text.trim() || field(record?.payload, "drawing"));
   const was = listing.get(ctx);
@@ -660,7 +662,6 @@ export const draftAnchor = (draft) => {
 /** @param {ListedDraft} draft */
 export const draftSends = (draft) =>
   ({
-    page: "Comment",
     comment: field(draft.payload, "suggest") ? "Suggestion" : "Comment",
     reply: "Reply",
     rewrite: "Edit",

@@ -1250,23 +1250,24 @@ flowchart TD
                 each ask it gives a thread title, a message of a few sentences that the
                 user can answer without the chat, the words of the passage it concerns,
                 if one does, and the id of a question it asks again, if any, such as a
-                step the user took that didn't work. A step the user is to take is asked
-                the same way: the message says what to do, and asks for a reply only for
-                what the user alone can report, such as what a build showed them, or
-                where the agent's next step waits on it, since the reply tells the agent
-                to go on. Leaf skips an ask whose title a question the agent asked
-                already has.
+                step the user took that didn't work. The fork writes the message as the
+                agent's guidance has the agent write one. Where the agent left answers
+                the user picks among, or an action it takes once the user agrees, such
+                as merging a pull request, the message holds a choice of them. A step
+                only the user can take, such as trying a build, says what to do, and
+                asks for a reply only for what the user alone can report or the agent's
+                next step waits on. Leaf skips an ask whose title a question the agent
+                asked already has.
               </p>
               <p id="fork-writes">
-                Leaf writes each remaining ask as the agent's message with an
-                obligation. A question asked again goes in its thread under its id, as
-                <code>leaf thread reply --obligation &lt;id&gt;</code> asks it, and
-                reopens the thread if the user closed it. Any other opens a thread of
-                its own, as <code>leaf thread create --obligation</code> does, on that
-                passage, or on the page as a whole where the fork named none or the page
-                doesn't show its words once. Each stays On Me until the user replies or
-                settles it with a reaction, and nothing on the page marks where it came
-                from.
+                Leaf posts each remaining ask as the agent's message, as the agent's
+                <code>leaf thread</code> command would. The user's pick answers a
+                choice, and any other ask carries an obligation, which their reply or a
+                settling reaction answers. A question asked again goes in its thread,
+                and reopens the thread if the user closed it. Any other opens a thread
+                of its own, on that passage, or on the page as a whole where the fork
+                named none or the page doesn't show its words once. Nothing on the page
+                marks where an ask came from.
               </p>
               <p id="fork-fixes">
                 Where a few of a page's words have gone stale, the fork can give the
@@ -2820,7 +2821,7 @@ flowchart TD
               <li id="updates-written-waiting">
                 <strong><code>leaf page open …</code></strong> Leaves feedback open and
                 clears starts while keeping to-dos. It creates no obligation. Questions
-                that need an answer belong in a thread message with
+                that need an answer belong in a thread message, as a choice or with
                 <code>--obligation</code>, so On Me opens the conversation.
               </li>
               <li id="updates-written-idle">

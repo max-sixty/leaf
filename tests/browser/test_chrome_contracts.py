@@ -21,6 +21,7 @@ from render_cases_layout import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
+    CHROME_ROOT,
     LONG_PAGE,
     PANEL,
     CutOff,
@@ -279,6 +280,39 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
     expect(field).to_be_hidden()
     moves = {"opening": opening, "closing": closing, "whole page": whole}
     assert max(opening, closing) < whole / 4, moves
+
+
+def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve):
+    """`o` hides the annotation layer (annotation-layer.js). A custom property it set on
+    `html` to hide the margin's change bars was inherited by every element and restyled
+    the whole page: 2 to 3 s of Firefox's main thread on a page of 1.5 million elements,
+    and 65 ms in Chromium. This counts, in the browser's own restyled elements, what
+    `o` restyles against such a property changed on `html`, so a property `o` sets
+    there again fails it. Firefox visiting the page for a rule read through a
+    descendant combinator from `html` restyles nothing, and no count here sees it."""
+    paragraphs = "".join(
+        f"<p id='p{i}'>Paragraph {i} of the page.</p>" for i in range(600)
+    )
+    page = open_page(browser, serve(leaf_page("Notes", "<h1>Page</h1>" + paragraphs)))
+    root = page.locator("html")
+    chrome = page.locator(CHROME_ROOT)
+
+    def restyled(move):
+        """The most elements one style recalc restyled while `move` ran."""
+        counts = restyle_counts(page, lambda: (move(), rendered(page)))
+        assert sum(counts), "the move must restyle something, or this proves nothing"
+        return max(counts)
+
+    # The control: a custom property changing on the root restyles every element.
+    whole = restyled(
+        lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
+    )
+    hiding = restyled(lambda: page.keyboard.press("o"))
+    expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
+    showing = restyled(lambda: page.keyboard.press("o"))
+    expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", "")
+    moves = {"hiding": hiding, "showing": showing, "whole page": whole}
+    assert max(hiding, showing) < whole / 4, moves
 
 
 def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):

@@ -961,6 +961,9 @@ def long_press(page, point):
 # Design mode's legend, a box on each item the page names while the mode stands
 # (design.js): the mode as the page shows it.
 DESIGN_LEGEND = ".lf-legend-box"
+# The chrome's root, after `body` (chrome.js), which holds what the runtime states for
+# its own stylesheets, such as the annotation layer hidden (`o`, annotation-layer.js).
+CHROME_ROOT = "html > .lf-chrome"
 
 
 def expect_design_mode(page, on=True):

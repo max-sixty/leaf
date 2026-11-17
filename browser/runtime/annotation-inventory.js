@@ -135,6 +135,10 @@ export function createAnnotationInventory({
       .replace(/[-_]+/g, " ")
       .trim();
 
+  // A target is named from the nearest element with an id, itself or one around it, and
+  // below that by each element's place among its authored siblings. A name reads only
+  // the siblings between the target and that element, so naming every target costs the
+  // page once rather than its square, and a name survives content added above the id.
   /** @param {Element} target @returns {string} */
   function targetPath(target) {
     const host = shadowHost(target.getRootNode());
@@ -153,6 +157,10 @@ export function createAnnotationInventory({
       const projection = node.getAttribute("data-lf-projection");
       if (projection && node.hasAttribute("data-lf-datum")) {
         from = `datum:${projection}/${node.getAttribute("data-lf-datum")}:`;
+        break;
+      }
+      if (node.id) {
+        from = `id:${node.id}/`;
         break;
       }
       const parent =
@@ -528,7 +536,7 @@ export function createAnnotationInventory({
             ...(threadDrafts.get(thread.id) ?? []),
             draftItem(draft),
           ]);
-      } else if (draft.part !== "page") placedDrafts.push(draft);
+      } else placedDrafts.push(draft);
     }
     // A draft's place is resolved once for each reading of the page, since a quote's is
     // a search of the page's words, which a collection made on every reading would

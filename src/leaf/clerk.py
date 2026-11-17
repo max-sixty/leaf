@@ -100,12 +100,13 @@ neither does yet.
 The fork can't author the page, so each ask is the agent's message in a thread,
 written as the agent's guidance has it write one (`threads.md`), and Leaf posts its
 text as the agent's `leaf thread` command does, drawing the HTML in it. Where the
-agent offered answers the user picks among, the message holds an `lf-options`
+agent offered answers the user picks among, or left them the go-ahead for an action
+it takes once they agree, such as a merge, the message holds an `lf-options`
 group, as "Ask for a pick" has the agent write it, so the pick shows as the group's
 state, `1`–`9` answer it, and a reply in words leaves it open, passing it to the
-agent until the agent answers. Any other ask, a step the user takes included, is the
-message with an obligation: On Me lists it until the user replies or settles it, and
-their reply reaches the agent as any reply does. Where Leaf refuses the HTML
+agent until the agent answers. Any other ask, a step only the user can take included,
+is the message with an obligation: On Me lists it until the user replies or settles
+it, and their reply reaches the agent as any reply does. Where Leaf refuses the HTML
 (`check_markup`), the fork has no next attempt, so the message asks in words with an
 obligation and shows the HTML as text, and the agent hears why. An ask that asks an
 earlier question again, such as a step the user took that didn't work or a choice
@@ -118,6 +119,13 @@ otherwise on the page as a whole, which is also where words the page doesn't sho
 once leave it. An ask Leaf can't put in its question's thread, as where that thread
 owes the user a reply, is taken as one naming none, since the fork has no next
 attempt.
+
+An action the agent takes once the user agrees, such as a merge waiting on their
+approval, is asked as a choice the user presses, as the user asked, rather than as a
+step in words asking for a reply, which users answer with "yes" or the command the
+agent told them to run. So whether an action asks for permission or is a step depends
+on who takes it once the user agrees, a rule the fork reads in the agent's guidance
+(`conversation-loop.md`).
 
 The fork asks a question again as the agent would, under its id in its thread,
 rather than asking a second one beside it, as the user asked: a fork that opens every
@@ -228,12 +236,13 @@ REFERENCES = SKILL_FILE.parent / "references"
 REFERENCE = REFERENCES / "turn-end-check.md"
 # The agent's own guidance the fork follows for its asks and its overtaken threads,
 # each a paragraph of a reference named by the words that open it: what goes On Me,
-# what a question holds, how HTML in a message draws, when it asks with a choice,
-# how a message reads in a thread's narrow card, what it links, where a correction
-# to an unanswered reply goes, and the reply a thread is owed once the work it
-# discusses is done.
+# which action asks for permission and which is a step, what a question holds, how
+# HTML in a message draws, when it asks with a choice, how a message reads in a
+# thread's narrow card, what it links, where a correction to an unanswered reply
+# goes, and the reply a thread is owed once the work it discusses is done.
 GUIDANCE = (
     ("conversation-loop.md", "The user's **On Me** list holds"),
+    ("conversation-loop.md", "For an action you take once the user agrees"),
     ("authoring-on-me.md", "Make each question self-contained"),
     ("threads.md", "A message is Markdown, and HTML in it draws"),
     ("threads.md", "When a message asks the user to choose among answers"),

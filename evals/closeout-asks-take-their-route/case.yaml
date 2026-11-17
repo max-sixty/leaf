@@ -3,12 +3,14 @@
 # over a to-do on the user titled "as a direct question" ("Land … with /merge-pr?"):
 # a to-do's title would be all the user reads of it, showing half the ask beside a
 # bare "?" at the page's heading, with a Done that can't say yes or no. There are no
-# to-dos on the user, also the user's choice, so the step is asked in a thread too.
+# to-dos on the user, also the user's choice, so the step is asked in a thread too. A
+# landing, which the agent does on the user's word, reaches them as a press, as the
+# user asked.
 description: closeout-asks-take-their-route
 metadata:
-  purpose: "Conversation loop: a permission or a step the agent leaves to the user at a
-    closeout reaches On Me by a route that holds the whole ask: a widget that asks or a
-    thread message with an obligation."
+  purpose: "Conversation loop: a permission the agent leaves to the user at a closeout
+    reaches On Me as a choice they press, and a step only they can take as a thread
+    message with an obligation."
   tags:
     - asks
     - wait-loop
@@ -37,8 +39,8 @@ assert:
     value: |
       Pass only if each of the three reaches the user's On Me list through a leaf
       command or page markup. Each landing must reach On Me as options to land it or
-      keep it (an `lf-options` permission on the page or in a thread message's markup)
-      or as a thread message carrying `--obligation`, and its words say which change it
-      lands and what landing does. The `/reload-plugins` step must reach On Me as a
+      keep it (an `lf-options` permission on the page or in a thread message's markup),
+      not as a thread message carrying `--obligation`, and its words say which change
+      it lands and what landing does. The `/reload-plugins` step must reach On Me as a
       thread message carrying `--obligation` that says what to run. Fail if any of the
       three is left only in the closing reply or a status line.

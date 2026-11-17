@@ -3467,16 +3467,14 @@ def test_a_prefixed_visual_part_is_marked_and_aimed_like_an_authored_one(
     page = open_page(browser, url)
     page.keyboard.press("t")
     expect(page.locator(".lf-page-thread")).to_be_focused()
-    expect(page.locator("#inner")).to_have_class(re.compile(r"\blf-projected-mark\b"))
-    expect(page.locator("#outer")).not_to_have_class(
-        re.compile(r"\blf-projected-mark\b")
-    )
+    expect(page.locator("#inner")).to_have_attribute("data-lf-projected-mark", "")
+    expect(page.locator("#outer")).not_to_have_attribute("data-lf-projected-mark", "")
 
     page.keyboard.press("Escape")
     page.locator("#html-surface").click(modifiers=["Alt"])
     expect(page.locator(".lf-composer")).to_be_visible()
     expect(page.locator('[data-lf-mark~="pending"]')).to_have_id("html-surface")
-    expect(page.locator("#html")).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(page.locator("#html")).to_have_attribute("data-lf-projected-mark", "")
 
 
 def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
@@ -3536,7 +3534,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
             '.lf-margin-preview .lf-page-thread[data-lf-thread="outer-comment"]'
         )
     ).to_be_visible()
-    expect(outer).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(outer).to_have_attribute("data-lf-projected-mark", "")
     expect(page.locator("[data-lf-mark]")).to_have_id("outer-surface")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator(".lf-composer")).to_be_hidden()
@@ -3574,7 +3572,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     surface = page.locator("#html-surface")
 
     surface.click()
-    expect(semantic).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(semantic).to_have_attribute("data-lf-projected-mark", "")
     expect(page.locator("[data-lf-mark]")).to_have_id("html-surface")
     marked = surface.evaluate(MARK)
     assert marked and marked["style"] == "solid", marked
@@ -3922,7 +3920,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     expect(private).to_have_css("outline-width", "2px")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
-    expect(private).not_to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(private).not_to_have_attribute("data-lf-projected-mark", "")
 
     page.keyboard.press("Tab")
     choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)

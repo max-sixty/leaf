@@ -438,7 +438,14 @@
   :not(
       .layout-column,
       :is(section, article, details, [data-lf-flow]):where(
-        :not(.layout-column, .layout-sidebar, .layout-workspace, [data-lf-space])
+        :not(
+          .layout-column,
+          .layout-sidebar,
+          .layout-workspace,
+          .layout-tiles,
+          .layout-track,
+          [data-lf-space]
+        )
       )
     )
     > * {
@@ -460,7 +467,14 @@
     --lf-free-right: var(--lf-free-start);
   }
   :is(section, article, details, [data-lf-flow]):where(
-    :not(.layout-column, .layout-sidebar, .layout-workspace, [data-lf-space])
+    :not(
+      .layout-column,
+      .layout-sidebar,
+      .layout-workspace,
+      .layout-tiles,
+      .layout-track,
+      [data-lf-space]
+    )
   ) {
     --lf-flow: 1;
     &:dir(ltr) {
@@ -516,11 +530,25 @@
   :is(
     .layout-column,
     :is(section, article, details, [data-lf-flow]):where(
-      :not(.layout-column, .layout-sidebar, .layout-workspace, [data-lf-space])
+      :not(
+        .layout-column,
+        .layout-sidebar,
+        .layout-workspace,
+        .layout-tiles,
+        .layout-track,
+        [data-lf-space]
+      )
     )
   ) {
     > :is(section, article, details, [data-lf-flow]):where(
-        :not(.layout-column, .layout-sidebar, .layout-workspace, [data-lf-space])
+        :not(
+          .layout-column,
+          .layout-sidebar,
+          .layout-workspace,
+          .layout-tiles,
+          .layout-track,
+          [data-lf-space]
+        )
       ) {
       --lf-prose-measure: inherit;
     }
@@ -588,7 +616,14 @@
          * those of the flows standing in it, and not a block a plain wrapper keeps in
          * the column. */
         > :is(section, article, details, [data-lf-flow]):where(
-            :not(.layout-column, .layout-sidebar, .layout-workspace, [data-lf-space])
+            :not(
+              .layout-column,
+              .layout-sidebar,
+              .layout-workspace,
+              .layout-tiles,
+              .layout-track,
+              [data-lf-space]
+            )
           ) {
           --lf-wide-reach: 0px;
           --lf-reach-start: 0px;

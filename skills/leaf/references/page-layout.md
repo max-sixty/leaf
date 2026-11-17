@@ -92,7 +92,8 @@ A `layout-column` is ordinary block flow at the reading measure, centered, with 
 space on both sides available to exhibits. Its blocks' margins collapse and a float
 stands beside the prose, as on any page. A `section`, `article` or `details` shares
 that space with what it holds, at any depth, so an exhibit in it breaks out as one
-standing in the column does. Other wrappers contain their children: a `div`, list,
+standing in the column does, unless it carries a Layout, such as `layout-tiles`, which
+arranges what it holds. Other wrappers contain their children: a `div`, list,
 callout or custom grid does not grant a nested exhibit room outside its own box. The
 same `data-width` contract applies at every level.
 

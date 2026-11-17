@@ -150,6 +150,40 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
         assert boxes[held] == prose, (held, boxes)
 
 
+def test_a_section_that_carries_a_layout_keeps_its_blocks_in_its_arrangement(
+    browser, serve
+):
+    """A section shares the column's room with what it holds, unless it carries a
+    Layout that arranges its children: tiles keep each wide block in its own cell, side
+    by side, with the section at the column's width. As a flow, the tiles gave both
+    blocks the column's room and drew them over each other. A plain section beside it
+    is the control, whose block takes the room."""
+    cell = '<div id="{id}" data-width="available">Evidence {id}.</div>'
+    source = leaf_page(
+        "Tiles in the column",
+        '<h1>Tiles in the column</h1><p id="prose">Prose sets the column.</p>'
+        '<section id="tiles" class="layout-tiles">'
+        + cell.format(id="first")
+        + cell.format(id="second")
+        + '</section><section id="plain">'
+        + cell.format(id="room")
+        + "</section>",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1600, 900)
+    boxes = page.evaluate("""() => Object.fromEntries(
+      ['prose', 'tiles', 'first', 'second', 'room'].map(id => {
+        const box = document.getElementById(id).getBoundingClientRect();
+        return [id, [Math.round(box.left), Math.round(box.right), Math.round(box.top)]];
+      }))""")
+    prose, tiles = boxes["prose"], boxes["tiles"]
+    assert boxes["room"][0] < prose[0] and boxes["room"][1] > prose[1], boxes
+    assert tiles[:2] == prose[:2], boxes
+    first, second = boxes["first"], boxes["second"]
+    assert first[2] == second[2] and first[1] < second[0], boxes
+    assert tiles[0] <= first[0] and second[1] <= tiles[1], boxes
+
+
 def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
     """A workspace states no measure, so a width written on a block in a question means
     nothing there, as it means nothing on a block beside the question."""

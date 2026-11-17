@@ -1916,8 +1916,8 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     task as answered and `state` reporting that nobody had answered anything,
     while the browser had been folding that same action all along.
 
-    It is named by its thread rather than by a version, because thread markup is
-    frozen in the log and page versions do not bound its state."""
+    It is named by its thread rather than by a version, because page versions do
+    not bound thread markup's state."""
     published(page_dir)
     assert (
         comment(

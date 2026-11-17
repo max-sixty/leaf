@@ -546,7 +546,7 @@ def batch_data(
     from .event_facts import EventFacts
     from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
-    from .thread_context import batch_threads, logged_fragment, thread_names
+    from .thread_context import batch_threads, thread_names, thread_structure
 
     events = transaction.events
     reader = EventFacts(page_dir, events, _registry(page_dir))
@@ -555,12 +555,13 @@ def batch_data(
     # an action, or the user's words in a thread where the agent's messages may ask.
     replies = [event for event in batch if _users_words_in_a_thread(event)]
     names = thread_names(events) if replies else {}
+    drawing = thread_structure(events).fragments if replies else {}
     asking = {
         names[event["id"]]
         for event in events
         if replies
         and event.get("author") == "agent"
-        and (event.get("obligation") or logged_fragment(event))
+        and (event.get("obligation") or event["id"] in drawing)
     }
     reads_obligations = any(event["kind"] == "action" for event in batch) or any(
         asking.intersection(facts[event["id"]]["threads"]) for event in replies

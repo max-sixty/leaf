@@ -2,9 +2,10 @@
 
 A gesture is recorded as ids: the widget, the unit it folds on, the options it
 picked. They are words only to whoever still holds the document. The reading is
-the gesture's own document, the revision it names or the frozen message that sent
-the widget, under the vocabulary that document was written in, so a later version
-that reworded or removed an option does not change what the user chose. Deliveries,
+the gesture's own document, the revision it names or the message holding the widget
+as it read when the user made the gesture, under the vocabulary that document was
+written in, so a later version or edit that reworded or removed an option does not
+change what the user chose. Deliveries,
 the transcript, the served history and the undo offer state a gesture through this
 one reading.
 
@@ -36,7 +37,6 @@ from .events import InForce, event_document
 from .passages import SourceReading, collapse, created_words, enclosing_of
 from .projection import (
     attribute_marks,
-    frozen_thread_reading,
     markup_value,
     state_projection,
 )
@@ -46,6 +46,12 @@ from .registry.contract import (
     is_element_name,
 )
 from .revision_artifact import read_revision
+from .thread_context import (
+    ThreadStructure,
+    logged_fragment,
+    message_wording,
+    thread_structure,
+)
 
 HEADINGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
 WIDGET_TITLES = HEADINGS | {"summary", "strong"}
@@ -198,45 +204,55 @@ class _Document:
 class GestureWords:
     """Readings of each document a page's gestures name, parsed once per document.
 
-    `registry` is the active one, which frozen thread markup reads under for the
-    page's whole lifetime; a page revision keeps the registry captured with it."""
+    `registry` is the active one, which thread markup reads under for the page's
+    whole lifetime; a page revision keeps the registry captured with it."""
 
     def __init__(self, events: list, registry: dict, revisions: RevisionReader):
         self.events = events
         self.registry = registry
         self.revisions = revisions
         self.by_id = {event["id"]: event for event in events}
-        self._documents: dict[int | None, _Document] = {}
+        self._documents: dict[int | str, _Document] = {}
         self._voices: dict[str, tuple[dict, list]] = {}
+
+    @cached_property
+    def _threads(self) -> ThreadStructure:
+        return thread_structure(self.events)
 
     def _document(self, event: dict) -> _Document | None:
         if event.get("meaning") is None:
             return None
         document = event_document(event)
-        revision = document.get("revision")
-        if revision not in self._documents:
-            if document["kind"] == "thread":
-                reading = frozen_thread_reading(self.events, self.registry)
-                self._documents[revision] = _Document(
-                    [
-                        fragment.authoring.content
-                        for fragment in reading.structure.fragments.values()
-                    ],
-                    reading.spoken,
+        if document["kind"] == "thread":
+            message = self._threads.holders.get(event["widget"])
+            if message is None:
+                return None
+            wording = message_wording(
+                self._threads, message, event.get("seq", self.events[-1]["seq"])
+            )
+            key = wording["id"]
+            if key not in self._documents:
+                fragment = logged_fragment(wording)
+                if fragment is None:
+                    return None
+                self._documents[key] = _Document(
+                    [fragment.authoring.content],
+                    SourceReading(fragment, self.registry).spoken,
                     self.registry,
-                    reading.structure.by_id,
+                    fragment.by_id,
                     None,
                 )
-            else:
-                assert revision is not None
-                reading = self.revisions(revision)
-                self._documents[revision] = _Document(
-                    [reading.document.authoring.content],
-                    reading.spoken,
-                    reading.registry,
-                    reading.document.by_id,
-                    revision,
-                )
+            return self._documents[key]
+        revision = document["revision"]
+        if revision not in self._documents:
+            reading = self.revisions(revision)
+            self._documents[revision] = _Document(
+                [reading.document.authoring.content],
+                reading.spoken,
+                reading.registry,
+                reading.document.by_id,
+                revision,
+            )
         return self._documents[revision]
 
     def _voice(self, event: dict) -> tuple[dict, list]:
@@ -278,7 +294,7 @@ class GestureWords:
         One walk of the log serves every Done of the document, as `InForce` reads
         what each event changed: the fold of the document classifies the actions,
         then undos withdraw and the document's version notes restate where they
-        fall. A frozen thread folds without floors, as `frozen_thread_reading`
+        fall. A message's markup folds without floors, as `frozen_thread_reading`
         does."""
         if document.held is None:
             classified = state_projection(

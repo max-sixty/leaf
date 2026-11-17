@@ -1872,7 +1872,7 @@ def test_reply_refuses_a_suggestion(page_dir):
         ],
     )
     assert result.exit_code != 0
-    assert "frozen in the log" in result.output
+    assert "never a message's" in result.output
 
 
 @pytest.mark.parametrize("invalid", ["html", "dependency"])

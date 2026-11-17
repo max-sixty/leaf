@@ -1457,36 +1457,134 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     assert events_model.read_events(page_dir) == before
 
 
-def test_an_agent_message_drawing_html_keeps_its_words(page_dir):
-    """A message that draws HTML stays as it was sent, since the user may have acted
-    on what it drew, and an edit gives no HTML to a message that draws none. The
-    append door refuses both, so an edit from any writer meets the rule."""
-    from leaf.event_log import EventRefused
+def test_an_agent_edit_rewrites_its_messages_html(page_dir):
+    """An agent may rewrite the HTML in its own message, as it may its words: Leaf
+    checks the new markup as it checks a new message's, and every reading of the
+    message's elements takes the latest wording. A user's answer stays keyed to the
+    widget's ids, so the edit goes in and Leaf tells the agent where that answer now
+    shows. An id any wording held stays the message's own, so no other message
+    takes it and inherits the user's answer."""
+    from leaf.thread_context import thread_structure
 
+    published(page_dir)
+
+    def options(name, *picks):
+        return (
+            f'<lf-options id="{name}">'
+            + "".join(
+                f'<lf-option id="{name}-{pick}">{pick}</lf-option>' for pick in picks
+            )
+            + "</lf-options>"
+        )
+
+    def edit(message, text):
+        return CliRunner().invoke(
+            cli_model.cli, ["thread", "edit", str(page_dir), message, "--text", text]
+        )
+
+    asked = comment(page_dir, "--text", "Ship it?\n\n" + options("ship", "now"))
+    assert asked.exit_code == 0, asked.output
+    asked = json.loads(asked.stdout)
+    chosen = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "ship",
+            "action": "choose",
+            "detail": {"value": ["ship-now"]},
+        },
+    )
+
+    def said():
+        """What the user's choice says, in the words they chose it in."""
+        from leaf.gesture_words import GestureWords
+        from leaf.registry.storage import require_registry
+
+        events = events_model.read_events(page_dir)
+        words = GestureWords(events, require_registry(page_dir), {}.__getitem__)
+        return words.gesture(next(e for e in events if e["id"] == chosen["id"]))
+
+    # The page moves on to a second revision, which the edit is checked against.
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<title>t</title>", "<title>Second</title>")
+    )
     publish(page_dir)
-    drawn, plain = (
+    relabel = options("ship", "tonight", "later").replace("ship-tonight", "ship-now")
+    relabelled = edit(asked["id"], "Ship it?\n\n" + relabel)
+    assert relabelled.exit_code == 0, relabelled.output
+    told = json.loads(relabelled.stdout)
+    assert told["records"][0]["revision"] == 2
+    assert [(f["code"], f["values"]["kept"]) for f in told["findings"]] == [
+        ("edit-answered-widget", True)
+    ]
+    drawn = thread_structure(events_model.read_events(page_dir))
+    assert "ship-later" in drawn.by_id
+    assert said() == {"form": "choice", "chosen": ["now"]}
+
+    # An option the user wrote lives in the log, so their pick of it shows on any
+    # wording that keeps the widget.
+    route = comment(page_dir, "--text", "Which route?\n\n" + options("route", "a"))
+    route = json.loads(route.stdout)
+    for action, detail in [
+        ("add", {"option": "route-mine", "text": "Mine"}),
+        ("choose", {"value": ["route-mine"]}),
+    ]:
         append_command(
             page_dir,
-            {"kind": "comment", "author": "agent", "revision": 1, "text": text},
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 2,
+                "widget": "route",
+                "action": action,
+                "detail": detail,
+            },
         )
-        for text in ("Ship it?\n\n<b>Tonight</b>", "Ship it tonight?")
-    )
+    reworded = edit(route["id"], "Which route, then?\n\n" + options("route", "a"))
+    assert reworded.exit_code == 0, reworded.output
+    assert {
+        (f["at"], f["values"]["kept"]) for f in json.loads(reworded.stdout)["findings"]
+    } == {("<lf-options id=route>", True)}
+
+    # Keeping the widget but not the option the user chose leaves their answer
+    # showing nowhere.
+    replaced = edit(asked["id"], "Ship it?\n\n" + options("ship", "later"))
+    assert replaced.exit_code == 0, replaced.output
+    told = json.loads(replaced.stdout)
+    assert [(f["code"], f["values"]["kept"]) for f in told["findings"]] == [
+        ("edit-answered-widget", False)
+    ]
+
+    withdrawn = edit(asked["id"], "Withdrawn: the plan changed.")
+    assert withdrawn.exit_code == 0, withdrawn.output
+    told = json.loads(withdrawn.stdout)
+    assert [(f["code"], f["values"]["kept"]) for f in told["findings"]] == [
+        ("edit-answered-widget", False)
+    ]
+    drawn = thread_structure(events_model.read_events(page_dir))
+    assert asked["id"] not in drawn.fragments and "ship" not in drawn.ids
+    assert said() == {"form": "choice", "chosen": ["now"]}
+
+    # Its ids stay the message's: another message can't take them, and it can.
+    taken = comment(page_dir, "--text", "Ship it?\n\n" + options("ship", "now"))
+    assert taken.exit_code != 0 and "ids-taken" in taken.output
+    restored = edit(asked["id"], "Ship it?\n\n" + options("ship", "now"))
+    assert restored.exit_code == 0, restored.output
+
+    plain = comment(page_dir, "--text", "Which store?")
+    plain = json.loads(plain.stdout)
+    widened = edit(plain["id"], "Which store?\n\n" + options("store", "redis"))
+    assert widened.exit_code == 0, widened.output
+    assert json.loads(widened.stdout).get("findings") is None
+    drawn = thread_structure(events_model.read_events(page_dir))
+    assert "store" in drawn.fragments[plain["id"]].by_id
+
+    # The new markup meets the gate a new message's does.
     before = events_model.read_events(page_dir)
-    for target, text, refusal in [
-        (drawn, "Ship it tomorrow?", "edit-holds-html"),
-        (plain, "Ship it <b>tomorrow</b>?", "edit-adds-html"),
-    ]:
-        with pytest.raises(EventRefused) as refused:
-            append_command(
-                page_dir,
-                {
-                    "kind": "edit",
-                    "author": "agent",
-                    "message": target["id"],
-                    "text": text,
-                },
-            )
-        assert refused_on(refused.value).code == refusal
+    clash = edit(plain["id"], "Which store?\n\n" + options("ship", "redis"))
+    assert clash.exit_code != 0 and "ids-taken" in clash.output
     assert events_model.read_events(page_dir) == before
 
 

@@ -1595,7 +1595,7 @@ def thread_edit(
     or with --title rename the thread MESSAGE is in, whoever opened it. --title
     alone leaves the text as it is.
 
-    A message holding HTML is not editable, and an edit adds none. Keep a title
+    The replacement may hold HTML, checked as a new message's is. Keep a title
     stable unless the thread's subject changes.
     """
     from leaf.thread import cmd_edit

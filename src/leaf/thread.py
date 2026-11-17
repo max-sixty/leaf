@@ -17,12 +17,12 @@ from leaf.delivery import (
 )
 from leaf.event_contracts import append_admitted
 from leaf.event_log import read_events
-from leaf.events import build_threads, is_answer
+from leaf.events import build_threads, is_answer, taken_back
 from leaf.files import (
     latest_revision,
     require_revision,
 )
-from leaf.findings import Finding, Rejected, note
+from leaf.findings import Finding, Rejected, element_at, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
 from leaf.obligations import local_obligation_entry, questions_in_words, shown_in
@@ -33,7 +33,7 @@ from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
 from leaf.structure import SourceDocument
-from leaf.thread_context import logged_fragment, thread_message, thread_names
+from leaf.thread_context import thread_message, thread_names, thread_structure
 from leaf.todos import TodoReading
 from leaf.validation.admission import (
     check_markup,
@@ -422,10 +422,9 @@ def markup_asks(markup: str, registry: dict) -> bool:
     return bool(markup) and bool(asking_widget(SourceDocument(markup), registry))
 
 
-def widget_asks(event: dict, registry: dict) -> bool:
-    """Whether a logged message's HTML holds a widget that asks (`asking_widget`), a
-    question `widget_question` names."""
-    fragment = logged_fragment(event)
+def widget_asks(fragment: SourceDocument | None, registry: dict) -> bool:
+    """Whether a message's HTML as it now reads (`thread_structure`) holds a widget
+    that asks (`asking_widget`), a question `widget_question` names."""
     return fragment is not None and bool(asking_widget(fragment, registry))
 
 
@@ -441,9 +440,9 @@ def thread_questions(events: list, thread: str, registry: dict) -> dict[str, boo
     widget (`widget_asks`)."""
     names = thread_names(events)
     asked = dict.fromkeys(questions_in_words(events, names, thread), True)
-    for event in events:
-        if names.get(event["id"]) == thread and widget_asks(event, registry):
-            asked[widget_question(event["id"])] = False
+    for message, fragment in thread_structure(events).fragments.items():
+        if names.get(message) == thread and widget_asks(fragment, registry):
+            asked[widget_question(message)] = False
     return asked
 
 
@@ -1230,10 +1229,13 @@ def cmd_edit(
     in, or both, and return the records appended.
 
     The message event is immutable: the edit points back to it, so the log retains
-    every wording while thread folds project the latest one. A message holding HTML
-    is frozen whole, since user actions may already rest on what it drew, and an
-    edit, read as Markdown alone, adds none. Admission refuses a message another
-    voice wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
+    every wording while readings take the latest, its HTML included
+    (`thread_context.thread_structure`). HTML in the new words meets the gates a new
+    message's does, under the revision the user is looking at, which the edit names
+    as such a message does. Where the message
+    holds a widget the user has acted on, the edit goes in and Leaf says what becomes
+    of their answer (`_answered_widgets`). Admission refuses a message another voice
+    wrote (`event_contracts._edit_error`). A rename adds no turn and changes no
     obligation. Under one lease, the rename is admitted before the edit is appended,
     so a refused title leaves the text unedited.
     """
@@ -1241,14 +1243,26 @@ def cmd_edit(
     from leaf.page_view import PageView
     from leaf.registry.storage import require_registry
 
-    body = checked_text(page_dir, text) if text is not None or title is None else None
+    body = (
+        checked_text(page_dir, text, html=True)
+        if text is not None or title is None
+        else None
+    )
+    markup = drawn_markup(body) if body is not None else ""
+    if markup:
+        from leaf.render_gate.command import message_check
+
+        # Apart from the page lease, since a browser run takes about a second.
+        message_check(page_dir, "edit", markup)
+    answered = []
     with PageTransaction(page_dir) as page:
         require_registry(page_dir)
+        events = page.events
         named = None
         if title is not None:
-            thread = thread_named(page_dir, page.events, message)
+            thread = thread_named(page_dir, events, message)
             named = title_event(thread, title)
-            admitted_event(PageView(page_dir), page.events, voiced(named))
+            admitted_event(PageView(page_dir), events, voiced(named))
         records = []
         if body is not None:
             edit = {
@@ -1257,10 +1271,65 @@ def cmd_edit(
                 "message": message,
                 "text": body,
             }
+            target = _messages(events).get(message)
+            # A message Leaf refuses to edit, such as one the user wrote, is
+            # admission's to refuse, in its own words.
+            if target is not None and target["author"] == "agent":
+                fragment = None
+                if markup:
+                    revision = latest_revision(page_dir)
+                    fragment = check_markup(
+                        page_dir,
+                        "edit",
+                        markup,
+                        events,
+                        publication=revision_publication(page_dir, revision),
+                        thread=thread_names(events).get(message),
+                        replacing=message,
+                    )
+                    if revision is not None:
+                        edit["revision"] = revision
+                answered = _answered_widgets(events, message, fragment)
             records.append(append_admitted(page, edit)[0])
         if named is not None:
             records.append(append_admitted(page, named)[0])
-        return records
+    note(*answered)
+    return records
+
+
+def _answered_widgets(
+    events: list, message: str, rewritten: SourceDocument | None
+) -> list[Finding]:
+    """What a rewrite of `message` to the markup `rewritten` (None for words alone)
+    does to each widget in it the user has acted on. Their latest action stays
+    recorded against the ids it rests on (`meaning.depends`: the widget, its unit
+    and the options it chose), so it shows wherever the new markup keeps those ids,
+    and not once one is gone; a child the user created through the widget lives in
+    the log (`meaning.creates`), so no wording needs to hold it. Advice, since the
+    agent may mean either."""
+    drawn = thread_structure(events).fragments.get(message)
+    if drawn is None:
+        return []
+    withdrawn = taken_back(events)
+    acted = [
+        event
+        for event in events
+        if event["kind"] == "action"
+        and event["id"] not in withdrawn
+        and event["widget"] in drawn.by_id
+    ]
+    created = {e["meaning"]["unit"] for e in acted if e["meaning"].get("creates")}
+    rests = {e["widget"]: set(e["meaning"]["depends"]) - created for e in acted}
+    kept = rewritten.ids if rewritten is not None else set()
+    return [
+        Finding(
+            "edit-answered-widget",
+            element_at(drawn.by_id[widget]["tag"], widget),
+            {"message": message, "kept": ids <= kept},
+            severity="advice",
+        )
+        for widget, ids in rests.items()
+    ]
 
 
 @contract_writer

@@ -501,8 +501,11 @@ def test_a_shift_without_input_fails(browser):
 # box's height, carrying the words; the button's, re-centring its label; or the words'
 # own `translate`. `#press` begins the box's animation from a press instead. For
 # `arrives`, a spinner keeps the page moving while words arrive, and then slide; for
-# `scrolling`, the words slide while a pane beside them scrolls.
+# `scrolling`, the words slide while a pane beside them scrolls; for `anchored`, a
+# button fixed to the window slides while scroll anchoring holds the page as the
+# spacer above it grows.
 STEPPED_MOTION = """<!doctype html><body style="margin:0">
+<div id="spacer" style="height:10px"></div>
 <div id="box" style="height:24px"></div>
 <p id="below">Words under the box</p>
 <button id="centred" style="position:absolute;top:0;left:200px;height:24px">
@@ -512,6 +515,8 @@ Centred</button>
 </div>
 <div id="pane" style="position:absolute;top:40px;left:400px;width:60px;height:40px;
 overflow:auto"><div style="height:400px">Pane</div></div>
+<button id="fixed" style="position:fixed;bottom:0;left:0">Fixed</button>
+<div style="height:3000px"></div>
 <script>
   const late = document.createElement("p");
   late.id = "late";
@@ -522,15 +527,17 @@ overflow:auto"><div style="height:400px">Pane</div></div>
     slides: [below, [{translate: "0 0"}, {translate: "0 16px"}]],
     arrives: [late, [{translate: "0 0"}, {translate: "0 16px"}]],
     scrolling: [below, [{translate: "0 0"}, {translate: "0 16px"}]],
+    anchored: [fixed, [{translate: "0 0"}, {translate: "16px 0"}]],
   };
   // Draws `motion` to its end `step` px of the box's growth a frame, as a fast host
   // draws a slow animation in small steps and a starved host a fast one in large steps.
   window.animateBy = (motion, step) => new Promise((done) => {
     const [target, keyframes] = motions[motion];
+    if (motion === "anchored") scrollTo(0, 400);
     if (motion === "arrives") {
       spinner.animate([{rotate: "0deg"}, {rotate: "360deg"}],
         {duration: 1000, iterations: Infinity});
-      document.body.append(late);
+      below.after(late);
     }
     const effect = target.animate(keyframes, {duration: 16, fill: "forwards"});
     effect.pause();
@@ -539,6 +546,7 @@ overflow:auto"><div style="height:400px">Pane</div></div>
       at = Math.min(16, at + step);
       effect.currentTime = at;
       if (motion === "scrolling") pane.scrollTop += 4;
+      if (motion === "anchored") spacer.style.height = `${10 + at}px`;
       requestAnimationFrame(at < 16 ? next : done);
     };
     requestAnimationFrame(next);
@@ -558,6 +566,7 @@ overflow:auto"><div style="height:400px">Pane</div></div>
         ("slides", 0.5, "p#below"),
         ("arrives", 0.5, "p#late"),
         ("scrolling", 0.5, "p#below"),
+        ("anchored", 0.5, "button#fixed"),
         ("press", 0.5, None),
     ],
 )
@@ -567,7 +576,8 @@ def test_motion_without_input_fails_at_any_frame_rate(browser, motion, step, mov
     the 3 px a frame Chrome reports as a layout shift, and less than a pixel, so the
     watch judges how far they have moved since the motion began rather than each
     frame's step, words that arrive while other motion goes on included, and words
-    beside a box that scrolls meanwhile. It reads transforms too, which Chrome never
+    beside a box that scrolls meanwhile, or a button fixed to the window while scroll
+    anchoring moves the page under it. It reads transforms too, which Chrome never
     reports. The same growth begun by a press is
     credited across every one of its frames."""
     page = browser.new_page()

@@ -4022,8 +4022,9 @@
     const { from, permitted, arrived } = run;
     // Whether a scroll may have moved the node this frame: a box holding it changed its
     // scroll offset (the header's "Runs of motion"). Each box is asked on its own,
-    // since scrolls opposite ways cancel in a sum, and a fixed box doesn't end the
-    // walk, since a transformed box holding one carries it as the page scrolls.
+    // since scrolls opposite ways cancel in a sum. The walk ends at a box fixed to the
+    // window, which no scroll carries; one fixed inside a transformed box names that box
+    // as its offset parent, and goes with it.
     const shifted = new Set(
       scrollers.filter((box) => {
         const was = scrollAt(box, before.at),
@@ -4035,12 +4036,12 @@
       }),
     );
     const scrolls = (node) => {
-      for (
-        let box = shifted.size ? paintAt(node, after.at)?.parent : null;
-        box instanceof Element;
-        box = paintAt(box, after.at)?.parent
-      )
+      for (let box = shifted.size ? node : null; box;) {
+        const paint = paintAt(box, after.at);
+        if (paint?.position === "fixed" && !paint.block) return false;
+        box = paint?.parent;
         if (shifted.has(box)) return true;
+      }
       return false;
     };
     // A node first read during the run, read again after it left the page, or moved by

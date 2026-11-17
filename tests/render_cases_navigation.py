@@ -879,9 +879,7 @@ FIRST_PRESENTATION = """
   };
   requestAnimationFrame(sample);
 """
-_CARD = (
-    '<lf-card id="card-x" label="Guard the session delete">One line.</lf-card>'
-)
+_CARD = '<lf-card id="card-x" label="Guard the session delete">One line.</lf-card>'
 
 
 def _card_done(html):

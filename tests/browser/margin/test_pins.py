@@ -334,8 +334,7 @@ def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
     every pin where it stood and under none of them. Read as cover, a shown key would
     move each pin beside the options a few pixels whenever focus entered or left them."""
     options = "".join(
-        f'<lf-option id="c-{n}" label="Option {n}">what choosing it does.'
-        "</lf-option>"
+        f'<lf-option id="c-{n}" label="Option {n}">what choosing it does.</lf-option>'
         for n in range(1, 5)
     )
     body = f'<section id="q" role="group" aria-labelledby="q-h"><h2 id="q-h">Which way?</h2><lf-options id="c">{options}</lf-options></section>'
@@ -922,8 +921,7 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
     grow and carry it level with a button the other column holds where it was."""
     lines = "".join(f'<p id="line-{n}" style="margin:0">Line {n}.</p>' for n in (1, 2))
     options = "".join(
-        f'<lf-option id="o-{i}" label="Option {i}">a short description.'
-        "</lf-option>"
+        f'<lf-option id="o-{i}" label="Option {i}">a short description.</lf-option>'
         for i in (1, 2, 3)
     )
     # A pane whose words reach its right edge only once it is scrolled to its foot, and

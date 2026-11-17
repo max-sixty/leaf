@@ -428,8 +428,7 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
         return (
             f'<lf-column id="b{b}-{name}" label="{name.title()}">'
             + "".join(
-                f'<lf-card id="b{b}-{name}{j}" label="Card {j}">of board {b}.'
-                "</lf-card>"
+                f'<lf-card id="b{b}-{name}{j}" label="Card {j}">of board {b}.</lf-card>'
                 for j in range(1, count + 1)
             )
             + "</lf-column>"

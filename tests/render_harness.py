@@ -507,9 +507,7 @@ SAMPLE_MARKUP = """<section id="rp-live-decision" role="group" aria-labelledby="
 
 # Two decisions for a user to take and a later version to honor, carry, or
 # contradict: a pick and a move.
-IMPORTER_CARD = (
-    '<lf-card id="card-importer" label="Wire the importer"></lf-card>'
-)
+IMPORTER_CARD = '<lf-card id="card-importer" label="Wire the importer"></lf-card>'
 REPLAYED_PAGE = leaf_page(
     "replayed",
     f"""

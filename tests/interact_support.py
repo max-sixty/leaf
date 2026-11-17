@@ -1195,7 +1195,7 @@ def _board(todo, done):
     """A two-column board, each column given its cards as (id, attrs, title)."""
 
     def card(c):
-        return f'<lf-card id="{c[0]}" label="{c[2]}"{c[1]}></lf-card>'
+        return f'<lf-card id="{c[0]}" label="{c[2]}"{c[1]}><strong>{c[2]}</strong></lf-card>'
 
     return (
         '<lf-board id="b1">'

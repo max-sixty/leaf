@@ -134,7 +134,7 @@ variants:
           <p>A live sample's frame delegates no clipboard permission, so a message's Copy
           inside a sample falls back to selectable text.</p>
           <lf-options id="sample-clipboard">
-            <lf-option id="sample-clipboard-keep" label="Keep it as it is">Copy in a
+            <lf-option id="sample-clipboard-keep" label="Keep it as it is"><strong>Keep it as it is</strong> Copy in a
             sample stays selectable text.</lf-option>
             <lf-option id="sample-clipboard-allow" label="Delegate clipboard-write"><strong>Delegate clipboard-write</strong> Copy
             works in samples, and so does any sample script's write.</lf-option>

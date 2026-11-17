@@ -1834,7 +1834,8 @@ def test_message_widget_thread_references_use_the_same_namespace(page_dir):
     registry["lf-options"]["attributes"]["properties"]["resolves"] = {"type": "string"}
     markup = (
         '<lf-options id="answer" resolves="plan">'
-        '<lf-option id="approve" label="Approve"></lf-option></lf-options>'
+        '<lf-option id="approve" label="Approve"><strong>Approve</strong></lf-option>'
+        "</lf-options>"
     )
     page = structure_model.SourceDocument(PAGE)
 

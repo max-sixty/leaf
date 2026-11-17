@@ -60,7 +60,7 @@ ACROSS_OBLIGATION = """
     <lf-options id="{id}-choice"{across}{width}>
       <lf-option id="{id}-7" label="7 days"><strong>7 days</strong> The cheapest.
         <lf-options id="{id}-nested">
-          <lf-option id="{id}-hot" label="Hot only">Drop warm at once.</lf-option>
+          <lf-option id="{id}-hot" label="Hot only"><strong>Hot only</strong> Drop warm at once.</lf-option>
           <lf-option id="{id}-both" label="Both tiers"><strong>Both tiers</strong> Keep warm a week.</lf-option>
         </lf-options>
       </lf-option>

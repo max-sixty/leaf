@@ -1457,7 +1457,7 @@ customElements.define("lf-outer-board", class extends LeafElement {
 <h1 id="h">Nested owners</h1>
 <lf-outer-board id="outer">
   <lf-column id="outer-todo" label="Todo"><lf-card id="outer-card" label="Outer">    <strong>Outer</strong> <lf-board id="inner"><lf-column id="inner-todo" label="Todo">
-      <lf-card id="inner-card" label="Inner"></lf-card></lf-column>
+      <lf-card id="inner-card" label="Inner"><strong>Inner</strong></lf-card></lf-column>
       <lf-column id="inner-done" label="Done"></lf-column></lf-board>
   </lf-card></lf-column><lf-column id="outer-done" label="Done"></lf-column>
 </lf-outer-board>""",

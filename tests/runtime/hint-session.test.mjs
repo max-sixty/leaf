@@ -336,7 +336,7 @@ test("a map armed while the page is in flight shows nothing until the scroll set
   );
 });
 
-test("a layout move reads the scene again and keeps the heard hint where it still stands", (t) => {
+test("a resize reads the scene again and keeps the heard hint where it still stands", (t) => {
   const map = hintMap(t, ["one", "two"]);
   map.session.arm();
   map.tab();
@@ -344,7 +344,7 @@ test("a layout move reads the scene again and keeps the heard hint where it stil
   assert.equal(map.current(), "a");
 
   map.show(["one", "two", "three"]);
-  map.session.moved();
+  window.dispatchEvent(new Event("resize"));
   map.session.paint();
   assert.deepEqual(map.shown(), ["a", "s", "d"]);
   assert.equal(map.current(), "a");
@@ -436,15 +436,23 @@ test("a re-read that empties or refills a filtered map repaints the keys", async
   assert.deepEqual(map.shown(), ["s"]);
 });
 
-test("a target a layout moves is seated again where it now stands", (t) => {
-  const map = hintMap(t, ["one", "two"]);
+// A revision or an opening disclosure moves the page under an armed map with no scroll:
+// each chip rides its target by its anchor, and the letters the user has read stay.
+test("a page that moves under the map keeps every letter and the walk", (t) => {
+  const map = hintMap(t, ["one", "two", "three"]);
   map.session.arm();
   map.session.paint();
-  const stood = map.seat("s").style.cssText;
-  map.move("two", 100);
-  map.session.moved();
+  map.tab();
+  map.tab();
   map.session.paint();
-  assert.notEqual(map.seat("s").style.cssText, stood);
+  assert.equal(map.current(), "s");
+  map.move("one", 100);
+  map.show(["new", "one", "two", "three"]);
+  map.session.paint();
+  assert.deepEqual(map.shown(), ["a", "s", "d"]);
+  assert.equal(map.current(), "s");
+  map.tab();
+  assert.equal(map.heard(), "Hint d: Link, three. Press Enter to go there.");
 });
 
 test("a walk redraws the chips it moves between and reads no target's box", (t) => {
@@ -460,16 +468,21 @@ test("a walk redraws the chips it moves between and reads no target's box", (t) 
   assert.equal(map.boxReads(), reads);
 });
 
-test("a heard target the chrome comes to cover retires the walk", (t) => {
+test("chrome that comes to cover a target keeps every letter and the walk", (t) => {
   const map = hintMap(t, ["one", "two"]);
   map.session.arm();
   map.session.paint();
   map.tab();
   map.session.paint();
   assert.equal(map.current(), "a");
-  map.cover(["one"]);
+  map.cover(["two"]);
   map.session.paint();
-  assert.deepEqual(map.shown(), ["a"]);
-  assert.equal(map.current(), null);
-  assert.equal(map.canChoose(), false);
+  assert.deepEqual(
+    map.session.candidates().map(({ name, code }) => [name, code]),
+    [
+      ["one", "a"],
+      ["two", "s"],
+    ],
+  );
+  assert.equal(map.current(), "a");
 });

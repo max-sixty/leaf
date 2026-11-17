@@ -328,10 +328,6 @@ async function boot() {
     pointerModeActive: () => drawing.drawModeActive() || regionCapture.active(),
     targetPaint: { clearAim, geometryChanged, labelAim, paintAim, shifted },
     shiftDrawings: drawingPaint.shifted,
-    shiftHints: () => {
-      targets.targetPickerMoved();
-      goToSequence.goToMoved();
-    },
     queueLegend: designMode.queueLegend,
     legendScrolled: designMode.legendScrolled,
     activeActionAnchor: () => responseSurface.fabAnchorAt(),

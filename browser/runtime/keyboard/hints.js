@@ -554,11 +554,13 @@ export function seatHints(
    first (`seatHints`, `browsed`). A paint between readings measures nothing, and Lit
    writes only the faces that changed, so a Tab writes the two chips it moves between
    however many the map holds. The map is read and seated again once a scroll settles,
-   when the page's layout moves or the window resizes (`moved`, which page-geometry.js's
-   `pageShifted` calls), when the chrome comes to cover other boxes, when a member
-   leaves the document, and when the caller invalidates it. Until 16 November 2026 each
-   paint measured every member again to notice a move, with a hit test per chip, and
-   so each Tab cost what the map held.
+   on a resize, when a member leaves the document, and when the caller invalidates it;
+   chrome that comes to stand elsewhere seats the chips again around it, their letters
+   kept. Between readings a chip rides its target by its anchor (chip-seats.js), so a
+   page that moves under the map, as a revision or an opening disclosure does, moves
+   the chips with what they name and changes no letter the user has read. Rejected:
+   measuring every member again on each paint to notice a move, a hit test per chip,
+   which made each Tab cost what the map held.
 
    `chrome.barriers` reads the fixed furniture the placement pass must keep clear.
    A map stands through a scroll once it has stood still long enough to be read: its
@@ -699,14 +701,6 @@ export function createHintSession({
   function invalidate() {
     prefix = "";
     at = -1;
-    stale = true;
-    repaint();
-  }
-
-  // The page's layout has moved, as a resize or content landing moves it: the frame that
-  // paints at rest reads the scene again, keeping the walk on the target it had heard.
-  function moved() {
-    if (!armed) return;
     stale = true;
     repaint();
   }
@@ -883,13 +877,10 @@ export function createHintSession({
     const wasWalking = at >= 0;
     const emptyBefore = mapped.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
-    // Chrome that has come to stand elsewhere covers other boxes than the reading saw.
     const barriers = chrome.barriers();
-    const covered = seating !== null && !sameBoxes(barriers, seating.barriers);
     // Only at rest and with no letters typed: a partly typed code freezes the map until
     // the user completes or backs out of that prefix.
-    if (!moving && !prefix && (stale || covered || detached || !candidates.length))
-      readAgain();
+    if (!moving && !prefix && (stale || detached || !candidates.length)) readAgain();
     const plans = layout(candidates, { current: hinted()[at] });
     // A scroll holds the seats, and so does every paint while they stand, the map the
     // user has read keeping its faces up to date in them as they type or walk it.
@@ -909,8 +900,15 @@ export function createHintSession({
   function mount() {
     document.addEventListener("lf-keyboard-preference", invalidate);
     watchScrollEnds(() => {
-      moved();
-      if (armed) scrollDrawn()?.then(repaint);
+      if (!armed) return;
+      stale = true;
+      repaint();
+      scrollDrawn()?.then(repaint);
+    });
+    addEventListener("resize", () => {
+      if (!armed) return;
+      stale = true;
+      repaint();
     });
   }
 
@@ -922,7 +920,6 @@ export function createHintSession({
     disarm,
     invalidate,
     mount,
-    moved,
     narrow,
     paint,
     prefix: () => prefix,

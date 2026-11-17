@@ -723,8 +723,6 @@ export function createGoToSequence({
     formatGoToAddress,
     setGoToSequence,
     paintGoToHints: hints.paint,
-    // The page's layout has moved under the map (page-geometry.js, `pageShifted`).
-    goToMoved: hints.moved,
     goToSequenceActive,
     mountGoToSequence: hints.mount,
   };

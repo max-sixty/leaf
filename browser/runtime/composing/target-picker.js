@@ -1052,8 +1052,6 @@ export function createTargetPicker({
     // The map, not the mode: a direct slash opens the mode for search alone.
     choosing: () => hints.armed() && !pageSearchOpen(),
     paintTargetPickerHints,
-    // The page's layout has moved under the map (page-geometry.js, `pageShifted`).
-    targetPickerMoved: hints.moved,
     targetPickerOpen,
     openTargetPicker,
     closeTargetPicker,

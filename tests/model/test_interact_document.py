@@ -1655,7 +1655,7 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
   <footer><p>Finish</p></footer>"""
     version.write_text(
         PAGE.replace("<main>", '<main class="layout-workspace">').replace(
-            PAGE[PAGE.index('<section id="plan">') : PAGE.index("</main>")], regions
+            PAGE[PAGE.index('<section id="plan"') : PAGE.index("</main>")], regions
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
@@ -2106,8 +2106,9 @@ def test_check_accepts_authored_body_content_beside_main(page_dir):
         "</main>",
         '</main><footer id="footer">Footer words</footer>Authored tail'
         '<aside id="aside">Aside words</aside>'
+        '<section id="tail-q" role="group" aria-label="Which tail?">'
         '<lf-options id="tail-choice"><lf-option id="tail">A sibling option</lf-option>'
-        "</lf-options>",
+        "</lf-options></section>",
     )
     (page_dir / "index.html").write_text(source)
 
@@ -2173,8 +2174,8 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
     has a thread to move; the version has to be refused before it goes out."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '<section id="plan">',
-            '<section id="plan"><svg viewBox="0 0 10 10">'
+            '<section id="plan" role="group" aria-label="Plan">',
+            '<section id="plan" role="group" aria-label="Plan"><svg viewBox="0 0 10 10">'
             '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
         )
     )
@@ -2212,7 +2213,6 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
         )
 
     for name, widget in (
-        ("g1-decision", "g1-decision"),
         ("g1", "g1"),
         (pick["id"], "g1"),
     ):
@@ -2233,12 +2233,12 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread",
             "create",
             "--text",
-            'Which store?\n\n<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store">'
+            'Which store?\n\n<section id="t-ask" role="group" aria-labelledby="t-ask-h">\n<h3 id="t-ask-h">Store?</h3><lf-options id="t-store">'
             '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></section>",
         ).output.splitlines()
     ]
-    [renamed] = json.loads(run("thread", "edit", "t-ask", "--title", "Store").output)[
+    [renamed] = json.loads(run("thread", "edit", "t-store", "--title", "Store").output)[
         "records"
     ]
     picked = append_command(
@@ -2255,12 +2255,12 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     undone = append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": picked["id"]}
     )
-    for name in ("t-ask", opened["id"], renamed["id"], picked["id"], undone["id"]):
+    for name in ("t-store", opened["id"], renamed["id"], picked["id"], undone["id"]):
         read = run("page", "state", name)
         assert read.exit_code == 0, read.output
         assert json.loads(read.output)["thread"]["id"] == opened["id"]
     promised = run(
-        "thread", "reply", "t-ask", "--text", "Weighing it.", "--todo", "Weigh"
+        "thread", "reply", "t-store", "--text", "Weighing it.", "--todo", "Weigh"
     )
     assert promised.exit_code == 0, promised.output
     [task] = json.loads(run("page", "state").output)["todos"]
@@ -2274,7 +2274,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     assert refused_on(not_a_thread.stdout).code == "widget-not-thread"
     [closed] = [
         json.loads(line)
-        for line in run("thread", "resolve", "t-ask").output.splitlines()
+        for line in run("thread", "resolve", "t-store").output.splitlines()
     ]
     assert (closed["kind"], closed["parent"]) == ("resolve", opened["id"])
 
@@ -3062,9 +3062,9 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
       <lf-option id="o-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
     </lf-options>"""
     item = (
-        '<lf-ask id="plan-decision"><h2>Plan</h2>'
+        '<section id="plan-decision"><h2>Plan</h2>'
         "<p>Choose after reading this framing.</p>"
-        f"{opts}</lf-ask>"
+        f"{opts}</section>"
     )
     (page_dir / "index.html").write_text(PAGE.replace("<h2>Plan</h2>", item))
     publish(page_dir)
@@ -3356,11 +3356,11 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Which mitigations?\n\n<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
+            "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h">\n<h2 id="gm-decision-h">Which mitigations?</h2>'
             '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></section>",
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -3411,18 +3411,18 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-test-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-test-task>
       <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
       <lf-test-task id="future" status="active"><strong>Future review</strong>
-        <lf-ask id="future-decision"><h3>Review it now?</h3>
+        <section id="future-decision" role="group" aria-labelledby="future-decision-h"><h3 id="future-decision-h">Review it now?</h3>
           <lf-options id="future-review">
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
       </lf-test-task>
       <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
-        <lf-ask id="decision-decision"><h3>Which way out?</h3>
+        <section id="decision-decision" role="group" aria-labelledby="decision-decision-h"><h3 id="decision-decision-h">Which way out?</h3>
           <lf-options id="decision-options">
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
       </lf-test-task>
       <lf-test-task id="release" status="review"><strong>Release review</strong>
         <lf-test-task id="release-build" status="done"><strong>Build release</strong></lf-test-task>
@@ -3597,9 +3597,9 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
         '<lf-sample id="sample"><lf-options id="example">'
         '<lf-option id="example-a"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-sample>"
-        '<lf-ask id="real-decision"><h3>What next?</h3>'
+        '<section id="real-decision" role="group" aria-labelledby="real-decision-h"><h3 id="real-decision-h">What next?</h3>'
         '<lf-options id="real"><lf-option id="real-a">A</lf-option>'
-        '<lf-option id="real-b">B</lf-option></lf-options></lf-ask>'
+        '<lf-option id="real-b">B</lf-option></lf-options></section>'
         "</lf-test-task></lf-test-plan>"
     )
     (page_dir / "index.html").write_text(
@@ -3623,10 +3623,10 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
     for nothing, and the pick wakes no agent."""
     markup = (
         '<lf-sample id="practice" interactive>'
-        '<lf-ask id="practice-ask"><h3>Which queue policy?</h3>'
+        '<section id="practice-ask" role="group" aria-labelledby="practice-ask-h"><h3 id="practice-ask-h">Which queue policy?</h3>'
         '<lf-options id="practice-policy">'
         '<lf-option id="practice-a">A</lf-option>'
-        '<lf-option id="practice-b">B</lf-option></lf-options></lf-ask>'
+        '<lf-option id="practice-b">B</lf-option></lf-options></section>'
         "</lf-sample>"
     )
     (page_dir / "index.html").write_text(
@@ -4296,7 +4296,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
     }
     with_modules(registry, "lf-draft")
     page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
-    frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
+    frozen = '<lf-draft id="frozen-draft">\n<pre>Frozen authored.</pre></lf-draft>'
 
     def action(identity, text, seq):
         return {
@@ -4456,9 +4456,13 @@ def test_message_html_lands_where_the_browser_draws_it(case):
     whose HTML changes what it draws holds HTML."""
     import turbohtml
 
+    # A <br> parts the words around it, as Leaf reads them (markdown.js,
+    # `renderedWords`), whatever formatting text each parser writes after it.
     def words(node):
         if isinstance(node, turbohtml.Text):
             return node.data
+        if getattr(node, "tag", None) == "br":
+            return "\n"
         return "".join(map(words, getattr(node, "children", ())))
 
     def elements(node):

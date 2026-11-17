@@ -369,19 +369,6 @@ def _bearing(at: str, v: dict, value: str) -> str:
     return _line(f"{at[:-1]} {v['attr']}={value}>", v)
 
 
-def _conditions(lacks: dict) -> str:
-    """The `awaits.when` conditions a widget never met (`instances.unasked`)."""
-    return " and ".join(
-        " or ".join(
-            f"`{attr}` is {'set' if value else 'unset'}"
-            if isinstance(value, bool)
-            else f"{attr}={_json(value)}"
-            for value in values
-        )
-        for attr, values in lacks.items()
-    )
-
-
 def _seat(seat: dict) -> str:
     return (
         f"{seat['document']} <{seat['tag']}> input `{seat['input']}`"
@@ -404,19 +391,6 @@ def _reference_contract(at: str, v: dict) -> str:
     return (
         f'{_line(at, v)}: {v["attr"]}="{v["target"]}" must name a {v["via"]} widget'
         f" where {expected}; {actual}"
-    )
-
-
-def _empty_question(at: str, v: dict) -> str:
-    widgets = "; ".join(
-        f"{_line(w['at'], w)} asks only where {_conditions(w['lacks'])}"
-        for w in v["widgets"]
-    )
-    return f"{_line(at, v)}: asks the user nothing, " + (
-        f"since {widgets}"
-        if widgets
-        else "since it holds no widget that asks (one declaring `awaits`); add one,"
-        " or ask a question answered in words in a thread message with --obligation"
     )
 
 
@@ -898,6 +872,12 @@ _TEXT = {
         f"{at[:-1]}/> at line {v['line']} is self-closing: HTML ignores the slash and"
         f" the element would swallow what follows — write {at[:-1]} …></{at[1:-1]}>"
     ),
+    "split-pre": lambda at, v: (
+        f"{at} holds a <{v['block']}> at line {v['line']}: a blank line inside a block"
+        " of HTML ends the block, and Markdown read the lines after it as Markdown."
+        " Start the <pre> on its own line after a blank line, or write its text in a"
+        " Markdown fence"
+    ),
     "noscript": lambda at, v: (
         f"{at} at line {v['line']}: the browser renders none of its content; write it"
         " plainly or leave it out"
@@ -1028,10 +1008,20 @@ _TEXT = {
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
-    "empty-question": _empty_question,
-    "untitled-question": lambda at, v: (
-        f"{_line(at, v)}: this enclosing widget needs a heading to title its obligations,"
-        " leading its content alone or in an <hgroup> or <header>"
+    "unframed-question": lambda at, v: (
+        f"{_line(at, v)}: asks the user, but "
+        + (
+            f"the group holding it, {v['group']}, has no name; give it aria-labelledby"
+            " naming the heading that asks the question"
+            if v["group"]
+            else "no named group holds its question; write the question, its heading,"
+            ' premise and this widget, as <section id="…" role="group"'
+            ' aria-labelledby="…">, naming the heading by its id'
+        )
+    ),
+    "question-group-id": lambda at, v: (
+        f"{_line(at, v)}: the group holding {v['widget']}'s question needs an id, the"
+        " place the question stands"
     ),
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
@@ -1116,10 +1106,6 @@ _TEXT = {
     "message-stylesheet": lambda at, v: (
         "<link rel=stylesheet> in message markup dresses the whole document it is put"
         " into; the page serves the one theme its layer composes"
-    ),
-    "widget-in-paragraph": lambda at, v: (
-        f"{at} follows words on its line, so the message's Markdown reads the line as"
-        " a paragraph around it; start it on a line of its own"
     ),
     "sample-loop": lambda at, v: (
         f"sample {_json(v['samples'])} selects thread {v['thread']!r}, which"
@@ -1303,10 +1289,6 @@ _TEXT = {
             f"`{v['key']}` instances are addressable, so the element declaration"
             " must declare a string `id` attribute"
         )
-    ),
-    "enclosing-id": _declared(lambda v: "`encloses` must require an id"),
-    "enclosing-prose": _declared(
-        lambda v: "`encloses` must admit prose around the obligations it frames"
     ),
     "data-contract": _declared(
         lambda v: (

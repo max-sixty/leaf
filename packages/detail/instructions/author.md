@@ -16,8 +16,8 @@ Which passages carry that is your judgment, made for this page and its reader. W
 - Early material often carries more weight, so the gists may lean toward the first
   sections, and toward the start of each, without being every section's first
   paragraph.
-- A question the reader owes an answer, such as an `lf-ask`, must not be missed: mark
-  it `.gist`.
+- A question the reader owes an answer, such as the section holding an `lf-options`,
+  must not be missed: mark it `.gist`.
 - A section can contribute nothing to a quick pass, such as the method or a timeline
   the argument has already summarized. Give it no gist: a heading stays at Skim only
   when a lede or gist follows it before the next heading of its rank or above, so Skim

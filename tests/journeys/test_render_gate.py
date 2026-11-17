@@ -1126,12 +1126,12 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         ),
         "r-paint": '<lf-paint id="sent"></lf-paint>',
         "r-list": (
-            '<lf-ask id="an-set-decision"><h3>What should I carry into the patch?</h3>'
+            '<section id="an-set-decision" role="group" aria-labelledby="an-set-decision-h"><h3 id="an-set-decision-h">What should I carry into the patch?</h3>'
             '<lf-options id="an-set" multiple>'
             '<lf-option id="an-chase">Chase them monthly</lf-option>'
             '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
             '<lf-option id="an-say">Say what the spinner is</lf-option>'
-            "</lf-options></lf-ask>"
+            "</lf-options></section>"
         ),
     }
     for reply, markup in replies.items():
@@ -1297,14 +1297,14 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
         cut = page.index(start)
         return page[:cut] + page[page.index(end, cut) + len(end) :]
 
-    option = INLINE_PAGE[INLINE_PAGE.index("<lf-ask") :]
-    option = option[: option.index("</lf-ask>") + len("</lf-ask>")]
+    option = INLINE_PAGE[INLINE_PAGE.index('<section id="opts-decision"') :]
+    option = option[: option.index("</section>") + len("</section>")]
     # The question the granted figure holds takes its words off the column, which the
     # gate rightly advises against (`words-off-column`); the figure's table stays.
     framed = without(
         tables(FRAMED_TABLES_PAGE, '<table id="bare">'),
-        '<lf-ask id="figure-asked">',
-        "</lf-ask>",
+        '<section id="figure-asked"',
+        "</section>",
     )
     page = AUTHORED_LINES_PAGE.replace(
         "</main>",
@@ -1490,10 +1490,10 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 <p id="mid-spill">{"A line that wraps at both viewports and runs on unbroken between them. " * 4}</p>
 <div id="strip"><button>Summary</button><button>Release scope</button>
 <button>Owner handoff</button></div>
-<div id="card"><lf-ask id="go-decision"><h2>Ship it?</h2>
+<div id="card"><section id="go-decision" role="group" aria-labelledby="go-decision-h"><h2 id="go-decision-h">Ship it?</h2>
 <p>The release passed its checks.</p><lf-options id="go">
 <lf-option id="go-yes"><strong>Yes</strong></lf-option>
-</lf-options></lf-ask></div>
+</lf-options></section></div>
 """,
         head="""<style>
 #tracks { display: grid; grid-template-columns: 1fr 1fr; gap: var(--lf-sp-4); }

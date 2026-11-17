@@ -589,11 +589,11 @@ PAGE = f"""<!doctype html>
 </head>
 <body>
 <main>
-<section id="plan">
+<section id="plan" role="group" aria-label="Plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
-  <div id="plan-choice-decision">
-    <h3>Which plan should lead?</h3>
+  <div id="plan-choice-decision" role="group" aria-labelledby="plan-choice-question">
+    <h3 id="plan-choice-question">Which plan should lead?</h3>
     {PAGE_GROUP}
       <lf-option id="flag-first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
         <strong>Flag first</strong> Ship dark.
@@ -608,6 +608,9 @@ PAGE = f"""<!doctype html>
 </body>
 </html>
 """
+# PAGE's Plan section is a named group, so a widget a test writes there asks the Plan
+# question (`obligations.framed_widgets`); a test opening the section matches this.
+PLAN_OPENING = '<section id="plan" role="group" aria-label="Plan">'
 # PAGE places no widget whose module only a browser can judge, so `page check` on it
 # and on the versions built from it never starts one (`needs_browser`). A test about a
 # data widget's body, its visual parts, or the section one supplies starts from
@@ -1112,7 +1115,7 @@ SUGGESTION = """<lf-suggestion id="sug-refill">
 
 def before_choice(page, markup):
     """Insert a fixture before the base page's titled choice."""
-    start = '<div id="plan-choice-decision">'
+    start = '<div id="plan-choice-decision" role="group" aria-labelledby="plan-choice-question">'
     return page.replace(start, markup + start)
 
 
@@ -1201,13 +1204,13 @@ def _board(todo, done):
 
 X = ("card-x", "", "Guard the delete")
 Y = ("card-y", "", "Wire the importer")
-OPTIONS = """<lf-ask id="g1-decision">
-  <h3>Which migration should lead?</h3>
+OPTIONS = """<section id="g1-decision" role="group" aria-labelledby="g1-decision-h">
+  <h3 id="g1-decision-h">Which migration should lead?</h3>
   <lf-options id="g1">
     <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
     <lf-option id="o-stage"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
-</lf-ask>"""
+</section>"""
 
 
 def thread_records(page_dir, name: str) -> list[str]:
@@ -2993,11 +2996,11 @@ def _codex_delivery(page_dir, text="Answer this"):
 # A page whose suggestion answers c1, which is the one shipped shape where the
 # gesture that settles a thread is made on a widget standing outside it.
 SETTLING_PAGE = PAGE.replace(
-    '<div id="plan-choice-decision">',
+    '<div id="plan-choice-decision" role="group" aria-labelledby="plan-choice-question">',
     '<lf-suggestion id="sug-refill" resolves="c1">\n'
     "  <lf-old><p>The manual sightings log.</p></lf-old>\n"
     "  <lf-new><p>Switch the north feeder to thistle.</p></lf-new>\n"
-    '</lf-suggestion>\n<div id="plan-choice-decision">',
+    '</lf-suggestion>\n<div id="plan-choice-decision" role="group" aria-labelledby="plan-choice-question">',
 )
 
 

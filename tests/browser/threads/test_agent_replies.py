@@ -288,10 +288,10 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         serve.page_dir,
         {"responds": root},
         "The complete answer.\n\n"
-        '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
+        '<section id="stream-reply-ask" role="group" aria-labelledby="stream-reply-ask-h">\n<h3 id="stream-reply-ask-h">Use this answer?</h3>'
         '<lf-options id="stream-reply-choice">'
         '<lf-option id="stream-reply-now">Use it now</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )

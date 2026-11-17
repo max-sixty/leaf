@@ -599,8 +599,8 @@ function createApplication(dependencies) {
       throw error;
     }
   };
-  // The widgets with `threadOutlets`, registered for as long as they stand, once
-  // the registry that names them has loaded.
+  // The widgets whose element has `threadOutlets` (thread/surfaces.js), registered
+  // for as long as they stand.
   const watchThreadSurfaces = () => watchSurfaces(threadSurfaceCommands);
   /** @type {(...args: [Parameters<typeof registerPageConsumer>[0], Parameters<typeof registerPageConsumer>[1]]) => ReturnType<typeof registerPageConsumer>} */
   const placePageThreads = (owner, render) => {

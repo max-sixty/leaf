@@ -2,9 +2,9 @@
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
-A widget source owns identity; an enclosing widget (`encloses`) contributes only
-prompt words and arrival. A `records` declaration expands a widget's bound external
-input using its data contract's record list and key. Each record owns the stable
+A widget source owns identity; the group the author declares round it contributes
+only prompt words and arrival (`framed_widgets`). A `records` declaration expands a
+widget's bound external input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
@@ -69,7 +69,7 @@ from leaf.events import (
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.gesture_words import element_name
+from leaf.gesture_words import element_name, group_name
 from leaf.page_memory import Slot
 from leaf.projection import (
     AuthoredOrders,
@@ -97,10 +97,44 @@ def local_obligation_entry(entry: dict) -> bool:
     return entry.get("awaits") is not None
 
 
-def encloses(entry: dict) -> bool:
-    """Whether this widget frames the obligations inside it (`encloses`): its leading
-    heading gives their prompt, and going to one of them lands on it."""
-    return bool(entry.get("encloses"))
+def _is_group(node: dict) -> bool:
+    """Whether the author declares `node` a group: `role="group"`, or a `<fieldset>`,
+    which is one natively."""
+    return (
+        node["tag"] == "fieldset"
+        or "group" in (node["attrs"].get("role") or "").split()
+    )
+
+
+def framed_widgets(content: list, registry: dict):
+    """Each widget in `content` that can ask, as its authoring node and its question:
+    the innermost element round it that the author declares a group (`_is_group`), or
+    None. The group's name (`gesture_words.group_name`) is the widget's prompt, and the
+    group is where the obligation stands and going to it starts while it holds no
+    other (`obligations/place.js` in the browser), so the group needs an id to be a
+    place, as `page check` requires. Python reads only the authored source, so a group
+    the runtime draws, such as a control's own, holds no question. A widget set among
+    words (`inline`), such as a suggestion, has none: its sentence and its own words
+    name it.
+
+    The author declares the question's region and name, and Leaf reads no heading to
+    find them: the user chose data the author writes over a reading of the page's
+    headings. Finding the section a heading opens round the widget is the alternative a
+    later change might reach for; it fails because it infers a region the author never
+    marked, so a section of prose round several questions would become their region.
+    A widget of Leaf's own round the question is the other; it fails because a group in
+    plain HTML already says what such a tag would."""
+
+    def walk(nodes: list, group: dict | None):
+        for node in nodes:
+            if isinstance(node, str):
+                continue
+            entry = registry.get(node["tag"]) or {}
+            if local_obligation_entry(entry):
+                yield node, None if entry.get("inline") else group
+            yield from walk(node["content"], node if _is_group(node) else group)
+
+    yield from walk(content, None)
 
 
 def question_ids(message: dict) -> list[str]:
@@ -413,10 +447,10 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
-    every obligation whose prompt target (its enclosing widget) is the innermost to
-    enclose it. So a note on one obligation's option, or on a part of a frame holding
-    one obligation, leaves its framed sibling out, while one on the frame's heading or on
-    a section holding the frame is about them all. `within` is the document's
+    every obligation whose prompt target (its group, `framed_widgets`) is the innermost
+    to enclose it. So a note on one obligation's option, or on a part of a group
+    holding one obligation, leaves its sibling in the group out, while one on the
+    group's name or on a section holding the group is about them all. `within` is the document's
     containment (`Passages.enclosing`). A datum identity narrows an owning widget's
     record obligations to the exact case being discussed.
 
@@ -638,8 +672,9 @@ class ObligationSources(NamedTuple):
 
     `asking` holds each declared widget, with whether it stands inside an exhibit
     (`shown_in`).
-    `nodes` maps each id to its authoring node, whose words name an obligation's
-    prompt.
+    `prompts` maps each one's id to its prompt: `text`, the words naming it, its group's
+    name (`framed_widgets`) or else its own, and `target`, the id of the element going
+    to it starts at, its group or else itself.
 
     These depend on the document and the vocabulary alone, and finding them is most
     of the cost of reading a page's obligations. A stored revision's reading
@@ -648,7 +683,7 @@ class ObligationSources(NamedTuple):
     the log decides."""
 
     asking: tuple[tuple[dict, bool], ...]
-    nodes: dict[str, dict]
+    prompts: dict[str, dict]
 
 
 def obligation_sources(source, registry: dict) -> ObligationSources:
@@ -658,26 +693,29 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
         list(source.fragments.values()) if hasattr(source, "fragments") else [source]
     )
 
-    def nodes(content):
-        for node in content:
-            if isinstance(node, dict):
-                yield node
-                yield from nodes(node["content"])
-
     declared = [
         record
         for document in documents
         for record in document.lf_elements
         if local_obligation_entry(registry.get(record["tag"]) or {})
     ]
-    return ObligationSources(
-        tuple((record, shown_in(record, registry)) for record in declared),
-        {
+    prompts = {}
+    for document in documents:
+        nodes = {
             node["attrs"]["id"]: node
-            for document in documents
-            for node in nodes(document.authoring.content)
+            for node in document.authoring.nodes
             if node["attrs"].get("id")
-        },
+        }
+        for node, group in framed_widgets(document.authoring.content, registry):
+            if not (identity := node["attrs"].get("id")):
+                continue
+            text = group_name(group, nodes) if group else ""
+            prompts[identity] = {
+                "text": text or element_name(node, registry),
+                "target": (group["attrs"].get("id") if group else None) or identity,
+            }
+    return ObligationSources(
+        tuple((record, shown_in(record, registry)) for record in declared), prompts
     )
 
 
@@ -705,7 +743,7 @@ class _ObligationReducer:
         self.revision = revision
         self.events = [] if events is None else events
         self.data = data or {"sources": {}}
-        self.nodes = sources.nodes
+        self.prompts = sources.prompts
         self.records = [record for record, _shown in sources.asking]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
@@ -728,10 +766,6 @@ class _ObligationReducer:
             self._declaration(record).get("when"),
         )
 
-    def _holder(self, record):
-        unit = record["attrs"].get("id")
-        return self.positioned_holders.get(unit, record.get("holder"))
-
     def _answered(self, record):
         return obligation_answered(
             record,
@@ -742,17 +776,6 @@ class _ObligationReducer:
             self.registry,
             self.positioned_holders,
         )
-
-    def _surface(self, record):
-        """The reading and arrival region the user is sent to for this source: the
-        nearest enclosing widget (`encloses`) holding it, or the source
-        itself."""
-        holder = self._holder(record)
-        while holder:
-            if encloses(self.registry.get(holder["tag"]) or {}):
-                return holder
-            holder = self._holder(holder)
-        return record
 
     def _record_inventory(self, record: dict) -> list[dict]:
         """One obligation per current bound record, identified independently of order.
@@ -826,7 +849,7 @@ class _ObligationReducer:
                     "message": None,
                     "prompt": {
                         "text": datum[records["label"]],
-                        "target": self._surface(record)["attrs"]["id"],
+                        "target": self.prompts[owner]["target"],
                     },
                     "answer": {
                         "value": value,
@@ -958,7 +981,6 @@ class _ObligationReducer:
             if record_units:
                 records.extend(self._record_inventory(record))
                 continue
-            surface = self._surface(record)
             entry = self._entry(record)
             status = (
                 "answered"
@@ -996,14 +1018,13 @@ class _ObligationReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
-            text = element_name(self.nodes[surface["attrs"]["id"]], self.registry)
             records.append(
                 {
                     "id": "widget:" + unit,
                     "source": {"kind": "widget", "id": unit, "tag": record["tag"]},
                     "thread": None,
                     "message": None,
-                    "prompt": {"text": text, "target": surface["attrs"]["id"]},
+                    "prompt": dict(self.prompts[unit]),
                     "answer": {"value": value, "event": event_reference(provenance)}
                     if has_content
                     else None,

@@ -471,8 +471,14 @@ leaf server start ./review</code></pre>
                   The importer receives bursts of records faster than it can process
                   them. Its queue has room for 1,000 records.
                 </p>
-                <lf-ask id="queue-question">
-                  <h3>When the queue fills, what should happen?</h3>
+                <section
+                  id="queue-question"
+                  role="group"
+                  aria-labelledby="queue-question-h"
+                >
+                  <h3 id="queue-question-h">
+                    When the queue fills, what should happen?
+                  </h3>
                   <lf-options id="queue-policy">
                     <lf-option id="block-producer"
                       ><strong>Pause the producer</strong> Keep every queued record;
@@ -483,7 +489,7 @@ leaf server start ./review</code></pre>
                       immediately; discard the oldest queued one.</lf-option
                     >
                   </lf-options>
-                </lf-ask>
+                </section>
                 <h3>Recorded actions</h3>
                 <lf-activity id="queue-activity"></lf-activity>
               </lf-sample>
@@ -509,10 +515,10 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                 A comment needs a thread reply. A widget that asks, any widget whose
                 registry entry declares <code>awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
-                answer, and lifecycle; an optional <code>lf-ask</code> supplies its
-                heading as the prompt. The widget owns the value, and the agent records
-                the decision in a stamped revision. The browser fetches the revised HTML
-                and state.
+                answer, and lifecycle; the group the author names around it, with
+                <code>role="group"</code> and <code>aria-labelledby</code>, supplies the
+                prompt. The widget owns the value, and the agent records the decision in
+                a stamped revision. The browser fetches the revised HTML and state.
               </p>
               <details id="decision-example">
                 <summary>Example: answer a page choice</summary>
@@ -1252,11 +1258,12 @@ flowchart TD
                 step the user took that didn't work. The fork writes the message as the
                 agent's guidance has the agent write one. Where the agent left answers
                 the user picks among, or an action it takes once the user agrees, such
-                as merging a pull request, the message holds a choice of them. A step
-                only the user can take, such as trying a build, says what to do, and
-                asks for a reply only for what the user alone can report or the agent's
-                next step waits on. Leaf skips an ask whose title a question the agent
-                asked already has.
+                as merging a pull request, the message usually holds a choice of them. A
+                step only the user can take, such as trying a build, says what to do,
+                and asks for the user's answer only for what they alone can report or
+                the agent's next step waits on, usually as a choice where its answers
+                can be listed, such as installed or failed. Leaf skips an ask whose
+                title a question the agent asked already has.
               </p>
               <p id="fork-writes">
                 Leaf posts each remaining ask as the agent's message, as the agent's
@@ -1474,8 +1481,7 @@ flowchart TD
                   <td>Obligation</td>
                   <td>
                     An input or answer owed by the user or agent. It holds its source,
-                    typed answer, next actor, and status: open, answered, answered
-                    elsewhere or withdrawn.
+                    typed answer, next actor, and status: open, answered or withdrawn.
                   </td>
                   <td>
                     <code>widget:</code>, <code>message:</code> or <code>update:</code>,
@@ -1868,8 +1874,8 @@ flowchart TD
               The three undos return the choices to their starting state.
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
-              <lf-ask id="ship-ask">
-                <h2>When should this ship?</h2>
+              <section id="ship-ask" role="group" aria-labelledby="ship-ask-h">
+                <h2 id="ship-ask-h">When should this ship?</h2>
                 <lf-options id="ship">
                   <lf-option id="ship-now"
                     ><strong>Now</strong> Today, behind the flag.</lf-option
@@ -1878,7 +1884,7 @@ flowchart TD
                     ><strong>Later</strong> Next week, after the load test.</lf-option
                   >
                 </lf-options>
-              </lf-ask>
+              </section>
               <lf-activity id="sample-feed"></lf-activity>
             </lf-sample>
           </section>
@@ -2284,8 +2290,14 @@ flowchart TD
               label="Permission for a sample report"
               interactive
             >
-              <lf-ask id="sample-publish-report-decision">
-                <h2>Publish the sample report?</h2>
+              <section
+                id="sample-publish-report-decision"
+                role="group"
+                aria-labelledby="sample-publish-report-decision-h"
+              >
+                <h2 id="sample-publish-report-decision-h">
+                  Publish the sample report?
+                </h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
                   <lf-option id="sample-publish-report-keep"
@@ -2295,7 +2307,7 @@ flowchart TD
                     ><strong>Publish the report</strong></lf-option
                   >
                 </lf-options>
-              </lf-ask>
+              </section>
               <lf-activity id="sample-permission-history"></lf-activity>
             </lf-sample>
           </section>
@@ -2306,8 +2318,8 @@ flowchart TD
               HTML structure, element declarations, dependencies, and recorded user
               decisions. An invalid save keeps the last valid revision live and reports
               the error. <code>leaf page check --render</code> additionally opens the
-              page in Chrome in both color schemes to check for console errors,
-              invisible widgets, and horizontal overflow.
+              page in the reader’s browser to check for console errors, invisible
+              widgets, and horizontal overflow.
             </p>
           </section>
           <section id="edits">
@@ -2774,10 +2786,10 @@ flowchart TD
               <code>awaits</code> declaration names, such as a pick, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there or a settling reaction, such as 👍. The
-              agent ends its to-dos with <code>leaf task end</code>, and records the
-              same way an answer the user gave elsewhere, such as in chat. Done history
-              records the outcome, including withdrawn obligations and failed or dropped
-              to-dos.
+              agent ends its to-dos with <code>leaf task end</code>, and ends a thread
+              question the user answered elsewhere, such as in chat, by resolving its
+              thread. Done history records the outcome, including withdrawn obligations
+              and failed or dropped to-dos.
             </p>
 
             <p id="progress-lists-thread">
@@ -2847,7 +2859,9 @@ flowchart TD
                 Opens a question on On Me and makes the thread read
                 <em>Your turn</em>. A reply or settling reaction answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
-                such as trying a build, is asked the same way. Once the user answers
+                such as trying a build, is asked this way where only words can give its
+                answer, such as what an error said; where its outcomes can be listed,
+                its message usually offers them as options. Once the user answers
                 elsewhere, such as in chat, the agent resolves the thread.
               </li>
               <li id="updates-written-reopen">

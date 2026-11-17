@@ -1253,6 +1253,63 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
         assert names_move(errors, protected), errors
 
 
+@pytest.mark.parametrize(
+    "fault, protected",
+    [
+        ("", None),
+        ("overgrown_port", "button#head"),
+        ("extra_field", "button#field"),
+    ],
+)
+def test_append_growth_may_grow_a_standing_port_down_then_raise_it(
+    browser, fault, protected
+):
+    """A port standing on its foot whose growth outruns the room beneath it, as a
+    margin card held by its top does when an answer grows it past the window's foot
+    (thread-preview.js, `rises`), grows down to that foot and rises for the rest in one
+    frame: its head and what it holds rise by the rise, what stands below it moves down
+    by the rest, and the two together come to no more than the growth."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            '<section id="port" data-lf-runtime data-lf-rises style="position:fixed;'
+            'top:500px;left:0;width:360px"><header><button id="head">Close</button>'
+            '</header><div id="source" data-lf-reflow="append">'
+            '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+            '<button id="field">Comment</button></section></body>'
+        )
+    )
+    paint(page)
+    boxes = """() => Object.fromEntries(['head', 'old', 'field'].map((id) =>
+      [id, document.getElementById(id).getBoundingClientRect().top]))"""
+    before = page.evaluate(boxes)
+    page.evaluate(
+        """fault => {
+          const next = document.createElement('p');
+          next.textContent = 'The answer.';
+          next.style.cssText = 'margin:0;height:40px';
+          document.getElementById('source').append(next);
+          document.getElementById('port').style.top = '485px';
+          if (fault === 'overgrown_port')
+            document.getElementById('port').style.paddingTop = '7px';
+          if (fault === 'extra_field')
+            document.getElementById('field').style.marginTop = '7px';
+        }""",
+        fault,
+    )
+    judge_watches()
+    after = page.evaluate(boxes)
+    if not protected:
+        assert after["head"] == before["head"] - 15
+        assert after["old"] == before["old"] - 15
+        assert after["field"] == before["field"] + 25
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, protected), errors
+
+
 def test_boxless_overflow_does_not_hide_carried_reading(browser):
     """Overflow on a display:contents wrapper cannot clip its visible descendants."""
     page = browser.new_page()
@@ -1864,7 +1921,8 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
             leaf_page(
                 "Retired preparation",
                 '<button id="press">Press</button>'
-                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<section id="choice-q" role="group" aria-label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></section>'
                 '<button id="control" style="display:block">Control</button>',
             )
         ),
@@ -1925,7 +1983,8 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
             leaf_page(
                 "Sibling preparation",
                 '<button id="press">Press</button>'
-                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<section id="choice-q" role="group" aria-label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></section>'
                 '<button id="control" style="display:block">Control</button>',
             )
         ),

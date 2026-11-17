@@ -187,7 +187,7 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "author": "agent",
             "revision": 1,
             "parent": "body-question",
-            "text": f'Edit these words.\n\n<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
+            "text": f'Edit these words.\n\n<{tag} id="reply-body">\n<pre>\n    First line.\n    Second line.\n</pre></{tag}>',
         },
     )
     page = open_page(browser, live_url(url))
@@ -230,12 +230,12 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     host = REPLY_HOST_PAGE.replace(
         "</main>",
         """
-<lf-ask id="delivery"><h2>Which delivery?</h2>
+<section id="delivery" role="group" aria-labelledby="delivery-h"><h2 id="delivery-h">Which delivery?</h2>
   <lf-options id="delivery-choice">
     <lf-option id="delivery-now">Now</lf-option>
     <lf-option id="delivery-later">Later</lf-option>
   </lf-options>
-</lf-ask></main>""",
+</section></main>""",
     )
     url = serve(host)
     page = open_page(browser, live_url(url))

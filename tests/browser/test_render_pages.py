@@ -231,14 +231,14 @@ The queue recovered after reverting the timeout change.
 <div>The oldest request is waiting for review.</div></div>
 <dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl>
-<lf-options id="routes">
+<section id="routes-q" role="group" aria-label="What happens to the queue?"><lf-options id="routes">
 <lf-option id="route-one"><strong>Keep the queue</strong>
 <dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
 <lf-option id="route-two"><strong>Review the queue</strong>
 <p class="facts" id="option-prose">Keep this explanation in the option's full reading
 width while the owner checks the oldest requests.</p></lf-option>
-</lf-options>
+</lf-options></section>
 <dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
         head="""<style>
 .prose-box {inline-size:280px;overflow:hidden;}
@@ -383,7 +383,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     url = serve(
         leaf_page(
             "Inline rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -459,7 +460,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     url = serve(
         leaf_page(
             "Inline reply rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -1354,7 +1356,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
         """
 <h1 id="title">Authored block widths</h1>
 <p id="prose">Standard prose.</p>
-<section id="wide" data-width="wide">
+<section id="wide" data-width="wide" role="group" aria-label="Which case?">
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
@@ -1878,12 +1880,12 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     table += f"<tbody>{row * 2}</tbody></table>"
     body = (
         "<h1>Tables of prose</h1>"
-        '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
+        '<section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice">'
         '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
         '<section class="panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")
         + "</section>"
@@ -2610,7 +2612,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "parent": "c-fix",
             "revision": 1,
             "text": "Like this:\n\n"
-            '<lf-diagram id="fallback-flow"><pre>\n'
+            '<lf-diagram id="fallback-flow">\n<pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
         },
     )
@@ -2662,7 +2664,7 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "parent": "c-log",
             "revision": 1,
             "text": "Here it is, with the log:\n\n"
-            '<lf-sample id="rp-quoted" label="the old copy">'
+            '<lf-sample id="rp-quoted" label="the old copy">\n'
             '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>\n\n'
             '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>\n\n'
             '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>\n\n'

@@ -25,8 +25,8 @@ import { readObligations } from "../obligations/model.js";
 import { obligationPlace } from "../obligations/place.js";
 import { OBLIGATION_CONTROL } from "../obligations/view-elements.js";
 
-// The innermost question frame holding `node`, or null where none does or `node` is in
-// one of that frame's answer widgets.
+// The innermost question group holding `node` (`obligationPlace`'s context), or null
+// where none does or `node` is in one of that group's answer widgets.
 /** @param {Element} node */
 function frameHolding(node) {
   const framed = readObligations()

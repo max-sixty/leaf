@@ -22,7 +22,7 @@ vars:
     The page so far holds ten proposals, each put to the user like these two:
 
     ```html
-    <lf-ask id="ask-resolve-glyph">
+    <section id="ask-resolve-glyph" role="group" aria-labelledby="resolve-glyph">
       <h3 id="resolve-glyph">Resolve and Reopen are a bare ✓: one press hides the thread, and reopening looks like a status</h3>
       <p>
         A card's Resolve is a ✓ beside ✕. One press closes the card, removes the
@@ -42,18 +42,18 @@ vars:
         <lf-option id="resolve-words"><small class="tag">effort: ~25 lines</small><small class="tag ok">recommended</small><strong>Write Resolve and Reopen as words, and make the resolved line reopen</strong></lf-option>
         <lf-option id="resolve-keep"><small class="tag">effort: none</small><strong>Keep the ✓ glyphs</strong> Their names stay in tooltips only, which a phone never shows.</lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
 
-    <lf-ask id="ask-answer-control">
+    <section id="ask-answer-control" role="group" aria-labelledby="answer-control">
       <h3 id="answer-control">A question asked in words shows no way to answer it</h3>
       <p>
-        A bare <code>lf-ask</code> renders as an ordinary paragraph, and the only
+        A question asked in words renders as an ordinary paragraph, and the only
         sign it is a question is a <code>?</code> in the rail. On Me has the same
         gap: a card whose widget lives in an undrawn thread message gets only the
         quiet words “Discuss” and “Show”, and neither says an answer is owed.
       </p>
       <p>
-        Proposal: give a bare <code>lf-ask</code> an <strong>Answer</strong> press
+        Proposal: give a question asked in words an <strong>Answer</strong> press
         that opens its comment box labelled “Answer…”. When On Me can't draw a
         card's choices, draw its way there as an <strong>Answer</strong> press.
         Cost: about 40 lines, one default-package widget plus theme.
@@ -62,7 +62,7 @@ vars:
         <lf-option id="answer-build"><small class="tag">effort: ~40 lines</small><small class="tag ok">recommended</small><strong>Draw an Answer press on bare questions and on On Me cards</strong></lf-option>
         <lf-option id="answer-keep"><small class="tag">effort: none</small><strong>Keep the rail’s ? as the only sign</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
     ```
 
     You read the code. Your notes:
@@ -72,7 +72,7 @@ vars:
       `decision: true` are copied onto the card as plain buttons, and a press clicks
       the widget's real control on the page (`choicesOf` in `obligations/view.js`).
       `static answerWords(value, element)` words a finished answer. The heading comes
-      from an enclosing `lf-ask`. The panel owns the rest of the card: Discuss, Show,
+      from the section around it. The panel owns the rest of the card: Discuss, Show,
       Undo and the walk's order.
     - Copying needs the control to exist on the page, so a widget in a thread message
       nobody has opened gets only Discuss and Show. The card can't show what is being
@@ -91,11 +91,11 @@ vars:
         unchanged. Deletes `choicesOf` and the copied buttons. Two live elements then
         share one id; you haven't checked the four runtime lookups that resolve an
         obligation by id, browser-local state such as a draft, or heavy widgets. Size
-        unknown: prototype it on `lf-options` and `lf-ask` first.
+        unknown: prototype it on `lf-options` first.
     - You recommend C: each widget keeps one renderer and decides its own look in both
       places.
 
-    Write the `lf-ask` that puts this decision to the user, after
+    Write the section that puts this decision to the user, after
     `ask-answer-control`, with a comparison of the three designs. The page directory is not reachable from here, so reply with
     the section's HTML.
 assert:
@@ -138,8 +138,8 @@ variants:
         Earlier decisions on the page look like this one:
 
         ```html
-        <lf-ask id="d43">
-          <h3>#43 How strong should the window-height requirements be?</h3>
+        <section id="d43" role="group" aria-labelledby="d43-h">
+          <h3 id="d43-h">#43 How strong should the window-height requirements be?</h3>
           <p>
             Clipped controls and sideways scroll stay refusals, now also at the new height.
             The question is the two that aren't checked: a workspace's decision in view, and a
@@ -152,7 +152,7 @@ variants:
             <lf-option id="d43-refuse"><strong>Refuse an overflowing pane</strong> Every page fits, at the cost of refusing a long file or reading list that may scroll.</lf-option>
             <lf-option id="d43-guide"><strong>Guidance only</strong> No check; the goal line alone.</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
         ```
 
         Your notes, from measuring the gate on 40 example pages:
@@ -171,7 +171,7 @@ variants:
         - You recommend adding 1280×720 with the width sweep: it reads the shorter
           window at every width and keeps the 900 px reading, for 2 to 3 s a check.
 
-        Write the `lf-ask` for this decision, #44, with a comparison of the four
+        Write the section for this decision, #44, with a comparison of the four
         choices. The page directory is not reachable from
         here, so reply with the section's HTML.
     assert:
@@ -236,8 +236,8 @@ variants:
         An earlier decision on the page reads:
 
         ```html
-        <lf-ask id="skill-ask">
-          <h2>Should the grind workflow become a skill?</h2>
+        <section id="skill-ask" role="group" aria-labelledby="skill-ask-h">
+          <h2 id="skill-ask-h">Should the grind workflow become a skill?</h2>
           <p>
             Every agent tonight read the same brief, and three of its rules came from
             friction an agent hit. No skill covers a batch of agents over the TODO
@@ -253,7 +253,7 @@ variants:
             </lf-option>
             <lf-option id="skill-keep"><strong>Keep the brief in <code>.tmp/</code></strong></lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
         ```
 
         Your notes:
@@ -269,7 +269,7 @@ variants:
           widget, and changes a rule every widget relies on.
         - Keeping the rule means the spine keeps appearing at upgrade.
 
-        Write the `lf-ask` that puts this decision on the page, with your
+        Write the section that puts this decision on the page, with your
         recommendation and its reason in the prose. The page directory is not
         reachable from here, so reply with the section's HTML.
     assert:

@@ -372,7 +372,6 @@ FACTS: dict[str, dict] = {
     "verbs": VERBS_SCHEMA,
     "awaits": AWAITS_SCHEMA,
     "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-    "encloses": {"const": True},
     "exhibit": _conditional({"const": True}),
     # A view of another widget's answer (`shown_answers.py`): `reference` is the
     # attribute (`refers`) naming that widget, as an input's `reference` names the

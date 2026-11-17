@@ -129,6 +129,33 @@ def element_name(node: dict, registry: dict) -> str:
     return collapse(_text(title)) if title else ""
 
 
+def group_name(group: dict, nodes: dict[str, dict]) -> str:
+    """The name the author gives a group, as ARIA reads it: the words of the elements
+    its `aria-labelledby` names, read from `nodes`, its document's elements by id; else
+    its `aria-label`; else a fieldset's legend, its first `<legend>` child; empty where
+    the author named nothing."""
+    attrs = group["attrs"]
+    named = [
+        nodes[i] for i in (attrs.get("aria-labelledby") or "").split() if i in nodes
+    ]
+    if words := collapse(" ".join(_text(node) for node in named)):
+        return words
+    if words := collapse(attrs.get("aria-label") or ""):
+        return words
+    if group["tag"] == "fieldset":
+        legend = next(
+            (
+                child
+                for child in group["content"]
+                if not isinstance(child, str) and child["tag"] == "legend"
+            ),
+            None,
+        )
+        if legend:
+            return collapse(_text(legend))
+    return ""
+
+
 def _nodes(content: list):
     for node in content:
         if not isinstance(node, str):

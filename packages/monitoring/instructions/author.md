@@ -6,7 +6,7 @@ identity and summary in the markup, so a feed update can't change the page's con
 For a live log the user follows, bound its height as `references/page-layout.md`,
 "Bounds and widths", describes.
 
-When rollback needs the operator's decision, ask beside the current state: an `lf-ask`
+When rollback needs the operator's decision, ask beside the current state: a named group
 whose heading asks whether to roll back, holding an `lf-options` group with a
 rollback option and the alternative the release policy allows, such as holding until
 the deadline. Name the exact candidate and stable releases in the rollback option, and say

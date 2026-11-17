@@ -483,9 +483,9 @@
       --lf-free-start: var(--lf-free-right);
       --lf-free-end: var(--lf-free-left);
     }
-    /* A flow's box holds the blocks standing in it, so a flow that otherwise keeps the
-     * measure, as a question does, gives it up once one of them, or one in a flow in
-     * it, asks for more room, in a column or in a sidebar page's wider body. */
+    /* A flow's box holds the blocks standing in it, so a flow that otherwise keeps a
+     * measure gives it up once one of them, or one in a flow in it, asks for more room,
+     * in a column or in a sidebar page's wider body. */
     &:where(section):has(
         > :is([data-lf-space], .layout-sidebar),
         & > :is([data-lf-space], .layout-sidebar)
@@ -997,6 +997,9 @@
       > footer {
       padding-block-end: var(--lf-foot-room);
     }
+    /* The body keeps the panel's room after what it holds, and a scroll that brings a
+     * control into view stops that far short of its end, as a pane's body does
+     * (base.css), whether the control is the body's own or a widget's in it. */
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
@@ -1004,6 +1007,7 @@
         :has(> [data-lf-reading-role="pane"])
       ) {
       padding-block-end: var(--lf-end-room);
+      scroll-padding-block-end: var(--lf-end-room);
     }
   }
   /* Where the workspace flows no pane body scrolls, so a box of panes ends the page
@@ -1177,6 +1181,35 @@
        * playground's Send. */
       [data-lf-reading-role="pane"]:not([data-lf-generated]) > :not(header, footer) {
         overscroll-behavior: contain;
+      }
+      /* A question's group (`role="group"`) told it has a definite height, as one that
+       * is the workspace's body or a page tab's one block is, gives its answer, the last
+       * of its children, what its heading and context leave, and tells it so, so a
+       * widget composing its own regions there, such as a playground, fills the window
+       * below a premise, straight under the heading, or alone in a group the
+       * workspace's header names. Any other section keeps its document flow: on
+       * every section, the rule would stretch a body of prose's last block to the
+       * window's foot and tell each widget in it to fill the window.
+       * The context keeps its own height, and the answer keeps at least its own: a
+       * list of options takes its content's height below a long premise, and a
+       * playground the minimum of its stage and bar (playground/defaults.css), and the
+       * group scrolls.
+       * Every child hears the height the group is told, the context's included, so
+       * the context is held at its own height: a playground followed by a note is
+       * context, and would otherwise shrink to make room for the note and draw its
+       * instruction over it. A pane lays out its own header, body and footer, and its
+       * body scrolls as a whole and keeps its flow, so neither takes this. */
+      section[role~="group"]:not([data-lf-reading-role], [data-lf-reading-role] > *) {
+        display: flex;
+        flex-direction: column;
+        > * {
+          flex: none;
+        }
+        --lf-full-height: inherit;
+        > :nth-last-child(1 of :not(script, style, template)) {
+          flex: 1 1 0;
+          margin-block: 0;
+        }
       }
     }
     /* A bounded block that is all a workspace scroller holds takes that height, or its

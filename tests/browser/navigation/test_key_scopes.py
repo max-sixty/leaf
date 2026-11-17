@@ -344,13 +344,13 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
     html = ADDRESSED_PAGE.replace(
         "</main>",
         """
-        <lf-ask id="second-ask">
-          <h2>A second question</h2>
+        <section id="second-ask" role="group" aria-labelledby="second-ask-h">
+          <h2 id="second-ask-h">A second question</h2>
           <lf-options id="second-options">
             <lf-option id="second-one">First answer</lf-option>
             <lf-option id="second-two">Second answer</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
         </main>
         """,
     )
@@ -562,7 +562,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
             "author": "agent",
             "revision": 1,
             "text": "The patch, for the record.\n\n"
-            '<lf-diff id="msg-diff"><pre>'
+            '<lf-diff id="msg-diff">\n<pre>'
             "diff --git a/gateway/limits.py b/gateway/limits.py\n"
             "--- a/gateway/limits.py\n"
             "+++ b/gateway/limits.py\n"
@@ -2058,15 +2058,15 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
         "label focus",
         """
 <h1 id="frames">Choose a frame</h1>
-<lf-ask id="first-question-decision"><h2>Which first frame?</h2>
+<section id="first-question-decision" role="group" aria-labelledby="first-question-decision-h"><h2 id="first-question-decision-h">Which first frame?</h2>
 <lf-options id="first-question">
   <lf-option id="first-frame"><strong>First</strong>
     <label><input id="first" type="radio" name="first-frame">
       <span>first state</span></label>
   </lf-option>
   <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="frame-question-decision"><h2>Which next frame?</h2>
+</lf-options></section>
+<section id="frame-question-decision" role="group" aria-labelledby="frame-question-decision-h"><h2 id="frame-question-decision-h">Which next frame?</h2>
 <lf-options id="frame-question">
   <lf-option id="after-frame"><strong>After</strong>
     <div id="label-thread" tabindex="-1">
@@ -2075,7 +2075,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     </div>
   </lf-option>
   <lf-option id="before-frame"><strong>Before</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
     )
     page = open_page(browser, serve(html, anchored=[("frames", "Choose a frame")]))

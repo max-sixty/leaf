@@ -293,7 +293,7 @@ const withFirstSizes = (holder, inside) => {
 // Each authored widget whose border box changed between the pre-upgrade box and
 // its presented box (`firstBoxes` in driver.js). A holder is left out only where
 // putting the changed widgets inside it back to their first sizes puts its own box
-// back, which proves the change was theirs: an lf-ask that grew by exactly what its
+// back, which proves the change was theirs: a section that grew by exactly what its
 // options grew is not named beside them, and one that also grew on its own, in its
 // flow or in a size it sets itself, is. An inline widget runs through its holder's
 // lines, which no size puts back, so nothing proves its holder's change was the

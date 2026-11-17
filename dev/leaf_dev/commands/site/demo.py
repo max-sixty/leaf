@@ -203,14 +203,14 @@ new version as the checks finish.</p>
 {board_markup(board or BOARD)}
 </lf-board>
 </section>
-<lf-ask id="migration-approval-decision">
-<h2>Approve the migration plan?</h2>
+<section id="migration-approval-decision" role="group" aria-labelledby="migration-approval-decision-h">
+<h2 id="migration-approval-decision-h">Approve the migration plan?</h2>
 <p>The rollout sequence and acceptance criteria described above.</p>
 <lf-options id="migration-approval">
 <lf-option id="migration-hold"><strong>Hold the rollout</strong></lf-option>
 <lf-option id="migration-approve"><strong>Approve the plan</strong></lf-option>
 </lf-options>
-</lf-ask>
+</section>
 </main>
 </body>
 </html>

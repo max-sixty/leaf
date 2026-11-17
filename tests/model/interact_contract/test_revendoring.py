@@ -338,10 +338,10 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
-        '<lf-ask id="thread-choice-decision"><h3>Which option?</h3>'
+        '<section id="thread-choice-decision" role="group" aria-labelledby="thread-choice-decision-h">\n<h3 id="thread-choice-decision-h">Which option?</h3>'
         '<lf-options id="thread-choice">'
         '<lf-option id="thread-a">A</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
     )
     thread_model.post_reply(
         page_dir,

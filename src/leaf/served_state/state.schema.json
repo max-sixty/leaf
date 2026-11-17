@@ -46,7 +46,7 @@
           "type": "string"
         },
         "working_grace_ms": {
-          "description": "How long working may go unheard before it reads as quiet, measured on the `now` clock. `activity` is already folded; a package dating a worker's own reports asks `quietSince`, which reads this rather than a copy.",
+          "description": "How long working may go unheard before it reads as quiet, measured on the `now` clock. `activity` is already folded; a package dating a worker's own reports reads `readWork`'s `quiet`, which reads this rather than a copy.",
           "type": "integer"
         },
         "taken": {
@@ -1176,7 +1176,7 @@
       "properties": {
         "text": { "type": ["string", "null"] },
         "target": {
-          "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
+          "description": "Where the user goes to answer: the id of the group the author declares round a widget, or of the widget itself, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
           "type": ["string", "null"]
         }
       },

@@ -462,7 +462,7 @@ export function createQueueWalk({
   /** @param {readonly PlacedStop[]} list @param {Step} dir @param {Element | null} region @param {Origin} origin */
   function step(list, dir, region, origin) {
     // Outside the region nothing the user is on is one of its stops, even where the
-    // press sits inside the lf-ask around an obligation.
+    // press sits inside the group around an obligation.
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
     const currentLocation = currentLocationStop(list, origin);
     if (currentLocation) return cycledRow(list, currentLocation, dir);

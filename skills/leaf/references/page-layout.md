@@ -278,7 +278,7 @@ column and sidebar pages:
 
 A `table` with either value is only as wide as its columns need, up to that width.
 A block widens when it is a child of the `layout-column`, or of a `section`,
-`article`, `details` or `lf-ask` in its flow, whose blocks stand in the flow around it,
+`article` or `details` in its flow, whose blocks stand in the flow around it,
 so its words stay on the column beside a wider one. A framed holder, such as a
 callout, needs its own `data-width` to widen; its children use the room inside it. A
 wide child alone does not widen its holder. Write a box that arranges its own

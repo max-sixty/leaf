@@ -910,6 +910,8 @@ def _compose_and_append(
     checked = None
     if (validate_source and not ephemeral and failure is None) or detach:
         if relocating:
+            # The stand-in carries the thread's move and none of the reply's text,
+            # whose ids the reply's own check below compares with the page's.
             source_events = [
                 *events,
                 {
@@ -917,6 +919,7 @@ def _compose_and_append(
                     "id": "prospective-anchor-transition",
                     "seq": events[-1]["seq"] + 1,
                     "ts": "pending",
+                    "text": "",
                     "anchor": None,
                 },
             ]

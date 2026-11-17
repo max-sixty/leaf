@@ -39,7 +39,7 @@ from .widgets import (
 )
 
 # The facts that document a declaration's keys, each beside the keys its schema
-# admits (`validate_layer_declarations`): a declaration's by path.
+# admits (`validate_layer_declarations`): a declaration's, a verb's and an obligation's.
 DOCUMENTED_KEYS: dict[str, frozenset] = {
     "$keys": DECLARATION_KEYS,
     "$verbs": frozenset(cast(dict, VERB_SCHEMA["properties"])),
@@ -152,16 +152,16 @@ def _validate_event_clauses(key: str, kind: str, clauses, declared, path) -> Non
 
 def _validate_documented_keys(fact: str, members, admitted: frozenset, path) -> None:
     """Each documenting fact holds exactly the keys its schema admits, one string per
-    key, beside its description and, in `$keys`, the `sections` the site's reference
-    lists them in: the keys are closed by that schema, so a member for a key that
-    cannot be declared is documentation of nothing, and a key with no member is one an
-    author reads the registry for and finds unsaid. Agents query them and the site's
-    table is generated from $keys, which is what makes the pin worth keeping."""
-    documented = set(members or {}) - {"description", "sections"}
+    key, beside its description: the keys are closed by that schema, so a member for
+    a key that cannot be declared is documentation of nothing, and a key with no
+    member is one an author reads the registry for and finds unsaid. Agents query
+    them and the site's table is generated from $keys, which is what makes the pin
+    worth keeping."""
+    documented = set(members or {}) - {"description"}
     if (
         not isinstance(members, dict)
         or not isinstance(members.get("description"), str)
-        or not all(isinstance(members[key], str) and members[key] for key in documented)
+        or not all(isinstance(text, str) and text for text in members.values())
         or documented != admitted
     ):
         raise registry_error(

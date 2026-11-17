@@ -41,7 +41,7 @@ const namedValue = (answer, keyOf) => {
 /** @param {Element} view */
 export function shownAnswer(view) {
   const shows = declarationFor(view)?.shows;
-  const id = shows && view.getAttribute(shows.attr);
+  const id = shows && view.getAttribute(shows.reference);
   if (!id) return null;
   const owner = elementById(id, authoredScope(view));
   if (!owner) return null;

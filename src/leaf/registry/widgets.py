@@ -236,9 +236,9 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
     (`awaits.key`) is a set of members, which the key names one by one, so the
     key is unique among the members of one widget."""
     if shows := entry.get("shows"):
-        reference = entry["refers"].get(shows["attr"])
+        reference = entry["refers"].get(shows["reference"])
         if reference is None or reference:
-            raise registry_error("shows-reference", path, tag, attr=shows["attr"])
+            raise registry_error("shows-reference", path, tag, attr=shows["reference"])
         if lacking := sorted(
             owner
             for owner in entry["owners"]

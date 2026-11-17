@@ -350,8 +350,12 @@ def _conditional(schema: dict) -> dict:
     """The schema of a fact a declaration may state outright, as `schema` admits, or
     in the `{when: {attribute: [values]}}` form. Only a mark (`$marks`) may take it,
     and importing this module fails for any other fact (below). Delivery and the
-    browser paint each mark where it holds, and `registry.widgets` holds each mark's
-    `when` to the declared attributes, so no code names the fact."""
+    browser paint each mark on the occurrences where it holds, and `registry.widgets`
+    holds each mark's `when` to the declared attributes, so no code names the fact. A
+    reader asking of one occurrence reads the fact through
+    `registry.contract.holds_for`, and one asking whether the tag declares it at all
+    reads the declaration, condition or not; `$keys` says which of `exhibit`'s
+    readers asks which."""
     return {"oneOf": [schema, _WHEN_FORM]}
 
 
@@ -369,14 +373,15 @@ FACTS: dict[str, dict] = {
     "awaits": AWAITS_SCHEMA,
     "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     "encloses": {"const": True},
-    "exhibit": _conditional({"type": "boolean"}),
-    # A view of another widget's answer (`shown_answers.py`): `attr` names
-    # that widget, and `value` the attribute of the view's compound owner
-    # that names the answer it holds.
+    "exhibit": _conditional({"const": True}),
+    # A view of another widget's answer (`shown_answers.py`): `reference` is the
+    # attribute (`refers`) naming that widget, as an input's `reference` names the
+    # element it reads, and `value` the attribute of the view's compound owner that
+    # names the answer it holds.
     "shows": {
         "type": "object",
-        "properties": {"attr": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
-        "required": ["attr", "value"],
+        "properties": {"reference": _ATTRIBUTE_NAME, "value": _ATTRIBUTE_NAME},
+        "required": ["reference", "value"],
         "additionalProperties": False,
     },
     "work": {"const": True},
@@ -398,9 +403,9 @@ FACTS: dict[str, dict] = {
         "propertyNames": {"pattern": f"^{HTML_NAME}$"},
         "additionalProperties": {"enum": ["before", "after"]},
     },
-    "verbatim": {"type": "boolean"},
-    "shadow": {"type": "boolean"},
-    "inline": {"type": "boolean"},
+    "verbatim": {"const": True},
+    "shadow": {"const": True},
+    "inline": {"const": True},
     "visual": {
         "oneOf": [
             {"const": "whole"},

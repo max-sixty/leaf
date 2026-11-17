@@ -146,7 +146,7 @@ proposals answered in their own sections. The view's element declares `shows`, a
 ```json
 {
   "refers": { "shows": {} },
-  "shows": { "attr": "shows", "value": "value" }
+  "shows": { "reference": "shows", "value": "value" }
 }
 ```
 

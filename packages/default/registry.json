@@ -474,7 +474,7 @@
       "shows": {}
     },
     "shows": {
-      "attr": "shows",
+      "reference": "shows",
       "value": "value"
     },
     "work": true,

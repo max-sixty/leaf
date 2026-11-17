@@ -471,7 +471,7 @@ def _plain(value) -> str:
 
 
 def _predicate(v: dict, says: str) -> str:
-    return f"{v['key']} tests `{v['attr']}` {says}"
+    return f"`{v['key']}` tests `{v['attr']}` {says}"
 
 
 def _created(v: dict, says: str) -> str:
@@ -1248,7 +1248,11 @@ _TEXT = {
     ),
     # An element declaration, on its own.
     "invalid-declaration": _declared(
-        lambda v: f"is not a valid declaration ($keys): {v['reason']}"
+        lambda v: (
+            "is not a valid declaration ($keys)"
+            + (f" at `{_json_path(v['path'])}`" if v.get("path") else "")
+            + f": {v['reason']}"
+        )
     ),
     "attributes-schema": _declared(
         lambda v: f"attributes are not a valid JSON Schema: {v['reason']}"
@@ -1269,7 +1273,7 @@ _TEXT = {
         )
     ),
     "requires": _declared(
-        lambda v: f"{v['key']} requires {v['needs']}: {_plain(v['value'])}"
+        lambda v: f"`{v['key']}` requires {v['needs']}: {_plain(v['value'])}"
     ),
     "unnamed-module": _declared(
         lambda v: (
@@ -1286,17 +1290,17 @@ _TEXT = {
         )
     ),
     "unknown-declarations": _declared(
-        lambda v: f"{v['key']} names unknown element declarations {_json(v['names'])}"
+        lambda v: f"`{v['key']}` names unknown element declarations {_json(v['names'])}"
     ),
     "undeclared-attributes": _declared(
-        lambda v: f"{v['key']} names undeclared attributes {_json(v['names'])}"
+        lambda v: f"`{v['key']}` names undeclared attributes {_json(v['names'])}"
     ),
     "reading-role-attr": _declared(
         lambda v: f"`reading-role` {v['role']} instances require a string {v['attr']}"
     ),
     "addressable-id": _declared(
         lambda v: (
-            f"{v['key']} instances are addressable, so the element declaration"
+            f"`{v['key']}` instances are addressable, so the element declaration"
             " must declare a string `id` attribute"
         )
     ),
@@ -1355,7 +1359,7 @@ _TEXT = {
     ),
     # Its conditions, read against its own attributes.
     "predicate-attribute": _declared(
-        lambda v: f"{v['key']} names undeclared attribute `{v['attr']}`"
+        lambda v: f"`{v['key']}` names undeclared attribute `{v['attr']}`"
     ),
     "predicate-schema": _declared(
         lambda v: _predicate(
@@ -1423,7 +1427,7 @@ _TEXT = {
     ),
     "shows-reference": _declared(
         lambda v: (
-            f"`shows` attr `{v['attr']}` must be a `refers` relation to any element"
+            f"`shows` reference `{v['attr']}` must be a `refers` relation to any element"
         )
     ),
     "shows-value": _declared(

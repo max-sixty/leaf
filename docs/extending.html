@@ -251,12 +251,21 @@
         border-bottom: 1px solid var(--lf-rule);
         scroll-margin-top: 18px;
       }
-      .reference-entry h3 {
+      .reference-section {
+        margin: 40px 0 0;
+      }
+      .reference-section-intro {
+        margin: 6px 0 0;
+        padding-bottom: 12px;
+        border-bottom: 1px solid var(--lf-rule);
+        color: var(--lf-ink-2);
+      }
+      .reference-entry h4 {
         margin: 0;
         font-size: var(--lf-t-4);
         line-height: 1.6;
       }
-      .reference-entry h3 code {
+      .reference-entry h4 code {
         overflow-wrap: normal;
         font-size: 84%;
         white-space: nowrap;
@@ -283,7 +292,7 @@
       .reference-entry:target {
         border-bottom-color: var(--lf-accent);
       }
-      .reference-entry:target h3 code {
+      .reference-entry:target h4 code {
         color: var(--lf-accent);
       }
       @media screen and (max-width: 640px) {

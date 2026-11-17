@@ -487,6 +487,35 @@ def test_action_detail_schemas_match_the_post_object_contract(page_dir, kind):
     )
 
 
+@pytest.mark.parametrize(
+    ("tag", "change", "says"),
+    [
+        (
+            "lf-activity",
+            lambda entry: entry.update(bound="top"),
+            "at `bound`: 'top' is not one of ['start', 'end']",
+        ),
+        (
+            "lf-options",
+            lambda entry: entry["verbs"]["answer"]["detail"].pop(
+                "additionalProperties"
+            ),
+            "at `verbs.answer.detail`: 'additionalProperties' is a required property",
+        ),
+    ],
+)
+def test_a_declaration_refusal_names_the_fact_it_is_about(page_dir, tag, change, says):
+    """The schema's own words name only the value it refused, so the refusal adds where
+    in the declaration that value stands."""
+    registry = vocabulary(page_dir)
+    change(registry[tag])
+
+    finding = registry_refusal(
+        lambda: registry_validation.validate_registry(registry, "test registry")
+    )
+    assert str(finding).endswith(f"<{tag}> is not a valid declaration ($keys) {says}")
+
+
 def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     """A child appearing first must not inspect a malformed parent half-validated."""
     registry = vocabulary(page_dir)

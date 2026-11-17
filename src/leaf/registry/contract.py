@@ -58,7 +58,10 @@ def fact_condition(rule) -> dict | None:
 def holds_for(attrs: dict, rule):
     """A declared fact as it holds for one occurrence, given its authored attributes.
     A fact declared with `{when}` is `True` while those attributes match `when` and
-    `False` otherwise; any other declaration is returned as declared."""
+    `False` otherwise; any other declaration is returned as declared. Delivery's paint
+    and every reader asking of one occurrence read a fact through this, as `exhibits`
+    does; a reader asking whether the tag declares the fact at all reads the
+    declaration whatever its condition, as `obligations.shown_in` does."""
     when = fact_condition(rule)
     return rule if when is None else matches_when(attrs, when)
 

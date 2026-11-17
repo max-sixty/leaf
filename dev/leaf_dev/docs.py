@@ -159,20 +159,56 @@ def example_packages(source: Path) -> str:
 def registry_keys() -> dict[str, str]:
     """Each documented key's text, in `$keys` order, which is the reference's."""
     keys = json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))["$keys"]
-    return {
-        key: text
-        for key, text in keys.items()
-        if key not in ("description", "sections")
-    }
+    return {key: text for key, text in keys.items() if key != "description"}
 
 
-def key_sections() -> dict[str, dict]:
-    """Each `$keys` section, by the key it opens on (`$keys.sections`)."""
-    keys = json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))["$keys"]
-    sections = {section["from"]: section for section in keys["sections"]}
-    if unknown := sorted(set(sections) - set(registry_keys())):
-        raise ValueError(f"$keys.sections opens on keys it doesn't document: {unknown}")
-    return sections
+# The reference's sections, each by the key it opens on and running to the next one's,
+# in `$keys` order, with the reader that needs its keys declared. The registry carries
+# no layout: these are the site's headings over the keys `$keys` documents.
+KEY_SECTIONS = {
+    "attributes": (
+        "Element",
+        "What every declaration holds beside its description.",
+    ),
+    "verbs": (
+        "State",
+        "What the server admits as actions and keeps on the On lists, which it can't "
+        "learn by running the widget's module.",
+    ),
+    "owners": (
+        "Structure",
+        "Where the element may stand and what it names, which `page check` and message "
+        "markup hold markup to without running a module.",
+    ),
+    "says": (
+        "Words",
+        "How the element's words read to the passage reader, the render check and a "
+        "browser that hasn't run its module.",
+    ),
+    "views": (
+        "Paint",
+        "How the element's box is laid out at first paint, before any module runs.",
+    ),
+    "inputs": (
+        "Data",
+        "The typed values the server checks against `$data.contracts` and the browser "
+        "delivers.",
+    ),
+    "example": (
+        "Authoring",
+        "What an agent reads once it has chosen the element.",
+    ),
+}
+
+
+def key_sections() -> dict[str, tuple[str, str]]:
+    """`KEY_SECTIONS`, refusing a section that opens on a key `$keys` doesn't
+    document."""
+    if unknown := sorted(set(KEY_SECTIONS) - set(registry_keys())):
+        raise ValueError(
+            f"KEY_SECTIONS opens on keys $keys doesn't document: {unknown}"
+        )
+    return KEY_SECTIONS
 
 
 def key_prose(text: str) -> str:
@@ -204,22 +240,23 @@ def key_entry(entry_id: str, heading: str, text: str, label: str) -> str:
         )
     return (
         f'<section class="reference-entry" id="{entry_id}">'
-        f"<h3>{heading}</h3>"
+        f"<h4>{heading}</h4>"
         f'<div class="reference-copy"><p>{key_prose(lead)}</p>{contract}</div>'
         "</section>"
     )
 
 
 def key_entries() -> list[str]:
-    """Each key's entry, in `$keys` order, with each section's entry before the key it
-    opens on."""
+    """Each key's entry, in `$keys` order, with each section's heading before the key
+    it opens on."""
     sections = key_sections()
     entries = []
     for key, text in registry_keys().items():
         if section := sections.get(key):
-            title = section["title"]
+            title, intro = section
             entries.append(
-                key_entry(f"keys-{title.lower()}", title, section["description"], title)
+                f'<h3 class="reference-section" id="keys-{title.lower()}">{title}</h3>'
+                f'<p class="reference-section-intro">{key_prose(intro)}</p>'
             )
         entries.append(key_entry(key, f"<code>{key}</code>", text, key))
     return entries

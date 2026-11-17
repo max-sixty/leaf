@@ -428,7 +428,7 @@ def reference_errors(
                 )
             elif reference.get("owns") and target not in own:
                 errors.append(found_at("outside-reference", rec, **reference_to))
-            elif attr == entry.get("shows", {}).get("attr") and target not in own:
+            elif attr == entry.get("shows", {}).get("reference") and target not in own:
                 # A view and the answer it shows travel in one document, so a board
                 # in a reply shows widgets frozen in the same reply (`shown_answers`).
                 errors.append(found_at("shows-outside", rec, **reference_to))

@@ -46,7 +46,7 @@ from leaf.validation.markup import found_at
 def shown_widget(rec: dict, registry: dict) -> str | None:
     """The id of the widget whose answer one element shows, or None."""
     shows = (registry.get(rec["tag"]) or {}).get("shows")
-    return rec["attrs"].get(shows["attr"]) if shows else None
+    return rec["attrs"].get(shows["reference"]) if shows else None
 
 
 def answer_declaration(entry: dict) -> tuple[dict, str | None] | None:
@@ -118,7 +118,7 @@ def shown_errors(document, registry: dict) -> list[Finding]:
         shows = registry[rec["tag"]]["shows"]
         entry = registry.get(owner["tag"]) or {}
         declared = answer_declaration(entry)
-        named = {"attr": shows["attr"], "target": target}
+        named = {"attr": shows["reference"], "target": target}
         if declared is None:
             errors.append(found_at("shows-no-answer", rec, **named))
             continue

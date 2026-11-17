@@ -145,8 +145,8 @@ Options:
 Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
 
   Answer a delivered update by its `answer.ref` alone, or post into the thread
-  PAGE MESSAGE names, which is refused while that thread owes an answer. The
-  text is Markdown, and HTML in it draws, checked here.
+  PAGE MESSAGE names, which answers nothing that thread owes. The text is
+  Markdown, and HTML in it draws, checked here.
 
   An answer declares what it leaves with --done, --todo or --obligation, or
   carries a widget in its text that asks, as an `lf-options` choice asks a

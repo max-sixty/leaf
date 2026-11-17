@@ -188,7 +188,8 @@ retries the same attempt.
 
 Transports own only their input boundary: which kinds and fields they accept.
 `thread.post_reply` matches its own `attempt` before the door by kind and response
-address, so a CLI retry with reworded text returns the first reply. Attempt identity
+address, so a provider's repeated final returns the first reply; a CLI answer's
+`attempt` covers its whole write, so only an identical retry does. Attempt identity
 compares every field but those the server assigns (`event_log._attempt_payload`).
 `$events.ownership` names the `derived` fields only admission supplies and the
 `browser_discard` fields browser ingress drops; it is fixed by the running kernel, and
@@ -292,8 +293,11 @@ A user reply always hands the thread back to the agent.
 
 An agent reply records the delivery event it answers as `responds`, including an
 answer whose update was settled during the turn; a proactive `leaf thread reply`
-carries none. Settlement consumes this exact id rather than log order, so answering
-older work cannot erase newer user input. A substantive reply reopens a resolved
+carries none, and leaves an answer its thread owes owed. Settlement consumes this
+exact id rather than log order, so answering older work cannot erase newer user
+input. A `--done` answer to an update the agent's earlier answer already settled
+with a to-do still open carries no `responds`, and the command names that to-do
+for `leaf task end` (`thread.post_reply`). A substantive reply reopens a resolved
 thread and restores its unanswered widget and message obligations, as an `unresolve`
 does;
 reactions and failure receipts leave it closed.

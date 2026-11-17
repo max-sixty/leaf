@@ -1527,7 +1527,7 @@ def thread_reply(
     **options,
 ) -> dict | None:
     """Answer a delivered update by its `answer.ref` alone, or post into the
-    thread PAGE MESSAGE names, which is refused while that thread owes an answer.
+    thread PAGE MESSAGE names, which answers nothing that thread owes.
     The text is Markdown, and HTML in it draws, checked here.
 
     An answer declares what it leaves with --done, --todo or --obligation, or

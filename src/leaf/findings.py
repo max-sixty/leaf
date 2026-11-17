@@ -1902,10 +1902,6 @@ _TEXT = {
         " markup now places its unit; move it again instead"
     ),
     # A to-do, a start and an ending (`tasks.task_error`, `work.widget_seat_error`).
-    "progress-parent": lambda at, v: (
-        f"this progress line replies to {v['parent']!r} but starts an update you owe"
-        f" no reply to {v['parent']!r} for; it may already be answered"
-    ),
     "not-a-widget": lambda at, v: f"{v['widget']!r} is not a widget on this page",
     "not-an-element": lambda at, v: f"{v['element']!r} is not an element on this page",
     "hidden-widget": lambda at, v: (
@@ -1950,16 +1946,6 @@ _TEXT = {
         " an id it asks a new question"
     ),
     "ended-todo": lambda at, v: f"to-do {v['todo']!r} has already ended ({v['state']})",
-    "todo-execution": lambda at, v: (
-        f"to-do {v['todo']!r} was last started by "
-        + (
-            f"session {v['session']!r}"
-            if v["session"] is not None
-            else "a sessionless command"
-        )
-        + f" (start {v['start']!r}); start it with `leaf task start`"
-        " before ending it from another session"
-    ),
     "unknown-todo": lambda at, v: f"unknown to-do {v['todo']!r}",
     # What other commands note beside their result (`note`). `page open` over
     # updates it still owes an answer, each named by the command that answers it:
@@ -2086,10 +2072,6 @@ _TEXT = {
             else ""
         )
     ),
-    "redeclared-answer": lambda at, v: (
-        f"{v['message']!r} already answered this with a different declaration; ask or"
-        " promise in a new message with `leaf thread reply`"
-    ),
     "unowed-reply": lambda at, v: (
         f"event {v['event']!r} takes no reply; "
         + (v.get("held") or f"this page's log holds no event {v['event']!r}")
@@ -2097,6 +2079,25 @@ _TEXT = {
     "superseded-reply": lambda at, v: (
         f"event {v['event']!r} no longer requires a reply to {v['parent']!r}; "
         + (v.get("held") or "read the current delivery or thread state")
+    ),
+    # What `thread.post_reply` notes beside a message that answers nothing: progress
+    # on an update no longer owed, which takes nothing in hand; an answer to an
+    # update whose earlier answer promised a to-do still open; and an answer the
+    # thread it joins still owes.
+    "superseded-progress": lambda at, v: (
+        f"event {v['event']!r} no longer requires a reply, so this progress takes"
+        " nothing in hand; "
+        + (v.get("held") or "read the current delivery or thread state")
+    ),
+    "promised-todo": lambda at, v: (
+        f"event {v['event']!r} was already answered by {v['todo']!r}, whose to-do"
+        f" {v['title']!r} is still open, so this reply answers nothing new;"
+        f' `leaf task end {v["page"]} {v["todo"]} done --text "<where the result is>"`'
+        " ends the to-do"
+    ),
+    "owed-response": lambda at, v: (
+        f"thread {v['thread']!r} still owes the user an answer, which this message"
+        f" doesn't give; {v['answer']} answers it"
     ),
     "reserved-answer": lambda at, v: (
         f"event {v['event']!r} is answered by this turn's messages; "
@@ -2106,10 +2107,6 @@ _TEXT = {
             if v["failure"]
             else f"use {v['command']} to commit an explicit answer"
         )
-    ),
-    "owed-response": lambda at, v: (
-        f"thread {v['thread']!r} currently requires a response; {v['answer']} answers"
-        " it"
     ),
     "not-a-reply": lambda at, v: (
         f"response {v['reference']!r} requires {v['answer']}, not a reply"

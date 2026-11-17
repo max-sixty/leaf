@@ -367,7 +367,8 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
     page_dir,
 ):
     """A diagnostic on any message names the delivery route for the thread's
-    exact owed input; proactive replies cannot infer that input."""
+    exact owed input; a proactive reply cannot infer that input, so it answers
+    nothing and its note names the route too."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
@@ -388,8 +389,9 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         cli_model.cli,
         ["thread", "reply", str(page_dir), own["id"], "--text", "more"],
     )
-    assert posted.exit_code != 0
-    assert f"{undelivered(page_dir, asked['id'])} answers it" in posted.output
+    assert posted.exit_code == 0, posted.output
+    [owed] = json.loads(posted.stdout)["findings"]
+    assert f"{undelivered(page_dir, asked['id'])} answers it" in owed["text"]
     answered = CliRunner().invoke(
         cli_model.cli,
         [

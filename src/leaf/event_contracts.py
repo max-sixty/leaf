@@ -15,7 +15,6 @@ from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
     active_summaries,
     build_threads,
-    note_settlements,
     spoken_turns,
     summary_range,
     taken_back,
@@ -25,11 +24,7 @@ from leaf.events import (
 from leaf.findings import Finding
 from leaf.harness import message_identity
 from leaf.layer import incompatible_layer
-from leaf.obligations import (
-    questions_in_words,
-    quoted_in,
-    response_address,
-)
+from leaf.obligations import questions_in_words, quoted_in
 from leaf.page_view import CandidatePageView, PageView
 from leaf.passages import holds_html
 from leaf.plans import plan_error
@@ -765,29 +760,16 @@ def _plan_error(event: dict, readings) -> Finding | None:
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a thread, a widget that seats work, an element,
-    or the page. A completing note and `todo_end` share completion authority, and a
-    start names explicit agent work or an owed update (`todos.todo_error`)."""
+    or the page; a `todo_end` names an open to-do; and a start names explicit agent
+    work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
-    progress_parent = (
-        event["parent"] if event["kind"] == "reply" and "start" in event else None
-    )
     if start := start_reading(event):
         event = start
-    elif event["kind"] == "note":
-        if not note_settlements(event, "todo"):
-            return None
     elif event["kind"] not in {"todo", "todo_end"}:
         return None
     held = event["kind"] in {"todo", "start"}
     workflows = readings.work.workflows if held else []
-    if progress_parent is not None and not any(
-        record["source"]["id"] == event["item"]
-        and record["next_actor"] == "agent"
-        and response_address(record).get("parent") == progress_parent
-        for record in readings.work.updates["all"]
-    ):
-        return Finding("progress-parent", values={"parent": progress_parent})
 
     def seat_error(widget: str) -> Finding | None:
         if not view.revisions:

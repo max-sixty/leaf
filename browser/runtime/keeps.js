@@ -54,7 +54,7 @@ export function keepsText(node, text) {
 }
 
 // A flag one element wears at a time, as a cursor's paint stands on the element under
-// the pointer (annotation-overlay/anchor-paint.js, page-geometry.js): the returned call
+// the pointer (anchor-paint.js, page-geometry.js): the returned call
 // moves it to `element`, or takes it off with null, writing only when that changes. An
 // element can arrive wearing it already, as a copy of the one that wore it does.
 /** @param {string} name */

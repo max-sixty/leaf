@@ -1,18 +1,8 @@
 /* Physical annotation overlays, adopted only by the overlay renderer.
- * Shared controls and drawing capture remain in chrome.css, and every mark a box draws
- * in surfaces.css. This sheet owns the hand over a marked element, smart margin rows,
- * floating response placement and the contextual Thread preview; importing page chrome
+ * Shared controls and drawing capture remain in chrome.css, every mark a box draws in
+ * surfaces.css, and the hand over a marked element in marks.css. This sheet owns smart
+ * margin rows, floating response placement and the contextual Thread preview; importing page chrome
  * needs none of it. */
-
-/* The hand over a mark stands on the element under the pointer, painted from the hit
-   test a press uses (anchor-paint.js, `paintHand`), so it shows only where a press
-   opens a thread: not over a control or field inside a marked element, which keeps its
-   own press; not on a mark in the chrome, which a press never opens; not while the
-   annotations are hidden. Armed, a press is the aim's, and where it takes an item the
-   aim's hand stands there too (chrome.css). */
-[data-lf-over-mark] {
-  cursor: pointer;
-}
 
 @scope (.lf-chrome) {
   /* The rail cannot trap a raised item below the page paint it summons. Only the item

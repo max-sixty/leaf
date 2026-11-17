@@ -238,7 +238,7 @@ So each highlight rule names the elements holding the words it paints: a
 suggestion's rules name its slot and every element in it (`browser/base.css`), a text
 document's name its rows (`packages/default/styles/text-document.css`), and the comment
 marks name each element the runtime marks as holding marked words
-(`browser/runtime/annotation-overlay/anchor-paint.js`, `holdWords`). Slotted words
+(`browser/runtime/anchor-paint.js`, `holdWords`). Slotted words
 are styled from their light parent: on 2026-11-14 a rule naming the host painted
 slotted words in all three Playwright engines, one naming the slot painted them only
 in Chromium, and one naming an element between the slot and the shadow root painted
@@ -262,7 +262,7 @@ reaches only an element a rule matches, and
 [CSSWG #13836](https://github.com/w3c/csswg-drafts/issues/13836), to resolve
 `light-dark()` at used-value time instead, was discussed in May 2026 without a
 resolution, against concerns about breaking pages. The comment marks therefore name
-each element holding marked words (`browser/runtime/annotation-overlay/annotation-marks.css`).
+each element holding marked words (`browser/runtime/marks.css`).
 
 Chromium also paints the light half where the element does match the rule, when the
 rule names no element (`::highlight(m)`), though `getComputedStyle` reports the dark
@@ -310,7 +310,7 @@ Firefox 159.0 (build 1572) painted them blue under the page below. Writing
 `color: currentcolor` on the upper rule kept them red in WebKit and turned Firefox's red
 too. So the hover and current-location marks, which set no colour, paint under the
 comment's mark, whose ink stays on top
-(`browser/runtime/annotation-overlay/annotation-marks.css`), and
+(`browser/runtime/marks.css`), and
 `test_marked_words_are_seen_and_told_apart` reads their words' ink off the drawn page
 in WebKit. Recheck by loading the page in WebKit: the gap has closed once the words
 paint blue. The two marks could then paint above the comment's again, which nothing
@@ -1200,7 +1200,7 @@ Chromium headless shell 156.0.8078.4, Firefox 157 and WebKit 27.2 all ship it. O
 2026-11-05 it answered correctly at a range's edges and inside a shadow tree passed in
 `shadowRoots`, which it needs in every engine. Two things keep a thread's passage
 marks from using it to say which mark the pointer is on
-(`browser/runtime/annotation-overlay/anchor-paint.js`, `markHit`):
+(`browser/runtime/anchor-paint.js`, `markHit`):
 
 - Its cost grows with the ranges the page's highlights hold, every one of them read
   on each call. At the last of a paragraph's marks, one call took 20 µs at 32 and

@@ -153,7 +153,7 @@ const forbiddenClosures = Object.fromEntries([
     "addressable-names.js",
     "anchor-resolution.js",
     "anchor-controls.js",
-    "annotation-overlay/anchor-paint.js",
+    "anchor-paint.js",
     "anchor-travel.js",
     "page-layout.js",
     "annotation-overlay/composing/drawing-paint.js",

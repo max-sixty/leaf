@@ -890,7 +890,7 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
 
 
 def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, capsys):
-    """A thread's messages share one reply, but a move on an obligation frozen in one of its
+    """A thread's messages share one reply, but a move on an obligation in one of its
     messages owes an answer of its own, so each is started on its own id. Once their
     replies settle them, a later move in the thread is offered no start in place of
     its answer."""

@@ -50,11 +50,11 @@ def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
 def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
     browser, serve, tmp_path, monkeypatch
 ):
-    """The same mark on a holder an agent sent in a reply. Its markup is frozen and
-    the thread mounts it after the projection has painted the page, so a paint that
-    looks the holder up in the document finds nothing and the reply opens with both
-    slots showing. The holder's node exists before either pass, so the mark is on it
-    when the thread places it."""
+    """The same mark on a holder an agent sent in a reply. Its markup lives in the
+    log, and the thread mounts it after the projection has painted the page, so a
+    paint that looks the holder up in the document finds nothing and the reply opens
+    with both slots showing. The holder's node exists before either pass, so the mark
+    is on it when the thread places it."""
     monkeypatch.chdir(tmp_path)
     trial_family(tmp_path)
     url = serve(REPLY_HOST_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf"))

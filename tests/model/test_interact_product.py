@@ -673,8 +673,8 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
 
 
 def test_reply_validates_typed_references_against_the_page(page_dir):
-    """Reply markup naming a page element of the wrong role never freezes, nor does
-    a command naming the page's seat, which it would fill from another document."""
+    """Reply markup naming a page element of the wrong role never enters the log, nor
+    does a command naming the page's seat, which it would fill from another document."""
     subjects = (
         '<lf-test-plan id="hub" readings="seat"><lf-test-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-test-task></lf-test-plan>"

@@ -63,7 +63,7 @@ A reference to a thread, such as a widget's `resolves`, is checked against the t
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
 comment the log lost. A live sample template's child is checked as a page against its
 initial history wherever the template is declared, in the page or in a message's
-frozen markup (`validation.source.sample_errors`; `sample_content.py` builds that
+markup (`validation.source.sample_errors`; `sample_content.py` builds that
 history). A `data-sample-threads` thread the parent's log does not hold yet leaves the
 child without it, so a first version may name threads whose seed log is unwritten.
 Corpus generation composes from the shipped log, so there a missing thread is a
@@ -175,7 +175,7 @@ The render gate holds each `verbatim` owner to the file reading
 occurrence, so no authored id is needed, and compares the rendered words with the
 passage a user can point at: user body rewrites in force replace authored words,
 retired slots contribute none, and declared generated children join their owner. Page
-markup is read at the rendered revision, and frozen thread markup over its thread's
+markup is read at the rendered revision, and thread markup over its thread's
 whole action window.
 
 ## Parsed source

@@ -3,7 +3,7 @@
    The application supplies the neutral annotation inventory and its live target/action
    directory. This renderer selects clusters and controls from those readings; it does
    not gather Threads, the On lists, workflows or contributed actions. Shared contribution
-   controls retain native entries across page and frozen-Thread seats. This renderer's
+   controls retain native entries across page and Thread seats. This renderer's
    Lit view owns direct/disclosed child order; margin-layout.js owns rail/pin posture,
    lanes and packing. Page Map consumes the inventory independently of this renderer.
 

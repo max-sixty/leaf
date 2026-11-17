@@ -1340,7 +1340,7 @@ def test_obligation_names_a_question_its_own_thread_asks(page_dir):
 
 def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
     """A choice sent in a reply stays the user's after they answer it in words, since
-    no revision can write a frozen widget's state. The delivery of their words names
+    no revision can write a thread widget's state. The delivery of their words names
     the choice in `waiting`, and the agent's resolve of the thread takes it off On Me."""
     asking(page_dir)
     asked = append_command(

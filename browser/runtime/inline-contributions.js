@@ -1,4 +1,4 @@
-/* Contributed controls inside frozen Thread content.
+/* Contributed controls inside Thread messages' markup.
 
    They belong to the Thread's local flow whichever annotation presentation the
    page selects. The shared control owner retains each native entry when its dynamic

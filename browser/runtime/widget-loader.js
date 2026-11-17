@@ -46,7 +46,7 @@ import { widgetImports } from "./widget-imports.js";
    tab. Shared dependency preparation loads shadow rules where the scope
    holds or declares creation of a `shadow` widget, alongside any declared Markdown parser. Three
    boundaries introduce markup and all three use it — startup with the document, a
-   version activation with the incoming authored body, and the state application with the frozen
+   version activation with the incoming authored body, and the state application with the
    markup an agent's reply carries, ahead of the panel building a body. Each of them
    names the tags it needs, so nothing imports on a mutation after the element is already
    connected. A module whose own payload is large (`lf-diff`'s renderer) imports it on
@@ -57,7 +57,7 @@ import { widgetImports } from "./widget-imports.js";
 
    Preloading a revision leaves its authored document intact; only copied arrival nodes
    are formatted, after typed initial values and descriptors are captured and before
-   connection. Startup and frozen messages format after their own source capture.
+   connection. Startup and thread messages format after their own source capture.
 
    Required widget imports reject through the startup or activation boundary; a missing
    module cannot count as a completed upgrade. */
@@ -137,7 +137,7 @@ export function reindexPassageOwners(scope = document, source = ["page", null]) 
 // importing every declared tag would make every page pay for the whole layer.
 //
 // Three boundaries can bring a tag into the document and all three ask here: startup,
-// a version activation, and the panel's instantiation of the frozen markup an agent
+// a version activation, and the panel's instantiation of the markup an agent
 // message carries. Each of them holds the markup it is about to upgrade, so each can
 // name what it needs; a MutationObserver could only import after the element was
 // already connected, which is the one order the startup contract forbids.
@@ -179,7 +179,7 @@ export async function preloadWidgets(scope) {
   await importWidgetModules(scope);
 }
 
-// Startup and frozen-message presentation may consume their captured markup. Format
+// Startup and thread-message presentation may consume their captured markup. Format
 // before module imports can synchronously connect an already-present custom element.
 /** @param {Scope} scope */
 export async function importWidgets(scope) {

@@ -904,14 +904,14 @@ def page_state(d):
 
 
 def served_thread(browser: dict) -> dict:
-    """The frozen threads as the one view `browser` serves reads them."""
+    """The threads as the one view `browser` serves reads them."""
     [view] = browser["views"].values()
     return view["thread"]
 
 
 def served_obligations(browser: dict, *, page: bool = False) -> dict:
     """The obligation records the one view `browser` serves for what the page asks, by
-    the selections `obligations.collection` makes: the frozen threads' obligations, or
+    the selections `obligations.collection` makes: the threads' obligations, or
     with `page` the document's obligations. The records the user's updates publish
     are `served_updates`."""
     [view] = browser["views"].values()

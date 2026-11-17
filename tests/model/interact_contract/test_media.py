@@ -64,9 +64,9 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
 
     A widget carrying pictures is exactly the shape an agent sends in a reply — here
     is how it looks now, and after — and `/media/…` is how markup names one. A version
-    naming a file the directory cannot answer is refused, and the same markup in a
-    reply was accepted and frozen: the log is append-only, so it is two broken images
-    for as long as the page exists, and no check afterwards would ever mention them.
+    naming a file the directory cannot answer is refused, and so is the same markup
+    in a reply: the log is append-only, so the reply would keep two broken images in
+    it, and no check afterwards would ever mention them.
 
     The version door is the control. It is the same reading, so a difference between
     them can only be one of the two having stopped asking."""
@@ -98,7 +98,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
         ],
     )
     assert posted.exit_code == 1, (
-        f"the reply door froze a picture the page has not got into the log:\n"
+        f"the reply door let a picture the page has not got into the log:\n"
         f"{posted.output}"
     )
     assert "/media/0000000000000001.png isn't in the page directory" in posted.output, (

@@ -353,7 +353,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     assert after["attention"] is None
 
 
-def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
+def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     asked = append_carried_log_record(
@@ -446,7 +446,7 @@ def test_frozen_widget_workflow_contributes_to_its_thread_attention(page_dir):
     }
 
 
-def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(
+def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothing(
     page_dir,
 ):
     """A card moved on a board sent in a reply is a page move in another document:
@@ -637,7 +637,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     """A thread's status reads the records open in it, and names the strongest
     workflow serving the one it waits on. An input a newer one covers serves the newer
     one's record, so its pickup or a reply streaming to it keeps reading on the thread;
-    a frozen move that owes nothing serves none, so its further stage never stands in
+    a thread move that owes nothing serves none, so its further stage never stands in
     for the owed reply's."""
 
     def workflow(id, seq, subject, stage, obligation=None):
@@ -683,7 +683,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
     )
-    frozen = projection_model.FrozenThreadReading(
+    thread_reading = projection_model.ThreadMarkupReading(
         ThreadStructure(set(), {}, {}, {}, {}), {}, {}, {"board": "root"}, empty
     )
     todos = [
@@ -701,7 +701,9 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         assert browser_served_model._thread_attention(
             thread,
             [owed],
-            work_served_model.served_workflows(workflows, frozen, records, frozenset()),
+            work_served_model.served_workflows(
+                workflows, thread_reading, records, frozenset()
+            ),
             todos,
         ) == {
             "kind": "waiting",
@@ -775,13 +777,13 @@ def test_served_workflows_list_the_strongest_first():
     empty = projection_model.StateProjection(
         {}, {}, {}, {}, {}, frozenset(), frozenset()
     )
-    frozen = projection_model.FrozenThreadReading(
+    thread_reading = projection_model.ThreadMarkupReading(
         ThreadStructure(set(), {}, {}, {}, {}), {}, {}, {}, empty
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
         served = work_served_model.served_workflows(
-            workflows, frozen, records, frozenset()
+            workflows, thread_reading, records, frozenset()
         )
         assert [item["id"] for item in served] == expected
 
@@ -969,7 +971,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
     }
 
 
-def test_settling_a_frozen_widget_move_does_not_revive_its_superseded_move(
+def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
     claimed, printing, capsys
 ):
     page_dir = claimed

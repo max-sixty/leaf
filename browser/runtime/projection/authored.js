@@ -21,7 +21,7 @@ import { authoredRank } from "./model.js";
    ownership. `stageAuthoredStates` decodes source elements while their validated
    attributes, member order, and data bodies are intact. The complete staged document
    enters the application publisher before its content modules render. Page revisions
-   and frozen thread markup use the same boundary, so presentation never becomes a
+   and thread markup use the same boundary, so presentation never becomes a
    semantic input.
 
    `authoredStates` holds the one typed initial condition per owner. Provenance

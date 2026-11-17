@@ -459,7 +459,7 @@ def test_a_reply_refused_after_user_resolution_names_the_resolution(page_dir):
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     """A message is not the only id an agent is handed. A user's press on a widget
-    frozen into a reply is answered through its exact delivery reference. The
+    in a reply is answered through its exact delivery reference. The
     diagnostic must name that response route for the action rather than treating
     its event id as a page element or a proactive thread destination."""
     publish(page_dir)
@@ -467,7 +467,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         page_dir,
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
     )
-    frozen = (
+    ask = (
         '<section id="thread-ask" role="group" aria-labelledby="thread-ask-h">\n<h2 id="thread-ask-h">Choose one</h2>'
         '<lf-options id="thread-picks"><lf-option id="thread-option">'
         "Thread option</lf-option></lf-options></section>"
@@ -480,7 +480,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            f"Which?\n\n{frozen}",
+            f"Which?\n\n{ask}",
         ],
     )
     assert answered.exit_code == 0, answered.output

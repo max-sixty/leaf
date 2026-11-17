@@ -43,7 +43,7 @@ def thread_markup_contract_errors(parser, registry: dict) -> list[Finding]:
     errors = fragment_errors(parser, registry)
     settled = retirement_slots(registry)
     errors.extend(
-        found_at("frozen-settlement", rec)
+        found_at("message-settlement", rec)
         for rec in parser.lf_elements
         if rec["tag"] in settled
     )
@@ -397,7 +397,7 @@ def reference_errors(
                 errors.append(found_at("outside-reference", rec, **reference_to))
             elif attr == entry.get("shows", {}).get("reference") and target not in own:
                 # A view and the answer it shows travel in one document, so a board
-                # in a reply shows widgets frozen in the same reply (`shown_answers`).
+                # in a reply shows widgets in the same reply (`shown_answers`).
                 errors.append(found_at("shows-outside", rec, **reference_to))
             elif reference.get("owns"):
                 owners.setdefault((rec["tag"], attr, target), []).append(rec)

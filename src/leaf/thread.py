@@ -657,7 +657,7 @@ def post_reply(
         )
         if beside is not None and addressed.responds is not None:
             # Whether the answer took the thread, by the reading once it is in: one to
-            # an older message, or to a widget frozen there, leaves a message the fork
+            # an older message, or to a widget in one, leaves a message the fork
             # picked up waiting, and the thread with the fork.
             took = owed_by(page_holding(page).hold(thread).holder)["kind"] == "main"
             beside = replace(beside, values={**beside.values, "answers": took})
@@ -1055,7 +1055,7 @@ def post_response(
 ) -> dict | None:
     """Author a complete reply at the delivery's exact captured response address.
 
-    The reference chooses page, input and frozen thread destination. All rich reply
+    The reference chooses page, input and thread destination. All rich reply
     options belong to the durable writer. A direct answer refuses a superseded
     input, except where `post_reply` says; a provider's final (`reservation`,
     `ProviderFinal`) preserves its captured destination after user settlement but

@@ -11,8 +11,8 @@ from leaf.events import event_document
 from leaf.obligations import answer_verbs, answering_action, replayed_attrs
 from leaf.projection import (
     AuthoredOrders,
-    frozen_thread_reading,
     page_reading,
+    thread_markup_reading,
     with_action,
 )
 from leaf.registry.contract import (
@@ -25,7 +25,7 @@ from leaf.thread_context import thread_structure
 
 
 class AdmissionReadings:
-    """The page and frozen-thread readings one admission folds, each built once.
+    """The page and thread-markup readings one admission folds, each built once.
 
     The contract gates and the meaning stamped after them read the same log, so
     they share one fold of it rather than each paying for their own."""
@@ -58,7 +58,7 @@ class AdmissionReadings:
 
     @cached_property
     def thread(self):
-        return frozen_thread_reading(
+        return thread_markup_reading(
             self.events, self.registry, withdrawn=self.log.withdrawn
         )
 

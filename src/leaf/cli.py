@@ -758,7 +758,7 @@ def state(
     revision's HTML beside it for the document.
 
     MESSAGE_OR_WIDGET narrows the output to what it names. A message, or a widget
-    frozen into one, names its thread: the output is that thread with a page of its
+    in one, names its thread: the output is that thread with a page of its
     messages and the state of their widgets, paged by --after
     and --limit. Each action in force and each message carries what its delivery
     added to it, such as a choice's words and a message's `unsent`. A widget on the page names itself: its element, its current

@@ -12,7 +12,7 @@
    rings, markers and arrival all name the same request. A record unit stands at its
    projected datum, even when it is the widget's only obligation; the owning widget
    still supplies its commands and answer formatter.
-   Frozen thread sources may have no node until the thread owner materializes them.
+   Thread sources may have no node until the thread owner materializes them.
    A question answered in words and an update stand nowhere on the page; their thread
    or widget owner draws them. Nor does anything whose subject is the page as a whole:
    the user chose to give a to-do on the page no place, over standing it at its first
@@ -21,7 +21,7 @@
 
    A region holds an obligation when the obligation's source element is the region or stands under
    it (`obligationsIn`, or `obligationsByRegion` for many regions at once), shadow trees included. A withdrawn obligation no longer asks anything, and
-   an obligation with no source (a question answered in words, an update's, or a frozen
+   an obligation with no source (a question answered in words, an update's, or a thread
    source not drawn) stands in no region, so a region counts what its widgets
    ask. Membership reads the complete
    inventory, answered obligations included, and each consumer selects what it counts from

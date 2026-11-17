@@ -107,11 +107,11 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     """A hand-written seed is the one markup in the product no gate has read.
 
     Markup reaches a page two ways. A version goes through `page check`. An
-    event's `markup` goes through `leaf thread reply`, which validates it and then freezes
-    it in an append-only log, so that door is the last moment anything about it can
-    be fixed. An example's companion log is neither: it is written into the
-    repository by hand, and the append door it goes through reads the event, not
-    its markup. From there `leaf-dev site build` publishes it to
+    event's `markup` goes through `leaf thread reply`, which validates it before it
+    joins the append-only log, so that door is the last moment anything about it can
+    be fixed before the user reads it. An example's companion log is neither: it is
+    written into the repository by hand, and the append door it goes through reads
+    the event, not its markup. From there `leaf-dev site build` publishes it to
     leaf.page, `serve` lays it into every browser sweep, and `leaf-dev preview`
     serves it live. `page check` reads such a log only for ids colliding
     with the version's.

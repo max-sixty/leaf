@@ -629,9 +629,9 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
 def test_a_summary_hint_spans_the_summaries_above_its_run(page_dir):
     """A thread summarized once and grown long again is offered one range from its
     earlier summary through the new run, so following each hint leaves one summary
-    of the earlier discussion rather than a row of them. The range starts on a
-    message the thread still says, though the user took back the first message the
-    earlier summary named."""
+    of the earlier discussion rather than a row of them. It takes in a fold of
+    progress alone, and starts on a message the thread still says, though the user
+    took back the first message an earlier summary named."""
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Plan the rollout."}
     )
@@ -650,6 +650,20 @@ def test_a_summary_hint_spans_the_summaries_above_its_run(page_dir):
             )
         )
 
+    progress = [
+        append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "parent": root["id"],
+                "text": "Checking.",
+                "ephemeral": True,
+            },
+        )
+        for _ in range(2)
+    ]
+    thread_model.cmd_summarize(page_dir, progress[0]["id"], progress[-1]["id"], "")
     say("user")
     # A reply to it keeps the message in its place once the user takes it back, and
     # a fold without prose outlives that.
@@ -669,12 +683,12 @@ def test_a_summary_hint_spans_the_summaries_above_its_run(page_dir):
         page_view_model.PageView(page_dir).within,
     )
     assert digest["summary_hint"] == {
-        "from": spoken[2]["id"],
+        "from": progress[0]["id"],
         "through": spoken[-3]["id"],
     }
 
     thread_model.cmd_summarize(
-        page_dir, spoken[2]["id"], spoken[-3]["id"], "All of it."
+        page_dir, progress[0]["id"], spoken[-3]["id"], "All of it."
     )
     read = CliRunner().invoke(
         cli_model.cli, ["page", "state", str(page_dir), root["id"]]

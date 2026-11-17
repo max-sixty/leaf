@@ -101,7 +101,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
 from leaf.validation import composition as validation_model
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, panel_tab
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -290,8 +290,10 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
-    # Open by script so the pointer remains parked on the target while the view arrives.
-    page.locator(".lf-fp-on-user").evaluate("node => node.click()")
+    # Open by script, the leaf's menu and then its On Me tab, so the pointer remains
+    # parked on the target while the view arrives.
+    page.locator(".lf-fp-leaf").evaluate("node => node.click()")
+    panel_tab(page, "On Me").evaluate("node => node.click()")
     panel_settled(page, view="queue")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     aligned = page.evaluate(

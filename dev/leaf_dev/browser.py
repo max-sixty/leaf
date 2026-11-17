@@ -493,9 +493,10 @@ def scroll_settled(page, scroller=None, axis="y"):
 
 
 # The floating panel's row ends in one seat: at rest the On Me mark, which counts what
-# waits on the user and dots a thread with news; while a stance or search stands, its
-# way out (`.lf-fp-exit`) in the same place. A view's Close (`.lf-fp-exit.lf-fp-close`)
-# ends a list's tabs or another view's head line instead.
+# waits on the user, dots a thread with news, and presses Next On Me (`m`) while it
+# counts anything; while a stance or search stands, its way out (`.lf-fp-exit`) in the
+# same place. A view's Close (`.lf-fp-exit.lf-fp-close`) ends a list's tabs or another
+# view's head line instead.
 ON_ME_MARK = ".lf-fp-on-user"
 
 # The floating panel (runtime/floating-panel.js) is Leaf's one chrome: a row of the leaf,
@@ -525,46 +526,52 @@ def panel_tab(page: Page | FrameLocator, name: str):
     return page.locator(".lf-fp-controls .lf-fp-filters button", has_text=name)
 
 
-def threads_tab(page: Page | FrameLocator):
-    """Stand On or Threads open and return the Threads tab at its foot. From the row the
-    On Me mark opens On, or Threads itself while nothing waits on the user but a reply
-    they have not read; another view, stance or search is closed first by its exit.
-    Leave an empty comment field by pressing the page first where writing hides the
-    mark. `page` may be a live sample's frame."""
+def on_view_tab(page: Page | FrameLocator, name: str):
+    """Stand the On view open and return its tab `name` (`panel_tab`), by pointer as a
+    user reaches it: the leaf opens the On view on its menu. A view, stance or search
+    standing open is closed first by its exit, and one of the On view's lists standing
+    open is kept. `page` may be a live sample's frame."""
     # A stance's exit becomes the mark in the repaint frame. Read the controls only
     # after the previous input has rendered, before choosing a pointer route.
     rendered(
         page.locator("html").element_handle().owner_frame(), facts=("updatesSettled",)
     )
     host = page.locator(PANEL)
-    if host.get_attribute("data-lf-open") not in ("queue", "threads"):
+    if host.get_attribute("data-lf-open") not in ("menu", "queue", "threads"):
         exit_control = page.locator(".lf-fp-exit")
         if exit_control.count():
             exit_control.click()
-        mark = page.locator(ON_ME_MARK)
-        if not mark.is_visible():
-            # Writing hides the quick seat. Leave the field by pressing the page,
-            # as a pointer user does before reaching On Me.
-            page.locator("html").click(position={"x": 0, "y": 0})
-        mark.click()
-    return panel_tab(page, "Threads")
+        page.locator(".lf-fp-leaf").click()
+    return panel_tab(page, name)
+
+
+def threads_tab(page: Page | FrameLocator):
+    """Stand the On view open and return its Threads tab (`on_view_tab`)."""
+    return on_view_tab(page, "Threads")
+
+
+def open_on_me(page: Page | FrameLocator):
+    """Turn the On view to On Me by pointer (`on_view_tab`) and return its view. The On
+    Me mark presses Next On Me while On Me lists anything, so the list is reached as
+    the On view's tab."""
+    on_view_tab(page, "On Me").click()
+    view = page.locator(panel_view("queue"))
+    view.wait_for()
+    return view
 
 
 def open_threads(page: Page | FrameLocator) -> None:
     """Open the floating panel's Threads view by pointer, as a user reaches it: from a
-    thread opened over Threads by its way back, else by the Threads tab (`threads_tab`)
-    unless the mark opened Threads itself. The view lists the open threads, then the
-    resolved ones folded under a Resolved heading (`show_resolved`)."""
-    host = page.locator(PANEL)
-    if host.get_attribute("data-lf-open") == "threads":
+    thread opened over Threads by its way back, else by the Threads tab (`threads_tab`).
+    The view lists the open threads, then the resolved ones folded under a Resolved
+    heading (`show_resolved`)."""
+    if page.locator(PANEL).get_attribute("data-lf-open") == "threads":
         return
     back = page.get_by_role("button", name="Back to Threads")
     if back.count():
         back.click()
     else:
-        tab = threads_tab(page)
-        if host.get_attribute("data-lf-open") != "threads":
-            tab.click()
+        threads_tab(page).click()
     page.locator(panel_view("threads")).wait_for()
 
 

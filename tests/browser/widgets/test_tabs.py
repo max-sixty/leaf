@@ -908,7 +908,8 @@ def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve)
         serve.page_dir,
         source.replace(
             '<p id="last-words">Nothing yet.</p>',
-            '<lf-options id="pick"><lf-option id="pick-a">Go</lf-option></lf-options>',
+            '<section id="ask" role="group" aria-labelledby="ask-h"><h3 id="ask-h">Go?</h3>'
+            '<lf-options id="pick"><lf-option id="pick-a">Go</lf-option></lf-options></section>',
         ),
         "Ask the first question",
     )

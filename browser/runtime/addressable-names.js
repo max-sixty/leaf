@@ -7,14 +7,7 @@
  * names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import {
-  authoredScope,
-  documentOutline,
-  elementReading,
-  HEADING,
-  keptAnswer,
-  keptWithReading,
-} from "./passages.js";
+import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
@@ -82,44 +75,68 @@ export function addressableSays(addressable) {
 
 // What names an element, where the authoring contract gives it a name
 // (`skills/leaf/references/module-reading.md`, "Naming elements"): a widget's `label`
-// attribute (the registry's `$attributes`), else a leading disclosure summary or
-// heading, or on a widget the registry registers, such as an option or a card, a
-// leading <strong>, looked for inside a leading <header> or <hgroup> too. A <strong> in
-// plain markup names nothing: a bold line in prose is how the line looks, not what it
-// is called. Leading means no words come before it; elements may, as a titled member's
-// comparison chips stand in the band above its title and an eyebrow above a header's
-// heading. The words are the ones the author wrote (the `wrote` reading), so a gloss's
-// tip the page draws beside its phrase is no part of a heading's name, and generated
-// chrome names nothing: chrome inside the element, asked about the element's own
-// insides, since a widget an agent sent in a reply stands inside the floating panel's
-// chrome and its heading is still its name. An element the contract gives no name
-// answers "". The server names an obligation's element by the same rule off the
-// document (`gesture_words.element_name`), and `tests/name_cases.json` holds both to
-// the same cases.
+// attribute (the registry's `$attributes`), else the element its title or caption is.
+// A widget the registry registers, such as an option or a card, is titled by a leading
+// heading, summary or <strong>, looked for inside a leading <header> or <hgroup> too;
+// leading means no words come before it, though elements may, as a titled member's
+// comparison chips stand in the band above its title. Plain markup is named by the
+// caption HTML gives it: a disclosure by its <summary>, an <hgroup> by its heading, and
+// a `section` or `article` by the heading it opens with, alone or in an <hgroup>. That
+// last is a reading of position the maintainer agreed to (root AGENTS.md, "Read what
+// the page states"): HTML calls h1–h6 "headings for their sections" without saying
+// which element is the section, and an element that opens with its heading is the case
+// where the two agree. No other element is named by a heading inside it, and a <strong>
+// in plain markup names nothing. The words are the ones the author wrote (the `wrote`
+// reading), so a gloss's tip the page draws beside its phrase is no part of a heading's
+// name, and generated chrome names nothing: chrome inside the element, asked about the
+// element's own insides, since a widget an agent sent in a reply stands inside the
+// floating panel's chrome and its heading is still its name. An element the contract
+// gives no name answers "". The server names an obligation's element by the same rule
+// off the document (`gesture_words.element_name`), and `tests/name_cases.json` holds
+// both to the same cases.
 //
-// Replaced: a leading <strong> titled any element, so a bold line opening a paragraph
-// or list item named it, and On Me's parts (thread/placement.js, `partOver`) told a bold
-// line alone on its line, which made a part, from one words followed, which didn't, by
-// walking the markup after it.
-const TITLES = `summary, ${HEADING}`;
-const WIDGET_TITLES = `${TITLES}, strong`;
-/** The element whose words name `container` by that rule, or null. Finding it reads the
- * container's children, so the answer is kept as long as the page reading stands
- * (`keptAnswer`), as an element's words are: a label asked again on every pass, or a
- * preview climbing past a long run of paragraphs, reads them once.
+// Rejected: naming any element by a leading heading, looked for inside a <header> or
+// past an eyebrow, which names a `div` by where a heading happens to stand; and a
+// leading <strong> on any element, which names a paragraph by how its first words
+// look.
+const WIDGET_TITLES = `summary, ${HEADING}, strong`;
+const SECTIONS = "section, article";
+/** The element whose words name `container` by that rule, or null. Finding a widget's
+ * reads the container's children, so the answer is kept as long as the page reading
+ * stands (`keptAnswer`), as an element's words are: a label asked again on every pass,
+ * or a preview climbing past a long run of paragraphs, reads them once.
  * @param {Element} container @returns {Element | null} */
 export const leadingTitle = (container) =>
   keptAnswer(container, "leading title", () =>
-    readLeadingTitle(container, registered(container) ? WIDGET_TITLES : TITLES),
+    registered(container) ? widgetTitle(container) : openingTitle(container),
   );
-/** @param {Element} container @param {string} titles @returns {Element | null} */
-function readLeadingTitle(container, titles) {
+/** @param {Element} container @returns {Element | null} */
+function widgetTitle(container) {
   for (const node of container.childNodes) {
     if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
     if (!(node instanceof Element) || uiInside(node, container)) continue;
-    if (node.matches(titles)) return node;
-    if (["header", "hgroup"].includes(node.localName))
-      return readLeadingTitle(node, titles);
+    if (node.matches(WIDGET_TITLES)) return node;
+    if (["header", "hgroup"].includes(node.localName)) return widgetTitle(node);
+  }
+  return null;
+}
+// The caption HTML gives plain markup, by the rule above: a disclosure's first
+// <summary>, an hgroup's heading, or the heading a section or article opens with, alone
+// or in an <hgroup>.
+/** @param {Element} element @returns {Element | null} */
+function openingTitle(element) {
+  const child = (/** @type {string} */ selector) =>
+    [...element.children].find(
+      (node) => node.matches(selector) && !uiInside(node, element),
+    ) ?? null;
+  if (element.localName === "details") return child("summary");
+  if (element.localName === "hgroup") return child(HEADING);
+  if (!element.matches(SECTIONS)) return null;
+  for (const node of element.childNodes) {
+    if (node.nodeType === Node.TEXT_NODE && node.textContent?.trim()) return null;
+    if (!(node instanceof Element) || uiInside(node, element)) continue;
+    if (node.localName === "hgroup") return openingTitle(node);
+    return node.matches(HEADING) ? node : null;
   }
   return null;
 }
@@ -127,118 +144,36 @@ function readLeadingTitle(container, titles) {
 /** @param {Element} element */
 const registered = (element) =>
   isElementName(element.localName) && Object.hasOwn(registry, element.localName);
-// The element a heading titles: the outermost element whose first heading it is, short
-// of one its own `label` attribute names; or the heading itself where it
-// titles no element. A sectioning element (`section`, `article`, `aside`, `nav`) takes
-// its first heading whatever else it holds, past any wrapper between them. Any other
-// takes it only where every other heading inside ranks below it, outside a title group
-// (`header`, `hgroup`) no words stand before the heading's branch, and each element
-// between them takes it too. So a question's heading
-// titles its `hgroup`, the question and a `section` wrapping the question; a section's
-// first heading titles it after an eyebrow or an introduction, past a numbered eyebrow
-// in a wrapper or a kicker in the question, and past a question of the same rank
-// inside it; a heading after the question in that section titles only
-// itself; a `div` holding a lede and several sections is none's; a heading deep in a
-// task list, a disclosure under its summary, or a playground's preview titles only
-// what it opens, short of a section around it; and a tab, pane or sample is named by
-// its label. The contents start each row's
-// stretch of the page at the element its heading titles, and a heading's link preview
-// counts the conversations about it (thread/placement.js, `conversationsAbout`).
-// `titlingHeading` reads it the other way round.
+// The element a heading titles: the outermost one it names by the rule above, such as
+// its hgroup and the section or article that opens with it, or a card it leads, past a
+// leading header; short of a widget its `label` attribute names; or else the heading
+// itself. `lf-toc` starts each row's stretch of the page at it, a heading's link takes
+// its address, and a heading's link preview counts the conversations about it
+// (thread/placement.js, `conversationsAbout`). `titlingHeading` reads it the other way
+// round.
 //
-// Rejected: the contents taking an identified `section` whose first heading this is, and
-// a heading's link the elements the heading leads by naming's rule (`leadingTitle`),
-// which stops at a question inside a section and lets a sub-heading after a question
-// title the section around both. Neither takes a question with no section around it.
-//
-// The answer turns on headings and words anywhere around the heading, so it is kept
-// with its document's whole reading (`keptWithReading`), which any change to the
-// document forgets, a widget's data included. Kept with the heading's own part of the
-// page, it would outlive a heading put before that part.
+// Rejected: titling the outermost element whose first heading this is, past wrappers
+// and an eyebrow, wherever every other heading inside ranks lower. It reads position
+// and rank anywhere around the heading, so a `div`, a page's column or a section
+// wrapping a question takes a title its author never gave it, and answering needs the
+// document's whole outline.
 /** @param {Element} heading @returns {Element} */
 export function titledElement(heading) {
-  const kept = keptWithReading(
-    authoredScope(heading),
-    titledElement,
-    () => /** @type {WeakMap<Element, Element>} */ (new WeakMap()),
-  );
-  let titled = kept.get(heading);
-  if (!titled) kept.set(heading, (titled = readTitledElement(heading)));
-  return titled;
-}
-/** @param {Element} heading @returns {Element} */
-function readTitledElement(heading) {
   let titled = heading;
-  let chained = true;
-  for (
-    let branch = heading, at = heading.parentElement;
-    at && !declaredName(at) && headingsIn(at).first === heading;
-    branch = at, at = at.parentElement
-  ) {
-    if (at.matches(SECTIONING)) [titled, chained] = [at, true];
-    else if (chained && opensOn(heading, at, branch)) titled = at;
-    else chained = false;
-  }
+  for (let at = heading.parentElement; at; at = at.parentElement)
+    if (titleOf(at) === heading) titled = at;
+    else if (!at.matches("header, hgroup")) break;
   return titled;
 }
 /** The heading that titles `element` (`titledElement`), or null.
  * @param {Element} element @returns {Element | null} */
 export function titlingHeading(element) {
-  const { first } = headingsIn(element);
-  return first && titledElement(first).contains(element) ? first : null;
+  const title = titleOf(element);
+  return title?.matches(HEADING) ? title : null;
 }
-const SECTIONING = "section, article, aside, nav";
-// Whether an element other than a sectioning one opens on `heading`, its first: every
-// other heading in it ranks below, and outside a title group no words stand before the
-// heading's branch.
-/** @param {Element} heading @param {Element} element @param {Element} branch */
-const opensOn = (heading, element, branch) => {
-  if (headingsIn(element).below <= rank(heading)) return false;
-  if (element.matches("header, hgroup")) return true;
-  for (let node = branch.previousSibling; node; node = node.previousSibling)
-    if (hasWords(node)) return false;
-  return true;
-};
-// Whether a node holds any words, read up to its first.
-/** @param {Node} node */
-function hasWords(node) {
-  if (node.nodeType === Node.TEXT_NODE) return Boolean(node.textContent?.trim());
-  if (node.nodeType !== Node.ELEMENT_NODE) return false;
-  const walker = /** @type {Document} */ (node.ownerDocument).createTreeWalker(
-    node,
-    NodeFilter.SHOW_TEXT,
-  );
-  for (let text = walker.nextNode(); text; text = walker.nextNode())
-    if (text.textContent?.trim()) return true;
-  return false;
-}
-/** @param {Element} heading */
-const rank = (heading) => Number(heading.localName.slice(1));
-// The first heading an element holds, as its document reads it, and the highest rank
-// among the rest (7 where there are none). Read off the document's outline
-// (passages.js, `documentOutline`), which lists its headings in reading order, chrome
-// aside: each heading is credited to every element holding it, once for each reading
-// of the document (`keptWithReading`), so the answers cost the headings the document
-// holds rather than its elements. An element no document reads holds none. Rejected:
-// asking each element's tree for its headings, which walks every element under it,
-// again after any change to the page.
-const NO_HEADINGS = Object.freeze({ first: null, below: 7 });
-/** @param {Element} element @returns {{first: Element | null, below: number}} */
-function headingsIn(element) {
-  const scope = authoredScope(element);
-  const held = keptWithReading(scope, headingsIn, () => {
-    /** @type {Map<Element, {first: Element, below: number}>} */
-    const holders = new Map();
-    for (const heading of documentOutline(scope).outline)
-      for (let at = heading.parentElement; at; at = at.parentElement) {
-        const holder = holders.get(at);
-        if (holder) holder.below = Math.min(holder.below, rank(heading));
-        else holders.set(at, { first: heading, below: 7 });
-      }
-    return holders;
-  });
-  return held.get(element) ?? NO_HEADINGS;
-}
+// The element whose words title `element` by the rule above, short of a `label`.
+/** @param {Element} element */
+const titleOf = (element) => (declaredName(element) ? null : leadingTitle(element));
 // The title a widget's `label` attribute holds, such as a tab's: the one attribute
 // that names its element on every widget that takes it (`$attributes`, Python's
 // `registry.contract.NAME_ATTRIBUTE`).

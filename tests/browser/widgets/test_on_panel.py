@@ -838,7 +838,6 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -920,7 +919,6 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -975,7 +973,6 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
-            "html": True,
         },
     )
     page = open_page(request.getfixturevalue(engine), url)

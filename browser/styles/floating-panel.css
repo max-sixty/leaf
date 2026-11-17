@@ -1266,6 +1266,9 @@
   .lf-fp-view[data-lf-route="thread"] {
     --lf-fp-fade-end: 12px;
     --lf-fp-view-pad-end: 10px;
+    /* The room under the thread's last message, which with the view's padding makes
+       a message's gap (surfaces.css) over the field, as over a next message. */
+    --lf-fp-transcript-end: calc(var(--lf-msg-gap) - var(--lf-fp-view-pad-end));
     padding-block: 10px var(--lf-fp-view-pad-end);
     mask-image: linear-gradient(
       to bottom,
@@ -1288,7 +1291,9 @@
     --lf-awaited-ground: var(--lf-fp-surface);
     bottom: calc(-1 * var(--lf-fp-view-pad-end));
     margin-inline: calc(-6px - var(--lf-thread-text-inset)) calc(-14px - var(--lf-sp-1));
-    margin-block-end: calc(-1 * var(--lf-fp-view-pad-end) - var(--lf-sp-1));
+    margin-block-end: calc(
+      -1 * (var(--lf-fp-view-pad-end) + var(--lf-fp-transcript-end))
+    );
     padding-block: 10px 6px;
   }
 
@@ -1798,13 +1803,14 @@
      padding, as the quote's rule does, and its to-dos and transcript inset their words
      onto the thread's edge. The transcript keeps the room around it a card's box gives
      its own, but on the side the quote's rule stands, its first author 16px under the
-     quote, the quote head's 12px included. */
+     quote, the quote head's 12px included, and at its foot, its last words a message's
+     gap over the field (`--lf-fp-transcript-end`, above). */
   .lf-fp-messages > .lf-page-thread {
     --lf-thread-text-inset: var(--lf-fp-inset);
     padding: 0;
   }
   .lf-fp-messages .lf-thread-transcript {
-    padding-block: var(--lf-sp-1);
+    padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
     padding-inline-end: calc(8px + var(--lf-sp-1));
   }
   /* A rewrite in a thread's view stands where the message stood (response.css,

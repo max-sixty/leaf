@@ -2103,9 +2103,9 @@ export function createFloatingPanel({
     () => card.getBoundingClientRect(),
   );
   // A send is the user's change joining the stream the box shows (box-motion.js,
-  // "send"): the box reads where that stream stands before the send draws, and the
-  // readings until the send's rendering settles carry it from there on the box's own
-  // tween.
+  // "send"): the box reads where that stream stands before the send draws, and each
+  // reading until the send's rendering settles carries it on from where it last stood,
+  // on the box's own tween.
   function streamSend() {
     following.stream();
   }

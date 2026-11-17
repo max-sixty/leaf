@@ -57,7 +57,7 @@ def test_revendoring_serializes_with_thread_markup_entering_the_log(
         monkeypatch,
         "reply",
         lambda: thread_model.post_reply(
-            page_dir, {"responds": "c1"}, "Pick one:" + "\n\n" + markup, html=True
+            page_dir, {"responds": "c1"}, "Pick one:" + "\n\n" + markup
         ),
     )
 
@@ -433,7 +433,6 @@ def test_sample_fixture_accepts_native_message_markup(page_dir):
                 "id": "aabb0011",
                 "author": "agent",
                 "text": 'Results:\n\n<table id="results"><tr><td>Passed</td></tr></table>',
-                "html": True,
             },
             {
                 "kind": "reply",
@@ -441,7 +440,6 @@ def test_sample_fixture_accepts_native_message_markup(page_dir):
                 "author": "agent",
                 "revision": 1,
                 "text": 'Log:\n\n<pre id="log">Ready\nDone</pre>',
-                "html": True,
             },
         ]
     )
@@ -479,7 +477,6 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
             "author": "agent",
             "text": "A widget example\n\n"
             '<section id="message-ask" role="group" aria-labelledby="message-ask-h"><h2 id="message-ask-h">Route</h2><lf-options id="message-widget"><lf-option id="message-option">Existing</lf-option></lf-options></section>',
-            "html": True,
         },
         {
             "kind": "comment",

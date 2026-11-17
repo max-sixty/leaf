@@ -784,6 +784,10 @@ summary {
   --lf-group-ring-end: 6px;
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
+  /* The room between a message's last line and what follows it in the conversation,
+     the next message, a checkpoint or the working step: far more than a head's gap to
+     its words, so each head reads with the message under it. */
+  --lf-msg-gap: 24px;
   /* A message's controls, symbols as tall as the thread's own, one group at its
      head's end (controls.css). */
   --lf-msg-control-size: var(--lf-icon-action-face);
@@ -825,7 +829,7 @@ summary {
   initial-value: 0;
 }
 .lf-msg {
-  margin: 16px 0 0;
+  margin: var(--lf-msg-gap) 0 0;
   --lf-msg-rest-ground: transparent;
   --lf-msg-ground: color-mix(
     in srgb,
@@ -978,7 +982,7 @@ summary {
    closed (thread/transcript.js). One disclosure beside that context controls the
    entire range. Open, the covered messages follow it at their own inner gap. */
 .lf-thread-checkpoint {
-  margin-block: 16px;
+  margin-block: var(--lf-msg-gap);
   anchor-name: var(--lf-fold-head);
 }
 .lf-thread-checkpoint[data-lf-expanded="true"] {
@@ -1081,7 +1085,7 @@ summary {
    arrival, its departure and a new step that replaces its words are held when they
    would move what the reader sees (held-news.js). */
 .lf-thread-working {
-  margin-top: 16px;
+  margin-top: var(--lf-msg-gap);
 }
 .lf-thread-working-words {
   margin-top: var(--lf-msg-body-gap);

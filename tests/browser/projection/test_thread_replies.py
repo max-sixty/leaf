@@ -194,7 +194,6 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "revision": 1,
             "parent": "body-question",
             "text": f'Edit these words.\n\n<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
-            "html": True,
         },
     )
     page = open_page(browser, live_url(url))
@@ -271,7 +270,6 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
                 '<lf-tally id="crossed-tally" for="crossed-region" next></lf-tally>'
                 '<lf-draft id="crossed-draft"><pre>\n    First line.\n    Second line.\n'
                 "</pre></lf-draft></div>",
-                "html": True,
             },
         )
     holding(page, held, 1, "the frozen draft module")
@@ -367,7 +365,6 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "parent": "c-decision",
             "revision": 1,
             "text": SAMPLE_TEXT + "\n\n" + SAMPLE_MARKUP,
-            "html": True,
         },
     )
     decision = append_command(

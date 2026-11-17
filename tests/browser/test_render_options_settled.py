@@ -353,7 +353,6 @@ def test_a_settled_obligation_keeps_its_heading_above_the_answer(browser, serve)
             '<lf-option id="th-redis" selected><strong>Redis</strong></lf-option>'
             '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
             "</lf-options></section>",
-            "html": True,
         },
     )
     [root] = [

@@ -1281,7 +1281,6 @@ THREAD_OBLIGATIONS = [
         "id": "c-which",
         "author": "agent",
         "revision": 1,
-        "html": True,
         "text": "Which store?\n\n"
         + '<section id="tq-one-decision" role="group" aria-labelledby="tq-one-decision-h"><h3 id="tq-one-decision-h">Which store?</h3>'
         '<lf-options id="tq-one">'
@@ -1294,7 +1293,6 @@ THREAD_OBLIGATIONS = [
         "id": "c-any",
         "author": "agent",
         "revision": 1,
-        "html": True,
         "text": "Pick any that apply.\n\n"
         + '<section id="tq-set-decision" role="group" aria-labelledby="tq-set-decision-h"><h3 id="tq-set-decision-h">Which extras apply?</h3>'
         '<lf-options id="tq-set" multiple>'
@@ -1509,7 +1507,6 @@ def package_workspace(serve, *, before_reader="", primary=True):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": "Which channel?\n\n"
             + '<section id="channel-ask" role="group" aria-labelledby="channel-ask-h"><h3 id="channel-ask-h">Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></section>',
         },

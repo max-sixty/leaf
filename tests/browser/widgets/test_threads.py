@@ -105,7 +105,6 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "parent": "c-room",
             "revision": 1,
             "text": "These, and who is on them:\n\n" + ROOM_WIDGETS.format(id="mr-msg"),
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -181,7 +180,6 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
                 "</lf-options></section>"
             ),
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -394,7 +392,6 @@ def thread_on_a_sent_widget(serve):
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
                 "</lf-options></section>"
             ),
-            "html": True,
         },
     )
     # The shape design mode writes: an element anchor naming a widget no version holds.

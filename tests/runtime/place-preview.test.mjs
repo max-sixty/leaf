@@ -54,9 +54,9 @@ function previewed(markup, { message = false } = {}) {
   };
 }
 
-test("a section previews its heading and first lines, past what stands above the heading", () => {
+test("a section previews its heading and first lines, past an eyebrow above the heading", () => {
   assert.deepEqual(
-    previewed(`<section id="it"><p>mobile</p><h2>The stall</h2>
+    previewed(`<section id="it"><hgroup><p>mobile</p><h2>The stall</h2></hgroup>
       <p id="p1">One in <a href="#x">forty</a> stalls.</p><p>It recovers.</p>
       <p>Third.</p><p>Fourth.</p></section>`),
     {
@@ -373,11 +373,12 @@ test("a place with no name of its own is named by the part it stands in, as On M
     "Deployment",
     "section",
   );
-  // A section the author wrote names what stands in it before its heading.
+  // Words before a section's heading stand under the heading before the section,
+  // since the section doesn't open with its heading.
   named(
     `<h2>Earlier</h2><section><p id="it">Context first.</p><h2>Later</h2>
     <p>After.</p></section>`,
-    "Later",
+    "Earlier",
     "heading",
   );
   // A sub-heading inside a titled section heads what follows it.
@@ -432,15 +433,16 @@ test("a place with no name of its own is named by the part it stands in, as On M
 test("a heading counts the conversations about what it titles, as about its own part", () => {
   // On a page of decisions, each a question titled by its own heading, a thread about a
   // whole decision counts under that decision's heading and the page's title over it,
-  // and not under the decision before it.
+  // and not under the decision before it. A section wrapping a question doesn't open
+  // with the question's heading, so a thread about it counts under the page's title.
   applicationState.identify(1);
   document.body.innerHTML = `<main><h1>Plan</h1>
-    <section id="first"><hgroup><p>Decision 1</p><h2>Which store?</h2></hgroup>
-      <p>Two stores fit.</p></section>
-    <section id="second"><hgroup><p>Decision 2</p><h2>Which region?</h2></hgroup>
-      <p>One region fits.</p></section>
-    <section id="third"><section><hgroup><p>Decision 3</p><h2>Which size?</h2></hgroup>
-      <p>Two sizes fit.</p></section></section></main>`;
+    <section id="first" role="group"><hgroup><p>Decision 1</p><h2>Which store?</h2>
+      </hgroup><p>Two stores fit.</p></section>
+    <section id="second" role="group"><hgroup><p>Decision 2</p><h2>Which region?</h2>
+      </hgroup><p>One region fits.</p></section>
+    <section id="third"><section role="group"><hgroup><p>Decision 3</p>
+      <h2>Which size?</h2></hgroup><p>Two sizes fit.</p></section></section></main>`;
   const comment = {
     id: "c1",
     seq: 1,
@@ -453,7 +455,7 @@ test("a heading counts the conversations about what it titles, as about its own 
     content_version: "c1",
   };
   const thread = servedThread([comment], { anchor: { section: "second" } });
-  // A thread about the section wrapping a question is the question's too.
+  // A thread about the section wrapping a question.
   const wrapped = servedThread([{ ...comment, id: "c2", content_version: "c2" }], {
     anchor: { section: "third" },
   });
@@ -472,7 +474,7 @@ test("a heading counts the conversations about what it titles, as about its own 
         ["Plan", 2],
         ["Which store?", 0],
         ["Which region?", 1],
-        ["Which size?", 1],
+        ["Which size?", 0],
       ],
     );
   } finally {

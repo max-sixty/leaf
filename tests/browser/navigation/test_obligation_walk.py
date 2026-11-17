@@ -1025,7 +1025,6 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
             '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
             "</lf-options></section>",
-            "html": True,
         },
     )
     page = open_page(browser, live_url(url))
@@ -1395,7 +1394,6 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
             "</lf-options></section>"
             f'<lf-shot id="follow-shot" alt="the cache before and after" '
             f'before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
-            "html": True,
         },
     )
     page = open_page(browser, url)

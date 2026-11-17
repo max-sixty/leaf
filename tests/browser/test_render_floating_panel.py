@@ -1934,7 +1934,6 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         '<section id="crop" role="group" aria-labelledby="crop-h"><h3 id="crop-h">Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick"><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></section>',
-        html=True,
     )
     summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
@@ -2011,7 +2010,7 @@ THREAD_FIT = """() => {
     height: box.height,
     scrolls: view.scrollHeight > view.clientHeight + 1,
     below: box.bottom - messages.at(-1).getBoundingClientRect().bottom,
-    room: parseFloat(getComputedStyle(view).paddingBottom),
+    gap: parseFloat(getComputedStyle(view).getPropertyValue('--lf-msg-gap')),
     first: messages[0].getBoundingClientRect().top,
     panel: document.querySelector('.lf-fp-card').getBoundingClientRect().top,
     window: window.innerHeight,
@@ -2047,8 +2046,8 @@ def test_a_thread_s_view_is_as_tall_as_its_messages(browser, serve):
     settled(page)
     short = page.evaluate(THREAD_FIT)
     assert not short["scrolls"]
-    # Nothing stands under its message but the view's padding.
-    assert short["below"] - short["room"] < 10, short
+    # Nothing stands under its message but a message's gap over the field.
+    assert short["below"] - short["gap"] < 10, short
 
     page.keyboard.press("Escape")
     open_threads(page)
@@ -2537,6 +2536,8 @@ FOOT = """([parts, fromEnd]) => {
   const press = view.querySelector('.lf-new-reply')?.getBoundingClientRect();
   return {
     below: box.bottom - part.bottom - parseFloat(getComputedStyle(view).paddingBottom),
+    pad: parseFloat(getComputedStyle(view).paddingBottom),
+    gap: parseFloat(getComputedStyle(view).getPropertyValue('--lf-msg-gap')),
     press: press && {over: press.top - part.bottom, under: box.bottom - press.bottom},
     said: [...document.querySelectorAll('.lf-fp-peek')]
       .filter((node) => node.checkVisibility())
@@ -4870,7 +4871,6 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         '<section id="week" role="group" aria-labelledby="week-h"><h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></section>',
-        html=True,
     )
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
@@ -4915,7 +4915,6 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         '<section id="week" role="group" aria-labelledby="week-h"><h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></section>',
-        html=True,
     )
     told(page)
     expect(on_me.locator(".lf-fp-num")).to_have_text("1")
@@ -5000,7 +4999,6 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></section>",
-        html=True,
     )
     page = floating(browser, url)
     page.locator("body").focus()
@@ -5825,7 +5823,6 @@ def test_an_answer_superseded_during_widget_preparation_keeps_its_arrival(
             + "The mounts come first. " * 300
             + "</p>"
             '<lf-local id="thread-local" choice="idle"></lf-local>',
-            "html": True,
         },
     )
     page.wait_for_function("""() => {

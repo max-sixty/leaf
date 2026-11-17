@@ -230,7 +230,6 @@ def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which region?\n\n<lf-options id="region">'
             '<lf-option id="east"><strong>East</strong></lf-option>'
             "</lf-options>",
@@ -288,7 +287,6 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which region?\n\n<section id="region-ask" role="group" aria-labelledby="region-ask-h"><h3 id="region-ask-h">Which region?</h3>'
             '<lf-options id="region">'
             '<lf-option id="east"><strong>East</strong></lf-option>'

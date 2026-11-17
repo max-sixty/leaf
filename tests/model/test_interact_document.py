@@ -1389,7 +1389,6 @@ def test_thread_read_reads_frozen_construction(page_dir):
             "author": "agent",
             "revision": 1,
             "text": 'Choose a route.\n\n<lf-options id="frozen"><lf-option id="first">First</lf-option><lf-option id="second">Second</lf-option></lf-options>',
-            "html": True,
         },
     )
     append_command(
@@ -2518,7 +2517,6 @@ def test_stamp_checks_events_that_arrive_as_it_reads_the_log(monkeypatch, page_d
                     "author": "agent",
                     "revision": 1,
                     "text": 'Keep this message address distinct.\n\n<p id="arriving-message">A concurrent reply.</p>',
-                    "html": True,
                 },
             )
         return events
@@ -2923,7 +2921,6 @@ def test_a_source_bound_only_by_frozen_reply_html_can_be_set(page_dir):
         page_dir,
         {"parent": "data-question", "responds": "data-question"},
         'Here it is.\n\n<lf-test-data id="reply-data" source="reply-feed"></lf-test-data>',
-        html=True,
     )
     assert reply["revision"] == 1
 
@@ -2979,10 +2976,8 @@ def test_thread_html_can_use_a_different_binding_from_a_page_source(page_dir):
         page_dir,
         {"parent": "data-question", "responds": "data-question"},
         'Here it is.\n\n<lf-other-data id="reply-data" source="project-feed"></lf-other-data>',
-        html=True,
     )
 
-    assert reply["html"] is True
     assert (
         '<lf-other-data id="reply-data" source="project-feed"></lf-other-data>'
         in reply["text"]
@@ -3375,7 +3370,6 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h"><h2 id="gm-decision-h">Which mitigations?</h2>'
             '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
@@ -4172,7 +4166,6 @@ def test_data_history_survives_parse_eviction_with_captured_scopes_and_contracts
             "revision": 1,
             "author": "agent",
             "text": 'The captured feed.\n\n<lf-test-data id="reply-data" source="project-feed"></lf-test-data>',
-            "html": True,
         },
     )
     events = events_model.read_events(page_dir)
@@ -4368,7 +4361,6 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
             "parent": "c-scope",
             "revision": 1,
             "text": f"Here it is:\n\n{frozen}",
-            "html": True,
             "seq": 2,
         },
         action("page-draft", "Page future.", 3),

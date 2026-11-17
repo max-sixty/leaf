@@ -2904,7 +2904,6 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "revision": 1,
             "parent": "question",
             "text": 'Here is the detail.\n\n<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
-            "html": True,
         },
     )
     append_command(

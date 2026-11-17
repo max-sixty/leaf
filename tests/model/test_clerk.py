@@ -251,11 +251,7 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
     [record] = clerk_model.take_answer(
         "s1", reply(page, "LRU or TTL", choice=caches()), basis
     )["wrote"]
-    assert (record["kind"], record["title"], record["html"]) == (
-        "comment",
-        "LRU or TTL",
-        True,
-    )
+    assert (record["kind"], record["title"]) == ("comment", "LRU or TTL")
     assert "obligation" not in record
 
     def choice() -> dict:
@@ -302,27 +298,21 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
     assert choice()["status"] == "open"
 
 
-def test_a_choice_leaf_refuses_is_asked_in_words(claimed, capsys):
+def test_a_choice_leaf_refuses_is_handed_to_the_agent(claimed, capsys):
     """A choice whose HTML Leaf refuses, here for an id the page's first choice
-    already took, asks in words with an obligation instead, showing the HTML as
-    text, so the ask isn't lost, and the agent hears why."""
+    already took, isn't asked: the fork has no next attempt, so the agent hears the
+    message and why, and asks it itself."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     basis = asked()["basis"]
     clerk_model.take_answer("s1", reply(page, "LRU or TTL", choice=caches()), basis)
     hook(capsys, "PostToolBatch")
-    [record] = clerk_model.take_answer(
-        "s1", reply(page, "The cache's size", choice=caches()), basis
-    )["wrote"]
-    assert (record["title"], record["obligation"], "html" in record) == (
-        "The cache's size",
-        True,
-        False,
-    )
-    assert '<lf-options id="cache">' in record["text"]
+    answer = reply(page, "The cache's size", choice=caches())
+    assert clerk_model.take_answer("s1", answer, basis)["wrote"] == []
     context = hook(capsys, "PostToolBatch")
-    assert "Leaf refused the HTML in it, so the message shows it as words" in context
-    assert "cache" in context.split("Leaf refused the HTML in it")[1]
+    assert 'Leaf would have asked the user "The cache\'s size"' in context
+    assert '<lf-options id="cache">' in context
+    assert "cache" in context.split("It refused the message, so nothing was asked")[1]
 
 
 def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
@@ -368,11 +358,7 @@ def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
         reply(page, "LRU or TTL", again=question, choice=caches()),
         asked()["basis"],
     )["wrote"]
-    assert (again["kind"], again["parent"], again["html"]) == (
-        "reply",
-        first["id"],
-        True,
-    )
+    assert (again["kind"], again["parent"]) == ("reply", first["id"])
     assert "obligation" not in again
     state = cmd_page_state(claimed)
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
@@ -417,9 +403,7 @@ def test_a_choice_the_user_closed_is_asked_again_in_its_thread(claimed, capsys, 
         basis["basis"],
     )["wrote"]
     assert (again["kind"], again["parent"]) == ("reply", first["id"])
-    assert (again.get("html"), again.get("obligation")) == (
-        (None, True) if words else (True, None)
-    )
+    assert again.get("obligation") is (True if words else None)
     state = cmd_page_state(claimed)
     assert {t["id"]: t["resolved"] for t in state["threads"]}[first["id"]] is None
     [record] = [o for o in state["obligations"] if o["message"] == again["id"]]
@@ -434,12 +418,12 @@ def test_a_choice_the_user_closed_is_asked_again_in_its_thread(claimed, capsys, 
     assert not words or record["id"] == f"message:{again['id']}"
 
 
-def test_a_closed_choice_asked_again_with_html_leaf_refuses_is_asked_in_words(
+def test_a_closed_choice_asked_again_with_html_leaf_refuses_is_handed_to_the_agent(
     claimed, capsys
 ):
     """The fork asks a closed choice again under its title, with a choice whose HTML
-    Leaf refuses, here for the id the first choice took. The question is asked in
-    words in its thread rather than dropped, and the agent hears why."""
+    Leaf refuses, here for the id the first choice took. Leaf asks nothing in its
+    thread, and the agent hears the message and why."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     [first] = clerk_model.take_answer(
@@ -449,18 +433,11 @@ def test_a_closed_choice_asked_again_with_html_leaf_refuses_is_asked_in_words(
         claimed, {"kind": "resolve", "author": "user", "parent": first["id"]}
     )
     hook(capsys, "PostToolBatch")
-    [again] = clerk_model.take_answer(
-        "s1",
-        reply(page, "LRU or TTL", again=f"message:{first['id']}", choice=caches()),
-        asked()["basis"],
-    )["wrote"]
-    assert (again["kind"], again["parent"], again["obligation"]) == (
-        "reply",
-        first["id"],
-        True,
+    answer = reply(page, "LRU or TTL", again=f"message:{first['id']}", choice=caches())
+    assert clerk_model.take_answer("s1", answer, asked()["basis"])["wrote"] == []
+    assert "It refused the message, so nothing was asked" in hook(
+        capsys, "PostToolBatch"
     )
-    assert "html" not in again
-    assert "Leaf refused the HTML in it" in hook(capsys, "PostToolBatch")
 
 
 def test_an_ask_again_naming_a_message_that_asks_nothing_opens_its_own_thread(
@@ -517,7 +494,6 @@ def test_a_widget_in_a_message_reads_as_its_own_question(claimed, capsys):
             '<section id="ask-cache" role="group" aria-labelledby="ask-cache-h">\n<h3 id="ask-cache-h">Which cache should we use?</h3>\n'
             '<lf-options id="cache"><lf-option id="lru">LRU</lf-option>'
             '<lf-option id="ttl">TTL</lf-option></lf-options>\n</section>',
-            "html": True,
         },
     )
     assert (
@@ -935,16 +911,21 @@ def test_a_fix_keeps_the_sources_line_endings(claimed, capsys):
     )
 
 
-def test_a_message_naming_missing_media_writes_none_of_the_answer(claimed):
-    """A message is checked as `thread create` checks one, and every message before
-    the first is written, so a refused one leaves the page as the fork found it."""
+def test_a_message_naming_missing_media_is_handed_to_the_agent(claimed, capsys):
+    """A message is checked as `thread create` checks one. One Leaf refuses, here for
+    a picture the page hasn't got, isn't asked, and the agent hears it and why; the
+    fork's other asks are asked."""
     page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
     answer = json.loads(reply(page, "The retry limit", "The chart"))
     answer["asks"][1]["text"] = "Does ![the chart](/media/0123456789abcdef.png) read?"
-    before = len(events_model.read_events(claimed))
-    with pytest.raises(Refused):
-        clerk_model.take_answer("s1", json.dumps(answer), clerk_model.basis("s1"))
-    assert len(events_model.read_events(claimed)) == before
+    [record] = clerk_model.take_answer("s1", json.dumps(answer), asked()["basis"])[
+        "wrote"
+    ]
+    assert record["title"] == "The retry limit"
+    context = hook(capsys, "PostToolBatch")
+    assert 'Leaf would have asked the user "The chart"' in context
+    assert "0123456789abcdef.png" in context.split("It refused the message")[1]
 
 
 def test_the_clerk_drops_an_answer_once_another_turn_opened(claimed, capsys):

@@ -84,9 +84,9 @@ test("a quote across a title's end reads by the phrasing rule", () => {
 // before it still reads apart. passages.py's `_write` shows the same words.
 test("an edge outside prose shows a space, but none before closing or after opening punctuation", () => {
   document.body.innerHTML =
-    '<main><lf-option id="punctuated" label="Leave it">; the send keeps ' +
+    '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps ' +
     "<code>Foo</code>'s place (<code>beta</code>).</lf-option>" +
-    '<lf-option id="chipped" label="Apply" recommended>' +
+    '<lf-option id="chipped"><small class="tag">recommended</small><strong>Apply</strong>' +
     "Ship it.</lf-option>" +
     '<lf-option id="quoted"><small class="tag">recommended</small>' +
     '<strong>"Update" for mixed input</strong></lf-option></main>';

@@ -1209,7 +1209,7 @@ Y = ("card-y", "", "Wire the importer")
 OPTIONS = """<section id="g1-decision" role="group" aria-labelledby="g1-decision-h">
   <h3 id="g1-decision-h">Which migration should lead?</h3>
   <lf-options id="g1">
-    <lf-option id="o-shim"{a}>{chip}<strong>Shim it</strong> {shim}</lf-option>
+    <lf-option id="o-shim" label="Shim it"{a}>{shim}</lf-option>
     <lf-option id="o-stage" label="Migrate in stages"{b}>{stage}</lf-option>
   </lf-options>
 </section>"""

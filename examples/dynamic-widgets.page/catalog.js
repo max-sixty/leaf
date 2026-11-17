@@ -130,10 +130,9 @@ export function compile(spec) {
                 "lf-column",
                 column.cards
                   .map((card) =>
-                    element(
-                      "lf-card",
-                      `<strong>${escape(card.title)}</strong><p>${escape(card.text)}</p>`,
-                    ),
+                    element("lf-card", `<p>${escape(card.text)}</p>`, {
+                      label: card.title,
+                    }),
                   )
                   .join(""),
                 { label: column.label },

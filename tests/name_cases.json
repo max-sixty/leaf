@@ -15,7 +15,7 @@
     "name": "Method"
   },
   {
-    "id": "a titled member's chips stand before its title",
+    "id": "an option is named by its label, not its chips",
     "registry": {
       "lf-option": {}
     },
@@ -92,7 +92,7 @@
     "registry": {
       "lf-column": {}
     },
-    "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card label="A"></lf-card></lf-column>",
+    "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card label=\"A\"></lf-card></lf-column>",
     "name": "Ready"
   },
   {
@@ -104,12 +104,12 @@
     "name": "Ready"
   },
   {
-    "id": "without its attribute an element takes its heading",
+    "id": "without its label a widget takes no name from its heading",
     "registry": {
       "lf-column": {}
     },
     "markup": "<lf-column id=\"it\"><h3>Later</h3></lf-column>",
-    "name": "Later"
+    "name": ""
   },
   {
     "id": "an attribute shown first is not a name",
@@ -176,5 +176,13 @@
     },
     "markup": "<lf-option id=\"it\" label=\"Flag first\" aria-label=\"Other\">Ship dark.</lf-option>",
     "name": "Flag first"
+  },
+  {
+    "id": "a widget's leading strong names nothing",
+    "registry": {
+      "lf-option": {}
+    },
+    "markup": "<lf-option id=\"it\"><strong>Flag first</strong> Ship dark.</lf-option>",
+    "name": ""
   }
 ]

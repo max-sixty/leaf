@@ -1200,9 +1200,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
     as the user sees it without a second copy of the document."""
     markup = PAGE.replace(
         "</main>",
-        OPTIONS.format(
-            a=" selected", b="", chip="", shim="Keep the shim.", stage="Stage it."
-        )
+        OPTIONS.format(a=" selected", b="", shim="Keep the shim.", stage="Stage it.")
         + '<lf-draft id="summary"><pre>Ship on Friday.</pre></lf-draft>'
         + _board([X, Y], [])
         + '<p id="explanation"><strong>Keep</strong> <em>spaces</em>.</p></main>',
@@ -2201,7 +2199,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
     other event a thread holds names that thread, for `page state`, `status --on`
     and the thread commands alike. Narrowed to a widget, the reading holds what
     stands inside it: the obligation carries the pick on its choice."""
-    live = OPTIONS.format(a="", b="", chip="", shim="Keep the old API.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Keep the old API.", stage="Two.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live)
     )
@@ -2569,9 +2567,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
     the current state replay paints, as one queryable
     object — the position a session picking up a persistent page would otherwise
     re-derive from the raw log."""
-    opts = OPTIONS.format(
-        a="", b="", chip="", shim="Fastest to ship.", stage="Table by table."
-    )
+    opts = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Table by table.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
@@ -3113,7 +3109,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
 def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
     """A version that honors a pick in its markup reads as answered with no log
     at all — the shipped examples arrive that way."""
-    opts = OPTIONS.format(a=" selected", b="", chip="", shim="s.", stage="t.")
+    opts = OPTIONS.format(a=" selected", b="", shim="s.", stage="t.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
     )
@@ -4558,7 +4554,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
     page_dir,
 ):
     """Edits remain free while the original user action keeps its recorded meaning."""
-    live = OPTIONS.format(a="", b="", chip="", shim="Fastest to ship.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Two.")
     source = page_dir / "index.html"
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live))
     publish(page_dir)
@@ -4601,8 +4597,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
     source.write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
-            "<h2>Plan</h2>"
-            + OPTIONS.format(a="", b="", chip="", shim="Fast.", stage="Two."),
+            "<h2>Plan</h2>" + OPTIONS.format(a="", b="", shim="Fast.", stage="Two."),
         )
     )
     publish(page_dir)
@@ -4654,7 +4649,7 @@ def test_revisions_change_edited_drafts_without_retracting_the_user_edit(page_di
 
 def test_revisions_can_move_rewrite_or_remove_authored_generated_children(page_dir):
     added = "g1-option-user-route"
-    live = OPTIONS.format(a="", b="", chip="", shim="Fastest to ship.", stage="Two.")
+    live = OPTIONS.format(a="", b="", shim="Fastest to ship.", stage="Two.")
     source = page_dir / "index.html"
     source.write_text(PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + live))
     publish(page_dir)

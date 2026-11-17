@@ -93,8 +93,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     BOARD = (
         '<lf-board id="board">'
         + "".join(
-            f'<lf-column id="col-{i}" label="Column {i}"><lf-card id="card-{i}">'
-            f"<strong>Card {i}</strong> text</lf-card></lf-column>"
+            f'<lf-column id="col-{i}" label="Column {i}">'
+            f'<lf-card id="card-{i}" label="Card {i}">text</lf-card></lf-column>'
             for i in range(6)
         )
         + "</lf-board>"

@@ -89,7 +89,7 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 OBLIGATION_IN_LONG_PAGE = LONG_PAGE.replace(
     "<p id='p20'>",
     """<lf-ask id="route-ask"><h2>Which route should the walk follow?</h2>
-<lf-options id="route" choose>
+<lf-options id="route">
   <lf-option id="route-garden">Through the garden</lf-option>
   <lf-option id="route-river">Along the river</lf-option>
 </lf-options></lf-ask>
@@ -109,13 +109,13 @@ THREAD_CARD_PAGE = leaf_page(
 {before}
 <div id="title-pair">
   <section id="title-before">
-    <p class="eyebrow">Before · untitled</p>
+    <p>Before · untitled</p>
     <p id="thread-pending"><strong>An untitled thread.</strong> The workshop schedule
     leaves lunch open. The agent asked without naming the thread, so its row reads the
     question itself until the agent gives it a short name.</p>
   </section>
   <section id="title-after">
-    <p class="eyebrow">After · title assigned</p>
+    <p>After · title assigned</p>
     <p id="thread-text"><strong>An existing thread.</strong> The sample agenda has room
     for one more topic. Its speech-bubble control is green, and hovering it shows “On
     you” under the label. The image question still needs an answer even though the
@@ -393,7 +393,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     card down past the reply box."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1920, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 160)")
     marker.click()
     preview = page.locator(".lf-margin-preview")

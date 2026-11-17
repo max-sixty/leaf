@@ -11,6 +11,7 @@ import urllib.request
 import pytest
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     append_command,
     publish,
     revision_root,
@@ -41,7 +42,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
     (page_dir / "page").mkdir(exist_ok=True)
     (page_dir / "page" / "obsolete.txt").write_text("Remove this input")
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+        PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     )
     publish(page_dir)
     site = tmp_path / "site"
@@ -98,7 +99,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
             pass
         # A draft the visitor is writing is saved with the next commit.
         draft = {"attempt": "saved-draft-0001", "text": "Keep these words"}
-        write_draft(private, {"context": "general", "expect": None, "record": draft})
+        write_draft(private, {"context": "general", "expect": [], "record": draft})
         # One private revision drops a page input and revises the document. Each
         # commit activates the source, so the two edits land before the same one.
         (private / "page" / "obsolete.txt").unlink()

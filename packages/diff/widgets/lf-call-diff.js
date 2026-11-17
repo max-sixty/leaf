@@ -256,7 +256,8 @@ customElements.define(
   "lf-call-diff",
   class extends LeafElement {
     // The CallDiff document, set by whoever hosts the widget: Leaf from the bound
-    // source (the registry's `x-data.document.property`), or null while it has none.
+    // source (the registry's `data.inputs.document.property`), or null while it has
+    // none.
     static properties = { value: { attribute: false } };
 
     constructor() {

@@ -66,8 +66,10 @@
   <body>
     <main class="layout-sidebar">
       <header>
-        <p class="eyebrow">release · production · checkout-v2</p>
-        <h1>Checkout v2 release</h1>
+        <hgroup>
+          <p>release · production · checkout-v2</p>
+          <h1>Checkout v2 release</h1>
+        </hgroup>
         <p class="lede" id="lp-lede">
           The production canary is paused at 25%. Customer checkout is healthy, but
           finance export is one row short and must reconcile before traffic expands.
@@ -114,7 +116,7 @@
           </p>
           <lf-ask id="lp-rollback-region">
             <h3>Roll back now, or hold for Ledger's trace?</h3>
-            <lf-options id="lp-rollback" choose>
+            <lf-options id="lp-rollback">
               <lf-option id="lp-rollback-now">
                 <strong>Roll back to checkout-v1</strong> Returns all traffic from
                 checkout-v2 to the stable release without repairing the missing finance
@@ -298,7 +300,7 @@
 
             <details id="lp-rollback-procedure">
               <summary>Rollback procedure · 3 steps</summary>
-              <ol class="steps">
+              <ol>
                 <li>Route new checkout sessions to <code>checkout-v1</code>.</li>
                 <li>Drain the candidate after active sessions finish.</li>
                 <li>Verify order counts and finance-export isolation.</li>

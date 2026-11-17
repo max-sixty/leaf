@@ -14,7 +14,7 @@
    never changes the semantic inventory or its obligation identities.
 
    A region holds an obligation when the obligation's source element is the region or stands under
-   it (`obligationsIn`), shadow trees included. A withdrawn obligation no longer asks anything, and
+   it (`obligationsIn`, or `obligationsByRegion` for many regions at once), shadow trees included. A withdrawn obligation no longer asks anything, and
    an obligation with no source (a question answered in words, an update's, or a frozen
    source not drawn) stands in no region, so a region counts what its widgets
    ask. Membership reads the complete
@@ -29,7 +29,8 @@
    obligation, and also falls back to an obligation's unique context. */
 import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
-import { under } from "../shadow.js";
+import { readPart } from "../semantic-state.js";
+import { composedParentNode } from "../shadow.js";
 import { readObligations } from "./model.js";
 
 const NOWHERE = Object.freeze({ source: null, context: null, node: null });
@@ -74,13 +75,65 @@ function contextsOf(items) {
 export const subjectPlace = (subject) =>
   subject.kind === "page" || subject.kind === "thread" ? null : elementById(subject.id);
 
-// The obligations `region` holds, in the order `obligations` lists them.
+// The obligations each of `regions` holds, in the order `items` lists them. Each
+// obligation's source climbs once to the top of the page, past each region above it, so
+// a widget that counts for every panel or card makes one pass over the inventory rather
+// than one per region.
+/** @param {readonly Node[]} regions
+ * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
+export function obligationsByRegion(regions, items = readObligations().all) {
+  /** @type {Map<Node, import("../framework/application.js").ObligationRecord[]>} */
+  const held = new Map(regions.map((region) => [region, []]));
+  for (const item of items) {
+    if (item.status === "withdrawn") continue;
+    const { source } = obligationPlace(item, items);
+    for (let at = /** @type {Node | null} */ (source); at; at = composedParentNode(at))
+      held.get(at)?.push(item);
+  }
+  return held;
+}
+
+// The obligations `region` holds, in the order `items` lists them.
 /** @param {Element} region
  * @param {readonly import("../framework/application.js").ObligationRecord[]} items */
-export function obligationsIn(region, items = readObligations().all) {
-  return items.filter((item) => {
-    if (item.status === "withdrawn") return false;
-    const { source } = obligationPlace(item, items);
-    return Boolean(source && under(source, region));
-  });
+export const obligationsIn = (region, items = readObligations().all) =>
+  /** @type {import("../framework/application.js").ObligationRecord[]} */ (
+    obligationsByRegion([region], items).get(region)
+  );
+
+// The regions among `regions` that hold a widget declaring `state.awaits`, one whose markup
+// asks the user something, in the page or in a message's markup. A region holds it
+// whatever the inventory says of its obligation: before the first reading the
+// obligation isn't listed yet, and once it is withdrawn the inventory lists it as
+// withdrawn, which `obligationsByRegion` leaves out. A queue's row keeps room for the
+// answer through both. The widgets are the documents' captured ones
+// (widget-descriptors.js), which change with each revision and each message whose
+// markup is captured, and each climbs once from its element, as an obligation's source
+// does in `obligationsByRegion`. So the cost grows with the widgets and not with the
+// elements the regions hold, of which a panel holding a 96,000-line text document has
+// about 97,000.
+const authoredWidgets = readPart((root) => root.document.descriptors);
+/** @type {WeakMap<ReadonlyMap<string, import("../framework/application.js").WidgetDescriptor>, string[]>} */
+const awaitingIds = new WeakMap();
+/** @param {readonly Node[]} regions */
+export function regionsAwaiting(regions) {
+  const widgets = authoredWidgets();
+  let ids = awaitingIds.get(widgets);
+  if (!ids) {
+    ids = [...widgets.values()]
+      .filter(({ declaration }) => declaration.state?.awaits !== undefined)
+      .map(({ id }) => id);
+    awaitingIds.set(widgets, ids);
+  }
+  const wanted = new Set(regions);
+  /** @type {Set<Node>} */
+  const awaiting = new Set();
+  for (const id of ids)
+    for (
+      let at = /** @type {Node | null} */ (elementById(id));
+      at;
+      at = composedParentNode(at)
+    )
+      if (wanted.has(at)) awaiting.add(at);
+  return awaiting;
 }

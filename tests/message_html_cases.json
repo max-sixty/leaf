@@ -1,0 +1,114 @@
+[
+  {
+    "source": "The formula <code class=\"language-math\">x^2</code> holds.",
+    "html": true,
+    "elements": ["p", "code.language-math"],
+    "words": "The formula x^2 holds."
+  },
+  {
+    "source": "Before\n\n<table><tbody><tr><th>Load</th><td>**12**</td></tr></tbody></table>\n\nAfter **bold**",
+    "html": true,
+    "elements": ["p", "table", "tbody", "tr", "th", "td", "p", "strong"],
+    "words": "Before Load**12** After bold"
+  },
+  {
+    "source": "Pick one:\n\n<lf-options id=\"pick\">\n<lf-option id=\"pick-a\">**A**</lf-option>\n</lf-options>",
+    "html": true,
+    "elements": ["p", "lf-options#pick", "lf-option#pick-a"],
+    "words": "Pick one: **A**"
+  },
+  {
+    "source": "<lf-options id=\"pick\"><lf-option id=\"pick-a\">**A**</lf-option></lf-options>",
+    "html": true,
+    "elements": ["lf-options#pick", "lf-option#pick-a"],
+    "words": "**A**"
+  },
+  {
+    "source": "<details><summary>Log</summary>\n\nLine **one**\n</details>",
+    "html": true,
+    "elements": ["details", "summary", "p", "strong"],
+    "words": "Log Line one"
+  },
+  {
+    "source": "<div>\n*kept as written*\n</div>\nstill the block\n\n*emphasis*",
+    "html": true,
+    "elements": ["div", "p", "em"],
+    "words": "*kept as written* still the block emphasis"
+  },
+  {
+    "source": "Use `<b>` here, and:\n\n```\n<div id=\"shown\">\n```",
+    "html": false,
+    "elements": ["p", "code", "pre", "code"],
+    "words": "Use <b> here, and: <div id=\"shown\">"
+  },
+  {
+    "source": "A <https://example.com> link, and - [x] not a task\n\n- [x] done\n- [ ] open",
+    "html": false,
+    "elements": [
+      "p",
+      "a",
+      "ul.contains-task-list",
+      "li.task-list-item",
+      "input.task-list-item-checkbox",
+      "li.task-list-item",
+      "input.task-list-item-checkbox"
+    ],
+    "words": "A https://example.com link, and - [x] not a task done open"
+  },
+  {
+    "source": "> Quoted <kbd>K</kbd>\n\n1. First <span id=\"s\">span</span>",
+    "html": true,
+    "elements": ["blockquote", "p", "kbd", "ol", "li", "span#s"],
+    "words": "Quoted K First span"
+  },
+  {
+    "source": "Here:\n\n<lf-code id=\"c\">\n<pre>def a():\n    return 1\n\ndef b():\n    return 2\n</pre>\n</lf-code>\n\nAfter **bold**",
+    "html": true,
+    "elements": ["p", "lf-code#c", "pre", "p", "strong"],
+    "words": "Here: def a(): return 1 def b(): return 2 After bold"
+  },
+  {
+    "source": "Which?\n<lf-ask id=\"ask\"><h3>Store</h3><lf-options id=\"store\"><lf-option id=\"store-a\">A</lf-option></lf-options></lf-ask>\nMore *words*",
+    "html": true,
+    "elements": [
+      "p",
+      "lf-ask#ask",
+      "h3",
+      "lf-options#store",
+      "lf-option#store-a",
+      "p",
+      "em"
+    ],
+    "words": "Which? StoreA More words"
+  },
+  {
+    "source": "Pick <lf-options id=\"inline\"><lf-option id=\"inline-a\">A</lf-option></lf-options> now",
+    "html": true,
+    "elements": ["p", "lf-options#inline", "lf-option#inline-a"],
+    "words": "Pick A now"
+  },
+  {
+    "source": "    <span id=\"indented\">\nwords</span>",
+    "html": true,
+    "elements": ["p", "span#indented", "br"],
+    "words": "words"
+  },
+  {
+    "source": "Sets <code class=\"language-math\">\\{a, b\\} \\, x*y*z</code> are **fine**",
+    "html": true,
+    "elements": ["p", "code.language-math", "strong"],
+    "words": "Sets \\{a, b\\} \\, x*y*z are fine"
+  },
+  {
+    "source": "<b>Example</b>\n\n```read this\nx\n```",
+    "html": true,
+    "elements": ["p", "b", "pre", "code"],
+    "words": "Example read this x"
+  },
+  {
+    "source": "İ <code>x</code>**bold**",
+    "html": true,
+    "elements": ["p", "code", "strong"],
+    "words": "İ xbold"
+  }
+]

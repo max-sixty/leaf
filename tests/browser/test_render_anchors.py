@@ -500,7 +500,7 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     content = """<div id="split">
       <lf-pane id="decision-pane" label="Decision"><lf-ask id="decision">
         <h2 id="question">Which plan should lead?</h2>
-        <lf-options id="plans" choose>
+        <lf-options id="plans">
           <lf-option id="steady">Keep the steady plan.</lf-option>
           <lf-option id="fast">Try the faster plan.</lf-option>
         </lf-options>
@@ -1241,71 +1241,6 @@ def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     expect(page).to_have_url(re.compile(r"#destination$"))
 
 
-def test_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:hover, :focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    page = open_page(browser, live_url(serve(source)))
-    card = page.locator("#card")
-    actions = page.locator("#actions")
-    pre = page.locator("#source")
-    copy = page.locator(".lf-chrome .lf-code-copy").get_by_role("button")
-
-    expect(actions).to_be_hidden()
-    pre.hover()
-    expect(actions).to_be_visible()
-    copy.hover()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    assert not card.evaluate("node => node.matches(':hover')")
-
-    page.mouse.move(2, 300)
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-    pre.hover()
-    copy.focus()
-    page.mouse.move(2, 300)
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").focus()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
-def test_tapping_code_copy_keeps_its_source_container_active(browser, serve):
-    source = leaf_page(
-        "Touch copy in card",
-        '<div id="card"><p id="actions">Actions</p>'
-        '<pre id="source"><code>echo hello</code></pre></div>'
-        '<button id="outside">Outside</button>',
-    ).replace(
-        "</head>",
-        "<style>#card:not(:focus-within, :has([data-lf-control-active])) "
-        "#actions { visibility: hidden; }</style></head>",
-    )
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    page = open_page(browser, live_url(serve(source)), context=context)
-    pre = page.locator("#source")
-    actions = page.locator("#actions")
-    pre.tap(position={"x": 30, "y": 20})
-    expect(actions).to_be_visible()
-    page.locator(".lf-chrome .lf-code-copy").get_by_role("button").tap()
-    expect(pre).to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_visible()
-    page.locator("#outside").tap()
-    expect(pre).not_to_have_attribute("data-lf-control-active", "")
-    expect(actions).to_be_hidden()
-
-
 def test_code_copy_is_a_mark_whatever_its_block_s_line(browser, serve):
     """Copy is a mark, one size on every block, compact or tall, and its reach keeps
     the aim floor."""
@@ -1696,15 +1631,15 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         }""")
         # A different language repaints Leaf's tokens inside the same annotations.
         assert page.evaluate("""async () => {
-          const {highlightBlocks} = await window.__lfWidgetApi();
+          const {dressCode} = await window.__lfWidgetApi();
           const code = document.querySelector('#marked code');
           const mark = code.querySelector('mark');
           const target = code.querySelector('#target');
           const previous = [...code.querySelectorAll('[data-lf-syn]')];
           code.className = 'language-javascript';
-          await highlightBlocks(code);
+          await dressCode(code);
           const tokens = [...code.querySelectorAll('[data-lf-syn]')];
-          await highlightBlocks(code);
+          await dressCode(code);
           return code.querySelector('mark') === mark
             && code.querySelector('#target') === target
             && mark.textContent === 'f load(path):\\n    return "rea'
@@ -1719,16 +1654,16 @@ def test_code_colouring_keeps_each_blocks_words_and_annotations(
         expect(page.locator("#later [data-lf-syn]").first).to_be_attached()
         text = page.evaluate(
             """async () => {
-              const {highlightBlocks} = await window.__lfWidgetApi();
+              const {dressCode} = await window.__lfWidgetApi();
               const code = document.createElement('code');
               code.className = 'language-python';
               code.textContent = 'old = 1';
               document.querySelector('#later').after(
                 Object.assign(document.createElement('pre'), {id: 'rewritten'}));
               document.querySelector('#rewritten').append(code);
-              const first = highlightBlocks(code);
+              const first = dressCode(code);
               code.textContent = 'new = 2';
-              await Promise.all([first, highlightBlocks(code)]);
+              await Promise.all([first, dressCode(code)]);
               return code.textContent;
             }"""
         )
@@ -1743,9 +1678,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     block the file knows nothing about, and what keeps `leaf thread create` able to quote
     into one.
 
-    One pass serves both shapes a page has for code, lf-code's `language` and a plain
-    <pre><code class="language-*">, and neither guesses: a lf-code with no `language` stays
-    the color of its own ink. The quote below is written the way `leaf thread create`
+    One pass serves both shapes a page has for code, a plain <pre><code class="language-*">
+    and the same block inside lf-code, and neither guesses: a lf-code with no
+    `language-*` class stays the color of its own ink. The quote below is written the way `leaf thread create`
     writes one — against the file — and spans a token boundary on its way back."""
     url = serve(CODE_PAGE)
     page = open_page(browser, url)
@@ -1831,7 +1766,7 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
         sansFont: getComputedStyle(document.documentElement)
           .getPropertyValue('--lf-sans').trim().replace(/\s+/g, ' '),
         noteInset: {
-          left: noteRect.left - blockRect.left,
+          left: noteRect.left - parseFloat(noteStyle.marginInlineStart) - blockRect.left,
           right: blockRect.right - noteRect.right,
         },
       };
@@ -1853,8 +1788,9 @@ def test_code_is_colored_without_a_word_moving(browser, serve):
     assert appearance["cardRadius"] != "0px", appearance
     assert appearance["noteFont"] == appearance["sansFont"], appearance
     assert appearance["noteSize"] < appearance["codeSize"], appearance
-    # The card stands inside the frame, sized to its words.
-    assert appearance["noteInset"]["left"] == 1, appearance
+    # The card stands inside the frame, sized to its words. Its line's indent is the
+    # note's inline-start margin, so the margin box is what meets the frame.
+    assert appearance["noteInset"]["left"] == pytest.approx(1, abs=0.1), appearance
     assert appearance["noteInset"]["right"] >= 1, appearance
 
     # A quote spans the command name and its argument tokens.
@@ -1911,7 +1847,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
             f"""
 <h1 id="t">Shell commands</h1>
 <pre id="shell-plain"><code class="language-bash">{escape(source)}</code></pre>
-<lf-code id="shell-widget" language="bash"><pre>{escape(source)}</pre></lf-code>
+<lf-code id="shell-widget"><pre><code class="language-bash">{escape(source)}</code></pre></lf-code>
 <lf-diff id="shell-diff"><pre>diff --git a/check.sh b/check.sh
 --- a/check.sh
 +++ b/check.sh
@@ -2264,7 +2200,7 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     # `\\ No newline at end of file` is diff metadata, not selectable source.
     assert not any("No newline at end of file" in line["text"] for line in py)
 
-    # No extension the table names: plain, the way a lf-code with no `language` is.
+    # No extension the table names: plain, the way a lf-code naming no language is.
     assert all(line["colors"] == [] for line in by_path["deploy/Dockerfile"]), by_path[
         "deploy/Dockerfile"
     ]
@@ -2886,7 +2822,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
     figure.click()
-    expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(figure).to_have_attribute("data-lf-projected-mark", "")
     expect(figure).to_have_attribute("data-lf-mark", re.compile("."))
     look = figure.evaluate(MARK)
     region = page.evaluate(
@@ -3593,7 +3529,7 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
 
 
 def test_select_all_on_a_page_with_a_diff_leaves_the_page_responsive(browser, serve):
-    """Select-all on a page holding an x-shadow widget. The composed selection spans
+    """Select-all on a page holding a words.shadow widget. The composed selection spans
     <html>, past the words the page reads, and the capture once grew its neighbourhood
     forever from a position that reading lacked, pinning the tab. The press is bounded so
     that regression fails here rather than hanging the run."""
@@ -3757,12 +3693,16 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
         layer_registry={
             "lf-decoration": {
                 "description": "Generated prose and a graphic with its own marker.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-example": '<lf-decoration id="decoration"></lf-decoration>',
+                "attributes": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                },
+                "content": "markup",
+                "author": {
+                    "example": '<lf-decoration id="decoration"></lf-decoration>',
+                },
             }
         },
         layer_widgets={
@@ -4085,8 +4025,9 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     )
     chosen = page.evaluate_handle("""() => {
         const skip = '.lf-ui, script, style';
-        // Rooted at the shadow root: lf-diff renders in one (x-shadow), so the lines
-        // this drags across are in the composed tree and not under the host element.
+        // Rooted at the shadow root: lf-diff renders in one (words.shadow), so the
+        // lines this drags across are in the composed tree and not under the host
+        // element.
         const w = document.createTreeWalker(document.getElementById('patch').shadowRoot,
             NodeFilter.SHOW_TEXT,
             {acceptNode: n => n.parentElement?.closest(skip)
@@ -4674,10 +4615,11 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     that lookup was the document's alone the answer came back null and each caller quietly
     did nothing — here, an anchor stored and a mark never painted, with no error to find.
 
-    Staged by hand because the one shipped x-shadow widget builds its tree out of parsed
-    data and mints no ids, so nothing reaches this yet; what the next one does is exactly
-    this move. The clearing sweep is the other half — a mark the repaint cannot reach is
-    a mark that outlives its reason — so the second comment has to take the first's place
+    Staged by hand because the one shipped words.shadow widget builds its tree out of
+    parsed data and mints no ids, so nothing reaches this yet; what the next one does is
+    exactly this move. The clearing sweep is the other half — a mark the repaint cannot
+    reach is a mark that outlives its reason — so the second comment has to take the
+    first's place
     rather than stand beside it."""
     page = open_page(browser, serve(TWICE_PAGE))
     page.wait_for_function(
@@ -5010,13 +4952,19 @@ def test_a_block_leaving_the_viewport_keeps_its_focused_comment(browser, serve):
 
 LATE_STAGE = {
     "description": "A project widget that stages its authored children when asked.",
-    "type": "object",
-    "properties": {"id": {"type": "string"}},
-    "required": ["id"],
-    "additionalProperties": False,
-    "x-content": "markup",
-    "x-shadow": True,
-    "x-example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
+    "attributes": {
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+    },
+    "content": "markup",
+    "words": {
+        "shadow": True,
+    },
+    "author": {
+        "example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
+    },
 }
 LATE_STAGE_MODULE = """
 import {shadowStage} from '/runtime/widget-api.js';
@@ -6062,7 +6010,7 @@ def test_page_search_finds_a_shipped_options_chip_and_title_apart(
     registry = json.loads(
         (Path(__file__).parents[2] / "packages/default/registry.json").read_text()
     )
-    url = serve(leaf_page("Ask", registry["lf-ask"]["x-example"]))
+    url = serve(leaf_page("Ask", registry["lf-ask"]["author"]["example"]))
     page = open_page(request.getfixturevalue(engine), url)
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill("recommended Drop")
@@ -6107,7 +6055,7 @@ def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
 def test_page_search_reads_a_said_label_apart_from_its_elements_words(
     engine, request, serve
 ):
-    """A declared `x-says` label, drawn as its element's caption, reads apart from the
+    """A declared `words.says` label, drawn as its element's caption, reads apart from the
     words the element holds, as the file's reading reads it: page search finds the two
     with a space between them."""
     url = serve(
@@ -6119,14 +6067,23 @@ def test_page_search_reads_a_said_label_apart_from_its_elements_words(
         layer_registry={
             "lf-said-label": {
                 "description": "Words with a label the runtime says before them.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-says": {"label": "before"},
-                "x-example": '<lf-said-label id="example" label="Head">Words.'
-                "</lf-said-label>",
+                "attributes": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "label": {"type": "string"},
+                    },
+                    "required": ["id"],
+                    "additionalProperties": False,
+                },
+                "content": "markup",
+                "words": {
+                    "says": {"label": "before"},
+                },
+                "author": {
+                    "example": '<lf-said-label id="example" label="Head">Words.'
+                    "</lf-said-label>",
+                },
             }
         },
     )
@@ -6464,11 +6421,13 @@ def test_a_step_back_after_the_page_changed_keeps_the_match_it_stood_on(browser,
     )
     page.keyboard.press("Shift+n")
     expect(page.locator(".lf-live")).to_have_text("Searching")
+    # Run the held slices, and the ones they schedule, until the search ends: a closed
+    # search shows no count to wait on, and a step back while it still runs stays.
     page.evaluate(
         """() => {
-          window.setTimeout = window.__run;
           delete window.__steps;
-          for (const run of window.__held.splice(0)) run();
+          while (window.__held.length) window.__held.shift()();
+          window.setTimeout = window.__run;
         }"""
     )
     page.keyboard.press("Shift+n")
@@ -6586,9 +6545,9 @@ def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
     assert 0 <= box["y"] and box["y"] + box["height"] <= 900, box
 
 
-# A widget whose words read as the page's prose (`x-verbatim`), staged in a declared
-# shadow tree as it connects.
-VERBATIM_STAGE = {**LATE_STAGE, "x-verbatim": True}
+# A widget whose words read as the page's prose (`words.verbatim`), staged in a
+# declared shadow tree as it connects.
+VERBATIM_STAGE = {**LATE_STAGE, "words": {**LATE_STAGE["words"], "verbatim": True}}
 STAGED_ON_CONNECT = """
 import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-late-stage', class extends HTMLElement {

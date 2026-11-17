@@ -712,9 +712,9 @@ def watch_between_turns(harness: Harness, payload: dict) -> str | None:
     Settled thread input alone never wakes; it remains in the next receipt batch.
     Once the turn has closed, the watch also wakes for an answer it left owed
     (`left_owed`), and for a line Leaf queued that tells the session of work it now
-    owes, such as a to-do a fork opened (`clerk.waking`), until a hook has printed
-    it; the watch follows the queue's file itself (`Watch.told`), since no page's
-    reading stamps it. Escape leaves the turn open, so after it both wait for the
+    owes, such as a to-do a fork opened or a turn-end finding Leaf changed nothing
+    for (`clerk.waking`), until a hook has printed it; the watch follows the queue's
+    file itself (`Watch.told`), since no page's reading stamps it. Escape leaves the turn open, so after it both wait for the
     user's next prompt, as input the stopped turn confirmed does. The session lease
     and each page transaction retain ownership of delivery, revival and
     competing-watch decisions. The newest watch takes the lease from any holder, and

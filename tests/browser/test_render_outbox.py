@@ -526,9 +526,9 @@ FAR_CHOICE_PAGE = leaf_page(
 <h1 id="h">Far</h1>
 {paras}
 <lf-ask id="picks-decision"><h2>Should we keep the mounts?</h2>
-<lf-options id="picks" choose>
+<lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
-  <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
+  <lf-option id="opt-b" selected>Replace the mounts</lf-option>
 </lf-options></lf-ask>
 """,
 ).format(
@@ -1414,14 +1414,14 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     outer = declarations["lf-outer-board"]
-    outer["properties"]["restated"] = {"type": "boolean"}
-    outer["x-content"] = "members"
-    outer["x-example"] = (
+    outer["attributes"]["properties"]["restated"] = {"type": "boolean"}
+    outer["content"] = "members"
+    outer.setdefault("author", {})["example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
         "</lf-outer-board>"
     )
-    outer["x-state"] = {
+    outer.setdefault("state", {})["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -1432,7 +1432,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     }
     standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
     declarations["lf-column"] = standard["lf-column"]
-    declarations["lf-column"]["x-owners"].append("lf-outer-board")
+    declarations["lf-column"]["markup"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { LeafElement } from "/runtime/widget-api.js";
@@ -2194,10 +2194,10 @@ def test_z_walks_back_through_gestures_rather_than_toggling_one(browser, serve):
     expect(body).to_have_text("Rewritten.")
     page.locator("#opt-a").click()
     round_trip(page)
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
 
     undo(page)
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     undo(page)
     # The arrival first, read the way every assertion after a trip reads it, and then
     # the reading a retry cannot make: `to_have_text` collapses the blank line, which
@@ -2234,14 +2234,14 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     round_trip(page)
     page.locator("#opt-b").click()
     round_trip(page)
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-b")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     cut = CutOff().hold(page)
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     holding(page, held, 1, "the optimistic withdrawal")
     other_undo = append_command(
         serve.page_dir,
@@ -2273,7 +2273,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     page.unroute("**/api/event")
     round_trip(page)
 
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     values = page.evaluate("window.refusalValues")
     assert len(values) > 1 and all(value == ["opt-a"] for value in values), values
     consume_browser_errors(page, http_error_console(400))
@@ -2426,19 +2426,19 @@ def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
 
     pinned.locator("#opt-shim").click()
     round_trip(pinned)
-    expect(moved_on.locator("lf-option[chosen]")).to_have_attribute("id", "opt-shim")
+    expect(moved_on.locator("lf-option[selected]")).to_have_attribute("id", "opt-shim")
 
     stamp_page(serve.page_dir, REPLAYED_PAGE, "unchanged")
     wait_for_revision(moved_on, 2)
     expect(moved_on).not_to_have_url(re.compile("/versions/"))
     expect(pinned).to_have_url(re.compile("v1"))
     # Replay carries the v1 pick onto v2, so this tab is showing it.
-    expect(moved_on.locator("lf-option[chosen]")).to_have_attribute("id", "opt-shim")
+    expect(moved_on.locator("lf-option[selected]")).to_have_attribute("id", "opt-shim")
 
     undo(pinned)
     told(moved_on)
     told(moved_on)
-    expect(moved_on.locator("lf-option[chosen]")).to_have_count(0)
+    expect(moved_on.locator("lf-option[selected]")).to_have_count(0)
 
 
 def test_a_move_on_a_version_a_newer_one_replaced_is_refused_and_restored(
@@ -2523,7 +2523,7 @@ def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve)
     original = page.locator("#sug-thistle lf-options").element_handle()
     page.locator("#blend-mixed").click()
     round_trip(page)
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "blend-mixed")
 
     suggestion_control(page, "sug-thistle", "accept").click()
     round_trip(page)
@@ -2536,7 +2536,7 @@ def test_undo_preserves_the_independent_decision_inside_a_change(browser, serve)
     assert original.evaluate(
         "node => node === document.querySelector('#sug-thistle lf-options')"
     )
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "blend-mixed")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "blend-mixed")
 
 
 def test_the_composer_never_stands_on_its_own_mark(browser, serve):
@@ -2844,12 +2844,16 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         layer_registry={
             "lf-preparation": {
                 "description": "A reply whose presentation waits for its content.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
+                "attributes": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                },
+                "content": "markup",
+                "author": {
+                    "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
+                },
             }
         },
         layer_widgets={
@@ -2898,8 +2902,8 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "author": "agent",
             "revision": 1,
             "parent": "question",
-            "text": "Here is the detail.",
-            "markup": '<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
+            "text": 'Here is the detail.\n\n<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
+            "html": True,
         },
     )
     append_command(

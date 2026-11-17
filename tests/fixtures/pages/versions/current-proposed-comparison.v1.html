@@ -18,8 +18,10 @@
   <body>
     <main class="layout-workspace" id="comparison-workspace">
       <header>
-        <p class="eyebrow">release review · one policy choice</p>
-        <h1>Compare expired-session recovery</h1>
+        <hgroup>
+          <p>release review · one policy choice</p>
+          <h1>Compare expired-session recovery</h1>
+        </hgroup>
         <p class="lede" id="comparison-summary">
           The same five-call replay is shown under the current and proposed policies.
           Each result remains visible while you decide what ships.
@@ -29,7 +31,7 @@
       <div id="comparison-regions">
         <lf-pane id="comparison-current" label="Current policy">
           <header>
-            <p class="eyebrow">current result</p>
+            <p>current result</p>
             <h2>Refresh every failed request</h2>
           </header>
           <div>
@@ -73,7 +75,7 @@
 
         <lf-pane id="comparison-proposed" label="Proposed policy">
           <header>
-            <p class="eyebrow">proposed result</p>
+            <p>proposed result</p>
             <h2>Share one refresh per tab</h2>
           </header>
           <div>
@@ -120,7 +122,7 @@
             Both policies retry each original call once; the choice is whether a tab
             coordinates the credential refresh behind those retries.
           </p>
-          <lf-options id="comparison-policy" choose>
+          <lf-options id="comparison-policy">
             <lf-option id="comparison-policy-current"
               >Keep independent refreshes</lf-option
             >

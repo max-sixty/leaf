@@ -361,6 +361,20 @@ changing to a later sweep. In the description, name each copy's introducing pull
 request (`git log -S`), so the copies added since the area's last sweep show what
 review let through.
 
+## Weekly: eval cases' frozen deliveries
+
+An eval case that embeds a delivery envelope froze its `handling` clauses when it was
+made, so a later change to the clauses under `$events` in
+`browser/runtime/kernel-registry.json` leaves it scoring text no agent now receives.
+Compare each case's embedded clauses with the registry's, and regenerate each stale
+envelope from the current Leaf the way its header says it was made, keeping the case's
+other facts. Leave a case whose header says it holds a wording on purpose, such as one
+that pastes each arm's wording into its prompt. Run each regenerated case on head
+(`uv run leaf-dev eval run <case> --harness claude-code --repeat 3`) and record the
+commit and result in its header, as earlier re-freezes did. Open one pull request for
+the week's cases, naming any whose result fell: the shipped handling regressed there,
+or the case's criterion needs revisiting.
+
 ## Weekly: vendored browser dependencies
 
 Dependency automation rebuilds committed browser bundles on Dependabot's PR.

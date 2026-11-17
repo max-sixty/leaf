@@ -181,7 +181,7 @@ non-inheriting `<length-percentage>` properties and its shell's width in `cqi`, 
 `:has()` asked again of `main` as focus moved restyled every element under it:
 7,152 elements a move at 1,024 sections, and 1,014 with the room registered `*`.
 So the column resolves the lengths in its room in registered `<length>`
-properties (`--lf-room-length`, `--lf-room-note`, `browser/layouts.css`) and
+properties (`--lf-room-length`, `browser/layouts.css`) and
 states the room from them, percentage and all, only in `--lf-free-start` and its
 kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
 `--lf-free-start` `<length-percentage>` again:
@@ -1113,6 +1113,31 @@ the end of a run or into a run a split has just made (`lf-text-document.js`,
 `regroup`). Recheck by running that reproduction: once the moved row reads its line
 number, a text document may move rows to a run's head again.
 
+### A style read lays out a size container's contents
+
+Playwright Chromium 158.0.8127.18 (build 1254) answers `getComputedStyle` for an
+element whose style is out of date inside a size container by laying out everything out
+of date in that container, once a size query is evaluated against the container,
+whether it matches or not; a style query doesn't do it. Playwright Firefox 159 does it
+for the size container alone. Leaf's `body` is the `lf-shell` inline-size container
+(base.css), and `@container lf-shell (width < 640px)` queries it (`layouts.css`,
+`packages/default/styles/tabs.css`), so on a Leaf page a script's style read inside
+`body` pays for layout too, inside a closed tab's `hidden="until-found"` panel as well,
+which the read unlocks. On 2026-11-16, 20,000 `div` rows in such a panel, shown again
+after `display: none`, took 20 ms of style and 46 ms of the layout the read forced in
+Chromium (a trace's `UpdateLayoutTree` and `Layout`), and 6.5 ms for the whole read
+with no Leaf sheets. Page search's first read inside a closed tab pays it for the
+whole panel (`passages.js`, `searchableWords`). Leaf leaves it for now, since the
+container gives a narrow column and a widget's `100cqi` the shell's width. Rewriting
+the two `lf-shell` size queries would cost less than giving up the container and may
+lift it in Chromium, though not in Firefox; it is untested on a Leaf page, where the
+`cqi` lengths read the same container. Recheck on a plain page of 20,000 `div` rows
+under `body { container-type: inline-size }`, timing `getComputedStyle(lastRow).color`
+after toggling the rows' parent's `display`: in Chromium, 46 to 47 ms with
+`@container (max-width: 1px) { div { color: red } }`, which matches nothing, and 7.5 ms with
+`@container style(--x: 1) { div { color: red } }` in its place; in Firefox, 33 to 35
+ms with either rule or none, against 6 ms without the container.
+
 ### Styling content Firefox skips
 
 Firefox 157 (Playwright build 1555, macOS) styles every element inside a box whose
@@ -1137,8 +1162,8 @@ element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the rea
 theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
-taken out. The first is Firefox's to change; rewriting the rules is
-open (#5194).
+taken out. The first is Firefox's to change. The theme's eyebrow rules now end at an
+`hgroup` or a heading's place in it, and rewriting the others is open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
 `content-visibility: auto`, each row numbered by a `::before` counter, let it paint,

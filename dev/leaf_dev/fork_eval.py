@@ -48,7 +48,9 @@ its `fork_outcome` note says Leaf posted. An answer or line Leaf refused fails
 An item is matched to a label by the words it rests on: one of the label's `words`
 stands in its quote, passage, title, text or edit words. An `expect` label needs an
 item of its kind, and one naming a `thread` needs an ask written in that thread, or
-in a new thread where it names null. A stale one's `edit` is either null, as the item's must be, or
+in a new thread where it names null. A question label's `choice` says whether Leaf
+asked it with a widget in its text, such as a choice (true), or in words (false). A stale
+one's `edit` is either null, as the item's must be, or
 the words its fix must remove: Leaf changed the page, and the page as the user reads
 it no longer shows them. An item of any kind in the same part of the answer (asks or
 findings) matching an `absent` label fails the case, since it names what the case's
@@ -193,6 +195,7 @@ def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
         "answered",
         *(["labels-found"] if expect else []),
         *(["edits-land"] if any("edit" in label for label in expect) else []),
+        *(["choices-right"] if any("choice" in label for label in expect) else []),
         *(["guardrails-held"] if scenario.get("labels", {}).get("absent") else []),
     ]
 
@@ -691,6 +694,9 @@ def score_turn_end(
                 "passage": (record.get("anchor") or {}).get("quote", ""),
                 # The thread a follow-up replies in; an ask in a new thread has none.
                 "thread": record.get("parent"),
+                # Asked by a widget in its text, such as a choice, rather than in
+                # words, which an obligation declares.
+                "choice": not record.get("obligation"),
             }
             for record in applied["wrote"]
         ),
@@ -717,6 +723,11 @@ def score_turn_end(
                 if "edit" in label
             ),
             "guardrails-held": not matched["named"],
+            "choices-right": all(
+                index in found and found[index]["choice"] == label["choice"]
+                for index, label in enumerate(labels.get("expect", []))
+                if "choice" in label
+            ),
         },
         "items": items,
         "found": {str(index): item for index, item in found.items()},

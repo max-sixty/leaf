@@ -169,26 +169,25 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     The panel's row is where all of it lands. On the banner `Threads: 9` becoming
     `Threads: 10` — a comment posted from the terminal while the user reads — slid
     the version picker 6px left, and the Accept all a second tab's decision put away
-    took the New-version chip with it; the row's notice for a new version takes its
-    room from the field, so the marks keep their seats.
+    took the New-version chip with it; a new version now says itself in the field's
+    words and offers Open latest at its end, so the marks keep their seats.
 
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the
     press sweep above can make is one the user made, and none of these are."""
     # Three pending suggestions, so On Me's count has somewhere to go before they run
     # out; nine comments already, so the tenth crosses a digit; and pinned, so a v2
-    # landing leaves the page where it is and offers the row's notice rather than
-    # following it.
+    # landing leaves the page where it is and offers Open latest rather than following it.
     html = SUGGESTION_PAGE
     url = serve(html, comments=9)
     d = serve.page_dir
     page = open_page(browser, url, pin=True)
     on_me = "document.querySelector('.lf-fp-on-user').getAttribute('aria-label')"
-    # What the mark counts, less the news its name goes on to say.
-    owing = f"{on_me}.split(', ')[0]"
+    # What the mark counts, apart from the news its name goes on to say.
+    owing = "document.querySelector('.lf-fp-on-user .lf-fp-num').textContent"
     expect_open_threads(page, 9)
     page_at_rest(page)
-    owed = int(page.evaluate(f"() => {on_me}").removeprefix("On Me: "))
+    owed = int(page.evaluate(f"() => {owing}"))
 
     def publish_v2():
         stamp_page(d, html, "two")
@@ -227,17 +226,18 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "a new version is published",
             publish_v2,
-            "() => document.querySelector('.lf-fp-row-notice')?.checkVisibility()",
+            "() => [...document.querySelectorAll('.lf-fp-field .lf-compose-press')]"
+            ".some((press) => press.textContent.includes('Open latest'))",
         ),
         (
             "another tab decides two of the three pending suggestions",
             lambda: decide("sug-refill", "sug-thistle"),
-            f"() => {owing} === 'On Me: {owed - 2}'",
+            f"() => {owing} === '{owed - 2}'",
         ),
         (
             "another tab decides the last one",
             lambda: decide("sug-in-card"),
-            f"() => {owing} === '{'On Me: ' + str(owed - 3) if owed > 3 else 'On Me'}'",
+            f"() => {owing} === '{owed - 3 or ''}'",
         ),
     ]:
         page.evaluate(DEFINE_BOXES)

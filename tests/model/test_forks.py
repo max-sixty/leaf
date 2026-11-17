@@ -663,8 +663,8 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
             "id": "widget-thread",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<lf-options id="thread-region" choose>'
+            "html": True,
+            "text": 'Which region?\n\n<lf-options id="thread-region">'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
@@ -2410,12 +2410,12 @@ def test_a_hold_ending_while_the_reply_goes_in_leaves_the_thread_to_the_session(
 
     line_turn = basis(claimed, asked["id"])["turn"]
 
-    def lapses_meanwhile(page_dir, text):
+    def lapses_meanwhile(page_dir, text, **options):
         lapse(line_turn)
         with PageTransaction(claimed) as page:
             [event] = [e for e in page.events if e["id"] == asked["id"]]
             delivery_model.record_pickup(page, [event], session="s1", turn="t1")
-        return checked(page_dir, text)
+        return checked(page_dir, text, **options)
 
     monkeypatch.setattr(thread_model, "checked_text", lapses_meanwhile)
     assert forks_model.route(

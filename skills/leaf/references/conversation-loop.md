@@ -189,13 +189,14 @@ comment on but need not decide is not an obligation.
 
 In Claude Code, as each turn ends, an experimental check of Leaf's reads the
 conversation for decisions, answers or steps you left to the user that On Me doesn't
-hold. It asks each as your message with `--obligation`, in a new thread on the
-passage it concerns or the page, or, for a question asked before, in that question's
-thread under its id, which reopens the thread if the user closed it. It tells you at
+hold. It asks each as your message, as a choice where its answers can be listed and
+otherwise with `--obligation`, in a new thread on the passage it concerns or the
+page, or, for a question asked before, in that question's thread under its id, which
+reopens the thread if the user closed it. It tells you at
 your next step what it wrote. Where a few of a page's words have gone stale, it swaps
 in new ones and tells you the old and new words; change them back or rewrite them if
 they're wrong, and carry the change into any file you build the page from. It also tells you what else it found, such as a
-page that still says what has since changed, an On Me item the user settled
+page holding what no longer fits the work, an On Me item the user settled
 elsewhere, or work you set running that no page shows, for you to act on where it
 still holds; `turn-end-check.md` is what it asks. That catches what slips; it doesn't
 ask for you, so keep asking by the routes below. What it writes is yours like
@@ -210,16 +211,26 @@ no control of its own, such as a Done, to answer an item: on the page, the user 
 through the widget's own actions or a reply in the thread, and you end a question
 they answer elsewhere, such as in chat, by resolving its thread (below).
 
-| Request                                                                  | Register it                                                                                                                                                                       | What answers it                                                                                                                           |
-| ------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                 | Author a widget that records it, on the page or in a thread message's `--markup` (`authoring-on-me.md`)                                                                           | The widget's declared answer; a multiple-choice widget also needs the user's Done                                                         |
-| A question answered in words                                             | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                                                                | The user's next message there or a settling reaction                                                                                      |
-| Permission for a stated action                                           | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                                                                        | The user's pick and its row in On Me                                                                                                      |
-| An action the user takes, such as trying a build or connecting a browser | `--obligation` on a message saying what to do, asking for a reply only for what the user alone can report or your next step waits on, in a thread on what it concerns or the page | Your resolve of its thread once you see its effect, which you check yourself wherever you can; or the user's reply or a settling reaction |
+| Request                                                                          | Register it                                                                                        | What answers it                                                                                                                           |
+| -------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| A decision or input recorded by a widget                                         | Author a widget that records it, on the page or in a thread message (`authoring-on-me.md`)         | The widget's declared answer; a multiple-choice widget also needs the user's Done                                                         |
+| A question answered in words                                                     | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                 | The user's next message there or a settling reaction                                                                                      |
+| Permission for an action you take, such as merging a pull request                | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")         | The user's pick and its row in On Me                                                                                                      |
+| An action only the user can take, such as trying a build or connecting a browser | `--obligation` on a message saying what to do (below), in a thread on what it concerns or the page | Your resolve of its thread once you see its effect, which you check yourself wherever you can; or the user's reply or a settling reaction |
+
+For an action you take once the user agrees, such as merging a ready pull request,
+ask their permission, even where they could start it themselves with a command they
+would type to you. Offer options to take the action or hold off, so one press both
+answers and tells you to go on. An action only they can take, such as trying a build
+on their phone or running a command that needs a login you lack, is a step. Say what
+to do, and ask for a reply only for what they alone can report, such as what the
+build showed them, or where your next step waits on it, since their reply is what
+tells you to go on. Check the step's effect yourself wherever you can, such as a file
+deleted or an issue filed.
 
 Generally pass `--obligation` when a message hands the next move to the user,
 including an answer that informs a decision already on On Me. A message that asks a
-new question whose answers you can list asks with a widget in its markup instead
+new question whose answers you can list asks with a widget in it instead
 (`threads.md`, "Ask for a pick"); the command refuses both together. Progress and
 information that need no response create no obligation.
 

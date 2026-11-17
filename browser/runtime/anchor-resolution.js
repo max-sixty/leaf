@@ -19,7 +19,14 @@ import {
 import { CONTEXT } from "./kernel-facts.js";
 import { overlaps } from "./rect.js";
 import { clippedContents } from "./geometry.js";
-import { inUi, shadowHost, under, upFrom } from "./shadow.js";
+import {
+  declaredRoot,
+  inUi,
+  queryAllUnder,
+  shadowHost,
+  under,
+  upFrom,
+} from "./shadow.js";
 import {
   registeredVisualPart,
   registeredVisualPartLabel,
@@ -143,7 +150,7 @@ function suppliedDatum(source, key) {
 }
 
 // The elements under a referenced widget that a key addresses, in the one key space
-// every `x-refers` verb reads. A widget whose parts have a private address (a code
+// every `markup.refers` verb reads. A widget whose parts have a private address (a code
 // block's line ranges) answers through `lfElementsFor(key)`; otherwise the key is a
 // registered visual part's id or a projected datum's key. Only elements under the
 // source count, so a hook cannot point a caller elsewhere in the page.
@@ -175,12 +182,12 @@ export function revealAddressed(source, key) {
 /** @param {Element | null} visual */
 const visualAdmission = (visual) =>
   visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.["x-visual"] ?? null)
+    ? visualPartAdmission(visual, registry[visual.localName]?.words?.visual ?? null)
     : null;
 
 /** @param {Element | null} element */
 const wholeVisualSurface = (element) =>
-  element && registry[element.localName]?.["x-visual"] ? element : null;
+  element && registry[element.localName]?.words?.visual ? element : null;
 
 /** The admitted parts in their registered inventory order. */
 /** @param {Element} visual */
@@ -223,12 +230,13 @@ export const visualPartLabel = (visual, part) =>
     ? registeredVisualPartLabel(visual, part)
     : null;
 
-const declaredVisualTags = () => tagsDeclaring((entry) => entry["x-visual"]);
+const declaredVisualTags = () => tagsDeclaring((entry) => entry.words?.visual);
 const declaredVisualSelector = () => declaredVisualTags().join(",");
 
 const GENERIC_VISUALS = ["svg", "img", "figure"];
 const genericVisualSelector = GENERIC_VISUALS.join(", ");
-// The tags a picture's element has: a widget that declares `x-visual`, or a plain one.
+// The tags a picture's element has: a widget that declares `words.visual`, or a plain
+// one.
 export const visualTags = () => [...declaredVisualTags(), ...GENERIC_VISUALS];
 
 /** @param {Element} element @param {string} selector */
@@ -328,7 +336,7 @@ function addressableAt(node) {
 /** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
   const formatted = tagsDeclaring(
-    (entry) => entry["x-text-format"] === "markdown",
+    (entry) => entry.words?.["text-format"] === "markdown",
   ).join(",");
   return (
     (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
@@ -491,15 +499,36 @@ const controlFaces = (control) => [control, ...(control.labels ?? [])];
 /** @param {Element} control */
 const controlIdentity = (control) =>
   (control instanceof HTMLLabelElement ? control.control : null) ?? control;
+// The owner's parts named `name`: the controls whose nearest addressable is `owner`.
+// The walk comes down the trees `upFrom` climbs back out of, `owner`'s own and the
+// declared roots in it, and steps over each addressable it meets with all that one
+// holds, whose controls are that addressable's own parts. So naming a part costs what
+// its owner holds as its own, not what its members hold: a side tab's owner, the tabs
+// widget, holds every tab's document, which a query of the owner read in full on each
+// press on a tab and each picker hint that announced one (#4781).
 /** @param {Element} owner @param {string} name */
-const namedParts = (owner, name) =>
-  [...new Set(pageQueryAll(WORKS).map(controlIdentity))].filter(
+function namedParts(owner, name) {
+  /** @type {Set<Element>} */
+  const controls = new Set();
+  /** @param {Element} element */
+  const visit = (element) => {
+    const root = declaredRoot(element);
+    for (const scope of root ? [element, root] : [element])
+      for (let child = scope.firstElementChild; child; child = child.nextElementSibling)
+        if (!isAddressable(child)) {
+          if (child.matches(WORKS)) controls.add(controlIdentity(child));
+          visit(child);
+        }
+  };
+  visit(owner);
+  return [...controls].filter(
     (control) =>
       control !== owner &&
       under(control, owner) &&
       addressableAt(control) === owner &&
       controlName(control) === name,
   );
+}
 // What a press in Design mode can take as a part: a control, or a picture.
 const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
 /** @typedef {{segments: import("./passages.js").Segment[], at: Map<Element, number>}} BlockWords */
@@ -547,10 +576,7 @@ function controlContext(control, contexts, part) {
 /** @param {Element} face @param {Element} control */
 function controlPassages(face, control) {
   const words = textNodesUnder(face);
-  const barriers =
-    face === control
-      ? pageQueryAll(WORKS).filter((other) => other !== control && under(other, face))
-      : [control];
+  const barriers = face === control ? queryAllUnder(face, WORKS) : [control];
   /** @type {import("./passages.js").Segment[][]} */
   const passages = [];
   /** @type {import("./passages.js").Segment[]} */
@@ -671,8 +697,9 @@ function designTargetAt(
   // A picture's name describes a face; it is not a quotation of its pixels.
   if (partElement.matches(genericVisualSelector) && !claimsVisualGesture(partElement))
     return named;
-  // Inventory reads names and faces only. Capture the chosen control's passage once,
-  // when direct aim or a picker choice actually needs its durable coordinate.
+  // Inventory reads names and faces only, which is all the box and name a hovering
+  // pointer paints need. The control's passage is captured once, when a press or a
+  // picker choice commits the target and needs its durable coordinate (`captured`).
   return {
     ...named,
     capture() {
@@ -728,12 +755,11 @@ function designTargetAt(
 
 // The returned element is the coordinate's durable owner. A named control part also
 // supplies its own hint seat, so several controls in one owner keep separate identities.
+// A Design mode target is its inventory reading, as `aimTargets` gives the picker: a
+// control part's quoted passage waits for whoever commits it (`captured`).
 /** @param {Node | null} node @param {AimOptions} [options] @returns {AimTarget | null} */
 export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
-  if (design) {
-    const target = designTargetAt(node, marginTargetAt);
-    return target?.capture ? target.capture() : target;
-  }
+  if (design) return designTargetAt(node, marginTargetAt);
   const visual = visualAt(node, { unclaimed: false });
   if (visual?.part)
     return {
@@ -747,6 +773,16 @@ export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
   const addressable = addressableAt(node);
   return addressable ? addressableAimTarget(addressable) : null;
 }
+
+// A target as a comment takes it: a Design mode control part with its passage
+// captured (`designTargetAt`), and any other target as it is. What a caller added to
+// the target, such as the point a press landed on (pointed-place.js), stays with it.
+/** @template {AimTarget | null | undefined} T @param {T} target @returns {T} */
+export const captured = (target) => {
+  if (!target?.capture) return target;
+  const { capture, ...added } = target;
+  return /** @type {T} */ ({ ...added, ...capture() });
+};
 
 /** @param {AimOptions} [options] @returns {AimTarget[]} */
 export function aimTargets(options = {}) {

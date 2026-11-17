@@ -59,6 +59,33 @@ window.HTMLSlotElement.prototype.assignedElements = function (options) {
     ? flattened(this).filter((node) => node.nodeType === Node.ELEMENT_NODE)
     : assignedElements.call(this);
 };
+// happy-dom answers no composed range, which every engine ships and the runtime reads a
+// selection by (`pageRange`). An end in a shadow root the caller doesn't name moves out
+// to its host's edge, after the host for the range's end, as the DOM's rescoping does.
+window.Selection.prototype.getComposedRanges ??= function ({ shadowRoots = [] } = {}) {
+  if (!this.rangeCount) return [];
+  const range = this.getRangeAt(0);
+  /** @param {Node} node @param {number} offset @param {boolean} end */
+  const rescoped = (node, offset, end) => {
+    for (
+      let root = node.getRootNode();
+      root instanceof ShadowRoot && !shadowRoots.includes(root);
+      root = node.getRootNode()
+    ) {
+      const { host } = root;
+      node = /** @type {Node} */ (host.parentNode);
+      offset = [...node.childNodes].indexOf(host) + (end ? 1 : 0);
+    }
+    return [node, offset];
+  };
+  const [startContainer, startOffset] = rescoped(
+    range.startContainer,
+    range.startOffset,
+    false,
+  );
+  const [endContainer, endOffset] = rescoped(range.endContainer, range.endOffset, true);
+  return [{ startContainer, startOffset, endContainer, endOffset }];
+};
 // Nothing is laid out here, so every box is whatever a test states. The window is the
 // one box this world states itself, as a browser does: the root reports its size, and
 // the visual viewport, which happy-dom lacks and geometry.js reads (`shownWindow`) and
@@ -83,10 +110,6 @@ for (const [name, read] of Object.entries({
 }))
   Object.defineProperty(viewport, name, { configurable: true, get: read });
 window.visualViewport ??= viewport;
-// happy-dom's `elementFromPoint` finds nothing, since nothing is laid out, and it lacks
-// `elementsFromPoint`, which root-headers.js asks of the window's top: nothing stands
-// there either.
-document.elementsFromPoint ??= () => [];
 // Nor does it run animations, so none is under way.
 document.getAnimations ??= () => [];
 // happy-dom's computed style is the declared style: no initial values, and no

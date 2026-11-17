@@ -9,8 +9,10 @@
   </head>
   <body>
     <main class="layout-column">
-      <p class="eyebrow">ship review · offline editing</p>
-      <h1>Finish the ship review</h1>
+      <hgroup>
+        <p>ship review · offline editing</p>
+        <h1>Finish the ship review</h1>
+      </hgroup>
       <p class="lede" id="off-lede">
         The resend is accepted for the first patch: it recovered all 500 forced stalls,
         and a six-week beta across 96 workspaces saw no data loss. Approve the release
@@ -18,7 +20,7 @@
         reconnect thread.
       </p>
 
-      <section id="off-readiness-section" class="layout-flow">
+      <section id="off-readiness-section">
         <h2>Confirm the follow-up work</h2>
         <p id="off-thread-note">
           Open the comment beside the stalled task. Two follow-ups are selected; adjust
@@ -41,8 +43,8 @@
                 resends the queued batch; 500 forced stalls all recovered.
                 <lf-ask id="off-workaround-decision">
                   <h3>Patch decision: ship with the resend</h3>
-                  <lf-options id="off-workaround-review" choose>
-                    <lf-option id="off-workaround-approve" for="off-t-resync" chosen>
+                  <lf-options id="off-workaround-review">
+                    <lf-option id="off-workaround-approve" for="off-t-resync" selected>
                       Ship with the resend and keep chasing the upstream fix.
                     </lf-option>
                     <lf-option id="off-workaround-revise" for="off-t-resync">
@@ -88,7 +90,7 @@
           telemetry and the support playbook described above. The upstream fix and
           additional reconnect work remain follow-ups.
         </p>
-        <lf-options id="off-release" choose>
+        <lf-options id="off-release">
           <lf-option id="off-release-hold"
             ><strong>Hold the patch</strong> Offline editing waits for the upstream
             fix.</lf-option

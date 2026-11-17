@@ -44,8 +44,8 @@ assert:
     metric: readable-source
     value: |
       The JavaScript source is displayed in a syntax-highlighted Leaf code block:
-      either a native pre/code with class="language-javascript" or a lf-code with
-      language="javascript". Object fields and closing braces are broken onto
+      a pre/code with class="language-javascript", natively or inside an lf-code.
+      Object fields and closing braces are broken onto
       consistently indented lines so each action's fields can be read individually.
       All the original command fields and behavior remain in the snippet. Fail if
       source stays uncolored or keeps several distinct object fields crammed onto

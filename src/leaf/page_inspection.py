@@ -9,7 +9,10 @@ document, with sample children named separately. Selected-layer CSS stays separa
 from page CSS. Page-owned widget implementations are listed from captured
 provenance. JavaScript bytes include executable inline scripts and captured files,
 including downloads; no byte count implies execution. JavaScript is not parsed for
-strings that might become CSS.
+strings that might become CSS. Words are the page's text reading
+(`passages.page_passages`), split into those a reader sees on arrival and those a
+closed `<details>` or `hidden` holds, so collapsed supporting material, such as a
+quoted source, costs the shown count nothing.
 
 This is a static source inventory, not network transfer or CSS coverage. Styles made
 by JavaScript, including widget template strings, are outside it. Browser views
@@ -23,8 +26,11 @@ directories retain the files for an author who needs their full text diff.
 import json
 from pathlib import Path
 
+import turbohtml
+
 from .files import latest_revision, list_revisions
 from .leases import page_locked
+from .passages import page_passages
 from .refusals import Refused
 from .registry.storage import read_page_registry, selected
 from .revision_artifact import (
@@ -65,6 +71,33 @@ def _css_counts(css: str, *, inline=False) -> dict:
 
     walk(css_block(css) if inline else css_stylesheet(css))
     return counts
+
+
+def _words(artifact: RevisionArtifact) -> dict:
+    """The words of the page's text reading: `shown` on arrival, and `collapsed` in a
+    closed `<details>`, other than its `<summary>`, or under `hidden`."""
+    markup = artifact.html.decode("utf-8")
+    arrival = SourceDocument(markup)
+    for element in arrival.tree.select("details:not([open]), [hidden]"):
+        if element.tag != "details" or "hidden" in element.attrs:
+            element.extract()
+            continue
+        for child in element.children:
+            if not (isinstance(child, turbohtml.Element) and child.tag == "summary"):
+                child.extract()
+
+    def count(document):
+        return len(page_passages(document, artifact.registry).text.split())
+
+    shown = count(arrival)
+    return {
+        "shown": shown,
+        "collapsed": count(SourceDocument(markup)) - shown,
+        "coverage": [
+            "Words a reader can select on the page; a widget's drawn labels and data notation are not counted.",
+            "A widget that hides content, such as a tab set's other tabs, counts it as shown.",
+        ],
+    }
 
 
 def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
@@ -237,6 +270,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                 "JavaScript is not searched for strings that may become CSS.",
             ],
         },
+        "words": _words(artifact),
     }
 
 
@@ -359,6 +393,10 @@ def cmd_inspect(
                         for key, value in report["javascript"][owner].items()
                     }
                     for owner in ("page", "layer")
+                },
+                "words": {
+                    key: report["words"][key] - baseline["words"][key]
+                    for key in ("shown", "collapsed")
                 },
                 "coverage": "Source changes only. Browser observations are not subtracted across rendering environments or interaction states.",
             }

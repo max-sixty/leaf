@@ -32,12 +32,16 @@
    above it. A send empties the box, so the card holds its top through the send and
    grows down past the box, keeping still the transcript the user was reading; so does
    the empty box a click's opening leaves the caret in (thread/focus.js,
-   `openingPart`). A user who empties the box themselves, as Select All and Backspace
-   do, sees it rise to where the empty box stands, a rare path SOUL.md lets move, since
-   to the card that looks the same as a send. A message's rewrite, whose field stands in
-   the transcript, holds the top as well, so the rewrite grows down. Below its subject
-   the card keeps its top even while the user writes, so it never grows up over the
-   words it is about.
+   `openingPart`). A refusal gives back what the send took: its turn goes, and its words
+   return under the refusal's cover (errors.js), which shows no line being typed either,
+   so the card holds its top through the refusal too, and its foot once the user comes
+   back to the words. The user chose this on 16 November 2026 over letting the card
+   drop, which moved both its edges and slid it out from under the pointer. A user who
+   empties the box themselves, as Select All and Backspace do, sees it rise to where
+   the empty box stands, a rare path SOUL.md lets move, since to the card that looks
+   the same as a send. A message's rewrite, whose field stands in the transcript, holds
+   the top as well, so the rewrite grows down. Below its subject the card keeps its top
+   even while the user writes, so it never grows up over the words it is about.
    Nothing else chooses the edge, whatever the user pressed, and the card remembers no
    press or send (`heldEdge`). News at the thread's end shows at once where that edge
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
@@ -189,6 +193,7 @@ import { openingPart, threadFocusDestination } from "../thread/focus.js";
 import { claimSeatReplies } from "../thread/inline.js";
 import { dismissReply, releaseReplies, replyIsEditing } from "../thread/replies.js";
 import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
+import { errorOver } from "../errors.js";
 
 /** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
  * @typedef {import("../margin-model.js").ThreadItem} Item
@@ -625,15 +630,17 @@ export function createThreadPreview({
 
   // The edge a card on `side` holds now (the header's rule): the one it is attached by,
   // but its foot beside its subject while the user writes words in its reply box, where
-  // they are (user-place.js, `focusPlace`). Also where they are, if in the card,
-  // whether they type there, and whether they write words in its reply box.
+  // they are (user-place.js, `focusPlace`), and no error covers them (errors.js). Also
+  // where they are, if in the card, whether they type there, and whether they write
+  // words in its reply box.
   /** @param {import("./comment-placement.js").Side} side */
   function heldEdge(side) {
     const place = focusPlace();
     const at = place && under(place, preview) ? place : null;
     const typing = typesText(at);
     const words = closestAcross(at, ".lf-thread-reply")?.querySelector(TEXT_FIELD);
-    const writing = typing && Boolean(words && "value" in words && words.value);
+    const writing =
+      typing && Boolean(words && "value" in words && words.value) && !errorOver(words);
     const beside = side === "left" || side === "right";
     /** @type {"top" | "foot"} */
     const edge = writing && beside ? "foot" : attachedEdge(side);
@@ -1104,16 +1111,14 @@ export function createThreadPreview({
       scroll: session.transcript.scrollTop,
     };
     const present = () => {
-      const targetHeading =
-        targetFor(entry)?.querySelector(":scope > strong")?.textContent;
-      // A target with a heading is named by it. One without — an aside, a paragraph —
-      // is headed by the passage the selected thread quotes, as the panel heads it: a card
-      // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
-      // last sentence was a third name for one thread, and the least exact.
+      // The card is headed by the passage the selected thread quotes, as the panel
+      // heads it, else by its margin entry's title: a card headed "aside · The fallback
+      // cookie is read-only…" over a comment on the aside's last sentence was a third
+      // name for one thread, and the least exact.
       const quoted = selected.thread?.anchor
         ? anchorLabel(selected.thread.anchor, selected.thread.root.about)
         : null;
-      const title = labelWords(targetHeading || quoted || entry.title);
+      const title = labelWords(quoted || entry.title);
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));

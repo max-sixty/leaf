@@ -3,7 +3,8 @@
 ## Show the subject
 
 Before writing a view's words, decide what it shows. Ask what the user would otherwise
-have to picture from a description, and put that thing on the page in its own form:
+have to picture or piece together from a description, and put that thing on the page
+in its own form:
 
 - An existing interface is a screenshot, cropped or marked so the eye lands on the
   point, and a visual change between two versions is an `lf-shot` before-and-after
@@ -18,20 +19,27 @@ have to picture from a description, and put that thing on the page in its own fo
   are an `lf-chart`, even when they compare the same measures across items. Label the
   values the argument cites, and put exact values in a table below it when readers
   need them.
+- Items the user reads one at a time and compares on the same facts, such as settings,
+  files or test results, are a table: a row per item, a column per fact, and rows
+  grouped or sorted by the fact they scan first. Values the user looks up, and
+  measures in units that can't share an axis, go in a table too.
 - Wording the user judges, such as code, a command or a message, is shown as the text
-  itself. When the point is what code does, such as what it draws or which rule wins,
-  show that effect in one of the forms above, with the code beside it.
+  itself, and so is a source a claim rests on, such as a rule in a doc. Quote that
+  passage whole, conditions included, so the reader can check the claim on the page.
+  When the point is what code does, such as what it draws or which rule wins, show
+  that effect in one of the forms above, with the code beside it.
 
-A table or list whose rows say where things sit, how large they are or what connects
-to what should be a drawing. A drawing or chart makes its point through its geometry:
-where its marks sit, their sizes, and what contains or links them. One that only
-restates the words or numbers beside it, as boxes holding its sentences or a mark or
-bar per counted item, shows nothing. When the user has nothing to picture, as when
-they weigh a refactor's reasons and cost, leave the case in words and draw nothing.
+A drawing or chart makes its point through its geometry: where its marks sit, their
+sizes, and what contains or links them. Add one where that geometry makes a
+relationship or pattern the argument rests on easier to see than the words or a table
+would. Names sorted into a box per group show the grouping no more plainly than a table
+grouped the same way, and leave out the facts the table gives beside each name. A mark
+per counted item shows only the count, and boxes holding sentences show only the
+sentences. When the user has nothing to picture, as when they weigh a refactor's reasons
+and cost, leave the case in words and draw nothing.
 
-Use a table for looking up values, for mixed units that can't share an axis, or for
-comparisons with text-heavy cells. `authoring-evidence.md` says which element draws
-each kind of evidence, and how to draw a figure of your own.
+`authoring-evidence.md` says which element draws each kind of evidence, and how to draw
+a figure of your own.
 
 ## Develop the work
 
@@ -160,15 +168,15 @@ page of parts, whose column parts each take their own outline.
 ## Style the page
 
 A new page takes Leaf's reading theme, which styles semantic HTML (headings, prose,
-tables, code) in both colour schemes and adds the class idioms, such as `.callout`, so
-a page of ordinary content needs no CSS of its own: polish it through clearer content
-and hierarchy within that treatment. Where the task calls for a design of its own,
-such as an instrument, an arrangement, or a look the user asks for, write it in
-ordinary CSS. A page whose design is wholly its own, such as an existing site, a
+tables, code, controls) in both colour schemes and adds the class idioms, such as
+`.callout`, so a page of ordinary content needs no CSS of its own: polish it through
+clearer content and hierarchy within that treatment. Where the task calls for a design
+of its own, such as an instrument, an arrangement, or a look the user asks for, write
+it in ordinary CSS. A page whose design is wholly its own, such as an existing site, a
 mockup or a page the user brings, takes no theme instead (`leaf page init <page>
---no-theme`), so it starts from the browser's defaults, its tables and code blocks
-included, and none of the theme shows through its rules; Leaf's widgets, threads and
-panel keep their own faces either way.
+--no-theme`), so it starts from the browser's defaults, its tables, code blocks and
+controls included, and none of the theme shows through its rules; Leaf's widgets,
+threads and panel keep their own faces either way.
 `leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
 themes"). Page CSS stands above every theme rule
 without `!important` or extra specificity, and an element rule of its own, such as
@@ -214,13 +222,6 @@ surface; cards and playground previews set this property for their contents.
 `page-layout.md`, "Page CSS and Leaf's controls", says how page CSS meets Leaf's own
 controls.
 
-When page CSS reveals controls while a container is hovered or focused, include
-`:has([data-lf-control-active])` in the condition if it contains a code block.
-Leaf marks that block while its floating Copy control is hovered or focused, since
-Copy lives outside the block's tree. For example,
-`.card:is(:hover, :focus-within, :has([data-lf-control-active])) .actions`
-keeps a card's actions visible when the pointer or focus moves onto Copy.
-
 `page-checkpoints.md`, "Page diagnostics", describes the optional source inventory
 for inspecting how much CSS a page adds and where it comes from.
 
@@ -242,14 +243,14 @@ rely on, in full:
 ```bash
 leaf page vocabulary <page> | jq 'with_entries(select(.key | startswith("$") | not))
     | map_values(.description)'
-leaf page vocabulary <page> | jq '.["lf-options"], .[".eyebrow"], .["$series"]'
+leaf page vocabulary <page> | jq '.["lf-options"], .[".lede"], .["$series"]'
 ```
 
 Before writing markup, read the author instructions for the entries you will use,
 including any example you copy:
 
 ```bash
-leaf page instructions <page> --use lf-options --use .eyebrow | jq -r '.author // empty'
+leaf page instructions <page> --use lf-options --use .lede | jq -r '.author // empty'
 ```
 
 The output is a JSON map from audience to text. When you or an agent you assign takes
@@ -283,22 +284,22 @@ a pasted link, so write a description that makes sense on its own.
 ## Markup
 
 Widget attributes carry scalars and children carry prose; a titled member of a compound
-widget starts with a `<strong>`. A leading `<strong>` heads a part when the next thing
-after it is a `<br>`, a block element or the end of the block holding it; the end of an
-inline element around it, such as a `<span>`, doesn't count. Followed first by
-text, hidden text included, it is a run-in label: it names its own line, and what
-follows belongs to the enclosing part, which On Me groups by and a link's preview
-names. A block element is any outside HTML's phrasing content, including every widget
-whose registry entry doesn't declare `x-inline`. The markup decides, not CSS: a span
-styled `display: block` or a newline `white-space` keeps doesn't end the line. A widget whose body is data, such
-as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
+widget starts with a `<strong>`. A widget whose body is data, such as `lf-code`, holds
+escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 
 Format filenames and paths as inline code.
 
-Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, or as
-`lf-code language="javascript"` for a line-numbered walkthrough, naming the actual
-language from `$languages.names`. Native `code` classes also accept the bundled
-grammar's aliases, such as `language-js` and `language-sh`. Leaf colours a native
+Write a formula in LaTeX in a `<code class="language-math">`, escaping `&`, `<` and `>`
+as in any HTML text: inside a sentence it reads as an inline formula, and as the code
+of its own `<pre>`, which takes an id like any block a reader points at, as a display
+formula. Leaf typesets the LaTeX in the surrounding text's size and colour,
+`page check --render` reports a formula it can't read, and a comment quotes a formula
+by its LaTeX.
+
+Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
+put the same block inside `lf-code` for a line-numbered walkthrough. Name the actual
+language from `$languages.names` or a bundled grammar's alias, such as `language-js`
+and `language-sh`. Leaf colours a native
 block only where the reading face reaches it: the `reading` theme turns it on, and a
 page with no theme sets `--lf-reading-face: 1` on a box around the `<pre>`
 (`package-themes.md`, "Personal themes"). Format example code with

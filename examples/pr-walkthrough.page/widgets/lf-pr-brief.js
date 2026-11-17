@@ -3,7 +3,7 @@
 import { html, keyed, noChange, repeat, unsafeHTML } from "/vendor/lit.js";
 import {
   ago,
-  highlightBlocks,
+  dressCode,
   keeps,
   LeafElement,
   loadMarkdown,
@@ -22,7 +22,8 @@ customElements.define(
   "lf-pr-brief",
   class extends LeafElement {
     // The pull request, set by whoever hosts the widget: Leaf from the bound source
-    // (the registry's `x-data.request.property`), or null while that source has none.
+    // (the registry's `data.inputs.request.property`), or null while that source has
+    // none.
     static properties = { value: { attribute: false } };
 
     // The request whose Markdown load the brief last waited on, the request it drew,
@@ -136,7 +137,7 @@ customElements.define(
       keeps(node, "data-lf-datum", identity);
       keeps(node, "data-lf-identity", record ? identity : null);
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value: record } }));
-      if (record) this.#work = highlightBlocks(this);
+      if (record) this.#work = dressCode(this);
     }
   },
 );

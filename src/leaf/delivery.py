@@ -163,11 +163,6 @@ _THREAD_DIGEST = object_schema(
                         "token": described(
                             "A reaction's word, in place of `text`.", STRING
                         ),
-                        "markup": described(
-                            "The HTML an agent's message holds, such as a widget it "
-                            "sent.",
-                            STRING,
-                        ),
                         "drawing": {"$ref": "leaf:event/comment#/properties/drawing"},
                         "suggestion": described(
                             "True where the comment is a suggestion.",
@@ -459,7 +454,7 @@ DELIVERY = Record(
             },
         ),
     ),
-    since=15,
+    since=46,
 )
 DELIVERY_ID = re.compile(r"[0-9a-f]{16}")
 
@@ -566,7 +561,7 @@ def batch_data(
         for event in events
         if replies
         and event.get("author") == "agent"
-        and (event.get("markup") or event.get("obligation"))
+        and (event.get("html") or event.get("obligation"))
     }
     reads_obligations = any(event["kind"] == "action" for event in batch) or any(
         asking.intersection(facts[event["id"]]["threads"]) for event in replies

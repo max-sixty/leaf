@@ -6,9 +6,10 @@
  * Layouts, so a Layout and the page's sheet outrank them as they outrank Leaf's. It sets
  * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
  * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
- * disclosures, definitions, rules and pictures, browser/styles/components/reading.css),
- * and the root's colour scheme, which lets
- * the tokens' light-dark() pairs follow the reader's preference.
+ * disclosures, definitions, rules and pictures, browser/styles/components/reading.css)
+ * and its own buttons, fields and labelled choices the faces of Leaf's controls
+ * (controls.css, "The faces of Leaf's control roles"), and the root's colour scheme,
+ * which lets the tokens' light-dark() pairs follow the reader's preference.
  *
  * Three faces, because the page already has three kinds of words and the norms
  * turn on telling them apart. What the page *says* is set in a text serif: prose
@@ -25,7 +26,7 @@
  * would have to arrive as a base64 blob in both — and referenced by URL instead
  * it silently falls back in exactly the medium (an exported file, mailed on) that
  * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
- * else; each is a screen serif with a large x-height, which is the property that
+ * else; each is a screen serif with a large paint.height, which is the property that
  * matters at 17px. */
 
 /* The document is warm paper under near-black ink, in either scheme. Leaf steps its
@@ -77,7 +78,7 @@ html {
   }
 }
 /* The apparatus face (`reading.css`, beside `summary`) for the theme's idioms. */
-.eyebrow,
+hgroup > p:first-child,
 .tag,
 dl.facts dt {
   font-family: var(--lf-sans);
@@ -104,9 +105,16 @@ dl.facts dt {
   color: var(--lf-ink-2);
 }
 
-/* ---------- class idioms ---------- */
-
-.eyebrow {
+/* An eyebrow is the short label above a heading, which HTML writes as a `<p>` before
+   the heading in its `<hgroup>`; a `<p>` after the heading is a subtitle and keeps the
+   body's face. Rejected: an `.eyebrow` class, a name of Leaf's for what the group
+   already says (the user's decision, 2026-11-15). An eyebrow and its heading are one
+   title: the heading level's large top margin belongs before the group, while the
+   eyebrow's bottom margin owns the small gap inside it. Each rule ends at the group or
+   at a heading's place in it, not at a sibling combinator over every heading, which
+   Gecko answers by restyling every later sibling of an insertion
+   (notes/browser-support.md, "Styling content Firefox skips"). */
+hgroup > p:first-child {
   font-size: var(--lf-t-6);
   letter-spacing: 0.1em;
   text-transform: uppercase;
@@ -114,18 +122,18 @@ dl.facts dt {
   font-weight: 500;
   margin: 0 0 10px;
 }
-/* An eyebrow and the heading below it are one title: the heading level's large top
-   margin belongs before the pair, while the eyebrow's bottom margin owns the small gap
-   inside it. */
-.eyebrow:has(+ h2) {
+hgroup:has(> p:first-child + h2) {
   margin-top: var(--lf-h2-start);
 }
-.eyebrow:has(+ h3) {
+hgroup:has(> p:first-child + h3) {
   margin-top: var(--lf-h3-start);
 }
-.eyebrow + :is(h1, h2, h3) {
+hgroup > :is(h1, h2, h3):not(:first-child) {
   margin-top: 10px;
 }
+
+/* ---------- class idioms ---------- */
+
 /* The one paragraph a user is guaranteed to read, so it is set as one: larger
    than the body, looser, and in the ink the body isn't. */
 h1 + .lede {
@@ -197,13 +205,6 @@ section.panel > :is(h2, h3):first-child {
 }
 .callout:is(.ok, .warn, .danger) > strong:first-child {
   color: var(--lf-tone-ink);
-}
-/* A sidenote is a small indented block where it was written, and on paper; where it hangs
-   in the column's margin is the column Layout's (layouts.css). */
-aside.note {
-  font-size: var(--lf-t-5);
-  line-height: 1.45;
-  color: var(--lf-muted);
 }
 /* A list of facts, each label beside its value, laid out as Leaf lays out its own
    (`dl.lf-facts`, browser/styles/components/reading.css), so a reader learns where a
@@ -278,13 +279,6 @@ dl.metric dd small {
 th.num,
 td.num {
   text-align: right;
-}
-/* Steps keep native list numbers and add space between entries. */
-ol.steps {
-  margin-block-start: 0;
-}
-ol.steps > li {
-  margin: 10px 0;
 }
 
 /* A schematic drawing the page makes itself: every mark takes a theme token, so the

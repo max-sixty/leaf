@@ -38,6 +38,7 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     FLOW_PAGE,
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     TOKEN,
     acknowledged_through,
@@ -566,11 +567,11 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         page_dir,
         {
             "kind": "reply",
-            "author": "user",
+            "author": "agent",
             "parent": "aabb0011",
             "revision": 1,
-            "text": "Seeded reply",
-            "markup": '<lf-code id="seed-code" language="python"><pre>print("seed")</pre></lf-code>',
+            "text": 'Seeded reply\n\n<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
+            "html": True,
         },
     )
     before = event_model.read_events(page_dir)
@@ -584,7 +585,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         assert status == 200, raw
         assert [event["text"] for event in json.loads(raw)["events"]] == [
             "Selected thread",
-            "Seeded reply",
+            'Seeded reply\n\n<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
         ]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
@@ -593,7 +594,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
     assert fetch(children[0] + "/api/state", token=None)[0] == 200
 
 
-def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
+def test_a_message_sample_starts_from_its_message_html(server, page_dir):
     """A template in a message's frozen markup allocates like a page's, addressed by
     its message: a fixture script in that markup seeds one child, and a selection of
     the page's threads seeds another."""
@@ -626,9 +627,7 @@ def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
             "--done",
             response_reference(page_dir, "aabb0011"),
             "--text",
-            "Try it:",
-            "--markup",
-            markup,
+            f"Try it:\n\n{markup}",
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -651,7 +650,7 @@ def test_a_message_sample_starts_from_its_message_markup(server, page_dir):
     status, body = allocate({"template": "fixture-practice"})
     assert status == 400 and "unknown sample template" in body["error"]
     status, body = allocate({"template": "fixture-practice", "message": "aabb0011"})
-    assert status == 400 and "carries markup" in body["error"]
+    assert status == 400 and "holds HTML" in body["error"]
 
 
 def test_sample_template_lookup_stays_within_the_requesting_page(server, page_dir):
@@ -1996,7 +1995,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
         version.read_text().replace(
             "</section>",
             '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             "</lf-options></lf-ask></section>",
         )
@@ -2049,7 +2048,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         version.read_text().replace(
             "</section>",
             '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
             "</lf-options></lf-ask></section>",
@@ -2104,7 +2103,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
         version.read_text().replace(
             "</section>",
             '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
             "</lf-options></lf-ask></section>",
@@ -2252,11 +2251,11 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     restated and one whose widget it dropped are
     offered only by the view that still paints them.
     """
-    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
+    old_page = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">').replace(
         "</section>",
-        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept" choose>'
+        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept">'
         '<lf-option id="kept-one">One</lf-option></lf-options></lf-ask>'
-        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone" choose>'
+        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone">'
         '<lf-option id="gone-one">One</lf-option></lf-options></lf-ask></section>',
     )
     new_page = re.sub(
@@ -2386,7 +2385,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
         version.read_text().replace(
             "</section>",
             '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
             "</lf-options></lf-ask></section>",
@@ -2564,7 +2563,7 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
-    board = registry_storage.load_registry(page_dir)["lf-board"]["x-example"]
+    board = registry_storage.load_registry(page_dir)["lf-board"]["author"]["example"]
     publish(page_dir)
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace("</section>", board + "\n</section>")
@@ -2637,7 +2636,18 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     ("declarations", "message"),
     [
         ("{broken", "invalid JSON"),
-        (json.dumps({"lf-board": {"type": "object"}}), "non-empty description"),
+        (
+            json.dumps(
+                {
+                    "lf-board": {
+                        "attributes": {
+                            "type": "object",
+                        },
+                    }
+                }
+            ),
+            "'description' is a required property",
+        ),
     ],
 )
 def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broken(
@@ -2688,15 +2698,14 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "Pick one:",
-            "--markup",
             (
+                "Pick one:\n\n"
                 '<lf-ask id="thread-pick-decision"><h3>Which option?</h3>'
-                '<lf-options id="thread-pick" choose>'
+                '<lf-options id="thread-pick">'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
                 '<lf-sample id="sample">'
-                '<lf-options id="exhibited-pick" choose>'
+                '<lf-options id="exhibited-pick">'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-sample>"
             ),
@@ -2710,7 +2719,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "author": "user",
             "parent": "c1",
             "revision": 1,
-            "text": '<lf-options id="text-pick" choose></lf-options>',
+            "text": '<lf-options id="text-pick"></lf-options>',
         },
     )
 
@@ -2757,7 +2766,7 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
         version.read_text().replace(
             "</section>",
             '<lf-ask id="worker-decision"><h3>What next?</h3>'
-            '<lf-options id="worker" choose>'
+            '<lf-options id="worker">'
             '<lf-option id="worker-restart">Restart the worker</lf-option>'
             '<lf-option id="worker-park">Park it</lf-option>'
             "</lf-options></lf-ask></section>",
@@ -3790,7 +3799,6 @@ def test_page_check_releases_the_page_while_its_frozen_browser_runs(
                 "",
                 "",
                 "Arrived during the check",
-                "",
             )
             updating.result(STATED_TIMEOUT)
             assert not checking.done()
@@ -3911,7 +3919,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     The shown document asks for history only after an older revision received a
     gesture. Reading just the shown/active documents is therefore insufficient.
     """
-    source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">')
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
     picked = append_command(
@@ -5061,8 +5069,8 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
-            "text": "A sample answer",
-            "markup": '<lf-code id="answer-code" language="python"><pre>1</pre></lf-code>',
+            "text": 'A sample answer\n\n<lf-code id="answer-code"><pre><code class="language-python">1</code></pre></lf-code>',
+            "html": True,
         },
         {
             "kind": "action",
@@ -5072,7 +5080,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "revision": 27,
         },
     ]
-    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-ask id="route-ask"><h2>Route</h2><lf-options id="route" choose><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-ask>'
+    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-ask id="route-ask"><h2>Route</h2><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-ask>'
 
     def template(identity):
         return f'<template id="{identity}" data-sample data-sample-events="fixture">{child_content}</template>'
@@ -5117,7 +5125,8 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
     second = allocate("second")
     initial = events(first)
     assert initial[0]["text"] == "Review the room"
-    assert initial[1]["markup"].startswith('<lf-code id="answer-code"')
+    assert initial[1]["html"] is True
+    assert '<lf-code id="answer-code"' in initial[1]["text"]
     assert initial[2]["revision"] == 1
     assert initial[2]["meaning"]["scope"] == "page"
     assert events(second) == initial

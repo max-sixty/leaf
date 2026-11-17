@@ -40,8 +40,6 @@ from render_cases_widgets import (
     DRAWING_PLACEMENT,
     FRAMED_WIDE_PAGE,
     LONG_CHAIN_PAGE,
-    NOTE_AND_WIDE_PAGE,
-    NOTE_BAND,
     PICTURE_PAGE,
     RAIL_BAND_PAGE,
     RAIL_BANDS,
@@ -91,7 +89,7 @@ from leaf import cli as cli_model
 from leaf import event_log as events_model
 from leaf import schema as schema_model
 from leaf.registry.storage import load_registry
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.render_checks import asked_again, rendered, wait_until_ready
 from leaf.render_gate.scheme import console_finding
 from leaf_dev.example_data import named_source
 
@@ -642,16 +640,25 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
 ):
     """A rendering has no text of the page's in it to select, so an explicit Comment
     gesture anchors on the whole element. Which widgets those are is theirs to declare
-    (x-visual): the runtime names none of them, so a widget added to the vocabulary exposes
-    the target on the strength of its entry. This rules out a consumer that knows one
+    (words.visual): the runtime names none of them, so a widget added to the vocabulary
+    exposes the target on the strength of its entry. This rules out a consumer that
+    knows one
     widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
     registry = load_registry(serve.page_dir)
-    assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
+    assert registry["lf-diagram"]["words"]["visual"], (
+        "this test needs the shipped declaration"
+    )
     declare_on_page(
         serve.page_dir,
         # A widget core has never heard of.
-        lambda registry: registry["lf-code"].update({"x-visual": "whole"}),
+        lambda registry: registry["lf-code"].update(
+            {
+                "words": {
+                    "visual": "whole",
+                },
+            }
+        ),
     )
     page = open_page(browser, url)
 
@@ -659,7 +666,7 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     # belongs to the widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#flow.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
+    page.locator("#flow.lf-mark-el.lf-pending[data-lf-projected-mark]").wait_for()
     expect(page.locator("#flow")).to_have_attribute(
         "data-lf-mark", re.compile(r"\bpending\b")
     )
@@ -668,7 +675,7 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
 
     page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#tree.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
+    page.locator("#tree.lf-mark-el.lf-pending[data-lf-projected-mark]").wait_for()
     tree = page.locator("#tree")
     expect(tree).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
     look = tree.evaluate(MARK)
@@ -791,7 +798,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     comparison.click(modifiers=["Alt"], position={"x": box["width"] / 4, "y": 80})
     expect(comparison).to_have_attribute("position", "50")
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(shot).to_have_attribute("data-lf-projected-mark", "")
     expect(shot).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
     ink = shot.evaluate(_MARK_INK)
     marked = screenshot()
@@ -1215,7 +1222,7 @@ def test_a_tab_set_whose_runtime_could_not_start_shows_every_panel(browser, serv
     )
     page = browser.new_page()
     page.route("**/widgets/lf-tabs.js", lambda route: route.abort())
-    page.goto(url, wait_until="load")
+    page.goto(asked_again(url), wait_until="load")
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
@@ -1241,7 +1248,7 @@ def test_a_drawing_that_will_never_draw_claims_no_room(browser, serve):
     url = serve(DIAGRAM_AND_RAIL_PAGE)
     page = browser.new_page(viewport={"width": 1600, "height": 900})
     page.route("**/widgets/lf-diagram.js", lambda route: route.abort())
-    page.goto(url, wait_until="load")
+    page.goto(asked_again(url), wait_until="load")
     expect(
         page.get_by_text("Leaf couldn't start. Waiting for Leaf to update.")
     ).to_be_visible()
@@ -1355,7 +1362,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
-  <lf-options id="options" choose><lf-option id="option">One</lf-option></lf-options>
+  <lf-options id="options"><lf-option id="option">One</lf-option></lf-options>
 </section>
 """,
     )
@@ -1419,7 +1426,7 @@ def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
                 leaf_page(
                     "Board beside contents",
                     margin_content
-                    + '<h1>Board beside contents</h1><section id="boards" class="layout-flow"><h2>Boards</h2>'
+                    + '<h1>Board beside contents</h1><section id="boards"><h2>Boards</h2>'
                     + '<div id="wide" data-width="wide">Wide evidence.</div>'
                     + '<div id="room" data-width="available">Available evidence.</div>'
                     + boards
@@ -1876,7 +1883,7 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
         "<h1>Tables of prose</h1>"
         '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
         + table.format(id="in-ask")
-        + '<lf-options id="asked-choice" choose>'
+        + '<lf-options id="asked-choice">'
         '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
         "</lf-options></lf-ask>"
@@ -1957,7 +1964,7 @@ INDENTED_PAGE = leaf_page(
     + _indented("control")
     + f'<ul><li>One<ol><li>Two<ul><li id="nested">Three{_indented("nested")}</li></ul>'
     "</li></ol></li></ul>"
-    + f'<ol class="steps"><li id="steps">A step{_indented("steps")}</li></ol>'
+    + f'<ol><li id="ordered">A step{_indented("ordered")}</li></ol>'
     + f'<ul class="plain"><li id="plain">An item{_indented("plain")}</li></ul>'
     + f'<div class="inset" id="inset">An indented block{_indented("inset")}</div>'
     # Boxes the page arranges itself: breakouts that are items in the second track of
@@ -2004,7 +2011,7 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     source = leaf_page(
         "Native exhibit tracks",
         '<h1>Evidence</h1><p id="prose">Reading measure.</p>'
-        '<section class="layout-flow"><p id="beside">Beside the breakouts.</p>'
+        '<section><p id="beside">Beside the breakouts.</p>'
         '<div id="wide" data-width="wide">Wide</div>'
         '<div id="available" data-width="available">Available</div></section>'
         '<div id="holder" style="margin-inline-start:40px"><div id="nested" data-width="available">Contained</div></div>'
@@ -2227,9 +2234,9 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
         # A board's columns are as wide as what they hold, a diff's lines are as long as
         # its files', and prose is set to a measure, so a page carrying all three used
         # to be a cramped board or a page widened past its own measure for one exhibit.
-        # x-space declares the capacity a widget needs, and the theme spends the room
-        # the layout measured, so each exhibit grows and the prose does not move. The
-        # board, a surface, takes all the room; the diff, slightly wider than the
+        # paint.space declares the capacity a widget needs, and the theme spends the
+        # room the layout measured, so each exhibit grows and the prose does not move.
+        # The board, a surface, takes all the room; the diff, slightly wider than the
         # column, starts at the prose's edge and stops at the shared cap.
         #
         # The code block is the half that says the declaration is doing this. It is a
@@ -2582,8 +2589,9 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render
-    (x-space, the half of markDeclared the page keeps to itself). Nothing about a message
-    says so, which is why this asks: the widget is in the panel, and the panel's width is
+    (paint.space, the half of markDeclared the page keeps to itself). Nothing about a
+    message says so, which is why this asks: the widget is in the panel, and the panel's
+    width is
     what bounds it."""
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(
@@ -2604,9 +2612,10 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "author": "agent",
             "parent": "c-fix",
             "revision": 1,
-            "text": "Like this:",
-            "markup": '<lf-diagram id="fallback-flow"><pre>\n'
+            "text": "Like this:\n\n"
+            '<lf-diagram id="fallback-flow"><pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2656,12 +2665,13 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "author": "agent",
             "parent": "c-log",
             "revision": 1,
-            "text": "Here it is, with the log:",
-            "markup": '<lf-sample id="rp-quoted" label="the old copy">'
-            '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>'
-            '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>'
-            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>'
+            "text": "Here it is, with the log:\n\n"
+            '<lf-sample id="rp-quoted" label="the old copy">'
+            '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>\n\n'
+            '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>\n\n'
+            '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>\n\n'
             '<lf-options id="rp-choice"><lf-option id="rp-keep">Keep</lf-option></lf-options>',
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2690,7 +2700,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     """The room is the page's to give, and a widget inside a box that paints is not held
     by the page. A quoted board that took the window stood outside the gutter marking it
     as quoted — the exhibit escaping its own exhibit — while a diagram in an option card
-    was worse for being invisible: a choose group clips to its own cells, so the widest
+    was worse for being invisible: a live option group clips to its own cells, so the widest
     part of the evidence an option argued on was cut off at the card's edge rather than
     drawn past it, and nothing on the page said a word.
 
@@ -2698,17 +2708,12 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     board inside one takes the room exactly as it would standing alone — which is what
     says this is about the box and not about being nested.
 
-    Which boxes those are is read off `--lf-block-frame`, the word a box already says where it
-    draws its frame, so the metric here is held by declaring one and the page's own div by
-    declaring the same one. A list of tags stood in for that reading and shadowed it: the
-    metric declared the frame and was not in the list, and no list a layer writes can
-    reach the div at all.
-
-    The nested section and the note are the two a list of tags could not have named
-    even in principle. A section's rail is drawn by `.nested-frame > .nested-frame`,
-    so it frames what it holds only where it is nested, and a note's box is drawn by `lf-code > pre > lf-note`,
-    a rule on where the code block's module docks it rather than on the tag. Each let a diagram out ~245px over the
-    column until the rule that draws it declared the frame.
+    Every other box here holds its widget by being no flow: only the column and the
+    sections, articles and disclosures in its flow hand their room on (layouts.css), so
+    a box that paints keeps what it holds whatever draws it. That reaches what no list
+    of tags could name: the page's own div, a nested task's rail drawn by
+    `.nested-frame > .nested-frame` only where it is nested, and a code note's box
+    drawn by `lf-code > pre > lf-note`, a rule on where the code block's module docks it.
 
     The row form is the declaration's limit, and the reason the sizing is asserted
     too. A row option is a table hugging its words, and legacy table sizing answers
@@ -2820,102 +2825,9 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     )
     assert boxes["inOwnBox"]["right"] <= boxes["ownBox"]["right"] + 1, (
         "the diagram crossed the right edge of the box the page drew for it, so a "
-        "project declaring the frame does not get the room held in: diagram out to "
+        "project's own box does not hold the room in: diagram out to "
         f"{boxes['inOwnBox']['right']:.0f}, box ends at {boxes['ownBox']['right']:.0f}"
     )
-
-
-def test_a_wide_widget_leaves_the_sidenote_its_margin(browser, serve):
-    """The page has two claims on its right margin now: a note is read out there, and a
-    wide widget expands into it. A widget drawn over a note is the note lost — it is the
-    thing on top — and the user loses words the page states, which is the same fault
-    the clipped-float reading refuses a version for.
-
-    The claim is settled at the height it arises and nowhere else, which is what the two
-    boards are for. One stands level with the note and drops below it to take the margin;
-    the other is 600px further down with nothing out there, and takes the margin where it
-    stands. Asserting only the first would pass just as well for a page that refused every
-    exhibit the margin because a note existed somewhere above it — the reading that held a
-    diagram to the column's own width with the margin beside it empty."""
-    page = open_page(browser, serve(NOTE_AND_WIDE_PAGE))
-    resized(page, NOTE_BAND, 900)
-    wide = page.evaluate(ROOM_GEOMETRY)
-
-    assert wide["note"]["width"] > 0, (
-        "the page lost the note entirely, so this proves nothing about the margin"
-    )
-    note = wide["note"]
-    assert wide["later"]["width"] > wide["column"]["width"] + 1, (
-        f"the page never grows the unobstructed board past prose, so neither "
-        f"exhibit asks to share the note's margin: {wide}"
-    )
-    for name in ("board", "later"):
-        exhibit = wide[name]
-        across = exhibit["left"] < note["right"] and exhibit["right"] > note["left"]
-        down = exhibit["top"] < note["bottom"] and exhibit["bottom"] > note["top"]
-        assert not (across and down), (
-            f"the page stands the {name} board over the note it shares the margin "
-            f"with: board {exhibit['left']:.0f}–{exhibit['right']:.0f}px across and "
-            f"{exhibit['top']:.0f}–{exhibit['bottom']:.0f}px down, note "
-            f"{note['left']:.0f}–{note['right']:.0f}px and "
-            f"{note['top']:.0f}–{note['bottom']:.0f}px"
-        )
-    assert wide["later"]["right"] > wide["column"]["right"] + 1, (
-        f"the page held a board with no note anywhere near it to the column's own "
-        f"right edge: board to {wide['later']['right']:.0f}px, column to "
-        f"{wide['column']['right']:.0f}px. A note claims the margin at its own height, "
-        f"not down the whole page."
-    )
-    assert root_overflow(page) == 0, (
-        "the page scrolls sideways, so the room it took was not the room it had"
-    )
-    assert wide["board"]["width"] >= wide["column"]["width"] - 1, (
-        f"the page shrank the board inside the measure its own prose is set to: "
-        f"board {wide['board']['width']:.0f}px, column {wide['column']['width']:.0f}px"
-    )
-
-
-@pytest.mark.parametrize("direction", ["ltr", "rtl"])
-def test_a_note_hangs_in_the_margin_where_the_room_holds_it(browser, serve, direction):
-    """Notes wrap after their passage without shifting centered prose."""
-    source = NOTE_AND_WIDE_PAGE.replace(" layout-notes", "", 1).replace(
-        "<html", f'<html dir="{direction}"', 1
-    )
-    page = open_page(browser, serve(source))
-    for width, beside in ((1100, False), (1190, False), (1600, True)):
-        resized(page, width, 900)
-        at = page.evaluate(ROOM_GEOMETRY)
-        axis = at["pageBox"]["left"] + at["pageBox"]["width"] / 2
-        assert at["column"]["centre"] == pytest.approx(axis, abs=1)
-        note, prose = at["note"], at["prose"]
-        assert note["width"] > 0
-        assert (note["top"] < prose["bottom"]) == beside
-        if beside:
-            if direction == "ltr":
-                assert note["left"] >= prose["right"] + 23
-            else:
-                assert note["right"] <= prose["left"] - 23
-        assert root_overflow(page) == 0
-
-
-def test_a_note_the_page_does_not_show_takes_no_room(browser, serve):
-    source = leaf_page(
-        "a note in a disclosure",
-        '<h1>Migration plan</h1><details id="more"><summary>Why twice a month</summary>'
-        '<div class="layout-note"><p>The cadence follows the support rota.</p>'
-        '<aside class="note" id="frequency">Support runs this twice a month.</aside></div>'
-        '</details><p id="after">Shift one cohort at a time.</p>',
-    ).replace(
-        '<main class="layout-column">', '<main class="layout-column layout-notes">'
-    )
-    page = open_page(browser, serve(source))
-    before = page.locator("#after").bounding_box()
-    page.locator("#more > summary").click()
-    expect(page.locator("#frequency")).to_be_visible()
-    assert page.locator("#after").bounding_box()["y"] > before["y"]
-    page.locator("#more > summary").click()
-    expect(page.locator("#frequency")).not_to_be_visible()
-    assert page.locator("#after").bounding_box() == before
 
 
 def test_a_sidebar_pages_track_is_its_aside_in_the_order_it_is_written(browser, serve):
@@ -3137,12 +3049,12 @@ def test_a_revision_keeps_the_readers_place_in_a_sidebar_tracks_body(browser, se
 def test_a_page_views_sidebar_uses_the_columns_margin(browser, serve):
     source = leaf_page(
         "View composition",
-        '<h1>Release review</h1><lf-tabs id="topics" class="layout-flow">'
-        '<lf-tab id="evidence-view" label="Evidence" class="layout-flow"><div class="layout-sidebar">'
+        '<h1>Release review</h1><lf-tabs id="topics" flow="page">'
+        '<lf-tab id="evidence-view" label="Evidence"><div class="layout-sidebar">'
         '<aside id="route"><div class="layout-track">Read the evidence.</div></aside>'
         '<div class="layout-column"><h2 id="evidence-title">Evidence</h2><p>Compare the counts.</p>'
         '<div id="wide" data-width="available">Evidence</div></div></div></lf-tab>'
-        '<lf-tab id="decision-view" label="Decision" class="layout-flow"><h2>Decision</h2></lf-tab></lf-tabs>',
+        '<lf-tab id="decision-view" label="Decision"><h2>Decision</h2></lf-tab></lf-tabs>',
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -3166,16 +3078,15 @@ def test_a_page_views_sidebar_uses_the_columns_margin(browser, serve):
 def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, serve):
     """A page of parts stands its title and, under it, the list of parts in a column down
     the left, and lays the open part out beside them from the top of the page, as a page
-    of its own with that part's Layout: a column part takes the column, margin content,
-    contents map and breakouts a column page takes in a window as wide as the room beside
+    of its own with that part's Layout: a column part takes the column, contents map and
+    breakouts a column page takes in a window as wide as the room beside
     the list, and a workspace part fills that room from the top of the window to the
     floating panel's row, so neither it nor a short part leaves the page anything to
     scroll. The row's room is the part's own end, so the part reaches the window's foot. On a phone
     the title, the list and the part stack."""
     column_body = """
 <h1>Migration plan</h1>
-<div class="layout-sidebar"><aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside><div class="layout-column layout-notes">
-<div class="layout-note"><p>Support cadence.</p><aside class="note" id="frequency">Support runs this twice a month.</aside></div>
+<div class="layout-sidebar"><aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside><div class="layout-column">
 <h2 id="move">Move</h2>
 <p>Shift one cohort at a time while keeping the old readers available.</p>
 <div id="room" data-width="available">Available evidence.</div>
@@ -3205,7 +3116,7 @@ def test_each_part_of_a_page_of_parts_is_laid_out_as_a_page_of_its_own(browser, 
         width: shell.clientWidth,
         box: rect(box),
       };
-      for (const id of ['route', 'frequency', 'room', 'contents']) {
+      for (const id of ['route', 'room', 'contents']) {
         const node = document.getElementById(id);
         const style = getComputedStyle(node);
         measured[id] = [rect(node), style.float, style.position];
@@ -3313,24 +3224,16 @@ def test_a_page_refuses_a_browser_that_never_had_the_link(browser, serve):
     consume_browser_errors(page, http_error_console(401))
 
 
-@pytest.mark.parametrize(
-    "notes,local_region",
-    [(True, None), (False, None), (True, "bounded"), (True, "flow")],
-)
-def test_document_reading_survives_width_reflow(browser, serve, notes, local_region):
-    """The implicit document keeps its passage as notes enter flow, just as panes do."""
+@pytest.mark.parametrize("local_region", [None, "bounded", "flow"])
+def test_document_reading_survives_width_reflow(browser, serve, local_region):
+    """The implicit document keeps its passage as the window's width rewraps it, just
+    as panes do."""
     body = '<h1 id="title">Migration</h1><a href="#passage3">Read phase 3</a>'
     for number in range(1, 9):
-        note = (
-            f'<aside class="note" id="note{number}">Qualification {number}. '
-            "Keep the old readers until the new cohort passes its checks.</aside>"
-            if notes
-            else ""
-        )
         body += (
-            f'<h2 id="heading{number}">Phase {number}</h2><div class="layout-note">'
+            f'<h2 id="heading{number}">Phase {number}</h2>'
             f'<p id="passage{number}">Phase {number} begins here. Advance one cohort at a time '
-            f"and keep earlier readers available. The qualification explains this phase.</p>{note}</div>"
+            "and keep earlier readers available. The qualification explains this phase.</p>"
             "<p>The next phase follows a separate approval. Read the supporting material before deciding.</p>"
         )
         if number == 4 and local_region:
@@ -3347,15 +3250,7 @@ def test_document_reading_survives_width_reflow(browser, serve, notes, local_reg
                 )
                 + "</section>"
             )
-    page = open_page(
-        browser,
-        serve(
-            leaf_page("Reading through reflow", body).replace(
-                '<main class="layout-column">',
-                f'<main class="layout-column{" layout-notes" if notes else ""}">',
-            )
-        ),
-    )
+    page = open_page(browser, serve(leaf_page("Reading through reflow", body)))
     if local_region:
         page.evaluate("""async () => {
           const {registerReadingRegion} = await window.__lfWidgetApi();
@@ -3416,11 +3311,22 @@ def test_the_write_gate_rejects_unchanged_authored_style_writes(
     assert failures[0].values["node"][0].startswith("body"), failures
 
 
+# The type of a word press Leaf builds by role, as a widget builds one
+# (`offerAction`), which the page's own controls are held to.
+LEAF_PRESS_TYPE = """async () => {
+  const {offerAction} = await window.__lfWidgetApi();
+  const press = document.querySelector('main').appendChild(
+    offerAction('word', '', 'Leaf'));
+  const s = getComputedStyle(press);
+  return [s.fontFamily, s.fontSize];
+}"""
+
+
 def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     browser, serve
 ):
     """A bare button or field an author writes into the page reads in Leaf's type, as
-    `.lf-btn` and `.lf-field` do; left to the browser it drew 13.33px Arial beside the
+    Leaf's own controls do; left to the browser it drew 13.33px Arial beside the
     page's own type (#2559). The default weighs nothing, so a page rule of element
     selectors alone still sets its type."""
     page = open_page(
@@ -3429,8 +3335,7 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
             leaf_page(
                 "Authored controls",
                 """<h1>Authored controls</h1>
-<p><button id="classed" class="lf-btn" type="button">Classed</button>
-<button id="bare" type="button">Bare</button>
+<p><button id="bare" type="button">Bare</button>
 <input id="bare-field" type="text" aria-label="Bare field">
 </p>
 <section><button id="dressed" type="button">Dressed</button></section>""",
@@ -3441,7 +3346,7 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     face = (
         "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
     )
-    leaf = page.locator("#classed").evaluate(face)
+    leaf = page.evaluate(LEAF_PRESS_TYPE)
     assert page.locator("#bare").evaluate(face) == leaf
     assert page.locator("#bare-field").evaluate(face) == leaf
     assert page.locator("#dressed").evaluate(face) == ["Georgia", "20px"]
@@ -3455,14 +3360,13 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
     included. It outranked them there, which set lf-file-tree's rows, buttons Trees
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
-    declaration["x-shadow"] = True
+    declaration.setdefault("words", {})["shadow"] = True
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "Widget controls",
                 """<h1>Widget controls</h1>
-<p><button id="classed" class="lf-btn" type="button">Classed</button></p>
 <lf-own-controls id="own"></lf-own-controls>""",
             ),
             layer_registry={"lf-own-controls": declaration},
@@ -3495,7 +3399,7 @@ customElements.define('lf-own-controls', class extends HTMLElement {
     face = (
         "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
     )
-    leaf = page.locator("#classed").evaluate(face)
+    leaf = page.evaluate(LEAF_PRESS_TYPE)
     own = page.locator("#own")
     assert own.locator("button.bare").evaluate(face) == leaf
     assert own.locator("button.own").evaluate(face) == ["Georgia", "20px"]

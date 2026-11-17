@@ -9,15 +9,17 @@
   </head>
   <body>
     <main class="layout-column">
-      <p class="eyebrow" id="fix-eyebrow">fix review · page comments</p>
-      <h1 id="fix-title">A comment now survives opening its screenshot</h1>
+      <hgroup>
+        <p id="fix-eyebrow">fix review · page comments</p>
+        <h1 id="fix-title">A comment now survives opening its screenshot</h1>
+      </hgroup>
       <p class="lede" id="fix-lede">
         Pressing Escape on a screenshot's preview used to close the page comment it was
         attached to. I recorded one journey before and after the fix. Choose a moment,
         then switch recordings to see the same step in the other.
       </p>
 
-      <section id="fix-recordings" class="layout-flow">
+      <section id="fix-recordings">
         <lf-trace-compare id="fix-compare"
           ><figure id="fix-before-figure">
             <lf-trace id="fix-before" label="Before the fix" source="draft-image-before"
@@ -75,7 +77,7 @@
           and in a thread reply in the floating panel, and fails on each without the
           fix.
         </p>
-        <lf-options id="fix-ship" choose>
+        <lf-options id="fix-ship">
           <lf-option id="fix-ship-now">
             <small class="tag ok">recommended</small>
             <strong>Ship it</strong>

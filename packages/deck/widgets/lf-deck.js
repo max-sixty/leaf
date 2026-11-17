@@ -17,15 +17,15 @@
  * first reading is in, as offline, Later and Next step to the next card in order.
  *
  * Which card is open is view state for this user, as a tab set's open panel is
- * (`x-views`): the runtime names the opening card (`openingView`), the module records
- * each card it shows (`keepView`), so a reload comes back to it, and no event carries
- * it. Where neither the address nor the tab names a card, the deck opens on the first
- * that waits once the first reading is in. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
- * walk (`m`, `obligationActions.next`) open the card holding what they reach
- * (`beforematch`); `m` is therefore the keyboard's Later, and a card the
- * walk leaves behind stays waiting for the end of the pass. Leaf's Undo travels to the
- * answer it takes back before taking it, which opens its card the same way, so the deck
- * has no Undo of its own.
+ * (`paint.views`): the runtime names the opening card (`openingView`), the module
+ * records each card it shows (`keepView`), so a reload comes back to it, and no event
+ * carries it. Where neither the address nor the tab names a card, the deck opens on the
+ * first that waits once the first reading is in. Inactive cards are
+ * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
+ * `obligationActions.next`) open the card holding what they reach (`beforematch`); `m`
+ * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
+ * for the end of the pass. Leaf's Undo travels to the answer it takes back before
+ * taking it, which opens its card the same way, so the deck has no Undo of its own.
  *
  * The bar above the cards holds Back, the tally's count of the deck's obligations
  * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,
@@ -66,6 +66,7 @@ import {
   LeafElement,
   motion,
   obligationActions,
+  obligationsByRegion,
   obligationsIn,
   offer,
   offerAction,
@@ -206,7 +207,8 @@ customElements.define(
     #readings() {
       const items = readObligations();
       if (items.phase !== "ready") return null;
-      return (/** @type {HTMLElement} */ card) => obligationsIn(card, items.all);
+      const held = obligationsByRegion(this.#cards, items.all);
+      return (/** @type {HTMLElement} */ card) => held.get(card) ?? [];
     }
 
     // Show one card, or none once the pass is over, without motion.

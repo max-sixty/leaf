@@ -34,9 +34,8 @@ variants:
   status-label:
     description: grouped-title-address/status-label
     metadata:
-      purpose:
-        A status and date above a new title uses the shared label idiom without an
-        explicit class request.
+      purpose: A status and date above a new title stands in the title's hgroup as the
+        theme's eyebrow without the markup being requested.
     vars:
       now: "2026-10-09T18:00:00-07:00"
       prompt: >-
@@ -54,6 +53,6 @@ variants:
         metric: shared-label
         value: |
           Pass only if "Implemented locally · October 9, 2026" stands directly above
-          the title as a paragraph in the theme's shared label idiom, `class="eyebrow"`,
-          holding just that text. Fail if it is a plain paragraph, a page-styled
-          class of its own, or part of the heading.
+          the title as the eyebrow the theme styles, a `<p>` holding just that text
+          before the `h1` in the title's `<hgroup>`. Fail if it stands outside that
+          group, carries a page-styled class of its own, or is part of the heading.

@@ -291,6 +291,15 @@ CENTRE = """(selector) => {
   const box = node.getBoundingClientRect();
   return [box.x + box.width / 2, box.y + box.height / 2];
 }"""
+# The centres of the page's first two tab controls, the first brought into view.
+TAB_CENTRES = """() => {
+  const controls = [...document.querySelectorAll("[role=tab]")].slice(0, 2);
+  controls[0].scrollIntoView({ block: "nearest" });
+  return controls.map((control) => {
+    const box = control.getBoundingClientRect();
+    return [box.x + box.width / 2, box.y + box.height / 2];
+  });
+}"""
 # The leaf's menu, its Annotations, and Capture area's row there.
 MENU_ROWS = (
     ".lf-fp-leaf",
@@ -385,7 +394,7 @@ def ask(g: int, options: int = 4) -> str:
     """Section `g`: a heading, a paragraph and an `lf-ask` of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose multiple>'
+        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
             f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
@@ -448,7 +457,7 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )
@@ -475,13 +484,14 @@ def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )
     document = (
-        '<lf-text-document id="listing" label="steps.py" language="python">'
-        f"<pre>{steps(n * 32)}</pre></lf-text-document>"
+        '<lf-text-document id="listing" label="steps.py">'
+        f'<pre><code class="language-python">{steps(n * 32)}</code></pre>'
+        "</lf-text-document>"
     )
     return page("Document", question + document)
 
@@ -504,11 +514,22 @@ def side_documents(n: int) -> str:
     reads."""
     tabs = "".join(
         f'<lf-tab id="t{d}" label="Document {d}"><lf-text-document id="d{d}" '
-        f'source="s{d}" label="document_{d}.py" language="python"></lf-text-document>'
+        f'source="s{d}" label="document_{d}.py" class="language-python"></lf-text-document>'
         "</lf-tab>"
         for d in range(documents(n))
     )
     return page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
+
+
+def side_asks(n: int) -> str:
+    """A side list of `n` tabs, each holding one section's ask, so each tab marks the
+    state of the obligation its panel holds. A click on an option redraws every tab's
+    mark, so the CPU of that click reads what counting each panel's obligations costs
+    (#5722)."""
+    tabs = "".join(
+        f'<lf-tab id="t{g}" label="Tab {g}">{ask(g)}</lf-tab>' for g in range(1, n + 1)
+    )
+    return page("Asks", f'<lf-tabs id="tabs" list="side">{tabs}</lf-tabs>')
 
 
 def document_text(d: int, first: str | None = None) -> str:
@@ -529,7 +550,7 @@ def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )
@@ -697,6 +718,7 @@ COLLECTIONS: dict[str, Collection] = {
     ),
     "rows": Collection(table_rows),
     "documents": Collection(side_documents, data=document_sources),
+    "asktabs": Collection(side_asks),
     "widgets": Collection(
         ask_sections, lambda n: [pick(g, g % 4 + 1) for g in range(1, n + 1)]
     ),
@@ -984,14 +1006,17 @@ class Input(NamedTuple):
     for the input's painted goals where it has them, for the POST's answer where they
     include the server's reading of its event (`delivered`), and then `after` ms. The
     paint pass times it `count` times, each after `ready`, where it `paints`, and a
-    page reads the input only where it holds `needs`. An `agent` input is an agent's
-    write, which reaches the page only in the server's reading. A `whole` input's
-    result is made of the whole page, as a revision's new document or a search's
-    count of its matches is, so what it costs may grow with the page (`held`)."""
+    page reads the input only where it holds `needs`. `leave` follows each `ready` once
+    the windows after it end, to take back a mode `ready` entered, so the inputs after
+    it meet the page as they would without it. An `agent` input is an agent's write,
+    which reaches the page only in the server's reading. A `whole` input's result is
+    made of the whole page, as a revision's new document or a search's count of its
+    matches is, so what it costs may grow with the page (`held`)."""
 
     act: Callable[[Tab], float | None]
     count: int = 1
     ready: Callable[[Tab], Goals] = lambda _: {}
+    leave: Callable[[Tab], None] = lambda _: None
     each: bool = True
     paints: bool = False
     after: float = 0
@@ -1064,6 +1089,14 @@ def hover_step(tab: Tab) -> None:
     tab.page.mouse.move(tab.target["x"], tab.target["y"] + LINE * lines)
 
 
+def hold_alt(tab: Tab) -> None:
+    """Hold ⌥ down, which arms the page under the pointer, or let it up."""
+    if tab.sample % 2:
+        tab.page.keyboard.up("Alt")
+    else:
+        tab.page.keyboard.down("Alt")
+
+
 def design_key(tab: Tab) -> None:
     """Enter Design mode, or leave it."""
     tab.page.keyboard.press("l")
@@ -1072,6 +1105,55 @@ def design_key(tab: Tab) -> None:
 def draw_key(tab: Tab) -> None:
     """Enter Draw mode, or leave it."""
     tab.page.keyboard.press("w")
+
+
+def enter_design(tab: Tab) -> Goals:
+    """Leave nothing focused, rest the pointer on the first tab control, in view, with
+    its centre and the second's noted (`TAB_CENTRES`), and enter Design mode."""
+    tab.page.evaluate("() => document.activeElement?.blur()")
+    centres = tab.page.evaluate(TAB_CENTRES)
+    tab.target = {"centres": centres}
+    tab.page.mouse.move(*centres[0])
+    design_key(tab)
+    tab.quiet(600)
+    return {}
+
+
+def inspect_step(tab: Tab) -> None:
+    """Move the pointer onto the other of the two tab controls, each a part Design mode
+    names inside the tabs widget, as #4781's reader moved between its side tabs."""
+    tab.page.mouse.move(*tab.target["centres"][(tab.sample + 1) % 2])
+
+
+def open_picker(tab: Tab) -> Goals:
+    """Enter Design mode as `enter_design` does, open the target picker (`s`), and stand
+    its walk on the last hint in view: on `side_documents`' pages, the last tab the side
+    list shows, a part Design mode names inside the tabs widget."""
+    enter_design(tab)
+    tab.page.keyboard.press("s")
+    tab.page.keyboard.press("Shift+Tab")
+    tab.quiet(600)
+    return {}
+
+
+def pick_step(tab: Tab) -> None:
+    """Walk the picker's hints up from the last and back (`WAYS`), each step announcing
+    the hint it reaches, as #4781's reader heard the side tabs."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("Shift+Tab" if way > 0 else "Tab")
+
+
+def leave_picker(tab: Tab) -> None:
+    """Close the target picker, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    design_key(tab)
+
+
+def leave_composer(tab: Tab) -> None:
+    """Close the comment a press in Design mode opened, which holds no words and so
+    leaves no draft, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    tab.page.keyboard.press("Escape")
 
 
 def open_annotations(tab: Tab) -> Goals:
@@ -1425,7 +1507,29 @@ INPUTS: dict[str, Input] = {
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
     "hover": Input(hover_step, 32, halfway, each=False, after=50),
+    "aim": Input(hold_alt, 8, halfway, each=False, after=100),
     "design": Input(design_key, 2, halfway, each=False, after=400),
+    "inspect": Input(
+        inspect_step,
+        16,
+        enter_design,
+        leave=design_key,
+        each=False,
+        after=50,
+        needs="[role=tab]",
+    ),
+    "pick": Input(
+        pick_step,
+        16,
+        open_picker,
+        leave=leave_picker,
+        each=False,
+        after=100,
+        needs="[role=tab]",
+    ),
+    "part": Input(
+        press, 4, enter_design, leave=leave_composer, after=400, needs="[role=tab]"
+    ),
     "draw": Input(draw_key, 2, halfway, each=False, after=400),
     "capture": Input(capture_toggle, 2, open_annotations, each=False, after=400),
     "data": Input(
@@ -1466,9 +1570,15 @@ INPUTS: dict[str, Input] = {
         agent_status, ready=name_status, paints=True, after=300, agent=True
     ),
     "reveal": Input(press, 2, aim_at_tab, paints=True, after=600, needs=DOCUMENTS),
-    "search": Input(open_search, ready=aim_at_search, after=400, needs=DOCUMENTS),
+    "search": Input(
+        open_search, ready=aim_at_search, after=400, needs="lf-text-document"
+    ),
     "matches": Input(
-        search_word, ready=empty_search, after=400, needs=DOCUMENTS, whole=True
+        search_word,
+        ready=empty_search,
+        after=400,
+        needs="lf-text-document",
+        whole=True,
     ),
     "browse": Input(run_step, 16, open_tabs, each=False, after=300, needs=DOCUMENTS),
 }
@@ -1747,6 +1857,10 @@ def per_input(tab: Tab, name: str, timed, idle: float) -> dict[str, float]:
         cpu, elapsed = timed(name, partial(run, samples, after))
         spent += cpu - idle * elapsed
         posts += page.evaluate(EVENT_POSTS)[posted:]
+        if each.each:
+            each.leave(tab)
+    if not each.each:
+        each.leave(tab)
     readings = {f"{name} cpu": spent / each.count}
     if posts:
         readings[f"{name} event"] = statistics.median(post["ms"] for post in posts)
@@ -1791,6 +1905,7 @@ def paint_pass(
                 current.sample = sample
                 goals = each.ready(current)
                 windows.append(measure(current, traffic, name, goals, profiles))
+                each.leave(current)
         # Playwright delivers the browser's reports only while it talks to the page.
         page.evaluate("0")
     return windows, missing

@@ -112,7 +112,7 @@ def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
     # siblings are a shape, not an identity — so it leaves focus on the page, where the
     # page's own keys are live, rather than hand the next press to a guess.
     assert page.evaluate("document.activeElement === document.body")
-    expect(page.locator("#activation-go")).to_have_attribute("chosen", "")
+    expect(page.locator("#activation-go")).to_have_attribute("selected", "")
     restored_top = page.locator("#live-reading").evaluate(
         "el => el.getBoundingClientRect().top"
     )
@@ -357,8 +357,9 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "author": "agent",
             "revision": 1,
             "parent": "frozen-widget-question",
-            "text": "This widget prepares inside the thread.",
-            "markup": '<lf-local id="thread-local" choice="idle"></lf-local>',
+            "text": "This widget prepares inside the thread.\n\n"
+            '<lf-local id="thread-local" choice="idle"></lf-local>',
+            "html": True,
         },
     )
     append_command(
@@ -426,8 +427,9 @@ def test_thread_presentation_waits_for_its_frozen_widgets_only(browser, serve):
             "author": "agent",
             "revision": 1,
             "parent": "failing-widget-question",
-            "text": "This widget fails its preparation.",
-            "markup": '<lf-local id="thread-failing" choice="idle"></lf-local>',
+            "text": "This widget fails its preparation.\n\n"
+            '<lf-local id="thread-failing" choice="idle"></lf-local>',
+            "html": True,
         },
     )
     page.wait_for_function(

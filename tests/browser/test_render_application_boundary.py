@@ -23,6 +23,7 @@ from render_harness import (
     holding,
     http_error_console,
     is_problem,
+    latest_press,
     leaf_page,
     open_page,
     open_threads,
@@ -67,12 +68,16 @@ customElements.define('lf-thread-reader', class extends LeafElement {
 
 THREAD_READER_DECLARATION = {
     "description": "A read-only package thread view.",
-    "type": "object",
-    "properties": {"id": {"type": "string"}},
-    "required": ["id"],
-    "additionalProperties": False,
-    "x-content": "empty",
-    "x-example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
+    "attributes": {
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+    },
+    "content": "empty",
+    "author": {
+        "example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
+    },
 }
 
 THREAD_FILTER = r"""
@@ -98,15 +103,19 @@ customElements.define('lf-thread-filter', class extends LeafElement {
 
 THREAD_FILTER_DECLARATION = {
     "description": "An instance-local filter over Leaf's shared Thread reading.",
-    "type": "object",
-    "properties": {
-        "id": {"type": "string"},
-        "filter": {"type": "string"},
+    "attributes": {
+        "type": "object",
+        "properties": {
+            "id": {"type": "string"},
+            "filter": {"type": "string"},
+        },
+        "required": ["id"],
+        "additionalProperties": False,
     },
-    "required": ["id"],
-    "additionalProperties": False,
-    "x-content": "empty",
-    "x-example": '<lf-thread-filter id="example"></lf-thread-filter>',
+    "content": "empty",
+    "author": {
+        "example": '<lf-thread-filter id="example"></lf-thread-filter>',
+    },
 }
 
 
@@ -478,7 +487,7 @@ ACTIVATION_READING = f"""\
 <p id="live-reading">{LIVE_READING}</p>
 <button id="focused-control" type="button">Inspect continuity</button>
 <lf-ask id="activation-decision"><h2>Activate the revision?</h2>
-<lf-options id="activation-choice" choose>
+<lf-options id="activation-choice">
   <lf-option id="activation-go">Continue</lf-option>
   <lf-option id="activation-wait">Wait</lf-option>
 </lf-options></lf-ask>
@@ -620,7 +629,7 @@ OBLIGATION_PAGE = leaf_page(
     "obligations wait for admission",
     """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
-  <lf-options id="release-options" choose>
+  <lf-options id="release-options">
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
@@ -679,7 +688,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
         '<h1 id="live-title">Live first</h1>',
         '<h1 id="live-title">Live first</h1>'
         '<lf-ask id="package-ask"><h2>Package choice</h2>'
-        '<lf-options id="package-options" choose>'
+        '<lf-options id="package-options">'
         '<lf-option id="package-a">A</lf-option>'
         '<lf-option id="package-b">B</lf-option>'
         "</lf-options></lf-ask>",
@@ -830,13 +839,19 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             **declarations,
             "lf-controller-stage": {
                 "description": "A declared shadow stage for the controller lifetime.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "markup",
-                "x-shadow": True,
-                "x-example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
+                "attributes": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                },
+                "content": "markup",
+                "words": {
+                    "shadow": True,
+                },
+                "author": {
+                    "example": '<lf-controller-stage id="stage-example"><p id="stage-words">Words</p></lf-controller-stage>',
+                },
             },
         }
         modules["widgets/lf-controller-stage.js"] = """\
@@ -1237,12 +1252,16 @@ customElements.define('lf-thread-actions', class extends LeafElement {
 
 THREAD_ACTIONS_DECLARATION = {
     "description": "A package's own Thread action controls.",
-    "type": "object",
-    "properties": {"id": {"type": "string"}},
-    "required": ["id"],
-    "additionalProperties": False,
-    "x-content": "empty",
-    "x-example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
+    "attributes": {
+        "type": "object",
+        "properties": {"id": {"type": "string"}},
+        "required": ["id"],
+        "additionalProperties": False,
+    },
+    "content": "empty",
+    "author": {
+        "example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
+    },
 }
 
 
@@ -1271,8 +1290,9 @@ def test_compact_reader_draws_the_native_interactive_message(browser, serve, sur
             "author": "agent",
             "revision": 1,
             "parent": "native-thread",
-            "text": "Choose a channel.",
-            "markup": '<lf-options id="native-channel" choose><lf-option id="native-email">Email</lf-option></lf-options>',
+            "text": "Choose a channel.\n\n"
+            '<lf-options id="native-channel"><lf-option id="native-email">Email</lf-option></lf-options>',
+            "html": True,
         },
     ]:
         append_carried_log_record(serve.page_dir, event)
@@ -1322,7 +1342,9 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
         layer_registry={
             "lf-message-reader": {
                 **THREAD_READER_DECLARATION,
-                "x-example": '<lf-message-reader id="reader-example"></lf-message-reader>',
+                "author": {
+                    "example": '<lf-message-reader id="reader-example"></lf-message-reader>'
+                },
             }
         },
         layer_widgets={"lf-message-reader.js": module},
@@ -1338,10 +1360,12 @@ def test_frozen_obligation_reveals_its_exact_message_in_a_selective_primary(
             **({"parent": "root"} if message != "root" else {}),
         }
         if message == "middle":
-            event["markup"] = (
-                '<lf-options id="channel" choose>'
+            event["text"] += (
+                "\n\n"
+                '<lf-options id="channel">'
                 '<lf-option id="email">Email</lf-option></lf-options>'
             )
+            event["html"] = True
         append_carried_log_record(serve.page_dir, event)
     page = open_page(browser, url)
     reader = page.locator("#reader")
@@ -1370,8 +1394,9 @@ def test_package_answer_summary_waits_for_widget_completion(browser, serve):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which extras?",
-            "markup": '<lf-options id="extras" choose multiple><lf-option id="extra-chat" chosen>Chat</lf-option></lf-options>',
+            "text": "Which extras?\n\n"
+            '<lf-options id="extras" multiple><lf-option id="extra-chat" selected>Chat</lf-option></lf-options>',
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -1561,12 +1586,16 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
         layer_registry={
             "lf-keyed-slot-list": {
                 "description": "A keyed shadow row with a native slotted editor.",
-                "type": "object",
-                "properties": {"id": {"type": "string"}},
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "empty",
-                "x-shadow": True,
+                "attributes": {
+                    "type": "object",
+                    "properties": {"id": {"type": "string"}},
+                    "required": ["id"],
+                    "additionalProperties": False,
+                },
+                "content": "empty",
+                "words": {
+                    "shadow": True,
+                },
             }
         },
         layer_widgets={
@@ -1644,8 +1673,9 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
             "author": "agent",
             "revision": 1,
             "parent": "question",
-            "text": "Choose a direction.",
-            "markup": '<lf-options id="direction" choose><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
+            "text": "Choose a direction.\n\n"
+            '<lf-options id="direction"><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
+            "html": True,
         },
     ]:
         append_carried_log_record(serve.page_dir, event)
@@ -1666,8 +1696,7 @@ def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
     assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
     assert reply["body"]["kind"] == "authored"
     assert "North" in reply["body"]["text"]
-    assert reply["body"]["markup"] == event["markup"]
-    assert "markup" not in root and "markup" not in reply
+    assert "html" not in root and "html" not in reply
     assert '"html"' not in json.dumps(record)
     open_threads(page)
     # The agent answered without naming the thread, so it reads its opening words.
@@ -1934,11 +1963,15 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     }
     registry["lf-nested-reader"] = {
         "description": "A declared nested physical reader stage.",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-shadow": True,
+        "attributes": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+        "content": "empty",
+        "words": {
+            "shadow": True,
+        },
     }
     module = (companion / "widgets/lf-conversation-workspace.js").read_text()
     module = module.replace(
@@ -1972,8 +2005,9 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Which channel?",
-            "markup": '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options" choose><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+            "text": "Which channel?\n\n"
+            '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2164,11 +2198,9 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
         "Replace the reader owner while retaining its conversations",
     )
     told(page)
-    # The panel's row notice for the newer version, pressed without taking the
-    # editor's focus first, as a press on it does.
-    page.locator(".lf-fp-row-notice-press").filter(has_text="Latest").dispatch_event(
-        "click"
-    )
+    # The panel's Open latest, pressed without taking the editor's focus first, as a press
+    # on it does.
+    latest_press(page).dispatch_event("click")
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin === originalDocument")
     assert page.evaluate("!originalWorkspace.isConnected")

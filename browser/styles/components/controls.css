@@ -79,13 +79,20 @@
 }
 /* A reaction's states, wherever one shows them: a strip's token, and a reaction among
    the response bar's choices, whose role keeps only its own resting ground (the
-   response face, below). The margin draws a reaction as an entry (below). */
-:is(.lf-reaction, .lf-response-face[aria-pressed]) {
+   response face, below). The margin draws a reaction as an entry (below). A reaction
+   is named first at no weight, and the list after it keeps the rule's weight
+   (browser/AGENTS.md, "A rule costs only the elements it could style"). */
+:where(.lf-reaction):is(.lf-reaction, .lf-response-face[aria-pressed]),
+.lf-response-face[aria-pressed] {
   color: var(--lf-muted);
   border-color: transparent;
   background: transparent;
 }
-:is(.lf-reaction, .lf-response-face[aria-pressed]):is(:hover, [data-lf-focus]) {
+:where(.lf-reaction):is(.lf-reaction, .lf-response-face[aria-pressed]):is(
+    :hover,
+    [data-lf-focus]
+  ),
+.lf-response-face[aria-pressed]:is(:hover, [data-lf-focus]) {
   color: var(--lf-ink-2);
   border-color: var(--lf-border);
   background: var(--lf-chip);
@@ -434,7 +441,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
  * field holds none: its closed tree lays its words and placeholder in one grid cell
  * (text-field.js), so it stays unpositioned, which Chromium's hit test, visiting every
  * positioned box on every call, would otherwise pay for in each field on the page. */
-:where(:is(.lf-scroll, [data-lf-scroll]):not(leaf-text)) {
+:where(.lf-scroll:not(leaf-text)),
+:where([data-lf-scroll]:not(leaf-text)) {
   position: relative;
 }
 /* The layer's marks for a box that shows less than it holds (reachScrollers, for why the
@@ -523,7 +531,9 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
     --lf-more-down:
       #000 calc(100% - var(--lf-more-fade, 24px)), var(--lf-more-fade-to, transparent);
   }
-  :is([data-lf-more-before], [data-lf-more-after], [data-lf-more-below]) {
+  [data-lf-more-before],
+  [data-lf-more-after],
+  [data-lf-more-below] {
     mask-image:
       linear-gradient(to right, var(--lf-more-across, #000, #000)),
       linear-gradient(var(--lf-more-down, #000, #000));
@@ -548,7 +558,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
   [hidden="until-found"] {
     content-visibility: visible;
   }
-  :is(summary, .lf-disclosure-marker)::before {
+  :where(summary):is(summary, .lf-disclosure-marker)::before,
+  .lf-disclosure-marker::before {
     visibility: hidden;
   }
 }
@@ -567,10 +578,12 @@ summary,
 .lf-disclosure-marker {
   list-style: none;
 }
-:is(summary, .lf-disclosure-marker)::-webkit-details-marker {
+:where(summary):is(summary, .lf-disclosure-marker)::-webkit-details-marker,
+.lf-disclosure-marker::-webkit-details-marker {
   display: none;
 }
-:is(summary, .lf-disclosure-marker)::before {
+:where(summary):is(summary, .lf-disclosure-marker)::before,
+.lf-disclosure-marker::before {
   content: "";
   float: inline-start;
   inline-size: 0.5em;
@@ -582,18 +595,29 @@ summary,
     center / contain no-repeat;
   forced-color-adjust: none;
 }
-:is(summary, .lf-disclosure-marker):dir(rtl)::before {
+:where(summary):is(summary, .lf-disclosure-marker):dir(rtl)::before,
+.lf-disclosure-marker:dir(rtl)::before {
   scale: -1 1;
 }
-:is(
-  details[open] > summary,
-  details[open] > .lf-disclosure-marker,
-  .lf-disclosure-marker[aria-expanded="true"]
-)::before {
+:where(summary):is(
+    details[open] > summary,
+    details[open] > .lf-disclosure-marker,
+    .lf-disclosure-marker[aria-expanded="true"]
+  )::before,
+:where(.lf-disclosure-marker):is(
+    details[open] > summary,
+    details[open] > .lf-disclosure-marker,
+    .lf-disclosure-marker[aria-expanded="true"]
+  )::before {
   rotate: 90deg;
 }
 /* Turned after its mirror, so it turns the other way to point down. */
-:is(
+:where(summary):is(
+    details[open] > summary,
+    details[open] > .lf-disclosure-marker,
+    .lf-disclosure-marker[aria-expanded="true"]
+  ):dir(rtl)::before,
+:where(.lf-disclosure-marker):is(
     details[open] > summary,
     details[open] > .lf-disclosure-marker,
     .lf-disclosure-marker[aria-expanded="true"]
@@ -601,7 +625,8 @@ summary,
   rotate: -90deg;
 }
 @media (prefers-reduced-motion: no-preference) {
-  :is(summary, .lf-disclosure-marker)::before {
+  :where(summary):is(summary, .lf-disclosure-marker)::before,
+  .lf-disclosure-marker::before {
     transition: rotate var(--lf-motion-disclosure) ease-out;
   }
 }
@@ -625,8 +650,18 @@ summary,
  * Leaf's presses look like the library's wa-button, and the radios, sliders and
  * selects Leaf takes from it. The generated rules weigh nothing, so the rules below
  * state only where Leaf departs from the library, and any rule of a component's
- * outranks both. A page writes the same names on its own controls, `lf-btn` and
- * `lf-btn lf-commit`, so they match Leaf's (page-layout.md).
+ * outranks both.
+ *
+ * A page's own controls wear these faces too, where its theme turns on markup's
+ * reading face (reading.css): a button the word's, a submit button the commit's, a
+ * label around a radio or checkbox the choice's and a text field or select the
+ * field's. The build draws them from the regions below marked `Face:`, onto those
+ * elements, into vendor/page-controls.css (build/styles.mjs, `LEAF_ONTO_PAGE`), so each
+ * rule stands here once, and an edit to one of those regions takes
+ * `pnpm run build:browser` to reach a page's controls. The page's copies weigh nothing,
+ * so order alone ranks them: in a region, a rule that refines another, as a pressed
+ * commit refines a selected toggle, follows it. A choice's mark may stand at any
+ * depth in its label, as a page may wrap it.
  *
  * A word keeps Leaf's muted ink and its ui weight, the library's quiet ink and action
  * weight being darker and heavier than controls that stay secondary to the work
@@ -647,7 +682,9 @@ summary,
  * the user preferred a reasonable design from a UI library to looks of Leaf's own
  * (3 November 2026); before them a word framed on the card ground, a second look
  * for the same press, until the user chose the quiet one on 25 October. */
-:is(.lf-btn, .lf-icon-action) {
+/* #region Face: Word */
+.lf-btn,
+.lf-icon-action {
   --wa-color-neutral-on-quiet: var(--lf-muted);
 }
 .lf-btn.lf-commit {
@@ -666,20 +703,24 @@ summary,
   white-space: inherit;
 }
 @media not (hover: hover) {
-  :where(:is(.lf-btn, .lf-icon-action):hover) {
+  :where(.lf-btn:hover),
+  :where(.lf-icon-action:hover) {
     background-color: transparent;
   }
 }
-:is(.lf-btn, .lf-icon-action):hover {
+.lf-btn:hover,
+.lf-icon-action:hover {
   box-shadow: none;
 }
+/* #endregion */
 /* A native radio or checkbox and its label form one compact target. The mark
  * carries selection; the label supplies the aim floor and focus ring without
  * a second frame or selected fill. The target owns its ring room inside its box,
  * padded by it, so a choice at a clipped toolbar edge keeps all four sides, and so
  * does every mark on it. A list that sets its marks on a heading's edge hangs each
- * face out by that padding, `--lf-choice-pad`. A page's own label wears `lf-choice`
- * too.
+ * face out by that padding, `--lf-choice-pad`. A page's own label around a radio or
+ * checkbox takes this face too (above), so the label is the box its mark names for
+ * its focus ring (`--lf-focus-box`).
  *
  * Everything in the label after its mark is one run of words, laid out as a
  * paragraph is, however the page marks it up ("Use <code>--fast</code> here"), and
@@ -696,6 +737,7 @@ summary,
  * of the label's children, which made each run of words and each element in them
  * a cell of its own, so a label holding markup wrapped each part apart, and which
  * fought a package's own grid of a choice's parts. */
+/* #region Face: Choice */
 .lf-choice {
   --lf-choice-pad: max(var(--lf-sp-1), var(--lf-focus-ring-room));
   --lf-choice-hang: calc(var(--wa-form-control-toggle-size) + var(--lf-choice-gap));
@@ -728,11 +770,11 @@ summary,
 .lf-choice {
   --wa-form-control-border-color: var(--wa-color-neutral-border-loud);
 }
-.lf-choice:has(> input:disabled) {
+.lf-choice:has(input:disabled) {
   opacity: 0.5;
   cursor: not-allowed;
 }
-.lf-choice > input {
+.lf-choice input:where([type="checkbox"], [type="radio"]) {
   float: inline-start;
   margin-block: calc((1lh - var(--wa-form-control-toggle-size)) / 2)
     calc((var(--wa-form-control-toggle-size) - 1lh) / 2);
@@ -746,49 +788,46 @@ summary,
     appearance: auto;
   }
 }
-.lf-choice > input {
-  --lf-focus-box: .lf-choice;
+.lf-choice input:where([type="checkbox"], [type="radio"]) {
+  --lf-focus-box: label;
 }
-.lf-choice > input[data-lf-focus-visible] {
+.lf-choice input:where([type="checkbox"], [type="radio"])[data-lf-focus-visible] {
   outline: none;
 }
 .lf-choice[data-lf-control-focus-visible] {
   outline: var(--lf-focus-ring);
   --lf-wears-ring: 1;
 }
+/* #endregion */
 
 /* A label whose words change holds one room for all of them, so a count or a result
- * changing moves nothing beside it. `data-room` lists representative strings that set
- * its width, one per line, on an element whose one child holds the words; the page
- * writes `data-room`, and Leaf and its packages write `data-lf-room`, so the page's own
- * CSS for the one leaves the other alone. Both hold the room before startup. Its ::before lays the
- * room out as an invisible block of no height, so the element is as wide as the
- * widest line in its own face, with no script. The words take no part in that width:
- * they fill the room and are cut past it with an ellipsis, so the control never widens
- * when its words change. Rejected: the room as a least width, which let a long label
- * widen its control and shift the controls beside it, too often and in too many places
- * to oversee (the user's decision, 2026-10-14). Cut words stay whole in the element's
- * text and accessible name; generated content is in neither. The room wraps at its
- * spaces, so it never holds the element wider than its container. The words' line is
- * the element's baseline. The element's own rules outrank this one. */
-:where([data-room], [data-lf-room]) {
+ * changing moves nothing beside it. Leaf and its packages write `data-lf-room`, which
+ * lists representative strings that set its width, one per line, on an element whose
+ * one child holds the words. Its ::before lays the room out as an invisible block of no
+ * height, so the element is as wide as the widest line in its own face, with no
+ * script. The words take no part in that width: they fill the room and are cut past it
+ * with an ellipsis, so the control never widens when its words change. Rejected: the
+ * room as a least width, which let a long label widen its control and shift the
+ * controls beside it, too often and in too many places to oversee (the user's
+ * decision, 2026-10-14). Rejected too: a page-facing `data-room` twin, which no page
+ * used; a page holds room for changing text with a grid stack (`page-layout.md`,
+ * "Space for changing text"). Cut words stay whole in the element's text and
+ * accessible name; generated content is in neither. The room wraps at its spaces, so
+ * it never holds the element wider than its container. The words' line is the
+ * element's baseline. The element's own rules outrank this one. */
+:where([data-lf-room]) {
   display: inline-block;
   max-inline-size: 100%;
 }
-[data-room]::before {
-  content: attr(data-room);
-}
 [data-lf-room]::before {
   content: attr(data-lf-room);
-}
-:is([data-room], [data-lf-room])::before {
   display: block;
   block-size: 0;
   overflow: hidden;
   visibility: hidden;
   white-space: pre-line;
 }
-:is([data-room], [data-lf-room]) > * {
+[data-lf-room] > * {
   display: block;
   inline-size: 0;
   min-inline-size: 100%;
@@ -846,6 +885,17 @@ wa-copy-button.lf-icon-action {
   background: none;
   color: inherit;
 }
+/* #region Face: Toggle */
+/* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
+   ground. It is the faces' own state, so it stands here beside them; a disc, which
+   shows its state on its disc, such as Dictate listening, keeps its box clear (the
+   disc, below). */
+.lf-btn:is([aria-pressed="true"], [aria-checked="true"]),
+.lf-icon-action:is([aria-pressed="true"], [aria-checked="true"]) {
+  border-color: var(--lf-accent);
+  color: var(--lf-accent);
+  background: var(--lf-chip);
+}
 /* A commit pressed, such as a multiple-choice question's Done once it is answered,
    is marked settled, as a chosen answer is (below). */
 .lf-btn.lf-commit[aria-pressed="true"] {
@@ -853,15 +903,7 @@ wa-copy-button.lf-icon-action {
   border-color: var(--lf-settled);
   background: var(--lf-settled-tint);
 }
-/* A toggle's selected face, a word's or a symbol's: a full accent border on the chip
-   ground. It is the faces' own state, so it stands here beside them; a disc, which
-   shows its state on its disc, such as Dictate listening, keeps its box clear (the
-   disc, below). */
-:is(.lf-btn, .lf-icon-action):is([aria-pressed="true"], [aria-checked="true"]) {
-  border-color: var(--lf-accent);
-  color: var(--lf-accent);
-  background: var(--lf-chip);
-}
+/* #endregion */
 /* The disc, a variant of the symbol (`data-lf-disc`): a glyph drawn in its action's
    own ink, whose state shows on a disc behind it, a square of the face (its
    `::before`), while its box stays clear: the composer's Send and Dictate, the passage
@@ -1323,21 +1365,21 @@ wa-copy-button.lf-icon-action {
    when another thread on the same carrier has active agent work. Progress stays in the
    status words and the one arrival pulse rather than competing for the attention
    colour. */
-:where(
-    .lf-margin-face[data-lf-agent-workflow],
-    .lf-page-map-action[data-lf-agent-workflow]
-  )
+:where(.lf-margin-face[data-lf-agent-workflow])
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
+:where(.lf-page-map-action[data-lf-agent-workflow])
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-work);
 }
-:where(
-    .lf-margin-face[data-lf-kinds~="comment"],
-    .lf-page-map-action[data-lf-map-item^="comment:"]
-  )
+:where(.lf-margin-face[data-lf-kinds~="comment"])
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
+:where(.lf-page-map-action[data-lf-map-item^="comment:"])
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-thread);
 }
-:is(.lf-margin-face, .lf-page-map-action)[data-lf-turn="user"]
+.lf-margin-face[data-lf-turn="user"]
+  :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind),
+.lf-page-map-action[data-lf-turn="user"]
   :is(.lf-margin-entry-icon, .lf-margin-entry-glyph, .lf-margin-kind) {
   color: var(--lf-turn-ink);
 }
@@ -1601,20 +1643,18 @@ wa-copy-button.lf-icon-action {
   max-height: 50vh;
   overflow-y: auto;
 }
-/* A single-line field or select, authored as .lf-field or offered by a widget, is Web
-   Awesome's native text field or select, generated onto these elements into
-   vendor/webawesome-native.css: the field's frame a line tall (`--lf-line`), and a
-   select's chevron, so a row of them beside .lf-btn reads as one set of controls. It
-   stands on the card ground Leaf's wa-input takes, at its own width (a select's
-   widest option, a text field's `size`), since it sits in a row beside presses, where
-   the library's fills its form's width, and a line tall wherever a surface sets its
-   line. At a class's weight, so a component rule naming its own field still wins by
-   coming later.
+/* A single-line field or select a widget offers is Web Awesome's native text field or
+   select, generated onto these elements into vendor/webawesome-native.css: the
+   field's frame a line tall (`--lf-line`), and a select's chevron, so a row of them
+   beside .lf-btn reads as one set of controls. It stands on the card ground Leaf's
+   wa-input takes, at its own width (a select's widest option, a text field's `size`),
+   since it sits in a row beside presses, where the library's fills its form's width,
+   and a line tall wherever a surface sets its line. At a class's weight, so a
+   component rule naming its own field still wins by coming later.
    With no face the browser drew its own: a 2px inset border and square corners, 21px
    tall beside 30px buttons; Leaf drew a frame and chevron of its own until the user
-   preferred a reasonable design from a UI library (3 November 2026). An authored
-   textarea.field takes the library's text box; Leaf's own text boxes keep theirs
-   (above). */
+   preferred a reasonable design from a UI library (3 November 2026). */
+/* #region Face: Field */
 :where(
   select,
   input:not(
@@ -1628,7 +1668,7 @@ wa-copy-button.lf-icon-action {
     [type="reset"],
     [type="image"]
   )
-):is(.lf-ui, .lf-field) {
+).lf-ui {
   --wa-form-control-background-color: var(--lf-card);
   --wa-form-control-height: var(--lf-line);
   box-sizing: border-box;
@@ -1638,18 +1678,10 @@ wa-copy-button.lf-icon-action {
     border-color: transparent;
   }
 }
-textarea.lf-field {
-  --wa-form-control-background-color: var(--lf-card);
-  --wa-form-control-height: var(--lf-line);
-  box-sizing: border-box;
-}
 /* The library places a select's chevron at the right whatever the text's direction.
    In forced colours the platform's own control takes its place, since the chevron is a
    picture the palette can't recolour. */
-:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])):is(
-  .lf-ui,
-  .lf-field
-) {
+:where(select:not([multiple]):is(:not([size]), [size="0"], [size="1"])).lf-ui {
   &:dir(rtl) {
     background-position: center left var(--wa-form-control-padding-inline);
   }
@@ -1658,8 +1690,13 @@ textarea.lf-field {
     background-image: none;
   }
 }
-.lf-ui :is(input, textarea)::placeholder,
-:is(input, textarea):is(.lf-ui, .lf-field)::placeholder {
+:is(input, textarea).lf-ui::placeholder {
+  color: var(--lf-quiet);
+  opacity: 1;
+}
+/* #endregion */
+/* A field inside one of Leaf's boxes prompts as one that wears the class does. */
+.lf-ui :is(input, textarea)::placeholder {
   color: var(--lf-quiet);
   opacity: 1;
 }
@@ -1806,7 +1843,8 @@ textarea.lf-field {
    so names start and are cut on one edge, and rows meet edge to edge. The gaps are the
    parts' margins, so a list without a lead or an end keeps no room for one. Seven lists
    drew seven layouts until they shared this one. */
-:is(.lf-row, .lf-row-plain):where(:has(> .lf-row-main)) {
+.lf-row:where(:has(> .lf-row-main)),
+.lf-row-plain:where(:has(> .lf-row-main)) {
   display: grid;
   grid-template-columns: [lead] auto [main] minmax(0, 1fr) [end] auto;
   align-items: baseline;
@@ -2001,7 +2039,9 @@ textarea.lf-field {
    holds at any width, a printed page's included. The box it stands in is as wide as
    the axis. `--lf-axis-x` is where it stands, measured from the box's start, for a
    widget that fits a label to the room on either side of it. */
-:is(.lf-on-axis, .lf-axis-tick, .lf-axis-gridline) {
+.lf-on-axis,
+.lf-axis-tick,
+.lf-axis-gridline {
   --lf-axis-x: calc(
     var(--lf-axis-edge, 0px) + var(--lf-axis-at, 0) *
       (100% - 2 * var(--lf-axis-edge, 0px))

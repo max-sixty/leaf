@@ -7,7 +7,7 @@ module owes.
 
 ### Reading regions
 
-A pane widget declares `x-reading-role: pane` and `x-content: markup`, and holds one
+A pane widget declares `markup.reading-role: pane` and `content: markup`, and holds one
 body element, with an optional native `header` before it and `footer` after. Whether a
 pane's body scrolls is the workspace Layout's decision (`layouts.css`), not the
 module's, and either way the module registers the body as a reading region, below.
@@ -190,14 +190,6 @@ disconnecting and reconnecting the element update the total. Call its returned s
 when the header becomes local navigation. Only a header over the document belongs
 here: a nested scroller uses the local sticky and landing inputs above. Packages own
 where their headers are positioned; Leaf owns the aggregate root landing inset.
-
-A header the page itself fixes at the window's top, or makes sticky ahead of the
-page's content, in `body` or a box around `main` before it or at the start of `main`,
-such as a site header, is one of the page's heads, which Leaf finds without a
-declaration. How far down the window they
-reach starts the sticky-header slot below them for everything in the page but the
-heads, so a package's header sticking at `var(--lf-top)` sticks below them, and the
-margin every box reads from the slot clears them.
 
 ### Sideways scrollers and container queries
 

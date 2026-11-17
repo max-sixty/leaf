@@ -15,7 +15,6 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
-    PANEL,
     expect_obligations_answered,
     expect_preview_words,
     holding,
@@ -38,24 +37,11 @@ from browser.navigation import expect_walk_position
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import panel_tab
+from leaf_dev.browser import open_on_me, panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 ON_ME = panel_view("queue")
-
-
-def open_on_me(page):
-    """Open On Me by its mark, unless it stands open, and return its view; another
-    view standing open is put away first, by the ✕ in the mark's seat."""
-    shown = page.locator(PANEL).get_attribute("data-lf-open")
-    if shown not in (None, "queue"):
-        page.locator(".lf-fp-close").click()
-        panel_settled(page, open=False)
-    if shown != "queue":
-        page.locator(".lf-fp-on-user").click()
-    panel_settled(page, view="queue")
-    return page.locator(ON_ME)
 
 
 def on_card(page, at):
@@ -64,9 +50,9 @@ def on_card(page, at):
 
 
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
-    """The panel's On Me mark lists every open obligation under On Me, in document order, and
-    every answered one folded under Done with its current answer, so the user can review
-    and revise. A twelfth widget joins by declaring x-awaits.
+    """On Me lists every open obligation, in document order, and every answered one
+    folded under Done with its current answer, so the user can review and revise. A
+    twelfth widget joins by declaring state.awaits.
 
     A closed view holds no cards at all: they are the open view's rendering, the mark's
     count is the closed view's, and a hidden list of buttons is a set of controls no
@@ -76,9 +62,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     resized(page, 1920, 900)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view holds no cards"
 
-    page.locator(".lf-fp-on-user").focus()
-    page.keyboard.press("Enter")
-    panel_settled(page, view="queue")
+    open_on_me(page)
     show_done(page)
     cards = page.evaluate(ON_ITEM_SAYS)
     assert [(c["id"], c["list"]) for c in cards] == [
@@ -155,26 +139,26 @@ def test_an_answered_obligations_words_are_its_widgets_semantic_state(browser, s
             """
 <h1 id="h">Answers</h1>
 <lf-ask id="note-ask"><h2>Is this release note right?</h2>
-<lf-draft id="note" needed><pre>
+<lf-draft id="note" required><pre>
 Adds --dry-run to every mutating command.
 </pre></lf-draft></lf-ask>
 <lf-ask id="cache-ask"><h2>Which cache?</h2>
-<lf-options id="cache" choose>
+<lf-options id="cache">
   <lf-option id="cache-none"><strong>No cache</strong> Read through.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="tags-ask"><h2>Which tags?</h2>
-<lf-options id="tags" choose multiple>
-  <lf-option id="tag-alpha" chosen><strong>Alpha</strong></lf-option>
+<lf-options id="tags" multiple>
+  <lf-option id="tag-alpha" selected><strong>Alpha</strong></lf-option>
   <lf-option id="tag-beta"><strong>Beta</strong></lf-option>
 </lf-options></lf-ask>
 <lf-ask id="tone-ask"><h2>Which notification?</h2>
 <lf-playground id="tone">
-  <lf-playground-control id="format" name="format" label="Format" kind="choice" value="banner">
-    <lf-playground-choice id="format-banner" value="banner" label="Banner"></lf-playground-choice>
-    <lf-playground-choice id="format-strip" value="strip" label="Strip"></lf-playground-choice>
-  </lf-playground-control>
-  <lf-playground-preview><p id="tone-preview">The notification.</p></lf-playground-preview>
-  <lf-playground-output>Build the <lf-playground-value for="format"></lf-playground-value>
+  <aside><fieldset id="format"><legend>Format</legend>
+    <label id="format-banner"><input type="radio" name="format" value="banner" checked> Banner</label>
+    <label id="format-strip"><input type="radio" name="format" value="strip"> Strip</label>
+  </fieldset></aside>
+  <p id="tone-preview">The notification.</p>
+  <lf-playground-output>Build the <output for="format"></output>
   notification.</lf-playground-output>
 </lf-playground></lf-ask>
 """,
@@ -338,7 +322,7 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
 
     page.locator("#storage-evict").click()
     round_trip(page)
-    expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
+    expect(page.locator("#storage-evict")).to_have_attribute("selected", "")
     expect_obligations_answered(page, "1/1")
     open_on_me(page)
     show_done(page)
@@ -444,7 +428,7 @@ WALKED_PAGE = leaf_page(
     '<h1 id="title">Kit list</h1>'
     + "".join(
         f'<lf-ask id="ask-{n}"><h2>Bring item {n}?</h2>'
-        f'<lf-options id="pick-{n}" choose><lf-option id="yes-{n}">Yes</lf-option>'
+        f'<lf-options id="pick-{n}"><lf-option id="yes-{n}">Yes</lf-option>'
         f'<lf-option id="no-{n}">No</lf-option></lf-options></lf-ask>'
         for n in range(1, 9)
     ),
@@ -493,7 +477,7 @@ ORDERED_PAGE = leaf_page(
     "walk order",
     '<h1 id="title">Release</h1><p id="cadence">We publish a build every week.</p>'
     '<lf-ask id="channel-ask"><h2>Which channel first?</h2>'
-    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
+    '<lf-options id="channel"><lf-option id="beta">Beta first</lf-option>'
     '<lf-option id="both">Both at once</lf-option></lf-options></lf-ask>'
     '<p id="notes">Release notes come from merged titles.</p>',
 )
@@ -555,12 +539,12 @@ GROUPED_PAGE = leaf_page(
     '<h1 id="title">Release</h1>'
     '<section><h2 id="impl">Implementation</h2>'
     '<lf-ask id="exit-ask"><h3>Which exit code?</h3>'
-    '<lf-options id="exit" choose><lf-option id="e75">75</lf-option>'
+    '<lf-options id="exit"><lf-option id="e75">75</lf-option>'
     '<lf-option id="e124">124</lf-option></lf-options></lf-ask>'
     '<p id="reap">Reap every process under the sandbox user.</p></section>'
     '<section><h2 id="rollout">Rollout</h2>'
     '<lf-ask id="runner-ask"><h3>Include self-hosted runners?</h3>'
-    '<lf-options id="runners" choose><lf-option id="r-yes">Yes</lf-option>'
+    '<lf-options id="runners"><lf-option id="r-yes">Yes</lf-option>'
     '<lf-option id="r-no">No</lf-option></lf-options></lf-ask></section>',
 )
 
@@ -649,11 +633,11 @@ TABBED_PAGE = leaf_page(
     '<section><h2 id="first-context">What needs to change</h2>'
     "<p>The checkout stays fixed.</p></section>"
     '<section><lf-ask id="first-ask"><h3>Include self-hosted runners?</h3>'
-    '<lf-options id="first-q" choose><lf-option id="first-yes">Yes</lf-option>'
+    '<lf-options id="first-q"><lf-option id="first-yes">Yes</lf-option>'
     '<lf-option id="first-no">No</lf-option></lf-options></lf-ask></section></lf-tab>'
     '<lf-tab id="tab-second" label="Second plan">'
     '<lf-ask id="second-ask"><h3>Ship on Tuesday?</h3>'
-    '<lf-options id="second-q" choose><lf-option id="second-yes">Yes</lf-option>'
+    '<lf-options id="second-q"><lf-option id="second-yes">Yes</lf-option>'
     '<lf-option id="second-no">No</lf-option></lf-options></lf-ask></lf-tab>'
     "</lf-tabs>",
 )
@@ -744,7 +728,7 @@ CARD_OPTIONS_PAGE = leaf_page(
     "card options",
     """<h1 id="title">Sidebar</h1>
 <lf-ask id="stick-ask"><h2>How should a long sidebar stick?</h2>
-<lf-options id="stick" choose>
+<lf-options id="stick">
   <lf-option id="stick-box"><small class="tag">two days</small>
     <small class="tag ok">recommended</small><strong>Wrap the blocks in one box</strong>
     One mechanism for any number of <em>blocks</em>.
@@ -792,10 +776,10 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
 
     aside.click()
     round_trip(page)
-    expect(page.locator("#stick-aside")).to_have_attribute("chosen", "")
+    expect(page.locator("#stick-aside")).to_have_attribute("selected", "")
     card.get_by_role("button", name="Undo").click()
     round_trip(page)
-    expect(page.locator("#stick-aside")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#stick-aside")).not_to_have_attribute("selected", "")
     expect(card.locator(".lf-fp-answer[data-lf-told]")).to_have_count(3)
 
 
@@ -813,8 +797,8 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
                 "done on its card",
                 """<h1 id="title">Tags</h1>
 <lf-ask id="tags-ask"><h2>Which tags?</h2>
-<lf-options id="tags" choose multiple>
-  <lf-option id="tag-alpha" chosen><strong>Alpha</strong> The first tag.</lf-option>
+<lf-options id="tags" multiple>
+  <lf-option id="tag-alpha" selected><strong>Alpha</strong> The first tag.</lf-option>
   <lf-option id="tag-beta"><strong>Beta</strong> The second tag.</lf-option>
 </lf-options></lf-ask>""",
             )
@@ -842,7 +826,7 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     undrawn. Until 15 November 2026 the card offered only Discuss and Show, and Done
     said a bare Answered."""
     url = serve(leaf_page("ship plan", '<h1 id="title">Ship plan</h1>'))
-    # As `leaf thread create --markup` writes it.
+    # As `leaf thread create` writes a message holding HTML.
     append_carried_log_record(
         serve.page_dir,
         {
@@ -850,11 +834,12 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
             "author": "agent",
             "agent": "Claude",
             "revision": 1,
-            "text": "Ship on Friday?",
-            "markup": '<lf-options id="ship" choose>'
+            "text": "Ship on Friday?\n\n"
+            '<lf-options id="ship">'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -932,11 +917,12 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
                 "source": "review-patch",
                 "source_revision": source_revision(serve.page_dir, "review-patch"),
             },
-            "text": "Ship on Friday?",
-            "markup": '<lf-options id="ship" choose>'
+            "text": "Ship on Friday?\n\n"
+            '<lf-options id="ship">'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
+            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -957,7 +943,7 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
     expect(card.get_by_role("button", name="Ship Friday", exact=True)).to_be_visible()
     with sending(page, "the pick"):
         page.keyboard.press("1")
-    expect(thread.locator("#ship-friday")).to_have_attribute("chosen", "")
+    expect(thread.locator("#ship-friday")).to_have_attribute("selected", "")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -986,11 +972,12 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
             "agent": "Claude",
             "revision": 1,
             "anchor": {"section": "risk"},
-            "text": "Ship on Friday?",
-            "markup": '<lf-options id="ship" choose>'
+            "text": "Ship on Friday?\n\n"
+            '<lf-options id="ship">'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
+            "html": True,
         },
     )
     page = open_page(request.getfixturevalue(engine), url)
@@ -1028,12 +1015,12 @@ TWO_DECISIONS_PAGE = leaf_page(
     "two decisions",
     """<h1 id="title">Review</h1>
 <section id="timeline-ask"><h2>Land the timeline prototype?</h2>
-<lf-options id="timeline" choose>
+<lf-options id="timeline">
   <lf-option id="tl-land">Land it</lf-option>
   <lf-option id="tl-keep">Keep it on its branch</lf-option>
 </lf-options></section>
 <lf-ask id="ship-ask"><h2>Ship on Friday?</h2>
-<lf-options id="ship" choose>
+<lf-options id="ship">
   <lf-option id="ship-friday">Ship Friday</lf-option>
   <lf-option id="ship-wait">Wait a week</lf-option>
 </lf-options></lf-ask>""",
@@ -1114,7 +1101,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
@@ -1125,7 +1112,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
         ["widget:ship", []],
         ["widget:timeline", [f"message:{reply}"]],
     ]
-    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
     held[0].continue_()
     page.unroute("**/api/event")
 

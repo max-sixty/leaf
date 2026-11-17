@@ -9,6 +9,7 @@ from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    CHROME_ROOT,
     RELEASE_FOCUS,
     clocked,
     dwelt,
@@ -201,20 +202,20 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
         "grouped contents titles",
         """
 <hgroup id="page-title">
-  <p class="eyebrow">Eval consolidation</p>
+  <p>Eval consolidation</p>
   <h1 id="title-label">One catalog, with short cases and complete workflows</h1>
 </hgroup>
 
 <div style="height: 110vh"></div>
 <hgroup id="standalone-title">
-  <p class="eyebrow">One vocabulary</p>
+  <p>One vocabulary</p>
   <h2 id="standalone-label">Name each case</h2>
 </hgroup>
 <p>The whole title arrives together.</p>
 <div style="height: 110vh"></div>
 <section id="owned-section">
   <hgroup id="owned-title">
-    <p class="eyebrow">One command</p>
+    <p>One command</p>
     <h2 id="owned-label">Run each case</h2>
   </hgroup>
   <p>The fragment names the section that owns this title.</p>
@@ -300,7 +301,7 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
               parseFloat(marker.height) / 2,
             lensTop: link.closest('nav').querySelector('.lf-toc-window')
               .getBoundingClientRect().top,
-            eyebrowTop: document.querySelector('#standalone-title .eyebrow')
+            eyebrowTop: document.querySelector('#standalone-title > p')
               .getBoundingClientRect().top,
           };
         }"""
@@ -368,7 +369,7 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
     Grouping a title changes its destination, and adding, dropping or renaming a heading
     changes the route. Surviving links retain focus and the outline's native scroll.
     """
-    title = '<p class="eyebrow">Stage</p><h1 id="title">Report</h1>'
+    title = '<p>Stage</p><h1 id="title">Report</h1>'
     sections = [
         f'<section id="part-{index}"><h2 id="label-{index}">Migration part {index}</h2></section>'
         for index in range(1, 81)
@@ -399,7 +400,7 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
         title, f'<hgroup id="title-group">{title}</hgroup>'
     ).replace(
         '<h2 id="body-title">Body</h2>',
-        '<hgroup id="body-group"><p class="eyebrow">One section</p>'
+        '<hgroup id="body-group"><p>One section</p>'
         '<h2 id="body-title">Named body</h2></hgroup>',
     )
     (serve.page_dir / "index.html").write_text(grouped, encoding="utf-8")
@@ -468,7 +469,7 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
 
     renamed_body.focus()
     ungrouped = changed_level.replace(
-        '<hgroup id="body-group"><p class="eyebrow">One section</p>'
+        '<hgroup id="body-group"><p>One section</p>'
         '<h2 id="body-title">Named body</h2></hgroup>',
         '<h2 id="body-title">Named body</h2>',
     )
@@ -742,15 +743,19 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
 <div style="height: 110vh"></div>
 <p id="before-two">First section follows.</p>
 <section id="section-two" aria-labelledby="title-two">
-  <p class="eyebrow">release shape</p>
-  <h2 id="title-two">Prepare the readers</h2>
+  <hgroup>
+    <p>release shape</p>
+    <h2 id="title-two">Prepare the readers</h2>
+  </hgroup>
   <p>Take a snapshot.</p>
 </section>
 <div style="height: 110vh"></div>
 <p id="before-three">A subsection follows.</p>
 <section id="section-three">
-  <p class="eyebrow">first cohort</p>
-  <h3>Move the readers</h3>
+  <hgroup>
+    <p>first cohort</p>
+    <h3>Move the readers</h3>
+  </hgroup>
   <p>Shift one cohort at a time.</p>
 </section>
 <div style="height: 110vh"></div>
@@ -763,8 +768,8 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
           ['h3', ['section-three', 'before-three']],
         ].map(([level, [sectionId, beforeId]]) => {
           const section = document.getElementById(sectionId);
-          const eyebrow = section.querySelector(':scope > .eyebrow');
-          const heading = section.querySelector(`:scope > ${level}`);
+          const eyebrow = section.querySelector(':scope > hgroup > p');
+          const heading = section.querySelector(`:scope > hgroup > ${level}`);
           const before = document.getElementById(beforeId);
           const between = [];
           for (let node = eyebrow.nextElementSibling; node !== heading;
@@ -791,15 +796,15 @@ def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, 
     expect(page.locator("#section-two")).to_have_attribute(
         "aria-labelledby", "title-two"
     )
-    expect(page.locator("#section-two > h2")).to_have_attribute("id", "title-two")
+    expect(page.locator("#section-two h2")).to_have_attribute("id", "title-two")
     toc.get_by_role("link", name="Move the readers").click()
     expect(page).to_have_url(re.compile(r"#section-three$"))
     scroll_settled(page)
     arrival = page.locator("#section-three").evaluate(
         """section => {
           const root = document.scrollingElement;
-          const eyebrow = section.querySelector(':scope > .eyebrow');
-          const heading = section.querySelector(':scope > h3');
+          const eyebrow = section.querySelector(':scope > hgroup > p');
+          const heading = section.querySelector(':scope > hgroup > h3');
           return {
             clear: parseFloat(getComputedStyle(root).scrollPaddingTop),
             margin: parseFloat(getComputedStyle(section).scrollMarginTop),
@@ -1384,6 +1389,19 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     assert preview_parts(toc.get_by_role("link", name="Switch the services")) == [
         "1 thread · 1 waiting on me · 1 change"
     ]
+    # A changed stretch is a change mark, so hiding annotations hides it, as it hides
+    # the change's bar in the margin (toc.css).
+    page.evaluate(RELEASE_FOCUS)
+    chrome = page.locator(CHROME_ROOT)
+    face = "(row) => getComputedStyle(row, '::after').backgroundColor"
+    drawn = verify.evaluate(face)
+    assert drawn != "rgba(0, 0, 0, 0)"
+    page.keyboard.press("o")
+    expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
+    assert verify.evaluate(face) == "rgba(0, 0, 0, 0)"
+    page.keyboard.press("o")
+    expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", re.compile(".*"))
+    assert verify.evaluate(face) == drawn
 
     # Where the track stacks over the body, the outline the reader opens marks the same
     # sections in the gutter beside its rule, the changed ones on the rule.
@@ -1599,7 +1617,7 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
 
 
 def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
-    """The tip is x-says page text, so a comment can rest on it like a tab's rendered
+    """The tip is words.says page text, so a comment can rest on it like a tab's rendered
     label. Following that comment from its thread (Show on page) must reveal the
     otherwise hidden popover before the anchor scrolls; a durable thread cannot point to
     words the page then keeps closed."""

@@ -18,6 +18,7 @@ from render_harness import (
     expect_panel_says,
     expect_preview_words,
     heard_draft,
+    heard_draft_settled,
     held_stale,
     holding,
     open_page,
@@ -160,7 +161,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
 
     # Model a tab whose latest projection has not reached its neighbour yet. The draft
     # is born here, so this selection is the state the generation records.
-    first.locator("#job-mounts").evaluate("el => el.setAttribute('chosen', '')")
+    first.locator("#job-mounts").evaluate("el => el.setAttribute('selected', '')")
     text = "Use a heated camera sleeve"
     write(first.locator("#jobs > .lf-another leaf-text"), text)
     expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
@@ -379,7 +380,9 @@ def test_a_late_refusal_cannot_restore_an_attempt_another_tab_settled(
         second_say.get_by_role("button", name="Send", exact=True).click()
         round_trip(second)
         expect(first_say.locator("leaf-text")).to_have_js_property("value", "")
-        until_draft_settled(first, SEAT_DRAFT)
+        # Its state read held, the first tab hears the settlement from the drafts read
+        # the same look starts, so the refusal waits for that read.
+        heard_draft_settled(first, SEAT_DRAFT)
         holding(first, held_state, 1, "the accepted attempt's state read")
         if newer is not None:
             write(first_say.locator("leaf-text"), newer)
@@ -758,6 +761,40 @@ def test_an_unsent_draft_outlives_the_tab_it_was_typed_in(browser, serve, one_us
 
     again = open_page(browser, url, context=one_user)
     expect(page_comment(again)).to_have_js_property("value", typed)
+
+
+def test_words_typed_while_a_write_is_out_survive_the_page_going_away(
+    browser, serve, one_user
+):
+    """Leaving a page cancels the draft write still out, often before `pagehide`, while
+    the server takes that write all the same. The resend the page sends as it goes
+    named only the generation before it, so the server refused the newest words and
+    a reload mid-sentence came back without the last keystrokes. The resend now names
+    every write this page sent since it last heard an answer."""
+    url = serve(LONG_PAGE)
+    page = open_page(browser, url, context=one_user)
+    box = page_comment(page)
+    write(box, "Fit the south bracket.")
+    assert stored_draft_text(page, "general") == "Fit the south bracket."
+
+    held = []
+    page.route("**/api/draft", lambda route: held.append(route))
+    write(box, "Fit the south bracket. O")
+    holding(page, held, 1, "the write still out")
+    write(box, "Fit the south bracket. Or the east.")
+    # The server takes the write, and the page hears it fail, as leaving does.
+    out = held[0]
+    out.fetch()
+    refuse(out)
+    page.evaluate("dispatchEvent(new PageTransitionEvent('pagehide'))")
+    holding(page, held, 2, "the resend as the page goes away")
+    held[1].fulfill(response=held[1].fetch())
+
+    origin = urlsplit(page.url)
+    answer = page.request.get(f"{origin.scheme}://{origin.netloc}/api/drafts")
+    assert answer.json()["drafts"]["general"]["text"] == (
+        "Fit the south bracket. Or the east."
+    )
 
 
 def test_a_composer_on_one_passage_is_one_box_in_every_tab(browser, serve, one_user):

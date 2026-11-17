@@ -73,8 +73,8 @@ PORTABLE = [
     Portable(
         "lf-code",
         "default",
-        '<lf-code id="lf-code" language="python" hi="2"><pre>\ndef bracket(temp):\n'
-        '    if temp &lt; 0:\n        return "steel"\n</pre></lf-code>',
+        '<lf-code id="lf-code" hi="2"><pre><code class="language-python">\ndef bracket(temp):\n'
+        '    if temp &lt; 0:\n        return "steel"\n</code></pre></lf-code>',
         # Its lines, coloured, the highlighted one among them.
         "pre:has(> .lf-code-line[data-lf-hi] [data-lf-syn])",
         sized="width",
@@ -128,15 +128,13 @@ GRID = (
 )
 # The host's own markup beside the widgets, a row of its own above them so their drawing
 # moves none of it, which portable.css leaves as the host drew it: none of its rules
-# reaches past the widgets, so a host's `data-room`, a Leaf page's attribute idiom, and
-# its own `.button`, `.choice` and `.field`, names Leaf styles nowhere, keep the host's
-# look.
+# reaches past the widgets, so the host's own `.button`, `.choice` and `.field`, names
+# Leaf styles nowhere, keep the host's look.
 HOST = (
     '<section id="host" style="grid-column: 1 / -1"><p>Words</p><button>Press</button>'
     '<button class="button">Go</button><a class="button" href="#host">Link</a>'
     '<label class="choice"><input type="checkbox"> Pick</label>'
     '<input class="field" value="typed">'
-    '<span data-room="longer words"><span>short</span></span>'
     "<details><summary>More</summary></details><pre>code</pre>"
     "<select><option>One</option></select>"
     '<svg width="20" height="20" viewBox="0 0 10 10"></svg></section>'
@@ -348,7 +346,11 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
             """() => { window.drawnAt = [];
             document.querySelector("#lf-motion").renderFrame = (t) => drawnAt.push(t); }"""
         )
-        page.locator("#lf-motion .lf-motion-play").click()
+        play = page.locator("#lf-motion .lf-motion-play")
+        play.click()
+        # The clock rounds, so it reads "300 ms" a frame before the end; the
+        # transport says Play again only once the clock has stopped at the end.
+        expect(play).to_have_accessible_name("Play")
         expect(page.locator("#lf-motion .lf-motion-clock")).to_have_text("300 ms")
         assert page.evaluate("drawnAt.at(-1)") == 300
         # Leaf binds a widget's keys, adds its Copy control and writes its quiet words

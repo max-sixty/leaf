@@ -2,12 +2,12 @@
 
 A harness session keeps running the plugin copy it loaded: Claude Code installs an
 update into a new cache directory and leaves every running session on the old
-one until `/reload-plugins` (`layer-registry.md`, "Page protocol"). A page a
-newer Leaf initialized is then one the session's hooks and watch can't read, and
-the user's input waits until someone reloads. So the session's hooks, its watch
-and, from an installed copy, its bare `leaf` commands all hand themselves to one
-launcher (`delivering_launcher`) before they read a page or change a turn; the
-Codex delivery adapter follows the selection alone (`selected_launcher`):
+one until `/reload-plugins`. A page a newer Leaf initialized is then one the
+session's hooks and watch can't read, and the user's input waits until someone
+reloads. So the session's hooks, its watch and, from an installed copy, its bare
+`leaf` commands all hand themselves to one launcher (`delivering_launcher`) before
+they read a page or change a turn; the Codex delivery adapter follows the selection
+alone (`selected_launcher`):
 
 - the launcher the session selected, while it exists: the checkout a user preview
   serves (`dev/leaf_dev/commands/preview.py`), or a checkout whose command

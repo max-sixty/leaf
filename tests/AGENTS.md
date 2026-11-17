@@ -206,7 +206,8 @@ once. Test a reading made from declarations on a widget that declares them, pass
 `serve` as `layer_registry` and `layer_widgets`.
 
 A test over prose compares it with something the machine states: a shown command
-against the click tree, an `x-` key against the guide, a table against its registry.
+against the click tree, a declaration key against the guide, a table against its
+registry.
 Leave wording with no machine side to review.
 
 Current location and visible focus are separate (`focus.js` owns their contract):
@@ -384,9 +385,13 @@ its situation on a machine ten times slower than the one it was written on, sinc
 runner and a host running other sessions' suites are both slower than an idle
 development machine. So no test asserts a duration, and no test passes or fails on a
 benchmark's reading: a benchmark reports its readings (`leaf-dev bench`, charted
-daily), and a reader judges them. Check a test against the rule with
-`--cpu-throttle 10` ("Races"). It slows only Chromium's renderer, not the server, Python
-or the driver, and doesn't reach a page from `browser.unwatched`.
+daily), and a reader judges them. A slower machine also reorders work that runs on
+independent clocks, such as the page's timers, its rendering updates, the server and the
+test's own steps, so a test makes every order it relies on between them itself, by
+holding or stepping one clock or by waiting for the event that ends the other's work
+(below, and "Races"). Check a test against the rule by running it starved of CPU,
+which slows every process at once ("Races"). CI's daily macOS job runs the suite that
+way, with more workers than the runner has cores; no landing gate does.
 
 Control or advance the clock that decides an age, lease, grace period or timer; a fixed
 `Date.now()` doesn't stop timers, animation frames, paint or observer delivery. Bound
@@ -468,7 +473,8 @@ reproduced at rates from 6 to 20, and one rate can miss a finding another reprod
 so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
 server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
 copy: it reproduced ten of the nightly macOS
-job's failures that `--cpu-throttle 8` reproduced none of. Run the merge
+job's failures that `--cpu-throttle 8` reproduced none of. Busy loops started under
+`taskpolicy -b` beside the test, each ending itself, starve it further. Run the merge
 base under the same condition to learn whether the change caused it. A test whose subject
 is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 

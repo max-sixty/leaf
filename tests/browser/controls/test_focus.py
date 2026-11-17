@@ -1,8 +1,6 @@
 """Where keyboard focus goes and returns: scroll boxes' Tab stops, keyboard scrolling,
 hand-back as layers close, focus kept through moves, and the frame audit."""
 
-import re
-
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -406,7 +404,6 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
             "parent": "c-diff",
             "revision": 1,
             "text": "The one line that decides it:\n\n" + PANEL_DIFF_MARKUP,
-            "html": True,
         },
     )
     told(page)
@@ -903,7 +900,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
         expect(page.locator("#later")).to_be_focused()
     else:
         expect(page.locator(".lf-fab-input")).to_be_focused()
-        expect(page.locator("#origin")).to_have_class(re.compile("lf-projected-mark"))
+        expect(page.locator("#origin")).to_have_attribute("data-lf-projected-mark", "")
     assert page.evaluate("scrollY") == before
 
 

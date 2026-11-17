@@ -45,7 +45,11 @@ variants:
   # a fork could take. The same lookup part way through an edit of that file belongs
   # with the session. On a2773d8285, `source-edited` passed 13 of 15 runs; both
   # misses answered `hand_over`, with the line "counting the cards in this page's
-  # source file". `source-editing` passed 14 of 14.
+  # source file". `source-editing` passed 14 of 14. On befe324b26 the criterion
+  # reworded as "nothing the main session is in the middle of changing or about to
+  # change, such as its files and branch, the page's source or its pull requests"
+  # passed `source-edited` 38 of 40, against 19 of 20 for the wording run beside it,
+  # so the parenthetical isn't what sends these misses to the session.
   source-edited:
     metadata:
       scenario: source-edited

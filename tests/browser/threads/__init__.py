@@ -150,8 +150,6 @@ def append_agent_reply(page_dir, parent, text, markup=None):
         "revision": 1,
         "text": text if markup is None else f"{text}\n\n{markup}",
     }
-    if markup is not None:
-        event["html"] = True
     return append_carried_log_record(page_dir, event)
 
 
@@ -331,7 +329,6 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
             "parent": "tv-decisioned",
             "revision": 1,
             "text": "Depends what you want to keep:\n\n" + markup,
-            "html": True,
         },
     )
     append_carried_log_record(

@@ -666,7 +666,7 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     # belongs to the widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#flow.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
+    page.locator("#flow.lf-mark-el.lf-pending[data-lf-projected-mark]").wait_for()
     expect(page.locator("#flow")).to_have_attribute(
         "data-lf-mark", re.compile(r"\bpending\b")
     )
@@ -675,7 +675,7 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
 
     page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#tree.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
+    page.locator("#tree.lf-mark-el.lf-pending[data-lf-projected-mark]").wait_for()
     tree = page.locator("#tree")
     expect(tree).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
     look = tree.evaluate(MARK)
@@ -798,7 +798,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     comparison.click(modifiers=["Alt"], position={"x": box["width"] / 4, "y": 80})
     expect(comparison).to_have_attribute("position", "50")
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(shot).to_have_attribute("data-lf-projected-mark", "")
     expect(shot).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
     ink = shot.evaluate(_MARK_INK)
     marked = screenshot()
@@ -2615,7 +2615,6 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "text": "Like this:\n\n"
             '<lf-diagram id="fallback-flow">\n<pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2671,7 +2670,6 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>\n\n'
             '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>\n\n'
             '<lf-options id="rp-choice"><lf-option id="rp-keep">Keep</lf-option></lf-options>',
-            "html": True,
         },
     )
     page = open_page(browser, url)

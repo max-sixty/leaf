@@ -607,7 +607,9 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     preview = page.locator(".lf-margin-preview")
     thread = page.locator(".lf-margin-thread", has_text="One reconnect in forty")
     expect(preview).to_be_visible()
-    expect(preview).to_have_attribute("aria-label", "Thread for iOS reconnect stall")
+    expect(preview).to_have_attribute(
+        "aria-label", "Thread for “One reconnect in about 40”"
+    )
     expect(thread.locator(".lf-msg[data-lf-author=user]").first).to_be_visible()
     # The card draws the reply's interactive widgets in place.
     expect(thread.locator("#off-slip-chase [role=checkbox]")).to_be_checked()

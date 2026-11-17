@@ -329,7 +329,6 @@ def test_next_on_me_rings_the_options_a_card_message_asks_with_whole(browser, se
         '<lf-option id="merge-go"><strong>Merge it once CI passes</strong></lf-option>'
         '<lf-option id="merge-read"><strong>I will read the diff first</strong>'
         "</lf-option></lf-options>",
-        "html": True,
         "id": "b" * 32,
     }
     page = open_page(

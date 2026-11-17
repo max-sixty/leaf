@@ -159,8 +159,11 @@ lf-toc a[data-lf-focus] {
  * rule, centred on the row's first line in one column at every depth; the map draws the
  * section's marker as that ring (below). Only where you are fills a marker, so no mark
  * reads as the current section. While the changes view is on, a changed section's
- * stretch of the rule wears the face a change wears in the margin (`--lf-change-bar`,
- * chrome.css), and a mark stands over it. Out of the words, no mark reads as part of
+ * stretch of the rule wears the change's colour, as its bar in the margin does
+ * (chrome.css), and a mark stands over it. The stretch is a change mark, so hiding
+ * annotations (`o`) hides it, as it hides that bar: the map reads the chrome's root
+ * (`data-lf-annotations-hidden`, annotation-layer.js) through `:root:has()`, which
+ * restyles the stretches alone. Out of the words, no mark reads as part of
  * them, and out of flow, none moves a row. They take no
  * presses: the link is the only thing to press. Rejected: a dash after the words read
  * as an en dash; dashes ticked off the rule, with every label inset 6px further on the
@@ -208,7 +211,12 @@ lf-toc
   inset-inline-start: calc(-2px - var(--lf-sp-3) - var(--lf-toc-indent));
   width: 3px;
   border-radius: 1.5px;
-  background: var(--lf-change-bar, var(--lf-change));
+  background: var(--lf-change);
+}
+:root:has(> .lf-chrome[data-lf-annotations-hidden])
+  lf-toc
+  :is(.lf-toc-start, li, .lf-toc-toggle, .lf-toc-heading)[data-lf-toc-changed]::after {
+  background: transparent;
 }
 /* The outline's head, the disclosure's toggle or the label over the outline beside the
  * body, stands where the start row they leave out would, so it carries the marks of what
@@ -412,15 +420,19 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       font: var(--lf-font-title);
     }
     /* The words fade in as the map reveals them, and a reading of what the page shows
-     * (`checkVisibility`) finds none of them at rest. */
-    lf-toc :is(a, .lf-toc-heading) {
+     * (`checkVisibility`) finds none of them at rest. Focus and Go-to reach these rules
+     * through marks on the map's ancestors and on `body`, so each names the words by
+     * class (`browser/AGENTS.md`, "A rule for focus anywhere in a box"): named `a`,
+     * they restyled every link on the page, map or none, as focus entered `main` or
+     * Go-to armed (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes). */
+    lf-toc :is(.lf-toc-link, .lf-toc-heading) {
       opacity: 0;
     }
-    lf-toc:is(:hover, [data-lf-focus-within]) :is(a, .lf-toc-heading) {
+    lf-toc:is(:hover, [data-lf-focus-within]) :is(.lf-toc-link, .lf-toc-heading) {
       opacity: 1;
     }
     @scope (body[data-lf-go-to-active] lf-toc) {
-      :scope:is(lf-toc) :is(a, .lf-toc-heading) {
+      :scope:is(lf-toc) :is(.lf-toc-link, .lf-toc-heading) {
         opacity: 1;
       }
     }

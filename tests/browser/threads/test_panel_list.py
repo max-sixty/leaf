@@ -89,7 +89,6 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
         '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
         "</lf-options></lf-ask>",
-        html=True,
     )
     told(page)
     expect(thread_row(page, answered).locator(".lf-row-end")).to_contain_text(

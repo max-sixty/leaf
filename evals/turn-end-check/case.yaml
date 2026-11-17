@@ -20,10 +20,14 @@ variants:
     metadata:
       scenario: ask-choice
       purpose: A three-way decision the agent's reply left to the user, with its advice, goes On Me as a choice of the three with the advised one marked.
+  ask-permission:
+    metadata:
+      scenario: ask-permission
+      purpose: A merge the agent's reply leaves to the user, telling them to run a command in the session for it, goes On Me as a choice to merge or hold off, since the agent merges on their word.
   ask-step:
     metadata:
       scenario: ask-step
-      purpose: A command the agent asked the user to run goes On Me as a step asked in words, in a new thread beside a closed ask on another subject.
+      purpose: A command only the user can run, which the agent asked them to run, goes On Me as a step asked in words, in a new thread beside a closed ask on another subject.
   ask-follow-up:
     metadata:
       scenario: ask-follow-up

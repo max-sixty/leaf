@@ -43,6 +43,7 @@ from leaf import structure as structure_model
 from leaf.delivery import current_responses
 from leaf.events import build_threads
 from leaf.revisioning import activate_source
+from leaf.thread_context import logged_fragment
 
 
 def undelivered(page_dir, input_id: str) -> str:
@@ -1726,7 +1727,6 @@ def test_a_closed_thread_stops_asking(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which mitigations?\n\n<lf-ask id="gm-decision">\n<h3>Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm">'
@@ -1761,7 +1761,6 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "kind": "comment",
                     "author": "agent",
                     "revision": 1,
-                    "html": True,
                     "text": (
                         f"Choose {suffix}\n\n"
                         f'<lf-ask id="group-{suffix}-decision">\n<h3>Choose {suffix}</h3>'
@@ -1845,7 +1844,7 @@ def test_native_message_html_shares_admission_and_id_ownership(page_dir):
         ],
     )
     assert answered.exit_code == 0, answered.output
-    held = [e for e in events_model.read_events(page_dir) if e.get("html")]
+    held = [e for e in events_model.read_events(page_dir) if logged_fragment(e)]
     assert [e["text"] for e in held] == [
         f"Results:\n\n{table}",
         f"Log:\n\n{log}",

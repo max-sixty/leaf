@@ -571,7 +571,6 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
             "parent": "aabb0011",
             "revision": 1,
             "text": 'Seeded reply\n\n<lf-code id="seed-code">\n<pre><code class="language-python">print("seed")</code></pre></lf-code>',
-            "html": True,
         },
     )
     before = event_model.read_events(page_dir)
@@ -5070,7 +5069,6 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "parent": "aabb0011",
             "author": "agent",
             "text": 'A sample answer\n\n<lf-code id="answer-code">\n<pre><code class="language-python">1</code></pre></lf-code>',
-            "html": True,
         },
         {
             "kind": "action",
@@ -5125,7 +5123,6 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
     second = allocate("second")
     initial = events(first)
     assert initial[0]["text"] == "Review the room"
-    assert initial[1]["html"] is True
     assert '<lf-code id="answer-code"' in initial[1]["text"]
     assert initial[2]["revision"] == 1
     assert initial[2]["meaning"]["scope"] == "page"

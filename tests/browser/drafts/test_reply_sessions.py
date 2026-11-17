@@ -151,7 +151,6 @@ diff --git a/notes.md b/notes.md
 -before
 +after
 </pre></lf-diff>""",
-            "html": True,
         },
     )
     # Turns after the patch, so the thread's view scrolls.

@@ -354,6 +354,17 @@ same event, or the message as it now reads, under the same name and from the sam
 (`event_facts.py`). A fact about the past, such as the settings the user had open
 when they wrote, is derived from the log and never stored as a second copy.
 
+### Read what the page states
+
+Leaf takes each fact about a page from where the page states it: the structure HTML
+defines, including the relations it gives its own elements, or a declaration in an
+author's attribute, a registry entry or the event log. A declaration uses a standard
+attribute only where it means the same to every reader, and Leaf's own attributes only
+on Leaf's elements. Leaf takes no fact from how content looks or what it says, and
+reads words only to quote, anchor and show them, so restyling a page changes no fact
+Leaf holds and rewording it changes only its words. Any other reading of markup is an
+exception the maintainer agrees to.
+
 ### Keep the layer open
 
 No code outside a content widget's module names it, so a new widget family needs
@@ -387,8 +398,8 @@ there. Size says little: a two-line selector can reach every page.
   the owner, export, move or generate the owner rather than copy it.
 - **What it puts between the author and HTML**: be hesitant to add anything there,
   such as a tag, class, attribute or key for what an HTML element, attribute or CSS
-  property already says, a rule that reads meaning out of the author's markup, or a
-  pass that rewrites it. Authors and agents already write HTML well, and each such
+  property already says, a rule that reads meaning out of the author's markup ("Read
+  what the page states"), or a pass that rewrites it. Authors and agents already write HTML well, and each such
   layer is one more thing every author learns and every later change keeps working.
   Add one only for what HTML can't say.
 - **What it buys**: a behavior a user sees, a request the maintainer made, or a

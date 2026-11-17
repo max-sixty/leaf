@@ -96,6 +96,19 @@ test("the chrome names an element by its name before its words", () => {
   );
 });
 
+test("the chrome names a widget by its aria-label where it has no label", () => {
+  // Its name by the contract is its `label` alone, so the aria-label is the chrome's
+  // fallback, as an On Me row or a feed row reads it, ahead of the section holding it.
+  declare({ "lf-timeline": {} });
+  document.body.innerHTML = `<main><section><h2>Rollout</h2>
+    <lf-timeline id="it" aria-label="Deploy order"><p>Steps.</p></lf-timeline>
+  </section></main>`;
+  const timeline = /** @type {Element} */ (document.getElementById("it"));
+  assert.equal(addressableName(timeline), "");
+  assert.equal(addressableLabel(timeline), "Deploy order");
+  declare();
+});
+
 test("an element whose words are its own is named by them, cut short", () => {
   assert.equal(
     labelled('<p id="it">Some <em>plain</em> words.</p>'),

@@ -124,10 +124,8 @@
       "additionalProperties": false
     },
     "content": "members",
-    "markup": {
-      "refers": {
-        "overview": {}
-      }
+    "refers": {
+      "overview": {}
     }
   },
   "lf-atlas-task": {
@@ -168,18 +166,14 @@
       "required": ["id", "status"],
       "additionalProperties": false
     },
-    "markup": {
-      "owners": ["lf-atlas-plan", "lf-atlas-task"]
-    },
-    "state": {
-      "verbs": {
-        "status": {
-          "writer": "agent",
-          "unit": "widget",
-          "record": {
-            "kind": "value",
-            "attr": "status"
-          }
+    "owners": ["lf-atlas-plan", "lf-atlas-task"],
+    "verbs": {
+      "status": {
+        "writer": "agent",
+        "unit": "widget",
+        "record": {
+          "kind": "value",
+          "attr": "status"
         }
       }
     }
@@ -201,27 +195,23 @@
       "required": ["id", "state"],
       "additionalProperties": false
     },
-    "markup": {
-      "owners": ["lf-atlas-plan", "lf-atlas-task"],
-      "refers": {
-        "on": {
-          "via": "$work.widgets",
-          "where": {
-            "role": "goal"
-          }
+    "owners": ["lf-atlas-plan", "lf-atlas-task"],
+    "refers": {
+      "on": {
+        "via": "$work.widgets",
+        "where": {
+          "role": "goal"
         }
       }
     },
-    "state": {
-      "verbs": {
-        "state": {
-          "writer": "agent",
-          "unit": "widget",
-          "text": true,
-          "record": {
-            "kind": "value",
-            "attr": "state"
-          }
+    "verbs": {
+      "state": {
+        "writer": "agent",
+        "unit": "widget",
+        "text": true,
+        "record": {
+          "kind": "value",
+          "attr": "state"
         }
       }
     }
@@ -238,17 +228,13 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "data": {
-      "inputs": {
-        "worktrees": {
-          "contract": "atlas-worktrees",
-          "source": "source",
-          "property": "value"
-        }
+    "inputs": {
+      "worktrees": {
+        "contract": "atlas-worktrees",
+        "source": "source",
+        "property": "value"
       }
     },
-    "paint": {
-      "space": "wide"
-    }
+    "space": "wide"
   }
 }

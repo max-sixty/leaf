@@ -4,12 +4,14 @@ names."""
 from collections.abc import Set as AbstractSet
 from pathlib import Path
 
+import turbohtml
+
 from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
-from leaf.findings import Finding, Rejected, element_at
-from leaf.passages import SourceReading
+from leaf.findings import Finding, Rejected
+from leaf.passages import JOINS_WORDS_TAGS, SourceReading
 from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
@@ -23,7 +25,6 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
-from ..registry.contract import declared_fact
 from .instances import (
     reference_errors,
     thread_markup_contract_errors,
@@ -62,11 +63,10 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
 
     A thread's response is owed by the thread rather than by the message inside it
     that happens to carry it, so a message with nothing against its own id can still
-    sit in a thread waiting on one. Every writer that asks "may a new message
-    go to this one as a proactive message?" asks this, because two readings of the same
-    question drift: a refusal that sent an agent to name a thread for a message owed
-    nothing sent it to a writer refusing it on the thread's obligation, which is the
-    dead end a refusal is supposed to end.
+    sit in a thread waiting on one. Every writer that asks "what does a proactive
+    message to this one leave owed?" asks this, because two readings of the same
+    question drift: an agent told a message was owed nothing would post to its thread
+    and hear the thread still owed an answer.
     """
     names = thread_names(events)
     thread = names.get(message, message)
@@ -96,9 +96,9 @@ def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str 
     user's press is answered through its delivery reference until it is answered and not after, and
     a resolve or an undo is owed nothing at all. A
     message is the one id whose writer turns on its thread rather than on
-    itself — naming the thread for a proactive message is refused while the thread owes a
-    response, whichever of its messages is owed it — so it is read through
-    `thread_obligation`, the same reading `post_reply`'s guard refuses on. A
+    itself — a proactive message to a thread that owes a response answers nothing,
+    whichever of its messages is owed it — so it is read through
+    `thread_obligation`, the same reading `post_reply` notes beside such a message. A
     thread's id is its opening comment's, so an agent holding a thread id names it
     as a message.
     """
@@ -149,6 +149,7 @@ def check_markup(
     *,
     publication: SourceReading,
     thread: str | None = None,
+    replacing: str | None = None,
 ) -> SourceDocument:
     """The markup an agent's message holding HTML draws (`passages.message_markup`),
     validated against the registry it is published with — the discussion-side `page
@@ -156,8 +157,9 @@ def check_markup(
     user's words, which draw no HTML, so none reaches the log unvalidated. Text
     without HTML needs no vocabulary gate, since it can't claim a widget, but its
     Markdown can still point at a file, which `checked_text` asks about wherever a
-    body arrives. `thread` is the thread a reply joins; a
-    comment opens one whose id is not yet assigned. Refuses with what's wrong.
+    body arrives. `thread` is the thread a reply or an edit joins; a
+    comment opens one whose id is not yet assigned. `replacing` names the message an
+    edit rewrites, whose own ids the markup may keep. Refuses with what's wrong.
 
     `publication` is the document and registry the message is stored with, which
     its writer decides before the check: the revision it names
@@ -180,9 +182,80 @@ def check_markup(
         extra_errors,
         read_contracts(page_dir),
         thread,
+        replacing=replacing,
     ):
-        raise Rejected(errors, f"the HTML in the {kind} doesn't validate")
+        raise Rejected(
+            errors, f"the HTML in the {kind} doesn't validate{drawn(markup, errors)}"
+        )
     return frag
+
+
+def drawn(markup: str, findings: list[Finding]) -> str:
+    """The lines the findings name, with one either side, of the HTML a message's
+    Markdown draws. A finding counts lines of that drawing, which its writer never
+    sees, and the drawing is often the cause, as where Markdown puts a paragraph
+    around a widget."""
+    named = set()
+
+    def lines_in(value):
+        if isinstance(value, dict):
+            if isinstance(value.get("line"), int):
+                named.add(value["line"])
+            for item in value.values():
+                lines_in(item)
+        elif isinstance(value, list):
+            for item in value:
+                lines_in(item)
+
+    for finding in findings:
+        lines_in(finding.values)
+    lines = markup.rstrip("\n").split("\n")
+    shown = sorted(
+        {n for line in named for n in range(line - 1, line + 2) if 1 <= n <= len(lines)}
+    )
+    if not shown:
+        return ""
+    rows = []
+    for before, n in zip([None, *shown], shown, strict=False):
+        if before is not None and n != before + 1:
+            rows.append("     …")
+        rows.append(f"{n:>4}  {lines[n - 1]}")
+    return (
+        ". Its Markdown draws this HTML, where the findings count lines:\n"
+        + "\n".join(rows)
+        + "\nFindings"
+    )
+
+
+def split_preformatted(frag: SourceDocument) -> list[Finding]:
+    """Each `<pre>` holding a block, such as a `<p>`, `<ul>` or `<h1>`, which HTML's
+    content model keeps out of a `<pre>` and only a message's Markdown draws there: a
+    blank line inside a block of HTML ends the block, a `<pre>` within it included,
+    and Markdown reads the lines after it as its own blocks. The text loses its blank
+    lines, its indents and any list marks, `#` or asterisks, and the HTML stays well
+    formed, so no other check reports it. A block is any HTML element outside phrasing
+    content (`$passages.phrasing`); a custom element is phrasing content."""
+    findings = []
+    for pre in frag.tree.descendants:
+        if not (isinstance(pre, turbohtml.Element) and pre.tag == "pre"):
+            continue
+        block = next(
+            (
+                inner
+                for inner in pre.descendants
+                if isinstance(inner, turbohtml.Element)
+                and inner.namespace is turbohtml.Namespace.HTML
+                and inner.tag not in JOINS_WORDS_TAGS
+                and "-" not in inner.tag
+            ),
+            None,
+        )
+        if block is not None:
+            line = SourceDocument._position(block)[0]
+            findings.append(
+                Finding("split-pre", "<pre>", {"line": line, "block": block.tag})
+            )
+    return findings
 
 
 def message_markup_errors(
@@ -195,26 +268,22 @@ def message_markup_errors(
     extra_errors: list[Finding],
     contracts: dict,
     thread_id: str | None,
+    *,
+    replacing: str | None = None,
 ) -> list[Finding]:
     """The shared message-fragment gate for a stored or newly constructed page.
 
     Callers supply their lifetime's binding checks. The
     fragment's structure, vocabulary, presentation, media, ids, references and
     live sample children have one gate regardless of whether its page has been
-    allocated yet. `thread_id` is the thread the message joins, where known. Each
-    stage reads only a fragment the stages before it accept, so it gives the first
-    stage's findings, or none.
+    allocated yet. `thread_id` is the thread the message joins, where known, and
+    `replacing` the message an edit rewrites: its markup leaves the page as this
+    takes its place, and an id any of its wordings held is its own to keep
+    (`thread_context.thread_structure`). Each stage reads only a fragment the stages
+    before it accept, so it gives the first stage's findings, or none.
     """
-    # A block widget a Markdown paragraph holds follows words on its line, and the
-    # HTML parser may close that paragraph inside it (`passages._html_block`).
-    if misplaced := [
-        Finding("widget-in-paragraph", element_at(rec["tag"], rec["attrs"].get("id")))
-        for rec in frag.lf_elements
-        if rec["parent"] == "p"
-        and rec["tag"] in registry
-        and not declared_fact(registry[rec["tag"]], "words.inline")
-    ]:
-        return misplaced
+    if split := split_preformatted(frag):
+        return split
     if errs := (
         thread_markup_contract_errors(frag, registry)
         + extra_errors
@@ -226,13 +295,22 @@ def message_markup_errors(
     if names := id_errors(frag):
         return names
     thread = thread_structure(events)
-    if clash := sorted(frag.ids & (prior_ids | page.ids | thread.ids)):
+    held = {
+        identity for identity, message in thread.holders.items() if message != replacing
+    }
+    if clash := sorted(frag.ids & (prior_ids | page.ids | held)):
         return [Finding("ids-taken", values={"ids": clash})]
+    replaced = thread.fragments.get(replacing)
+    standing = thread.ids - replaced.ids if replaced else thread.ids
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,
-        page.ids | thread.ids | frag.ids,
-        {**page.by_id, **thread.by_id, **frag.by_id},
+        page.ids | standing | frag.ids,
+        {
+            **page.by_id,
+            **{i: r for i, r in thread.by_id.items() if i in standing},
+            **frag.by_id,
+        },
         thread_ids=thread_ids(events),
     ):
         return reference_errs

@@ -33,8 +33,8 @@ def document_identity(scope: str, revision: int | None = None) -> dict:
     """The document a widget event is made in, from its scope and revision.
 
     A `page` event's document is the revision it names; a `thread` event's is the
-    frozen thread markup, which lasts the page's whole lifetime and so carries no
-    revision. Admission, thread folds, and the browser all key documents on this
+    message markup, which no revision carries: an edit rewrites it in place
+    (`thread_context.thread_structure`). Admission, thread folds, and the browser all key documents on this
     identity."""
     if scope == "thread":
         return {"kind": "thread"}

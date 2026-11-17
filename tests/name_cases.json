@@ -115,10 +115,8 @@
     "id": "an attribute shown first is not a name",
     "registry": {
       "lf-reading": {
-        "words": {
-          "says": {
-            "value": "before"
-          }
+        "says": {
+          "value": "before"
         }
       }
     },
@@ -129,10 +127,8 @@
     "id": "a gloss's tip is no part of a heading's name",
     "registry": {
       "lf-gloss": {
-        "words": {
-          "says": {
-            "tip": "after"
-          }
+        "says": {
+          "tip": "after"
         }
       }
     },

@@ -88,7 +88,7 @@
    the span the two differ in (`carry`), so a change to the page is searched only around
    it. An anchor asked of a reading again has the answer it had (`findQuote`).
 
-   Shadow trees: only open roots declared through `words.shadow` join the page reading;
+   Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
    `pageShadowRoots` (shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
    `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (shadow.js),
@@ -207,8 +207,8 @@ export const verbatimBoundaryIdentity = new WeakMap();
 // elsewhere could match inside the invisible half of a replacement.
 //
 // Which slots retire is the registry's to say, so this and passages.py's reading of the
-// same page follow one declaration: state.retired-when names the decision that removes
-// the element, markup.owners the wrapper the decision is recorded on. Composition
+// same page follow one declaration: `retired-when` names the decision that removes
+// the element, `owners` the wrapper the decision is recorded on. Composition
 // stamps that relation, owner by owner, into `$decisions` (Python's
 // `registry.contract.stamp_decisions`). Which outcome stands is the application's
 // reading of the log and this tab's own gestures, so the readings take it from the
@@ -329,14 +329,6 @@ export const DATUM = "[data-lf-projection][data-lf-datum]";
 const PART = `${DATUM}:not(${HEADING}, ${HEADERS})`;
 /** @param {Element} element */
 const isPart = (element) => element.matches(PART) && !phrasing(element);
-// Whether the user can see a block's words, for a reading or a landing chosen among the
-// page's blocks. A box is no answer: what content-visibility hides keeps its boxes where
-// it would stand shown, both an inactive tab's panel (hidden="until-found") and a closed
-// <details>' contents, and a `visibility: hidden` block keeps its box too. Focus can land
-// on none of them.
-/** @param {Element} block */
-export const showsWords = (block) =>
-  block.checkVisibility({ visibilityProperty: true });
 // The Leaf surface a node stands in, wherever it is seated: the chrome root, or a
 // surface of the runtime's own that its owner seats inside page content — the response
 // bar in a widget's outlet, a thread a widget places beside its lines. Each such surface
@@ -547,14 +539,14 @@ const SILENT_TAGS = new Set(["script", "style", "textarea"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
 // A generated element whose words the file cannot model: one the registry does not
-// declare as a `words.says` edge of the element holding it. Controls and the hidden
-// comment count hold no accepted text, and words.says spans are already in the
+// declare as a `says` edge of the element holding it. Controls and the hidden
+// comment count hold no accepted text, and `says` spans are already in the
 // file-side reading.
 /** @param {Element} el */
 const unmodelled = (el) => {
   const attr = el.getAttribute("data-lf-said");
   const parent = el.parentElement;
-  return !(attr && parent && registry[parent.localName]?.words?.says?.[attr]);
+  return !(attr && parent && registry[parent.localName]?.says?.[attr]);
 };
 // Automatic control capture uses authored or registry-declared words, never the
 // mutable value of a native editing host. A user's actual Range remains readable.
@@ -576,12 +568,11 @@ const editingBoundary = (el) => isEditing(el) !== isEditing(el.parentElement);
 const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // Whether an element stands within a line of words: HTML's phrasing content
 // (`$passages.phrasing`), or a widget declared to stand among the words around it
-// (words.inline). Every other element, a widget included, starts a block of its own,
+// (`inline`). Every other element, a widget included, starts a block of its own,
 // its words parted from those around it (`enter`).
 /** @param {Element} element */
 const phrasing = (element) =>
-  PHRASING.has(element.localName) ||
-  Boolean(registry[element.localName]?.words?.inline);
+  PHRASING.has(element.localName) || Boolean(registry[element.localName]?.inline);
 // One element's rules applied to the context over it. `inFrame` is false only for a
 // point query's ancestors above the reading's frame, where chrome and the generated
 // marks are somebody else's (`frameOf`). An element that starts nothing — most spans,
@@ -679,7 +670,7 @@ export const authored = (root) => {
     !overIn(isElement(n) ? n : elementOver(n), GENERATED, frame);
 };
 // The composed tree, not the light one: a widget that renders the page's words into an
-// open shadow root (words.shadow) shows the user what its shadow tree holds, and a
+// open shadow root (`shadow`) shows the user what its shadow tree holds, and a
 // host's own children stop rendering the moment it has one. A TreeWalker sees none of
 // that — it stops dead at the boundary — so the walk is written out, and it is the same
 // walk in both directions: a host's shadow root stands in for its children, a <slot> in
@@ -1058,7 +1049,7 @@ export const elementFromPointAcross = (x, y) => {
 // this way, and so is a control the user can focus, for the same reason: both are
 // wherever the markup ended up. Which widgets the page holds is a different question
 // and still the document's: a widget staged inside another's tree is a nesting the
-// registry's markup.owners contract does not model, and answering it here would be
+// registry's `owners` contract does not model, and answering it here would be
 // inventing that contract in a sweep.
 /** @template {Element} [E=Element] @param {string} selector @returns {E[]} */
 export const pageQueryAll = (selector) =>
@@ -1106,7 +1097,7 @@ function firstPassing(items, test, from = 0) {
 // reading order, so the parts it covers run from the first mark not before its start to
 // the first not before its end, with the start's part just before them, and finding
 // them costs a binary search however many parts the page holds. A walk from the range's
-// own root reads whatever that root holds: select-all beside a words.shadow widget
+// own root reads whatever that root holds: select-all beside a `shadow` widget
 // composes a range over <html>, and the reading has no position for its <title>.
 /** @param {AbstractRange} range */
 export function segmentsIn(range) {
@@ -2183,7 +2174,7 @@ export function hearPageWords(hear) {
 }
 // A declared shadow stage is part of its document's words — `textNodesUnder` walks into
 // one at its host's place in the string — and no observer crosses the boundary on its
-// own. shadow-stage.js, which is the only door a words.shadow root is built through,
+// own. shadow-stage.js, which is the only door a `shadow` root is built through,
 // hands each one here as it fills it, and again each time it adopts it. The first time
 // forgets the reading of the document the root stands in, which was read without it;
 // from then on the watcher reports the root's changes itself. The words it fills with
@@ -2425,7 +2416,7 @@ function indexed(segments, chains, marks = []) {
   const dynamicWords = new Set();
   for (const { gen } of segments) if (gen && unmodelled(gen)) dynamicWords.add(gen);
   // A segment's cell is the nearest candidate over it that fences. The chain crosses
-  // the shadow boundary (upFrom), and that is what keeps a words.shadow widget fenced.
+  // the shadow boundary (upFrom), and that is what keeps a `shadow` widget fenced.
   // The parts were remembered off the light DOM before any module ran, so nothing
   // inside a shadow tree is among them; a chain that stopped at the root would put a
   // diff's lines in no cell at all, which reads as ordinary page prose and lets a quote

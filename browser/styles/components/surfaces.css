@@ -1,4 +1,4 @@
-/* The rules that dress both sides of a shadow boundary. A widget declaring words.shadow
+/* The rules that dress both sides of a shadow boundary. A widget declaring `shadow`
  * renders into a tree no document selector reaches (runtime/shadow-stage.js), and the
  * controls, threads and composer a widget seats there are the layer's own. So what they
  * need is stated here, once: the stage copies the composed shadow.css into each declared
@@ -81,7 +81,7 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
   }
 }
 /* Where a widget upgrade fails, it fails soft into this box, in the document or in an
- * words.shadow widget's stage (runtime/widget-upgrade.js). Its face is the sans the
+ * `shadow` widget's stage (runtime/widget-upgrade.js). Its face is the sans the
  * theme gives other labels (.tag, figcaption), with figures of one width. */
 .lf-error {
   border: 1px solid var(--lf-danger);
@@ -214,7 +214,7 @@ a[data-lf-external]::after,
  * list of the tags and roles that count, so a role a widget reaches for next year is a
  * pressable the day its module names it.
  *
- * In this file, because a widget declaring words.shadow builds its controls in a tree
+ * In this file, because a widget declaring `shadow` builds its controls in a tree
  * the document's stylesheet does not reach, and a floor that stopped at the light DOM
  * would be a floor the newest kind of widget is the one to fall through. */
 /* Every box's outline stands where the box says its marks stand (base.css, "Where it
@@ -785,8 +785,8 @@ summary {
   --lf-msg-head-height: 28px;
   --lf-msg-body-gap: 4px;
   /* The room between a message's last line and what follows it in the conversation,
-     the next message, a checkpoint or the working step: far more than a head's gap to
-     its words, so each head reads with the message under it. */
+     the next message, a checkpoint, the working step or the reply box: far more than a
+     head's gap to its words, so each head reads with the message under it. */
   --lf-msg-gap: 24px;
   /* A message's controls, symbols as tall as the thread's own, one group at its
      head's end (controls.css). */

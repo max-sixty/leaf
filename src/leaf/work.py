@@ -6,7 +6,6 @@ from .files import latest_revision
 from .findings import Finding
 from .obligations import quoted_in
 from .projection import PageReading
-from .registry.contract import declared_fact
 from .revision_artifact import read_revision
 from .thread_context import id_subject, thread_names, thread_structure, thread_widgets
 
@@ -18,7 +17,7 @@ def widget_seat_error(
 
     A to-do on a widget stands beside that widget at the page edge, so the widget must
     be live on the page: present under the page's outcomes in force and not quoted
-    exhibit content. And it must be a seat for work: its tag declares `state.work`, or
+    exhibit content. And it must be a seat for work: its tag declares `work`, or
     it
     holds an unsettled action, among `workflows` (`workflows.handed_over`)."""
     named = {"widget": widget}
@@ -33,7 +32,7 @@ def widget_seat_error(
     held = any(
         item["subject"] == {"kind": "widget", "id": widget} for item in workflows
     )
-    if not declared_fact(page.registry[rec["tag"]], "state.work") and not held:
+    if not page.registry[rec["tag"]].get("work") and not held:
         return Finding("no-work-seat", values=named)
     return None
 
@@ -51,7 +50,7 @@ def page_element(page_dir: Path, name: str) -> dict | None:
 def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     """What `name` names (`thread_context.id_subject`), against the page the user is
     looking at: the newest revision's widgets, and the widgets its threads' messages
-    froze. Every command that takes an id reads it here, so each resolves it alike."""
+    hold. Every command that takes an id reads it here, so each resolves it alike."""
     revision = latest_revision(page_dir)
     if revision is None:
         return id_subject(events, set(), {}, {}, name)

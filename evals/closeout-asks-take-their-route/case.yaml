@@ -10,7 +10,7 @@ description: closeout-asks-take-their-route
 metadata:
   purpose: "Conversation loop: a permission the agent leaves to the user at a closeout
     reaches On Me as a choice they press, and a step only they can take as a thread
-    message with an obligation."
+    message."
   tags:
     - asks
     - wait-loop
@@ -42,5 +42,6 @@ assert:
       keep it (an `lf-options` permission on the page or in a thread message's markup),
       not as a thread message carrying `--obligation`, and its words say which change
       it lands and what landing does. The `/reload-plugins` step must reach On Me as a
-      thread message carrying `--obligation` that says what to run. Fail if any of the
+      thread message that says what to run, asking for its outcome with options or
+      `--obligation`. Fail if any of the
       three is left only in the closing reply or a status line.

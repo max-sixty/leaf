@@ -471,8 +471,14 @@ leaf server start ./review</code></pre>
                   The importer receives bursts of records faster than it can process
                   them. Its queue has room for 1,000 records.
                 </p>
-                <lf-ask id="queue-question">
-                  <h3>When the queue fills, what should happen?</h3>
+                <section
+                  id="queue-question"
+                  role="group"
+                  aria-labelledby="queue-question-h"
+                >
+                  <h3 id="queue-question-h">
+                    When the queue fills, what should happen?
+                  </h3>
                   <lf-options id="queue-policy">
                     <lf-option id="block-producer"
                       ><strong>Pause the producer</strong> Keep every queued record;
@@ -483,7 +489,7 @@ leaf server start ./review</code></pre>
                       immediately; discard the oldest queued one.</lf-option
                     >
                   </lf-options>
-                </lf-ask>
+                </section>
                 <h3>Recorded actions</h3>
                 <lf-activity id="queue-activity"></lf-activity>
               </lf-sample>
@@ -507,12 +513,12 @@ leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updat
 leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
-                registry entry declares <code>state.awaits</code>, creates an
+                registry entry declares <code>awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
-                answer, and lifecycle; an optional <code>lf-ask</code> supplies its
-                heading as the prompt. The widget owns the value, and the agent records
-                the decision in a stamped revision. The browser fetches the revised HTML
-                and state.
+                answer, and lifecycle; the group the author names around it, with
+                <code>role="group"</code> and <code>aria-labelledby</code>, supplies the
+                prompt. The widget owns the value, and the agent records the decision in
+                a stamped revision. The browser fetches the revised HTML and state.
               </p>
               <details id="decision-example">
                 <summary>Example: answer a page choice</summary>
@@ -851,8 +857,7 @@ flowchart TD
                     When the agent runs <code>leaf page instructions</code>, which
                     prints each package's <code>instructions/</code> files by audience.
                     Each <code>--use</code> adds that entry's
-                    <code>author.instructions</code> and its data contracts'
-                    instructions.
+                    <code>instructions</code> and its data contracts' instructions.
                   </td>
                 </tr>
                 <tr>
@@ -1253,11 +1258,12 @@ flowchart TD
                 step the user took that didn't work. The fork writes the message as the
                 agent's guidance has the agent write one. Where the agent left answers
                 the user picks among, or an action it takes once the user agrees, such
-                as merging a pull request, the message holds a choice of them. A step
-                only the user can take, such as trying a build, says what to do, and
-                asks for a reply only for what the user alone can report or the agent's
-                next step waits on. Leaf skips an ask whose title a question the agent
-                asked already has.
+                as merging a pull request, the message usually holds a choice of them. A
+                step only the user can take, such as trying a build, says what to do,
+                and asks for the user's answer only for what they alone can report or
+                the agent's next step waits on, usually as a choice where its answers
+                can be listed, such as installed or failed. Leaf skips an ask whose
+                title a question the agent asked already has.
               </p>
               <p id="fork-writes">
                 Leaf posts each remaining ask as the agent's message, as the agent's
@@ -1475,8 +1481,7 @@ flowchart TD
                   <td>Obligation</td>
                   <td>
                     An input or answer owed by the user or agent. It holds its source,
-                    typed answer, next actor, and status: open, answered, answered
-                    elsewhere or withdrawn.
+                    typed answer, next actor, and status: open, answered or withdrawn.
                   </td>
                   <td>
                     <code>widget:</code>, <code>message:</code> or <code>update:</code>,
@@ -1770,7 +1775,7 @@ flowchart TD
               <code>[widget, unit, verb]</code>: the owning widget, the part of its
               state being changed, and the operation. For each key, the latest action
               that has not been undone or retracted sets that part of the state, so a
-              new pick in an options group replaces the previous pick.
+              new pick in an <code>lf-options</code> replaces the previous pick.
               <code>leaf page state</code> reports the result; the browser adds
               <a href="#browser-updates">pending browser updates</a>.
             </p>
@@ -1839,7 +1844,7 @@ flowchart TD
                   <td>Verb</td>
                   <td>
                     A fold <code>unit</code> and a recorded effect or custom payload
-                    schema, declared under <code>state.verbs</code>
+                    schema, declared under <code>verbs</code>
                   </td>
                   <td>Package, in <code>registry.json</code></td>
                 </tr>
@@ -1869,8 +1874,8 @@ flowchart TD
               The three undos return the choices to their starting state.
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
-              <lf-ask id="ship-ask">
-                <h2>When should this ship?</h2>
+              <section id="ship-ask" role="group" aria-labelledby="ship-ask-h">
+                <h2 id="ship-ask-h">When should this ship?</h2>
                 <lf-options id="ship">
                   <lf-option id="ship-now"
                     ><strong>Now</strong> Today, behind the flag.</lf-option
@@ -1879,7 +1884,7 @@ flowchart TD
                     ><strong>Later</strong> Next week, after the load test.</lf-option
                   >
                 </lf-options>
-              </lf-ask>
+              </section>
               <lf-activity id="sample-feed"></lf-activity>
             </lf-sample>
           </section>
@@ -1891,28 +1896,26 @@ flowchart TD
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
-"state": {
-  "verbs": {
-    "choose": {
-      "unit": "widget",
-      "record": {"kind": "attribute", "attr": "selected"}
-    },
-    "add": {
-      "detail": {"type": "object",
-                 "properties": {"option": {"type": "string"},
-                                "text": {"type": "string", "minLength": 1}},
-                 "required": ["option", "text"], "additionalProperties": false},
-      "unit": "option",
-      "creates": {"child": "lf-option", "words": "text"}
-    },
-    "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
+"verbs": {
+  "choose": {
+    "unit": "widget",
+    "record": {"kind": "attribute", "attr": "selected"}
   },
-  "awaits": {
-    "value": "choose",
-    "answered": {
-      "choose": {"when": {"multiple": [false]}},
-      "answer": {"when": {"multiple": [true]}}
-    }
+  "add": {
+    "detail": {"type": "object",
+               "properties": {"option": {"type": "string"},
+                              "text": {"type": "string", "minLength": 1}},
+               "required": ["option", "text"], "additionalProperties": false},
+    "unit": "option",
+    "creates": {"child": "lf-option", "words": "text"}
+  },
+  "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
+},
+"awaits": {
+  "value": "choose",
+  "answered": {
+    "choose": {"when": {"multiple": [false]}},
+    "answer": {"when": {"multiple": [true]}}
   }
 }
 </code></pre>
@@ -1921,8 +1924,8 @@ flowchart TD
                 <code>action</code>.</lf-note
               >
               <lf-note at="4"
-                >One unit for the whole group, so every pick uses the same coordinate
-                and a later pick replaces an earlier one.</lf-note
+                >One unit for the whole <code>lf-options</code>, so every pick uses the
+                same coordinate and a later pick replaces an earlier one.</lf-note
               >
               <lf-note at="5"
                 >How the current selection appears in markup: <code>selected</code> on
@@ -1936,21 +1939,21 @@ flowchart TD
                 option has a coordinate of its own.</lf-note
               >
               <lf-note at="13"
-                >The action adds an <code>lf-option</code> to the group, with
+                >The action adds an <code>lf-option</code> to the options, with
                 <code>detail.text</code> as its text.</lf-note
               >
               <lf-note at="15"
                 ><code>answer</code> is the Done press that closes a
-                <code>multiple</code> group.</lf-note
+                <code>multiple</code> choice.</lf-note
               >
               <lf-note at="18"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
               >
               <lf-note at="19"
-                >A single-choice group is answered when an option is selected. A
-                multiple-choice group is answered when the user presses Done. Undo can
-                make the obligation unanswered again.</lf-note
+                >A single choice is answered when an option is selected. A multiple
+                choice is answered when the user presses Done. Undo can make the
+                obligation unanswered again.</lf-note
               >
             </lf-code>
             <p id="coordinate">
@@ -1980,15 +1983,14 @@ flowchart TD
           <section id="fold">
             <h2>Widget state after each action</h2>
             <p id="fold-lede">
-              The table shows the options group after each action and undo in the
-              sample.
+              The table shows the options after each action and undo in the sample.
             </p>
             <table id="fold-steps">
               <thead>
                 <tr>
                   <th>Gesture</th>
                   <th>Coordinate</th>
-                  <th>The group shows</th>
+                  <th>The options show</th>
                 </tr>
               </thead>
               <tbody>
@@ -2130,7 +2132,7 @@ flowchart TD
               <lf-note at="39"
                 >This pick makes the obligation's answered condition hold, so it
                 completes the obligation. <code>null</code> means it closes no thread; a
-                group with a <code>resolves</code> attribute would name one
+                widget with a <code>resolves</code> attribute would name one
                 here.</lf-note
               >
               <lf-note at="61"
@@ -2213,14 +2215,13 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares verbs (<code>state.verbs</code>),
-                <code>state.awaits.answered</code>, <code>creates</code>, and
-                agent-written verbs.
+                >: how a package declares <code>verbs</code>,
+                <code>awaits.answered</code>, <code>creates</code>, and agent-written
+                verbs.
               </li>
               <li>
-                <a href="/extending/#state.verbs">Registry keys</a>: the exact
-                definition of <code>state.verbs</code>, <code>state.awaits</code>, and
-                the keys beside them.
+                <a href="/extending/#verbs">Registry keys</a>: the exact definition of
+                <code>verbs</code>, <code>awaits</code>, and the keys beside them.
               </li>
               <li>
                 <a
@@ -2269,15 +2270,16 @@ flowchart TD
             </p>
             <p id="permission-requests">
               A request to permit an action is an ordinary decision: an
-              <code>lf-options</code> group whose options take the action its heading
-              and prose describe or keep things as they are, so declining is an answer
-              too. Its pick answers the widget's obligation on On Me, and choosing it
-              again reopens it. Each request is independent of other unanswered widgets
-              and page stamps, and the pick persists with the widget's id across
-              unrelated edits. When the action or evidence changes enough to invalidate
-              that permission, the author explains the change and marks the widget
-              <code>restated</code>. A request that depends on another decision is
-              presented after that decision, once the action to permit is concrete.
+              <code>lf-options</code> whose options take the action its question's
+              heading and prose describe or keep things as they are, so declining is an
+              answer too. Its pick answers the widget's obligation on On Me, and
+              choosing it again reopens it. Each request is independent of other
+              unanswered widgets and page stamps, and the pick persists with the
+              widget's id across unrelated edits. When the action or evidence changes
+              enough to invalidate that permission, the author explains the change and
+              marks the widget <code>restated</code>. A request that depends on another
+              decision is presented after that decision, once the action to permit is
+              concrete.
             </p>
             <p id="permission-sample-guide">
               Choose Publish the report, then choose it again. The request changes
@@ -2288,8 +2290,14 @@ flowchart TD
               label="Permission for a sample report"
               interactive
             >
-              <lf-ask id="sample-publish-report-decision">
-                <h2>Publish the sample report?</h2>
+              <section
+                id="sample-publish-report-decision"
+                role="group"
+                aria-labelledby="sample-publish-report-decision-h"
+              >
+                <h2 id="sample-publish-report-decision-h">
+                  Publish the sample report?
+                </h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
                 <lf-options id="sample-publish-report">
                   <lf-option id="sample-publish-report-keep"
@@ -2299,7 +2307,7 @@ flowchart TD
                     ><strong>Publish the report</strong></lf-option
                   >
                 </lf-options>
-              </lf-ask>
+              </section>
               <lf-activity id="sample-permission-history"></lf-activity>
             </lf-sample>
           </section>
@@ -2310,8 +2318,8 @@ flowchart TD
               HTML structure, element declarations, dependencies, and recorded user
               decisions. An invalid save keeps the last valid revision live and reports
               the error. <code>leaf page check --render</code> additionally opens the
-              page in Chrome in both color schemes to check for console errors,
-              invisible widgets, and horizontal overflow.
+              page in the reader’s browser to check for console errors, invisible
+              widgets, and horizontal overflow.
             </p>
           </section>
           <section id="edits">
@@ -2775,13 +2783,13 @@ flowchart TD
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
               obligation is answered by the actions its
-              <code>state.awaits</code> declaration names, such as a pick, or the Done a
+              <code>awaits</code> declaration names, such as a pick, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there or a settling reaction, such as 👍. The
-              agent ends its to-dos with <code>leaf task end</code>, and records the
-              same way an answer the user gave elsewhere, such as in chat. Done history
-              records the outcome, including withdrawn obligations and failed or dropped
-              to-dos.
+              agent ends its to-dos with <code>leaf task end</code>, and ends a thread
+              question the user answered elsewhere, such as in chat, by resolving its
+              thread. Done history records the outcome, including withdrawn obligations
+              and failed or dropped to-dos.
             </p>
 
             <p id="progress-lists-thread">
@@ -2851,7 +2859,9 @@ flowchart TD
                 Opens a question on On Me and makes the thread read
                 <em>Your turn</em>. A reply or settling reaction answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
-                such as trying a build, is asked the same way. Once the user answers
+                such as trying a build, is asked this way where only words can give its
+                answer, such as what an error said; where its outcomes can be listed,
+                its message usually offers them as options. Once the user answers
                 elsewhere, such as in chat, the agent resolves the thread.
               </li>
               <li id="updates-written-reopen">

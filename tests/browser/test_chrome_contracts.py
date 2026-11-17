@@ -392,9 +392,9 @@ def questions_page(sections: int) -> str:
         + "".join(
             f'<section id="s{g}"><h2>Section {g}</h2>'
             f'<p id="p{g}">Some words about section {g}.</p>'
-            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}">'
+            f'<section id="q{g}" role="group" aria-labelledby="q{g}-h"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}">'
             f'<lf-option id="o{g}-1">One</lf-option>'
-            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-ask></section>'
+            f'<lf-option id="o{g}-2">Two</lf-option></lf-options></section></section>'
             for g in range(1, sections + 1)
         )
         + "</article>",
@@ -579,9 +579,15 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
     that padding, so the padding goes while the user writes in such a box
     (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
-    leaves the words beneath the box where they stood."""
+    leaves the words beneath the box where they stood. The page widens its landing
+    room, which deepens that band, so the box's field stands inside it whatever room
+    the box keeps under its field."""
+    deep_band = LONG_PAGE.replace(
+        "</head>", "<style>:root { --lf-landing-room: 40px; }</style></head>"
+    )
+    assert deep_band != LONG_PAGE
     page = open_page(
-        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+        request.getfixturevalue(engine), serve(deep_band), init_script=KEEP_ROOTS
     )
     resized(page, 1512, 860)
     words = page.locator("#p40")

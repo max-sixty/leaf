@@ -220,6 +220,22 @@ grid of panes:
 }
 ```
 
+A widget that asks, such as a playground, stands in its question's group
+(`authoring-on-me.md`, "On the page"), and that group is the body. Where the header's
+heading asks the question, the group names that heading:
+
+```html
+<main class="layout-workspace density-working">
+  <header>
+    <h1 id="tune-h">Which latency window should checkout alert on?</h1>
+    <p>…</p>
+  </header>
+  <section id="tune" role="group" aria-labelledby="tune-h">
+    <lf-playground id="tune-config">…</lf-playground>
+  </section>
+</main>
+```
+
 Keep enough space to read each region's evidence and reach its decision. Readers often
 open a workspace on a laptop, in a window about 720px tall, so aim to keep each
 region's decision in view at that height. Stacked panes share the remaining height
@@ -278,7 +294,7 @@ column and sidebar pages:
 
 A `table` with either value is only as wide as its columns need, up to that width.
 A block widens when it is a child of the `layout-column`, or of a `section`,
-`article`, `details` or `lf-ask` in its flow, whose blocks stand in the flow around it,
+`article` or `details` in its flow, whose blocks stand in the flow around it,
 so its words stay on the column beside a wider one. A framed holder, such as a
 callout, needs its own `data-width` to widen; its children use the room inside it. A
 wide child alone does not widen its holder. Write a box that arranges its own
@@ -287,7 +303,7 @@ Under the reading face a table scrolls sideways when needed; a page without the 
 gives a table that can outgrow its width a box of its own that scrolls sideways
 (`page-authoring.md`, "Markup").
 
-A widget whose entry declares `paint.height`, such as `lf-chart`, reserves that height
+A widget whose entry declares `height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
 its own height, such as `lf-diagram`, reserves nothing, so content below it moves
 when it draws unless you set `data-height`. A diagram lays itself out for its width,

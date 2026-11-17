@@ -6,8 +6,8 @@
 description: record-asks-hold-their-premise
 metadata:
   purpose:
-    "Asks: on a record page, an `lf-ask` about a finding holds the finding's claim and its distinguishing
-    figure inside the lf-ask, and a tall live demo follows it."
+    "Asks: on a record page, a question section about a finding holds the finding's claim and its distinguishing
+    figure inside that section, and a tall live demo follows it."
   tags:
     - asks
 vars:
@@ -37,18 +37,18 @@ assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Read the HTML fragment as a user who presses `m`, which puts the `lf-ask`'s
+      Read the HTML fragment as a user who presses `m`, which puts the question section's
       heading at the top of the screen with everything above it out of view. Pass only
       if all of these hold:
-      1. There is one `lf-ask` whose first child is a heading stating the question.
-      2. `<figure id="seat-figure">` stands inside that `lf-ask`, before its `lf-options`.
-      3. The `lf-ask` itself says what happens today: focus stays in the task's box, so a
+      1. There is one question section whose first child is a heading stating the question.
+      2. `<figure id="seat-figure">` stands inside that section, before its `lf-options`.
+      3. The section itself says what happens today: focus stays in the task's box, so a
          second send makes a second thread. Wording may differ; a restatement counts, and
          so does an option that states it.
       4. The numbered steps and `<lf-sample id="seat-sample">` come after the
-         `lf-options`, not before the `lf-ask` or between its heading and its options.
-      Fail if the figure or the numbered steps and demo stand before the `lf-ask`, with
-      the `lf-ask` holding little more than the question and its options.
+         `lf-options`, not before the section or between its heading and its options.
+      Fail if the figure or the numbered steps and demo stand before the section, with
+      the section holding little more than the question and its options.
 variants:
   # A session's decision on plan context put its two captures in a table above the
   # options, so nothing tied each capture to its option. The user asked "why aren't
@@ -159,8 +159,9 @@ variants:
       - type: llm-rubric
         metric: arrival-context
         value: |
-          Treat each decision's lf-ask (or its answering widget if unframed) as the
-          arrival destination; everything before it is out of view. Pass only if
+          Treat each decision's named group (the element with `role="group"` round
+          its answering widget, or the widget itself if none) as the arrival
+          destination; everything before it is out of view. Pass only if
           each proposal has its issue and checked evidence inside the decision that
           covers it. A shared decision for clear-cut proposals must explain each. For
           example, #1 carries the missing-thread contrast and #3 the new-document
@@ -234,9 +235,9 @@ variants:
           Grade the HTML. The user is the project's maintainer. They know its
           commands, skills and widgets, but they have read neither the subagent's
           report nor the notes, the playground or these TODO lines, and don't
-          remember what the notes propose. Read each lf-ask as that user, arriving at
+          remember what the notes propose. Read each decision's section as that user, arriving at
           it with the rest of the page out of view. Pass only if each decision can be
-          answered from its own lf-ask: every name it takes from those sources is
+          answered from its own section: every name it takes from those sources is
           described where the decision uses it, or the decision doesn't rely on it.
           1. Undo: an option or recommendation naming "Show, then take", "Say what
              z takes" or another playground design says what that design does.

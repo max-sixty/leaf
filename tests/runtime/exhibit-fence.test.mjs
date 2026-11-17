@@ -1,4 +1,4 @@
-/* Mention, not use: a widget strictly inside an element the registry marks state.exhibit is
+/* Mention, not use: a widget strictly inside an element the registry marks `exhibit` is
    quoted. The descriptor staged before upgrade carries the answer, and `quoted` gives
    the same one for an element no descriptor holds. The server reads it off
    the holder chain (`obligations.quoted_in`); `tests/exhibit_cases.json` holds both runtimes

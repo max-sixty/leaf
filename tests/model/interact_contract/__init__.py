@@ -39,7 +39,7 @@ def _stateful_page_declaration(page_dir, tag="lf-local"):
         "unit": "widget",
         "record": {"kind": "value", "attr": "value"},
     }
-    declaration.setdefault("state", {})["verbs"] = {"first": state}
+    declaration["verbs"] = {"first": state}
     return declaration
 
 

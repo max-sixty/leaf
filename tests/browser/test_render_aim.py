@@ -101,7 +101,7 @@ from leaf import structure as structure_model
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
-from leaf_dev.browser import PANEL_THREAD, panel_tab
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -250,10 +250,8 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
-    # Open by script, the leaf's menu and then its On Me tab, so the pointer remains
-    # parked on the target while the view arrives.
-    page.locator(".lf-fp-leaf").evaluate("node => node.click()")
-    panel_tab(page, "On Me").evaluate("node => node.click()")
+    # Open by script so the pointer remains parked on the target while the view arrives.
+    page.locator(".lf-fp-on-user").evaluate("node => node.click()")
     panel_settled(page, view="queue")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     aligned = page.evaluate(
@@ -1104,12 +1102,12 @@ def test_a_comment_on_a_whole_target_stands_by_the_row_it_was_pointed_at(
 
 TALL_OBLIGATION_PAGE = leaf_page(
     "A tall Ask",
-    '<h1>Route</h1><lf-ask id="way"><h2>Which way?</h2>'
+    '<h1>Route</h1><section id="way" role="group" aria-labelledby="way-h"><h2 id="way-h">Which way?</h2>'
     + "".join(
         f"<p>Consideration {n} about the route, at length.</p>" for n in range(30)
     )
     + '<lf-options id="route"><lf-option id="north">North</lf-option>'
-    '<lf-option id="south">South</lf-option></lf-options></lf-ask><p>After.</p>',
+    '<lf-option id="south">South</lf-option></lf-options></section><p>After.</p>',
 )
 # Every margin row by what it stands for: the rows about `target`, each as its top
 # measured from the target's, and whether it holds a comment. Rows are read by their
@@ -1392,11 +1390,13 @@ POINTED_WITHIN = {
     ),
     # A target's first line: its own row stands there already, so a comment pointed at
     # it joins that row, an obligation's marker's, rather than standing pushed below it.
+    # The group is named by `aria-label`, so its heading carries no id and points at the
+    # group rather than being a target of its own.
     "first line": (
         (
-            '<lf-ask id="within"><h2>Which way?</h2><lf-options id="route">'
+            '<section id="within" role="group" aria-label="Which way?"><h2>Which way?</h2><lf-options id="route">'
             '<lf-option id="north">North</lf-option><lf-option id="south">South'
-            "</lf-option></lf-options></lf-ask>"
+            "</lf-option></lf-options></section>"
         ),
         ["#within h2"],
         0,
@@ -3307,7 +3307,7 @@ def test_a_picture_is_one_addressable_element_however_many_ids_its_renderer_coin
 ):
     """A generated SVG node still names the authored widget when no parts are declared.
 
-    The registry's words.visual contract makes the drawing one item rather than exposing
+    The registry's `visual` contract makes the drawing one item rather than exposing
     renderer internals, so both the aim and the legend stop at the widget.
     """
     page = open_page(browser, serve(PICTURE_PAGE))
@@ -3828,10 +3828,10 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
 <p><label for="name">Name</label> <input id="name" type="text" value="Ada"></p>
-<lf-options id="ship">
+<section id="ship-q" role="group" aria-label="When to ship?"><lf-options id="ship">
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
-</lf-options>""",
+</lf-options></section>""",
             )
         ),
     )

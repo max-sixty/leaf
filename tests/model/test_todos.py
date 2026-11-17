@@ -26,7 +26,6 @@ from interact_support import (
     page_state,
     publish,
     record_claim,
-    refused_on,
     response_reference,
     served_obligations,
     served_thread,
@@ -40,7 +39,6 @@ from leaf import delivery as delivery_model
 from leaf import event_contracts as contracts_model
 from leaf import event_endpoint as endpoint_model
 from leaf import event_log as events_model
-from leaf import files as files_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import session as session_model
@@ -661,18 +659,16 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
     assert state["activity"]["kind"] != "working"
 
 
-@pytest.mark.parametrize(
-    "claim, refusal",
-    [("task start", "unowed-start"), ("progress reply", "superseded-reply")],
-)
-def test_a_claim_reaching_the_door_as_its_update_settles_is_refused(
-    page_dir, monkeypatch, claim, refusal
+@pytest.mark.parametrize("claim", ["task start", "progress reply"])
+def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
+    page_dir, monkeypatch, capsys, claim
 ):
     """An agent decides to take an update in hand from a delivery it read earlier, so
     the update may settle between that reading and its claim. The door reads whether
     the update is still owed under the same log lock as the append, so a claim that
-    reaches the lock while the settlement holds it is refused, and the page never
-    reads Working on a settled update."""
+    reaches the lock while the settlement holds it takes nothing in hand, and the page
+    never reads Working on a settled update. A bare start is refused; progress still
+    posts in the thread, with a note of what the log now holds the update as."""
     publish(page_dir)
     comment = append_command(
         page_dir,
@@ -713,9 +709,21 @@ def test_a_claim_reaching_the_door_as_its_update_settles_is_refused(
     claiming.join(STATED_TIMEOUT)
     assert not claiming.is_alive()
 
-    [refused] = refusals
-    assert refused.findings[0].code == refusal
-    assert events_model.read_events(page_dir)[-1]["kind"] == "resolve"
+    last = events_model.read_events(page_dir)[-1]
+    if claim == "task start":
+        [refused] = refusals
+        assert refused.findings[0].code == "unowed-start"
+        assert last["kind"] == "resolve"
+    else:
+        assert refusals == []
+        assert (last["kind"], last["ephemeral"], "start" in last) == (
+            "reply",
+            True,
+            False,
+        )
+        noted = json.loads(capsys.readouterr().err.splitlines()[-1])
+        assert noted["code"] == "superseded-progress"
+        assert "resolved the thread" in noted["text"]
     state = state_json(page_dir)
     assert state["workflows"] == []
     assert state["activity"]["kind"] != "working"
@@ -779,96 +787,16 @@ def task_log():
     return append, log
 
 
-@pytest.mark.parametrize("outcome", ["done", "failed", "dropped"])
-def test_only_the_latest_starting_session_can_complete_agent_work(task_log, outcome):
-    """Log order transfers authority for every outcome, even while work is put down."""
+def test_any_agent_session_can_end_a_todo_another_started(task_log):
+    """A start says who is at work, not who may end the to-do: a session that
+    neither opened nor started it ends it."""
     append, log = task_log
     todo = append("todo", session="opener", subject={"kind": "page"}, title="Plan")
-    for session in ("older", "newer"):
-        latest = append("start", session=session, item=todo["id"], text="Working")
-    append("status", session="newer", state="waiting")
-    assert todos_model.TodoReading(log).owed[0]["running"] is None
-
-    for session in ("older", "opener", "third", None):
-        with pytest.raises(events_model.EventRefused) as refused:
-            append("todo_end", session=session, todo=todo["id"], outcome=outcome)
-        finding = refused_on(refused.value)
-        assert (finding.code, finding.values) == (
-            "todo-execution",
-            {
-                "todo": todo["id"],
-                "start": latest["id"],
-                "session": "newer",
-                "kind": "todo_end",
-            },
-        )
-    completed = append("todo_end", session="newer", todo=todo["id"], outcome=outcome)
+    append("start", session="worker", item=todo["id"], text="Working")
+    completed = append("todo_end", session="third", todo=todo["id"], outcome="failed")
     [ended] = todos_model.TodoReading(log).todos
-    assert ended["state"] == outcome
+    assert ended["state"] == "failed"
     assert ended["outcome"]["id"] == completed["id"]
-
-
-def test_explicit_starts_transfer_completion_authority_back_and_between_tasks(task_log):
-    """A session can retake work; a start on another item transfers only that item."""
-    append, log = task_log
-    todos = [
-        append("todo", subject={"kind": "page"}, title=title)
-        for title in ("Plan", "Glossary")
-    ]
-    for session in ("older", "newer", "older"):
-        append("start", session=session, item=todos[0]["id"], text="Working")
-    append("start", session="newer", item=todos[1]["id"], text="Other work")
-    with pytest.raises(events_model.EventRefused) as refused:
-        append("todo_end", session="newer", todo=todos[0]["id"], outcome="done")
-    assert refused_on(refused.value).code == "todo-execution"
-    for todo, session in zip(todos, ("older", "newer"), strict=True):
-        append("todo_end", session=session, todo=todo["id"], outcome="done")
-    assert todos_model.TodoReading(log).owed == []
-
-
-def test_unstarted_and_anonymously_started_tasks_remain_completable(task_log):
-    """Opening creates no session ownership; an anonymous start is a real start."""
-    append, log = task_log
-    unstarted = append("todo", session="opener", subject={"kind": "page"}, title="Plan")
-    append("todo_end", session="another", todo=unstarted["id"], outcome="done")
-    anonymous = append("todo", subject={"kind": "page"}, title="Glossary")
-    latest = append("start", item=anonymous["id"], text="Working")
-    with pytest.raises(events_model.EventRefused) as refused:
-        append("todo_end", session="identified", todo=anonymous["id"], outcome="done")
-    assert refused_on(refused.value).values == {
-        "todo": anonymous["id"],
-        "start": latest["id"],
-        "session": None,
-        "kind": "todo_end",
-    }
-    append("todo_end", todo=anonymous["id"], outcome="done")
-    assert todos_model.TodoReading(log).owed == []
-
-
-def test_delayed_completion_keeps_its_session_authority_after_claim_and_turn_changes(
-    page_dir,
-):
-    """A later turn and a different watcher do not make a posting session obsolete."""
-    publish(page_dir)
-    todo = written(
-        leaf("task", "create", page_dir, "page", "--title", "Draft the plan")
-    )
-    record_claim(page_dir, id=todo["session"], turn="earlier-turn")
-    start = written(
-        leaf("task", "start", page_dir, todo["id"], "--text", "Drafting the plan")
-    )
-    assert start["turn"] == "earlier-turn"
-
-    record_claim(page_dir, id=todo["session"], turn="later-turn")
-    continued = written(
-        leaf("task", "start", page_dir, todo["id"], "--text", "Continuing the plan")
-    )
-    assert continued["turn"] == "later-turn"
-    # Claims govern who watches the page; completion comes from the poster's voice.
-    record_claim(page_dir, id="another-watcher", turn="watcher-turn")
-    completed = written(leaf("task", "end", page_dir, todo["id"], "done"))
-    assert completed["session"] == continued["session"] == start["session"]
-    assert state_json(page_dir)["todos"] == []
 
 
 WORK_PAGE = FLOW_PAGE.replace(
@@ -881,7 +809,7 @@ WORK_PAGE = FLOW_PAGE.replace(
 
 
 def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
-    """A to-do on a page widget needs a widget that declares `state.work` or holds an
+    """A to-do on a page widget needs a widget that declares `work` or holds an
     unsettled move. Dropping its widget leaves it open; `page stamp --completes`
     ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
@@ -934,8 +862,9 @@ def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
     assert "needs no --completes" in again.output
 
 
-def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(page_dir):
-    """A stamp uses the same authority rule for every task it completes, atomically."""
+def test_a_completing_stamp_ends_todos_another_session_started(page_dir):
+    """A stamp's `--completes` ends every open to-do on its widget, whichever
+    session last started each."""
     source = page_dir / "index.html"
     source.write_text(WORK_PAGE)
     publish(page_dir)
@@ -943,11 +872,7 @@ def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(pag
         written(leaf("task", "create", page_dir, "rollout-card", "--title", title))
         for title in ("Check fallback", "Check rollout")
     ]
-    for todo in todos:
-        written(
-            leaf("task", "start", page_dir, todo["id"], "--text", "Checking rollout")
-        )
-    continued = append_command(
+    append_command(
         page_dir,
         {
             "kind": "start",
@@ -958,38 +883,6 @@ def test_a_stale_completing_stamp_refuses_before_publishing_or_settling_work(pag
         },
     )
     source.write_text(WORK_PAGE.replace("<title>t</title>", "<title>Checked</title>"))
-    before = events_model.read_events(page_dir)
-    revisions = files_model.list_revisions(page_dir)
-    [refused] = command_findings(
-        "page",
-        "stamp",
-        page_dir,
-        "--text",
-        "Checks complete",
-        "--completes",
-        "rollout-card",
-    )
-    assert refused.code == "todo-execution"
-    assert refused.values == {
-        "todo": todos[-1]["id"],
-        "start": continued["id"],
-        "session": "newer",
-        "kind": "note",
-    }
-    assert events_model.read_events(page_dir) == before
-    assert files_model.list_revisions(page_dir) == revisions
-    assert len(todos_model.TodoReading(before).owed) == 2
-
-    append_command(
-        page_dir,
-        {
-            "kind": "start",
-            "author": "agent",
-            "session": todos[-1]["session"],
-            "item": todos[-1]["id"],
-            "text": "Retaking the checks",
-        },
-    )
     completed = stamp(page_dir, "Checks complete", completes=("rollout-card",))
     assert completed.exit_code == 0, completed.output
     assert state_json(page_dir)["todos"] == []
@@ -1702,7 +1595,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
 
 
 def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_dir):
-    """state.work admits a task on a widget; it is not the task's only later seat.
+    """`work` admits a task on a widget; it is not the task's only later seat.
 
     Re-vendoring can remove that declaration while the live widget remains, because
     the page-edge margin entry continues to present the task already admitted.
@@ -1730,7 +1623,7 @@ def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_d
     card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-card"
     ]
-    card["state"].pop("work")
+    card.pop("work")
     layer = Path.cwd() / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
@@ -1747,7 +1640,7 @@ def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_d
 
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page_dir)
-    assert "work" not in registry["lf-card"].get("state", {})
+    assert "work" not in registry["lf-card"]
     [todo] = state_json(page_dir)["todos"]
     assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}
 

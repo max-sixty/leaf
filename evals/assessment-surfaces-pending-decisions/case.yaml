@@ -39,7 +39,7 @@ assert:
   - type: llm-rubric
     metric: pending-decisions
     value: |
-      Pass only if scrolling and history each have a separate lf-ask with a direct
+      Pass only if scrolling and history each have a separate question section with a direct
       question heading and one operable answering widget. Each offers the proposed
       change and keeping the current behavior, begins undecided, and can be answered
       independently. The premise and tradeoff needed to decide are inside each decision.
@@ -267,8 +267,8 @@ variants:
         </article>
         </main>
       question: |
-        <lf-ask id="next-touch-question">
-          <h3>Should #59 be the next extraction scope?</h3>
+        <section id="next-touch-question" role="group" aria-labelledby="next-touch-question-h">
+          <h3 id="next-touch-question-h">Should #59 be the next extraction scope?</h3>
           <p>Tapping a discussion should select it even when an older message still has
           focus. I recommend this independent fix next; extraction and verification are
           my work, and choosing a scope does not authorize landing it.</p>
@@ -276,7 +276,7 @@ variants:
             <lf-option id="next-touch-keep" value="keep-priority">Keep the current priorities</lf-option>
             <lf-option id="next-touch-next" value="next-scope">Make #59 the next extraction scope</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
       prompt: |
         We have been splitting a large UI branch into independently reviewable changes.
         I asked for a Leaf explaining the work that is left and what we should do next.
@@ -335,7 +335,7 @@ variants:
           to assessment, while its detailed table already presents a proposal;
           either keeping assessment on the agent or asking about that proposed
           boundary is valid. Do not require exactly seven obligations.
-          This is a read-only plan: execution is not required. A bare lf-ask question
+          This is a read-only plan: execution is not required. A question section with no widget
           or conversational obligation does not record a choice; a thread or reply
           needs an answering widget in its markup.
           Do not require exact wording, IDs, order, or a particular choice widget.
@@ -389,8 +389,8 @@ variants:
           and one for the registry proposal, and reads the canonical queues with
           leaf page state after registration before handing over or waiting.
           Each decision needs an answering widget offering acceptance and rejection,
-          on the page or in an agent thread or reply, optionally framed by lf-ask.
-          A bare lf-ask question or conversational obligation does not record a choice.
+          on the page, in the named group of its question, or in an agent thread or
+          reply. A question with no widget or conversational obligation does not record a choice.
           A status line, chat list, ordinary HTML
           comparison, or promise to add questions later fails. Home must remain
           settled; it must not acquire a new request for approval. Do not require
@@ -404,7 +404,7 @@ variants:
     vars:
       prompt: |
         You drive a live Leaf prose review at ~/.local/state/leaf/pages/prose-audit.
-        The review had two proposal questions, each an lf-ask opening its own agent
+        The review had two proposal questions, each a question section opening its own agent
         thread: event-log-q and registry-q. I answered in this chat: "Apply the event-log
         rewrite; keep the original registry wording." Both edits are now applied
         and checked.
@@ -552,7 +552,7 @@ variants:
           </lf-column>
         </lf-board>
 
-        Below the board, the `lf-ask` "Which of these should I start?" is settled: I
+        Below the board, the question "Which of these should I start?" is settled: I
         picked the z-index fix, which has landed. None of the board's decisions
         block work you are doing now; they decide future work.
 
@@ -580,10 +580,10 @@ variants:
           painting over Leaf's panels, how a page restyles Leaf's interface, how
           installs get the kernel) and each of the two recommended refactors (grid
           stack, change detector) becomes a registered On Me obligation on the page before
-          handoff. Each choice needs an answering widget, optionally
-          framed by lf-ask, since a reply asking about one would settle a thread
-          question without deciding it. The widget can be on the page or in a
-          thread. Each decision is answerable on its
+          handoff. Each choice needs an answering widget, since a reply asking about
+          one would settle a thread question without deciding it. The widget can be
+          on the page, in the named group of its question, or in a thread. Each
+          decision is answerable on its
           own; one obligation that accepts both recommended refactors together passes only
           if it states why each is clear-cut. The answer reads canonical queues
           with leaf page state after registering. Fail if any of these stays only

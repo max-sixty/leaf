@@ -14,9 +14,8 @@
    zero. At zero the authored title is the tab's, so a page that waits on nobody is
    untouched.
 
-   `authoredTitle()` is what other readers of "this page's title" use (All pages,
-   live-leaves.js; a thread card's trail, thread-card.js); `document.title` now says the
-   tab's. A revision replaces the authored title node (version.js, `activateHead`), which
+   `authoredTitle()` is what other readers of "this page's title" use, packages through
+   widget-api.js; `document.title` now says the tab's. A revision replaces the authored title node (version.js, `activateHead`), which
    the head observer follows: its work is one head's, not the page's size. */
 
 const TAB = document.createElement("title");

@@ -279,7 +279,7 @@ customElements.define(
       const items = readObligations();
       const answered = items.all.filter((item) => item.status === "answered");
       // Counts cover every obligation; this summary lists completed widget choices, not the
-      // words that answered a question (an lf-ask).
+      // words that answered a question asked in a message.
       const labels = items.all
         .filter(
           (item) =>

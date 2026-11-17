@@ -20,9 +20,8 @@
  *   answering a gesture show immediately.
  * - **The row**: the leaf, the comment field, and at its end one seat: the On Me mark,
  *   counting what waits on the user, with a dot while a thread holds a reply they have
- *   not read, and pressing Next On Me with its key `m` beside the count while the count
- *   stands (`pressMark`); or, while a search stands, the ✕ that ends it, and while a
- *   stance stands, the ✕ that ends it wherever the field doesn't say Close at its end, as it does with
+ *   not read; or, while a search stands, the ✕ that ends it, and while a stance stands,
+ *   the ✕ that ends it wherever the field doesn't say Close at its end, as it does with
  *   its words at rest, so the seat never stands empty and the stance has one way out
  *   on screen. The ✕ takes the leaf's width, beside the field;
  *   filling the room On Me keeps for its count would stand it apart from the field,
@@ -39,28 +38,32 @@
  *   empty for the ✕, which leaves a gap at the row's end; Threads is the On view's
  *   tab, since On Me already lists a thread message that waits on the user. Rejected:
  *   the ✕ standing before both marks, which kept them still but stood it between the
- *   field and the marks. Nothing else stands in the row, so the field's width follows
- *   only the user's own moves, and what its end says never slides. The empty field says
+ *   field and the marks; and, which the user rejected, the mark pressing Next On Me
+ *   with `m` beside its count, which took the On Me list a press further away and
+ *   crowded the row's end with a second key. Nothing else stands in the row, so the
+ *   field's width follows only the user's own moves, and what its end says never
+ *   slides. The empty field says
  *   what the agent is doing or wants, in the status's words (`statusReading`), after
  *   where the user stands on the page, such as an older version (`standing`), or what
  *   a passing notice says, where a placeholder would say "Comment", and the field's end
  *   says the one press that matters most at that moment: Comment and c at rest, or
  *   Open latest on an older version (`latestPress`); while it passes, the press a notice of
  *   the user's own gesture offers, as a Resolve's Next thread and t (`noticePress`,
- *   thread/folding.js); and in a stance,
+ *   thread/folding.js); once the server reads a gesture as answering something On Me
+ *   lists, a pick, a settling reaction or a reply sent from a card, while more stands
+ *   there, Next On Me and m (application.js, `offerNextOnMe`), which a reply or comment
+ *   sent from this field never shows, since the caret stays in it; and in a stance,
  *   such as Draw mode, whose name the field says, Close (`stanceClose`), in place of
  *   the seat's ✕. A press acts as a touch control does, wherever the caret stands, and
  *   says its key only while that key would make it now: `m` typed in a card's reply is
  *   a letter, and Escape closes a comment box standing in Design mode before the mode.
  *   The user chose a notice's press, so a Resolve that moves the panel on says which
  *   thread it resolved and offers its next step there, and the rest over Undo and z
- *   after a Resolve and the ✕ with Escape unsaid in a stance. The On Me mark offers
- *   Next On Me and m whatever the user did last, rather than the field's end after an
- *   answer with more On Me, which offered them only until the user's next input. In a
- *   thread it says the thread's word beside the leaf, in its speaker's face
- *   (voice.js), with a walk's position after it, and Reply with the key that enters
- *   the field at the field's end (`turnLead`). The user chose this so the next action
- *   reads apart from the agent's words, over three others:
+ *   after a Resolve, Comment and c after an answer, and the ✕ with Escape unsaid in a
+ *   stance. In a thread it says the thread's word beside the leaf, in its speaker's
+ *   face (voice.js), with a walk's position after it, and Reply with the key that
+ *   enters the field at the field's end (`turnLead`). The user chose this so the next
+ *   action reads apart from the agent's words, over three others:
  *   the key beside Reply with the turn at the field's end in one face, Reply alone with
  *   the turn left to the thread's messages, and the agent's words in a lane of their
  *   own before the seat, at rest too. Reply takes the one dim face the user chose for
@@ -170,10 +173,10 @@
  * field, which says where `c` goes, beside Reply in an open thread, which the user
  * asked for as a margin card's reply box shows it, and beside Comment at rest, which
  * they chose to match the box that rests beside a target (composing/surface.js,
- * `restFab`); a passing press's key, such as Next thread's `t` (`noticePress`); and
- * `m` on the On Me mark (`nextOnMeKey`). The menu's rows carry every other key and `?`
- * opens the full reference, which the user chose over a hint or two in the line over
- * the field, to keep the panel quietest. The field the
+ * `restFab`); and a passing press's key, such as Next thread's `t` or Next On Me's `m`
+ * (`noticePress`). The menu's rows carry every other key and `?` opens the full
+ * reference, which the user chose over a hint or two in the line over the field, to
+ * keep the panel quietest. The field the
  * user clicks in is the field they write in: a page
  * comment where no thread is open, a reply where one is: the reply box every view of a
  * thread draws (thread/replies.js), with its ↑ to the user's last message, which Leaf's
@@ -215,7 +218,6 @@
  * behind the box widening around it. Rejected: revealing everything a change moves
  * by the surface's clip, which hides each part that moved until the clip reaches it. */
 import {
-  computed,
   guard,
   html,
   noChange,
@@ -323,7 +325,12 @@ import { declareSide, holdPagePlace } from "./current-target.js";
 import { versionPicker } from "./version-picker.js";
 import { comparisonBase, comparisonChanges, versionsReading } from "./version.js";
 import { UPGRADE } from "./presentation.js";
-import { gestureReading, noticeReading, noticeWords } from "./notifications.js";
+import {
+  gestureReading,
+  noticeReading,
+  noticeWords,
+  offeredPress,
+} from "./notifications.js";
 import {
   dismissError,
   dismissErrors,
@@ -338,7 +345,6 @@ import {
   claimReleaseClick,
   focusDestination,
   focused,
-  followingFocus,
   holdFocus,
   inputCount,
   letGo,
@@ -388,13 +394,10 @@ import {
   activeCommandLabel,
   escapeInvocation,
   innermostStance,
-  pressCommand,
 } from "./keyboard/dispatch.js";
 import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
-// The walk's route `m` takes (queue-walk.js), which the On Me mark presses.
-const NEXT_ON_ME = "queue.next";
 
 // What the field's own search box asks for, in each list it searches, in Leaf's words
 // as every search's prompt is (control-labels.js, `searchField`).
@@ -709,25 +712,18 @@ export function createFloatingPanel({
       : kept
         ? `${counted(kept, "draft")} unsent`
         : "";
-    // While On Me lists anything, the mark presses Next On Me (`pressMark`) and wears
-    // the key that makes it, where that key would make it now (`nextOnMeKey`).
-    const walks = !exit && onUser > 0;
-    const onUserName = [
-      walks ? `Next On Me, ${onUser} waiting on me` : "On Me",
-      newsName,
-    ]
+    const onUserName = [onUser ? `On Me: ${onUser}` : "On Me", newsName]
       .filter(Boolean)
       .join(", ");
-    const walkKey = walks && advertisesKeys() ? nextOnMeKey.value : "";
     const quick = html`<button
       type="button"
       ${offeredAction(
         "symbol",
         exit ? "lf-fp-exit" : "lf-fp-on-user",
         exit ? exit.label : onUserName,
-        { action: exit ? "close" : walks ? "next-on-me" : "on-me" },
+        { action: exit ? "close" : "on-me" },
       )}
-      ?data-lf-due=${walks}
+      ?data-lf-due=${!exit && onUser > 0}
       ?disabled=${Boolean(exit?.disabled)}
       @mousedown=${
         exit ? (/** @type {MouseEvent} */ event) => event.preventDefault() : nothing
@@ -738,12 +734,6 @@ export function createFloatingPanel({
         exit
           ? nothing
           : html`<span class="lf-fp-num">${onUser || ""}</span
-              ><span class="lf-fp-on-key"
-                >${
-                  walkKey
-                    ? keySequenceTemplate(keySequenceModel(neutralSteps([walkKey])))
-                    : nothing
-                }</span
               ><span
                 class="lf-fp-news lf-unread-dot"
                 ?hidden=${!news && !kept}
@@ -960,7 +950,7 @@ export function createFloatingPanel({
     readCorner();
     // A press offered while the pointer stood on the panel stands once it leaves
     // (`pagePress`).
-    if (latestShown !== Boolean(latestPress())) paint();
+    if (shownOffer !== pageOffer()) paint();
   });
   const leaf = shell("leaf");
   const field = shell("field");
@@ -1024,15 +1014,6 @@ export function createFloatingPanel({
     publication: null,
   };
   const status = () => statusReading() ?? CONNECTING;
-  // The key that makes Next On Me from where the user is now, which the On Me mark wears
-  // beside its count while it presses Next On Me: none where `m` would be a letter
-  // typed, as in a card's reply, as a notice's press says its key (`noticePress`). It
-  // reads again as the user moves, so the panel repaints only when the key comes or
-  // goes. A finger is shown no key (`advertisesKeys`), which the paint asks itself,
-  // since the pointer's kind is no signal this reading could follow.
-  const nextOnMeKey = computed(() =>
-    followingFocus(() => activeCommandLabel([NEXT_ON_ME])),
-  );
   // Words drawn in their speakers' faces (voice.js), where the agent's sentence alone
   // carries response identity. Its renderer ref registers and retires that exact node
   // with the shared exposure owner, wherever status stands: the field's placeholder
@@ -1327,21 +1308,26 @@ export function createFloatingPanel({
     }
     return { says: "turn", words: leafSays(REPLY_HINT), offers: true };
   }
-  // The press offered alone on the page: Open latest while the page shows an older
-  // version (`latestPress`), or null. It comes and goes with the server's reading
-  // rather than with the user's input, so while the pointer rests on the panel the
-  // field's end keeps what it showed, and takes the change at the user's next input or
-  // once the pointer leaves: a press arriving there would stand where the user was
+  // The press offered alone on the page, as Next On Me after an answer
+  // (notifications.js, `offerPress`), else Open latest while the page shows an older
+  // version (`latestPress`), or null (`pageOffer`). It comes and goes with the server's
+  // reading rather than with the user's input, so while the pointer rests on the panel
+  // the field's end keeps what it showed, and takes the change at the user's next input
+  // or once the pointer leaves: a press arriving there would stand where the user was
   // about to press Comment (browser/AGENTS.md, "The page holds still under the user's
   // aim").
-  let latestShown = false;
+  /** @returns {import("./notifications.js").NoticePress | "latest" | null} */
+  const pageOffer = () => offeredPress() ?? (latestPress() ? "latest" : null);
+  /** @type {ReturnType<typeof pageOffer>} */
+  let shownOffer = null;
   let offerShownAt = -1;
   function pagePress() {
     if (pointer === null || inputCount() !== offerShownAt) {
-      latestShown = Boolean(latestPress());
+      shownOffer = pageOffer();
       offerShownAt = inputCount();
     }
-    return latestShown ? latestPress() : null;
+    if (shownOffer === "latest") return latestPress();
+    return shownOffer ? noticePress(shownOffer) : null;
   }
   // What stands before an open thread's reply while the field says it, beside the leaf
   // (composing/input.js, `hintLead`): the thread's word, as Threads says it, then a
@@ -3691,17 +3677,11 @@ export function createFloatingPanel({
     if (turned && showing({ view: "queue" })) paint();
     else open({ view: "queue" });
   }
-  // The mark presses Next On Me while On Me lists anything, as `m` does, through the
-  // command the key runs, so the press is announced and logged as the key's and lands
-  // where the walk lands (queue-walk.js). With nothing On Me it opens Threads where a
-  // reply waits unread or a draft was put away, and the empty On Me list otherwise.
-  // The user asked for the row's end to offer `m`'s Next On Me, as the field's end
-  // offers Comment and c, rather than the mark opening the On Me list, which stays a
-  // press away as the On view's tab beside the leaf's menu, and `g M`. It stands only
-  // while no view does, so it never closes one; the seat's ✕ does that.
+  // The mark opens On Me, or Threads where nothing waits on the user but a reply they
+  // have not read or a draft they put away. It stands only while no view does, so it
+  // never closes one; the seat's ✕ does that.
   function pressMark() {
-    if (onUserCount()) pressCommand(NEXT_ON_ME);
-    else if (newCount() || keptDrafts()) {
+    if (!onUserCount() && (newCount() || keptDrafts())) {
       query = "";
       refit();
       open({ view: "threads" });
@@ -5115,14 +5095,15 @@ export function createFloatingPanel({
   }
 
   // ---------- the field's presses ----------
-  // A notice's press, as the field's end offers it (composing/input.js, `BoxPress`): its word, the keys of the
+  // A notice's press, or one offered alone (notifications.js, `offerPress`), as the
+  // field's end offers it (composing/input.js, `BoxPress`): its word, the keys of the
   // page command that makes it, as the command reference spells them, and what it does.
   // The user chose that the right side of the box is for shortcuts,
   // so a notice's press stands there with its key, in the face Comment and c wear, over
   // the notice's own line with an inked Undo over the field's start, the one press in
   // the row in a face of its own.
   // Its key stands beside it only while that key would make the same press now, as the
-  // dispatcher reads it (`activeCommandLabel`): with the caret in a box, `t` is a letter
+  // dispatcher reads it (`activeCommandLabel`): with the caret in a box, `m` is a letter
   // typed, and the press alone still acts.
   /** @param {import("./notifications.js").NoticePress} press
    * @returns {import("./composing/input.js").BoxPress} */

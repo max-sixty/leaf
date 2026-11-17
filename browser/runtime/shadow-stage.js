@@ -40,7 +40,7 @@ export function shadowStage(host, nodes) {
   return root;
 }
 
-// A words.shadow widget shows only what its stage holds, so its failure box stands
+// A `shadow` widget shows only what its stage holds, so its failure box stands
 // there, and the widget's next stage replaces it. Page layout can't see into the stage,
 // so `data-lf-failed` says on the host that the stage holds a failure, as a light child
 // `.lf-error` says it for every other widget.

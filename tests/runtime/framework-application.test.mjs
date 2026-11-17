@@ -30,7 +30,7 @@ const stamped = (registry) => ({
       .map(([tag, entry]) => [
         tag,
         Object.fromEntries(
-          Object.entries(entry.state?.verbs ?? {}).map(([verb, verbSpec]) => [
+          Object.entries(entry.verbs ?? {}).map(([verb, verbSpec]) => [
             verb,
             { writer: verbSpec.writer, definition: definition(tag, verbSpec) },
           ]),
@@ -52,9 +52,7 @@ const descriptor = {
   tag: "lf-choice",
   document: { kind: "page", revision: 1 },
   declaration: {
-    state: {
-      verbs: { decide: { ...spec, writer: "user" } },
-    },
+    verbs: { decide: { ...spec, writer: "user" } },
   },
   parent: null,
   ancestors: [],
@@ -162,9 +160,7 @@ const capture = (extraDescriptors = [], extraAuthored = []) => {
         [
           "lf-choice",
           {
-            state: {
-              verbs: { decide: { ...spec, writer: "user" } },
-            },
+            verbs: { decide: { ...spec, writer: "user" } },
           },
         ],
         ...extraDescriptors.map(([, captured]) => [captured.tag, captured.declaration]),
@@ -904,7 +900,7 @@ test("admitted edits, a raced undo refusal, and revisions share one sequence", (
     const app = createSemanticApplication();
     app.identify(1);
     const declaration = sequence.declaration;
-    const specs = new Map(Object.entries(declaration.state?.verbs));
+    const specs = new Map(Object.entries(declaration.verbs));
     const document = (revision) => ({
       ...app.read().document,
       revision,
@@ -1475,9 +1471,9 @@ test("the publisher carries the server's obligation reading, page obligations be
   }
 
   const read = state(2);
-  const page = wireObligation("question", "lf-ask", "choice", "lf-choice");
+  const page = wireObligation("question", "section", "choice", "lf-choice");
   const frozen = {
-    ...wireObligation("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", "root-1"),
+    ...wireObligation("frozen-ask", "section", "frozen-choice", "lf-choice", "root-1"),
     status: "withdrawn",
     next_actor: null,
   };
@@ -1521,9 +1517,7 @@ test("an unsettled report supplies desired widget state", () => {
       attributes: {
         properties: { choice: { type: "string" } },
       },
-      state: {
-        verbs: { preview: { ...valueSpec, writer: "agent" } },
-      },
+      verbs: { preview: { ...valueSpec, writer: "agent" } },
     },
   };
   const app = setup([[source.id, source]]);
@@ -1606,9 +1600,7 @@ test("a revision preserves pending delivery while replacing incompatible specula
     attributes: {
       properties: { status: { type: "integer" } },
     },
-    state: {
-      verbs: { decide: revisedSpec },
-    },
+    verbs: { decide: revisedSpec },
   };
   document.registry = stamped({ ...document.registry, "lf-choice": declaration });
   document.descriptors.set("choice", {
@@ -1658,9 +1650,7 @@ test("a pending undo keeps withdrawing its target once the log admits it under a
   document.registry = stamped({
     ...document.registry,
     "lf-choice": {
-      state: {
-        verbs: { decide: broadened },
-      },
+      verbs: { decide: broadened },
     },
   });
   document.descriptors.set("choice", {
@@ -1684,9 +1674,7 @@ test("a revision changing a verb's writer retains delivery without drawing the o
   document.revision = 2;
   const agentSpec = { ...spec, writer: "agent" };
   const declaration = {
-    state: {
-      verbs: { decide: agentSpec },
-    },
+    verbs: { decide: agentSpec },
   };
   document.registry = stamped({ ...document.registry, "lf-choice": declaration });
   document.descriptors.set("choice", {
@@ -1709,10 +1697,7 @@ test("An obligation contains the local typed answer while completion waits for a
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      state: {
-        ...descriptor.declaration.state,
-        awaits: { value: "decide", answered: { decide: {} } },
-      },
+      awaits: { value: "decide", answered: { decide: {} } },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1745,10 +1730,8 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
   const declared = {
     ...descriptor,
     declaration: {
-      state: {
-        verbs: { choose },
-        awaits: { value: "choose", answered: { choose: {} } },
-      },
+      verbs: { choose },
+      awaits: { value: "choose", answered: { choose: {} } },
     },
   };
   const app = capture(
@@ -1795,10 +1778,8 @@ test("pending undo removes completed empty obligation values and refusal restore
     const declared = {
       ...descriptor,
       declaration: {
-        state: {
-          verbs: { choose, answer },
-          awaits: { value: "choose", answered: { answer: {} } },
-        },
+        verbs: { choose, answer },
+        awaits: { value: "choose", answered: { answer: {} } },
       },
     };
     const app = capture(
@@ -1855,10 +1836,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      state: {
-        ...descriptor.declaration.state,
-        awaits: { value: "decide", answered: { decide: {} } },
-      },
+      awaits: { value: "decide", answered: { decide: {} } },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1894,10 +1872,7 @@ test("pending undo removes a custom obligation answer before authoritative compl
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      state: {
-        ...descriptor.declaration.state,
-        awaits: { value: "decide", answered: { decide: {} } },
-      },
+      awaits: { value: "decide", answered: { decide: {} } },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1949,9 +1924,7 @@ test("unchanged selection republishes when a move changes its members", () => {
     id,
     tag,
     declaration: {
-      state: {
-        verbs: verbs,
-      },
+      verbs: verbs,
     },
     parent: parent && { id: parent, tag: "lf-audit-manifest" },
     ancestors: [],
@@ -2029,9 +2002,7 @@ test("parent memberships include flat creations until undone", () => {
     id: "tray",
     tag: "lf-tray",
     declaration: {
-      state: {
-        verbs: { sow, choose },
-      },
+      verbs: { sow, choose },
     },
   };
   const app = setup(

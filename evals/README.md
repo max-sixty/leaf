@@ -294,13 +294,13 @@ flowchart TD
           file="/absolute/path/to/change.diff"
           label="Exact retained change"
         ></lf-eval-cite>
-        <lf-ask id="keyboard-review">
-          <h4>Keep the keyboard change?</h4>
+        <section id="keyboard-review" role="group" aria-labelledby="keyboard-review-h">
+          <h4 id="keyboard-review-h">Keep the keyboard change?</h4>
           <lf-options id="keyboard">
             <lf-option id="keyboard-approve"><strong>Approve change</strong></lf-option>
             <lf-option id="keyboard-revisit"><strong>Revisit change</strong></lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
       </section>
     </section>
     <section id="experiments-rejected">
@@ -398,7 +398,7 @@ Each section keeps what its reader needs to judge it:
   rather than inferring causality from timestamps. Order cases and steps as the campaign
   took them, not by score or file time, and leave parallel lanes unordered against each
   other. Keep the original grades when explaining a change to an evaluation contract.
-- Only a change selected for the user's decision gets an `lf-ask`, with a scoped exact
+- Only a change selected for the user's decision gets a question section, with a scoped exact
   diff to read. Scores never make that decision, and existing authorization and landing
   rules still govern what follows from it. Link a change to an experiment only where
   one tested it; a grading or report change has none.

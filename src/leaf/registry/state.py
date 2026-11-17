@@ -4,7 +4,6 @@ from .contract import (
     deciding_outcomes,
     deciding_verb,
     deciding_verbs,
-    declared_fact,
     declares_string,
     detail_schema,
     registry_error,
@@ -47,11 +46,11 @@ def validate_widget_state_relations(
                 raise registry_error(
                     "creates-unknown", path, tag, verb=verb, child=child_tag
                 )
-            if tag not in declared_fact(child, "markup.owners", []):
+            if tag not in child.get("owners", []):
                 raise registry_error(
                     "creates-owner", path, tag, verb=verb, child=child_tag
                 )
-            if declared_fact(child, "content") != "markup":
+            if child.get("content") != "markup":
                 raise registry_error(
                     "creates-content", path, tag, verb=verb, child=child_tag
                 )
@@ -69,15 +68,15 @@ def validate_widget_state_relations(
             # owners. Capabilities read from the authored owner inventory cannot
             # be supplied by these members. Presentation-only upgrades are allowed.
             owner_keys = (
-                "state.verbs",
-                "state.awaits",
-                "state.work",
-                "state.history",
-                "data.inputs",
+                "verbs",
+                "awaits",
+                "work",
+                "history",
+                "inputs",
             )
-            owned = [key for key in owner_keys if declared_fact(child, key)]
-            if isinstance(declared_fact(child, "words.visual"), dict):
-                owned.append("words.visual")
+            owned = [key for key in owner_keys if child.get(key)]
+            if isinstance(child.get("visual"), dict):
+                owned.append("visual")
             if owned:
                 raise registry_error(
                     "creates-semantic-owner",
@@ -125,9 +124,7 @@ def validate_widget_record_contracts(
     # widget's own obligation closes, which admission reads off the sending document into
     # the answering action's meaning. On a widget with no local obligation nothing would
     # ever read it, so the name means that or is refused here.
-    if "resolves" in properties and not (
-        declared_fact(entry, "state.awaits") or {}
-    ).get("answered"):
+    if "resolves" in properties and not (entry.get("awaits") or {}).get("answered"):
         raise registry_error("reserved-resolves", path, tag)
     # One rule set for both writers: they differ in who sends the state, not in
     # how a verb, its unit, and record hang together.
@@ -164,12 +161,12 @@ def validate_widget_record_contracts(
                 "record-within", path, tag, verb=verb, within=record["within"]
             )
         if kind == "body":
-            if declared_fact(entry, "content") != "data":
+            if entry.get("content") != "data":
                 raise registry_error("body-content", path, tag, verb=verb)
             nested = sorted(
                 child
                 for child, child_entry in declarations.items()
-                if tag in declared_fact(child_entry, "markup.owners", [])
+                if tag in child_entry.get("owners", [])
             )
             if nested:
                 raise registry_error(
@@ -206,13 +203,13 @@ def validate_widget_retirement(tag: str, entry: dict, declarations: dict, path) 
             verb=deciding_verb(entry),
             outcome=withdrawn,
         )
-    retired = declared_fact(entry, "state.retired-when")
+    retired = entry.get("retired-when")
     if retired is None:
         return
     # Every owner, not the first: a slot that retires under its owner's outcome has
     # to retire whichever owner it was written in, or it would be settled under one
     # and undecidable under another.
-    for owner in entry["markup"]["owners"]:
+    for owner in entry["owners"]:
         if retired not in deciding_outcomes(declarations[owner]):
             raise registry_error(
                 "retired-when", path, tag, outcome=retired, owner=owner
@@ -227,7 +224,7 @@ def validate_deciding_verb(tag: str, entry: dict, path) -> None:
         raise registry_error("deciding-verbs", path, tag, verbs=deciding)
     if not deciding:
         return
-    spec = entry["state"]["verbs"][deciding[0]]
+    spec = entry["verbs"][deciding[0]]
     schema = spec["detail"].get("properties", {}).get("outcome")
     words = schema.get("enum") if isinstance(schema, dict) else None
     if (
@@ -249,10 +246,10 @@ def validate_answered_conditions(
     # state the verb itself keeps: a whole-widget value, an action in force, or, for a
     # verb recording positions, the emptiness of one member container inside the
     # widget.
-    awaits = declared_fact(entry, "state.awaits") or {}
+    awaits = entry.get("awaits") or {}
     records = awaits.get("records")
     if records:
-        binding = declared_fact(entry, "data.inputs", {}).get(records["input"])
+        binding = entry.get("inputs", {}).get(records["input"])
         if (
             not binding
             or not binding.get("source")
@@ -261,16 +258,14 @@ def validate_answered_conditions(
             or not data["contracts"][binding["contract"]].get("records")
         ):
             raise registry_error("awaits-records", path, tag)
-    for verb, condition in (
-        (declared_fact(entry, "state.awaits") or {}).get("answered", {}).items()
-    ):
-        spec = entry["state"]["verbs"][verb]
+    for verb, condition in (entry.get("awaits") or {}).get("answered", {}).items():
+        spec = entry["verbs"][verb]
         empty = condition.get("empty")
         record = spec.get("record") or {}
         if records:
             if spec["unit"] == "widget" or empty is not None or record:
                 raise registry_error("answering-record", path, tag, verb=verb)
-            if spec["unit"] != entry["state"]["verbs"][awaits["value"]]["unit"]:
+            if spec["unit"] != entry["verbs"][awaits["value"]]["unit"]:
                 raise registry_error("answering-record", path, tag, verb=verb)
         elif empty is None:
             if spec["unit"] != "widget":
@@ -296,7 +291,7 @@ def validate_answered_conditions(
             raise registry_error(
                 "answering-container", path, tag, verb=verb, within=within
             )
-        if declared_fact(container, "content") != "members":
+        if container.get("content") != "members":
             raise registry_error(
                 "answering-members", path, tag, verb=verb, within=within
             )

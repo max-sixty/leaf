@@ -1,17 +1,17 @@
-"""A view of another widget's answer (`state.shows`), such as a board card that stands in
+"""A view of another widget's answer (`shows`), such as a board card that stands in
 the column of the pick its section holds.
 
-The answer stays its widget's. The widget's `state.awaits.value` verb records it at the
+The answer stays its widget's. The widget's `awaits.value` verb records it at the
 widget's own coordinate whichever view the user changes it in, so a board drop and a
 section pick are one fact, undone, refused and retracted as one. A view keeps no fact of
-its own about it: an element declaring `state.shows` names the widget in the attribute
+its own about it: an element declaring `shows` names the widget in the attribute
 `attr` names, and stands in a compound owner whose attribute `value` names the answer
 that owner holds. An owner without one holds the views of answers that name no value, or
 one no owner beside it holds.
 
 An answer names a value when it is one string: a `value` record's attribute, or the
 members an `attribute` record picks when every one of them carries the same
-`state.awaits.key`. An empty pick, a member without the key (an option the user wrote
+`awaits.key`. An empty pick, a member without the key (an option the user wrote
 in) or members naming different values name none. The browser's
 `runtime/shown-answer.js` reads the same rule, and writes a value back through the
 widget's own command, which the door admits under the widget's own declaration.
@@ -30,8 +30,8 @@ it with the members holding the value it was dropped on, replacing the set; the
 widget's own completion, such as a `multiple` group's Done, still decides whether the
 obligation is answered.
 
-Rejected: an Answer record, or a value field on `lf-ask`, which would move the
-answer off the widget that owns its words, options and obligation. A `via` on the
+Rejected: an Answer record, or a value field on the question's frame, which would move
+the answer off the widget that owns its words, options and obligation. A `via` on the
 event naming the view, with the door proving the view may send that widget's
 command: a value a view sends is one the widget's own declaration admits or refuses
 alone, so the field would be bookkeeping no reader needs.
@@ -42,20 +42,18 @@ from leaf.projection import recorded_owner
 from leaf.registry.schema import json_validator
 from leaf.validation.markup import found_at
 
-from .registry.contract import declared_fact
-
 
 def shown_widget(rec: dict, registry: dict) -> str | None:
     """The id of the widget whose answer one element shows, or None."""
-    shows = declared_fact(registry.get(rec["tag"]) or {}, "state.shows")
-    return rec["attrs"].get(shows["attr"]) if shows else None
+    shows = (registry.get(rec["tag"]) or {}).get("shows")
+    return rec["attrs"].get(shows["reference"]) if shows else None
 
 
 def answer_declaration(entry: dict) -> tuple[dict, str | None] | None:
     """The record of a widget's answer verb and its member key, where a view can show
-    it: a `value` record, or an `attribute` record its `state.awaits.key` names members of."""
-    awaits = declared_fact(entry, "state.awaits") or {}
-    spec = declared_fact(entry, "state.verbs", {}).get(awaits.get("value"), {})
+    it: a `value` record, or an `attribute` record its `awaits.key` names members of."""
+    awaits = entry.get("awaits") or {}
+    spec = entry.get("verbs", {}).get(awaits.get("value"), {})
     record = spec.get("record") or {}
     if record.get("kind") == "value":
         return record, None
@@ -117,10 +115,10 @@ def shown_errors(document, registry: dict) -> list[Finding]:
         if owner is None:
             continue
         assert target is not None
-        shows = registry[rec["tag"]]["state"]["shows"]
+        shows = registry[rec["tag"]]["shows"]
         entry = registry.get(owner["tag"]) or {}
         declared = answer_declaration(entry)
-        named = {"attr": shows["attr"], "target": target}
+        named = {"attr": shows["reference"], "target": target}
         if declared is None:
             errors.append(found_at("shows-no-answer", rec, **named))
             continue

@@ -57,13 +57,13 @@ STATED_KIT = """<!doctype html>
     <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
   </lf-options>
 </lf-sample>
-<lf-ask id="kit-decision">
-  <h2>Which navigation kit this year?</h2>
+<section id="kit-decision" role="group" aria-labelledby="kit-decision-h">
+  <h2 id="kit-decision-h">Which navigation kit this year?</h2>
   <lf-options id="live-pick">
     <lf-option id="live-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
     <lf-option id="live-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 </main>
 </body>
 </html>
@@ -91,7 +91,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     registry = deepcopy(model_layer())
     entry = element_declaration("lf-review", upgrade=True)
     entry["attributes"]["properties"]["restated"] = {"type": "boolean"}
-    entry.setdefault("state", {})["verbs"] = {
+    entry["verbs"] = {
         "review": {
             "unit": unit,
             "detail": {
@@ -130,7 +130,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     assert action["meaning"]["state"]["decides"] is False
 
     # Reusing the verb as a whole-widget decision does not reinterpret that answer.
-    entry["state"]["verbs"]["review"] |= {"unit": "widget", "decides": True}
+    entry["verbs"]["review"] |= {"unit": "widget", "decides": True}
     validate_registry(registry, "revised review package")
     assert page_reading(page.reading(1, registry), [action], 1).projection.actions == {}
 
@@ -138,12 +138,12 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
 def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposal():
     registry = deepcopy(model_layer())
     entry = registry["lf-suggestion"]
-    entry["state"]["verbs"]["review"] = {
+    entry["verbs"]["review"] = {
         key: value
-        for key, value in entry["state"]["verbs"]["decide"].items()
+        for key, value in entry["verbs"]["decide"].items()
         if key not in {"decides", "withdraws"}
     }
-    entry["state"]["awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
+    entry["awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
     validate_registry(registry, "review package")
     stamp_composition(registry)
     source = (
@@ -174,7 +174,7 @@ def instance_input_registry():
     entry = element_declaration("lf-input-box", upgrade=True)
     entry["attributes"]["properties"]["restated"] = {"type": "boolean"}
     entry["attributes"]["properties"]["shape"] = {"type": "string"}
-    entry.setdefault("state", {})["verbs"] = {
+    entry["verbs"] = {
         "submit": {
             "unit": "widget",
             "contract": {"field": "payload", "attribute": "shape"},
@@ -362,7 +362,7 @@ STATED_QUEUE = """<!doctype html>
 </head>
 <body>
 <main>
-<lf-ask id="triage-decision">
+<section id="triage-decision">
   <h2>Which follow-ups should we keep?</h2>
   <lf-board id="triage">
     <lf-column id="queue" label="Queued">
@@ -371,7 +371,7 @@ STATED_QUEUE = """<!doctype html>
     </lf-column>
     <lf-column id="keep" label="Kept"></lf-column>
   </lf-board>
-</lf-ask>
+</section>
 </main>
 </body>
 </html>
@@ -439,7 +439,7 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
     A later version that removes the question leaves the row naming the option the
     user picked, by its title rather than its eyebrow or description, and a withdrawn
     pick stays a row marked undone. A page whose markup holds no widget declaring
-    `state.history` is not served the reading.
+    `history` is not served the reading.
     """
     question = model.leaf_page(
         "Route",

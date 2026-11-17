@@ -57,7 +57,6 @@ from leaf.revision_artifact import RevisionArtifact
 from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument, element_attrs, script_kind
 
-from ..registry.contract import declared_fact
 from .scheme import answer_reports, served
 
 
@@ -84,7 +83,7 @@ def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -
     implementations = artifact.implementations
     return any(
         implementations[record["tag"]]["owner"] == "page"
-        or declared_fact(registry[record["tag"]], "content") == "data"
+        or registry[record["tag"]].get("content") == "data"
         or any(
             isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
             for value in record["attrs"].values()

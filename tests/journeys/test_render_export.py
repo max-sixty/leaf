@@ -128,17 +128,13 @@ OFFLINE_REGISTRY = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "state": {
-            "verbs": {
-                "choose": {
-                    "unit": "widget",
-                    "record": {"kind": "value", "attr": "choice"},
-                }
-            },
+        "verbs": {
+            "choose": {
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "choice"},
+            }
         },
-        "author": {
-            "example": '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>',
-        },
+        "example": '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>',
     },
 }
 

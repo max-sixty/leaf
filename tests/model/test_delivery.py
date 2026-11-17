@@ -379,7 +379,7 @@ def test_recordless_requests_wake_without_user_obligations(
         "unit": "widget",
         "detail": {"type": "object", "properties": {}, "additionalProperties": False},
     }
-    declaration.setdefault("state", {})["verbs"] = {
+    declaration["verbs"] = {
         "archive": {**verb, "attention": True},
         "edit": verb,
     }
@@ -693,7 +693,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "author": "agent",
             "revision": 1,
             "text": "Which mitigations should I carry into the patch?\n\n"
-            + '<lf-options id="gm">'
+            + '<lf-options id="gm">\n'
             '<lf-option id="m-cap"><small class="tag">recommended</small>'
             "<strong>Cap retries</strong> Bound retry load.</lf-option>"
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
@@ -888,7 +888,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "author": "agent",
             "revision": 1,
             "text": "Here is the proposed answer.\n\n"
-            + '<lf-suggestion id="thread-answer" resolves="c-target">'
+            + '<lf-suggestion id="thread-answer" resolves="c-target">\n'
             "<lf-old><p>Old words.</p></lf-old>"
             "<lf-new><p>New words.</p></lf-new>"
             "</lf-suggestion>",
@@ -1281,7 +1281,7 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
     pick settles; a question in a thread elsewhere stays out."""
     source = PAGE.replace(
         "</section>",
-        '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
+        '</section><section id="ship-ask" role="group" aria-labelledby="ship-ask-h"><h2 id="ship-ask-h">Ship on Friday?</h2>'
         '<lf-options id="permit"><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
         '<p id="aside">An aside.</p>',
@@ -1350,11 +1350,13 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
 
     def playground(ident, card):
         return (
+            f'<section id="{ident}-q" role="group" aria-label="Which radius?">'
             f'<lf-playground id="{ident}">'
             f'<aside><label id="{ident}-radius">Radius <input type="range" name="radius" '
             'value="8" max="20" /></label></aside>'
             f'<p id="{card}">Deployed.</p>'
             "<lf-playground-output>Build it.</lf-playground-output></lf-playground>"
+            "</section>"
         )
 
     (page_dir / "index.html").write_text(
@@ -1455,9 +1457,7 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     # redeclaring the verb leaves what the earlier messages were about.
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-playground"]["state"]["verbs"]["tune"].pop(
-            "unsent"
-        ),
+        lambda registry: registry["lf-playground"]["verbs"]["tune"].pop("unsent"),
     )
     publish(page_dir)
     assert shown([opened, reply, edit, aside]) == on_page

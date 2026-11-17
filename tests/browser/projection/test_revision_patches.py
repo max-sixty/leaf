@@ -834,8 +834,8 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     second = (
         first.replace("Widgets first", "Widgets second")
         .replace(
-            '<section id="wd-store-ask" role="group" aria-labelledby="wd-store-ask-h">',
-            '\n<section id="wd-store-ask" role="group" aria-labelledby="wd-store-ask-h">',
+            '<lf-group id="wd-store-ask" label="Which store?">',
+            '\n<lf-group id="wd-store-ask" label="Which store?">',
         )
         .replace(
             '<lf-option id="wd-later">Start later</lf-option>',
@@ -845,7 +845,7 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
         .replace(
             '<lf-group id="wd-when-ask" label="Which schedule?">',
             '<p><lf-tally id="arriving-tally" for="wd-when-ask" next></lf-tally></p>'
-            '<section id="wd-when-ask" role="group" aria-labelledby="wd-when-ask-h">',
+            '<lf-group id="wd-when-ask" label="Which schedule?">',
         )
     )
     page = open_page(
@@ -902,11 +902,11 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
         return f"""<lf-tabs id="tp-views">
   <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
   <lf-tab id="tp-ask-tab" label="Ask">
-    <section id="tp-store-ask" role="group" aria-labelledby="tp-store-ask-h"><h2 id="tp-store-ask-h">Which store?</h2>
+    <lf-group id="tp-store-ask" label="Which store?">
     <lf-options id="tp-store">
       <lf-option id="tp-keep">Keep the store</lf-option>
       <lf-option id="tp-drop">Drop the store</lf-option>
-    </lf-options></section>
+    </lf-options></lf-group>
   </lf-tab>{extra}
 </lf-tabs>"""
 
@@ -1012,9 +1012,9 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
         '<p id="served-selection">A passage with a saved caret.</p></section>'
         '<div style="height:1600px"></div>'
         '<h2 id="destination">Destination</h2>'
-        '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">A decision?</h2>'
+        '<lf-group id="question" label="A decision?">'
         '<lf-options id="answer"><lf-option id="yes">Yes</lf-option>'
-        "</lf-options></section>",
+        "</lf-options></lf-group>",
     )
     second = leaf_page("Revised", "<h1>Revised</h1><p>Revised words.</p>")
     page = open_page(browser, live_url(serve(first)))
@@ -1075,9 +1075,9 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     )
     first = leaf_page("Questions arriving", '<h1 id="h">Decisions</h1>' + reading)
     questions = "".join(
-        f'<section id="question-{i}" role="group" aria-labelledby="question-{i}-h"><h2 id="question-{i}-h">Decision {i}?</h2>'
+        f'<lf-group id="question-{i}" label="Decision {i}?">'
         f'<lf-options id="options-{i}">'
-        f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></section>'
+        f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></lf-group>'
         for i in range(3)
     )
     second = first.replace(reading, questions + reading)
@@ -1133,7 +1133,7 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
         "Comment scope",
         '<h1 id="h">Decisions</h1><section id="subject">' + paragraph + "</section>",
     )
-    second = first.replace("</section>", paragraph + "</lf-group>").replace(
+    second = first.replace("</section>", paragraph + "</section>").replace(
         "</main>",
         '<lf-group id="question" label="Decision?">'
         '<lf-options id="options"><lf-option id="yes">Yes</lf-option>'

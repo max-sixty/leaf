@@ -25,10 +25,7 @@ OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-op
 def page(attrs="", context=None):
     content = OPTIONS.format(attrs=attrs)
     if context:
-        content = (
-            f'<section id="{context}" role="group" aria-labelledby="{context}-h">'
-            f'<h2 id="{context}-h">Which route?</h2>{content}</section>'
-        )
+        content = f'<lf-group id="{context}" label="Which route?">{content}</lf-group>'
     return model.leaf_page("Questions", content)
 
 
@@ -609,13 +606,12 @@ def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
 FRAMED = model.leaf_page(
     "Questions",
     '<p id="intro">Context.</p><section id="case">'
-    '<section id="frame" role="group" aria-labelledby="head">'
-    '<h2 id="head">Two routes</h2><div id="first">'
+    '<lf-group id="frame" label="Two routes"><div id="first">'
     + OPTIONS.format(attrs="")
     + "</div>"
     + OPTIONS.format(attrs="").replace('id="', 'id="y-')
     + OPTIONS.format(attrs="settled").replace('id="', 'id="shown-')
-    + "</section></section>",
+    + "</lf-group></section>",
 )
 
 
@@ -623,7 +619,7 @@ FRAMED = model.leaf_page(
     ("anchor", "held"),
     [
         ({"section": "a", "quote": "A"}, ["widget:choice"]),
-        ({"section": "head", "quote": "Two"}, ["widget:choice", "widget:y-choice"]),
+        ({"section": "frame", "quote": "Two"}, ["widget:choice", "widget:y-choice"]),
         ({"section": "shown-a", "quote": "A"}, ["widget:choice", "widget:y-choice"]),
         ({"section": "first"}, ["widget:choice"]),
         ({"section": "case"}, ["widget:choice", "widget:y-choice"]),

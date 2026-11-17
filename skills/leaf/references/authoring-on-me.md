@@ -87,15 +87,12 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 Make each question answerable where On Me takes the user: pressing `m` selects the
 whole question and brings its start to the top of the window, leaving earlier content
-out of view. Write each question as a group you name: the `<section>` holding the
-question and its case, with an id, `role="group"` and `aria-labelledby` naming the id
-of the heading that asks the question on its own, without leaning on the prose around
-it. That is usually the group's opening heading, with any eyebrow beside it in an
-`<hgroup>`; where the page's own heading asks the question, as a workspace's header
-does over a playground, the group names that heading (`page-layout.md`, "A
-workspace"). The words the group is named by are the question's words on On Me and in
-the answer you receive; Leaf reads the region and its name from that markup, so
-`page check` refuses a widget that asks with no named group round it.
+out of view. Write each question as an `lf-group` holding the question and its case,
+with an id and a `label` that asks the question on its own, without leaning on the
+prose around it. The group draws its label as its title, so write no heading of your
+own at its start. The label's words are the question's words on On Me and in the
+answer you receive; Leaf reads the region and its name from that markup, so
+`page check` refuses a widget that asks with no group round it.
 
 The group is the region `m` selects, so it holds everything the user judges: why the
 question arises, the current state and its evidence, such as a capture of today or a

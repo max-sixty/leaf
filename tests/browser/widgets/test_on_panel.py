@@ -1125,13 +1125,11 @@ def test_an_answer_about_two_decisions_stays_on_the_card_that_carried_it(
     is answered the server moves it to the second, but the open view keeps it on the
     card the user answered, drawn once."""
     source = TWO_DECISIONS_PAGE.replace(
-        '<section id="ship-ask" role="group" aria-labelledby="ship-ask-h">',
-        '<section id="both-asks"><section id="ship-ask" role="group" aria-labelledby="ship-ask-h">',
-    ).replace("</section>", "</section></section>")
-    source = source.replace(
-        '<section id="timeline-ask" role="group" aria-labelledby="timeline-ask-h">',
-        '<section id="both-outer"><section id="timeline-ask" role="group" aria-labelledby="timeline-ask-h">',
-    ).replace('</section>\n<section id="both-asks">', "</section>\n")
+        '<lf-group id="timeline-ask"', '<section id="both-outer"><lf-group id="timeline-ask"'
+    ).replace(
+        "Wait a week</lf-option>\n</lf-options></lf-group>",
+        "Wait a week</lf-option>\n</lf-options></lf-group></section>",
+    )
     url = serve(source)
     root = append_carried_log_record(
         serve.page_dir,

@@ -1612,10 +1612,9 @@ def test_a_quoted_playground_shows_its_markup_with_its_fields_disabled(browser, 
     """A quotation takes no input and sends nothing: its fields show the values
     it quotes, disabled, and it draws no regions, presets or actions."""
     source = PLAYGROUND_PAGE.replace(
-        '<section id="card-playground-ask" role="group"'
-        ' aria-labelledby="card-playground-ask-h">',
+        '<lf-group id="card-playground-ask" label="How should the card look?">',
         '<lf-sample id="playground-example" label="card playground">',
-    ).replace("</section>", "</lf-sample>")
+    ).replace("</lf-group>", "</lf-sample>")
     page = open_page(browser, serve(source))
     playground = page.locator("#card-playground")
 

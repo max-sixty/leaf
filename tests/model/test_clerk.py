@@ -675,7 +675,7 @@ def test_the_fork_fixes_a_few_stale_words_and_tells_the_agent(
     question = asked()
     assert (
         "What the page says now, as the user reads it, one block per line:\n"
-        "Plan\nThe cutoff lives in jobs/backfill.py:88.\n"
+        "Open questions\nPlan\nThe cutoff lives in jobs/backfill.py:88.\n"
     ) in question["prompt"]
     done = clerk_model.take_answer(
         "s1", _stale(page, words, replacement), question["basis"]

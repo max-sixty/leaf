@@ -1653,7 +1653,8 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
   <footer><p>Finish</p></footer>"""
     version.write_text(
         PAGE.replace("<main>", '<main class="layout-workspace">').replace(
-            PAGE[PAGE.index('<section id="plan"') : PAGE.index("</main>")], regions
+            PAGE[PAGE.index('<lf-group id="plan-questions"') : PAGE.index("</main>")],
+            regions,
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
@@ -2172,8 +2173,8 @@ def test_check_rejects_an_id_containing_whitespace(page_dir):
     has a thread to move; the version has to be refused before it goes out."""
     (page_dir / "index.html").write_text(
         PAGE.replace(
-            '<lf-group id="plan" label="Plan">',
-            '<section id="plan" role="group" aria-label="Plan"><svg viewBox="0 0 10 10">'
+            '<section id="plan">',
+            '<section id="plan"><svg viewBox="0 0 10 10">'
             '<g id="layout-no class"><rect width="4" height="4"/></g></svg>',
         )
     )
@@ -2231,9 +2232,9 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread",
             "create",
             "--text",
-            'Which store?\n\n<section id="t-ask" role="group" aria-labelledby="t-ask-h">\n<h3 id="t-ask-h">Store?</h3><lf-options id="t-store">'
+            'Which store?\n\n<lf-group id="t-ask" label="Store?">\n<lf-options id="t-store">'
             '<lf-option id="t-sqlite" label="sqlite"></lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-group>",
         ).output.splitlines()
     ]
     [renamed] = json.loads(run("thread", "edit", "t-store", "--title", "Store").output)[
@@ -3352,11 +3353,11 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h">\n<h2 id="gm-decision-h">Which mitigations?</h2>'
+            "text": 'Which mitigations?\n\n<lf-group id="gm-decision" label="Which mitigations?">\n'
             '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap" label="Cap retries"></lf-option>'
             '<lf-option id="m-alert" label="Alert"></lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-group>",
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -3407,18 +3408,18 @@ def test_tasks_roll_up_explicit_requests_without_asking_themselves(page_dir):
       <lf-test-task id="vendor" status="blocked"><strong>Vendor fix</strong></lf-test-task>
       <lf-test-task id="copy" status="review"><strong>Copy review</strong></lf-test-task>
       <lf-test-task id="future" status="active"><strong>Future review</strong>
-        <section id="future-decision" role="group" aria-labelledby="future-decision-h"><h3 id="future-decision-h">Review it now?</h3>
+        <lf-group id="future-decision" label="Review it now?">
           <lf-options id="future-review">
             <lf-option id="future-yes">Yes</lf-option><lf-option id="future-no">No</lf-option>
           </lf-options>
-        </section>
+        </lf-group>
       </lf-test-task>
       <lf-test-task id="decision" status="blocked"><strong>User decision</strong>
-        <section id="decision-decision" role="group" aria-labelledby="decision-decision-h"><h3 id="decision-decision-h">Which way out?</h3>
+        <lf-group id="decision-decision" label="Which way out?">
           <lf-options id="decision-options">
             <lf-option id="decision-a">A</lf-option><lf-option id="decision-b">B</lf-option>
           </lf-options>
-        </section>
+        </lf-group>
       </lf-test-task>
       <lf-test-task id="release" status="review"><strong>Release review</strong>
         <lf-test-task id="release-build" status="done"><strong>Build release</strong></lf-test-task>
@@ -3593,13 +3594,13 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
         '<lf-sample id="sample"><lf-options id="example">'
         '<lf-option id="example-a" label="Example only"></lf-option>'
         "</lf-options></lf-sample>"
-        '<section id="real-decision" role="group" aria-labelledby="real-decision-h"><h3 id="real-decision-h">What next?</h3>'
+        '<lf-group id="real-decision" label="What next?">'
         '<lf-options id="real"><lf-option id="real-a">A</lf-option>'
-        '<lf-option id="real-b">B</lf-option></lf-options></section>'
+        '<lf-option id="real-b">B</lf-option></lf-options></lf-group>'
         "</lf-test-task></lf-test-plan>"
     )
     (page_dir / "index.html").write_text(
-        PAGE.replace("</section>", markup + "</lf-group>")
+        PAGE.replace("</section>", markup + "</section>")
     )
     publish(page_dir)
     assert obligations_on_user(state_json(page_dir)) == [

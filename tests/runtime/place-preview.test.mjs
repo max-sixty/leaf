@@ -440,11 +440,11 @@ test("a heading counts the conversations about what it titles, as about its own 
   // with the question's heading, so a thread about it counts under the page's title.
   applicationState.identify(1);
   document.body.innerHTML = `<main><h1>Plan</h1>
-    <section id="first" role="group"><hgroup><p>Decision 1</p><h2>Which store?</h2>
+    <section id="first"><hgroup><p>Decision 1</p><h2>Which store?</h2>
       </hgroup><p>Two stores fit.</p></section>
-    <section id="second" role="group"><hgroup><p>Decision 2</p><h2>Which region?</h2>
+    <section id="second"><hgroup><p>Decision 2</p><h2>Which region?</h2>
       </hgroup><p>One region fits.</p></section>
-    <section id="third"><section role="group"><hgroup><p>Decision 3</p>
+    <section id="third"><section><hgroup><p>Decision 3</p>
       <h2>Which size?</h2></hgroup><p>Two sizes fit.</p></section></section></main>`;
   const comment = {
     id: "c1",

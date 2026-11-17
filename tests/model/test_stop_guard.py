@@ -1353,10 +1353,8 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
         (page_dir / "index.html").write_text(
             PAGE.replace(
                 "</section>",
-                '<section id="triage-decision" role="group"'
-                ' aria-labelledby="triage-decision-h">'
-                '<h3 id="triage-decision-h">Which follow-ups should we keep?</h3>'
-                f"{board}</section></section>",
+                '<lf-group id="triage-decision" label="Which follow-ups should we keep?">'
+                f"{board}</lf-group></section>",
             )
         )
         publish(page_dir)

@@ -589,7 +589,7 @@ PAGE = f"""<!doctype html>
 </head>
 <body>
 <main>
-<section id="plan">
+<lf-group id="plan-questions" label="Open questions"><section id="plan">
   <h2>Plan</h2>
   <p>The cutoff lives in <a href="https://example.test/jobs/backfill.py#L88"><code>jobs/backfill.py:88</code></a>.</p>
   <lf-group id="plan-choice-decision" label="Which plan should lead?">
@@ -602,12 +602,13 @@ PAGE = f"""<!doctype html>
       </lf-option>
     </lf-options>
   </lf-group>
-</section>
+</section></lf-group>
 </main>
 </body>
 </html>
 """
-# A test opening PAGE's Plan section matches this.
+# PAGE's Plan section stands in a named group, so a widget a test writes there asks a
+# question (`obligations.widget_groups`); a test opening the section matches this.
 PLAN_OPENING = '<section id="plan">'
 # PAGE places no widget whose module only a browser can judge, so `page check` on it
 # and on the versions built from it never starts one (`needs_browser`). A test about a

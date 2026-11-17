@@ -1944,7 +1944,9 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
     rows.click()
     view = page.locator(panel_view("thread"))
     expect(view.locator(".lf-summary-text")).to_have_text("A wider view would help.")
-    expect(view.locator("#crop h3")).to_have_text("Should I reshoot it wider?")
+    expect(view.locator('#crop > [data-lf-said="label"]')).to_have_text(
+        "Should I reshoot it wider?"
+    )
 
 
 def test_keys_in_threads_act_on_threads(browser, serve):

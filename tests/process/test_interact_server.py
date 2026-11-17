@@ -2259,7 +2259,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         '<lf-option id="gone-one">One</lf-option></lf-options></lf-group></section>',
     )
     new_page = re.sub(
-        r'<section id="gone-decision" role="group" aria-labelledby="gone-decision-h">.*?</section>',
+        r'<lf-group id="gone-decision" label="Gone">.*?</lf-group>',
         "",
         old_page,
         flags=re.DOTALL,

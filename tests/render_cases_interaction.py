@@ -228,11 +228,11 @@ NESTED_OBLIGATION_PAGE = leaf_page(
 <h1 id="h">Two jobs</h1>
 <lf-group id="outer-decision" label="Which jobs should we start?"><lf-options id="outer" multiple>
   <lf-option id="out-drill" label="The revocation drill">    <p id="drill-p">Support wants it run at their own volume.</p>
-    <section id="inner-decision" role="group" aria-labelledby="inner-decision-h"><h3 id="inner-decision-h">When should the drill run?</h3>
+    <lf-group id="inner-decision" label="When should the drill run?">
     <lf-options id="inner">
       <lf-option id="in-now">This sprint</lf-option>
       <lf-option id="in-next">Next sprint</lf-option>
-    </lf-options></section>
+    </lf-options></lf-group>
   </lf-option>
   <lf-option id="out-keys" label="Key rotation">    <p id="keys-p">Cheap, and overdue since the split.</p>
   </lf-option>
@@ -780,7 +780,8 @@ LIVE_KEYS_V1 = leaf_page(
     """
 <h1 id="lk-title">Live keys</h1>
 <p id="lk-lead">See <a id="lk-link-one" href="#lk-title">the title</a> and the sentence that carries it, <a id="lk-link-two" href="#lk-lead">this lead</a>, and the decision below it.</p>
-<lf-group id="lk-decision" label="Which one?"><lf-options id="lk-options">
+<lf-group id="lk-decision" label="Which one?">
+<lf-options id="lk-options">
   <lf-option id="lk-one">One</lf-option>
   <lf-option id="lk-two">Two</lf-option>
 </lf-options></lf-group>
@@ -806,9 +807,10 @@ LIVE_KEYS_V3 = LIVE_KEYS_V2.replace(
 )
 
 # The decision as the same live page states it, so a revision below can be written by
-# taking it out or putting other words in its place.
-LIVE_KEYS_ASKS = '<h2 id="lk-decision-h">Which one?</h2>'
-LIVE_KEYS_DECISION = f"""<lf-group id="lk-decision" label="Which one?">{LIVE_KEYS_ASKS}
+# taking it out or putting other words in its place; its opening tag holds the label
+# that asks it.
+LIVE_KEYS_ASKS = '<lf-group id="lk-decision" label="Which one?">'
+LIVE_KEYS_DECISION = f"""{LIVE_KEYS_ASKS}
 <lf-options id="lk-options">
   <lf-option id="lk-one">One</lf-option>
   <lf-option id="lk-two">Two</lf-option>

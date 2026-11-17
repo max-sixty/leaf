@@ -75,8 +75,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
                 + "</lf-tab></lf-tabs>"
             )
         return (
-            f'<section id="ask-{name}" role="group" aria-labelledby="ask-{name}-h">'
-            f'<h2 id="ask-{name}-h">Choose {name}?</h2>{options}</section>'
+            f'<lf-group id="ask-{name}" label="Choose {name}?">{options}</lf-group>'
         )
 
     first = question("first")
@@ -1330,7 +1329,7 @@ def test_c_from_a_shot_in_a_questions_group_comments_on_the_question(browser, se
     page.keyboard.press("m")
     expect(page.locator("#count-ask")).to_be_focused()
     comment_after_flipping("count-shot")
-    expect(composer).to_contain_text("section · Show the card count?")
+    expect(composer).to_contain_text("group · Show the card count?")
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 
@@ -1339,7 +1338,7 @@ def test_c_from_a_shot_in_a_questions_group_comments_on_the_question(browser, se
     option.click()
     expect(option).to_have_attribute("selected", "")
     comment_after_flipping("count-shot")
-    expect(composer).to_contain_text("section · Show the card count?")
+    expect(composer).to_contain_text("group · Show the card count?")
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
 

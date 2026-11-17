@@ -330,8 +330,8 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
         '<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">',
-        '<lf-pane id="triage-pane" label="Triage"><div>\n<section id="session-triage-decision" role="group" aria-labelledby="session-triage-decision-h">',
-    ).replace("</section>\n", "</lf-group>\n</div></lf-pane>\n")
+        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">',
+    ).replace("</lf-group>\n", "</lf-group>\n</div></lf-pane>\n")
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")

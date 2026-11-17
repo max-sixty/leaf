@@ -3,7 +3,8 @@
 ## Show the subject
 
 Before writing a view's words, decide what it shows. Ask what the user would otherwise
-have to picture from a description, and put that thing on the page in its own form:
+have to picture or piece together from a description, and put that thing on the page
+in its own form:
 
 - An existing interface is a screenshot, cropped or marked so the eye lands on the
   point, and a visual change between two versions is an `lf-shot` before-and-after
@@ -18,22 +19,27 @@ have to picture from a description, and put that thing on the page in its own fo
   are an `lf-chart`, even when they compare the same measures across items. Label the
   values the argument cites, and put exact values in a table below it when readers
   need them.
+- Items the user reads one at a time and compares on the same facts, such as settings,
+  files or test results, are a table: a row per item, a column per fact, and rows
+  grouped or sorted by the fact they scan first. Values the user looks up, and
+  measures in units that can't share an axis, go in a table too.
 - Wording the user judges, such as code, a command or a message, is shown as the text
   itself, and so is a source a claim rests on, such as a rule in a doc. Quote that
   passage whole, conditions included, so the reader can check the claim on the page.
   When the point is what code does, such as what it draws or which rule wins, show
   that effect in one of the forms above, with the code beside it.
 
-A table or list whose rows say where things sit, how large they are or what connects
-to what should be a drawing. A drawing or chart makes its point through its geometry:
-where its marks sit, their sizes, and what contains or links them. One that only
-restates the words or numbers beside it, as boxes holding its sentences or a mark or
-bar per counted item, shows nothing. When the user has nothing to picture, as when
-they weigh a refactor's reasons and cost, leave the case in words and draw nothing.
+A drawing or chart makes its point through its geometry: where its marks sit, their
+sizes, and what contains or links them. Add one where that geometry makes a
+relationship or pattern the argument rests on easier to see than the words or a table
+would. Names sorted into a box per group show the grouping no more plainly than a table
+grouped the same way, and leave out the facts the table gives beside each name. A mark
+per counted item shows only the count, and boxes holding sentences show only the
+sentences. When the user has nothing to picture, as when they weigh a refactor's reasons
+and cost, leave the case in words and draw nothing.
 
-Use a table for looking up values, for mixed units that can't share an axis, or for
-comparisons with text-heavy cells. `authoring-evidence.md` says which element draws
-each kind of evidence, and how to draw a figure of your own.
+`authoring-evidence.md` says which element draws each kind of evidence, and how to draw
+a figure of your own.
 
 ## Develop the work
 

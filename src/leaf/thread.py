@@ -1334,13 +1334,18 @@ def cmd_summarize(
     text,
     *,
     label: str | None = None,
-) -> dict:
+    fence=None,
+) -> dict | None:
     """Append a presentation summary over one contiguous message range, in the
-    thread its first message sits in."""
+    thread its first message sits in; or nothing, where `fence`, given the page
+    under its lock, says the writer no longer should, as a fork that summarizes a
+    thread for the agent (`summary_fork`)."""
     from leaf.registry.storage import require_registry
 
     body = checked_text(page_dir, text, allow_empty=True)
     with PageTransaction(page_dir) as page:
+        if fence is not None and not fence(page):
+            return None
         require_registry(page_dir)
         record, _ = append_admitted(
             page,

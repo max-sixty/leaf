@@ -514,19 +514,18 @@ def _block(facts: dict) -> str:
 def guidance() -> list[str]:
     """The agent's guidance the fork follows (`GUIDANCE`), each paragraph as the
     agent reads it."""
+    return [reference_paragraph(*passage) for passage in GUIDANCE]
 
-    def paragraph(name: str, opening: str) -> str:
-        text = (REFERENCES / name).read_text()
-        start = text.find(f"\n\n{opening}") + 2
-        if start < 2:
-            raise ValueError(
-                f"{name} has no paragraph opening {opening!r}, which clerk.GUIDANCE "
-                "names"
-            )
-        end = text.find("\n\n", start)
-        return text[start:] if end < 0 else text[start:end]
 
-    return [paragraph(*passage) for passage in GUIDANCE]
+def reference_paragraph(name: str, opening: str) -> str:
+    """The paragraph of the skill's reference `name` that opens with `opening`, as
+    the agent reads it, for a fork that follows the agent's guidance."""
+    text = (REFERENCES / name).read_text()
+    start = text.find(f"\n\n{opening}") + 2
+    if start < 2:
+        raise ValueError(f"{name} has no paragraph opening {opening!r}")
+    end = text.find("\n\n", start)
+    return text[start:] if end < 0 else text[start:end]
 
 
 def fork_prompt(pages: list[dict]) -> str:

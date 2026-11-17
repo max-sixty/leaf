@@ -166,6 +166,15 @@ notes = read_interactions(Path(sys.argv[1]), types=(sys.argv[2],))
 print(json.dumps(notes[-1] if notes else None))
 """
 
+# The text of the summary event with the given id, or null.
+SUMMARY = """
+import json, sys
+from pathlib import Path
+from leaf.event_log import read_events
+found = [e for e in read_events(Path(sys.argv[1])) if e["id"] == sys.argv[2]]
+print(json.dumps(found[0]["text"] if found else None))
+"""
+
 # The page's words as the user reads them, as the turn-end check reads them.
 PAGE_TEXT = """
 import json, sys
@@ -190,6 +199,8 @@ def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     scenario = CASES[case]
     if scenario["fork"] == "line":
         return ["answered", "lined", "judged"]
+    if scenario["fork"] == "summary":
+        return ["answered", "summarized"]
     expect = scenario.get("labels", {}).get("expect", [])
     return [
         "answered",
@@ -233,16 +244,26 @@ def execute_scenario(
     leaf.run("page", "claim", str(page))
     turns = conversation(scenario, leaf, page)
     metadata: dict = {"fork": scenario["fork"], "session": session, "harness": harness}
-    if scenario["fork"] == "line":
+    if scenario["fork"] in ("line", "summary"):
         with leaf.lane():
             [thread] = leaf.python(
                 KEEP, str(page), session, stdin=json.dumps(scenario["waiting"])
             )
             kept = {"thread": thread, "running": scenario.get("running", [])}
             asked = leaf.fork(kept)
+            if scenario["fork"] == "summary":
+                # The fork Leaf asks for beside the line fork, scored alone.
+                [asked] = [
+                    beside
+                    for beside in asked.get("beside", [])
+                    if beside["basis"]["duty"] == "summary"
+                ]
             run = fork(asked, session, turns, work)
             if run["text"] is not None:
-                leaf.fork({**kept, **taken(run)})
+                if scenario["fork"] == "summary":
+                    leaf.fork({"beside": asked["basis"], **taken(run)})
+                else:
+                    leaf.fork({**kept, **taken(run)})
     else:
         asked = leaf.fork({})
         run = fork(asked, session, turns, work)
@@ -264,6 +285,8 @@ def execute_scenario(
         return {**response, "error": f"the fork gave no answer: {run['failed']}"}
     if scenario["fork"] == "line":
         metadata.update(score_line(leaf, page, scenario, turns))
+    elif scenario["fork"] == "summary":
+        metadata.update(score_summary(leaf, page, scenario, asked, turns))
     else:
         metadata.update(score_turn_end(leaf, page, scenario, asked, run, turns))
     metadata["checks"] = {name: metadata["checks"].get(name, False) for name in checks}
@@ -775,6 +798,34 @@ def judge_text(
         f"<items>\n{listed(marked)}\n</items>\n\n"
         f"<changes>\n{listed(changed)}\n</changes>"
     )
+
+
+def score_summary(
+    leaf: Leaf, page: Path, scenario: dict, asked: dict, turns: list
+) -> dict:
+    """Score the summary the arm's Leaf wrote from a summary fork's answer, as its
+    `summary_fork` note records it, against the conversation and the thread as the
+    case's log holds it."""
+    note = leaf.python(NOTE, str(page), "summary_fork") or {}
+    written = leaf.python(SUMMARY, str(page), note.get("summary") or "")
+    thread = json.dumps(
+        [*scenario["log"], *scenario["waiting"]], indent=1, ensure_ascii=False
+    )
+    basis = asked["basis"]
+    return {
+        "checks": {
+            "answered": bool(note) and note.get("outcome") != "failed",
+            "summarized": note.get("outcome") == "summarized",
+        },
+        "outcome": note.get("outcome"),
+        "note": note,
+        "texts": {
+            "summary": f"<conversation>\n{conversation_text(turns)}\n"
+            f"</conversation>\n\n<thread>\n{thread}\n</thread>\n\n<range>\n"
+            f"{basis['from']} through {basis['through']}\n</range>\n\n<summary>\n"
+            f"{written or '(no summary)'}\n</summary>",
+        },
+    }
 
 
 def score_line(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:

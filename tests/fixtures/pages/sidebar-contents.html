@@ -78,15 +78,19 @@
             Update the vault entry the services read, then restart them one region at a
             time, starting with the region that has the least traffic at this hour.
           </p>
-          <section id="rotation-first" role="group" aria-label="Which region restarts first?">
+          <section
+            id="rotation-first"
+            role="group"
+            aria-label="Which region restarts first?"
+          >
             <lf-options id="rotation-first-region">
               <lf-option id="rotation-first-apac">
                 <strong>Asia-Pacific first</strong> Its traffic is lowest in a European
                 morning window.
               </lf-option>
               <lf-option id="rotation-first-west">
-                <strong>US West first</strong> Its traffic is lowest just after the payout
-                batch.
+                <strong>US West first</strong> Its traffic is lowest just after the
+                payout batch.
               </lf-option>
             </lf-options>
           </section>

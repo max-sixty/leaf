@@ -2611,7 +2611,9 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     expect(chosen).to_have_attribute("selected", "")
     grounds = chosen.evaluate(
         """o => [getComputedStyle(o).backgroundColor,
-                 getComputedStyle(o.querySelector('small.tag.ok')).backgroundColor]"""
+                 getComputedStyle(
+                   o.querySelector(':scope > [data-lf-said="label"]'), '::after'
+                 ).backgroundColor]"""
     )
     assert grounds[0] != grounds[1], grounds
 

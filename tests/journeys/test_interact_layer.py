@@ -240,7 +240,7 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
                 {
                     selector: {
                         "description": "d",
-                        "x-example": '<p class="hazard">Warning</p>',
+                        "author": {"example": '<p class="hazard">Warning</p>'},
                         **declaration,
                     }
                 }
@@ -255,12 +255,45 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
         result = init(selector, {}, "plain")
         assert result.exit_code == 0, result.output
     for selector, declaration, page in (
-        (".hazard", {"x-inline": True}, "inline"),
-        (".hazard", {"x-space": "wide"}, "room"),
+        (
+            ".hazard",
+            {
+                "words": {
+                    "inline": True,
+                },
+            },
+            "inline",
+        ),
+        (
+            ".hazard",
+            {
+                "paint": {
+                    "space": "wide",
+                },
+            },
+            "room",
+        ),
         (".hazard::before", {}, "pseudo"),
         (".hazard[", {}, "invalid-selector-without-marks"),
-        (".hazard", {"x-example": ""}, "empty-example"),
-        (".hazard", {"x-instructions": " "}, "empty-instructions"),
+        (
+            ".hazard",
+            {
+                "author": {
+                    "example": "",
+                },
+            },
+            "empty-example",
+        ),
+        (
+            ".hazard",
+            {
+                "author": {
+                    "example": '<p class="hazard">Warning</p>',
+                    "instructions": " ",
+                }
+            },
+            "empty-instructions",
+        ),
     ):
         result = init(selector, declaration, page)
         assert result.exit_code != 0
@@ -687,7 +720,7 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
 
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-unfinished"]["x-verbatim"] = True
+    registry["lf-unfinished"].setdefault("words", {})["verbatim"] = True
     registry_path.write_text(json.dumps(registry))
 
     for args in (

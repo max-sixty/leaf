@@ -329,7 +329,9 @@ test("an element gates its draws on the delivered bound value", async () => {
   const tag = `lf-probe-data-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      data: {
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -626,7 +628,9 @@ test("bound data draws only as it is delivered", async () => {
   const tag = `lf-probe-delivered-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      data: {
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -671,8 +675,10 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   const tag = `lf-probe-written-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-content": "data",
-      "x-data": { text: { source: "source", contract: "text", property: "value" } },
+      content: "data",
+      data: {
+        inputs: { text: { source: "source", contract: "text", property: "value" } },
+      },
     },
   });
   const drawn = [];
@@ -877,7 +883,9 @@ test("accepted data claims the element's region until its delivery draws", async
   const tag = `lf-probe-claim-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      data: {
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -923,7 +931,9 @@ test(
     const tag = `lf-probe-unused-data-${++tags}`;
     adoptRegistry({
       [tag]: {
-        "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+        data: {
+          inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+        },
       },
       $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
     });

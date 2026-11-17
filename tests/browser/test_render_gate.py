@@ -128,14 +128,7 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 # A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
 # its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
 # diagram package's does.
-SKETCH_DECLARATION = {
-    **{
-        key: value
-        for key, value in element_declaration("lf-sketch", upgrade=True).items()
-        if key != "x-verbatim"
-    },
-    "x-height": True,
-}
+SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "paint": {"height": True}}
 SKETCH_WIDGET = """
 import {PendingTaskEvent, once} from '/runtime/portable-api.js';
 customElements.define('lf-sketch', class extends HTMLElement {
@@ -1360,7 +1353,7 @@ def _author_stateful_verbatim_widget(tmp_path):
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     stateful = declarations["lf-stateful"]
-    stateful["properties"].update(
+    stateful["attributes"]["properties"].update(
         {
             "user": {"type": "string"},
             "agent": {"type": "string"},
@@ -1368,7 +1361,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             "overruled": {"type": "boolean"},
         }
     )
-    stateful["x-state"] = {
+    stateful.setdefault("state", {})["verbs"] = {
         "change": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "user"},
@@ -1381,13 +1374,19 @@ def _author_stateful_verbatim_widget(tmp_path):
     }
     declarations["lf-shell"] = {
         "description": "A preserving wrapper around a stateful child.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-verbatim": True,
-        "x-example": '<lf-shell id="shell-example">Example</lf-shell>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "words": {
+            "verbatim": True,
+        },
+        "author": {
+            "example": '<lf-shell id="shell-example">Example</lf-shell>',
+        },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
@@ -3316,7 +3315,7 @@ FRAMED_TABLES_PAGE = leaf_page(
 <lf-ask id="figure-asked">
 <h2>Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
-<lf-options id="figure-asked-choice" choose>
+<lf-options id="figure-asked-choice">
 <lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
 <lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
 </lf-options>
@@ -3325,7 +3324,7 @@ FRAMED_TABLES_PAGE = leaf_page(
 <lf-ask id="asked">
 <h2>Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
-<lf-options id="asked-choice" choose>
+<lf-options id="asked-choice">
 <lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
 <lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
 </lf-options>
@@ -3391,8 +3390,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-callout"].pop("x-verbatim")
-    entries["lf-callout"]["x-shadow"] = True
+    entries["lf-callout"]["words"].pop("verbatim")
+    entries["lf-callout"].setdefault("words", {})["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -3775,7 +3774,7 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
           <figcaption>Caption.</figcaption></figure>
         <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>
         <lf-ask id="asked" data-width="available"><h2>Ship it?</h2><p>Words.</p>
-          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
+          <lf-options id="choice"><lf-option id="yes">Yes</lf-option></lf-options>
         </lf-ask>""",
     )
     page = open_page(browser, serve(source))
@@ -3855,7 +3854,7 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     sideways scroll, so it is not clipped out."""
     item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
-  <lf-options id="{id}-o" choose><lf-option id="{id}-a">This one</lf-option></lf-options>
+  <lf-options id="{id}-o"><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-ask>"""
     source = leaf_page(
         "Reaching past the column",
@@ -4235,8 +4234,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-callout"].pop("x-verbatim")
-    entries["lf-callout"]["x-shadow"] = True
+    entries["lf-callout"]["words"].pop("verbatim")
+    entries["lf-callout"].setdefault("words", {})["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'

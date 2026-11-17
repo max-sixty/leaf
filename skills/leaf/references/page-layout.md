@@ -287,7 +287,7 @@ Under the reading face a table scrolls sideways when needed; a page without the 
 gives a table that can outgrow its width a box of its own that scrolls sideways
 (`page-authoring.md`, "Markup").
 
-A widget whose entry declares `x-height`, such as `lf-chart`, reserves that height
+A widget whose entry declares `paint.height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
 its own height, such as `lf-diagram`, reserves nothing, so content below it moves
 when it draws unless you set `data-height`. A diagram lays itself out for its width,

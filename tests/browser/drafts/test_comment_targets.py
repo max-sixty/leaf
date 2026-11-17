@@ -671,22 +671,28 @@ customElements.define('lf-draft-subject', class extends LeafElement {
         layer_registry={
             "lf-draft-subject": {
                 "description": "A datum whose words can change.",
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "source": {"type": "string"},
+                "attributes": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "source": {"type": "string"},
+                    },
+                    "required": ["id"],
+                    "additionalProperties": False,
                 },
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "empty",
-                "x-data": {
-                    "words": {
-                        "contract": "text-document",
-                        "source": "source",
-                        "property": "value",
-                    }
+                "content": "empty",
+                "data": {
+                    "inputs": {
+                        "words": {
+                            "contract": "text-document",
+                            "source": "source",
+                            "property": "value",
+                        }
+                    },
                 },
-                "x-example": '<lf-draft-subject id="example"></lf-draft-subject>',
+                "author": {
+                    "example": '<lf-draft-subject id="example"></lf-draft-subject>',
+                },
             }
         },
         layer_widgets={"lf-draft-subject.js": module},

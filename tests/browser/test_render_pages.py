@@ -640,16 +640,25 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
 ):
     """A rendering has no text of the page's in it to select, so an explicit Comment
     gesture anchors on the whole element. Which widgets those are is theirs to declare
-    (x-visual): the runtime names none of them, so a widget added to the vocabulary exposes
-    the target on the strength of its entry. This rules out a consumer that knows one
+    (words.visual): the runtime names none of them, so a widget added to the vocabulary
+    exposes the target on the strength of its entry. This rules out a consumer that
+    knows one
     widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
     registry = load_registry(serve.page_dir)
-    assert registry["lf-diagram"]["x-visual"], "this test needs the shipped declaration"
+    assert registry["lf-diagram"]["words"]["visual"], (
+        "this test needs the shipped declaration"
+    )
     declare_on_page(
         serve.page_dir,
         # A widget core has never heard of.
-        lambda registry: registry["lf-code"].update({"x-visual": "whole"}),
+        lambda registry: registry["lf-code"].update(
+            {
+                "words": {
+                    "visual": "whole",
+                },
+            }
+        ),
     )
     page = open_page(browser, url)
 
@@ -1353,7 +1362,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
-  <lf-options id="options" choose><lf-option id="option">One</lf-option></lf-options>
+  <lf-options id="options"><lf-option id="option">One</lf-option></lf-options>
 </section>
 """,
     )
@@ -1874,7 +1883,7 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
         "<h1>Tables of prose</h1>"
         '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
         + table.format(id="in-ask")
-        + '<lf-options id="asked-choice" choose>'
+        + '<lf-options id="asked-choice">'
         '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
         "</lf-options></lf-ask>"
@@ -2225,9 +2234,9 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
         # A board's columns are as wide as what they hold, a diff's lines are as long as
         # its files', and prose is set to a measure, so a page carrying all three used
         # to be a cramped board or a page widened past its own measure for one exhibit.
-        # x-space declares the capacity a widget needs, and the theme spends the room
-        # the layout measured, so each exhibit grows and the prose does not move. The
-        # board, a surface, takes all the room; the diff, slightly wider than the
+        # paint.space declares the capacity a widget needs, and the theme spends the
+        # room the layout measured, so each exhibit grows and the prose does not move.
+        # The board, a surface, takes all the room; the diff, slightly wider than the
         # column, starts at the prose's edge and stops at the shared cap.
         #
         # The code block is the half that says the declaration is doing this. It is a
@@ -2580,8 +2589,9 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render
-    (x-space, the half of markDeclared the page keeps to itself). Nothing about a message
-    says so, which is why this asks: the widget is in the panel, and the panel's width is
+    (paint.space, the half of markDeclared the page keeps to itself). Nothing about a
+    message says so, which is why this asks: the widget is in the panel, and the panel's
+    width is
     what bounds it."""
     url = serve(REPLY_HOST_PAGE)
     append_carried_log_record(
@@ -2690,7 +2700,7 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     """The room is the page's to give, and a widget inside a box that paints is not held
     by the page. A quoted board that took the window stood outside the gutter marking it
     as quoted — the exhibit escaping its own exhibit — while a diagram in an option card
-    was worse for being invisible: a choose group clips to its own cells, so the widest
+    was worse for being invisible: a live option group clips to its own cells, so the widest
     part of the evidence an option argued on was cut off at the card's edge rather than
     drawn past it, and nothing on the page said a word.
 
@@ -3350,7 +3360,7 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
     included. It outranked them there, which set lf-file-tree's rows, buttons Trees
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
-    declaration["x-shadow"] = True
+    declaration.setdefault("words", {})["shadow"] = True
     page = open_page(
         browser,
         serve(

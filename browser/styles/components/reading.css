@@ -73,6 +73,14 @@
     grid-column: 1 / -1;
   }
 }
+/* Whether focus is in a table whose rows open with their names (below, the sticky row
+   names). The names' fade asks the table for it by a style query, so nothing inherits
+   it. */
+@property --lf-names-focus {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 @layer lf-reading-face {
   @container style(--lf-reading-face: 1) {
     /* An identifier breaks where it must. A test name or a path is one word to the line
@@ -479,15 +487,26 @@ dl.lf-facts dd {
        Each rule below names its cells' types, in a `:where()` that adds no weight,
        because its subject follows the table's `:has()`: when such a subject names no
        type, class, id or attribute, Chromium restyles every element under any one whose
-       focus mark changes (test_a_has_leads_only_to_a_subject_naming_an_element). Focus
-       marks every ancestor of the focused element, `main` included, so with
-       `:first-child` alone every focus move restyled the page
-       (test_resolving_a_thread_restyles_what_focus_marks). */
+       attributes another `:has()` reads change
+       (test_a_has_leads_only_to_a_subject_naming_an_element).
+       Whether focus is in the table is a property the table sets, `--lf-names-focus`,
+       and the fade asks the table for it by a style query on the container the table
+       names, `lf-row-names` (`browser/AGENTS.md`, "A rule for focus anywhere in a box"),
+       so a focus move into or out of the table restyles the table, its fades and, while
+       its fades are drawn, everything in it, and a move elsewhere on the page restyles
+       none of it (test_entering_the_column_or_go_to_restyles_no_cell_or_link_it_passes).
+       A page that names its own container on such a table (`container-name: vendors`)
+       loses the fade, and a nested one given its own `container` fades by the outer
+       table's focus. */
     table:has(th[scope="row"]:first-child):has(> * > tr > th[scope="row"]:first-child) {
       --lf-more-fade-start: 0px;
       --lf-names-clear-to: right;
+      container-name: lf-row-names;
       &[data-lf-scroll-direction="rtl"] {
         --lf-names-clear-to: left;
+      }
+      &[data-lf-focus-within] {
+        --lf-names-focus: 1;
       }
       & > * > tr > :where(th, td):first-child {
         position: sticky;
@@ -497,21 +516,20 @@ dl.lf-facts dd {
         background: var(--lf-ground);
       }
       @media screen {
-        &[data-lf-more-before]:not([data-lf-focus-within])
-          > *
-          > tr
-          > :where(th, td):first-child::after {
-          content: "";
-          position: absolute;
-          inset-block: 0;
-          inset-inline-start: 100%;
-          inline-size: var(--lf-more-fade, 24px);
-          background: linear-gradient(
-            to var(--lf-names-clear-to),
-            var(--lf-ground),
-            transparent
-          );
-          pointer-events: none;
+        @container lf-row-names style(--lf-names-focus: 0) {
+          &[data-lf-more-before] > * > tr > :where(th, td):first-child::after {
+            content: "";
+            position: absolute;
+            inset-block: 0;
+            inset-inline-start: 100%;
+            inline-size: var(--lf-more-fade, 24px);
+            background: linear-gradient(
+              to var(--lf-names-clear-to),
+              var(--lf-ground),
+              transparent
+            );
+            pointer-events: none;
+          }
         }
       }
     }

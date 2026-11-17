@@ -668,7 +668,7 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
     # belongs to the widget that holds it, which is the element the page gave a name.
     page.locator("#flow svg").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#flow.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
+    page.locator("#flow.lf-mark-el.lf-pending[data-lf-projected-mark]").wait_for()
     expect(page.locator("#flow")).to_have_attribute(
         "data-lf-mark", re.compile(r"\bpending\b")
     )
@@ -677,7 +677,7 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
 
     page.locator("#tree").click(modifiers=["Alt"])
     page.locator(".lf-fab-input").click()
-    page.locator("#tree.lf-mark-el.lf-pending.lf-projected-mark").wait_for()
+    page.locator("#tree.lf-mark-el.lf-pending[data-lf-projected-mark]").wait_for()
     tree = page.locator("#tree")
     expect(tree).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
     look = tree.evaluate(MARK)
@@ -800,7 +800,7 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
     comparison.click(modifiers=["Alt"], position={"x": box["width"] / 4, "y": 80})
     expect(comparison).to_have_attribute("position", "50")
     expect(page.locator(".lf-fab-input")).to_be_visible()
-    expect(shot).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(shot).to_have_attribute("data-lf-projected-mark", "")
     expect(shot).to_have_attribute("data-lf-mark", re.compile(r"\bpending\b"))
     ink = shot.evaluate(_MARK_INK)
     marked = screenshot()

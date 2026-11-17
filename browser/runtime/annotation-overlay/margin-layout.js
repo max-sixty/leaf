@@ -808,6 +808,13 @@ function takeFaceRecords() {
 // Leaf's own surfaces moves no seat. The marks the runtime draws on page boxes stand in
 // attributes this does not hear (page-paint.js); an anchor name it writes inline into a
 // box's style is heard as any other restyle.
+//
+// TODO(#5194): any attribute write heard here places every pin again, 59 ms at 256
+// sections and most of it `coverIn`, so a key in a diff's file filter pays for the whole
+// page. A prototype that read again only the pins within a window's height of the screen,
+// shifted the rest with their targets and read those when a scroll brought them near,
+// took that key from 70 to 17 ms in 120 fewer lines; a pin far off-screen could then
+// stand over a control a change brought until a scroll nears it.
 /** @param {MutationRecord[]} records */
 function heardPage(records) {
   const page = records.filter((record) => !onSurface(record.target));

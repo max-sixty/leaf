@@ -21,9 +21,10 @@ action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
 `name` is what the authoring contract calls it away from itself: a widget's `label`
-attribute (the registry's `$attributes`), else a leading `<summary>`, heading, or `<strong>`,
-inside a leading `<header>` or `<hgroup>` too — the rule the browser's `addressableName` reads off
-the live page, read here off the document the gesture was made in.
+attribute (the registry's `$attributes`), else a leading `<summary>` or heading, or on a
+widget a `<strong>`, inside a leading `<header>` or `<hgroup>` too — the rule the
+browser's `addressableName` reads off the live page, read here off the document the
+gesture was made in.
 """
 
 from collections.abc import Callable
@@ -46,7 +47,8 @@ from .registry.contract import (
 )
 from .revision_artifact import read_revision
 
-TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
+TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6"})
+WIDGET_TITLES = TITLES | {"strong"}
 
 # revision → its immutable document read under the registry captured with it.
 RevisionReader = Callable[[int], SourceReading]
@@ -62,24 +64,29 @@ def _text(node) -> str:
     return "".join(_text(child) for child in node["content"])
 
 
-def leading_title_node(node: dict) -> dict | None:
+def _registered(node: dict, registry: dict) -> bool:
+    return is_element_name(node["tag"]) and node["tag"] in registry
+
+
+def leading_title_node(node: dict, registry: dict) -> dict | None:
     """The element that titles `node`: its first title element, looking inside a
-    leading <header> or <hgroup> and past other elements, until text intervenes."""
+    leading <header> or <hgroup> and past other elements, until text intervenes. A
+    `<strong>` titles only a widget the registry registers, such as an option or a
+    card: a bold line in plain markup is how it looks, not what it is called."""
+    return _first_title(node, WIDGET_TITLES if _registered(node, registry) else TITLES)
+
+
+def _first_title(node: dict, titles: frozenset[str]) -> dict | None:
     for child in node["content"]:
         if isinstance(child, str):
             if child.strip():
                 return None
             continue
-        if child["tag"] in TITLES:
+        if child["tag"] in titles:
             return child
         if child["tag"] in {"header", "hgroup"}:
-            return leading_title_node(child)
+            return _first_title(child, titles)
     return None
-
-
-def leading_title(node: dict) -> str:
-    title = leading_title_node(node)
-    return collapse(_text(title)) if title else ""
 
 
 def element_name(node: dict, registry: dict) -> str:
@@ -87,9 +94,12 @@ def element_name(node: dict, registry: dict) -> str:
     `label` attribute (`contract.NAME_ATTRIBUTE`), else its leading title, in the
     words the author wrote. The browser's `addressableName` reads the same rule off
     the live page; `tests/name_cases.json` holds both to the same cases."""
-    widget = is_element_name(node["tag"]) and node["tag"] in registry
-    declared = (node["attrs"].get(NAME_ATTRIBUTE) or "").strip() if widget else ""
-    return declared or leading_title(node)
+    if _registered(node, registry):
+        declared = (node["attrs"].get(NAME_ATTRIBUTE) or "").strip()
+        if declared:
+            return declared
+    title = leading_title_node(node, registry)
+    return collapse(_text(title)) if title else ""
 
 
 def group_name(group: dict, nodes: dict[str, dict]) -> tuple[str, str | None]:

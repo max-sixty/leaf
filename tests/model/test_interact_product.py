@@ -239,7 +239,7 @@ def test_options_require_an_id(page_dir):
     # Actions name their widget by id, and every group takes them.
     registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
-        '<lf-options><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+        '<lf-options><lf-option id="o1" label="A"></lf-option></lf-options>',
         registry,
     )
     assert found(errs, "attribute-schema", "<lf-options>", keyword="required")
@@ -252,9 +252,9 @@ def test_sample_admits_interactive_widgets(page_dir):
     registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-sample id="sp" label="a decision">'
-        '<lf-options id="g"><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
+        '<lf-options id="g"><lf-option id="o1" label="A"></lf-option></lf-options>'
         '<lf-board id="b"><lf-column id="c" label="To do">'
-        '<lf-card id="k"><strong>Card</strong></lf-card></lf-column></lf-board>'
+        '<lf-card id="k" label="Card"></lf-card></lf-column></lf-board>'
         "</lf-sample>",
         registry,
     )
@@ -271,7 +271,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one">'
-        '<lf-option id="o-one"><strong>One</strong></lf-option>'
+        '<lf-option id="o-one" label="One"></lf-option>'
         "</lf-options>"
     )
     second = first.replace("one", "two").replace("One", "Two")
@@ -733,7 +733,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     clash = reply(
         question(
             "o-decision",
-            '<lf-options id="o"><lf-option id="flag-first"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="o"><lf-option id="flag-first" label="A"></lf-option></lf-options>',
         ),
         for_event="c1",
     )
@@ -741,7 +741,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     fresh = reply(
         question(
             "q1-decision",
-            '<lf-options id="q1"><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="q1"><lf-option id="q1-a" label="A"></lf-option></lf-options>',
         ),
         for_event="c1",
     )
@@ -750,14 +750,14 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     again = reply(
         question(
             "q1-decision",
-            '<lf-options id="q1"><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>',
+            '<lf-options id="q1"><lf-option id="q1-b" label="B"></lf-option></lf-options>',
         )
     )
     assert again.exit_code != 0 and "q1" in again.output
     selfdup = reply(
         question(
             "q2-decision",
-            '<lf-options id="q2"><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
+            '<lf-options id="q2"><lf-option id="q2" label="B"></lf-option></lf-options>',
         )
     )
     assert selfdup.exit_code != 0 and "duplicate ids" in selfdup.output
@@ -776,7 +776,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     ok = reply(
         question(
             "quoted-decision",
-            '<lf-options id="quoted"><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="quoted"><lf-option id="quoted-a" label="A"></lf-option></lf-options>',
         ),
         for_event=follow_up["id"],
         to=follow_up["id"],
@@ -819,7 +819,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
                 "Pick:\n\n"
                 '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h">\n<h2 id="pick-decision-h">Pick?</h2>'
                 '<lf-options id="lf-pick">'
-                '<lf-option id="o1"><strong>A</strong></lf-option>'
+                '<lf-option id="o1" label="A"></lf-option>'
                 "</lf-options></section>"
             ),
         ],

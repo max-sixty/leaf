@@ -59,12 +59,12 @@ test("no element has no name", () => {
 test("generated chrome names nothing, and does not hide the title behind it", () => {
   declare({ "lf-card": {} });
   assert.equal(
-    named('<lf-card id="it"><strong class="lf-ui">6 · 🎯</strong>Words.</lf-card>'),
+    named('<lf-card id="it" label="6 · 🎯">Words.</lf-card>'),
     "",
   );
   assert.equal(
     named(
-      '<lf-card id="it"><strong class="lf-ui">6 · 🎯</strong><strong>Real title</strong> Words.</lf-card>',
+      '<lf-card id="it" label="6 · 🎯"><strong>Real title</strong> Words.</lf-card>',
     ),
     "Real title",
   );
@@ -80,7 +80,7 @@ test("the chrome names an element by its name before its words", () => {
   // A question is its heading, not its heading run into its options and their chips.
   assert.equal(
     labelled(
-      '<section id="it" role="group"><h4>How should it page?</h4><lf-options><lf-option><small class="tag">last week: 0</small><strong>Require three</strong> probes.</lf-option></lf-options></section>',
+      '<section id="it" role="group"><h4>How should it page?</h4><lf-options><lf-option label="Require three"><small class="tag">last week: 0</small>probes.</lf-option></lf-options></section>',
     ),
     "How should it page?",
   );
@@ -109,7 +109,7 @@ test("an element whose words are its members' takes the nearest enclosing name",
   // Options have no title of their own; the question holding them names them.
   assert.equal(
     labelled(
-      '<section role="group"><h4>Which rollout?</h4><lf-options id="it"><lf-option><strong>Now</strong></lf-option></lf-options></section>',
+      '<section role="group"><h4>Which rollout?</h4><lf-options id="it"><lf-option label="Now"></lf-option></lf-options></section>',
     ),
     "Which rollout?",
   );
@@ -126,7 +126,7 @@ test("past every name, plain markup is its words and a widget is its word", () =
   for (const tag of Object.keys(registry)) delete registry[tag];
   Object.assign(registry, { "lf-board": {} });
   const members =
-    "<lf-column><lf-card><strong>Card</strong> words</lf-card></lf-column>";
+    "<lf-column><lf-card label="Card">words</lf-card></lf-column>";
   assert.equal(labelled(`<lf-board id="it">${members}</lf-board>`), "");
   assert.equal(labelled(`<div id="it">${members}</div>`), "Card words");
   // The page's title leads the column; it still names nothing the column holds.

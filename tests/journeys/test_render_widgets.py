@@ -68,8 +68,8 @@ MOTION_SAMPLE_CONTENT = """
     <h2>Painted sample</h2>
     <section id="sample-choice-ask" role="group" aria-labelledby="sample-choice-ask-h"><h3 id="sample-choice-ask-h">Choose a sample</h3>
       <lf-options id="sample-choice">
-        <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
-        <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
+        <lf-option id="sample-alpha" label="Alpha"></lf-option>
+        <lf-option id="sample-beta" label="Beta"></lf-option>
       </lf-options>
     </section>
     <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
@@ -106,8 +106,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
   <section id="ask-{key}" role="group" aria-labelledby="q-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
     <lf-options id="o-{key}">
-      <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
-      <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
+      <lf-option id="o-{key}-fix" label="Fix">Ship the patch.</lf-option>
+      <lf-option id="o-{key}-close" label="Close">Explain and close.</lf-option>
     </lf-options>
   </section>
 </lf-tab>"""

@@ -3635,19 +3635,19 @@ def test_a_state_only_version_change_does_not_offer_an_empty_card(browser, serve
         <h1>Board</h1>
         <lf-board id='board'>
           <lf-column id='left' label='Left'>
-            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>
+            <lf-card id='card' label='Review'>Keep these words.</lf-card>
           </lf-column>
           <lf-column id='right' label='Right'></lf-column>
         </lf-board>
         """,
     )
     second = first.replace(
-        "<lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "<lf-card id='card' label='Review'>Keep these words.</lf-card>\n"
         "          </lf-column>\n"
         "          <lf-column id='right' label='Right'></lf-column>",
         "</lf-column>\n"
         "          <lf-column id='right' label='Right'>\n"
-        "            <lf-card id='card'><strong>Review</strong> Keep these words.</lf-card>\n"
+        "            <lf-card id='card' label='Review'>Keep these words.</lf-card>\n"
         "          </lf-column>",
     )
     page = open_page(browser, live_url(serve(first)))
@@ -5981,10 +5981,9 @@ def test_page_search_reads_two_staged_widgets_side_by_side_apart(
         ),
         (
             '<section id="pick-q" role="group" aria-label="What should a full store do?">'
-            '<lf-options id="pick"><lf-option id="drop"><small class="tag ok">'
-            "recommended</small><strong>Drop the oldest documents</strong> Editing "
-            'continues.</lf-option><lf-option id="pause"><strong>Pause editing'
-            "</strong> Nothing leaves.</lf-option></lf-options></section>",
+            '<lf-options id="pick"><lf-option id="drop" label="Drop the oldest documents"><small class="tag ok">'
+            "recommended</small>Editing "
+            'continues.</lf-option><lf-option id="pause" label="Pause editing' &quot;">Nothing leaves.</lf-option></lf-options></section>",
             "recommended Drop",
         ),
     ],

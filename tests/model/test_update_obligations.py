@@ -199,8 +199,8 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "revision": 1,
             "text": "Sort these follow-ups.\n\n" + '<lf-board id="triage">'
             '<lf-column id="queue" label="Queued">'
-            '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
-            '<lf-card id="card-b"><strong>Retry budget</strong></lf-card>'
+            '<lf-card id="card-a" label="Rolling expiry"></lf-card>'
+            '<lf-card id="card-b" label="Retry budget"></lf-card>'
             "</lf-column>"
             '<lf-column id="keep" label="Kept"></lf-column>'
             "</lf-board>",

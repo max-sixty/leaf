@@ -58,14 +58,14 @@ ACROSS_OBLIGATION = """
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
     <lf-options id="{id}-choice"{across}{width}>
-      <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
+      <lf-option id="{id}-7" label="7 days">The cheapest.
         <lf-options id="{id}-nested">
-          <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
-          <lf-option id="{id}-both"><strong>Both tiers</strong> Keep warm a week.</lf-option>
+          <lf-option id="{id}-hot" label="Hot only">Drop warm at once.</lf-option>
+          <lf-option id="{id}-both" label="Both tiers">Keep warm a week.</lf-option>
         </lf-options>
       </lf-option>
-      <lf-option id="{id}-30"><strong>30 days</strong> Covers every incident review.</lf-option>
-      <lf-option id="{id}-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
+      <lf-option id="{id}-30" label="30 days">Covers every incident review.</lf-option>
+      <lf-option id="{id}-90" label="90 days">Covers a quarter's audit.</lf-option>
     </lf-options>
     <p>Whichever you pick, the hot tier keeps a day.</p>
   </section>
@@ -93,13 +93,13 @@ PICTURED_OBLIGATION = """
   <section id="{id}" role="group" aria-labelledby="{id}-h">
     <h3 id="{id}-h">Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice"{width}>
-      <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
+      <lf-option id="{id}-yes" label="Show the goal and step">A line over each item.
         <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
           aria-label="Items under their step">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
-      <lf-option id="{id}-no"><strong>Leave the list as it is</strong> Items as today.
+      <lf-option id="{id}-no" label="Leave the list as it is">Items as today.
         <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img" aria-label="Items as today">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
@@ -127,14 +127,12 @@ PLATE_PACKAGE = {
 
 
 PLATED_OPTION = """
-      <lf-option id="plated-{side}"><strong>{title}</strong>
-        <lf-plate id="plated-{side}-picture"><p>{title} by week</p></lf-plate>
+      <lf-option id="plated-{side}" label="{title}">        <lf-plate id="plated-{side}-picture"><p>{title} by week</p></lf-plate>
       </lf-option>"""
 
 
 CAPTURED_OPTION = """
-      <lf-option id="captured-{side}"><strong>{title}</strong>
-        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
+      <lf-option id="captured-{side}" label="{title}">        <a href="{src}"><img id="captured-{side}-picture" src="{src}" alt="{title}"></a>
       </lf-option>"""
 
 
@@ -165,8 +163,8 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + ROWED_OPTION.format(side="no", title="Under the lawn")
     + "</lf-options></section>"
     + '<section id="worded" role="group" aria-labelledby="worded-h"><h3 id="worded-h">Which order?</h3><lf-options id="worded-choice">'
-    + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
-    + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
+    + '<lf-option id="worded-yes" label="By owner">Grouped.</lf-option>'
+    + '<lf-option id="worded-no" label="By age">As today.</lf-option>'
     + "</lf-options></section>",
 )
 

@@ -284,9 +284,9 @@ def test_a_pin_with_no_room_for_its_actions_stands_folded_and_unfolds_in_place(
     "options",
     [
         (
-            '<lf-option id="o-close"><strong>Close</strong> Point at the decline.'
+            '<lf-option id="o-close" label="Close">Point at the decline.'
             "</lf-option>"
-            '<lf-option id="o-leave"><strong>Leave open</strong> Resurfaces.</lf-option>'
+            '<lf-option id="o-leave" label="Leave open">Resurfaces.</lf-option>'
         ),
         # Fourteen one-word options, drawn as a column of cells that all but fill the
         # group: a guess at whether a target is drawn by its parts would take them for
@@ -334,7 +334,7 @@ def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
     every pin where it stood and under none of them. Read as cover, a shown key would
     move each pin beside the options a few pixels whenever focus entered or left them."""
     options = "".join(
-        f'<lf-option id="c-{n}"><strong>Option {n}</strong> what choosing it does.'
+        f'<lf-option id="c-{n}" label="Option {n}">what choosing it does.'
         "</lf-option>"
         for n in range(1, 5)
     )
@@ -922,7 +922,7 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
     grow and carry it level with a button the other column holds where it was."""
     lines = "".join(f'<p id="line-{n}" style="margin:0">Line {n}.</p>' for n in (1, 2))
     options = "".join(
-        f'<lf-option id="o-{i}"><strong>Option {i}</strong> a short description.'
+        f'<lf-option id="o-{i}" label="Option {i}">a short description.'
         "</lf-option>"
         for i in (1, 2, 3)
     )

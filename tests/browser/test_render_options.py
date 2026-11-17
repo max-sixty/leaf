@@ -1014,8 +1014,8 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <section id="cell-decision" role="group" aria-labelledby="cell-decision-h"><h2 id="cell-decision-h">Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" data-width="available">
-  <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
-  <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
+  <lf-option id="cc-redis" label="Redis">A store we already run.</lf-option>
+  <lf-option id="cc-pg" label="Postgres">One fewer moving part.</lf-option>
 </lf-options></section>
 <section id="rows-decision" role="group" aria-labelledby="rows-decision-h"><h2 id="rows-decision-h">Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
@@ -1029,8 +1029,8 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <section id="page-decision" role="group" aria-labelledby="page-decision-h"><h2 id="page-decision-h">Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" data-width="available">
-  <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
-  <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
+  <lf-option id="pc-platform" label="Platform">They run the store.</lf-option>
+  <lf-option id="pc-accounts" label="Accounts">They own the table.</lf-option>
 </lf-options></section></div>
 """,
     head=regions_side_by_side("layout", "2fr 1fr"),
@@ -1651,7 +1651,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
     arity from those cards.
     """
     options = "".join(
-        f'<lf-option id="route-{index}"><strong>Route {index}</strong>'
+        f'<lf-option id="route-{index}" label="Route {index}">'
         f"<p>Technical argument {index}.</p></lf-option>"
         for index in range(1, 11)
     )
@@ -2264,7 +2264,7 @@ def test_widget_work_in_a_declared_shadow_tree_keeps_its_button_and_leaves_with_
     work_page = TWICE_PAGE.replace(
         '<lf-diff id="patch">',
         '<lf-board id="shadow-work"><lf-column id="shadow-now" label="Now">\n'
-        '  <lf-card id="shadow-card"><strong>Check the shard</strong></lf-card>\n'
+        '  <lf-card id="shadow-card" label="Check the shard"></lf-card>\n'
         '</lf-column></lf-board>\n<lf-diff id="patch">',
     )
     url = serve(work_page)
@@ -2718,11 +2718,11 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
                 "option shapes",
                 '<section id="shapes-q" role="group" aria-label="How should it roll out?">'
                 '<lf-options id="shapes">'
-                '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
+                '<lf-option id="sentence" label="Ship it">The cohort gets it now.'
                 "</lf-option>"
-                '<lf-option id="element"><strong>Stage it</strong> The cohort gets '
+                '<lf-option id="element" label="Stage it">The cohort gets '
                 "<em>half</em> now.</lf-option>"
-                '<lf-option id="paragraph"><strong>Hold it</strong>'
+                '<lf-option id="paragraph" label="Hold it">'
                 "<p>The cohort waits for the fix.</p></lf-option>"
                 "</lf-options></section>",
             )

@@ -682,7 +682,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "author": "agent",
             "revision": 1,
             "text": "And which region first?\n\n" + '<lf-options id="rg">'
-            '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
+            '<lf-option id="r-eu" label="EU"></lf-option>'
             "</lf-options>",
         },
     )
@@ -696,7 +696,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             + '<lf-options id="gm">\n'
             '<lf-option id="m-cap"><small class="tag">recommended</small>'
             "<strong>Cap retries</strong> Bound retry load.</lf-option>"
-            '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
+            '<lf-option id="m-alert" label="Alert"></lf-option>'
             "</lf-options>",
         },
     )
@@ -972,8 +972,8 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             message["revision"] = 1
             message["text"] += (
                 '\n\n<lf-options id="thread-commands">'
-                '<lf-option id="restart"><strong>Restart</strong></lf-option>'
-                '<lf-option id="park"><strong>Park</strong></lf-option>'
+                '<lf-option id="restart" label="Restart"></lf-option>'
+                '<lf-option id="park" label="Park"></lf-option>'
                 "</lf-options>"
             )
         sent = append_carried_log_record(page_dir, message)
@@ -1108,7 +1108,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "author": "agent",
             "parent": root["id"],
             "text": "Which mitigations?\n\n" + '<lf-options id="gm" multiple>'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-cap" label="Cap retries"></lf-option>'
             "</lf-options>",
         },
     )

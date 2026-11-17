@@ -238,12 +238,11 @@ REPLAYED = {
                     "text": "Both regions pass the preflight. When should I run the "
                     "production rebuild?\n\n"
                     '<lf-options id="rebuild-when">\n'
-                    '<lf-option id="rebuild-tonight"><small class="tag ok">'
-                    "recommended</small> <strong>Rebuild tonight</strong></lf-option>\n"
-                    '<lf-option id="rebuild-now"><strong>Rebuild now</strong> p95 up '
+                    '<lf-option id="rebuild-tonight" label="Rebuild tonight"><small class="tag ok">'
+                    "recommended</small></lf-option>\n"
+                    '<lf-option id="rebuild-now" label="Rebuild now">p95 up '
                     "30%</lf-option>\n"
-                    '<lf-option id="rebuild-saturday"><strong>Rebuild on Saturday'
-                    "</strong></lf-option>\n</lf-options>",
+                    '<lf-option id="rebuild-saturday" label="Rebuild on Saturday' &quot;"></lf-option>\n</lf-options>",
                     "passage": "",
                     "again": "",
                     "quote": "I'd go tonight.",

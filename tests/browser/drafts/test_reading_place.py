@@ -134,8 +134,8 @@ def test_a_page_keeps_its_place_as_the_window_changes_width(browser, serve, regi
     )
     question = (
         '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which way?</h2><lf-options id="way">'
-        '<lf-option id="way-one"><strong>One</strong> the first way.</lf-option>'
-        '<lf-option id="way-two"><strong>Two</strong> the second way.</lf-option>'
+        '<lf-option id="way-one" label="One">the first way.</lf-option>'
+        '<lf-option id="way-two" label="Two">the second way.</lf-option>'
         "</lf-options></section>"
     )
     opening = "".join(

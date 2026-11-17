@@ -35,7 +35,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
     registry = registry_storage.load_registry(page_dir)
     assert found(
         fragment_errors(
-            '<lf-options settled><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options settled><lf-option id="o1" label="A"></lf-option></lf-options>',
             registry,
         ),
         "attribute-schema",
@@ -46,9 +46,9 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
         '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h">'
         '<h2 id="pick-decision-h">Which one?</h2><lf-options id="pick"{}>'
     )
-    group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
+    group += '<lf-option id="opt-a" label="A"{}></lf-option>'
     group += (
-        '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></section>'
+        '<lf-option id="opt-b" label="B"></lf-option></lf-options></section>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")

@@ -73,7 +73,7 @@ def test_an_edge_shows_no_space_before_a_closing_mark_or_after_an_opening_one():
     author punctuated it. A straight quote opening a title is no closing mark, so the
     chip before it still reads apart. The runtime's `says` shows the same words."""
     document = structure_model.SourceDocument(
-        '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps '
+        '<main><lf-option id="punctuated" label="Leave it">; the send keeps '
         "<code>Foo</code>'s place (<code>beta</code>).</lf-option>"
         '<lf-option id="chipped"><small class="tag">recommended</small>'
         "<strong>Apply</strong>Ship it.</lf-option>"
@@ -1730,7 +1730,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h">\n<h3 id="gm-decision-h">Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm">'
-            '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-cap" label="Cap retries"></lf-option>'
             "</lf-options></section>",
         },
     )
@@ -1765,7 +1765,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                         f"Choose {suffix}\n\n"
                         f'<section id="group-{suffix}-decision" role="group" aria-labelledby="group-{suffix}-decision-h">\n<h3 id="group-{suffix}-decision-h">Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}">'
-                        f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
+                        f'<lf-option id="option-{suffix}" label="{suffix}"></lf-option>'
                         "</lf-options></section>"
                     ),
                 },

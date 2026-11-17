@@ -342,15 +342,15 @@ OBLIGATION_MARKERS_PAGE = leaf_page(
 <h1 id="h">Two open questions</h1>
 <section id="short-ask" role="group" aria-labelledby="short-ask-h"><h2 id="short-ask-h">Where should sessions live?</h2>
 <lf-options id="short-choice">
-  <lf-option id="short-a"><strong>Keep the store</strong></lf-option>
-  <lf-option id="short-b"><strong>Signed tokens</strong></lf-option>
+  <lf-option id="short-a" label="Keep the store"></lf-option>
+  <lf-option id="short-b" label="Signed tokens"></lf-option>
 </lf-options></section>
 <p id="between">Between the two questions, a paragraph of ordinary prose.</p>
 <section id="long-ask" role="group" aria-labelledby="long-ask-h"><h2 id="long-ask-h">Should the nightly export keep writing one file per tenant,
 or roll every tenant into a single partitioned archive?</h2>
 <lf-options id="long-choice">
-  <lf-option id="long-a"><strong>One file per tenant</strong></lf-option>
-  <lf-option id="long-b"><strong>One archive</strong></lf-option>
+  <lf-option id="long-a" label="One file per tenant"></lf-option>
+  <lf-option id="long-b" label="One archive"></lf-option>
 </lf-options></section>
 """,
 )
@@ -831,8 +831,8 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
 </p>
 <lf-board id="packing">
   <lf-column id="ready" label="Ready">
-    <lf-card id="map"><strong>Print the workshop map</strong></lf-card>
-    <lf-card id="signs"><strong>Pack the direction signs</strong></lf-card>
+    <lf-card id="map" label="Print the workshop map"></lf-card>
+    <lf-card id="signs" label="Pack the direction signs"></lf-card>
   </lf-column>
 </lf-board>
 """,

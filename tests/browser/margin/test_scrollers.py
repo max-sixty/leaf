@@ -864,8 +864,8 @@ SEATED_PANE_PAGE = leaf_page(
     + '<section id="seat-ask" role="group" aria-labelledby="seat-ask-h"><h3 id="seat-ask-h">Should the nightly export keep writing one file per'
     " tenant or roll every tenant up into one archive tonight</h3>"
     '<lf-options id="seat-choice">'
-    '<lf-option id="sa"><strong>One file per tenant</strong></lf-option>'
-    '<lf-option id="sb"><strong>One archive</strong></lf-option>'
+    '<lf-option id="sa" label="One file per tenant"></lf-option>'
+    '<lf-option id="sb" label="One archive"></lf-option>'
     "</lf-options></section>" + _PARAGRAPH * 8 + "</div></lf-pane>"
     '<lf-pane id="seat-beside" label="Right"><div><p>A short pane beside it.</p></div>'
     "</lf-pane></div>",

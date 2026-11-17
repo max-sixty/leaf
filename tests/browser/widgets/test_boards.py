@@ -36,8 +36,7 @@ TALL_BOARD_PAGE = leaf_page(
   <lf-column id="sq-col-0" label="Lane 0">
 """
     + "".join(
-        f"""    <lf-card id="sq-card-{i}"><strong>Perch {i}</strong>
-    The warden has documented every reading she takes at dawn.</lf-card>
+        f"""    <lf-card id="sq-card-{i}" label="Perch {i}">    The warden has documented every reading she takes at dawn.</lf-card>
 """
         for i in range(8)
     )
@@ -606,14 +605,13 @@ GRIPPED_CARD_PAGE = leaf_page(
 <h1 id="t">Release triage</h1>
 <lf-board id="gripped">
   <lf-column id="col-a" label="Fix in 2.4.1">
-    <lf-card id="card-a"><strong>Webhook retries ignore the Retry-After header</strong>
-      Three partners rate limit us during their own deploys, and we back off on a fixed
+    <lf-card id="card-a" label="Webhook retries ignore the Retry-After header">      Three partners rate limit us during their own deploys, and we back off on a fixed
       schedule that ignores what they asked for.</lf-card>
   </lf-column>
   <lf-column id="col-b" label="Defer">
-    <lf-card id="plain"><strong>Plain</strong> The importer is wired.</lf-card>
-    <lf-card id="element"><strong>Element</strong> The <em>importer</em> is wired.</lf-card>
-    <lf-card id="paragraph"><strong>Paragraph</strong><p>The importer is wired.</p></lf-card>
+    <lf-card id="plain" label="Plain">The importer is wired.</lf-card>
+    <lf-card id="element" label="Element">The <em>importer</em> is wired.</lf-card>
+    <lf-card id="paragraph" label="Paragraph"><p>The importer is wired.</p></lf-card>
   </lf-column>
   <lf-column id="col-c" label="Repro"></lf-column>
 </lf-board>
@@ -690,8 +688,7 @@ GRIPPED_BLOCK_CARD_PAGE = leaf_page(
 <h1 id="t">Release triage</h1>
 <lf-board id="gripped">
   <lf-column id="col-a" label="Fix in 2.4.1">
-    <lf-card id="card-a"><strong>Retries ignore Retry-After</strong>
-      <pre id="card-a-code">retry(after=fixed(30))</pre>
+    <lf-card id="card-a" label="Retries ignore Retry-After">      <pre id="card-a-code">retry(after=fixed(30))</pre>
       <p id="card-a-note">Three partners rate limit us during their own deploys.</p>
     </lf-card>
   </lf-column>
@@ -814,7 +811,7 @@ ANSWERS_BOARD_PAGE = leaf_page(
   <lf-column id="col-open" label="Undecided"></lf-column>
   <lf-column id="col-next" label="Next" value="next"></lf-column>
   <lf-column id="col-later" label="Later" value="later">
-    <lf-card id="card-rail" shows="rail"><strong>Keep the rail</strong></lf-card>
+    <lf-card id="card-rail" label="Keep the rail" shows="rail"></lf-card>
   </lf-column>
 </lf-board>
 """,

@@ -191,18 +191,19 @@
             administrator-configured namespace and AppArmor support.
           </p>
           <lf-options id="plan-platforms">
-            <lf-option id="plan-admin"
-              ><strong>Include them with an explicit prerequisite</strong> Check support
-              before setup; stop with an actionable error when host policy blocks the
-              sandbox.
+            <lf-option
+              id="plan-admin"
+              label="Include them with an explicit prerequisite"
+              >Check support before setup; stop with an actionable error when host
+              policy blocks the sandbox.
               <em
                 >I recommend this: it preserves support without changing
                 administrator-owned policy.</em
               ></lf-option
             >
-            <lf-option id="plan-hosted"
-              ><strong>Start with GitHub-hosted runners</strong> Refuse self-hosted
-              execution for now and add it after a separate validation pass.</lf-option
+            <lf-option id="plan-hosted" label="Start with GitHub-hosted runners"
+              >Refuse self-hosted execution for now and add it after a separate
+              validation pass.</lf-option
             >
           </lf-options>
         </section>

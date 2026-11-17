@@ -903,7 +903,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
             "author": "agent",
             "revision": 1,
             "text": 'Which region?\n\n<lf-options id="thread-region">'
-            '<lf-option id="thread-east"><strong>East</strong></lf-option>'
+            '<lf-option id="thread-east" label="East"></lf-option>'
             "</lf-options>",
         },
     )
@@ -1338,9 +1338,9 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     board = (
         '<lf-board id="triage">'
         '<lf-column id="queue" label="Queued">'
-        '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
-        '<lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>'
-        '<lf-card id="card-c"><strong>Retry budget</strong></lf-card>'
+        '<lf-card id="card-a" label="Rolling expiry"></lf-card>'
+        '<lf-card id="card-b" label="Bounded fallback"></lf-card>'
+        '<lf-card id="card-c" label="Retry budget"></lf-card>'
         "</lf-column>"
         '<lf-column id="keep" label="Kept"></lf-column>'
         '<lf-column id="pass" label="Passed"></lf-column>'

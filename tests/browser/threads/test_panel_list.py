@@ -86,8 +86,8 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
         "Choose the backend here.\n\n"
         '<section id="backend-decision" role="group" aria-labelledby="backend-decision-h">\n<h3 id="backend-decision-h">Which backend?</h3>'
         '<lf-options id="backend">'
-        '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
-        '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
+        '<lf-option id="backend-sqlite" label="SQLite"></lf-option>'
+        '<lf-option id="backend-postgres" label="Postgres"></lf-option>'
         "</lf-options></section>",
     )
     told(page)

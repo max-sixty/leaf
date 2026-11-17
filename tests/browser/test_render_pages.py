@@ -232,11 +232,9 @@ The queue recovered after reverting the timeout change.
 <dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl>
 <section id="routes-q" role="group" aria-label="What happens to the queue?"><lf-options id="routes">
-<lf-option id="route-one"><strong>Keep the queue</strong>
-<dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
+<lf-option id="route-one" label="Keep the queue"><dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
-<lf-option id="route-two"><strong>Review the queue</strong>
-<p class="facts" id="option-prose">Keep this explanation in the option's full reading
+<lf-option id="route-two" label="Review the queue"><p class="facts" id="option-prose">Keep this explanation in the option's full reading
 width while the owner checks the oldest requests.</p></lf-option>
 </lf-options></section>
 <dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
@@ -1887,8 +1885,8 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
         '<section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice">'
-        '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
-        '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
+        '<lf-option id="asked-reload" label="Reload">Ask for a reload.</lf-option>'
+        '<lf-option id="asked-leave" label="Leave">Keep the old copy.</lf-option>'
         "</lf-options></section>"
         '<section class="panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")

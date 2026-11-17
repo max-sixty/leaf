@@ -53,15 +53,15 @@ STATED_KIT = """<!doctype html>
 <main>
 <lf-sample id="last-year" label="the kit we took last year">
   <lf-options id="quoted-pick">
-    <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
-    <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
+    <lf-option id="quoted-paper" label="Paper maps">Nothing to charge.</lf-option>
+    <lf-option id="quoted-gps" label="Dedicated GPS">Offline maps.</lf-option>
   </lf-options>
 </lf-sample>
 <section id="kit-decision" role="group" aria-labelledby="kit-decision-h">
   <h2 id="kit-decision-h">Which navigation kit this year?</h2>
   <lf-options id="live-pick">
-    <lf-option id="live-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
-    <lf-option id="live-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
+    <lf-option id="live-paper" label="Paper maps">Nothing to charge.</lf-option>
+    <lf-option id="live-gps" label="Dedicated GPS">Offline maps.</lf-option>
   </lf-options>
 </section>
 </main>
@@ -366,8 +366,8 @@ STATED_QUEUE = """<!doctype html>
   <h2>Which follow-ups should we keep?</h2>
   <lf-board id="triage">
     <lf-column id="queue" label="Queued">
-      <lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>
-      <lf-card id="card-b"><strong>Bounded fallback</strong></lf-card>
+      <lf-card id="card-a" label="Rolling expiry"></lf-card>
+      <lf-card id="card-b" label="Bounded fallback"></lf-card>
     </lf-column>
     <lf-column id="keep" label="Kept"></lf-column>
   </lf-board>
@@ -482,7 +482,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
         "Route",
         """<h1>Route</h1>
 <lf-options id="route">
-  <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
+  <lf-option id="fast" label="Fast path">ships on Friday.</lf-option>
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",
     )

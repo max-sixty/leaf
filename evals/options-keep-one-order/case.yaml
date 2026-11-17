@@ -39,8 +39,8 @@ vars:
         and the theme.
       </p>
       <lf-options id="resolve-glyph-choice">
-        <lf-option id="resolve-words"><small class="tag">effort: ~25 lines</small><small class="tag ok">recommended</small><strong>Write Resolve and Reopen as words, and make the resolved line reopen</strong></lf-option>
-        <lf-option id="resolve-keep"><small class="tag">effort: none</small><strong>Keep the ✓ glyphs</strong> Their names stay in tooltips only, which a phone never shows.</lf-option>
+        <lf-option id="resolve-words" label="Write Resolve and Reopen as words, and make the resolved line reopen" recommended><small class="tag">effort: ~25 lines</small></lf-option>
+        <lf-option id="resolve-keep" label="Keep the ✓ glyphs"><small class="tag">effort: none</small>Their names stay in tooltips only, which a phone never shows.</lf-option>
       </lf-options>
     </section>
 
@@ -59,8 +59,8 @@ vars:
         Cost: about 40 lines, one default-package widget plus theme.
       </p>
       <lf-options id="answer-control-choice">
-        <lf-option id="answer-build"><small class="tag">effort: ~40 lines</small><small class="tag ok">recommended</small><strong>Draw an Answer press on bare questions and on On Me cards</strong></lf-option>
-        <lf-option id="answer-keep"><small class="tag">effort: none</small><strong>Keep the rail’s ? as the only sign</strong></lf-option>
+        <lf-option id="answer-build" label="Draw an Answer press on bare questions and on On Me cards" recommended><small class="tag">effort: ~40 lines</small></lf-option>
+        <lf-option id="answer-keep" label="Keep the rail’s ? as the only sign"><small class="tag">effort: none</small></lf-option>
       </lf-options>
     </section>
     ```
@@ -148,9 +148,9 @@ variants:
           </p>
           <p>I'd make them advice in <code>page check</code>, naming each overflowing pane, its overrun and the widths it spans, plus one goal line in <code>page-layout.md</code>'s workspace section saying why.</p>
           <lf-options id="d43-choice">
-            <lf-option id="d43-advice"><small class="tag ok">recommended</small><strong>Advice and a goal line</strong> The agent decides whether an overflow matters.</lf-option>
-            <lf-option id="d43-refuse"><strong>Refuse an overflowing pane</strong> Every page fits, at the cost of refusing a long file or reading list that may scroll.</lf-option>
-            <lf-option id="d43-guide"><strong>Guidance only</strong> No check; the goal line alone.</lf-option>
+            <lf-option id="d43-advice" label="Advice and a goal line" recommended>The agent decides whether an overflow matters.</lf-option>
+            <lf-option id="d43-refuse" label="Refuse an overflowing pane">Every page fits, at the cost of refusing a long file or reading list that may scroll.</lf-option>
+            <lf-option id="d43-guide" label="Guidance only">No check; the goal line alone.</lf-option>
           </lf-options>
         </section>
         ```
@@ -246,12 +246,10 @@ variants:
             pass.
           </p>
           <lf-options id="skill-pick">
-            <lf-option id="skill-add">
-              <small class="tag ok">recommended</small>
-              <strong>Add the grind workflow to <code>/developing-leaf</code></strong>
+            <lf-option id="skill-add" label="Add the grind workflow to /developing-leaf" recommended>
               <p>I'd draft it on <code>todo-review</code> for your review.</p>
             </lf-option>
-            <lf-option id="skill-keep"><strong>Keep the brief in <code>.tmp/</code></strong></lf-option>
+            <lf-option id="skill-keep" label="Keep the brief in .tmp/"></lf-option>
           </lf-options>
         </section>
         ```

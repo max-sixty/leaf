@@ -756,12 +756,9 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
               <p>Ship with changes keeps the retry budget within the deadline.
                 Update the acceptance checks before beginning rollout.</p>
               <lf-options id="release-options" closed>
-              <lf-option id="ship-written"><strong>Ship as written</strong>
-                <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
-              <lf-option id="ship-changes"><strong>Ship with changes</strong>
-                <p>Reduce the retry budget and update acceptance checks before rollout.</p></lf-option>
-              <lf-option id="hold-release"><strong>Hold</strong>
-                <p>Keep the proposal unapproved and do not begin rollout. Resolve deadline
+              <lf-option id="ship-written" label="Ship as written">                <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
+              <lf-option id="ship-changes" label="Ship with changes">                <p>Reduce the retry budget and update acceptance checks before rollout.</p></lf-option>
+              <lf-option id="hold-release" label="Hold">                <p>Keep the proposal unapproved and do not begin rollout. Resolve deadline
                 or exception-contract concerns and gather test evidence before revisiting.</p></lf-option>
             </lf-options></section><button id="reading-end">""",
         )

@@ -154,10 +154,11 @@ action and the evidence the user needs in the question's heading and prose:
   <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
-    <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
-    <lf-option id="publish-report-publish"
-      ><strong>Publish it to the team workspace</strong></lf-option
-    >
+    <lf-option id="publish-report-keep" label="Keep it private"></lf-option>
+    <lf-option
+      id="publish-report-publish"
+      label="Publish it to the team workspace"
+    ></lf-option>
   </lf-options>
 </section>
 ```

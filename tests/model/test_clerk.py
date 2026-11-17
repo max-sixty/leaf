@@ -63,7 +63,7 @@ def caches(group: str = "cache") -> str:
         f'<lf-options id="{group}">\n'
         f'<lf-option id="{group}-lru"><small class="tag ok">recommended</small> '
         "<strong>Use the LRU cache</strong> 81% hits</lf-option>\n"
-        f'<lf-option id="{group}-ttl"><strong>Use the TTL cache</strong></lf-option>\n'
+        f'<lf-option id="{group}-ttl" label="Use the TTL cache"></lf-option>\n'
         "</lf-options>"
     )
 

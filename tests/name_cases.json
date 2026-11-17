@@ -19,7 +19,7 @@
     "registry": {
       "lf-option": {}
     },
-    "markup": "<lf-option id=\"it\"><small class=\"tag\">effort: low</small><strong>Flag first</strong> Ship dark.</lf-option>",
+    "markup": "<lf-option id=\"it\" label=\"Flag first\"><small class=\"tag\">effort: low</small>Ship dark.</lf-option>",
     "name": "Flag first"
   },
   {
@@ -92,7 +92,7 @@
     "registry": {
       "lf-column": {}
     },
-    "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card><strong>A</strong></lf-card></lf-column>",
+    "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card label="A"></lf-card></lf-column>",
     "name": "Ready"
   },
   {
@@ -174,7 +174,7 @@
     "registry": {
       "lf-option": {}
     },
-    "markup": "<lf-option id=\"it\" aria-label=\"Other\"><strong>Flag first</strong> Ship dark.</lf-option>",
+    "markup": "<lf-option id=\"it\" label=\"Flag first\" aria-label=\"Other\">Ship dark.</lf-option>",
     "name": "Flag first"
   }
 ]

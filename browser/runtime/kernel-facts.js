@@ -41,7 +41,7 @@ export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
 // The declared marks and the attribute each is painted as, which the runtime paints on
 // a message it renders and reads by name.
 const { description: _description, ...declaredMarks } = kernel.$marks;
-/** @typedef {{paint: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
+/** @typedef {{attribute: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
 /** @type {Record<keyof typeof declaredMarks, Mark> & Record<string, Mark>} */
 export const marks = declaredMarks;
 

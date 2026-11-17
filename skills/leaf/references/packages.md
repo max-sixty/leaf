@@ -262,7 +262,7 @@ such as the server or `page check`, needs it without running the widget's module
 ```
 
 A fact is named by its path, such as `state.verbs`, and the merged registry's `$keys`
-entry defines each; `$state` defines the members of `state.verbs`, and `$awaits` an
+entry defines each; `$verbs` defines the members of `state.verbs`, and `$awaits` an
 obligation's answer. What the module alone can answer stays in the module, as a word
 for its kind that depends on the element is its `lfWord()`. Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid

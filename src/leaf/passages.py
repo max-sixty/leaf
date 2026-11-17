@@ -25,28 +25,33 @@ if TYPE_CHECKING:
 # the same caps.
 #
 # What the file cannot know is what a widget's module will write, and the registry is
-# where that is declared rather than guessed at per widget. Three keywords carry what
-# can be declared, and a fence carries the rest:
+# where that is declared rather than guessed at per widget. These facts carry what can
+# be declared, and a fence carries the rest:
 #
-# words.says      attribute values the user sees. renderSaid puts them in the DOM, so
-# they go in here too, at the edge the registry names. words.verbatim  an upgraded
-# element that preserves its own words around nested upgraded widget boundaries. The
-# source and document-order occurrence identify every owner, including one with no
-# authored id. Those descendants keep their own declarations; without this key the whole
-# upgraded element is opaque, as a diagram's notation is once its module has drawn a
-# picture. state.retired-when  the outcome under which this element leaves the page: a
-# decided suggestion's losing slot. The browser builds its anchor pass's skip list from
-# this key too (`quotable` in passages.js), so a reading given the log's outcomes drops
-# here exactly what drops there — and a widget whose decision leaves nothing showing
-# goes with its slots (settledAway there, `gone` here). Its values are also the
-# vocabulary's decision verbs, which is where `obligations` reads them from.
-# markup.owners with content markup  direct prose members remain readable inside a data
-# widget; its other body content is source notation, withheld. state.verbs, record kind
-# "body"  the verb whose detail text becomes this element's body once the user sends one
-# (lf-draft's `edit`): replay writes the newest surviving one into the DOM verbatim (a
-# widget's render is absolute), so a reading given the fold's word (rewritten_bodies)
-# holds their words in the authored body's place. It asks nothing of the browser, whose
-# page already shows the text this substitutes.
+#   words.says  attribute values the user sees. renderSaid puts them in the DOM, so
+#               they go in here too, at the edge the registry names.
+#   words.verbatim  an upgraded element that preserves its own words around nested
+#               upgraded widget boundaries. The source and document-order occurrence
+#               identify every owner, including one with no authored id. Those
+#               descendants keep their own declarations; without this key the whole
+#               upgraded element is opaque, as a diagram's notation is once its module
+#               has drawn a picture.
+#   state.retired-when  the outcome under which this element leaves the page: a
+#               decided suggestion's losing slot. The browser builds its anchor pass's
+#               skip list from this key too (`quotable` in passages.js), so a reading
+#               given the log's outcomes drops here exactly what drops there — and a
+#               widget whose decision leaves nothing showing goes with its slots
+#               (settledAway there, `gone` here). Its values are also the vocabulary's
+#               decision verbs, which is where `obligations` reads them from.
+#   markup.owners with content markup  direct prose members remain readable inside a
+#               data widget; its other body content is source notation, withheld.
+#   state.verbs, record kind "body"  the verb whose detail text becomes this
+#               element's body once the user sends one (lf-draft's `edit`): replay
+#               writes the newest surviving one into the DOM verbatim (a widget's
+#               render is absolute), so a reading given the fold's word
+#               (rewritten_bodies) holds their words in the authored body's place. It
+#               asks nothing of the browser, whose page already shows the text this
+#               substitutes.
 #
 # A module writes between the children of the element it upgrades — a column's heading, a
 # milestone's chips, a diff's gutters — so an opaque element and each of its children is

@@ -655,6 +655,13 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
         ),
         (
             "lf-options",
+            "paint.flow",
+            {"when": {"pick": [True]}},
+            "predicate-attribute",
+            {"key": "paint.flow", "attr": "pick"},
+        ),
+        (
+            "lf-options",
             "state.awaits",
             {"when": {"settled": ["yes"]}},
             "predicate-schema",

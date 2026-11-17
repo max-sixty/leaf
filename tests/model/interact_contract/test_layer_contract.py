@@ -1016,9 +1016,9 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     assert keys["words.says"]  # the rest of the shipped members stand
 
 
-@pytest.mark.parametrize("fact", ["$state", "$awaits"])
+@pytest.mark.parametrize("fact", ["$verbs", "$awaits"])
 def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
-    """`$state` documents the fields of a verb (state.verbs) and `$awaits` those of
+    """`$verbs` documents the fields of a verb (state.verbs) and `$awaits` those of
     state.awaits, held to their schemas as `$keys` is to a declaration's keys: a field
     the schema
     admits with no member is one an author reads the registry for and finds unsaid."""

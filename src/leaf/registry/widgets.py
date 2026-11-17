@@ -8,12 +8,14 @@ from .contract import (
     deciding_outcomes,
     deciding_verb,
     declared_fact,
+    fact_condition,
     gathering,
     reference_relation_problem,
     registry_error,
     require_module,
     state_specs,
 )
+from .kernel import kernel_marks
 from .schema import check_schema, json_validator, schema_reading
 from .state import (
     validate_answered_conditions,
@@ -287,9 +289,9 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
             for condition in awaits.get("answered", {}).values()
         ),
         *(
-            (fact, rule["when"])
-            for fact in ("state.exhibit", "paint.flow")
-            if isinstance(rule := declared_fact(entry, fact), dict)
+            (key, when)
+            for key in kernel_marks()
+            if (when := fact_condition(declared_fact(entry, key))) is not None
         ),
     ]
     for declaration, condition in conditions:

@@ -54,15 +54,26 @@ def declared_fact(entry: Mapping, fact: str, default=None):
     return (entry.get(group, {}) if group else entry).get(name, default)
 
 
-def holds_for(attrs: dict, rule) -> bool:
-    """Whether a declaration that is a flag or `{when}`, as `state.exhibit` and
-    `paint.flow` are, holds for an occurrence with these authored attributes."""
-    return matches_when(attrs, rule["when"]) if isinstance(rule, dict) else bool(rule)
+def fact_condition(rule) -> dict | None:
+    """The `when` of a fact declared to hold only for some occurrences,
+    `{when: {attribute: [values]}}`, or None for a fact declared outright. The
+    declaration schema says which facts may take that form (`schema.FACT_GROUPS`)."""
+    return (
+        rule["when"] if isinstance(rule, Mapping) and rule.keys() == {"when"} else None
+    )
+
+
+def holds_for(attrs: dict, rule):
+    """A declared fact as it holds for one occurrence, given its authored attributes.
+    A fact declared with `{when}` is `True` while those attributes match `when` and
+    `False` otherwise; any other declaration is returned as declared."""
+    when = fact_condition(rule)
+    return rule if when is None else matches_when(attrs, when)
 
 
 def exhibits(attrs: dict, entry: dict) -> bool:
     """Whether this occurrence quotes its descendants."""
-    return holds_for(attrs, declared_fact(entry, "state.exhibit"))
+    return bool(holds_for(attrs, declared_fact(entry, "state.exhibit")))
 
 
 def authored_inert(

@@ -52,7 +52,7 @@ import { markViews } from "./storage.js";
 import {
   declaredFact,
   elementDeclarations,
-  exhibits,
+  holdsFor,
   registry,
   tagsDeclaring,
 } from "./registry.js";
@@ -77,7 +77,7 @@ const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 /** @param {string} name */
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
-  Object.values(marks).some((mark) => mark.paint === name);
+  Object.values(marks).some((mark) => mark.attribute === name);
 
 // A word for a user listening, silent on screen: real text — the one thing every
 // screen reader announces in every mode — placed after the element's leading title,
@@ -350,24 +350,25 @@ function* elementsIn(root, selector) {
 }
 
 // Paint a message's declared marks, the root alongside its descendants: each tag's
-// declaration, and an occurrence's authored override over it.
+// declaration as it holds for the occurrence, and an occurrence's authored override
+// over it.
 /** @param {Scope} root */
 export function markDeclared(root) {
   for (const [key, mark] of Object.entries(marks)) {
-    const { paint, authored, message } = mark;
+    const { attribute, authored, message } = mark;
     if (!message) continue;
     const tags = tagsDeclaring((entry) => declaredFact(entry, key));
     for (const tag of tags) {
       const declared = declaredFact(registry[tag], key);
       for (const el of elementsIn(root, tag)) {
-        const value = key === "state.exhibit" ? exhibits(el, registry[tag]) : declared;
+        const value = holdsFor(el, declared);
         if (key === "paint.views") {
           markViews(el);
           continue;
         }
         keeps(
           el,
-          paint,
+          attribute,
           !value ? null : value === true || mark.presence ? "" : String(value),
         );
       }
@@ -377,7 +378,7 @@ export function markDeclared(root) {
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
         if (mark.authored_on !== "declared" || tags.includes(el.localName))
-          keeps(el, paint, el.getAttribute(authored));
+          keeps(el, attribute, el.getAttribute(authored));
   }
 }
 

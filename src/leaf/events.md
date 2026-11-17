@@ -150,7 +150,7 @@ served.
 
 Admission stamps `attention` when the event changes obligations, pending answers,
 work the agent has in hand and its inputs, or widget input whose active `state.verbs`
-verb declares `attention: true` (`$state`). `workflows.attention_reading` compares
+verb declares `attention: true` (`$verbs`). `workflows.attention_reading` compares
 those readings before and
 after the gesture, and the decision survives later replies, versions and to-do endings,
 so a cancellation delivered to the agent stays input after the work it withdrew ends.

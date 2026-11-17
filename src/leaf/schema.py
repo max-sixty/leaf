@@ -50,7 +50,7 @@ DATA_CONTRACT_NAME = r"[a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*"
 # a command's ID is a widget or a message, whichever the page holds, so an authored
 # id may not take this shape (`validation.markup.id_errors`).
 EVENT_ID = r"[0-9a-f]{8}"
-# The record forms one vocabulary of declared state draws on ($state in the
+# The record forms one vocabulary of declared state draws on ($verbs in the
 # registry): how a unit's state reads in markup, each dispatched on by the gate,
 # the runtime, and the diff without any of them knowing a widget by name.
 _RECORD_ATTRIBUTE = {
@@ -214,7 +214,7 @@ VERB_SCHEMA = {
         "unsent": {"const": True},
         "creates": ACTION_CREATES,
         "decides": {"const": True},
-        # The deciding verb's outcome that declines the proposal (`$state`).
+        # The deciding verb's outcome that declines the proposal (`$verbs`).
         "withdraws": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "contract": {
             "type": "object",
@@ -346,6 +346,26 @@ def _facts(properties: dict, **schema) -> dict:
     }
 
 
+def _conditional(schema: dict) -> dict:
+    """The schema of a fact a declaration may state outright, as `schema` admits, or
+    limit to the occurrences whose authored attributes match
+    `{when: {attribute: [values]}}` (`registry.contract.holds_for`). Only a mark takes
+    this form. Delivery and the browser then paint it on each occurrence where it
+    holds, and `registry.widgets` holds its `when` to the declared attributes, with no
+    code that names the fact."""
+    return {
+        "oneOf": [
+            schema,
+            {
+                "type": "object",
+                "properties": {"when": AWAITING_CONDITION},
+                "required": ["when"],
+                "additionalProperties": False,
+            },
+        ]
+    }
+
+
 # The author's half of a declaration: how an author writes the element. A selector
 # idiom declares only this and its description (`IDIOM_SCHEMA`).
 _AUTHOR = {
@@ -441,17 +461,7 @@ FACT_GROUPS = {
         "height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
         "bound": {"enum": ["start", "end"]},
         "spine": {"const": True},
-        "flow": {
-            "oneOf": [
-                {"const": True},
-                {
-                    "type": "object",
-                    "properties": {"when": AWAITING_CONDITION},
-                    "required": ["when"],
-                    "additionalProperties": False,
-                },
-            ]
-        },
+        "flow": _conditional({"const": True}),
         "prepaint": _ATTRIBUTE_NAME,
     },
     "state": {
@@ -459,17 +469,7 @@ FACT_GROUPS = {
         "awaits": AWAITS_SCHEMA,
         "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "encloses": {"const": True},
-        "exhibit": {
-            "oneOf": [
-                {"type": "boolean"},
-                {
-                    "type": "object",
-                    "properties": {"when": AWAITING_CONDITION},
-                    "required": ["when"],
-                    "additionalProperties": False,
-                },
-            ]
-        },
+        "exhibit": _conditional({"type": "boolean"}),
         # A view of another widget's answer (`shown_answers.py`): `attr` names
         # that widget, and `value` the attribute of the view's compound owner
         # that names the answer it holds.

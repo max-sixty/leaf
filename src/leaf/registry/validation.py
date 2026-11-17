@@ -42,7 +42,7 @@ from .widgets import (
 # admits (`validate_layer_declarations`): a declaration's by path.
 DOCUMENTED_KEYS: dict[str, frozenset] = {
     "$keys": DECLARATION_KEYS,
-    "$state": frozenset(cast(dict, VERB_SCHEMA["properties"])),
+    "$verbs": frozenset(cast(dict, VERB_SCHEMA["properties"])),
     "$awaits": frozenset(cast(dict, AWAITS_SCHEMA["properties"])),
 }
 

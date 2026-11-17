@@ -430,11 +430,7 @@ def mark_declared(
         )
         marks = {}
         for key, mark in kernel_marks().items():
-            declared = (
-                holds_for(attrs, declared_fact(declaration, key))
-                if key in ("state.exhibit", "paint.flow")
-                else declared_fact(declaration, key)
-            )
+            declared = holds_for(attrs, declared_fact(declaration, key))
             authored = mark.get("authored")
             inert = authored and authored_inert(
                 key, declaration, attrs, content=content
@@ -452,10 +448,9 @@ def mark_declared(
                 continue
             if key == "paint.views":
                 # Only the browser evaluates view selectors, including before modules.
-                views = declaration["paint"]["views"]
-                marks["data-lf-view-members"] = views["members"]
-                value = "parts" if views.get("parts") else ""
-            marks[mark["paint"]] = value
+                marks["data-lf-view-members"] = declared["members"]
+                value = "parts" if declared.get("parts") else ""
+            marks[mark["attribute"]] = value
         sizes = [
             size
             for value in attrs.values()

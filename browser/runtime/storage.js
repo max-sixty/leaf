@@ -63,7 +63,7 @@ export function openingView(holder, fallback = undefined) {
 export function markViews(holder) {
   const declaration = registry[holder.localName]?.paint?.views;
   if (!declaration) return;
-  keeps(holder, marks["paint.views"].paint, declaration.parts ? "parts" : "");
+  keeps(holder, marks["paint.views"].attribute, declaration.parts ? "parts" : "");
   keeps(holder, PAGE_PAINT_ATTRIBUTE.viewMembers, declaration.members);
 }
 // The document a node stands in, which is the view member holding it, such as a tab's
@@ -72,7 +72,7 @@ export function markViews(holder) {
 // chooses for itself where a node beside `main` or in a message looks.
 /** @param {Element} node @returns {HTMLElement | null} */
 export const viewDocument = (node) =>
-  node.closest(`[${marks["paint.views"].paint}] > *, main`);
+  node.closest(`[${marks["paint.views"].attribute}] > *, main`);
 /** @param {Element} holder @param {Element | null} member @param {Element | null} [leaving] */
 export function keepView(holder, member, leaving = null) {
   markViews(holder);

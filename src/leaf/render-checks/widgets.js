@@ -335,7 +335,7 @@ export function changedBoxes() {
   }));
 }
 
-// paint.height's paint ($marks in runtime/kernel-registry.json): the stated height a
+// paint.height's attribute ($marks in runtime/kernel-registry.json): the stated height a
 // page reserves for a drawing, or empty where it states none.
 const STATED_HEIGHT = "data-lf-height";
 

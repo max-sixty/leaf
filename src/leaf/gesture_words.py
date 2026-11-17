@@ -368,7 +368,7 @@ class GestureWords:
 
     def records_unsent(self, action: dict) -> bool:
         """Whether the action's verb records work the user hasn't sent
-        (`$state.unsent`), as the document they acted in declared it, so a later
+        (`$verbs.unsent`), as the document they acted in declared it, so a later
         version redeclaring the verb leaves earlier actions as they were."""
         spec = event_spec(self.declaration(action), action)
         return bool(spec and spec.get("unsent"))

@@ -183,11 +183,19 @@ export const matchesWhen = (el, when) =>
     ),
   );
 
+// A declared fact as it holds for one occurrence. A fact declared with
+// `{when: {attribute: [values]}}` is `true` while the element's attributes match and
+// `false` otherwise; any other declaration is returned as declared. The declaration
+// schema says which facts may take that form; Python's is `registry.contract.holds_for`.
+/** @param {Element} el @param {unknown} rule @returns {unknown} */
+export const holdsFor = (el, rule) =>
+  typeof rule === "object" &&
+  rule !== null &&
+  "when" in rule &&
+  Object.keys(rule).length === 1
+    ? matchesWhen(el, /** @type {Parameters<typeof matchesWhen>[1]} */ (rule.when))
+    : rule;
+
 // An occurrence quotes its descendants only while its declared condition holds.
 /** @param {Element} el @param {WidgetDeclaration | null | undefined} entry */
-export const exhibits = (el, entry) => {
-  const rule = entry?.state?.exhibit;
-  return typeof rule === "object" && rule !== null
-    ? matchesWhen(el, rule.when)
-    : !!rule;
-};
+export const exhibits = (el, entry) => !!holdsFor(el, entry?.state?.exhibit);

@@ -947,6 +947,21 @@ def long_press(page, point):
     )
 
 
+# Design mode's legend, a box on each item the page names while the mode stands
+# (design.js): the mode as the page shows it.
+DESIGN_LEGEND = ".lf-legend-box"
+
+
+def expect_design_mode(page, on=True):
+    """Wait until Design mode stands, as its legend shows, or with `on` false until it
+    has ended."""
+    legend = page.locator(DESIGN_LEGEND)
+    if on:
+        expect(legend.first).to_be_attached()
+    else:
+        expect(legend).to_have_count(0)
+
+
 def cursor_at(page, x, y):
     """The cursor the user sees at a point of the viewport: the computed cursor of the
     element a press there lands on, through every open shadow tree it crosses, since

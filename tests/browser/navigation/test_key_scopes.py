@@ -32,6 +32,7 @@ from render_harness import (
     back_gesture,
     consume_browser_errors,
     draft_control,
+    expect_design_mode,
     expect_panel_says,
     hold_selection,
     is_problem,
@@ -1065,7 +1066,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
     # command and the widget ancestor outside the dialog are both unreachable.
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     page.keyboard.press("Escape")
     expect(popover).to_be_hidden()
     expect(modal).to_be_visible()

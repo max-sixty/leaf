@@ -8,7 +8,9 @@ from render_cases_navigation import (
     UNDO_PAGE,
 )
 from render_harness import (
+    DESIGN_LEGEND,
     PANEL,
+    expect_design_mode,
     expect_panel_offers,
     field_press,
     open_page,
@@ -65,17 +67,17 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
     # each mode's way out is the field's Close, its word alone under a finger, while
     # the On Me mark keeps its seat.
-    for entry, root, mode in (
-        ("command:draw.mode.enter", "html", "data-lf-draw-mode"),
-        ("command:design.mode.enter", "body", "data-lf-design-mode"),
+    for entry, stands in (
+        ("command:draw.mode.enter", "html[data-lf-draw-mode]"),
+        ("command:design.mode.enter", DESIGN_LEGEND),
     ):
         panel_control(page, entry, at="annotate").tap()
-        expect(page.locator(root)).to_have_attribute(mode, "")
+        expect(page.locator(stands).first).to_be_attached()
         expect(close).to_be_visible()
         expect(close.locator("kbd")).to_have_count(0)
         expect(on_me).to_be_visible()
         close.tap()
-        expect(page.locator(root)).not_to_have_attribute(mode, "")
+        expect(page.locator(stands)).to_have_count(0)
         expect(close).to_have_count(0)
         expect(on_me).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
@@ -105,7 +107,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(thread).to_be_visible()
     page.locator(".lf-fp-close").tap()
     expect(thread).to_have_count(0)
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     # A finger does not hover, so no name stays where the last tap was.
     expect(page.locator(".lf-inspect")).to_be_hidden()
 
@@ -143,7 +145,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
     close.tap()
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
 
     # Selecting words reaches only what is on screen; search finds the rest, and its
     # walk stands in its own box, beside the count, with the box still taking letters.

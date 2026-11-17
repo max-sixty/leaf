@@ -45,14 +45,13 @@ def test_a_codex_claim_records_the_session_not_the_shell_it_ran_through(
     tmp_path, under_codex, codex_env
 ):
     """The claim's pid is the one two reapers read as the session's life, and
-    `$PPID` is not it: it is a fact about the shape of the command. Measured
-    through `codex exec`, a bare command and an `&&` chain reported the codex
-    process because the wrapping shell exec'd leaf in place, and a pipeline
-        reported that shell — which exits with the command, so ownership would go
-        inactive and its server would stop a second later. Here the
-    shell is between the session and the command and has exited by the time this
-    reads what was written, so a pid it could have recorded is one this cannot
-    match."""
+    `$PPID` is not it: it is a fact about the shape of the command. Through
+    `codex exec`, a bare command and an `&&` chain can report the codex process,
+    because the wrapping shell execs leaf in place, and a pipeline can report that
+    shell — which exits with the command, so ownership would go inactive and its
+    server would stop a second later. Here the shell is between the session and the
+    command and has exited by the time this reads what was written, so a pid it could
+    have recorded is one this cannot match."""
     page = tmp_path / "codex-page"
     env = codex_env | {"CODEX_THREAD_ID": "thread-shape"}
     subprocess.run([*LEAF_COMMAND, "page", "init", page], env=env, check=True)
@@ -440,7 +439,7 @@ def test_a_sigterm_its_handler_takes_inside_a_finalizer_still_ends_the_wait(
     """Python discards an exception raised in a weakref callback, as it does one
     raised in `__del__` or a GC callback, so a SIGTERM whose handler runs inside
     one cannot end the wait by raising. A page memory's finalizer joins threads,
-    which is where a stopped wait once kept running. The wait still ends with
+    which is where a stopped wait could keep running. The wait still ends with
     SIGTERM's status and releases its lease."""
     for name in harness_model.IDENTITY_VARIABLES:
         monkeypatch.delenv(name, raising=False)
@@ -768,7 +767,7 @@ def test_a_claim_an_older_leaf_wrote_is_dropped_rather_than_read_or_raised_on(
         {**service_model.CLAIM.stored(claim), "format": "leaf-claim/0"},
     )
 
-    # The reported failure: the watcher walks every page the session holds, and
+    # The failure this guards: the watcher walks every page the session holds, and
     # the record it cannot read belongs to a page the user is not on.
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exception is None, repr(waited.exception)
@@ -798,11 +797,11 @@ def test_a_claim_is_active_while_the_lifetime_it_names_holds(
 
     The claims this writes have to go to a relocated home. A record left in a shared
     directory outlives the run that made it, and a constant id in one is a name every
-    run answers to: an earlier version of this test wrote into the developer's own
-    `~/.local/state/leaf/claims`, one unreleased claim per run under this same id and
-    nothing ever sweeping them. Seventy-six had collected when one of their pids came
-    round again on a live process, and the rule below read as true for a claim no run
-    of this test had made. `isolated_session` supplies the home.
+    run answers to: written into the developer's own `~/.local/state/leaf/claims`, one
+    unreleased claim per run under this same id collects with nothing ever sweeping
+    them, until one of their pids comes round again on a live process and the rule below
+    reads as true for a claim no run of this test made. `isolated_session` supplies the
+    home.
     """
     page = tmp_path / "page"
     page.mkdir()

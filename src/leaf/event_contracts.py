@@ -356,8 +356,8 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     document = view.document(revision)
     # One reading of the panel's document for the whole door: the id universe the
     # declaration is looked up in and the projection a record is judged against
-    # are the same frozen fragments, and parsing them twice was two readings that
-    # could only ever agree.
+    # are the same frozen fragments, and parsing them twice would be two readings
+    # that could only ever agree.
     thread = readings.thread
     thread_by_id = thread.by_id
     if error := declared_action_error(event, document.by_id, thread_by_id, registry):

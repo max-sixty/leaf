@@ -590,8 +590,8 @@ def test_replies_held_in_a_page_seat_show_when_the_user_turns_to_them(
         stood = box.bounding_box()["y"]
         box.click()
         expect(thread.locator(".lf-msg")).to_have_count(3)
-        # Chrome hides a shift for half a second after a click, so the watch can't see
-        # the box leave the pointer.
+        # The click owns every move its rendering makes, so the watch would credit the
+        # box leaving the pointer.
         assert box.bounding_box()["y"] == pytest.approx(stood, abs=1)
         write(box, "Then the roof first.")
         with sending(page, "the user's reply"):

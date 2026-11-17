@@ -818,14 +818,14 @@ class SourceReading:
         quote scoped to that id searches.
 
         The two halves come from different readings because they are different
-        facts, and taking both off the character scan cost the second one. Words
+        facts, and taking both off the character scan costs the second one. Words
         are what the scan holds. Where an element *sits* is structure, so it comes
         from the parser's record of what was open — and an element that says
         nothing is somewhere all the same. Keyed on words, an image-only option and
-        a card holding one diagram were in no chain at all, so `action_rests_on`
-        dropped them from what an action rests on (a floor stopped replaying), and
-        `markup_value` read a version that honoured a pick on such an option as
-        showing no pick, which is the state gate refusing the very version that
+        a card holding one diagram would be in no chain at all, so `action_rests_on`
+        would drop them from what an action rests on (a floor would stop replaying),
+        and `markup_value` would read a version that honoured a pick on such an option
+        as showing no pick, which is the state gate refusing the very version that
         agreed with the user."""
         return _spoken(self.passages)
 

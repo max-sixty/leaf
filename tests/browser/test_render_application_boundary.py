@@ -2103,7 +2103,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
       window.heldEditor = workspace.querySelector('leaf-text');
     }""")
     before = editor.bounding_box()
-    page.wait_for_timeout(600)  # Let Chrome's recent-input grace expire before news.
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     append_carried_log_record(
         serve.page_dir,
         {

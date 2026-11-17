@@ -20,7 +20,7 @@
 
    The marks are annotations, so `o` hides them with the rest, and nothing here stops
    them: a comparison ends with `v` or its Compare in Versions. The user decided
-   on 31 October against a stop of their own, an Escape step and a menu row, which no
+   against a stop of their own, an Escape step and a menu row, which no
    other annotation has. A finger needs no row for the walk (keyboard/AGENTS.md, "Touch
    routes"): every change is marked where it stands, and its margin entry and Page Map
    row reach it with a tap.

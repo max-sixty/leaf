@@ -56,20 +56,23 @@ to v4”), what is new (“2 unread”, “New On Me”), a thread's state (“R
 state (“Lost the connection — reconnecting”) or an error. Leaf's words are a state or
 a past participle, never an elided “I” (“Got it”, “Couldn't answer”, “Need your
 approval”). Where the agent hasn't said what it is doing, Leaf doesn't guess its words:
-a working page says “Working”, in Leaf's voice, until the agent writes a line. Rejected,
-on 28 and 30 October 2026: Leaf's inferences set in the agent's voice (“Got your
-comment”, “Working on it”, “Got it”), which put Leaf's words in its mouth; and, until 16
-November 2026, no words at all, which left the panel's field blank.
+a working page says “Working”, in Leaf's voice, until the agent writes a line.
+Rejected: Leaf's inferences set in the agent's voice (“Got your comment”, “Working on
+it”, “Got it”), which put Leaf's words in its mouth; and no words at all, which leaves
+the panel's field blank.
 
 An empty box's words are Leaf's too, since the agent didn't write them, and each ends
 in an ellipsis: a comment box's (“Reply…”, “Comment…”) and a search's prompt (“Find
 text…”, “Filter files…”). Words nobody says are the interface's, in its ordinary face: the
 name of a control, list or thing (“On Me”, “Threads”, a thread's title, Draw mode), and
-where the user stands (“3 of 11”, a time).
+where the user stands (“3 of 11”, a time). A seat that also carries the agent's words,
+as the comment field does, holds only the agent's and Leaf's: there Leaf says the names
+and places too, since the interface's upright face would read as the agent's.
 Neither they nor Leaf's italic words narrate the agent from outside (“Claude is
 working”, “Waiting for Claude”), which puts a third party between the user and the
 agent; Leaf names the agent only where the agent isn't the one acting, as in “Queued
-for Claude”.
+for Claude”, and in the panel's resting line, “Claude awaits”, which the user chose on
+16 November 2026 over “Ready” alone.
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
 as an author, **Waiting on me** and **On Me**, **my change**, and commands such as

@@ -507,8 +507,7 @@ test("a failed preparation stands beside the render root, which the next draw st
 
 // A tab set draws only its strip and leaves the page's panels beside it, so a draw
 // reads again the keys of the strip it drew and of the set around it, and never walks
-// a panel: on #4781's page, walking every panel's document held each tab switch for
-// over a second.
+// a panel: walking every panel's document holds each tab switch.
 test("a draw reads again the keys of what it drew and around it, not of the page's content beside it", async () => {
   const tag = `lf-probe-strip-${++tags}`;
   const reads = { set: 0, strip: 0, panel: 0 };

@@ -84,8 +84,8 @@ def test_tab_from_the_pages_last_control_reaches_the_panels_leaf(
     engine, request, serve
 ):
     """The chrome's foreground is an empty box holding the panel and the overlays, so a
-    Tab never stops on it. Firefox gave the open dialog a Tab stop of its own, which
-    drew nothing between the page's last control and the leaf."""
+    Tab never stops on it. Firefox can give the open dialog a Tab stop of its own,
+    which draws nothing between the page's last control and the leaf."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(leaf_page("Tab order", '<p>Words <button id="last">Last</button></p>')),
@@ -143,8 +143,8 @@ def test_an_empty_threads_opened_by_key_wears_its_ring_on_the_stage(browser, ser
 
 def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     """On Me's Show on a question asked in a thread's words opens the thread's card on
-    the page with the user in it. The arrival stood them on the message On Me drew,
-    and On Me closing then dropped them on the page."""
+    the page with the user in it. An arrival that stood them on the message On Me drew
+    would let On Me closing drop them on the page."""
     page = open_page(browser, serve(named_source("ship-review")))
     card = (
         open_on_me(page)
@@ -163,8 +163,8 @@ def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
 def test_a_press_on_the_pages_words_is_a_newer_word_than_a_waiting_hold(browser, serve):
     """A hold hands focus back only if the user has not moved on since it began. With no
     stop on body, a press on the page's words takes focus off the control and puts it
-    nowhere, with no focusin to count, so a hold still waiting pulled the user back
-    from the words they had chosen."""
+    nowhere, with no focusin to count, so a hold still waiting would pull the user
+    back from the words they had chosen."""
     page = open_page(
         browser,
         serve(
@@ -207,7 +207,7 @@ def test_a_page_nobody_has_touched_scrolls_from_the_keyboard(browser, serve):
 
     Space, PageDown, and arrows work before a user has clicked anywhere. Leaf still
     places focus on body so there is a stable page location to return to after chrome,
-    but scrolling no longer depends on teaching the browser about a non-root box.
+    but scrolling doesn't depend on teaching the browser about a non-root box.
 
     All three keys, because they are one fact about which box the browser is scrolling
     rather than three rows in a table — a fix that reached only the key this test named
@@ -248,7 +248,7 @@ def test_esc_hands_the_page_back_after_it_has_closed_the_last_panel(browser, ser
     it: a focused button there would own the user's next Space, so the view they had
     just dismissed would come back and nothing would say why.
 
-    The scroll is what the landing has to hand back. Root scrolling is native now, but a
+    The scroll is what the landing has to hand back. Root scrolling is native, but a
     focused button still owns Space; focus therefore returns to the page rather than
     merely blurring to nowhere."""
     page = open_page(browser, serve(LONG_PAGE, comments=1))
@@ -368,13 +368,11 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
     widget markup the gate allows — and its column is the narrower of the two, so a box
     that scrolls anywhere scrolls here.
 
-    The sweep that was supposed to cover this stood where each message body is built,
-    and needed two things it did not have: that body is not in the document yet, where
-    `getComputedStyle` answers "" for every property, and the widget in it has not
-    rendered, where the look a scroll box has arrives with the class its module sets on
-    the way out. It read an empty overflow off everything it walked and had tagged
-    nothing since it was written, which reads as coverage and is the only reason it
-    lasted.
+    A sweep standing where each message body is built would need two things it does not
+    have: that body is not in the document yet, where `getComputedStyle` answers "" for
+    every property, and the widget in it has not rendered, where the look a scroll box
+    has arrives with the class its module sets on the way out. It would read an empty
+    overflow off everything it walked and tag nothing, which reads as coverage.
 
     The reply arrives while the panel is already open, because that is the case with
     exactly one reconcile in it. A diff renders asynchronously, so a sweep run where the
@@ -669,14 +667,14 @@ ROOM_AT_EDGE = """(el, [port, edge]) => {
 def test_a_walk_in_a_box_no_reading_region_moves_shows_the_ring(
     request, serve, walk, engine
 ):
-    """A box no reading region moves revealed a walk's next item by its bare box: the
+    """A box no reading region moves can reveal a walk's next item by its bare box: the
     command reference's results, a fixed dialog's list, and a side list's tabs, which a
     walk reveals bounded `within` the list. So Up onto a command past the results' head
-    stood its button flush with the head, and Down onto a tab past the list's foot
-    stood it flush with the foot, each ring cut there. The tab comes in with its
+    would stand its button flush with the head, and Down onto a tab past the list's foot
+    would stand it flush with the foot, each ring cut there. The tab comes in with its
     group's label, as one range, where that fits; a group whose run fits the list but
     not with the tab's ring room comes in by the tab alone, since landing the run
-    would leave the tab past the foot. Each now shows its ring."""
+    would leave the tab past the foot. Each shows its ring."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(LONG_PAGE if walk == "reference" else GROUPED_SIDE_LIST),
@@ -1034,9 +1032,9 @@ def test_an_empty_field_reads_the_same_before_and_after_its_editor_builds(
     browser, serve
 ):
     """An empty text field builds its editor only when the user arrives in it. The box
-    drawn in its place was a textbox in Chromium's accessibility tree but not an
-    editable one, and its value was empty where the editor's is a line break, so a
-    screen reader could describe the field differently before the user arrived. Every
+    drawn in its place, were it a textbox in Chromium's accessibility tree but not an
+    editable one, with its value empty where the editor's is a line break, would let a
+    screen reader describe the field differently before the user arrived. Every
     named node the field gives the tree reads the same before Tab builds the editor and
     after, and the key typed on arrival lands in the field."""
     page = open_page(

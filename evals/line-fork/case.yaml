@@ -37,19 +37,15 @@ variants:
       scenario: still-deciding
       purpose: A question whose answer would settle what the session is still deciding belongs with the session.
   # From the claude-code journey's `fork-lookup` step (`leaf-dev journey run
-  # claude-code --fork-work`). In 20 runs from 10 to 14 November, each just after
-  # the session had changed the page's source and ended its turn, the line fork took
-  # the question in 17 and handed it over in 3. The take criterion excludes what the
-  # session "is changing or about to change", and these labels read that as a change
-  # under way. A lookup in the page's source once the session's edit is done is work
-  # a fork could take. The same lookup part way through an edit of that file belongs
-  # with the session. On a2773d8285, `source-edited` passed 13 of 15 runs; both
-  # misses answered `hand_over`, with the line "counting the cards in this page's
-  # source file". `source-editing` passed 14 of 14. On befe324b26 the criterion
-  # reworded as "nothing the main session is in the middle of changing or about to
-  # change, such as its files and branch, the page's source or its pull requests"
-  # passed `source-edited` 38 of 40, against 19 of 20 for the wording run beside it,
-  # so the parenthetical isn't what sends these misses to the session.
+  # claude-code --fork-work`), which asks just after the session has changed the
+  # page's source and ended its turn. The take criterion excludes what the session
+  # "is changing or about to change", and these labels read that as a change under
+  # way. A lookup in the page's source once the session's edit is done is work a
+  # fork could take. The same lookup part way through an edit of that file belongs
+  # with the session. A miss answers `hand_over`, with a line such as "counting the
+  # cards in this page's source file". The criterion's parenthetical ("such as its
+  # files and branch, the page's source or its pull requests") isn't what sends these
+  # misses to the session: a wording with it misses as often as one without.
   source-edited:
     metadata:
       scenario: source-edited

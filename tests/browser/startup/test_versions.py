@@ -70,8 +70,8 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     the new words render and the user sees the widget identified as one whose
     decision this version undid.
 
-    It costs a word, where losing a decision used to cost nothing, which is the
-    whole asymmetry: the failure that stays silent is now the one that needs
+    It costs a word, where losing a decision silently would cost nothing, which is the
+    whole asymmetry: the failure that stays silent is the one that needs
     saying out loud."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
@@ -235,8 +235,8 @@ def test_foreign_state_draws_beside_a_live_drag(browser, serve):
 
 
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
-    """A pure state change has no text of its own, so the content diff was blind
-    to it: a card in a new column read as nothing changed. The state half
+    """A pure state change has no text of its own, so the content diff is blind
+    to it: a card in a new column would read as nothing changed. The state half
     compares declared state, so the author moving a card between versions —
     with no user action behind it — marks the card itself. The card alone:
     an id'd element nested inside it rode along rather than changing columns,

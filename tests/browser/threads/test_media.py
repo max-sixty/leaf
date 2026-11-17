@@ -294,8 +294,8 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     """Under a finger, the removal mark on a picture's top corner reaches the aim floor
     around it. Below its passage the comment box hangs its pictures under the field,
     with the marks facing it; above, a picture shorter than that reach lets it hang past
-    the picture's foot. Either way the reach once stood inside the field, so a tap at
-    the field's edge removed the picture."""
+    the picture's foot. Either way a reach standing inside the field would let a tap at
+    the field's edge remove the picture."""
     context = browser.new_context(
         viewport={"width": 900, "height": 900}, has_touch=True, is_mobile=True
     )

@@ -26,9 +26,9 @@
    about over its messages, since nothing beside it shows them; a margin card stands the
    notice and the settlement on its row of presses, which stands in the thread over its
    first message's head. The thread draws each of them there, so the panel's view and a
-   card share one notice, one settlement and one reply box. The card tried a head line
-   above its messages and dropped it: the line made the card 36px taller for little more
-   than its presses, which cost the card too much density. A title could fill the line,
+   card share one notice, one settlement and one reply box. Rejected: a head line above
+   the card's messages, which makes the card taller for little more than its presses,
+   costing it too much density. A title could fill the line,
    but the passage the card points at already says what the thread is about, so the card
    draws no quote either.
 
@@ -73,8 +73,8 @@
    (`answering`), and a box that follows its end, as a card's transcript does
    (thread-preview.js), leaves it be. An answer the end followed into sight that grows afterwards, as a picture in it
    loads, is placed again by the same rule (`placesEnd`). The user chose New reply for
-   the panel on 14 October 2026, and the rest of the floating panel's growth with it
-   (floating-panel.js, which records it); the margin card gained it on 4 November, so
+   the panel, and the rest of the floating panel's growth with it
+   (floating-panel.js, which records it); the margin card takes it too, so
    one mechanism serves both, and that mechanism's rule at its end, under the user's
    request for one thread view (thread-preview.js). */
 import { REOPEN_HINT, REPLY_HINT } from "../words.js";
@@ -1418,7 +1418,7 @@ export class ThreadView {
 
   // Resolve and Reopen are one toggle, so every surface draws it as one check, drawn
   // done on a resolved thread (browser/AGENTS.md, "Controls are few and quiet"), in one corner:
-  // settling moves nothing beside it. A margin card once said Reopen as a word.
+  // settling moves nothing beside it. Rejected: a margin card saying Reopen as a word.
   /** @param {ThreadViewModel} model
    * @param {NonNullable<ThreadViewModel["settlement"]>} state */
   #settlement(model, state) {

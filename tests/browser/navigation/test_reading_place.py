@@ -179,7 +179,7 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
 <p id="source">Read this source passage before the question.</p></details>
 <div style="height:1600px"></div>
 <section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Where should we build?</h2>
-<lf-options id="places" choose><lf-option id="here">Here</lf-option>
+<lf-options id="places"><lf-option id="here">Here</lf-option>
 <lf-option id="there">There</lf-option></lf-options></section>
 """,
             )
@@ -212,26 +212,36 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
 ITEMS_LAYER = {
     "lf-items": {
         "description": "Items drawn one at a time, each part addressed by item/part.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-example": '<lf-items id="items"></lf-items>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
+        "author": {
+            "example": '<lf-items id="items"></lf-items>',
+        },
     },
     "lf-item-link": {
         "description": "A button that travels to one part of the items it refers to.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "for": {"type": "string"},
-            "key": {"type": "string", "minLength": 1},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "for": {"type": "string"},
+                "key": {"type": "string", "minLength": 1},
+            },
+            "required": ["id", "for", "key"],
+            "additionalProperties": False,
         },
-        "required": ["id", "for", "key"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-refers": {"for": {}},
-        "x-example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
+        "content": "empty",
+        "markup": {
+            "refers": {"for": {}},
+        },
+        "author": {
+            "example": '<lf-item-link id="jump" for="items" key="a/1"></lf-item-link>',
+        },
     },
 }
 ITEMS_WIDGETS = {
@@ -1075,13 +1085,13 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
 <h1 id="h">Back from an ask</h1>
 <section id="near"><p>A question sits at the top.</p></section>
 <section id="first-decision" role="group" aria-labelledby="first-decision-h"><h2 id="first-decision-h">Where should the feeders go?</h2>
-<lf-options id="first" choose>
+<lf-options id="first">
   <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
   <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
 </lf-options></section>
 <section id="above">{filler}</section>
 <section id="second-decision" role="group" aria-labelledby="second-decision-h"><h2 id="second-decision-h">Who fills them?</h2>
-<lf-options id="second" choose>
+<lf-options id="second">
   <lf-option id="se-rota"><strong>A rota</strong></lf-option>
   <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
 </lf-options></section>
@@ -1150,7 +1160,7 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
 
     # Answering the obligation takes it out of On Me, so no walk's Shift reaches it again.
     page.keyboard.press("1")
-    expect(page.locator("#se-rota[chosen]")).to_have_count(1)
+    expect(page.locator("#se-rota[selected]")).to_have_count(1)
     page.keyboard.press("Shift+m")
     expect(page.locator("#first-decision")).to_be_focused()
     page.wait_for_function(
@@ -1183,7 +1193,7 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
 <section id="invitation" role="group" aria-labelledby="context">
 <h2 id="context">The invitation</h2>
 {context}
-<lf-draft id="note" needed><pre>The sample workshop is in the blue room.</pre></lf-draft>
+<lf-draft id="note" required><pre>The sample workshop is in the blue room.</pre></lf-draft>
 </section>
 <section id="below">{filler}</section>
 """,
@@ -1267,7 +1277,7 @@ ALIGN_CURRENT_PAGE = leaf_page(
     "Align the current item",
     '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
     '<section id="align-ask" role="group" aria-labelledby="align-ask-h"><h2 id="align-ask-h">Which plan should we keep?</h2>'
-    '<lf-options id="align-options" choose><lf-option id="align-yes">Yes</lf-option>'
+    '<lf-options id="align-options"><lf-option id="align-yes">Yes</lf-option>'
     '<lf-option id="align-no">No</lf-option></lf-options></section>'
     '<h2 id="align-heading" tabindex="0">The current heading</h2>'
     '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
@@ -1488,7 +1498,7 @@ def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests)
             "revision": 1,
             "text": "Choose the follow-up.\n\n"
             '<section id="reply-ask" role="group" aria-labelledby="reply-ask-h"><h3 id="reply-ask-h">Which follow-up should be ready?</h3>'
-            '<lf-options id="reply-options" choose><lf-option id="reply-yes">Ready</lf-option>'
+            '<lf-options id="reply-options"><lf-option id="reply-yes">Ready</lf-option>'
             '<lf-option id="reply-no">Wait</lf-option></lf-options></section>',
             "html": True,
         },

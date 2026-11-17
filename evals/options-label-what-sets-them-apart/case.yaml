@@ -44,7 +44,7 @@ vars:
           return f'''  <section id="{i}-ask" role="group" aria-labelledby="{i}-ask-h">
           <h3 id="{i}-ask-h">{E(q)}</h3>
           {ctx}
-          <lf-options id="{i}" choose>
+          <lf-options id="{i}">
       {o}    </lf-options>
         </section>
       '''

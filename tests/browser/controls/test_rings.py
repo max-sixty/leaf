@@ -494,9 +494,9 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
             """
 <h1>Contours</h1>
 <p id="said">A paragraph with room around it.</p>
-<section id="pick-q" role="group" aria-label="Where do the words go?"><lf-options id="pick" choose>
+<section id="pick-q" role="group" aria-label="Where do the words go?"><lf-options id="pick">
   <lf-option id="keep"><strong>Keep</strong> the words alone.</lf-option>
-  <lf-option id="place" chosen><strong>Place</strong> them in the line.</lf-option>
+  <lf-option id="place" selected><strong>Place</strong> them in the line.</lf-option>
 </lf-options></section>
 """,
         )
@@ -1181,7 +1181,7 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
                 """
       <section id="decision" role="group" aria-labelledby="decision-h"><h2 id="decision-h">Ready?</h2>
         <p>Review the evidence before choosing.</p>
-        <lf-options id="answer" choose>
+        <lf-options id="answer">
           <lf-option id="yes">Approve</lf-option>
           <lf-option id="no">Hold</lf-option>
         </lf-options>

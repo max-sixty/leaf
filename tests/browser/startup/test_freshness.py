@@ -400,7 +400,7 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
         leaf_page(
             "Offline choice",
             '<h1>Offline choice</h1><section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2>'
-            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-options id="options"><lf-option id="one">First</lf-option>'
             '<lf-option id="two">Second</lf-option></lf-options></section>',
         )
     )
@@ -421,10 +421,10 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     expect(panel_field(page)).to_have_attribute("placeholder", OFFLINE)
     expect(page.locator("#options .lf-pick")).to_have_count(2)
-    expect(page.locator("#two")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#two")).not_to_have_attribute("selected", "")
     page.unroute("**/api/state*")
     told(page)
-    expect(page.locator("#two")).to_have_attribute("chosen", "")
+    expect(page.locator("#two")).to_have_attribute("selected", "")
 
 
 def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, serve):
@@ -435,7 +435,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
         leaf_page(
             "Waiting choice",
             '<h1>Waiting choice</h1><section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2>'
-            '<lf-options id="options" choose><lf-option id="one">First</lf-option>'
+            '<lf-options id="options"><lf-option id="one">First</lf-option>'
             '<lf-option id="two">Second</lf-option></lf-options></section>',
         )
     )
@@ -464,7 +464,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
           return {
             verbs: Object.keys(state).sort(),
             chosen: state.choose.value,
-            drawn: [...options.querySelectorAll('lf-option[chosen]')].map((o) => o.id),
+            drawn: [...options.querySelectorAll('lf-option[selected]')].map((o) => o.id),
           };
         }"""
     )
@@ -473,7 +473,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
     for route in held:
         route.continue_()
     told(page)
-    expect(page.locator("#two")).to_have_attribute("chosen", "")
+    expect(page.locator("#two")).to_have_attribute("selected", "")
 
 
 def test_a_pending_offline_paint_does_not_block_a_recovery_read(browser, serve):

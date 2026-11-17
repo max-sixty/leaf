@@ -1,14 +1,20 @@
 {
   "lf-deck": {
     "description": "A pile of cards the user works through one at a time, like Slack's Catch up: each card is a decision or question answered with its own controls, an answered card moves on by itself, and Later leaves a card waiting until the end of the pass.",
-    "x-instructions": "Write each card as a direct child, usually its question's named group (`references/authoring-on-me.md`, \"On the page\") holding its evidence and widget, so each can be answered without the others. Put the deck's heading and any shared context before it. Order the cards as the user should take them. Use a deck when the user has several independent things to get through; use a side-list `lf-tabs` when they need to see the whole queue and move around it.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-views": { "members": ":not(script, style, template)" },
-    "x-example": "<h2>Two things before the release</h2>\n<lf-deck id=\"release-catch-up\">\n  <section id=\"store-ask\" role=\"group\" aria-labelledby=\"store-ask-h\">\n    <h3 id=\"store-ask-h\">Which session store?</h3>\n    <p>Redis already runs in production; Postgres removes a service.</p>\n    <lf-options id=\"store-choice\" choose>\n      <lf-option id=\"store-redis\">Keep Redis</lf-option>\n      <lf-option id=\"store-postgres\">Move sessions to Postgres</lf-option>\n    </lf-options>\n  </section>\n  <section id=\"notes-ask\" role=\"group\" aria-labelledby=\"notes-ask-h\">\n    <h3 id=\"notes-ask-h\">Post the release notes?</h3>\n    <p>Post the 4.2 notes to the announcements channel.</p>\n    <lf-options id=\"notes-choice\" choose>\n      <lf-option id=\"notes-hold\">Keep them as a draft</lf-option>\n      <lf-option id=\"notes-post\">Post them</lf-option>\n    </lf-options>\n  </section>\n</lf-deck>"
+    "paint": {
+      "views": { "members": ":not(script, style, template)" }
+    },
+    "author": {
+      "instructions": "Write each card as a direct child, usually its question's named group (`references/authoring-on-me.md`, \"On the page\") holding its evidence and widget, so each can be answered without the others. Put the deck's heading and any shared context before it. Order the cards as the user should take them. Use a deck when the user has several independent things to get through; use a side-list `lf-tabs` when they need to see the whole queue and move around it.",
+      "example": "<h2>Two things before the release</h2>\n<lf-deck id=\"release-catch-up\">\n  <section id=\"store-ask\" role=\"group\" aria-labelledby=\"store-ask-h\">\n    <h3 id=\"store-ask-h\">Which session store?</h3>\n    <p>Redis already runs in production; Postgres removes a service.</p>\n    <lf-options id=\"store-choice\">\n      <lf-option id=\"store-redis\">Keep Redis</lf-option>\n      <lf-option id=\"store-postgres\">Move sessions to Postgres</lf-option>\n    </lf-options>\n  </section>\n  <section id=\"notes-ask\" role=\"group\" aria-labelledby=\"notes-ask-h\">\n    <h3 id=\"notes-ask-h\">Post the release notes?</h3>\n    <p>Post the 4.2 notes to the announcements channel.</p>\n    <lf-options id=\"notes-choice\">\n      <lf-option id=\"notes-hold\">Keep them as a draft</lf-option>\n      <lf-option id=\"notes-post\">Post them</lf-option>\n    </lf-options>\n  </section>\n</lf-deck>"
+    }
   }
 }

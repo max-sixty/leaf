@@ -118,7 +118,7 @@ def folded_board(page_dir: Path) -> dict[str, list[str]]:
         order = folded_positions(
             "punch-list",
             "move",
-            registry["lf-board"]["x-state"]["move"]["record"],
+            registry["lf-board"]["state"]["verbs"]["move"]["record"],
             AuthoredOrders(document.document.by_id, registry),
             document.projection,
         )
@@ -206,7 +206,7 @@ new version as the checks finish.</p>
 <section id="migration-approval-decision" role="group" aria-labelledby="migration-approval-decision-h">
 <h2 id="migration-approval-decision-h">Approve the migration plan?</h2>
 <p>The rollout sequence and acceptance criteria described above.</p>
-<lf-options id="migration-approval" choose>
+<lf-options id="migration-approval">
 <lf-option id="migration-hold"><strong>Hold the rollout</strong></lf-option>
 <lf-option id="migration-approve"><strong>Approve the plan</strong></lf-option>
 </lf-options>

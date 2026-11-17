@@ -134,22 +134,30 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
             "layer_registry": {
                 tag: {
                     "description": "A body normalized by an asynchronous renderer.",
-                    "type": "object",
-                    "properties": {
-                        "id": {"type": "string"},
-                        "restated": {"type": "boolean"},
+                    "attributes": {
+                        "type": "object",
+                        "properties": {
+                            "id": {"type": "string"},
+                            "restated": {"type": "boolean"},
+                        },
+                        "required": ["id"],
+                        "additionalProperties": False,
                     },
-                    "required": ["id"],
-                    "additionalProperties": False,
-                    "x-content": "data",
-                    "x-verbatim": True,
-                    "x-state": {
-                        "edit": {
-                            "unit": "widget",
-                            "record": {"kind": "body"},
-                        }
+                    "content": "data",
+                    "words": {
+                        "verbatim": True,
                     },
-                    "x-example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
+                    "state": {
+                        "verbs": {
+                            "edit": {
+                                "unit": "widget",
+                                "record": {"kind": "body"},
+                            }
+                        },
+                    },
+                    "author": {
+                        "example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
+                    },
                 },
             },
             "layer_widgets": {
@@ -230,7 +238,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
         "</main>",
         """
 <section id="delivery" role="group" aria-labelledby="delivery-h"><h2 id="delivery-h">Which delivery?</h2>
-  <lf-options id="delivery-choice" choose>
+  <lf-options id="delivery-choice">
     <lf-option id="delivery-now">Now</lf-option>
     <lf-option id="delivery-later">Later</lf-option>
   </lf-options>
@@ -327,7 +335,7 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     assert original.evaluate(
         "node => node === document.getElementById('crossed-draft')"
     )
-    expect(page.locator("#delivery-now")).to_have_attribute("chosen", "")
+    expect(page.locator("#delivery-now")).to_have_attribute("selected", "")
 
 
 def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
@@ -375,8 +383,8 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     )
     page = open_page(browser, live_url(url))
     open_panel_thread(page, "c-decision")
-    expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
-    assert page.locator("#rp-live lf-option[chosen]").count() == 1
+    expect(page.locator("#rp-shim")).to_have_attribute("selected", "")
+    assert page.locator("#rp-live lf-option[selected]").count() == 1
 
     # Chrome belongs to the thread rather than the page version. Its action therefore
     # still stands, and is still the user's newest undoable gesture, after the page
@@ -384,7 +392,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
     stamp_page(d, REPLY_HOST_PAGE, "v2")
     wait_for_revision(page, 2)
     open_panel_thread(page, "c-decision")
-    expect(page.locator("#rp-shim")).to_have_attribute("chosen", "")
+    expect(page.locator("#rp-shim")).to_have_attribute("selected", "")
 
     # The thread opened with the caret in its reply, where `z` is a letter.
     page.evaluate(RELEASE_FOCUS)
@@ -394,7 +402,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
         for event in events_model.read_events(d)
         if event["kind"] == "undo"
     ] == [decision["id"]]
-    expect(page.locator("#rp-live lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#rp-live lf-option[selected]")).to_have_count(0)
 
 
 def _gesture_request(request):
@@ -466,7 +474,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
     with page.expect_request(_gesture_request):
         page.locator("#tq-logs").click()
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -478,7 +486,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
                 "final": True,
             },
         )
-    expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).not_to_have_attribute("selected", "")
     assert actions(serve.page_dir) == []
     consume_browser_errors(page, http_error_console(400))
     page.unroute("**/api/event")
@@ -487,14 +495,14 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
     round_trip(page)
     page.locator("#tq-set .lf-done").click()
     round_trip(page)
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
 
     held = []
     page.route("**/api/event", lambda route: _hold_gesture(route, held))
     with page.expect_request(_gesture_request):
         page.locator("#tq-metrics").click()
-    expect(page.locator("#tq-metrics")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-metrics")).to_have_attribute("selected", "")
     attempt = held[0].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[0].fulfill(
@@ -507,8 +515,8 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
             },
         )
 
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
-    expect(page.locator("#tq-metrics")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
+    expect(page.locator("#tq-metrics")).not_to_have_attribute("selected", "")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     assert [
         (event["action"], event["detail"]) for event in actions(serve.page_dir)
@@ -553,7 +561,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
             },
         )
 
-    expect(page.locator("#tq-logs")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).not_to_have_attribute("selected", "")
     expect(done).to_have_attribute("aria-pressed", "true")
     second_attempt = held[1].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
@@ -630,4 +638,4 @@ def test_closing_a_thread_withdraws_the_obligation_in_it(browser, serve):
     expect_on_me(page, 0)
     view = open_panel_thread(page, "c-which")
     expect(view.locator("#tq-one")).to_have_count(1)
-    expect(page.locator("#tq-redis")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#tq-redis")).not_to_have_attribute("selected", "")

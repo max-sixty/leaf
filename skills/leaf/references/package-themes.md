@@ -76,17 +76,17 @@ pages remains a possible later change.
 
 ## A theme change
 
-Shared tokens coordinate the page and its widgets ("Theme tokens" below). Three
-colours carry a palette: `--lf-paper`, the page's ground, `--lf-ink`, its text, and
-`--lf-accent`. Leaf steps the neutral colours of every surface from the paper toward
-the ink, so a theme that sets the three recolours the page, its widgets and Leaf's
-chrome together, and restates a neutral only where it wants another. The three faces
-are `--lf-serif` for prose, `--lf-sans` for Leaf's chrome, injected controls and
-notes on evidence, and `--lf-mono` for literal evidence, and `--lf-r` sets every
-corner. An ordinary selector tunes one element. A
-pattern the project reuses across pages, such as a callout, is an idiom: declare it
-under its CSS selector in the package's `registry.json`, with a `description`, an
-`x-example` and optional `x-instructions`, and style it in one of the package's sheets.
+Shared tokens coordinate the page and its widgets ("Theme tokens" below). Three colours
+carry a palette: `--lf-paper`, the page's ground, `--lf-ink`, its text, and
+`--lf-accent`. Leaf steps the neutral colours of every surface from the paper toward the
+ink, so a theme that sets the three recolours the page, its widgets and Leaf's chrome
+together, and restates a neutral only where it wants another. The three faces are
+`--lf-serif` for prose, `--lf-sans` for Leaf's chrome, injected controls and notes on
+evidence, and `--lf-mono` for literal evidence, and `--lf-r` sets every corner. An
+ordinary selector tunes one element. A pattern the project reuses across pages, such as
+a callout, is an idiom: declare it under its CSS selector in the package's
+`registry.json`, with a `description`, an `author.example` and optional
+`author.instructions`, and style it in one of the package's sheets.
 
 Where a Layout reads a page geometry token ("Theme tokens" below), set that token
 rather than overriding the Layout.
@@ -124,12 +124,12 @@ largest width and height among its images, so a widget can size its frame before
 decode, as `lf-shot` does.
 
 The page decides how wide it is and how its blocks are arranged (`page-layout.md`,
-"Layouts"). A package's element fills its box. One that needs more room than the
-reading measure, such as a board or a diagram, declares it in `x-space`: `wide` or
-`available`. One read as lines of text, such as a list of choices, keeps the prose's line
-length on a wide page with `max-inline-size: var(--lf-measure)` in its own stylesheet,
-under `@media screen`. Only the column and sidebar Layouts apply `x-space`. A workspace
-states no measure, so there every element fills its region.
+"Layouts"). A package's element fills its box. One that needs more room than the reading
+measure, such as a board or a diagram, declares it in `paint.space`: `wide` or
+`available`. One read as lines of text, such as a list of choices, keeps the prose's
+line length on a wide page with `max-inline-size: var(--lf-measure)` in its own
+stylesheet, under `@media screen`. Only the column and sidebar Layouts apply
+`paint.space`. A workspace states no measure, so there every element fills its region.
 
 A widget that needs a minimum width, such as a board whose columns must stay readable,
 caps it by the space it is in: `min-inline-size: min(<floor>, 100%, 100cqi,

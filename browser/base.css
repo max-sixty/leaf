@@ -29,14 +29,14 @@
  * Where the fact belongs to the registry rather than to the rule that draws the box,
  * delivery paints it into the served document (revision_delivery.py, `mark_declared`;
  * the runtime's `markDeclared` in a message) and the selector reads the paint. The
- * lists that ask whether a suggestion slot holds block content invert
- * HTML's phrasing content,
- * which answers "block" for every custom element, so they exclude `[data-lf-inline]`
- * rather than the tags that declare `x-inline`. The affordance rules that draw a choose
- * group as a control exclude the descendants of `[data-lf-exhibit]` for the same reason,
- * asking in CSS the question `quoted()` asks in JavaScript. A tag name in a shared list
- * is a closed vocabulary wherever it appears, and one layer's tag written into another
- * layer's stylesheet is that plus a leak.
+ * lists that ask whether a suggestion slot holds block content invert HTML's phrasing
+ * content, which answers "block" for every custom element, so they exclude
+ * `[data-lf-inline]` rather than the tags that declare `words.inline`. The affordance
+ * rules that draw an option group as a control exclude the descendants of
+ * `[data-lf-exhibit]` for the same reason, asking in CSS the question `quoted()` asks
+ * in JavaScript. A tag name in a shared list is a closed vocabulary wherever it
+ * appears, and one layer's tag written into another layer's stylesheet is that plus a
+ * leak.
  *
  * Live pages reserve thread room at the wide layout's existing floors, so the
  * first comment and the last resolution leave the document column in place. */
@@ -59,7 +59,7 @@
    as a small badge or key chip, declares `white-space: nowrap` locally. Test long
    identifiers and paths, not only ordinary prose.
 
-   A spatial element reads the room past the measure declared by `x-space`:
+   A spatial element reads the room past the measure declared by `paint.space`:
 
    - `wide` takes the shared capped width (`--lf-wide`) from the prose's start edge;
    - `available` takes all room the page can give it.
@@ -75,7 +75,7 @@
    drawn: `1` for a box that draws one, `trim` for one that only keeps its children's
    margins in (it pads or contains them but paints no edge). The declaration may belong
    to a nested-state selector or a generated internal box rather than the tag's base rule.
-   Widgets with `x-content: markup` or `members` can admit authored flow; data-only,
+   Widgets with `content: markup` or `members` can admit authored flow; data-only,
    empty, and inline widgets do not automatically owe a frame declaration.
 
    The shared style query trims the outer margins of the first and last non-generated
@@ -839,7 +839,7 @@ img {
  * Having a box also puts the wrapper in front of the render gate's floors, and the
  * width floor is written for widgets that reserve a region. This one's box is its
  * content's in both forms, words included — a one-word swap is ~30px and correct — so
- * the declaration names x-inline, which is the key that names whose floor is whose. */
+ * the declaration names words.inline, the key that names whose floor is whose. */
 lf-suggestion {
   display: inline;
 }
@@ -874,21 +874,21 @@ lf-new *::highlight(lf-sug-ins) {
   background-color: color-mix(in srgb, var(--lf-ok) 26%, transparent);
 }
 /* Which form a slot takes is asked of the platform's own closed set, inverted: any
- * child that is not phrasing content makes the slot a block. Enumerating the block
- * side named every shipped widget in the integrated layer — the closed list the norms
+ * child that is not phrasing content makes the slot a block. Enumerating the block side
+ * named every shipped widget in the integrated layer — the closed list the norms
  * forbid, silently inline for the first project-layer widget staged in a slot, whose
  * fold then dropped it in the frame of the press. Phrasing is the list that cannot
  * grow: a custom element is never in it, so a block widget from any layer is covered
  * unnamed. The marker at the end is the other direction's residue, and the inversion's
- * one wrong answer: an inline widget is a custom element too. Which widgets those are is
- * the registry's to say (x-inline) and a stylesheet cannot read it, so delivery paints
- * the declaration where a selector can reach it (data-lf-inline, `mark_declared`).
- * Four widget names stood here instead, one of them a standard chip's — a shipped tag in
- * the integrated theme, and the layer that most needed the answer, a project's own, was
- * the one layer it could never be given for. What the tag list bought that the marker
- * does not is the page that never runs the runtime: unpainted, an inline widget in a
- * slot reads as block there. No shipped script-free page stages one, and the price of
- * keeping that case was the closed list itself.
+ * one wrong answer: an inline widget is a custom element too. Which widgets those are
+ * is the registry's to say (words.inline) and a stylesheet cannot read it, so delivery
+ * paints the declaration where a selector can reach it (data-lf-inline,
+ * `mark_declared`). Four widget names stood here instead, one of them a standard chip's
+ * — a shipped tag in the integrated theme, and the layer that most needed the answer, a
+ * project's own, was the one layer it could never be given for. What the tag list
+ * bought that the marker does not is the page that never runs the runtime: unpainted,
+ * an inline widget in a slot reads as block there. No shipped script-free page stages
+ * one, and the price of keeping that case was the closed list itself.
  *
  * The content-shape test stays in :where() so this default is as easy to override
  * as the slots' ordinary tag rules. Semantic retirement belongs to state.css.
@@ -1010,7 +1010,7 @@ lf-suggestion:has(
  * by the padding as part of the gesture, and the pin takes its final seat once.
  *
  * Padding alone. The tint going is paint, which a state change may do freely, and a
- * transitioned background is the thing the choose group's own comment above warns
+ * transitioned background is the thing the option group's own comment above warns
  * about: the tokens themselves move when the user's system flips to dark, so every
  * slot on the page would animate from one palette to the other for a change nobody
  * made. */
@@ -1026,14 +1026,14 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 
 /* A pane is one task region: an optional header, one body element, an optional footer,
- * with no generated wrappers. It is whatever element declares `x-reading-role: pane`,
- * whose role delivery paints into the served document (`data-lf-reading-role`), so the
- * first paint lays it out before any script runs. The rows are `auto 1fr auto`, because a
- * grid row's minimum is its content's: a body that scrolls contributes nothing and the
- * row takes what the header and footer leave, while a body that doesn't holds the row at
- * its full height. Whether a body scrolls is the stylesheet's: the workspace Layout
- * scrolls pane bodies where it fills the window (layouts.css), and `reading-regions.js`
- * reads which box scrolls from the result.
+ * with no generated wrappers. It is whatever element declares `markup.reading-role:
+ * pane`, whose role delivery paints into the served document (`data-lf-reading-role`),
+ * so the first paint lays it out before any script runs. The rows are `auto 1fr auto`,
+ * because a grid row's minimum is its content's: a body that scrolls contributes
+ * nothing and the row takes what the header and footer leave, while a body that doesn't
+ * holds the row at its full height. Whether a body scrolls is the stylesheet's: the
+ * workspace Layout scrolls pane bodies where it fills the window (layouts.css), and
+ * `reading-regions.js` reads which box scrolls from the result.
  *
  * A widget that composes regions out of boxes it generates, such as a playground's
  * controls beside its preview or a visual review's evidence, marks them with the same

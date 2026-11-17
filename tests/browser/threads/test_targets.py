@@ -240,7 +240,7 @@ def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
     seed_reply(
         serve.page_dir,
         '<section id="tv-decision-region" role="group" aria-labelledby="tv-decision-region-h"><h3 id="tv-decision-region-h">Which store should I write up?</h3>'
-        '<lf-options id="tv-decision" choose>'
+        '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></section>",
         "tv-decision",
@@ -321,7 +321,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     seed_reply(
         serve.page_dir,
         '<section id="tv-decision-region" role="group" aria-labelledby="tv-decision-region-h"><h3 id="tv-decision-region-h">Which store should I write up?</h3>'
-        '<lf-options id="tv-decision" choose>'
+        '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></section>",
         "tv-decision-region",
@@ -557,12 +557,12 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
         "<style>.lf-chrome lf-options { display: contents }</style>\n</head>",
     )
     url = serve(page_source, packages=EXAMPLE_PACKAGES)
-    # The page's unlayered style puts a reporting group's wrapper in `contents`; the
+    # The page's unlayered style puts a group's wrapper in `contents`; the
     # subject is the boxless wrapper fallback, not package-theme precedence.
     seed_reply(
         serve.page_dir,
         '<lf-options id="tv-decision">'
-        '<lf-option id="tv-redis" chosen>Redis</lf-option>'
+        '<lf-option id="tv-redis" selected>Redis</lf-option>'
         "</lf-options>",
         "tv-decision",
     )
@@ -883,23 +883,29 @@ customElements.define('lf-quote-subject', class extends LeafElement {
         layer_registry={
             "lf-quote-subject": {
                 "description": "A named subject whose wording changes.",
-                "type": "object",
-                "properties": {
-                    "id": {"type": "string"},
-                    "data-words": {"type": "string"},
-                    "source": {"type": "string"},
+                "attributes": {
+                    "type": "object",
+                    "properties": {
+                        "id": {"type": "string"},
+                        "data-words": {"type": "string"},
+                        "source": {"type": "string"},
+                    },
+                    "required": ["id"],
+                    "additionalProperties": False,
                 },
-                "required": ["id"],
-                "additionalProperties": False,
-                "x-content": "empty",
-                "x-data": {
-                    "words": {
-                        "contract": "text-document",
-                        "source": "source",
-                        "property": "value",
-                    }
+                "content": "empty",
+                "data": {
+                    "inputs": {
+                        "words": {
+                            "contract": "text-document",
+                            "source": "source",
+                            "property": "value",
+                        }
+                    },
                 },
-                "x-example": '<lf-quote-subject id="example"></lf-quote-subject>',
+                "author": {
+                    "example": '<lf-quote-subject id="example"></lf-quote-subject>',
+                },
             }
         },
         layer_widgets={"lf-quote-subject.js": module},

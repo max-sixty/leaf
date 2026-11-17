@@ -425,7 +425,11 @@ test("preloading an arriving Markdown widget preserves its exact authored body",
   const { preloadWidgets } = await import("/runtime/widget-loader.js");
   const { formatDeclaredMarkdown } = await import("/runtime/markdown.js");
   const { dataBody } = await import("/runtime/widget-upgrade.js");
-  registry["lf-source-contract"] = { "x-text-format": "markdown" };
+  registry["lf-source-contract"] = {
+    words: {
+      "text-format": "markdown",
+    },
+  };
   try {
     const source = new DOMParser()
       .parseFromString(
@@ -458,7 +462,11 @@ test("an arriving written Markdown file first paints its rendering beside its ex
   const { registry } = await import("/runtime/registry.js");
   const { importWidgets } = await import("/runtime/widget-loader.js");
   const { prepaintDeclaredFiles } = await import("/runtime/markdown.js");
-  registry["lf-file-contract"] = { "x-prepaint": "notation" };
+  registry["lf-file-contract"] = {
+    paint: {
+      prepaint: "notation",
+    },
+  };
   try {
     const scope = new DOMParser()
       .parseFromString(
@@ -493,7 +501,11 @@ test("Markdown paragraphs keep reading grain while annotations retain the author
     await import("/runtime/markdown.js");
   const { annotationAt } = await import("/runtime/anchor-resolution.js");
   const { blockAt, elementReading } = await import("/runtime/passages.js");
-  registry["lf-seat-contract"] = { "x-text-format": "markdown" };
+  registry["lf-seat-contract"] = {
+    words: {
+      "text-format": "markdown",
+    },
+  };
   try {
     const host = document.createElement("lf-seat-contract");
     host.id = "authored-seat";

@@ -7,7 +7,7 @@ module owes.
 
 ### Reading regions
 
-A pane widget declares `x-reading-role: pane` and `x-content: markup`, and holds one
+A pane widget declares `markup.reading-role: pane` and `content: markup`, and holds one
 body element, with an optional native `header` before it and `footer` after. Whether a
 pane's body scrolls is the workspace Layout's decision (`layouts.css`), not the
 module's, and either way the module registers the body as a reading region, below.

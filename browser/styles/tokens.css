@@ -310,7 +310,7 @@
   --lf-pane-bar-pad-block: 10px;
   --lf-pane-bar-pad: var(--lf-pane-bar-pad-block) 14px;
   --lf-pane-inset: 14px;
-  /* How wide a block with `x-space: wide` may stand, from the prose's start edge
+  /* How wide a block with `paint.space: wide` may stand, from the prose's start edge
      (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
      widget is how a page becomes a ransom note. It is the width at which 100 columns of
      code, the common limit of formatters such as rustfmt, read unwrapped in the widest

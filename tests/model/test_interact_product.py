@@ -51,7 +51,7 @@ from leaf import service as service_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
-from leaf.registry.contract import element_declarations
+from leaf.registry.contract import declared_fact, element_declarations
 from leaf.structure import SourceDocument
 from leaf.themes import DEFAULT_THEME
 from leaf.thread_context import thread_digest
@@ -235,14 +235,14 @@ def test_page_events_name_revisions_and_stamps_name_both(page_dir):
     assert "\n  stamp " in result.output and "\n  publish " not in result.output
 
 
-def test_choose_requires_an_id(page_dir):
-    # Actions name their widget by id, so an interactive group can't go without one.
+def test_options_require_an_id(page_dir):
+    # Actions name their widget by id, and every group takes them.
     registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
-        '<lf-options choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
+        '<lf-options><lf-option id="o1"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
-    assert [finding.code for finding in errs] == ["needs-id"]
+    assert found(errs, "attribute-schema", "<lf-options>", keyword="required")
 
 
 def test_sample_admits_interactive_widgets(page_dir):
@@ -252,7 +252,7 @@ def test_sample_admits_interactive_widgets(page_dir):
     registry = registry_storage.load_registry(page_dir)
     errs = fragment_errors(
         '<lf-sample id="sp" label="a decision">'
-        '<lf-options id="g" choose><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
+        '<lf-options id="g"><lf-option id="o1"><strong>A</strong></lf-option></lf-options>'
         '<lf-board id="b"><lf-column id="c" label="To do">'
         '<lf-card id="k"><strong>Card</strong></lf-card></lf-column></lf-board>'
         "</lf-sample>",
@@ -270,7 +270,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     none."""
     registry = registry_storage.load_registry(page_dir)
     first = (
-        '<lf-options id="g-one" choose>'
+        '<lf-options id="g-one">'
         '<lf-option id="o-one"><strong>One</strong></lf-option>'
         "</lf-options>"
     )
@@ -359,10 +359,9 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
         "</section>"
     ) == [("question-group-id", "<section>")]
 
-    # A widget that asks nothing, a sample's widgets, which ask nothing beyond the
-    # sample, and a suggestion, which its sentence names, need no group.
-    assert refused(first.replace(" choose", "")) == []
-    assert refused(first.replace(" choose", " choose settled")) == []
+    # A settled group, which asks nothing, a sample's widgets, which ask nothing beyond
+    # the sample, and a suggestion, which its sentence names, need no group.
+    assert refused(first.replace('id="g-one"', 'id="g-one" settled')) == []
     for mode in ("", " interactive"):
         assert (
             refused(f'<lf-sample id="s" label="a question"{mode}>{first}</lf-sample>')
@@ -439,7 +438,7 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
 def test_registry_examples_validate(page_dir):
     registry = registry_storage.load_registry(page_dir)
     assert any(
-        tag.startswith("lf-") and "x-example" in entry
+        tag.startswith("lf-") and "example" in entry.get("author", {})
         for tag, entry in registry.items()
     )
     assert (
@@ -450,10 +449,10 @@ def test_registry_examples_validate(page_dir):
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
     registry = registry_storage.load_registry(page_dir)
-    registry["lf-diff"]["x-example"] = (
+    registry["lf-diff"].setdefault("author", {})["example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
-    registry["lf-code"]["x-example"] = (
+    registry["lf-code"].setdefault("author", {})["example"] = (
         '<lf-code id="shared"><pre>one/file.py</pre></lf-code>'
     )
 
@@ -538,7 +537,9 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
         (page_files(gallery) / "registry.json").read_text(encoding="utf-8")
     )
     apparatus = {
-        tag for tag, entry in gallery_registry.items() if entry.get("x-exhibit")
+        tag
+        for tag, entry in gallery_registry.items()
+        if declared_fact(entry, "state.exhibit")
     }
     assert apparatus
     eyebrows = re.findall(
@@ -585,7 +586,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
             (e.code, e.values["keyword"], e.values["path"])
             for e in fragment_errors(
                 '<section id="kind-ask" role="group" aria-labelledby="kind-ask-h"><h2 id="kind-ask-h">Choose a route</h2>'
-                '<lf-options id="kind-options" choose>'
+                '<lf-options id="kind-options">'
                 f'<lf-option id="route" {attributes}>Page</lf-option>'
                 '<lf-option id="other">Ticket</lf-option>'
                 "</lf-options></section>",
@@ -608,7 +609,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
 
 
 def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_page):
-    """An attribute a member declares unique within its owner (x-unique), such as a
+    """An attribute a member declares unique within its owner (markup.unique), such as a
     playground preset's `for`, refuses a repeat in the same owner, and a preset carries
     the id a comment on it records, since without one the comment lands on the whole
     playground. Both doors refuse a break before any browser draws it: message markup,
@@ -752,7 +753,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     clash = reply(
         question(
             "o-decision",
-            '<lf-options id="o" choose><lf-option id="flag-first"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="o"><lf-option id="flag-first"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event="c1",
     )
@@ -760,7 +761,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     fresh = reply(
         question(
             "q1-decision",
-            '<lf-options id="q1" choose><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="q1"><lf-option id="q1-a"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event="c1",
     )
@@ -769,14 +770,14 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     again = reply(
         question(
             "q1-decision",
-            '<lf-options id="q1" choose><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>',
+            '<lf-options id="q1"><lf-option id="q1-b"><strong>B</strong></lf-option></lf-options>',
         )
     )
     assert again.exit_code != 0 and "q1" in again.output
     selfdup = reply(
         question(
             "q2-decision",
-            '<lf-options id="q2" choose><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
+            '<lf-options id="q2"><lf-option id="q2"><strong>B</strong></lf-option></lf-options>',
         )
     )
     assert selfdup.exit_code != 0 and "duplicate ids" in selfdup.output
@@ -795,7 +796,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     ok = reply(
         question(
             "quoted-decision",
-            '<lf-options id="quoted" choose><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
+            '<lf-options id="quoted"><lf-option id="quoted-a"><strong>A</strong></lf-option></lf-options>',
         ),
         for_event=follow_up["id"],
         to=follow_up["id"],
@@ -837,7 +838,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             (
                 "Pick:\n\n"
                 '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h"><h2 id="pick-decision-h">Pick?</h2>'
-                '<lf-options id="lf-pick" choose>'
+                '<lf-options id="lf-pick">'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
                 "</lf-options></section>"
             ),

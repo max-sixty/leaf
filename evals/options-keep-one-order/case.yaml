@@ -41,7 +41,7 @@ vars:
         about 25 lines in <code>thread-card.js</code>, <code>floating-panel.js</code>
         and the theme.
       </p>
-      <lf-options id="resolve-glyph-choice" choose>
+      <lf-options id="resolve-glyph-choice">
         <lf-option id="resolve-words"><small class="tag">effort: ~25 lines</small><small class="tag ok">recommended</small><strong>Write Resolve and Reopen as words, and make the resolved line reopen</strong></lf-option>
         <lf-option id="resolve-keep"><small class="tag">effort: none</small><strong>Keep the ✓ glyphs</strong> Their names stay in tooltips only, which a phone never shows.</lf-option>
       </lf-options>
@@ -61,7 +61,7 @@ vars:
         card's choices, draw its way there as an <strong>Answer</strong> press.
         Cost: about 40 lines, one default-package widget plus theme.
       </p>
-      <lf-options id="answer-control-choice" choose>
+      <lf-options id="answer-control-choice">
         <lf-option id="answer-build"><small class="tag">effort: ~40 lines</small><small class="tag ok">recommended</small><strong>Draw an Answer press on bare questions and on On Me cards</strong></lf-option>
         <lf-option id="answer-keep"><small class="tag">effort: none</small><strong>Keep the rail’s ? as the only sign</strong></lf-option>
       </lf-options>
@@ -70,7 +70,7 @@ vars:
 
     You read the code. Your notes:
 
-    - Today a widget has four inputs to its On Me card. `x-awaits` in its registry
+    - Today a widget has four inputs to its On Me card. `state.awaits` in its registry
       entry says whether it asks and what answers it. Its keyboard commands marked
       `decision: true` are copied onto the card as plain buttons, and a press clicks
       the widget's real control on the page (`choicesOf` in `obligations/view.js`).
@@ -150,7 +150,7 @@ variants:
             pane still scrolls, and the measure fired usefully about 1 time in 3.
           </p>
           <p>I'd make them advice in <code>page check</code>, naming each overflowing pane, its overrun and the widths it spans, plus one goal line in <code>page-layout.md</code>'s workspace section saying why.</p>
-          <lf-options id="d43-choice" choose>
+          <lf-options id="d43-choice">
             <lf-option id="d43-advice"><small class="tag ok">recommended</small><strong>Advice and a goal line</strong> The agent decides whether an overflow matters.</lf-option>
             <lf-option id="d43-refuse"><strong>Refuse an overflowing pane</strong> Every page fits, at the cost of refusing a long file or reading list that may scroll.</lf-option>
             <lf-option id="d43-guide"><strong>Guidance only</strong> No check; the goal line alone.</lf-option>
@@ -249,7 +249,7 @@ variants:
             take the first option: the brief's lessons then reach the next run's planning
             pass.
           </p>
-          <lf-options id="skill-pick" choose>
+          <lf-options id="skill-pick">
             <lf-option id="skill-add">
               <small class="tag ok">recommended</small>
               <strong>Add the grind workflow to <code>/developing-leaf</code></strong>

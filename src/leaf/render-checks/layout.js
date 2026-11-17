@@ -566,7 +566,7 @@ export function misplacedBoxes() {
   // answers for what ran out of it on the side it scrolls toward, scrollLeft running
   // from zero to the overflow and never the other way. A box that marks where it cut
   // answers for the rest, the mark being what says there is a rest. And a box that
-  // only clips answers for nothing at all: what leaves a choose group, a board or a
+  // only clips answers for nothing at all: what leaves an option group, a board or a
   // table is drawn nowhere and said nowhere either, and every other reading here
   // calls such a page well — checkVisibility() is true of a clipped box, so screen
   // and print agree, and the copy withholds the clip and shows the words the live

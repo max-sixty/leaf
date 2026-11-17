@@ -99,7 +99,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
         "the revision took the user's keys down"
     )
     page.keyboard.press("2")
-    expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
+    expect(page.locator("#lk-two")).to_have_attribute("selected", "")
     expect(page.locator(".lf-live")).to_have_text("Chose “Two”")
     round_trip(page)
 
@@ -136,7 +136,7 @@ def test_a_revision_that_restates_an_obligation_preserves_the_users_location_in_
     # again, and the third option the revision brought is among them.
     assert active_digit_bindings(page) == "1–4"
     page.keyboard.press("3")
-    expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
+    expect(page.locator("#lk-three")).to_have_attribute("selected", "")
 
 
 def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
@@ -166,9 +166,9 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     # The press they had lined up decides nothing on its own, and the option they were
     # holding is still the one their own digit reaches.
     page.keyboard.press("Space")
-    expect(page.locator("lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("lf-option[selected]")).to_have_count(0)
     page.keyboard.press("2")
-    expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
+    expect(page.locator("#lk-two")).to_have_attribute("selected", "")
 
 
 def test_a_withdrawn_obligation_leaves_the_user_on_the_page(browser, serve):
@@ -694,7 +694,7 @@ STORE_ASK_PAGE = leaf_page(
     "Session store",
     '<h1 id="h">Where sessions live</h1>'
     '<section id="store-ask" role="group" aria-labelledby="store-ask-h"><h3 id="store-ask-h">Which store should hold sessions?</h3>'
-    '<lf-options id="store" choose>'
+    '<lf-options id="store">'
     '<lf-option id="store-redis">Redis</lf-option>'
     '<lf-option id="store-cookie">Signed cookie</lf-option>'
     '<lf-option id="store-db">The main database</lf-option>'
@@ -774,7 +774,7 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     expect(view).to_be_focused()
     expect(ask).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
-    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+    expect(page.locator("#store-cookie")).to_have_attribute("selected", "")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
@@ -784,12 +784,12 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     expect(ask).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.type("3")
     expect(reply).to_have_js_property("value", "3")
-    expect(page.locator("#store-db")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#store-db")).not_to_have_attribute("selected", "")
     page.keyboard.press("Escape")
     expect(view).to_be_focused()
     rendered(page)
     page.keyboard.press("3")
-    expect(page.locator("#store-db")).to_have_attribute("chosen", "")
+    expect(page.locator("#store-db")).to_have_attribute("selected", "")
 
 
 def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serve):
@@ -817,7 +817,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     card.focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
-    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+    expect(page.locator("#store-cookie")).to_have_attribute("selected", "")
 
 
 def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
@@ -909,8 +909,8 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
     url = serve(OBLIGATIONS_PAGE)
 
     def undeclare(registry):
-        del registry["lf-suggestion"]["x-awaits"]
-        del registry["lf-suggestion"]["properties"]["resolves"]
+        del registry["lf-suggestion"]["state"]["awaits"]
+        del registry["lf-suggestion"]["attributes"]["properties"]["resolves"]
 
     declare_on_page(serve.page_dir, undeclare)
     stamp_page(

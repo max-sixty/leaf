@@ -342,14 +342,14 @@ OBLIGATION_MARKERS_PAGE = leaf_page(
     """
 <h1 id="h">Two open questions</h1>
 <section id="short-ask" role="group" aria-labelledby="short-ask-h"><h2 id="short-ask-h">Where should sessions live?</h2>
-<lf-options id="short-choice" choose>
+<lf-options id="short-choice">
   <lf-option id="short-a"><strong>Keep the store</strong></lf-option>
   <lf-option id="short-b"><strong>Signed tokens</strong></lf-option>
 </lf-options></section>
 <p id="between">Between the two questions, a paragraph of ordinary prose.</p>
 <section id="long-ask" role="group" aria-labelledby="long-ask-h"><h2 id="long-ask-h">Should the nightly export keep writing one file per tenant,
 or roll every tenant into a single partitioned archive?</h2>
-<lf-options id="long-choice" choose>
+<lf-options id="long-choice">
   <lf-option id="long-a"><strong>One file per tenant</strong></lf-option>
   <lf-option id="long-b"><strong>One archive</strong></lf-option>
 </lf-options></section>

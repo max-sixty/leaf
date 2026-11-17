@@ -64,7 +64,7 @@ assert:
     value: |
       Each recommended removal needs a recommended small.tag on its Remove option,
       with a reason in prose. Advice must remain distinct from the user's choice:
-      neither option starts chosen. Fail recommendations expressed only in prose.
+      neither option starts selected. Fail recommendations expressed only in prose.
       Compact Remove / Keep controls need not have comparison chips; this case
       checks the advice marker rather than the card treatment.
 variants:

@@ -52,7 +52,7 @@ def on_card(page, at):
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
     """On Me lists every open obligation, in document order, and every answered one
     folded under Done with its current answer, so the user can review and revise. A
-    twelfth widget joins by declaring x-awaits.
+    twelfth widget joins by declaring state.awaits.
 
     A closed view holds no cards at all: they are the open view's rendering, the mark's
     count is the closed view's, and a hidden list of buttons is a set of controls no
@@ -139,16 +139,16 @@ def test_an_answered_obligations_words_are_its_widgets_semantic_state(browser, s
             """
 <h1 id="h">Answers</h1>
 <section id="note-ask" role="group" aria-labelledby="note-ask-h"><h2 id="note-ask-h">Is this release note right?</h2>
-<lf-draft id="note" needed><pre>
+<lf-draft id="note" required><pre>
 Adds --dry-run to every mutating command.
 </pre></lf-draft></section>
 <section id="cache-ask" role="group" aria-labelledby="cache-ask-h"><h2 id="cache-ask-h">Which cache?</h2>
-<lf-options id="cache" choose>
+<lf-options id="cache">
   <lf-option id="cache-none"><strong>No cache</strong> Read through.</lf-option>
 </lf-options></section>
 <section id="tags-ask" role="group" aria-labelledby="tags-ask-h"><h2 id="tags-ask-h">Which tags?</h2>
-<lf-options id="tags" choose multiple>
-  <lf-option id="tag-alpha" chosen><strong>Alpha</strong></lf-option>
+<lf-options id="tags" multiple>
+  <lf-option id="tag-alpha" selected><strong>Alpha</strong></lf-option>
   <lf-option id="tag-beta"><strong>Beta</strong></lf-option>
 </lf-options></section>
 <section id="tone-ask" role="group" aria-labelledby="tone-ask-h"><h2 id="tone-ask-h">Which notification?</h2>
@@ -322,7 +322,7 @@ def test_a_completed_obligation_persists_and_on_me_says_its_current_answer(
 
     page.locator("#storage-evict").click()
     round_trip(page)
-    expect(page.locator("#storage-evict")).to_have_attribute("chosen", "")
+    expect(page.locator("#storage-evict")).to_have_attribute("selected", "")
     expect_obligations_answered(page, "1/1")
     open_on_me(page)
     show_done(page)
@@ -428,7 +428,7 @@ WALKED_PAGE = leaf_page(
     '<h1 id="title">Kit list</h1>'
     + "".join(
         f'<section id="ask-{n}" role="group" aria-labelledby="ask-{n}-h"><h2 id="ask-{n}-h">Bring item {n}?</h2>'
-        f'<lf-options id="pick-{n}" choose><lf-option id="yes-{n}">Yes</lf-option>'
+        f'<lf-options id="pick-{n}"><lf-option id="yes-{n}">Yes</lf-option>'
         f'<lf-option id="no-{n}">No</lf-option></lf-options></section>'
         for n in range(1, 9)
     ),
@@ -477,7 +477,7 @@ ORDERED_PAGE = leaf_page(
     "walk order",
     '<h1 id="title">Release</h1><p id="cadence">We publish a build every week.</p>'
     '<section id="channel-ask" role="group" aria-labelledby="channel-ask-h"><h2 id="channel-ask-h">Which channel first?</h2>'
-    '<lf-options id="channel" choose><lf-option id="beta">Beta first</lf-option>'
+    '<lf-options id="channel"><lf-option id="beta">Beta first</lf-option>'
     '<lf-option id="both">Both at once</lf-option></lf-options></section>'
     '<p id="notes">Release notes come from merged titles.</p>',
 )
@@ -539,12 +539,12 @@ GROUPED_PAGE = leaf_page(
     '<h1 id="title">Release</h1>'
     '<section><h2 id="impl">Implementation</h2>'
     '<section id="exit-ask" role="group" aria-labelledby="exit-ask-h"><h3 id="exit-ask-h">Which exit code?</h3>'
-    '<lf-options id="exit" choose><lf-option id="e75">75</lf-option>'
+    '<lf-options id="exit"><lf-option id="e75">75</lf-option>'
     '<lf-option id="e124">124</lf-option></lf-options></section>'
     '<p id="reap">Reap every process under the sandbox user.</p></section>'
     '<section><h2 id="rollout">Rollout</h2>'
     '<section id="runner-ask" role="group" aria-labelledby="runner-ask-h"><h3 id="runner-ask-h">Include self-hosted runners?</h3>'
-    '<lf-options id="runners" choose><lf-option id="r-yes">Yes</lf-option>'
+    '<lf-options id="runners"><lf-option id="r-yes">Yes</lf-option>'
     '<lf-option id="r-no">No</lf-option></lf-options></section></section>',
 )
 
@@ -633,11 +633,11 @@ TABBED_PAGE = leaf_page(
     '<section><h2 id="first-context">What needs to change</h2>'
     "<p>The checkout stays fixed.</p></section>"
     '<section><section id="first-ask" role="group" aria-labelledby="first-ask-h"><h3 id="first-ask-h">Include self-hosted runners?</h3>'
-    '<lf-options id="first-q" choose><lf-option id="first-yes">Yes</lf-option>'
+    '<lf-options id="first-q"><lf-option id="first-yes">Yes</lf-option>'
     '<lf-option id="first-no">No</lf-option></lf-options></section></section></lf-tab>'
     '<lf-tab id="tab-second" label="Second plan">'
     '<section id="second-ask" role="group" aria-labelledby="second-ask-h"><h3 id="second-ask-h">Ship on Tuesday?</h3>'
-    '<lf-options id="second-q" choose><lf-option id="second-yes">Yes</lf-option>'
+    '<lf-options id="second-q"><lf-option id="second-yes">Yes</lf-option>'
     '<lf-option id="second-no">No</lf-option></lf-options></section></lf-tab>'
     "</lf-tabs>",
 )
@@ -728,7 +728,7 @@ CARD_OPTIONS_PAGE = leaf_page(
     "card options",
     """<h1 id="title">Sidebar</h1>
 <section id="stick-ask" role="group" aria-labelledby="stick-ask-h"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
-<lf-options id="stick" choose>
+<lf-options id="stick">
   <lf-option id="stick-box"><small class="tag">two days</small>
     <small class="tag ok">recommended</small><strong>Wrap the blocks in one box</strong>
     One mechanism for any number of <em>blocks</em>.
@@ -776,10 +776,10 @@ def test_an_option_s_choice_on_its_card_says_what_it_gives(browser, serve):
 
     aside.click()
     round_trip(page)
-    expect(page.locator("#stick-aside")).to_have_attribute("chosen", "")
+    expect(page.locator("#stick-aside")).to_have_attribute("selected", "")
     card.get_by_role("button", name="Undo").click()
     round_trip(page)
-    expect(page.locator("#stick-aside")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#stick-aside")).not_to_have_attribute("selected", "")
     expect(card.locator(".lf-fp-answer[data-lf-told]")).to_have_count(3)
 
 
@@ -797,8 +797,8 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
                 "done on its card",
                 """<h1 id="title">Tags</h1>
 <section id="tags-ask" role="group" aria-labelledby="tags-ask-h"><h2 id="tags-ask-h">Which tags?</h2>
-<lf-options id="tags" choose multiple>
-  <lf-option id="tag-alpha" chosen><strong>Alpha</strong> The first tag.</lf-option>
+<lf-options id="tags" multiple>
+  <lf-option id="tag-alpha" selected><strong>Alpha</strong> The first tag.</lf-option>
   <lf-option id="tag-beta"><strong>Beta</strong> The second tag.</lf-option>
 </lf-options></section>""",
             )
@@ -835,7 +835,7 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
             "agent": "Claude",
             "revision": 1,
             "text": "Ship on Friday?\n\n"
-            '<lf-options id="ship" choose>'
+            '<lf-options id="ship">'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
@@ -918,7 +918,7 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
                 "source_revision": source_revision(serve.page_dir, "review-patch"),
             },
             "text": "Ship on Friday?\n\n"
-            '<lf-options id="ship" choose>'
+            '<lf-options id="ship">'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
@@ -943,7 +943,7 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
     expect(card.get_by_role("button", name="Ship Friday", exact=True)).to_be_visible()
     with sending(page, "the pick"):
         page.keyboard.press("1")
-    expect(thread.locator("#ship-friday")).to_have_attribute("chosen", "")
+    expect(thread.locator("#ship-friday")).to_have_attribute("selected", "")
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -973,7 +973,7 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
             "revision": 1,
             "anchor": {"section": "risk"},
             "text": "Ship on Friday?\n\n"
-            '<lf-options id="ship" choose>'
+            '<lf-options id="ship">'
             '<lf-option id="ship-friday"><strong>Ship Friday</strong></lf-option>'
             '<lf-option id="ship-wait"><strong>Wait a week</strong></lf-option>'
             "</lf-options>",
@@ -1015,12 +1015,12 @@ TWO_DECISIONS_PAGE = leaf_page(
     "two decisions",
     """<h1 id="title">Review</h1>
 <section id="timeline-ask" role="group" aria-labelledby="timeline-ask-h"><h2 id="timeline-ask-h">Land the timeline prototype?</h2>
-<lf-options id="timeline" choose>
+<lf-options id="timeline">
   <lf-option id="tl-land">Land it</lf-option>
   <lf-option id="tl-keep">Keep it on its branch</lf-option>
 </lf-options></section>
 <section id="ship-ask" role="group" aria-labelledby="ship-ask-h"><h2 id="ship-ask-h">Ship on Friday?</h2>
-<lf-options id="ship" choose>
+<lf-options id="ship">
   <lf-option id="ship-friday">Ship Friday</lf-option>
   <lf-option id="ship-wait">Wait a week</lf-option>
 </lf-options></section>""",

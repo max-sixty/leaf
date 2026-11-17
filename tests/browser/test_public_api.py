@@ -134,8 +134,8 @@ def output_package(path, value):
             }
         }
     }
-    registry[tag]["x-output"] = {"count": {"contract": "count"}}
-    registry[tag]["x-example"] = (
+    registry[tag].setdefault("data", {})["outputs"] = {"count": {"contract": "count"}}
+    registry[tag].setdefault("author", {})["example"] = (
         '<lf-output-proof id="proof">Output example.</lf-output-proof>'
     )
     registry_path.write_text(json.dumps(registry))
@@ -342,7 +342,7 @@ def test_page_output_declaration_keeps_its_owner_beside_the_package_implementati
             "properties": {"count": {"type": "integer", "maximum": 1}},
         },
     }
-    registry["lf-output-proof"]["x-output"]["count"]["contract"] = contract
+    registry["lf-output-proof"]["data"]["outputs"]["count"]["contract"] = contract
     if override == "contract":
         registry = {"$data": registry["$data"]}
     url = serve(

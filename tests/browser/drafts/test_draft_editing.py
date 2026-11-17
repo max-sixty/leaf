@@ -619,7 +619,7 @@ def test_a_draft_in_an_obligation_takes_no_digits_and_answers_from_its_controls(
                 "Draft in an Ask",
                 '<h1>Release note</h1><section id="note-decision" role="group" aria-labelledby="note-decision-h">'
                 '<h2 id="note-decision-h">How should the note read?</h2>'
-                f'<lf-draft id="note" needed><pre>{original}</pre></lf-draft></section>',
+                f'<lf-draft id="note" required><pre>{original}</pre></lf-draft></section>',
             )
         ),
     )

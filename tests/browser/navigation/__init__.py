@@ -45,7 +45,7 @@ def color_cue_markup():
         + "".join(
             f'<lf-tab id="{name}" label="{name}">'
             f'<section id="ask-{name}" role="group" aria-labelledby="ask-{name}-h"><h2 id="ask-{name}-h">Choose {name}?</h2>'
-            f'<lf-options id="choice-{name}" choose>'
+            f'<lf-options id="choice-{name}">'
             f'<lf-option id="yes-{name}">Yes</lf-option>'
             f'<lf-option id="no-{name}">No</lf-option></lf-options>'
             "</section></lf-tab>"

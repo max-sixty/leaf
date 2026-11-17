@@ -61,7 +61,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir):
     registry = vocabulary(page_dir)
     options = (
         '<section id="route-decision" role="group" aria-labelledby="route-decision-h"><h2 id="route-decision-h">Which route?</h2>'
-        '<lf-options id="route" choose>'
+        '<lf-options id="route">'
         '<lf-option id="route-authored">Authored route</lf-option>'
         "</lf-options></section>"
     )
@@ -82,7 +82,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir):
         },
     )
 
-    del registry["lf-options"]["x-state"]["add"]["creates"]
+    del registry["lf-options"]["state"]["verbs"]["add"]["creates"]
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir()
     (overlay / "registry.json").write_text(

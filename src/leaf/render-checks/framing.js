@@ -6,7 +6,7 @@ import { openRoots } from "./open-roots.js";
 const generated = ".lf-ui, [data-lf-gen]";
 /** @param {Element} el */
 const declared = (el) =>
-  declarationFor(el, "type") !== undefined || customElements.get(el.localName);
+  declarationFor(el) !== undefined || customElements.get(el.localName);
 /** @param {CSSStyleDeclaration} style */
 const frames = (style) =>
   ["1", "trim"].includes(style.getPropertyValue("--lf-block-frame").trim());
@@ -22,11 +22,11 @@ const moduleOwnsBox = (el) => {
     child = parent, parent = upFrom(parent)
   ) {
     if (!declared(parent)) continue;
-    const content = declarationFor(parent, "x-content");
+    const content = declarationFor(parent)?.content;
     if (content === "markup") return false;
     return (
       content !== "members" ||
-      !(declarationFor(child, "x-owners") || []).includes(parent.localName)
+      !(declarationFor(child)?.markup?.owners || []).includes(parent.localName)
     );
   }
   return false;
@@ -53,14 +53,15 @@ const moduleOwnsBox = (el) => {
 // panel clearance and the author's page gutters do not make paragraph margins wrong.
 // Only a border or an explicit frame declaration makes html/body a content frame.
 //
-// Two exclusions, both about what a margin means where it stands. A flex or grid container
-// collapses no margin anywhere, so a margin on an item at its edge is a placement rather
-// than room that could not get out — the switch under a screenshot pair carries 3px of
-// exactly that, the UA's own on a checkbox. And an edge whose box is a generated one (a
-// pseudo-element, an `x-says` word, an injected control) is the layer's own paint, stated
-// in the same rule as the frame: what the trim looks for is the first and last block the
-// page itself put there, so this looks for the same, and a card's absolutely-positioned
-// pick mark is not the thing under its last paragraph.
+// Two exclusions, both about what a margin means where it stands. A flex or grid
+// container collapses no margin anywhere, so a margin on an item at its edge is a
+// placement rather than room that could not get out — the switch under a screenshot
+// pair carries 3px of exactly that, the UA's own on a checkbox. And an edge whose box
+// is a generated one (a pseudo-element, a `words.says` word, an injected control) is
+// the layer's own paint, stated in the same rule as the frame: what the trim looks for
+// is the first and last block the page itself put there, so this looks for the same,
+// and a card's absolutely-positioned pick mark is not the thing under its last
+// paragraph.
 //
 export function trappedMargins() {
   // Which document each box is in is OPEN_ROOTS', imported rather than restated, for

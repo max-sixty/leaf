@@ -418,7 +418,7 @@
             </ul>
             <section id="bg-choice-ask" role="group" aria-labelledby="bg-choice-ask-h">
               <h3 id="bg-choice-ask-h">Which map should the sample team carry?</h3>
-              <lf-options id="bg-choice" choose>
+              <lf-options id="bg-choice">
                 <lf-option id="bg-choice-street">Street map</lf-option>
                 <lf-option id="bg-choice-trail">Trail map</lf-option>
               </lf-options>
@@ -536,9 +536,11 @@
             </p>
             <section id="bg-link-settled-ask">
               <h3>Which trailhead does the sample walk start from?</h3>
-              <lf-options id="bg-link-settled" choose settled>
+              <lf-options id="bg-link-settled" settled>
                 <lf-option id="bg-link-settled-north">The north car park</lf-option>
-                <lf-option id="bg-link-settled-south" chosen>The south gate</lf-option>
+                <lf-option id="bg-link-settled-south" selected
+                  >The south gate</lf-option
+                >
               </lf-options>
             </section>
           </section>
@@ -593,7 +595,7 @@
                   aria-labelledby="bg-route-ask-h"
                 >
                   <h4 id="bg-route-ask-h">Which route should the walk follow?</h4>
-                  <lf-options id="bg-route" choose closed>
+                  <lf-options id="bg-route" closed>
                     <lf-option id="bg-route-garden">Through the garden</lf-option>
                     <lf-option id="bg-route-river">Along the river</lf-option>
                   </lf-options>
@@ -697,11 +699,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             </p>
             <section id="bg-outcome-ask">
               <h3>Where should the sample group meet?</h3>
-              <lf-options id="bg-outcome" choose settled>
+              <lf-options id="bg-outcome" settled>
                 <lf-option id="bg-outcome-door">
                   <strong>At the door</strong> Wait outside the building.
                 </lf-option>
-                <lf-option id="bg-outcome-desk" chosen>
+                <lf-option id="bg-outcome-desk" selected>
                   <strong>At reception</strong> Meet inside, beside the welcome desk.
                 </lf-option>
               </lf-options>
@@ -736,7 +738,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   Reserve the park's covered shelter for the sample group's Saturday
                   lunch.
                 </p>
-                <lf-options id="bg-picnic" choose>
+                <lf-options id="bg-picnic">
                   <lf-option id="bg-picnic-skip"
                     ><strong>Leave it unbooked</strong></lf-option
                   >
@@ -1074,9 +1076,9 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <p id="bg-board-stove-case">
                 The old stove takes ten minutes to boil a litre.
               </p>
-              <lf-options id="bg-board-stove-choice" choose>
+              <lf-options id="bg-board-stove-choice">
                 <lf-option id="bg-board-stove-next" value="next">Next</lf-option>
-                <lf-option id="bg-board-stove-later" value="later" chosen
+                <lf-option id="bg-board-stove-later" value="later" selected
                   >Later</lf-option
                 >
                 <lf-option id="bg-board-stove-drop" value="drop">Drop</lf-option>
@@ -1089,7 +1091,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             >
               <h3 id="bg-board-flask-h">Pack a second sample flask</h3>
               <p id="bg-board-flask-case">One flask ran dry on the last long walk.</p>
-              <lf-options id="bg-board-flask-choice" choose>
+              <lf-options id="bg-board-flask-choice">
                 <lf-option id="bg-board-flask-next" value="next">Next</lf-option>
                 <lf-option id="bg-board-flask-later" value="later">Later</lf-option>
                 <lf-option id="bg-board-flask-drop" value="drop">Drop</lf-option>
@@ -1292,7 +1294,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     "id": "api-question",
                     "kind": "comment",
                     "author": "agent",
-                    "text": "Which channel should the announcement use?\n\n<section id=\"channel-ask\" role=\"group\" aria-labelledby=\"channel-ask-h\">\n<h3 id=\"channel-ask-h\">Announcement channel</h3>\n<lf-options id=\"channel-options\" choose><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options>\n</section>",
+                    "text": "Which channel should the announcement use?\n\n<section id=\"channel-ask\" role=\"group\" aria-labelledby=\"channel-ask-h\">\n<h3 id=\"channel-ask-h\">Announcement channel</h3>\n<lf-options id=\"channel-options\"><lf-option id=\"channel-email\">Email</lf-option><lf-option id=\"channel-chat\">Chat</lf-option></lf-options>\n</section>",
                     "html": true
                   },
                   {
@@ -1847,7 +1849,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 The traverse's climb takes a little over four hours on its own, which
                 leaves no margin before the bus.
               </p>
-              <lf-options id="bg-across-choice" choose across data-width="wide">
+              <lf-options id="bg-across-choice" across data-width="wide">
                 <lf-option id="bg-across-ridge">
                   <strong>Ridge loop</strong> Three hours of climbing with views the
                   whole way.
@@ -1884,7 +1886,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3 id="bg-pictured-ask-h">
                 Should the sample queue group its tickets by owner?
               </h3>
-              <lf-options id="bg-pictured-choice" choose data-width="wide">
+              <lf-options id="bg-pictured-choice" data-width="wide">
                 <lf-option id="bg-pictured-group">
                   <strong>Group by owner</strong> A heading over each owner's tickets.
                   <figure id="bg-pictured-group-figure">
@@ -1976,7 +1978,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     SSO fails for every Northwind user since their IdP certificate
                     rotated.
                   </p>
-                  <lf-options id="bg-side-4107-outcome" choose>
+                  <lf-options id="bg-side-4107-outcome">
                     <lf-option id="bg-side-4107-fix"
                       ><strong>Fix</strong> Upload the new certificate.</lf-option
                     >
@@ -3006,7 +3008,7 @@ gallery/
                 </h3>
               </hgroup>
               <lf-sample id="bg-sample" label="an inert multiple-pick decision">
-                <lf-options id="bg-sample-options" choose multiple>
+                <lf-options id="bg-sample-options" multiple>
                   <lf-option id="bg-sample-paper">
                     <strong>Paper signs</strong> Nothing to charge.
                   </lf-option>
@@ -3348,7 +3350,7 @@ switch --readers checkout-api,orders-api</code></pre>
                         aria-labelledby="bg-layout-ask-h"
                       >
                         <h3 id="bg-layout-ask-h">Is this candidate ready?</h3>
-                        <lf-options id="bg-layout-decision" choose>
+                        <lf-options id="bg-layout-decision">
                           <lf-option id="bg-layout-ship">Ship this candidate</lf-option>
                           <lf-option id="bg-layout-hold"
                             >Hold for another rehearsal</lf-option
@@ -3685,7 +3687,7 @@ flag or command it touches, such as `--config`.
         <h2 id="bg-inline-sample-section-h">Interactive sample on this page</h2>
         <p>These choices use this page's state and Undo.</p>
         <lf-sample id="bg-inline-sample" interactive label="Delivery choices">
-          <lf-options id="bg-delivery-choice" choose>
+          <lf-options id="bg-delivery-choice">
             <lf-option id="bg-delivery-standard">Standard delivery</lf-option>
             <lf-option id="bg-delivery-express">Express delivery</lf-option>
           </lf-options>

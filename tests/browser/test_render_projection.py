@@ -401,7 +401,7 @@ def test_a_widget_current_location_out_of_place_is_a_page_the_gate_reports(
 )
 def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided):
     """An input action discharges the request live; the honoring version removes its
-    authored `needed` condition and its obligation, so incorporating its state into source
+    authored `required` condition and its obligation, so incorporating its state into source
     cannot turn the input back into a decision."""
     url = serve(COMMAND_HUB_EXAMPLE)
     d = serve.page_dir
@@ -426,17 +426,17 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     )
 
     honoring = re.sub(
-        r'<lf-draft id="ledger-cargo" needed>.*?</lf-draft>',
+        r'<lf-draft id="ledger-cargo" required>.*?</lf-draft>',
         # The authoring contract adds only the opening LF consumed by HTML.
         f'<lf-draft id="ledger-cargo"><pre>\n{provided}</pre></lf-draft>',
         COMMAND_HUB_PAGE,
         flags=re.DOTALL,
     )
-    # A draft without `needed` is optional editing, not an obligation its group asks.
-    honoring = honoring.replace(
-        '<section id="decision-ledger-fixture-region" role="group"'
-        ' aria-labelledby="decision-ledger-fixture-region-h">',
+    # A draft without `required` is optional editing, not an obligation its group asks.
+    honoring = re.sub(
+        r'<section\s+id="decision-ledger-fixture-region"[^>]*>',
         '<div id="decision-ledger-fixture-region">',
+        honoring,
     ).replace(
         "</lf-draft>\n              </section>",
         "</lf-draft>\n              </div>",
@@ -445,12 +445,12 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     stamp_page(d, honoring, "input absorbed")
     wait_for_revision(page, 2)
     # The saved answer remains in the reviewable obligation inventory after the source
-    # drops `needed`; it is completed, not newly owed to the user.
+    # drops `required`; it is completed, not newly owed to the user.
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
         "aria-label", re.compile(r"^Next On Me, [1-9]\d* waiting on me")
     )
-    expect(page.locator("#ledger-cargo")).not_to_have_attribute("needed")
+    expect(page.locator("#ledger-cargo")).not_to_have_attribute("required")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture")).to_be_visible()
     draft_control(page, "edit", "ledger-cargo").click()

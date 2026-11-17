@@ -62,7 +62,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
 
     def question(name):
         options = (
-            f'<lf-options id="choice-{name}" choose>'
+            f'<lf-options id="choice-{name}">'
             f'<lf-option id="yes-{name}">Yes</lf-option>'
             f'<lf-option id="no-{name}">No</lf-option></lf-options>'
         )
@@ -232,7 +232,7 @@ def test_an_obligation_walk_reveals_the_owning_regions_horizontal_destination(
         'style="width:220px; height:280px; overflow:auto">'
         '<div style="width:1600px; padding-left:900px; box-sizing:border-box">'
         '<section id="wide-ask" role="group" aria-labelledby="wide-ask-h"><h2 id="wide-ask-h">Choose the wider plan?</h2>'
-        '<lf-options id="wide-choice" choose>'
+        '<lf-options id="wide-choice">'
         '<lf-option id="wide-yes">Yes</lf-option>'
         '<lf-option id="wide-no">No</lf-option></lf-options></section>'
         "</div></div>",
@@ -356,7 +356,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
 
     with sending(page, "the numbered pick"):
         page.keyboard.press("1")
-    expect(page.locator("#lq-keep")).to_have_attribute("chosen", "")
+    expect(page.locator("#lq-keep")).to_have_attribute("selected", "")
     # The pick's notice takes the panel's seat for passing words, and focus never left
     # the second option, so the walk's reading stands behind it rather than retiring.
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
@@ -461,7 +461,7 @@ def test_a_selected_tab_enters_the_obligation_it_controls(browser, serve):
                 "Second</button></div>"
                 + "".join(
                     f'<section id="{key}-decision" role="group" aria-labelledby="{key}-decision-h"><h2 id="{key}-decision-h">Pick {key}</h2>'
-                    f'<lf-options id="{key}" choose><lf-option id="{key}-a">'
+                    f'<lf-options id="{key}"><lf-option id="{key}-a">'
                     "Alpha</lf-option></lf-options></section>"
                     for key in ("first", "second")
                 ),
@@ -628,11 +628,11 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
                 "Shared Question context",
                 '<h1>Shared Question context</h1><section id="shared" role="group" aria-labelledby="shared-h">'
                 '<h2 id="shared-h">Choose both releases</h2>'
-                '<lf-options id="first" choose>'
+                '<lf-options id="first">'
                 '<lf-option id="first-a">Alpha</lf-option>'
                 '<lf-option id="first-b">Beta</lf-option></lf-options>'
                 '<div style="height:1200px">Evidence between decisions</div>'
-                '<lf-options id="second" choose>'
+                '<lf-options id="second">'
                 '<lf-option id="second-a">Gamma</lf-option>'
                 '<lf-option id="second-b">Delta</lf-option></lf-options></section>',
             )
@@ -712,7 +712,7 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
             leaf_page(
                 "An ask scrolled away",
                 '<h1>An ask scrolled away</h1><section id="route" role="group" aria-labelledby="route-h"><h2 id="route-h">Which route?</h2>'
-                '<lf-options id="routes" choose>'
+                '<lf-options id="routes">'
                 '<lf-option id="left">Take the left route</lf-option>'
                 '<lf-option id="right">Take the right route</lf-option>'
                 '</lf-options></section><div style="height:4000px">Reading on</div>',
@@ -773,7 +773,7 @@ def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serv
     Home itself moves nothing."""
     asks = "".join(
         f'<div style="height:3000px">Reading on</div><section id="ask-{index}" role="group" aria-labelledby="ask-{index}-h">'
-        f'<h2 id="ask-{index}-h">Which route?</h2><lf-options id="routes-{index}" choose>'
+        f'<h2 id="ask-{index}-h">Which route?</h2><lf-options id="routes-{index}">'
         f'<lf-option id="left-{index}">Take the left route</lf-option>'
         f'<lf-option id="right-{index}">Take the right route</lf-option>'
         "</lf-options></section>"
@@ -898,7 +898,7 @@ def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_release
     items = "".join(
         f"""
 <section id="question-{index}" role="group" aria-labelledby="question-{index}-h"><h2 id="question-{index}-h">Question {index}: which route should we take?</h2>
-<lf-options id="routes-{index}" choose>
+<lf-options id="routes-{index}">
   <lf-option id="route-{index}-left">Take the left route</lf-option>
   <lf-option id="route-{index}-right">Take the right route</lf-option>
 </lf-options></section>
@@ -959,7 +959,7 @@ def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
     it."""
     asks = "".join(
         f"""<section id="ask-{index}" role="group" aria-labelledby="ask-{index}-h"><h2 id="ask-{index}-h">Question {index}</h2>
-<lf-options id="pick-{index}" choose>
+<lf-options id="pick-{index}">
   <lf-option id="pick-{index}-yes">Yes</lf-option>
   <lf-option id="pick-{index}-no">No</lf-option>
 </lf-options></section>"""
@@ -1001,12 +1001,12 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             """
 <h1 id="h">Open questions</h1>
 <section id="first-decision" role="group" aria-labelledby="first-decision-h"><h2 id="first-decision-h">Where should the feeders go?</h2>
-<lf-options id="first" choose>
+<lf-options id="first">
   <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
   <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
 </lf-options></section>
 <section id="second-decision" role="group" aria-labelledby="second-decision-h"><h2 id="second-decision-h">Who fills them?</h2>
-<lf-options id="second" choose>
+<lf-options id="second">
   <lf-option id="se-rota"><strong>A rota</strong></lf-option>
   <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
 </lf-options></section>
@@ -1022,7 +1022,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
             "revision": 1,
             "text": "And one for you in here.\n\n"
             '<section id="reply-decision" role="group" aria-labelledby="reply-decision-h"><h3 id="reply-decision-h">Which baffle?</h3>'
-            '<lf-options id="reply-ask" choose>'
+            '<lf-options id="reply-ask">'
             '<lf-option id="re-dome"><strong>A dome</strong></lf-option>'
             '<lf-option id="re-cone"><strong>A cone</strong></lf-option>'
             "</lf-options></section>",
@@ -1066,14 +1066,14 @@ OBLIGATION_THREAD_PAGE = leaf_page(
 <p id="lead">The budget note covers latency budgets for the cache.</p>
 <section id="cache-ask" role="group" aria-labelledby="cache-ask-h">
   <h2 id="cache-ask-h">Which cache should we keep?</h2>
-  <lf-options id="cache" choose>
+  <lf-options id="cache">
     <lf-option id="cache-disk">Keep the disk cache</lf-option>
     <lf-option id="cache-memory">Keep the memory cache</lf-option>
   </lf-options>
 </section>
 <section id="ship-ask" role="group" aria-labelledby="ship-ask-h">
   <h2 id="ship-ask-h">Ship on Friday?</h2>
-  <lf-options id="ship" choose>
+  <lf-options id="ship">
     <lf-option id="ship-friday">Ship Friday</lf-option>
     <lf-option id="ship-wait">Wait a week</lf-option>
   </lf-options>
@@ -1083,7 +1083,7 @@ OBLIGATION_THREAD_PAGE = leaf_page(
     <strong>Retry budget</strong> The retry budget doubles under load.
     <section id="retry-ask" role="group" aria-labelledby="retry-ask-h">
       <h3 id="retry-ask-h">Raise the retry budget?</h3>
-      <lf-options id="retry-pick" choose>
+      <lf-options id="retry-pick">
         <lf-option id="retry-raise">Raise it</lf-option>
         <lf-option id="retry-keep">Keep it</lf-option>
       </lf-options>
@@ -1129,7 +1129,7 @@ def test_walking_to_an_obligation_shows_its_discussion_clear_of_its_choices(
             or card["y"] >= box["y"] + box["height"]
         ), (card, box)
     page.keyboard.press("1")
-    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
     page.keyboard.press("c")
     expect(thread.locator("leaf-text")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
@@ -1151,7 +1151,7 @@ def test_walking_to_an_obligation_on_a_phone_continues_its_discussion_in_the_pan
     expect(page.locator("#cache-ask")).to_be_focused()
     expect(page.locator(".lf-margin-preview .lf-page-thread")).to_have_count(0)
     page.keyboard.press("1")
-    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
     page.keyboard.press("c")
     thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(thread).to_be_visible()
@@ -1165,7 +1165,7 @@ def test_walking_to_an_obligation_opens_its_discussion(browser, serve, family):
     stands at, taking over from the passage's card. Working the obligation's controls keeps it
     there, and `c` continues it."""
     if family == "decision":
-        item = '<section id="work" role="group" aria-labelledby="work-h"><h2 id="work-h">Keep the plan?</h2><lf-options id="decision" choose><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></section>'
+        item = '<section id="work" role="group" aria-labelledby="work-h"><h2 id="work-h">Keep the plan?</h2><lf-options id="decision"><lf-option id="yes">Yes</lf-option><lf-option id="no">No</lf-option></lf-options></section>'
     else:
         item = '<lf-suggestion id="work"><lf-old>Old plan</lf-old><lf-new>New plan</lf-new></lf-suggestion>'
     source = leaf_page(
@@ -1282,7 +1282,7 @@ def test_c_continues_the_card_beside_an_obligation_in_a_commented_block(browser,
             """<h1>Review</h1>
 <section id="calls"><h2>Judgment calls</h2>
 <section id="mark-ask" role="group" aria-labelledby="mark-ask-h"><h3 id="mark-ask-h">Cut the mark?</h3>
-<lf-options id="mark" choose>
+<lf-options id="mark">
   <lf-option id="mark-keep">Keep it</lf-option>
   <lf-option id="mark-cut">Remove it</lf-option>
 </lf-options></section></section>""",
@@ -1320,7 +1320,7 @@ def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, se
 <section id="calls"><h2>Judgment calls</h2>
 <section id="count-ask" role="group" aria-labelledby="count-ask-h"><h3 id="count-ask-h">Show the card count?</h3>
 <lf-shot id="count-shot" {shot}
-<lf-options id="count" choose>
+<lf-options id="count">
   <lf-option id="count-keep">Keep it</lf-option>
   <lf-option id="count-cut">Remove it</lf-option>
 </lf-options></section></section>
@@ -1349,7 +1349,7 @@ def test_c_from_a_shot_in_a_questions_frame_comments_on_the_question(browser, se
     # Answered, the frame still holds what the question is about.
     option = page.locator("#count-keep")
     option.click()
-    expect(option).to_have_attribute("chosen", "")
+    expect(option).to_have_attribute("selected", "")
     comment_after_flipping("count-shot")
     expect(composer).to_contain_text("section · Show the card count?")
     page.keyboard.press("Escape")
@@ -1390,7 +1390,7 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
             "responds": about_obligation,
             "text": "One question first.\n\n"
             '<section id="follow-ask" role="group" aria-labelledby="follow-ask-h"><h3 id="follow-ask-h">Measure it first?</h3>'
-            '<lf-options id="follow" choose>'
+            '<lf-options id="follow">'
             '<lf-option id="follow-yes">Measure first</lf-option>'
             '<lf-option id="follow-no">Decide now</lf-option>'
             "</lf-options></section>"
@@ -1429,7 +1429,7 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     expect(page.locator("#follow-ask")).to_be_focused()
     option = page.locator("#follow-yes")
     option.click()
-    expect(option).to_have_attribute("chosen", "")
+    expect(option).to_have_attribute("selected", "")
     # Back on the answered option, the user is located in the reply's question. Answering moves
     # focus to the message, which is inside no obligation and so does stand at the page question.
     round_trip(page)
@@ -1437,7 +1437,7 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     expect(page.locator("#cache-ask")).not_to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("#cache-disk")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#cache-disk")).not_to_have_attribute("selected", "")
 
     # From the control on the reply's widget, which stands at the page question, its digit
     # answers it, and the answered obligation keeps its ring there: the control is a
@@ -1446,7 +1446,7 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("#cache-disk")).to_have_attribute("chosen", "")
+    expect(page.locator("#cache-disk")).to_have_attribute("selected", "")
     expect(contributed).to_be_focused()
     expect(page.locator("#cache-ask")).to_have_attribute("data-lf-obligation", "1")
 
@@ -1467,7 +1467,7 @@ OBLIGATION_IN_A_PANE_PAGE = leaf_page(
         <div style="height: 700px"></div>
         <section id="pane-decision" role="group" aria-labelledby="pane-decision-h">
           <h3 id="pane-decision-h">How should the probe page?</h3>
-          <lf-options id="pane-choice" choose>
+          <lf-options id="pane-choice">
             <lf-option id="pane-a"><strong>Require three failures</strong> Quieter.</lf-option>
             <lf-option id="pane-b"><strong>Keep one failure</strong> Louder.</lf-option>
           </lf-options>
@@ -1524,7 +1524,7 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     ask = (
         '<section id="rollout" role="group" aria-labelledby="rollout-h"><h2 id="rollout-h">Include self-hosted runners?</h2>'
         "<p>They need administrator-configured namespaces.</p>"
-        '<lf-options id="rollout-options" choose>'
+        '<lf-options id="rollout-options">'
         '<lf-option id="include">Include them</lf-option>'
         '<lf-option id="later">Later</lf-option></lf-options></section>'
     )

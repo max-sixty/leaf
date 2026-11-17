@@ -8,7 +8,7 @@ vars:
   prompt: |
     You are revising a Leaf page for the user: a short report with a heading, three
     paragraphs, a table and a question section whose answer is an
-    `<lf-options id="next-step" choose>` with two options. It takes Leaf's default
+    `<lf-options id="next-step">` with two options. It takes Leaf's default
     theme, and its own `<style>` is empty.
 
     The user commented on the title: "Put this in our house colours for the board

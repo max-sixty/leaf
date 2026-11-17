@@ -59,9 +59,10 @@ How to build an alternative waits for the user's pick.
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
 an edit, and a thread message with `--obligation` for a conversational answer. Any
-widget whose registry entry declares `x-awaits` asks, a package's as well as the
-bundled `lf-options`; a question about content that asks nothing, such as a chart or a
-passage, goes in a thread on it. Put the widget where the question arises: a question a thread raises, such as which way to do
+widget whose registry entry declares `state.awaits` asks, a package's as well as the
+bundled `lf-options`, which asks with no attribute until you mark it `settled`; a
+question about content that asks nothing, such as a chart or a passage, goes in a
+thread on it. Put the widget where the question arises: a question a thread raises, such as which way to do
 what the user asked there, goes in your reply (`threads.md`, "Ask for a
 pick"), and a decision the page records goes on the page.
 Each widget that asks puts one question on On Me and records its answer. A choice can hold a
@@ -102,7 +103,7 @@ asks is its own question with its own answer.
 <section id="material-q" role="group" aria-labelledby="material-h">
   <h2 id="material-h">Which material for the housing?</h2>
   <p>Aluminium costs three times as much and halves the weight.</p>
-  <lf-options id="material" choose>…</lf-options>
+  <lf-options id="material">…</lf-options>
 </section>
 ```
 
@@ -144,7 +145,7 @@ action and the evidence the user needs in the question's heading and prose:
 >
   <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
-  <lf-options id="publish-report" choose>
+  <lf-options id="publish-report">
     <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
     <lf-option id="publish-report-publish"
       ><strong>Publish it to the team workspace</strong></lf-option

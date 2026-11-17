@@ -5,7 +5,7 @@
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:
 
-   - `renderSaid` turns `x-says` values into real selectable text.
+   - `renderSaid` turns `words.says` values into real selectable text.
    - `renderQuiet` gives state provenance a clipped spoken reading.
    - Declared marks expose the width model, inline run, quoting, own height, and
      reading role to the theme: delivery paints a page's document, and `markDeclared`
@@ -13,7 +13,7 @@
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The obligation model (obligations/model.js) reads `x-awaits`, while the obligation
+   - The obligation model (obligations/model.js) reads `state.awaits`, while the obligation
      view (obligations/view.js) starts an arrival at the group the author declares
      round that source where one does; neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
@@ -49,7 +49,13 @@
 import { isElement } from "./shadow-tree.js";
 
 import { markViews } from "./storage.js";
-import { elementDeclarations, exhibits, registry, tagsDeclaring } from "./registry.js";
+import {
+  declaredFact,
+  elementDeclarations,
+  exhibits,
+  registry,
+  tagsDeclaring,
+} from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
 import { dressCode } from "./code-dressing.js";
 import { keeps } from "./keeps.js";
@@ -294,47 +300,48 @@ export function paintDeclaredWords(root) {
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget declares its capacity (x-space) and the Layout gives it the room:
+// the widget declares its capacity (paint.space) and the Layout gives it the room:
 // `wide` uses the shared evidence cap, and `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
-// Whether the widget is set among the words around it is the second (x-inline). What
-// reads it is the pair of selectors asking whether a suggestion slot or a variant holds
-// block content, which is HTML's phrasing content inverted: a custom element is in no
-// closed platform set, so any widget in one of those makes it a block — an inline widget
-// included, which is the one wrong answer the inversion gives. The exclusion that fixed
-// it was four widget names, and a bundled chip's tag therefore stood in the integrated
-// theme, saying nothing at all about the next layer's inline widget. It is one marker
-// now, data-lf-inline, and an inline widget from any layer joins by declaring.
+// Whether the widget is set among the words around it is the second (words.inline).
+// What reads it is the pair of selectors asking whether a suggestion slot or a variant
+// holds block content, which is HTML's phrasing content inverted: a custom element is
+// in no closed platform set, so any widget in one of those makes it a block — an inline
+// widget included, which is the one wrong answer the inversion gives. The exclusion
+// that fixed it was four widget names, and a bundled chip's tag therefore stood in the
+// integrated theme, saying nothing at all about the next layer's inline widget. It is
+// one marker now, data-lf-inline, and an inline widget from any layer joins by
+// declaring.
 //
-// Whether the widget quotes what it holds is the third (x-exhibit). An exhibit is a
-// mention, not a use, so every rule saying "this takes input" — the hand, the lift, the
-// joined shape, the reserved strips, the hover wash — stands down inside one. The
+// Whether the widget quotes what it holds is the third (state.exhibit). An exhibit is
+// a mention, not a use, so every rule saying "this takes input" — the hand, the lift,
+// the joined shape, the reserved strips, the hover wash — stands down inside one. The
 // declaration is the tag's and the question is the occurrence's, which is the shape
-// quoted() has too: whether this element sits inside an exhibit. So the mark goes on the
-// exhibit and the rules exclude what stands under it, strictly within, as quoted()
-// does: the exhibit itself is no mention. Ten of those rules spelled lf-sample before: a bundled
-// tag, saying nothing about a project's own exhibit. quoted() still asks the registry
-// rather than this paint, which is the arrangement and not an oversight — the
+// quoted() has too: whether this element sits inside an exhibit. So the mark goes on
+// the exhibit and the rules exclude what stands under it, strictly within, as quoted()
+// does: the exhibit itself is no mention. Ten of those rules spelled lf-sample before:
+// a bundled tag, saying nothing about a project's own exhibit. quoted() still asks the
+// registry rather than this paint, which is the arrangement and not an oversight — the
 // declaration is the one representation, and the mark is how a stylesheet, which cannot
 // read a registry, asks it the same thing.
 //
-// Two more complete the set: x-bound, a block that holds its own height and scrolls
+// Two more complete the set: paint.bound, a block that holds its own height and scrolls
 // inside it (`bounds.js` holds each bounded block that arrives as a reading region, and
-// keeps an `end` bound on its newest entry), and x-reading-role, the structure the theme
-// and the workspace Layout lay out, so every package's pane takes the same rules.
+// keeps an `end` bound on its newest entry), and markup.reading-role, the structure the
+// theme and the workspace Layout lay out, so every package's pane takes the same rules.
 //
-// An attribute, because the theme cannot read the registry — the same arrangement x-says
-// already has with data-lf-said. Which declarations are marks, the attribute each is
-// painted as, the attribute an occurrence overrides it with, and whether it holds in a
-// message are one table, the kernel registry's `$marks`, which this runtime imports from
-// `kernel-facts.js`. A page's document arrives painted from it: delivery writes
-// the marks into the served source (revision_delivery.py, `mark_declared`), so the first
-// paint already gives a board its room and a workspace its panes, before any module or
-// the registry loads, and a revision the page patches in arrives painted the same way. A
-// message is the runtime's to render, so `markDeclared` paints it from `marks` as it
-// renders, with the marks that hold there: every one but the room, which is the
-// document's to hand out, while a message renders in the panel's.
+// An attribute, because the theme cannot read the registry — the same arrangement
+// words.says already has with data-lf-said. Which declarations are marks, the attribute
+// each is painted as, the attribute an occurrence overrides it with, and whether it
+// holds in a message are one table, the kernel registry's `$marks`, which this runtime
+// imports from `kernel-facts.js`. A page's document arrives painted from it: delivery
+// writes the marks into the served source (revision_delivery.py, `mark_declared`), so
+// the first paint already gives a board its room and a workspace its panes, before any
+// module or the registry loads, and a revision the page patches in arrives painted the
+// same way. A message is the runtime's to render, so `markDeclared` paints it from
+// `marks` as it renders, with the marks that hold there: every one but the room, which
+// is the document's to hand out, while a message renders in the panel's.
 
 /** @param {Scope} root @param {string} selector */
 function* elementsIn(root, selector) {
@@ -349,18 +356,20 @@ export function markDeclared(root) {
   for (const [key, mark] of Object.entries(marks)) {
     const { paint, authored, message } = mark;
     if (!message) continue;
-    const tags = tagsDeclaring(
-      /** @param {Record<string, unknown>} entry */ (entry) => entry[key],
-    );
+    const tags = tagsDeclaring((entry) => declaredFact(entry, key));
     for (const tag of tags) {
-      const declared = registry[tag][key];
+      const declared = declaredFact(registry[tag], key);
       for (const el of elementsIn(root, tag)) {
-        const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
-        if (key === "x-views") {
+        const value = key === "state.exhibit" ? exhibits(el, registry[tag]) : declared;
+        if (key === "paint.views") {
           markViews(el);
           continue;
         }
-        keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
+        keeps(
+          el,
+          paint,
+          !value ? null : value === true || mark.presence ? "" : String(value),
+        );
       }
     }
     // Message markup is all content (`authored_on`, `$marks`), so only a
@@ -372,13 +381,13 @@ export function markDeclared(root) {
   }
 }
 
-// Words a widget says through an attribute — a metric's number, a chronology entry's time, an
-// option's chip band — rendered as text the user can reach. The theme renders the same
-// words with `content: attr()`, and a pseudo-element's glyphs are in no text node: no
-// selection can cover them, so no comment can be anchored on them, and the page shows
-// text you can read and can't point at. Not the widget author's to remember, either: the
-// registry names the attributes (x-says) and one pass renders them, so a widget cannot
-// render a word the user can't quote.
+// Words a widget says through an attribute — a metric's number, a chronology entry's
+// time, an option's chip band — rendered as text the user can reach. The theme renders
+// the same words with `content: attr()`, and a pseudo-element's glyphs are in no text
+// node: no selection can cover them, so no comment can be anchored on them, and the
+// page shows text you can read and can't point at. Not the widget author's to remember,
+// either: the registry names the attributes (words.says) and one pass renders them, so
+// a widget cannot render a word the user can't quote.
 //
 // Each value goes at the edge its pseudo-element occupied (before = first child, after =
 // last) — the only placement a pseudo could ever have had, and so the line past which a
@@ -402,9 +411,9 @@ export function markDeclared(root) {
 /** @param {Scope} root */
 export function renderSaid(root) {
   for (const [tag, entry] of elementDeclarations()) {
-    if (!entry["x-says"]) continue;
+    if (!entry.words?.says) continue;
     for (const el of elementsIn(root, tag))
-      for (const [attr, edge] of Object.entries(entry["x-says"])) {
+      for (const [attr, edge] of Object.entries(entry.words?.says)) {
         const text = el.getAttribute(attr);
         const existing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
         // A live revision may change or drop the attribute under a span already

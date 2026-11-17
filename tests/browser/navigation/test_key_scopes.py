@@ -345,7 +345,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
         """
         <section id="second-ask" role="group" aria-labelledby="second-ask-h">
           <h2 id="second-ask-h">A second question</h2>
-          <lf-options id="second-options" choose>
+          <lf-options id="second-options">
             <lf-option id="second-one">First answer</lf-option>
             <lf-option id="second-two">Second answer</lf-option>
           </lf-options>
@@ -2060,7 +2060,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
         """
 <h1 id="frames">Choose a frame</h1>
 <section id="first-question-decision" role="group" aria-labelledby="first-question-decision-h"><h2 id="first-question-decision-h">Which first frame?</h2>
-<lf-options id="first-question" choose>
+<lf-options id="first-question">
   <lf-option id="first-frame"><strong>First</strong>
     <label><input id="first" type="radio" name="first-frame">
       <span>first state</span></label>
@@ -2068,7 +2068,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
   <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
 </lf-options></section>
 <section id="frame-question-decision" role="group" aria-labelledby="frame-question-decision-h"><h2 id="frame-question-decision-h">Which next frame?</h2>
-<lf-options id="frame-question" choose>
+<lf-options id="frame-question">
   <lf-option id="after-frame"><strong>After</strong>
     <div id="label-thread" tabindex="-1">
     <label id="frame-label"><input id="frame" type="radio" name="frame">

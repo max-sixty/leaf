@@ -498,7 +498,7 @@
                 interactive
               >
                 <p>Start with canary clients; expand after the error rate settles.</p>
-                <lf-options id="spec-options" choose>
+                <lf-options id="spec-options">
                   <lf-option id="so-rewrite"
                     ><small class="tag ok">recommended</small>
                     <strong>Canary clients</strong> Start with a small group and compare
@@ -514,7 +514,7 @@
                   >
                 </lf-options>
                 <h3>Which job should start first?</h3>
-                <lf-options id="spec-jobs" choose>
+                <lf-options id="spec-jobs">
                   <lf-option id="sj-backfill">Prepare the rollback flag</lf-option>
                   <lf-option id="sj-contract">Add a concurrency test</lf-option>
                   <lf-option id="sj-fallback"
@@ -585,14 +585,14 @@
             <h2>Asking the user</h2>
             <p id="progress-lists-subjects">
               Any widget can ask, whether bundled, from a package or the page’s own, by
-              declaring <a href="#x-awaits"><code>x-awaits</code></a> in its registry
-              entry, which names the actions that answer it. To ask about content that
-              asks nothing, such as a paragraph or a chart, or to leave the user a step
-              such as trying a build, the agent opens a thread on that content or the
-              page with a message sent with <code>--obligation</code>, and the user’s
-              reply answers it. Nothing goes On Me that neither a widget nor a thread
-              answers, so no item carries a generic Done, and Leaf adds no answer to a
-              widget beyond those the widget declares.
+              declaring <a href="#state.awaits"><code>state.awaits</code></a> in its
+              registry entry, which names the actions that answer it. To ask about
+              content that asks nothing, such as a paragraph or a chart, or to leave the
+              user a step such as trying a build, the agent opens a thread on that
+              content or the page with a message sent with <code>--obligation</code>,
+              and the user’s reply answers it. Nothing goes On Me that neither a widget
+              nor a thread answers, so no item carries a generic Done, and Leaf adds no
+              answer to a widget beyond those the widget declares.
             </p>
             <p id="asking-lists">
               Each ask joins the user's On Me list until the widget or thread that asks
@@ -2066,30 +2066,36 @@ packages/callout/
 &lt;/lf-callout&gt;</code></pre>
             <p>
               Its complete <code>registry.json</code> entry validates the attributes.
-              <code>x-example</code> is the sample an author queries with the entry:
+              <code>author.example</code> is the sample an author queries with the
+              entry:
             </p>
             <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
     "description": "A short warning or constraint that belongs in the reading flow.",
-    "type": "object",
-    "properties": {
-      "id": { "type": "string" }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" }
+      },
+      "required": ["id"],
+      "additionalProperties": false
     },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
+    "author": {
+      "example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
+    }
   }
 }</code></pre>
             <p>
-              The entry is a JSON Schema and needs no Leaf declaration: the body is the
-              author's markup unless <code>x-content</code> says otherwise. The ordinary
-              JSON Schema fields validate its attributes, and Leaf adds the grammar an
+              <code>attributes</code> is a JSON Schema of the element's attributes, and
+              the entry needs no other Leaf declaration: the body is the author's markup
+              unless <code>content</code> says otherwise. Leaf adds the grammar an
               <code>id</code> follows; <code>description</code> and
-              <code>x-example</code> make the merged registry useful to an author.
+              <code>author.example</code> make the merged registry useful to an author.
             </p>
             <p>
-              The <a href="#keys">registry-key reference</a> lists every
-              <code>x-*</code> declaration. A CSS-only widget stops here.
+              The <a href="#keys">registry-key reference</a> lists every other fact a
+              declaration can state, grouped by what it is about. A CSS-only widget
+              stops here.
             </p>
           </section>
           <section id="check">
@@ -2114,12 +2120,12 @@ $ leaf page check PAGE --render</code></pre>
             <dl class="package-next">
               <dt><a href="#keys">Registry keys</a></dt>
               <dd>
-                The generated reference for declarations such as <code>x-data</code> and
-                <code>x-state</code>.
+                The generated reference for declarations such as
+                <code>data.inputs</code> and <code>state.verbs</code>.
               </dd>
               <dt><a href="/how-it-works/#event-log">Event log</a></dt>
               <dd>
-                How a widget's <code>x-state</code> verbs become logged events and
+                How a widget's verbs (<code>state.verbs</code>) become logged events and
                 folded state.
               </dd>
               <dt>
@@ -2605,10 +2611,11 @@ flowchart TD
           ><section id="keys">
             <h2>Registry keys</h2>
             <p id="keys-lede">
-              An element declaration begins as JSON Schema. Its <code>x-*</code> keys
-              tell Leaf how the element reads, renders, changes, and joins the
-              collaboration loop. The index jumps to a key's summary, and a longer
-              contract opens in place.
+              An element declaration holds the JSON Schema of its attributes. Its other
+              keys tell Leaf how the element reads, renders, changes, and joins the
+              collaboration loop, grouped by what each is about, for the parts of Leaf
+              that read it without running the widget's module. The index jumps to a
+              key's summary, and a longer contract opens in place.
             </p>
             <p id="keys-source">
               This reference is generated from the registry's <code>$keys</code>, the

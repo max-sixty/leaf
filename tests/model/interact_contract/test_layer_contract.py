@@ -48,27 +48,30 @@ from model.interact_contract import vocabulary
     ("changes", "keyword", "path"),
     [
         ({"description": " \n\t"}, "pattern", ["description"]),
-        ({"x-example": " \n\t"}, "pattern", ["x-example"]),
-        ({"x-example": False}, "type", ["x-example"]),
-        ({"x-example": None}, "required", []),
-        ({"x-instructions": ""}, "pattern", ["x-instructions"]),
-        ({"x-work": True}, "additionalProperties", []),
+        ({"author": {"example": " \n\t"}}, "pattern", ["author", "example"]),
+        ({"author": {"example": False}}, "type", ["author", "example"]),
+        ({"author": {"instructions": "Use above a heading."}}, "required", ["author"]),
+        (
+            {"author": {"example": '<p class="lede">Opening</p>', "instructions": ""}},
+            "pattern",
+            ["author", "instructions"],
+        ),
+        ({"state": {"work": True}}, "additionalProperties", []),
     ],
 )
 def test_idioms_have_nonblank_authoring_fields_and_no_widget_behavior(
     changes, keyword, path
 ):
     registry = shipped_core_registry()
-    entry = {"description": "An opening.", "x-example": '<p class="lede">Opening</p>'}
+    entry = {
+        "description": "An opening.",
+        "author": {"example": '<p class="lede">Opening</p>'},
+    }
     registry[".lede"] = entry
     registry_validation.validate_layer_declarations(registry, "registry.json")
-    entry["x-instructions"] = "Use above a heading."
+    entry["author"]["instructions"] = "Use above a heading."
     registry_validation.validate_layer_declarations(registry, "registry.json")
-    for key, value in changes.items():
-        if value is None:
-            del entry[key]
-        else:
-            entry[key] = value
+    entry.update(changes)
     refused = registry_refusal(
         lambda: registry_validation.validate_layer_declarations(
             registry, "registry.json"
@@ -256,7 +259,7 @@ def test_init_refuses_instructions_that_a_batch_could_not_carry(
     assert next(iter(events)) in json.dumps(finding.values)
 
 
-@pytest.mark.parametrize("path", [("x-state", "decide", "unit")], ids="-".join)
+@pytest.mark.parametrize("path", [("state", "verbs", "decide", "unit")], ids="-".join)
 def test_init_refuses_a_declaration_the_vocabulary_would_read_unchecked(
     page_dir, tmp_path, path
 ):
@@ -983,20 +986,20 @@ def test_init_requires_tones_to_be_a_list_membership_can_be_tested_against(
 
 
 def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path):
-    """$keys documents each x- key an entry may declare, and exactly those: a member
+    """$keys documents each key an entry may declare, and exactly those: a member
     for a key the lint doesn't admit is documentation of nothing, and one missing is a
     key the registry then leaves unsaid. A project layer overrides a member (its own
     reading of a key) and adds none — the set is closed where the keys are checked."""
     overlay = tmp_path / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(
-        json.dumps({"$keys": {"x-space": "wider, in this project", "x-nope": "?"}})
+        json.dumps({"$keys": {"paint.space": "wider, in this project", "nope": "?"}})
     )
     finding = init_refusal(page_dir)
-    assert found([finding], "keys-documentation", missing=[], unadmitted=["x-nope"])
+    assert found([finding], "keys-documentation", missing=[], unadmitted=["nope"])
 
     (overlay / "registry.json").write_text(
-        json.dumps({"$keys": {"x-space": "wider, in this project"}})
+        json.dumps({"$keys": {"paint.space": "wider, in this project"}})
     )
     result = CliRunner().invoke(
         cli_model.cli,
@@ -1009,19 +1012,20 @@ def test_init_holds_the_key_docs_to_the_keys_the_lint_admits(page_dir, tmp_path)
     )
     assert result.exit_code == 0, result.output
     keys = registry_storage.load_registry(page_dir)["$keys"]
-    assert keys["x-space"] == "wider, in this project"
-    assert keys["x-says"]  # the rest of the shipped members stand
+    assert keys["paint.space"] == "wider, in this project"
+    assert keys["words.says"]  # the rest of the shipped members stand
 
 
 @pytest.mark.parametrize("fact", ["$state", "$awaits"])
 def test_the_field_docs_hold_to_the_fields_their_schema_admits(fact):
-    """`$state` documents the fields of an x-state verb and `$awaits` those of
-    x-awaits, held to their schemas as `$keys` is to the x- keys: a field the schema
+    """`$state` documents the fields of a verb (state.verbs) and `$awaits` those of
+    state.awaits, held to their schemas as `$keys` is to a declaration's keys: a field
+    the schema
     admits with no member is one an author reads the registry for and finds unsaid."""
     kernel = shipped_core_registry()
     registry_validation.validate_layer_declarations(kernel, "kernel")
     documented = deepcopy(kernel)
-    field = min(registry_validation.DOCUMENTED_KEYS[fact]["properties"])
+    field = min(registry_validation.DOCUMENTED_KEYS[fact])
     del documented[fact][field]
     documented[fact]["nope"] = "?"
     refused = registry_refusal(

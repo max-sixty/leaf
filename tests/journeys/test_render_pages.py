@@ -22,7 +22,7 @@ from render_harness import (
     INLINE_PAGE,
     leaf_page,
     open_page,
-    page_registry,
+    page_declarations,
     panel_settled,
     resized,
     root_overflow,
@@ -39,6 +39,7 @@ from leaf import structure as structure_model
 from leaf.hosting import TemporaryPageServer
 from leaf.passages import enclosing_ids, message_markup, page_passages
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import declared_fact
 from leaf.render_checks import evaluate_probe, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf_dev.browser import PANEL_THREAD
@@ -384,7 +385,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 # user, whatever answers it has to have been built here too:
                 # data-lf-offer is the runtime's own mark for a thing to work, so
                 # this asks the declaration and never the tag.
-                if "value" in registry[rec["tag"]].get("x-awaits", {}):
+                if "value" in declared_fact(registry[rec["tag"]], "state.awaits", {}):
                     expect(shown.locator("[data-lf-offer]")).not_to_have_count(0)
 
         # Each carried thread must be disclosed for the gate's geometry readings:
@@ -398,7 +399,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                     (
                         "draws a box of no size",
                         "tinyBoxes",
-                        page_registry(page),
+                        page_declarations(page),
                     ),
                     (
                         "has a control clipped out of its box",
@@ -503,13 +504,19 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
     its whole side, unlike the contents spine that declares its shell-edge occupancy."""
     entry = {
         "description": "A project package's compound review surface.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-space": "available",
-        "x-example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "paint": {
+            "space": "available",
+        },
+        "author": {
+            "example": '<lf-roomy id="roomy"><section>One</section></lf-roomy>',
+        },
     }
     source = leaf_page(
         "Available package surface",
@@ -890,8 +897,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
         '<section id="{id}" role="group" aria-labelledby="{id}-h"><h3 id="{id}-h">Ship it?</h3>{table}'
-        '<lf-options id="{id}-o" '
-        'choose><lf-option id="{id}-yes">Yes</lf-option></lf-options></section>'
+        '<lf-options id="{id}-o">'
+        '<lf-option id="{id}-yes">Yes</lf-option></lf-options></section>'
     )
     body = (
         '<p id="prose">Prose.</p>'
@@ -905,7 +912,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + table.format(id="contained-c")
         + "</aside>"
         + '<section id="list-q" role="group" aria-label="Raise the limit?">'
-        + '<lf-options id="list" choose><lf-option id="list-a">Leave it</lf-option>'
+        + '<lf-options id="list"><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
         + "</lf-options></section>"
     )

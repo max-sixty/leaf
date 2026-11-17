@@ -82,7 +82,7 @@
 }
 </pre>
             </lf-chart>
-            <lf-options id="ar-canary-choice" choose across>
+            <lf-options id="ar-canary-choice" across>
               <lf-option id="ar-canary-consecutive">
                 <small class="tag">last week: 0 pages</small>
                 <small class="tag ok">recommended</small>
@@ -128,7 +128,7 @@
               in a median of four minutes. The one real page was Thursday's database
               failover, which the 5xx alert also caught a minute earlier.
             </p>
-            <lf-options id="ar-latency-choice" choose>
+            <lf-options id="ar-latency-choice">
               <lf-option id="ar-latency-objective">
                 <small class="tag">last week: 1 page</small>
                 <small class="tag ok">recommended</small>
@@ -173,7 +173,7 @@
               minutes each time. The two that mattered were Wednesday's stuck consumer:
               the queue was short, but its oldest delivery was 40 minutes old.
             </p>
-            <lf-options id="ar-webhooks-choice" choose>
+            <lf-options id="ar-webhooks-choice">
               <lf-option id="ar-webhooks-age">
                 <small class="tag">last week: 2 pages</small>
                 <small class="tag ok">recommended</small>
@@ -251,7 +251,7 @@
 }
 </pre>
             </lf-chart>
-            <lf-options id="ar-export-choice" choose across>
+            <lf-options id="ar-export-choice" across>
               <lf-option id="ar-export-window">
                 <small class="tag ok">recommended</small>
                 <strong>Mute from 01:00 to 03:30 UTC</strong> Lag outside the batch
@@ -293,7 +293,7 @@
               already tracked in the monthly capacity review, and the 95% critical alert
               on the same disk stays either way.
             </p>
-            <lf-options id="ar-disk-choice" choose>
+            <lf-options id="ar-disk-choice">
               <lf-option id="ar-disk-delete">
                 <small class="tag ok">recommended</small>
                 <strong>Delete it</strong> The capacity review and the 95% alert cover
@@ -337,7 +337,7 @@
               retried successfully five minutes later. The other three were Friday's
               expired bank credential, which failed every retry.
             </p>
-            <lf-options id="ar-settlement-choice" choose>
+            <lf-options id="ar-settlement-choice">
               <lf-option id="ar-settlement-retry">
                 <small class="tag ok">recommended</small>
                 <strong>Page when the retry fails too</strong> Real failures arrive five
@@ -401,7 +401,7 @@
 }
 </pre>
             </lf-chart>
-            <lf-options id="ar-3ds-choice" choose across>
+            <lf-options id="ar-3ds-choice" across>
               <lf-option id="ar-3ds-spread">
                 <small class="tag ok">recommended</small>
                 <strong>Page when three or more issuers fail</strong> A single bank's
@@ -441,7 +441,7 @@
               and renews automatically. Their renewal job is failing, and PLAT-2291
               already tracks the fix.
             </p>
-            <lf-options id="ar-cert-choice" choose>
+            <lf-options id="ar-cert-choice">
               <lf-option id="ar-cert-platform">
                 <small class="tag ok">recommended</small>
                 <strong>Route it to Platform's queue</strong> The team that can renew it
@@ -480,7 +480,7 @@
               Platform runs. The consumer caught up once partitions were reassigned;
               nothing on the payments side changed.
             </p>
-            <lf-options id="ar-kafka-choice" choose>
+            <lf-options id="ar-kafka-choice">
               <lf-option id="ar-kafka-route">
                 <small class="tag ok">recommended</small>
                 <strong>Page Data Platform during rebalances</strong> Payments hears

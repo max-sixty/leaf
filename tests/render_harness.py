@@ -295,7 +295,7 @@ INLINE_PAGE = leaf_page(
     """
 <h1 id="t">Inline</h1>
 <section id="opts-decision" role="group" aria-labelledby="opts-decision-h"><h2 id="opts-decision-h">How should sessions work?</h2>
-<lf-options id="opts" choose>
+<lf-options id="opts">
   <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
   <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
@@ -331,8 +331,8 @@ SETTLED_PAGE = leaf_page(
 <h1 id="h">Session transport</h1>
 <p id="lede">Decided last week; open the row for the alternatives.</p>
 <section id="transport-decision"><h2>How should sessions travel?</h2>
-<lf-options id="transport" choose settled>
-  <lf-option id="opt-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
+<lf-options id="transport" settled>
+  <lf-option id="opt-lax" selected><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
   <lf-option id="opt-strict"><strong>Strict cookie</strong> Tighter, but a session
   started from an emailed link arrives logged out.</lf-option>
@@ -343,21 +343,24 @@ SETTLED_PAGE = leaf_page(
 )
 
 
-# A decision the page reports rather than offers: no `choose`, so there is nothing to
-# press, and the mark the upgrade puts on the carried option is the page saying which
-# one the document holds. The paragraph above it is the control — a passage nobody has
-# ever doubted was quotable.
-CARRIED_PAGE = leaf_page(
-    "carried",
-    """
-<h1 id="h">Session transport</h1>
-<p id="lede">Where the decision stands, for the record.</p>
+# A decision the page reports rather than offers: quoted in a sample, so there is
+# nothing to press, and the mark the upgrade puts on the carried option is the page
+# saying which one the document holds. The paragraph above it is the control — a
+# passage nobody has ever doubted was quotable.
+CARRIED_DECISION = """<lf-sample id="carried-record" label="the decision on record">
 <lf-options id="carried">
-  <lf-option id="c-lax" chosen><strong>Lax cookie</strong> Host-only, set by the auth
+  <lf-option id="c-lax" selected><strong>Lax cookie</strong> Host-only, set by the auth
   origin, nothing for a script to read.</lf-option>
   <lf-option id="c-bearer"><strong>Bearer header</strong> Suits the mobile client;
   puts the id where every script can read it.</lf-option>
 </lf-options>
+</lf-sample>"""
+CARRIED_PAGE = leaf_page(
+    "carried",
+    f"""
+<h1 id="h">Session transport</h1>
+<p id="lede">Where the decision stands, for the record.</p>
+{CARRIED_DECISION}
 """,
 )
 
@@ -412,7 +415,7 @@ SAMPLE_PAGE = leaf_page(
     """
 <h1 id="h">What a decision looks like</h1>
 <lf-sample id="spec" label="a decision">
-  <lf-options id="quoted-group" choose>
+  <lf-options id="quoted-group">
     <lf-option id="q-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
     <lf-option id="q-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
   </lf-options>
@@ -427,12 +430,12 @@ SAMPLE_PAGE = leaf_page(
       <lf-card id="q-card-tokens"><strong>Tokenize the palette</strong></lf-card>
     </lf-column>
   </lf-board>
-  <lf-options id="quoted-rows" choose>
+  <lf-options id="quoted-rows">
     <lf-option id="q-row-keep">Keep the nightly job</lf-option>
     <lf-option id="q-row-drop">Drop it and poll on demand</lf-option>
   </lf-options>
-  <lf-options id="quoted-settled" choose settled>
-    <lf-option id="q-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
+  <lf-options id="quoted-settled" settled>
+    <lf-option id="q-lax" selected><strong>Lax cookie</strong> Host-only.</lf-option>
     <lf-option id="q-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
     <lf-option id="q-signed" ><strong>Signed token</strong> No store.</lf-option>
   </lf-options>
@@ -443,18 +446,18 @@ SAMPLE_PAGE = leaf_page(
     </lf-suggestion></p>
 </lf-sample>
 <section id="live-group-decision" role="group" aria-labelledby="live-group-decision-h"><h2 id="live-group-decision-h">How should the schema migrate?</h2>
-<lf-options id="live-group" choose>
+<lf-options id="live-group">
   <lf-option id="l-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="l-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></section>
 <section id="live-rows-decision" role="group" aria-labelledby="live-rows-decision-h"><h2 id="live-rows-decision-h">What should happen to the nightly job?</h2>
-<lf-options id="live-rows" choose>
+<lf-options id="live-rows">
   <lf-option id="l-row-keep">Keep the nightly job</lf-option>
   <lf-option id="l-row-drop">Drop it and poll on demand</lf-option>
 </lf-options></section>
 <section id="live-settled-decision"><h2>How should sessions travel?</h2>
-<lf-options id="live-settled" choose settled>
-  <lf-option id="l-lax" chosen><strong>Lax cookie</strong> Host-only.</lf-option>
+<lf-options id="live-settled" settled>
+  <lf-option id="l-lax" selected><strong>Lax cookie</strong> Host-only.</lf-option>
   <lf-option id="l-bearer"><strong>Bearer header</strong> Suits mobile.</lf-option>
   <lf-option id="l-signed" ><strong>Signed token</strong> No store.</lf-option>
 </lf-options></section>
@@ -490,12 +493,12 @@ SAMPLE_TEXT = (
     "record, the framing it replaces:"
 )
 SAMPLE_MARKUP = """<section id="rp-live-decision" role="group" aria-labelledby="rp-live-decision-h"><h3 id="rp-live-decision-h">How should the schema migrate?</h3>
-<lf-options id="rp-live" choose>
+<lf-options id="rp-live">
   <lf-option id="rp-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="rp-stage" ><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></section>
 <lf-sample id="rp-spec" label="the April thread">
-  <lf-options id="rp-quoted" choose>
+  <lf-options id="rp-quoted">
     <lf-option id="rp-memory"><strong>App memory</strong> Nothing to build.</lf-option>
     <lf-option id="rp-sticky"><strong>Sticky sessions</strong> Until an instance recycles.</lf-option>
   </lf-options>
@@ -512,7 +515,7 @@ REPLAYED_PAGE = leaf_page(
     f"""
 <h1 id="t">Rollout</h1>
 <section id="approach-decision" role="group" aria-labelledby="approach-decision-h"><h2 id="approach-decision-h">How should the schema migrate?</h2>
-<lf-options id="approach" choose>
+<lf-options id="approach">
   <lf-option id="opt-shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="opt-stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></section>

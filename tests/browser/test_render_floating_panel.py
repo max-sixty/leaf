@@ -79,12 +79,12 @@ OBLIGATION_PAGE = leaf_page(
     "obligation",
     """<h1 id="t">Ask</h1>
 <section id="schema-decision" role="group" aria-labelledby="schema-decision-h"><h3 id="schema-decision-h">How should the schema migrate?</h3>
-<lf-options id="schema" choose>
+<lf-options id="schema">
   <lf-option id="shim"><strong>Shim the old schema</strong> Fastest to ship.</lf-option>
   <lf-option id="stage"><strong>Migrate in stages</strong> Table by table.</lf-option>
 </lf-options></section>
 <section id="queue-decision" role="group" aria-labelledby="queue-decision-h"><h3 id="queue-decision-h">Which queue takes the retries?</h3>
-<lf-options id="queues" choose>
+<lf-options id="queues">
   <lf-option id="fast"><strong>The fast queue</strong> Shared.</lf-option>
   <lf-option id="slow"><strong>The slow queue</strong> Its own.</lf-option>
 </lf-options></section>""",
@@ -1932,7 +1932,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         {"responds": root},
         "The **room** photo.\n\n"
         '<section id="crop" role="group" aria-labelledby="crop-h"><h3 id="crop-h">Should I reshoot it wider?</h3>'
-        '<lf-options id="crop-pick" choose><lf-option id="crop-wider">Wider</lf-option>'
+        '<lf-options id="crop-pick"><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></section>',
         html=True,
     )
@@ -4455,7 +4455,7 @@ def test_a_double_click_on_the_way_back_goes_back_once(browser, serve):
         list(point),
     ), "the double-click must aim at a menu row once it goes back"
     expect(page.locator('.lf-fp-item[data-lf-row="group:annotate"]')).to_be_focused()
-    expect(page.locator("lf-option[chosen]")).to_have_attribute("id", "opt-a")
+    expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] != "undo"
 
 
@@ -4867,7 +4867,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<section id="week" role="group" aria-labelledby="week-h"><h3 id="week-h">Which week?</h3><lf-options id="week-choice" choose>'
+        '<section id="week" role="group" aria-labelledby="week-h"><h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></section>',
         html=True,
@@ -4912,7 +4912,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<section id="week" role="group" aria-labelledby="week-h"><h3 id="week-h">Which week?</h3><lf-options id="week-choice" choose>'
+        '<section id="week" role="group" aria-labelledby="week-h"><h3 id="week-h">Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></section>',
         html=True,
@@ -4996,7 +4996,7 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         {"responds": root},
         "Choose the first job.\n\n"
         '<section id="first-job-decision" role="group" aria-labelledby="first-job-decision-h"><h3 id="first-job-decision-h">Which job first?</h3>'
-        '<lf-options id="first-job" choose>'
+        '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></section>",

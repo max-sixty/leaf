@@ -1688,7 +1688,8 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
             leaf_page(
                 "Retired preparation",
                 '<button id="press">Press</button>'
-                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<section id="choice-q" role="group" aria-label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></section>'
                 '<button id="control" style="display:block">Control</button>',
             )
         ),
@@ -1749,7 +1750,8 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
             leaf_page(
                 "Sibling preparation",
                 '<button id="press">Press</button>'
-                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                '<section id="choice-q" role="group" aria-label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></section>'
                 '<button id="control" style="display:block">Control</button>',
             )
         ),

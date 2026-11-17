@@ -394,7 +394,7 @@ def ask(g: int, options: int = 4) -> str:
     """Section `g`: a heading, a paragraph and a question section of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<section id="q{g}" role="group" aria-labelledby="q{g}-h"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" choose multiple>'
+        f'<section id="q{g}" role="group" aria-labelledby="q{g}-h"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
             f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
@@ -457,7 +457,7 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" choose multiple>'
+        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></section>"
     )
@@ -484,7 +484,7 @@ def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" choose multiple>'
+        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></section>"
     )
@@ -550,7 +550,7 @@ def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" choose multiple>'
+        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></section>"
     )

@@ -9,6 +9,7 @@ from interact_support import (
     DRAFTED,
     FLOW_PAGE,
     PAGE,
+    PAGE_GROUP,
     SUGGESTED,
     append_carried_log_record,
     append_command,
@@ -465,7 +466,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
     )
     frozen = (
         '<section id="thread-ask" role="group" aria-labelledby="thread-ask-h"><h2 id="thread-ask-h">Choose one</h2>'
-        '<lf-options id="thread-picks" choose><lf-option id="thread-option">'
+        '<lf-options id="thread-picks"><lf-option id="thread-option">'
         "Thread option</lf-option></lf-options></section>"
     )
     answered = CliRunner().invoke(
@@ -1241,7 +1242,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
 
 def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
     """The registry draws the line: lf-draft renders the authored Markdown into a body
-    the anchor pass can see (x-verbatim), and lf-diagram renders a picture instead."""
+    the anchor pass can see (words.verbatim), and lf-diagram renders a picture instead."""
     result = comment(
         drafted(page_dir), "--quote", "every mutating command", "--text", "which ones?"
     )
@@ -1271,7 +1272,7 @@ def test_an_edited_draft_reads_as_the_users_words(page_dir, formatted):
 
 
 def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
-    html = PAGE.replace("<lf-options>", '<lf-options id="routes" choose>')
+    html = PAGE.replace(PAGE_GROUP, '<lf-options id="routes">')
     (page_dir / "index.html").write_text(html)
     publish(page_dir)
     identity = "routes-option-user"
@@ -1438,7 +1439,7 @@ def test_an_unhonored_edit_outlives_a_republish(page_dir):
     assert gone.exit_code != 0 and "doesn't say" in gone.output
 
 
-def test_a_widgets_x_says_attribute_is_quotable_like_any_other_passage(page_dir):
+def test_a_widgets_said_attribute_is_quotable_like_any_other_passage(page_dir):
     """renderSaid puts these words in the DOM, so the anchor pass can find them and this
     has to offer them — otherwise an attribute's own words are the one thing on the page
     Claude can't point at. Both edges the registry can give one are here: the option's
@@ -1728,7 +1729,7 @@ def test_a_closed_thread_stops_asking(page_dir):
             "html": True,
             "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h"><h3 id="gm-decision-h">Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
-            '<lf-options id="gm" choose>'
+            '<lf-options id="gm">'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             "</lf-options></section>",
         },
@@ -1764,7 +1765,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "text": (
                         f"Choose {suffix}\n\n"
                         f'<section id="group-{suffix}-decision" role="group" aria-labelledby="group-{suffix}-decision-h"><h3 id="group-{suffix}-decision-h">Choose {suffix}</h3>'
-                        f'<lf-options id="group-{suffix}" choose>'
+                        f'<lf-options id="group-{suffix}">'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
                         "</lf-options></section>"
                     ),
@@ -1882,7 +1883,7 @@ def test_message_html_may_not_dress_the_document_it_is_put_into(page_dir, native
     Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
-        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h"><h3 id="d1-decision-h">Choose one</h3><lf-options id="d1" choose>'
+        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h"><h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
         '<lf-option id="d1-a">A</lf-option></lf-options></section>'
     )
     if native:
@@ -1922,7 +1923,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             page_dir,
             "--text",
             'Pick one:\n\n<section id="ps-decision" role="group" aria-labelledby="ps-decision-h"><h3 id="ps-decision-h">Which store?</h3>'
-            '<lf-options id="ps-q" choose>'
+            '<lf-options id="ps-q">'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
             "</lf-options></section>",
@@ -1956,7 +1957,7 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
     author's to write, as in the page itself."""
     published(page_dir)
     widget = (
-        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h"><h3 id="d1-decision-h">Choose one</h3><lf-options id="d1" choose>'
+        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h"><h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
         '<lf-option id="d1-a">A</lf-option></lf-options></section>'
     )
     if native:
@@ -1976,8 +1977,15 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
 def test_data_widget_prose_members_are_quotable_without_admitting_source():
     registry = with_modules(
         {
-            "lf-source": {"x-content": "data"},
-            "lf-remark": {"x-content": "markup", "x-owners": ["lf-source"]},
+            "lf-source": {
+                "content": "data",
+            },
+            "lf-remark": {
+                "content": "markup",
+                "markup": {
+                    "owners": ["lf-source"],
+                },
+            },
         },
         "lf-source",
     )

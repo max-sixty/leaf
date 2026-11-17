@@ -153,7 +153,7 @@
                   I recommend restarting, which keeps the durable work and replaces the
                   stalled process.
                 </p>
-                <lf-options id="decision-dedupe" choose>
+                <lf-options id="decision-dedupe">
                   <lf-option id="dedupe-restart">
                     <small class="tag ok">recommended</small>
                     <strong>Restart with a fresh worker</strong> Preserve tree-w-5
@@ -190,7 +190,7 @@
                   I recommend failing and paging, since zero rows is a failure until
                   proved otherwise.
                 </p>
-                <lf-options id="decision-zero" choose>
+                <lf-options id="decision-zero">
                   <lf-option id="zero-alert" for="parser-zero">
                     <small class="tag ok">recommended</small>
                     <strong>Fail and page</strong> Preserve the export and stop the
@@ -239,7 +239,7 @@
                   What should the host do with the schema branch?
                 </h3>
                 <p>I recommend landing it now, while the evidence is current.</p>
-                <lf-options id="decision-schema" choose>
+                <lf-options id="decision-schema">
                   <lf-option id="schema-land">
                     <small class="tag ok">recommended</small>
                     <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
@@ -277,7 +277,7 @@
                 </h3>
                 <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
     where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
-                <lf-draft id="ledger-cargo" needed>
+                <lf-draft id="ledger-cargo" required>
                   <pre>
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
@@ -327,7 +327,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                   What should the host do with atlas/public-api?
                 </h3>
                 <p>I recommend landing it, since the public contract is ready.</p>
-                <lf-options id="decision-api" choose>
+                <lf-options id="decision-api">
                   <lf-option id="api-land">
                     <small class="tag ok">recommended</small>
                     <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.

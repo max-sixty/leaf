@@ -203,7 +203,7 @@ def test_enter_copies_a_link_no_pointer_has_shown(browser, serve):
     the link's control, which has not drawn its button yet."""
     source = leaf_page(
         "A decision's link",
-        '<section id="q" role="group" aria-labelledby="q-h"><h3 id="q-h">Which store?</h3><lf-options id="c" choose>'
+        '<section id="q" role="group" aria-labelledby="q-h"><h3 id="q-h">Which store?</h3><lf-options id="c">'
         '<lf-option id="a">Redis</lf-option><lf-option id="b">Postgres</lf-option>'
         "</lf-options></section>",
     )

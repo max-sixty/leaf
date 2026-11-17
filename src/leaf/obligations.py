@@ -11,10 +11,10 @@ The inventory is complete even when a work queue hides a resolved thread or an
 older prompt.
 
 On the page, the user answers an obligation only through its source: a widget
-through the actions its `x-awaits` declares, an agent message through a reply or
+through the actions its `state.awaits` declares, an agent message through a reply or
 settling reaction in its thread. Leaf adds no control of its own, such as a generic
 Done, and nothing reaches On Me unless a widget or a thread answers it (`todos` records
-the decision). Any widget may ask by declaring `x-awaits`; content that doesn't is
+the decision). Any widget may ask by declaring `state.awaits`; content that doesn't is
 asked about in a thread anchored to it.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
@@ -83,7 +83,7 @@ from leaf.projection import (
     page_reading,
     projected_action_holders,
 )
-from leaf.registry.contract import exhibits, matches_when
+from leaf.registry.contract import declared_fact, exhibits, matches_when
 from leaf.registry.kernel import verb_writers
 from leaf.registry.reactions import reaction_tokens
 from leaf.thread_context import widget_messages
@@ -94,7 +94,7 @@ if TYPE_CHECKING:
 
 def local_obligation_entry(entry: dict) -> bool:
     """Whether a widget can originate an obligation when its predicate holds."""
-    return entry.get("x-awaits") is not None
+    return declared_fact(entry, "state.awaits") is not None
 
 
 def _is_group(node: dict) -> bool:
@@ -114,7 +114,7 @@ def framed_widgets(content: list, registry: dict):
     other (`obligations/place.js` in the browser), so the group needs an id to be a
     place, as `page check` requires. Python reads only the authored source, so a group
     the runtime draws, such as a control's own, holds no question. A widget set among
-    words (`x-inline`), such as a suggestion, has none: its sentence and its own words
+    words (`words.inline`), such as a suggestion, has none: its sentence and its own words
     name it.
 
     The author declares the question, its region and its name, and Leaf reads no
@@ -130,7 +130,7 @@ def framed_widgets(content: list, registry: dict):
                 continue
             entry = registry.get(node["tag"]) or {}
             if local_obligation_entry(entry):
-                yield node, None if entry.get("x-inline") else group
+                yield node, None if declared_fact(entry, "words.inline") else group
             yield from walk(node["content"], node if _is_group(node) else group)
 
     yield from walk(content, None)
@@ -192,14 +192,21 @@ def obligation_registrations(
             "restated" in record["attrs"],
             frozenset(
                 verb
-                for verb, spec in registry[record["tag"]].get("x-state", {}).items()
+                for verb, spec in declared_fact(
+                    registry[record["tag"]], "state.verbs", {}
+                ).items()
                 if (spec.get("record") or {}).get("kind") == "value"
                 and spec["record"]["attr"] in declaration.get("when", {})
             ),
             Slot(),
         )
         for unit, record in document.by_id.items()
-        if (declaration := registry.get(record["tag"], {}).get("x-awaits")) is not None
+        if (
+            declaration := declared_fact(
+                registry.get(record["tag"], {}), "state.awaits"
+            )
+        )
+        is not None
     }
 
 
@@ -343,9 +350,9 @@ def previously_requested(
 
 
 def answer_verbs(entry: dict) -> dict:
-    """Each x-state verb whose current state answers this widget's local obligation,
-    mapped to the condition that state has to meet (x-awaits.answered)."""
-    return (entry.get("x-awaits") or {}).get("answered") or {}
+    """Each verb (state.verbs) whose current state answers this widget's local obligation,
+    mapped to the condition that state has to meet (state.awaits.answered)."""
+    return (declared_fact(entry, "state.awaits") or {}).get("answered") or {}
 
 
 def verb_answers(
@@ -383,7 +390,7 @@ def verb_answers(
             key in held[0]["detail"] and held[0]["detail"][key] == value
             for key, value in condition["detail"].items()
         )
-    spec = entry["x-state"][verb]
+    spec = entry["state"]["verbs"][verb]
     record = spec.get("record")
     if record and record["kind"] in ("attribute", "value"):
         value = folded_value(*held) if held else markup_value(unit, spec, byid, marks)
@@ -552,20 +559,20 @@ def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
 
 
 def shown_in(rec: dict, registry: dict) -> bool:
-    """Inside an element whose tag declares x-exhibit, a widget is shown rather than
+    """Inside an element whose tag declares state.exhibit, a widget is shown rather than
     asked, so it puts nothing on the user's list, whether or not the declaration's
     condition holds there. The condition decides only whether it also takes no input
     (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
     page's log and Undo as a demonstration, and a page's On Me holds only what the page
     itself asks. Same holder-chain walk as `quoted_in`."""
     return any(
-        bool(registry.get(node["tag"], {}).get("x-exhibit"))
+        bool(declared_fact(registry.get(node["tag"], {}), "state.exhibit"))
         for node in enclosing_widgets(rec)
     )
 
 
 def quoted_in(rec: dict, registry: dict) -> bool:
-    """Inside an element the registry marks x-exhibit where its condition holds, a
+    """Inside an element the registry marks state.exhibit where its condition holds, a
     widget is a mention rather than a use: it takes no input and asks nothing.
 
     The holder chain answers it, which is the walk `enclosing_slot` makes and the
@@ -644,7 +651,7 @@ def answering_action(
     own condition holds with it in place. Editable answers retain user provenance
     after the author suppresses the request. Admission stamps `meaning.answer` on
     exactly these."""
-    awaits = entry.get("x-awaits") or {}
+    awaits = declared_fact(entry, "state.awaits") or {}
     return (
         verb in answer_verbs(entry)
         and (
@@ -759,7 +766,7 @@ class _ObligationReducer:
         return self.registry[record["tag"]]
 
     def _declaration(self, record):
-        return self._entry(record).get("x-awaits", {})
+        return declared_fact(self._entry(record), "state.awaits", {})
 
     def _local(self, record):
         return matches_when(
@@ -787,9 +794,9 @@ class _ObligationReducer:
         """
         owner = record["attrs"]["id"]
         entry = self._entry(record)
-        declaration = entry["x-awaits"]
+        declaration = entry["state"]["awaits"]
         records = declaration["records"]
-        binding = entry["x-data"][records["input"]]
+        binding = entry["data"]["inputs"][records["input"]]
         source = self.data["sources"].get(record["attrs"].get(binding["source"]))
         if (
             not source
@@ -821,7 +828,7 @@ class _ObligationReducer:
             value, present = obligation_value(
                 owner,
                 verb,
-                entry["x-state"][verb],
+                entry["state"]["verbs"][verb],
                 self.byid,
                 self.marks,
                 self.orders,
@@ -888,7 +895,7 @@ class _ObligationReducer:
 
         def historical_request(old_revision, old, unit):
             previous = old.document.by_id[unit]
-            declaration = old.registry[previous["tag"]]["x-awaits"]
+            declaration = old.registry[previous["tag"]]["state"]["awaits"]
             if old_revision not in history_readings:
                 history_readings[old_revision] = page_reading(
                     old, self.events, old_revision
@@ -991,11 +998,11 @@ class _ObligationReducer:
                 if self.local[id(record)]
                 else "withdrawn"
             )
-            value_verb = entry["x-awaits"]["value"]
+            value_verb = entry["state"]["awaits"]["value"]
             value, has_content = obligation_value(
                 unit,
                 value_verb,
-                entry["x-state"][value_verb],
+                entry["state"]["verbs"][value_verb],
                 self.byid,
                 self.marks,
                 self.orders,

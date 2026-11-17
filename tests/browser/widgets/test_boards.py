@@ -805,9 +805,9 @@ ANSWERS_BOARD_PAGE = leaf_page(
 <h1 id="t">Proposals</h1>
 <section id="rail-section" role="group" aria-labelledby="rail-section-h">
   <h2 id="rail-section-h">Keep the rail beside the text</h2>
-  <lf-options id="rail" choose>
+  <lf-options id="rail">
     <lf-option id="rail-next" value="next">Next</lf-option>
-    <lf-option id="rail-later" value="later" chosen>Later</lf-option>
+    <lf-option id="rail-later" value="later" selected>Later</lf-option>
   </lf-options>
 </section>
 <lf-board id="plan">
@@ -830,7 +830,7 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
     def stands(column, option):
         expect(page.locator(f"#{column} > #card-rail")).to_have_count(1)
-        chosen = page.locator("#rail > lf-option[chosen]")
+        chosen = page.locator("#rail > lf-option[selected]")
         if option:
             expect(chosen).to_have_attribute("id", option)
         else:
@@ -865,7 +865,8 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
     (serve.page_dir / "index.html").write_text(
         ANSWERS_BOARD_PAGE.replace(
-            '<lf-options id="rail" choose>', '<lf-options id="rail" choose restated>'
+            '<lf-options id="rail">',
+            '<lf-options id="rail" restated>',
         )
     )
     assert stamp(serve.page_dir, "Ask again").exit_code == 0

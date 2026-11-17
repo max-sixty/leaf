@@ -8,7 +8,7 @@ that reworded or removed an option does not change what the user chose. Deliveri
 the transcript, the served history and the undo offer state a gesture through this
 one reading.
 
-Done names no option: on a group whose `x-awaits.value` verb records the pick
+Done names no option: on a group whose `state.awaits.value` verb records the pick
 as a set of ids, Done says that verb's state when the user pressed it, worded by the
 action that set it, or by Done's own document where the pick is authored. The pick
 is derived from the log before Done rather than stamped at admission, so Done keeps
@@ -38,7 +38,12 @@ from .projection import (
     markup_value,
     state_projection,
 )
-from .registry.contract import NAME_ATTRIBUTE, event_spec, is_element_name
+from .registry.contract import (
+    NAME_ATTRIBUTE,
+    declared_fact,
+    event_spec,
+    is_element_name,
+)
 from .revision_artifact import read_revision
 
 TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6", "strong"})
@@ -214,13 +219,13 @@ class GestureWords:
         return self._voices[event["id"]]
 
     def _value_verb(self, event: dict) -> str | None:
-        """The widget's `x-awaits.value` verb where `event` answers through another
+        """The widget's `state.awaits.value` verb where `event` answers through another
         verb and that one records a set of ids on the widget, in `event`'s document."""
         if "answer" not in (event.get("meaning") or {}):
             return None
         entry = self.declaration(event)
-        verb = (entry.get("x-awaits") or {}).get("value")
-        spec = entry.get("x-state", {}).get(verb)
+        verb = (declared_fact(entry, "state.awaits") or {}).get("value")
+        spec = declared_fact(entry, "state.verbs", {}).get(verb)
         if (
             verb == event["action"]
             or spec is None
@@ -271,7 +276,7 @@ class GestureWords:
         return document.held
 
     def _pick(self, done: dict) -> tuple[dict, list] | None:
-        """What the widget's `x-awaits.value` verb held when `done` answered with
+        """What the widget's `state.awaits.value` verb held when `done` answered with
         another verb: the action holding it and its ids, or `done` and the ids its
         document authored. None where `_value_verb` names no such verb."""
         verb = self._value_verb(done)
@@ -281,7 +286,9 @@ class GestureWords:
         held = self._held(document).get(done["id"])
         if held is not None:
             return held, sorted(held["detail"]["value"])
-        spec = document.registry[document.nodes[done["widget"]]["tag"]]["x-state"][verb]
+        spec = document.registry[document.nodes[done["widget"]]["tag"]]["state"][
+            "verbs"
+        ][verb]
         return done, markup_value(done["widget"], spec, document.by_id, document.marks)
 
     @cached_property
@@ -315,8 +322,7 @@ class GestureWords:
         # Admission stored the child's tag; only the name of the detail field that
         # carries its words is left to the creator's declaration.
         creates = (
-            self.declaration(creator)
-            .get("x-state", {})
+            declared_fact(self.declaration(creator), "state.verbs", {})
             .get(creator["action"], {})
             .get("creates")
         )
@@ -360,7 +366,9 @@ class GestureWords:
     def gesture(self, event: dict) -> dict:
         """What an action did, in its record form's terms and its own document's
         words: the reading a history row and an undo offer both carry."""
-        spec = self.declaration(event).get("x-state", {}).get(event["action"], {})
+        spec = declared_fact(self.declaration(event), "state.verbs", {}).get(
+            event["action"], {}
+        )
         record = spec.get("record") or {}
         detail = event["detail"]
         if record.get("kind") == "attribute":

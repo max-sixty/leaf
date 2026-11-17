@@ -6,7 +6,13 @@ import { dispatchKey } from "../../browser/runtime/keyboard/dispatch.js";
 import { adoptRegistry } from "../../browser/runtime/registry.js";
 import "../../packages/default/widgets/lf-tabs.js";
 
-adoptRegistry({ "lf-tabs": { "x-views": { members: "lf-tab" } } });
+adoptRegistry({
+  "lf-tabs": {
+    paint: {
+      views: { members: "lf-tab" },
+    },
+  },
+});
 
 for (const phase of ["waiting", "offline"])
   test(`package tabs remain keyboard-operable while saved state is ${phase}`, () => {
@@ -36,7 +42,11 @@ test("view reads leave generated holders untouched and keeping a choice paints t
   const { openingView, keepView, viewMembers } =
     await import("../../browser/runtime/storage.js");
   adoptRegistry({
-    "lf-package-views": { "x-views": { members: ".view", parts: true } },
+    "lf-package-views": {
+      paint: {
+        views: { members: ".view", parts: true },
+      },
+    },
   });
   const holders = ["opening", "keeping"].map((id) => {
     const holder = document.createElement("lf-package-views");

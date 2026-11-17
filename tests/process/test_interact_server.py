@@ -38,6 +38,7 @@ from interact_support import (
     COMPOSITE_TIMEOUT,
     FLOW_PAGE,
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     TOKEN,
     acknowledged_through,
@@ -1994,7 +1995,7 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
         version.read_text().replace(
             "</section>",
             '<section id="delivery-decision" role="group" aria-labelledby="delivery-decision-h"><h3 id="delivery-decision-h">When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             "</lf-options></section></section>",
         )
@@ -2047,7 +2048,7 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
         version.read_text().replace(
             "</section>",
             '<section id="delivery-decision" role="group" aria-labelledby="delivery-decision-h"><h3 id="delivery-decision-h">When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
             "</lf-options></section></section>",
@@ -2102,7 +2103,7 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
         version.read_text().replace(
             "</section>",
             '<section id="delivery-decision" role="group" aria-labelledby="delivery-decision-h"><h3 id="delivery-decision-h">When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
             "</lf-options></section></section>",
@@ -2250,11 +2251,11 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     restated and one whose widget it dropped are
     offered only by the view that still paints them.
     """
-    old_page = PAGE.replace("<lf-options>", '<lf-options id="picks">').replace(
+    old_page = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">').replace(
         "</section>",
-        '<section id="kept-decision" role="group" aria-labelledby="kept-decision-h"><h3 id="kept-decision-h">Kept</h3><lf-options id="kept" choose>'
+        '<section id="kept-decision" role="group" aria-labelledby="kept-decision-h"><h3 id="kept-decision-h">Kept</h3><lf-options id="kept">'
         '<lf-option id="kept-one">One</lf-option></lf-options></section>'
-        '<section id="gone-decision" role="group" aria-labelledby="gone-decision-h"><h3 id="gone-decision-h">Gone</h3><lf-options id="gone" choose>'
+        '<section id="gone-decision" role="group" aria-labelledby="gone-decision-h"><h3 id="gone-decision-h">Gone</h3><lf-options id="gone">'
         '<lf-option id="gone-one">One</lf-option></lf-options></section></section>',
     )
     new_page = re.sub(
@@ -2387,7 +2388,7 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
         version.read_text().replace(
             "</section>",
             '<section id="delivery-decision" role="group" aria-labelledby="delivery-decision-h"><h3 id="delivery-decision-h">When should this ship?</h3>'
-            '<lf-options id="delivery" choose>'
+            '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
             "</lf-options></section></section>",
@@ -2565,7 +2566,7 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
-    board = registry_storage.load_registry(page_dir)["lf-board"]["x-example"]
+    board = registry_storage.load_registry(page_dir)["lf-board"]["author"]["example"]
     publish(page_dir)
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace("</section>", board + "\n</section>")
@@ -2638,7 +2639,18 @@ def test_server_validates_an_action_against_its_version_and_widget(server, page_
     ("declarations", "message"),
     [
         ("{broken", "invalid JSON"),
-        (json.dumps({"lf-board": {"type": "object"}}), "non-empty description"),
+        (
+            json.dumps(
+                {
+                    "lf-board": {
+                        "attributes": {
+                            "type": "object",
+                        },
+                    }
+                }
+            ),
+            "'description' is a required property",
+        ),
     ],
 )
 def test_server_preserves_the_active_vocabulary_when_candidate_registry_is_broken(
@@ -2692,11 +2704,11 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             (
                 "Pick one:\n\n"
                 '<section id="thread-pick-decision" role="group" aria-labelledby="thread-pick-decision-h"><h3 id="thread-pick-decision-h">Which option?</h3>'
-                '<lf-options id="thread-pick" choose>'
+                '<lf-options id="thread-pick">'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
                 "</lf-options></section>"
                 '<lf-sample id="sample">'
-                '<lf-options id="exhibited-pick" choose>'
+                '<lf-options id="exhibited-pick">'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-sample>"
             ),
@@ -2710,7 +2722,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "author": "user",
             "parent": "c1",
             "revision": 1,
-            "text": '<lf-options id="text-pick" choose></lf-options>',
+            "text": '<lf-options id="text-pick"></lf-options>',
         },
     )
 
@@ -2757,7 +2769,7 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
         version.read_text().replace(
             "</section>",
             '<section id="worker-decision" role="group" aria-labelledby="worker-decision-h"><h3 id="worker-decision-h">What next?</h3>'
-            '<lf-options id="worker" choose>'
+            '<lf-options id="worker">'
             '<lf-option id="worker-restart">Restart the worker</lf-option>'
             '<lf-option id="worker-park">Park it</lf-option>'
             "</lf-options></section></section>",
@@ -3910,7 +3922,7 @@ def test_frozen_history_and_comparisons_do_not_reopen_the_page(page_dir):
     The shown document asks for history only after an older revision received a
     gesture. Reading just the shown/active documents is therefore insufficient.
     """
-    source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">')
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
     picked = append_command(
@@ -5071,7 +5083,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "revision": 27,
         },
     ]
-    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><section id="route-ask" role="group" aria-labelledby="route-ask-h"><h2 id="route-ask-h">Route</h2><lf-options id="route" choose><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></section>'
+    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><section id="route-ask" role="group" aria-labelledby="route-ask-h"><h2 id="route-ask-h">Route</h2><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></section>'
 
     def template(identity):
         return f'<template id="{identity}" data-sample data-sample-events="fixture">{child_content}</template>'

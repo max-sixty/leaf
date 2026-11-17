@@ -41,6 +41,8 @@ don't convey its structure, as a rewrite's old and new text don't, its `lfSays()
 returns the words that describe it. A
 widget whose title is an attribute holds it in `label`, as a column does, which names
 its element on every widget that takes it (the registry's `$attributes`).
+`authoredTitle()` is the page's own `<title>`, which `document.title` doesn't give
+while the tab's title counts what waits on the user in front of it.
 
 `titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
 or `article` that opens with it, alone or in that `hgroup`, and a widget it leads, such

@@ -1444,7 +1444,7 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
 
 def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):
     """A screen reader names each list of tabs, so a page's several sets can be told
-    apart: the page's navigation by the page's title, a set in a section by the
+    apart: the page's navigation by the page's `<title>`, a set in a section by the
     section's heading, and a set its author labelled by that label."""
     source = leaf_page(
         "Kitchen plan",
@@ -1465,7 +1465,7 @@ def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):
 </section>""",
     )
     page = open_page(browser, serve(source))
-    for name in ("Redo the kitchen", "Finishes", "Handles"):
+    for name in ("Kitchen plan", "Finishes", "Handles"):
         expect(page.get_by_role("tablist", name=name, exact=True)).to_have_count(1)
 
 

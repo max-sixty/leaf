@@ -27,6 +27,9 @@ export { rankAt } from "./projection/model.js";
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
+// `authoredTitle()`: the page's own `<title>`, without the count the tab's title
+// shows in front of it.
+export { authoredTitle } from "./tab-title.js";
 // `titledElement(heading)`: the element a heading titles, its hgroup and the section or
 // article that opens with it, which a count per heading counts under that heading.
 export { titledElement } from "./addressable-names.js";

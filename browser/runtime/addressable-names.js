@@ -192,15 +192,16 @@ const titleOf = (element) => {
 function declaredName(element) {
   return (registered(element) && element.getAttribute("label")?.trim()) || "";
 }
-// The name ARIA gives plain markup whose author names it, as the browser's
+// The name ARIA gives an element whose author names it, as the browser's
 // accessibility tree computes it (HTML-AAM): the words of the elements its
 // `aria-labelledby` names, else its `aria-label`, else a fieldset's first <legend>. A
 // question's group takes its name this way, which the server reads by the same rule
 // (`gesture_words.aria_name`) to require one of a question's group and to name it. A
-// registered widget declares its name in `label` instead, so ARIA names none.
+// registered widget declares its name in `label` instead, so `addressableNaming` skips
+// ARIA for one, and the chrome reads it only where the widget has no other name
+// (`accessibleNaming`).
 /** @param {Element} element @returns {Naming | null} */
 function ariaNaming(element) {
-  if (registered(element)) return null;
   const named = labelledBy(element);
   const [only] = named;
   if (named.length === 1 && only && elementReading(only, "wrote"))
@@ -244,7 +245,7 @@ const namingWords = (naming) =>
 // title.
 /** @param {Element} element @returns {Naming | null} */
 function addressableNaming(element) {
-  const aria = ariaNaming(element);
+  const aria = registered(element) ? null : ariaNaming(element);
   if (aria) return aria;
   const declared = declaredName(element);
   if (declared) return { words: declared };

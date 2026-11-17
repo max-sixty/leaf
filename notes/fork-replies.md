@@ -274,15 +274,15 @@ fork from a slash command (`$.agent.spawn({ prompt, subagentType: "fork", name }
 ### The design
 
 How it works' Forks tab ([`docs/how-it-works.html`](../docs/how-it-works.html),
-published at `/how-it-works/#forks`) explains what is built: the path of a thread
-message, who holds a message, who acts, what the main thread hears when a fork ends,
-follow-ups and flurries, and the main thread as coordinator. The user set its model
+published at `/how-it-works/#forks`) explains what is built: where a thread message
+goes, who holds it, a fork's commands, what the main thread hears when a fork's run
+ends, further messages in a thread, and the main thread in charge. The user set its model
 on 2026-11-10 (forks do the questions and small tasks they can, significant work
 becomes a to-do the main thread schedules, and the main thread coordinates), and
 chose the same day that a thread's follow-ups go to the fork that answered it. On
 2026-11-11 they chose the clerk's lines over the fork's own SendMessage for telling
 the main thread what a fork did, with Leaf waking an idle session for a to-do a fork
-opened (the tab's "How a fork tells the main thread" says why). The research above,
+opened (`forks.py`'s header says why). The research above,
 and the steps below with the parts still to build, stay here.
 
 Steps 1 to 3 take pages to protocol 44: a Leaf at protocol 43 doesn't know that a

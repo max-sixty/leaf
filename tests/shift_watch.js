@@ -57,7 +57,8 @@
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, or a popover's implicit anchor, the
 // `source` it was shown with, and a direct native anchor inset, inline or in their
-// tree's own rules, retain that scroller and their anchor's own animation too; nested
+// tree's own rules, or a `position-area` placing them against that anchor, retain that
+// scroller and their anchor's own animation too; nested
 // CSS expressions, ambiguous names and rules that disagree receive no inferred
 // ownership.
 //
@@ -321,8 +322,19 @@
     if (translationBindings.get(animation)) properties.push("translate");
     return properties;
   };
-  // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts.
-  const up = renderedParent;
+  // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts. A
+  // light child of a host whose closed shadow root the watch saw attached renders in a
+  // slot there too, though `assignedSlot` names none from outside, as an editor's
+  // placeholder renders inside the box that carries its words (text-field.js).
+  const closedRoots = new WeakMap();
+  const up = (node) => {
+    const parent = renderedParent(node);
+    const root = parent && node.parentNode === parent ? closedRoots.get(parent) : null;
+    if (root)
+      for (const slot of root.querySelectorAll("slot"))
+        if (slot.assignedNodes().includes(node)) return slot;
+    return parent;
+  };
   // Decorative media is not an independent reading. Hidden accessibility trees
   // include hoisted target paint and icon faces; their retained text/controls are
   // still measured separately, so this declaration cannot hide a moved button.
@@ -653,6 +665,10 @@
       values.length > 0 && values.every((value) => anchorInset(value, axis)) && !auto
     );
   };
+  // A box `position-area` places in the grid its anchor draws around itself follows
+  // that anchor on both axes, as a menu hung under its button does.
+  const placedByArea = (style) =>
+    Boolean(style.positionArea) && style.positionArea !== "none";
   // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
   // limits resolves inside the scoping box, so a name declared once per repeated
   // component still names one anchor for each; elsewhere it must be unique in its tree.
@@ -932,6 +948,7 @@
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
+    if (root.mode === "closed") closedRoots.set(this, root);
     addRoot(root);
     watchTree(root);
     announce();
@@ -1735,11 +1752,13 @@
         anchorX:
           !range &&
           ["fixed", "absolute"].includes(position) &&
-          ["left", "right"].some((side) => anchoredInset(node, style, side, "left")),
+          (placedByArea(style) ||
+            ["left", "right"].some((side) => anchoredInset(node, style, side, "left"))),
         anchorY:
           !range &&
           ["fixed", "absolute"].includes(position) &&
-          ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
+          (placedByArea(style) ||
+            ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top"))),
         nativeLeft: nativeOrigin.left,
         nativeTop: nativeOrigin.top,
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
@@ -4174,7 +4193,9 @@
     painted = Math.min(painted, typing.until);
     for (const [node, before] of typing.found) {
       const after = before && boxAt(node, painted);
-      if (!before || !after) continue;
+      // A box the page stopped drawing, as a closed editor's, has no place to move to;
+      // words_watch.js judges the words it held.
+      if (!before || !after?.width || !after.height) continue;
       const standing = entry ? after : boxAt(node, held);
       if (!standing || !moved(standing, before)) continue;
       const from = layoutAt(node, typing.at),

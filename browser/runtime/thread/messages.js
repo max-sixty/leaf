@@ -366,10 +366,14 @@ export function draftPreview(drafts, about = null) {
 // message has an island of its own, so a drawing that holds back an agent's edit
 // (held-news.js) keeps drawing the words and controls it shows, and the reading the
 // page adopts decides which island the message's widgets answer for
-// (`islandChange`). An edit redraws its message's island whole, so a value typed
-// into a field in it, an open disclosure or focus there is lost: a rare path, which
-// redraws rather than carrying a mechanism of its own (SOUL.md, "Keep the
-// foundation small and extensible").
+// (`islandChange`). Each island lives until the page reloads, one for each edit an
+// agent makes to a message holding HTML, which is rare. An edit redraws its
+// message's island whole, so a value typed into a field in it, an open disclosure
+// or focus there is lost: a rare path, which redraws rather than carrying a
+// mechanism of its own (SOUL.md, "Keep the foundation small and extensible"). For
+// the same reason a thread gesture names no wording: one a tab makes before an
+// edit reaches it is read in the wording in force when it lands
+// (`thread_context.message_wording`).
 /** @typedef {{
  * message: string,
  * body: {text: string, heldElsewhere: string, document: {thread: string, message: string}},

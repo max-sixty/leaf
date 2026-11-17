@@ -258,8 +258,9 @@ def thread_structure(events: list) -> ThreadStructure:
 
 def message_wording(structure: ThreadStructure, message: str, seq: int) -> dict:
     """The event whose words `message` said when the log stood at `seq`: the one a
-    gesture made then was made on, so what it chose is read in the words the user saw
-    (`gesture_words`)."""
+    gesture logged then was made on, so what it chose is read in the words the user
+    saw (`gesture_words`). A gesture names no wording, so one a tab made before an
+    edit reached it reads in the edit's words."""
     return [e for e in structure.wordings[message] if e["seq"] <= seq][-1]
 
 

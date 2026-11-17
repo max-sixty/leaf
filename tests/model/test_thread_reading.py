@@ -684,6 +684,59 @@ def test_a_summary_hint_spans_the_summaries_above_its_run(page_dir):
     assert summary["text"] == "All of it."
 
 
+def test_a_summary_hint_replaces_whole_the_summaries_it_reaches_into(page_dir):
+    """The hint stops short of the newest exchange, so it may end inside a summary
+    that reaches into it. Admission replaces that summary whole, so the hint is
+    widened over the messages it uncovers, and following it is never refused."""
+    root = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "x" * 1000}
+    )
+
+    def say(author, text="Next?", **extra):
+        return append_carried_log_record(
+            page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                "parent": root["id"],
+                "text": text,
+                **extra,
+            },
+        )
+
+    first = say("agent", "y" * 1000)
+    m = [root, first, *(say(author) for author in ("user", "agent", "user", "agent"))]
+    m.append(say("user"))
+    progress = say("agent", "Checking.", ephemeral=True)
+    thread_model.cmd_summarize(page_dir, root["id"], first["id"], "The opening.")
+    thread_model.cmd_summarize(page_dir, m[2]["id"], m[5]["id"], "The middle.")
+    thread_model.cmd_summarize(page_dir, m[6]["id"], progress["id"], "")
+    # Retiring the opening summary leaves its two long messages to suggest.
+    thread_model.cmd_edit(page_dir, first["id"], "y" * 1000 + " Revised.")
+
+    [digest] = thread_context_model.batch_threads(
+        events_model.read_events(page_dir),
+        [m[-1]],
+        page_view_model.PageView(page_dir).within,
+    )
+    hint = digest["summary_hint"]
+    assert hint == {"from": root["id"], "through": m[5]["id"]}
+    assert (
+        command_findings(
+            "thread",
+            "summarize",
+            page_dir,
+            "--from",
+            hint["from"],
+            "--through",
+            hint["through"],
+            "--text",
+            "Earlier.",
+        )
+        == []
+    )
+
+
 @pytest.mark.parametrize(
     ("older_texts", "suggested"),
     [

@@ -510,10 +510,11 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
         # than gaining one more beside the last each time a run grows long enough.
         # Its ends are conversation turns, which a summary's own `from` may no
         # longer be once the user took that message back. The hint is the range
-        # admission takes (`events.summary_range`): widened over any message it
-        # would leave in full above a summary. So following it is never refused,
-        # and a short stretch a retired summary left above a later one doesn't stop
-        # every later hint.
+        # admission takes (`events.summary_range`), read as admission reads it,
+        # against the summaries that stand once it replaces those it overlaps
+        # whole: widened over any message it would leave in full above a summary.
+        # So following it is never refused, and a short stretch a retired summary
+        # left above a later one doesn't stop every later hint.
         older = [message["id"] for message in conversation_turns(threads[t])[:-2]]
         prefix = set(older)
         completed = progress_completions(threads[t])
@@ -549,7 +550,12 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
             span = [identity for identity in older if identity in inside]
             start, end = span[0], span[-1]
             folded = {"covers": ids[at[start] : at[end] + 1]}
-            start, end = summary_range(threads[t], [*summaries, folded], start, end)
+            standing = [
+                summary
+                for summary in summaries
+                if not set(summary["covers"]).intersection(folded["covers"])
+            ]
+            start, end = summary_range(threads[t], [*standing, folded], start, end)
             # The range only: what the agent does with it is a `handling` clause.
             digest["summary_hint"] = {"from": start, "through": end}
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)

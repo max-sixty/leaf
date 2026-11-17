@@ -590,7 +590,7 @@ def css_syntax_errors(
 
 def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]:
     """What a capture would refuse in markup no capture reads, such as a message's,
-    which is frozen in the log once admitted: what delivery's reader can't read in
+    which the log carries: what delivery's reader can't read in
     the stylesheets it writes (`css_dependencies`), and each `/media/` file it names
     that the page won't answer (`unanswered_media`), in an attribute or a
     stylesheet. Its stylesheets are every one delivery rewrites

@@ -1,6 +1,7 @@
 """Registry-declared markup instance validation."""
 
 import re
+from dataclasses import replace
 
 from leaf.findings import Finding, element_at
 from leaf.gesture_words import group_name
@@ -184,29 +185,6 @@ def attribute_slot_errors(
                     owner_verb=owner_verb,
                 )
             )
-    return errors
-
-
-def layout_errors(lf_elements: list, registry: dict) -> list[Finding]:
-    """Validate the direct grammar of registry-declared structural elements: a pane is an
-    optional header, exactly one body element, and an optional footer."""
-    errors = []
-    for rec in lf_elements:
-        role = registry.get(rec["tag"], {}).get("reading-role")
-        if role is None:
-            continue
-        direct = rec["direct"]
-        headers = [i for i, child in enumerate(direct) if child == "header"]
-        footers = [i for i, child in enumerate(direct) if child == "footer"]
-        if len(headers) > 1 or len(footers) > 1:
-            errors.append(found_at("pane-ends", rec, role=role))
-        if headers and headers[0] != 0:
-            errors.append(found_at("pane-header-first", rec, role=role))
-        if footers and footers[0] != len(direct) - 1:
-            errors.append(found_at("pane-footer-last", rec, role=role))
-        body = [child for child in direct if child not in {"header", "footer"}]
-        if len(body) != 1 or body[0] == "#text":
-            errors.append(found_at("pane-body", rec, role=role, body=body))
     return errors
 
 
@@ -522,6 +500,33 @@ def suggestion_errors(lf_elements: list, registry: dict) -> list[Finding]:
     return errors
 
 
+def pane_advice(document: SourceDocument, registry: dict) -> list[Finding]:
+    """Each pane (`reading-role`) whose direct children aren't an optional header, one
+    body element and an optional footer, in that order, with what its grid does with
+    them (`base.css`, "A pane is one task region"). Advice, since a pane holding a
+    `<script>`, or blocks a script shows one at a time, works as it is. A message has
+    no channel for advice beside its admission (`admission.message_markup_errors`), so
+    this reads only a page's documents."""
+    findings = []
+    for rec in document.lf_elements:
+        role = registry.get(rec["tag"], {}).get("reading-role")
+        if role is None:
+            continue
+        direct = rec["direct"]
+        headers = [i for i, child in enumerate(direct) if child == "header"]
+        footers = [i for i, child in enumerate(direct) if child == "footer"]
+        if len(headers) > 1 or len(footers) > 1:
+            findings.append(found_at("pane-ends", rec, role=role))
+        if headers and headers[0] != 0:
+            findings.append(found_at("pane-header-first", rec, role=role))
+        if footers and footers[0] != len(direct) - 1:
+            findings.append(found_at("pane-footer-last", rec, role=role))
+        body = [child for child in direct if child not in {"header", "footer"}]
+        if len(body) > 1 or body == ["#text"]:
+            findings.append(found_at("pane-body", rec, role=role, body=body))
+    return [replace(finding, severity="advice") for finding in findings]
+
+
 def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Finding]:
     """A page's allocations that mean nothing where they stand
     (`registry.contract.authored_inert`), which delivery leaves unpainted, so nothing on
@@ -595,7 +600,6 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     lf_elements = document.lf_elements
     return (
         widget_errors(lf_elements, registry)
-        + layout_errors(lf_elements, registry)
         + parts_errors(document, registry)
         + addressable_instance_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)

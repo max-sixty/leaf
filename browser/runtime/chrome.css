@@ -319,15 +319,13 @@ html[data-lf-draw-mode] {
   :is(.lf-fab-bar, .lf-margin-preview) {
     --lf-comment-inset: 12px;
     --lf-comment-frame-inline: calc(var(--lf-comment-inset) + 1px);
-    --lf-comment-foot-gap: var(--lf-sp-3);
     --lf-comment-frame-top: calc(
       1px + var(--lf-comment-inset) + var(--lf-msg-head-height) + var(--lf-msg-body-gap)
     );
-    /* The card's reply row at rest, which the editor's frame reserves beneath the words,
-       so a box that fills the window becomes a card of the same height. */
-    --lf-comment-reply-row: calc(
-      var(--lf-comment-foot-gap) + var(--lf-compose-h) + 2px
-    );
+    /* The card's reply row at rest, its box a message's gap (surfaces.css) under the
+       words, which the editor's frame reserves beneath them, so a box that fills the
+       window becomes a card of the same height. */
+    --lf-comment-reply-row: calc(var(--lf-msg-gap) + var(--lf-compose-h) + 2px);
     --lf-comment-frame-bottom: calc(
       var(--lf-comment-reply-row) + var(--lf-comment-inset) + 1px
     );
@@ -336,7 +334,7 @@ html[data-lf-draw-mode] {
      to the response line with its frame, so the row reserves no frame beyond it. */
   @media (hover: hover) and (pointer: fine) {
     :is(.lf-fab-bar, .lf-margin-preview) {
-      --lf-comment-reply-row: calc(var(--lf-comment-foot-gap) + var(--lf-compose-h));
+      --lf-comment-reply-row: calc(var(--lf-msg-gap) + var(--lf-compose-h));
     }
   }
   /* Each drawing stands in a paint stand over what it was drawn on (drawing-ink.js),

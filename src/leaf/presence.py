@@ -18,7 +18,6 @@ from .activity import (
     undeclared,
 )
 from .files import file_stamp
-from .forks import handed_inputs, lane_since
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
@@ -285,9 +284,6 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         "session_name": claim_harness(claim).session_name() if claim else None,
         # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
         "input_wakes": bool(active and claim_harness(active).input_wakes()),
-        # When the claimant's fork lane came up, or None while none runs
-        # (`forks.lane_since`), which decides the threads Leaf keeps back (`kept_back`).
-        "fork_lane": lane_since(active["id"]) if active else None,
     }
 
 
@@ -298,7 +294,6 @@ LIVE_FACTS = (
     "live_turn",
     "session_name",
     "input_wakes",
-    "fork_lane",
 )
 
 
@@ -353,11 +348,6 @@ def presence_with_activity(
         "status": status,
         **live_facts(page_dir, claim, process=process),
         "cursor": cursor,
-        # The messages the claimant's line forks handed to its main thread that no
-        # pickup has taken in yet (`forks.HANDED`), from which, with the lane's start
-        # (`fork_lane`), the fold reads the threads Leaf keeps back
-        # (`holding.reading_of`).
-        "handed": sorted(handed_inputs(active["id"], page_dir)) if active else [],
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
         # so the panel never tells a user that a worker's news is waiting on them.

@@ -529,9 +529,11 @@ leaf-composition-field {
   > leaf-text[data-lf-focus-visible] {
   outline: none;
 }
+/* A reply box stands where the thread's next message would, a message's gap under the
+   last one (surfaces.css). */
 .lf-thread-reply {
   display: block;
-  margin-top: var(--lf-sp-3);
+  margin-top: var(--lf-msg-gap);
   min-width: 0;
 }
 :is(.lf-thread-reply, .lf-fab-bar, .lf-msg-editor) .lf-compose-field {

@@ -1657,18 +1657,21 @@ def test_pane_grammar_follows_the_declared_role_across_packages(page_dir):
         )
     )
     assert check(page_dir).exit_code == 0, check(page_dir).output
-    # The same grammar holds the package's pane to one body.
+    # The same grammar reaches the package's pane, as advice.
     version.write_text(
         version.read_text().replace(
             "<p>First</p></lf-zone>", "<p>First</p><p>Split</p></lf-zone>"
         )
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(findings, "pane-body", "<lf-zone>", body=["p", "p"])
+    assert status == 0
+    (pane,) = found(findings, "pane-body", "<lf-zone>", body=["p", "p"])
+    assert pane.severity == "advice"
 
 
-def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
+def test_pane_grammar_advises_on_misplaced_slots_and_split_content(page_dir):
+    """A pane whose children aren't a header, one body and a footer, in that order,
+    still passes, and `page check` says what its grid does with each."""
     version = page_dir / "index.html"
     version.write_text(
         PAGE.replace(
@@ -1680,12 +1683,13 @@ def test_pane_grammar_rejects_misplaced_slots_and_split_content(page_dir):
         )
     )
     status, findings = check_findings(page_dir)
-    assert status == 1
+    assert status == 0
     assert found(findings, "pane-header-first", "<lf-pane>", line=10)
     # The split body and the loose text, each named by its own line.
     assert [
         (f.values["line"], f.values["body"]) for f in found(findings, "pane-body")
     ] == [(11, ["p", "p"]), (12, ["#text"])]
+    assert {f.severity for f in findings if f.code.startswith("pane-")} == {"advice"}
 
 
 def test_a_page_of_parts_refuses_a_main_that_carries_a_layout(page_dir):
@@ -1870,7 +1874,7 @@ def test_reply_refuses_a_suggestion(page_dir):
         ],
     )
     assert result.exit_code != 0
-    assert "frozen in the log" in result.output
+    assert "never a message's" in result.output
 
 
 @pytest.mark.parametrize("invalid", ["html", "dependency"])

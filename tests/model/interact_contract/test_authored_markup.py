@@ -76,7 +76,7 @@ def test_check_requires_an_initialized_page(tmp_path):
     assert f"run `leaf page init {d}`" in result.output
 
 
-def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
+def test_check_rejects_an_invalid_bound_and_advises_on_loose_pane_text(page_dir):
     (page_dir / "index.html").write_text(
         PAGE.replace(
             "<h2>Plan</h2>",
@@ -95,7 +95,8 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
         value="bottom",
         allowed=["start", "end"],
     )
-    assert found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
+    (pane,) = found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
+    assert pane.severity == "advice"
 
 
 @pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])

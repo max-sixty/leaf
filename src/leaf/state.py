@@ -53,7 +53,7 @@ import time
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import TYPE_CHECKING, Generic, TypeVar, cast
+from typing import TYPE_CHECKING, Generic, Literal, TypeVar, cast
 
 if TYPE_CHECKING:
     from typing import TypeGuard
@@ -768,18 +768,20 @@ def close_session_turn(
 AGENT_TURNS = Record(
     "agent-turns",
     described(
-        "The turns of the agents a session runs beside its main thread, such as a "
-        "fork of its conversation that took a thread's work, in the state home's "
-        "`sessions/<digest>.agent-turns` (`session_file`): by turn id, the agent's "
-        "id in its harness (null until the harness starts it), the session "
-        "generation it opened in, when it opened and was last renewed, when it "
-        "closed, or null while it is open.",
+        "The turns of the agents a session runs beside its main thread, in the state "
+        "home's `sessions/<digest>.agent-turns` (`session_file`): by turn id, its "
+        "role, `line` for the turn in which a line fork of the session's "
+        "conversation writes the agent's working line on a thread message, or "
+        "`fork` for a working fork's run, the agent's id in its harness (null until "
+        "the harness starts it), the session generation it opened in, when it "
+        "opened and was last renewed, when it closed, or null while it is open.",
         object_schema(
             {
                 "turns": {
                     "type": "object",
                     "additionalProperties": object_schema(
                         {
+                            "role": {"enum": ["line", "fork"]},
                             "agent": {"type": ["string", "null"]},
                             "generation": STRING,
                             "opened": TIME,
@@ -791,7 +793,7 @@ AGENT_TURNS = Record(
             }
         ),
     ),
-    since=44,
+    since=50,
 )
 # The agent turn the running `leaf` command names with `leaf --turn ID`, which Leaf's
 # prompt to a fork tells it to begin each `leaf` command with (`forks.work_prompt`),
@@ -862,17 +864,18 @@ def agent_turn_stamps(claim: dict, events: list[dict]) -> dict[str, dict]:
     """The agent turns of the session `claim` names, opened in the claim's
     generation, that a page whose log is `events` needs: each still open and not yet
     lapsed, which may take any of its threads, and each the log names, whose holder
-    `leaf page state` names (`holding.holder`). By turn id: the agent's id in its
-    harness, null until the harness starts it, by which the main thread reaches the
-    agent, and when the turn opened, was last renewed and closed, or null while it is
-    open, which `activity.running_agent_turns` reads. The page's served reading
-    carries them for every reader of its claim (`presence`), so what it carries grows
-    with the page rather than with how long its session has run: a turn that lapsed
-    with its agent lost, which nothing closes, leaves every page that never named
-    it."""
+    `leaf page state` names (`holding.holder`). By turn id: its role, the agent's id
+    in its harness, null until the harness starts it, by which the main thread
+    reaches the agent, and when the turn opened, was last renewed and closed, or null
+    while it is open, which `activity.running_agent_turns` reads. The page's served
+    reading carries them for every reader of its claim (`presence`), so what it
+    carries grows with the page rather than with how long its session has run: a
+    turn that lapsed with its agent lost, which nothing closes, leaves every page that
+    never named it."""
     named = {event["turn"] for event in events if event.get("turn")}
     stamps = {
         turn: {
+            "role": entry["role"],
             "agent": entry["agent"],
             "opened": entry["opened"],
             "renewed": entry["renewed"],
@@ -911,22 +914,37 @@ def _write_agent_turns(session_id: str, turns: dict[str, dict]) -> None:
     AGENT_TURNS.write(session_file(session_id, AGENT_TURNS.kind), {"turns": turns})
 
 
-def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
-    """Open a turn for an agent the session is about to start or resume, and return
-    its id; None for a session that has ended. A resumed agent, whose id Leaf
-    already knows, runs the turn from its opening (`agent`); a new one's turn is
-    named once the harness has started it (`name_agent_turn`). The agent's `leaf`
-    commands name the turn rather than the agent, so they act in it from its start
-    (`acting_agent_turn`). Each opening mints a new id, so a closed turn never
-    reopens. The turns of the session's earlier generations go as it opens one,
-    since their agents ended with them and no reading of its pages asks for them
-    (`agent_turn_stamps`)."""
+def open_agent_turn(
+    session_id: str, role: Literal["line", "fork"], agent: str | None = None
+) -> str | None:
+    """Open a turn of `role` and return its id; None for a session that has ended.
+    A `line` turn is a line fork's, which writes the agent's working line on a
+    thread message admission keeps from the main thread (`forks.py`); no agent runs
+    it and nothing renews it, so it lapses a `STARTING_GRACE` after it opened unless
+    it closes first. A `fork` turn is a working fork's run, which Leaf opens as the
+    fork takes a thread: a resumed fork, whose id Leaf already knows, runs it from
+    its opening (`agent`), and a new one's is named once its harness has started it
+    (`name_agent_turn`); either's start is confirmed within `STARTING_GRACE` of the
+    opening (`activity.agent_turn_end`). The agent's `leaf` commands name the turn
+    rather than the agent, so they act in it from its start (`acting_agent_turn`).
+    A turn's role never changes, and each opening mints a new id, so a closed turn
+    never reopens.
+
+    The opening drops the turns no reading needs: the session's earlier
+    generations', since their agents ended with them (`agent_turn_stamps`), and line
+    turns that have closed or lapsed. A thread such a line turn last held reads as
+    the main thread's whether its entry is there or not, so the record grows with
+    the working forks a generation runs rather than with every message Leaf kept
+    back."""
+    from .activity import agent_turn_end
+
     with flocked(session_lock_path(session_id)):
         record = session_record(session_id)
         if not session_live(record):
             return None
         turn = secrets.token_hex(8)
         now = now_iso()
+        moment = datetime.fromisoformat(now)
         _write_agent_turns(
             session_id,
             {
@@ -934,8 +952,10 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
                     id: entry
                     for id, entry in agent_turns(session_id).items()
                     if entry["generation"] == record["generation"]
+                    and (entry["role"] != "line" or moment < agent_turn_end(entry))
                 },
                 turn: {
+                    "role": role,
                     "agent": agent,
                     "generation": record["generation"],
                     "opened": now,
@@ -948,11 +968,12 @@ def open_agent_turn(session_id: str, agent: str | None = None) -> str | None:
 
 
 def name_agent_turn(session_id: str, turn: str, agent: str) -> bool:
-    """Record that the agent its harness names `agent` runs the open turn `turn`, as
-    the harness confirms a spawn, which named no agent yet, or a resume, which named
-    it as it opened: and renew it, which confirms its start, so the turn is believed
-    for the working grace (`activity.agent_turn_end`); whether the turn was still open
-    to name. A turn's agent never changes once named."""
+    """Record that the agent its harness names `agent` runs the open fork turn
+    `turn`, as the harness confirms a spawn, which named no agent yet, or a resume,
+    which Leaf named as it opened the turn (`open_agent_turn`): and renew it, which
+    confirms its start, so the turn is believed for the working grace
+    (`activity.agent_turn_end`); whether the turn was still open to name. A turn's
+    agent never changes once named."""
     now = now_iso()
     return _update_agent_turns(
         session_id,

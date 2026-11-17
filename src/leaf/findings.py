@@ -1013,20 +1013,31 @@ _TEXT = {
         ' own (page-layout.md, "A page of parts")'
     ),
     "pane-ends": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} admits at most one direct"
-        " <header> and one direct <footer>"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds more than one direct"
+        " <header> or <footer>; its grid sets each one after the first beside it, in a"
+        " column of its own, so put what they hold in one <header> or <footer>"
     ),
     "pane-header-first": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} direct <header> must be first"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <header> after"
+        " other children; its grid still draws the header on top, but keyboard and"
+        " screen-reader order follow the markup"
     ),
     "pane-footer-last": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} direct <footer> must be last"
+        f"{_line(at, v)}: `reading-role` {v['role']} holds its direct <footer> before"
+        " other children; its grid still draws the footer at the bottom, but keyboard"
+        " and screen-reader order follow the markup"
     ),
     "pane-body": lambda at, v: (
-        f"{_line(at, v)}: `reading-role` {v['role']} must contain exactly one direct"
-        " body element between its header and footer, found "
-        + (_json(v["body"]) if v["body"] else "nothing")
-        + "; wrap several blocks in one <div> or <section>"
+        f"{_line(at, v)}: `reading-role` {v['role']} "
+        + (
+            "holds loose text as its body, which stands without the body's padding"
+            " and doesn't scroll as the pane's body; wrap it in a <p> or <div>"
+            if v["body"] == ["#text"]
+            else f"holds {len(v['body'])} body blocks ({_json(v['body'])}); its grid"
+            " places them all in its one body cell, where they overlap, and only the"
+            " first element among them scrolls as the pane's body, so wrap them in one"
+            " <div> or <section>"
+        )
     ),
     "needs-id": lambda at, v: (
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
@@ -1107,10 +1118,10 @@ _TEXT = {
         f" at {_seat(v['first'])} and contract {v['then']['contract']!r} at"
         f" {_seat(v['then'])}; use a new source id for the new meaning"
     ),
-    # Message markup, which the log freezes.
+    # Message markup, which no version settles.
     "frozen-settlement": lambda at, v: (
-        f"{at} is a settlement holder, but thread markup is frozen in the log and no"
-        " version could ever settle it; put the change in the next version instead"
+        f"{at} is a settlement holder, but a version settles only the page's markup,"
+        " never a message's; put the change in the next version instead"
     ),
     "message-style": lambda at, v: (
         "<style> in message markup becomes a stylesheet of the whole document it is"
@@ -1456,12 +1467,6 @@ _TEXT = {
             "declares user `verbs` on the whole widget but no boolean"
             " `restated` attribute, which a version sets to retract the user's"
             " decision"
-        )
-    ),
-    "reserved-resolves": _declared(
-        lambda v: (
-            "declares attribute `resolves`, a reserved name (the thread an"
-            " answer to its obligation closes), but originates no local obligation"
         )
     ),
     "verb-detail-schema": _declared(
@@ -1876,7 +1881,8 @@ _TEXT = {
         "summary endpoints must name spoken turns in one thread"
     ),
     "summary-order": lambda at, v: (
-        "summary must cover at least two messages in thread order"
+        f"summary's `from` {v['from']!r} comes after its `through` {v['through']!r}"
+        " in thread order"
     ),
     "summary-gap": lambda at, v: (
         "summary would leave messages unsummarized above a summary, and only the"
@@ -2147,13 +2153,15 @@ _TEXT = {
         " of its own"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
-    "edit-holds-html": lambda at, v: (
-        f"message {v['message']!r} holds HTML, which stays as it was sent, since the"
-        " user may have acted on what it drew; post a new message instead"
-    ),
-    "edit-adds-html": lambda at, v: (
-        "an edit changes a message's words and adds no HTML; post a new message to"
-        " send HTML"
+    "edit-answered-widget": lambda at, v: (
+        f"the user has acted on {at} in message {v['message']!r}; their answer stays"
+        " recorded against its ids"
+        + (
+            ", so it shows on the markup this edit leaves there"
+            if v["kept"]
+            else ", and this edit removes what it chose, so the thread no longer shows"
+            " that answer"
+        )
     ),
 }
 

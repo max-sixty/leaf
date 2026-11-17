@@ -579,9 +579,15 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
     that padding, so the padding goes while the user writes in such a box
     (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
-    leaves the words beneath the box where they stood."""
+    leaves the words beneath the box where they stood. The page widens its landing
+    room, which deepens that band, so the box's field stands inside it whatever room
+    the box keeps under its field."""
+    deep_band = LONG_PAGE.replace(
+        "</head>", "<style>:root { --lf-landing-room: 40px; }</style></head>"
+    )
+    assert deep_band != LONG_PAGE
     page = open_page(
-        request.getfixturevalue(engine), serve(LONG_PAGE), init_script=KEEP_ROOTS
+        request.getfixturevalue(engine), serve(deep_band), init_script=KEEP_ROOTS
     )
     resized(page, 1512, 860)
     words = page.locator("#p40")

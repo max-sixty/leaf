@@ -684,7 +684,7 @@ def test_thread_attention_names_the_workflow_the_thread_waits_on():
         {}, {}, {}, {}, {}, frozenset(), frozenset()
     )
     frozen = projection_model.FrozenThreadReading(
-        ThreadStructure(set(), {}, {}), {}, {}, {"board": "root"}, empty
+        ThreadStructure(set(), {}, {}, {}, {}), {}, {}, {"board": "root"}, empty
     )
     todos = [
         {
@@ -776,7 +776,7 @@ def test_served_workflows_list_the_strongest_first():
         {}, {}, {}, {}, {}, frozenset(), frozenset()
     )
     frozen = projection_model.FrozenThreadReading(
-        ThreadStructure(set(), {}, {}), {}, {}, {}, empty
+        ThreadStructure(set(), {}, {}, {}, {}), {}, {}, {}, empty
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
@@ -864,8 +864,6 @@ def test_fresh_exact_reply_supersedes_an_older_workflow_condition():
         "listening": True,
         "session_alive": True,
         "agent_turns": {},
-        "fork_lane": None,
-        "handed": [],
     }
     reply = {
         "state": "active",

@@ -485,9 +485,8 @@ def init(
         raise click.UsageError("--theme and --no-theme cannot be used together")
     if any(not selection for selection in selected):
         raise click.UsageError("--package selections cannot be empty")
-    if len(set(selected)) != len(selected):
-        raise click.UsageError("each --package selection may appear only once")
-    selections = () if no_packages else selected or None
+    # A selection named twice means it once.
+    selections = () if no_packages else tuple(dict.fromkeys(selected)) or None
     return cmd_init(
         page_path(dir),
         selections,
@@ -1595,7 +1594,7 @@ def thread_edit(
     or with --title rename the thread MESSAGE is in, whoever opened it. --title
     alone leaves the text as it is.
 
-    A message holding HTML is not editable, and an edit adds none. Keep a title
+    The replacement may hold HTML, checked as a new message's is. Keep a title
     stable unless the thread's subject changes.
     """
     from leaf.thread import cmd_edit

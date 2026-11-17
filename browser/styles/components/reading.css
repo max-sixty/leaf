@@ -776,8 +776,13 @@ leaf-text.lf-fab-input,
 .lf-msg-text > :first-child {
   margin-top: 0;
 }
+/* A message ends at its last block's edge, so the gap after it is the thread's alone
+   (surfaces.css, `--lf-msg-gap`). That block's own last part, as an ask's options or a
+   list's last item, would pass its margin out through the block, which keeps none of
+   its own below. */
 .lf-msg-body > :last-child,
 .lf-msg-text > :last-child,
+.lf-msg-text > :last-child > :last-child,
 .lf-msg-media > :last-child {
   margin-bottom: 0;
 }

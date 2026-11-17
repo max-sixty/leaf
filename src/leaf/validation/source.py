@@ -35,6 +35,7 @@ from leaf.thread_context import (
 from leaf.validation.instances import (
     inert_allocation_advice,
     instance_errors,
+    pane_advice,
     question_errors,
     reference_errors,
     suggestion_errors,
@@ -121,6 +122,7 @@ def _instance_errors(
     errors = instance_errors(parser, registry)
     errors.extend(question_errors(parser, registry))
     errors.extend(inert_allocation_advice(parser, registry))
+    errors.extend(pane_advice(parser, registry))
     errors.extend(
         reference_errors(
             parser.lf_elements,
@@ -131,7 +133,7 @@ def _instance_errors(
         )
     )
     errors.extend(suggestion_errors(parser.lf_elements, registry))
-    taken = sorted(parser.ids & thread_structure(events).ids)
+    taken = sorted(parser.ids & thread_structure(events).holders.keys())
     if taken:
         errors.append(Finding("ids-taken-by-messages", values={"ids": taken}))
     return errors

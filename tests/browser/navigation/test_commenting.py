@@ -22,6 +22,7 @@ from render_harness import (
     ROOT,
     draft_control,
     expect_obligations_answered,
+    field_press,
     leaf_page,
     open_page,
     open_versions,
@@ -413,27 +414,23 @@ AN_ASK_THEN_READING = leaf_page(
 
 
 def test_where_c_goes_shows_before_the_press(browser, serve):
-    """Nothing held, the panel's row wears the key. On a target, the row loses it and the
-    box stands beside the target with it, in the field's own place, so the press moves
-    nothing. The box at rest goes with the focus that raised it and takes no Escape step:
-    the field's Escape returns to the target, and the target's lets go of everything."""
+    """On a target, the box stands beside it wearing `c`, in the field's own place, so
+    the press moves nothing. Before that, with the ask waiting, the panel's row offers
+    Next On Me and its `m` rather than Comment and `c`. The box at rest goes with the
+    focus that raised it and takes no Escape step: the field's Escape returns to the
+    target, and the target's lets go of everything."""
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, *ROOM_IN_THE_MARGIN)
     rest = page.locator(".lf-fab-rest")
-    panel_key = page.locator(".lf-fp-field .lf-compose-placeholder > kbd")
+    press = field_press(page)
 
-    expect(panel_key).to_have_text("c")
-    expect(panel_key).to_be_visible()
-    # Its word stands with it, after the status, as Reply does in a thread.
-    expect(page.locator(".lf-fp-field .lf-compose-placeholder-enters")).to_have_text(
-        "Comment…"
-    )
+    expect(press.locator(".lf-compose-press-word")).to_have_text("Next On Me")
+    expect(press.locator("kbd")).to_have_text("m")
     expect(rest).to_be_hidden()
 
     page.keyboard.press("m")
     expect(rest).to_be_visible()
     expect(rest.locator("kbd")).to_have_text("c")
-    expect(panel_key).to_have_count(0)
     expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
     resting = rest.bounding_box()
 
@@ -451,7 +448,6 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#route")).not_to_be_focused()
     expect(rest).to_be_hidden()
-    expect(panel_key).to_have_text("c")
 
 
 def test_a_press_on_the_box_at_rest_opens_it_beside_its_target(browser, serve):
@@ -505,13 +501,12 @@ def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
 
 def test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus(browser, serve):
     """Focus stays on the stop, but `c` no longer takes the reader back to it. Out of
-    sight, the box goes, the row wears the key again and `c` enters the panel's field
-    where the page stands, and backing out of the field leaves the page there. A scroll
-    back to the stop, with focus still on it, returns the box."""
+    sight, the box goes and `c` enters the panel's field where the page stands, and
+    backing out of the field leaves the page there. A scroll back to the stop, with
+    focus still on it, returns the box."""
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, *ROOM_IN_THE_MARGIN)
     rest = page.locator(".lf-fab-rest")
-    panel_key = page.locator(".lf-fp-field .lf-compose-placeholder > kbd")
     comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
 
     def scroll(down):
@@ -528,11 +523,9 @@ def test_c_writes_where_the_user_reads_once_they_scroll_away_from_focus(browser,
     expect(page.locator("#route")).not_to_be_in_viewport()
     expect(page.locator("#route")).to_be_focused()
     expect(rest).to_be_hidden()
-    expect(panel_key).to_have_text("c")
 
     scroll(down=False)
     expect(rest).to_be_visible()
-    expect(panel_key).to_have_count(0)
 
     scroll(down=True)
     away = page.evaluate("scrollY")

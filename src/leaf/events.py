@@ -33,8 +33,8 @@ def document_identity(scope: str, revision: int | None = None) -> dict:
     """The document a widget event is made in, from its scope and revision.
 
     A `page` event's document is the revision it names; a `thread` event's is the
-    frozen thread markup, which lasts the page's whole lifetime and so carries no
-    revision. Admission, thread folds, and the browser all key documents on this
+    message markup, which no revision carries: an edit rewrites it in place
+    (`thread_context.thread_structure`). Admission, thread folds, and the browser all key documents on this
     identity."""
     if scope == "thread":
         return {"kind": "thread"}
@@ -576,8 +576,8 @@ def summary_range(
     those it overlaps, so a summary that ends inside an earlier one cannot uncover that
     one's tail above a later summary. Whatever the wider range replaces lies inside it,
     so admission takes it as named. A delivery's `summary_hint`
-    (`thread_context.batch_threads`) is the range this gives for a run of messages, so
-    a hint may replace a summary in force to close a gap above it.
+    (`thread_context.batch_threads`) is the range this gives for a run of messages and
+    the summaries in force beside it, so following a hint is never refused.
 
     The opening message may stay outside, since it says what the thread is about. A
     message counts where the panel draws it whole: a spoken turn no summary covers,

@@ -23,7 +23,6 @@ from render_harness import (
 )
 
 from leaf.render_checks import rendered
-from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1101,7 +1100,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     # An empty but open composer was sufficient to hold the original report.
     (serve.page_dir / "index.html").write_text(second)
     expect(page.locator("lf-ask")).to_have_count(3)
-    expect(door).to_have_attribute("aria-label", "Next On Me, 3 waiting on me")
+    expect(door).to_have_attribute("aria-label", "On Me: 3")
     if subject == "selection":
         assert (
             page.evaluate("getSelection().toString().trim()")
@@ -1157,7 +1156,7 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", "Next On Me, 1 waiting on me, 1 draft unsent"
+        "aria-label", "On Me: 1, 1 draft unsent"
     )
 
 
@@ -1217,7 +1216,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     )
     page = open_page(browser, live_url(serve(first)))
     expect_obligations_answered(page, "0/3")
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     cards = f"{panel_view('queue')} .lf-fp-on-item"
     expect(page.locator(cards)).to_have_count(3)
@@ -1249,7 +1248,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     expect(page.locator(cards)).to_have_count(2)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
     panel_settled(page, view="queue")
     expect(page.locator(cards)).to_have_count(2)
     assert asked() == [

@@ -51,7 +51,6 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -174,8 +173,9 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
             "Remove the old heading",
         )
     page = open_page(browser, url)
+    mark = page.locator(".lf-fp-on-user")
     expect_on_me(page, 1)
-    open_on_me(page)
+    mark.click()
     row = page.locator('.lf-fp-on-item[data-lf-list="you"]')
     expect(row).to_contain_text(question)
     expect(row.get_by_role("button", name="Reply", exact=True)).to_be_visible()

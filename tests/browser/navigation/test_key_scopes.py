@@ -58,7 +58,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD, on_view_tab, open_on_me
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -276,8 +276,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On Me by pointer, its tab beside the leaf's menu: out with the panel's view.
-    open_on_me(page)
+    # On Me by pointer: out with the panel's view.
+    toggle.click()
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -325,8 +325,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     out()
 
-    # And On Me's tab pressed from the keyboard.
-    on_view_tab(page, "On Me").press("Enter")
+    toggle.focus()
+    page.keyboard.press("Enter")
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)

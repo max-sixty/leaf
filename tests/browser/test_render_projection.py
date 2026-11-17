@@ -422,7 +422,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     round_trip(page)
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^Next On Me, [1-9]\d* waiting on me")
+        "aria-label", re.compile(r"^On Me: [1-9]")
     )
 
     honoring = re.sub(
@@ -447,7 +447,7 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     # drops `required`; it is completed, not newly owed to the user.
     expect_obligations_answered(page, "1/5")
     expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^Next On Me, [1-9]\d* waiting on me")
+        "aria-label", re.compile(r"^On Me: [1-9]")
     )
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("required")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")

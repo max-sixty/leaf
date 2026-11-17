@@ -292,8 +292,8 @@ export function createTargetPicker({
   // A direct slash opens the shared mode in page search, without a target map: search
   // covers the whole document, and reading a viewport-local map it would then hide is
   // work for nobody. It opens straight into search, so the panel is handed the one mode
-  // it shows: handed the hints and then search in one task, it drew the press the
-  // hints' field offers and took it away again.
+  // it shows: handed the hints and then search in one task, it would draw the press the
+  // hints' field offers and take it away again.
   // The picker's opener is the control the user was on as it opened (focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
   /** @param {boolean} on @param {boolean} [restore] @param {"hints" | "search"} [mode] */
@@ -1024,12 +1024,12 @@ export function createTargetPicker({
   pageScope("target picker", TARGET_PICKER_SCOPE);
   // The page itself is already a Comment target; `s` plus a hint names a more particular
   // one. Either route opens Comment, while reactions wait for a target. The leaf menu's
-  // Annotations lists it for every pointer. The user chose this on 24 October 2026 over
-  // listing it only where no keyboard was there to press `s`: a mouse user who never
-  // learned `s` had no visible way to comment on a whole widget or picture, since
-  // selecting words picks neither. A row at the menu's top level was shown and set
-  // aside for Annotations. It is named Select mode beside Draw and Design mode, as the
-  // user chose on 30 October over Comment on an element.
+  // Annotations lists it for every pointer. The user chose this over
+  // listing it only where no keyboard is there to press `s`: a mouse user who never
+  // learns `s` has no visible way to comment on a whole widget or picture, since
+  // selecting words picks neither. They set aside a row at the menu's top level for
+  // Annotations. It is named Select mode beside Draw and Design mode, as the
+  // user chose over Comment on an element.
   pageCommand({
     id: "target.picker.open",
     keys: ["s"],

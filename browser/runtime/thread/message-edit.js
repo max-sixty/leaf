@@ -22,7 +22,7 @@
      thread opens a second editor beside it, each named for its message.
 
    Escape discards changed words, as Discard does, so one Escape undoes the ↑ that opened
-   the rewrite, as in Slack, Discord and Telegram (the user's decision, 2026-10-06).
+   the rewrite, as in Slack, Discord and Telegram (the user's decision).
    Rejected: Escape keeping them as an unsaved edit, as a reply box keeps its draft,
    which left the user a draft to find and drop that the message could barely show.
    Android's back gesture, which may be an accidental edge swipe, keeps them instead
@@ -51,11 +51,11 @@
    thread's Resolve leaves its row while the
    rewrite is open (response.css), and a message of pictures alone gains the line the
    caret needs for words.
-   Rejected, by the user on 2026-10-22: the thread's reply box at its own width and
-   padding, which they chose on 2026-10-13, with the pictures in a draft's cropped shelf
-   over it, which pushed the words down by the pictures' height and rewrapped them in
-   the panel. Rejected before that: a box painted around the words with no padding of
-   its own, which read as a thinner field than the reply box beside it.
+   Rejected, by the user: the thread's reply box at its own width and
+   padding, with the pictures in a draft's cropped shelf
+   over it, which pushes the words down by the pictures' height and rewraps them in
+   the panel. Rejected too: a box painted around the words with no padding of
+   its own, which reads as a thinner field than the reply box beside it.
 
    A double click on the message or a press on its Edit control opens it. The keyboard
    opens it with ↑: from the thread's empty reply box, the user's latest message, and
@@ -87,10 +87,10 @@
    saved rewrite back, a deletion as any other (undo.js).
    Rejected: refusing an empty rewrite, which left a Save that drew as live and did
    nothing, so the user typed a placeholder such as "[removed]" over their words (the
-   user's decision, 1 November 2026); and deleting by withdrawing the message (`undo`),
+   user's decision); and deleting by withdrawing the message (`undo`),
    which nothing could then take back, as `z` takes back a deletion. `z` withdraws the
    message the user sent last instead, and the empty save deletes an older one (the
-   user's decision, 3 November 2026). */
+   user's decision). */
 import {
   clearDraft,
   draftHasContent,
@@ -313,7 +313,7 @@ export function threadRewrites({
       // replying, or one whose box is off screen, hands the user on as a sent reply
       // does, which moves nothing. A save in a resolved thread reopens it, so the box
       // its presentation draws then takes the caret, as Reopen's landing gives it
-      // (#46, the user's decision, 2026-10-07).
+      // (the user's decision).
       /** @param {Element} message */
       land: (message) => {
         const shown = () => {

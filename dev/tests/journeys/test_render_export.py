@@ -304,9 +304,9 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
     """A stop that lands before the durable service has committed leaves none.
     The serving child runs in a session of its own, so the group signal never
     reaches it, and the preview's stop can run before the child has taken the
-    page; the start used to stand behind that stop, enabled. Now the preview's
-    interrupted start gives its claim back and closes the handshake, so the child
-    either refuses before recording a service or withdraws the one it recorded."""
+    page. The preview's interrupted start gives its claim back and closes the
+    handshake, so the child either refuses before recording a service or withdraws
+    the one it recorded."""
     slot, page = preview_slot
     with (tmp_path / "preview.log").open("w", encoding="utf-8") as output:
         process = spawn(
@@ -740,12 +740,9 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
 ):
     """A `--user` preview's update leaves the session's wait watching.
 
-    The update used to disable the page's service for its whole length, and a wait
-    watching the page read that as a page it had lost: with no other page to carry,
-    it ended on every save. A source edit leaves the server up, and a runtime edit's
-    re-vendor restarts it, which a wait watches through as it watches any stopped
-    server. The comment after the update is the proof: only a wait still watching
-    delivers it.
+    A source edit leaves the server up, and a runtime edit's re-vendor restarts it,
+    which a wait watches through as it watches any stopped server. The comment after the
+    update is the proof: only a wait still watching delivers it.
     """
     source, runtime, directory, _, _, log = served_preview
     waited = tmp_path / "wait.log"

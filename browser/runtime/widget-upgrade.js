@@ -44,7 +44,7 @@ export function once(el) {
 }
 
 // A data widget's body: the <pre> the content model requires, never the element's own
-// textContent. The two used to be the same string and are not once the element holds a
+// textContent. The two differ once the element holds a
 // child — an HTML formatter is free to put the <pre> on its own line, and the newline
 // and indent before it are the element's text too. Line one is load-bearing in every
 // notation here, so that indent is not untidiness downstream: a diff's file header, a

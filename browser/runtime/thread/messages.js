@@ -495,8 +495,8 @@ const authoredMessage = (message) => {
 // conversation, as On Me's cards are (primary-reader.js, `messagesAside`). A drawing
 // aside holds the widgets only while no other drawing shows the message, so opening On
 // Me takes no choice out of a thread the user sees, and no arrival lands in it
-// (`authoredHolder`). Until 15 November 2026 On Me's card ranked as the primary
-// reader's view, and opening it emptied a thread on the page of its widgets.
+// (`authoredHolder`). Rejected: On Me's card ranking as the primary
+// reader's view, so opening it empties a thread on the page of its widgets.
 export const HOLDS = Object.freeze({ reader: 4, margin: 3, page: 2, aside: 1 });
 /** @typedef {{node: HTMLDivElement, model: ReturnType<typeof messageReading>,
  * present: (model: ReturnType<typeof messageReading>) => HTMLDivElement}} PresentedMessage */

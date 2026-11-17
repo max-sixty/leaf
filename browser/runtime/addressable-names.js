@@ -95,9 +95,10 @@ export function addressableSays(addressable) {
 // off the document (`gesture_words.element_name`), and `tests/name_cases.json` holds
 // both to the same cases.
 //
-// Replaced: any element took a leading heading, looked for inside a <header> or past an
-// eyebrow, so a `div` opening on one was named by it; and a leading <strong> titled any
-// element, so a bold line opening a paragraph or list item named it.
+// Rejected: naming any element by a leading heading, looked for inside a <header> or
+// past an eyebrow, which names a `div` by where a heading happens to stand; and a
+// leading <strong> on any element, which names a paragraph by how its first words
+// look.
 const WIDGET_TITLES = `summary, ${HEADING}, strong`;
 const SECTIONS = "section, article";
 /** The element whose words name `container` by that rule, or null. Finding a widget's
@@ -146,16 +147,16 @@ const registered = (element) =>
 // The element a heading titles: the outermost one it names by the rule above, such as
 // its hgroup and the section or article that opens with it, or a card it leads, past a
 // leading header; short of a widget its `label` attribute names; or else the heading
-// itself.
-// `lf-toc` starts each row's stretch of the page at it, a heading's link takes its
-// address, and a heading's link preview counts the conversations about it
+// itself. `lf-toc` starts each row's stretch of the page at it, a heading's link takes
+// its address, and a heading's link preview counts the conversations about it
 // (thread/placement.js, `conversationsAbout`). `titlingHeading` reads it the other way
 // round.
 //
-// Replaced: the outermost element whose first heading it was, past wrappers and an
-// eyebrow, where every other heading inside ranked lower, read off the document's
-// outline and kept with its whole reading; so a `div`, a question or a page's column
-// could be titled, and a heading put earlier anywhere in a section moved its title.
+// Rejected: titling the outermost element whose first heading this is, past wrappers
+// and an eyebrow, wherever every other heading inside ranks lower. It reads position
+// and rank anywhere around the heading, so a `div`, a page's column or a section
+// wrapping a question takes a title its author never gave it, and answering needs the
+// document's whole outline.
 /** @param {Element} heading @returns {Element} */
 export function titledElement(heading) {
   let titled = heading;

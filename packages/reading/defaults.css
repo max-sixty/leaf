@@ -86,9 +86,8 @@ dl.facts dt {
 }
 
 /* The compact face a small label rides in, set in the chip tokens (base.css) that every
- * layer's chips read, so a band of chips and an inline .tag stand the same height —
- * they drifted four pixels apart once, when the inline label padded itself and
- * nobody had decided that. A wearer keeps only where it sits, and a tint of its
+ * layer's chips read, so a band of chips and an inline .tag stand the same height. A
+ * wearer keeps only where it sits, and a tint of its
  * own where the tint is the point. A long word breaks only where it would overflow
  * (break-word): `anywhere` also made each letter a place the chip could shrink to, so
  * a table's automatic layout squeezed a status column down to "pas" over "sed". */
@@ -108,7 +107,7 @@ dl.facts dt {
 /* An eyebrow is the short label above a heading, which HTML writes as a `<p>` before
    the heading in its `<hgroup>`; a `<p>` after the heading is a subtitle and keeps the
    body's face. Rejected: an `.eyebrow` class, a name of Leaf's for what the group
-   already says (the user's decision, 2026-11-15). An eyebrow and its heading are one
+   already says (the user's decision). An eyebrow and its heading are one
    title: the heading level's large top margin belongs before the group, while the
    eyebrow's bottom margin owns the small gap inside it. Each rule ends at the group or
    at a heading's place in it, not at a sibling combinator over every heading, which

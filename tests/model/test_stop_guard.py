@@ -175,10 +175,10 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
 ):
     """Each page states its own debt; the protocol they share is stated once.
 
-    Every debt used to carry the whole protocol with it, so a session holding
-    three pages that owed the same thing spent three copies of the same ninety
-    words saying so — most of what the blocking message weighed, and all of it
-    between one page's line and the next.
+    A debt that carried the whole protocol with it would make a session holding
+    three pages that owe the same thing spend three copies of the same words
+    saying so — most of what the blocking message weighs, and all of it between
+    one page's line and the next.
     """
     second = tmp_path / "second-page"
     shutil.copytree(claimed, second)

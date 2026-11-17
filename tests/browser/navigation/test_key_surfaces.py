@@ -100,14 +100,13 @@ def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve
 
 
 def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
-    """One declaration per binding, and every surface is a projection of it. The d/u
-    reading-page pair is the case that named this: a runtime key must be visible wherever
-    the keyboard vocabulary is projected.
+    """One declaration per binding, and every surface is a projection of it. A runtime
+    key must be visible wherever the keyboard vocabulary is projected.
 
     Where it is projected is the reference, which is read for the words — a key named on
     no surface at all is what this refuses.
 
-    It is refused now, where a scope is declared, so the next binding written without a
+    It is refused where a scope is declared, so the next binding written without a
     word fails on the page that introduces it rather than going quiet on every page after
     it. A row that presses nothing needs none — F7 is the browser's caret browsing, real
     and worth knowing and not what the next press does."""
@@ -292,9 +291,9 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
 def test_a_page_at_rest_repaints_the_panel_only_when_the_state_moves(browser, serve):
     """A repaint that schedules the next one is a loop no surface reports.
 
-    The banner's More once wrote `aria-expanded` inside the shared repaint, which the
-    runtime watches over the whole document, so the paint delivered its own write back
-    to itself and asked for another frame, and the page went on repainting for as long
+    Were the banner's More to write `aria-expanded` inside the shared repaint, which the
+    runtime watches over the whole document, the paint would deliver its own write back
+    to itself and ask for another frame, and the page would go on repainting for as long
     as it was open — every browser test on every page paying for it. The panel stands
     in the same repaint and writes the same kind of state.
 

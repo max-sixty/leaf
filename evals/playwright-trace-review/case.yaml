@@ -1,11 +1,7 @@
-# Added with the Playwright package: imported journeys should use the shared
-# review widget and preserve the full viewer route. The native-video case remains
-# the guardrail for recordings whose input is a video rather than a trace index.
-# Result context was added after a real review offered no useful preset moments.
-# As an authoring case naming nothing to read, at 0e538e29d, 2 of 2 Claude Code authors
-# added the playwright package, read lf-trace's instructions through `leaf page
-# instructions --use` and passed. Now a probe given a page with its packages, it passed
-# Claude Code 2 of 2, Codex 2 of 2 at b90df8d3a2.
+# Imported journeys should use the shared review widget and preserve the full viewer
+# route. The native-video case remains the guardrail for recordings whose input is a
+# video rather than a trace index. The prompt carries result context, since without
+# it a review can offer no useful preset moments.
 description: playwright-trace-review
 metadata:
   purpose: "Author a commentable imported browser journey with the optional Playwright package."

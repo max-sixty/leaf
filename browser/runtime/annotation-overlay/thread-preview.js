@@ -1111,16 +1111,14 @@ export function createThreadPreview({
       scroll: session.transcript.scrollTop,
     };
     const present = () => {
-      const targetHeading =
-        targetFor(entry)?.querySelector(":scope > strong")?.textContent;
-      // A target with a heading is named by it. One without — an aside, a paragraph —
-      // is headed by the passage the selected thread quotes, as the panel heads it: a card
-      // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
-      // last sentence was a third name for one thread, and the least exact.
+      // The card is headed by the passage the selected thread quotes, as the panel
+      // heads it, else by its margin entry's title: a card headed "aside · The fallback
+      // cookie is read-only…" over a comment on the aside's last sentence was a third
+      // name for one thread, and the least exact.
       const quoted = selected.thread?.anchor
         ? anchorLabel(selected.thread.anchor, selected.thread.root.about)
         : null;
-      const title = labelWords(targetHeading || quoted || entry.title);
+      const title = labelWords(quoted || entry.title);
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));

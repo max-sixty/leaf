@@ -878,7 +878,8 @@ def test_thread_panel_gallery_shows_independent_live_views(browser, serve):
     anchored = views["you"].locator(".lf-margin-preview")
     expect(anchored).to_be_visible()
     expect(anchored).to_have_attribute(
-        "aria-label", "Thread for Agenda and room photo."
+        "aria-label",
+        re.compile(r"^Thread for § paragraph · Agenda and room photo\. Practice"),
     )
     expect(anchored.locator(".lf-msg")).to_have_count(3)
     expect(anchored.locator("leaf-text")).to_be_visible()

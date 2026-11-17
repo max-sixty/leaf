@@ -172,6 +172,7 @@ export function drawToc(host, headingReading) {
                 data-lf-toc-mark=${markKind(first)}
               >
                 <a
+                  class="lf-toc-link"
                   href=${href(start?.destination)}
                   .lfPreview=${previewOf(start?.heading ?? null)}
                   >${start?.label ?? "Top"}</a
@@ -188,6 +189,7 @@ export function drawToc(host, headingReading) {
                       data-lf-toc-mark=${markKind(marks.get(item.heading))}
                     >
                       <a
+                        class="lf-toc-link"
                         href=${href(item.destination)}
                         .lfPreview=${previewOf(item.heading)}
                         >${item.label}</a

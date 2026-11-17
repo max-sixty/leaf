@@ -1034,7 +1034,6 @@ customElements.define(TAG, class extends LeafElement {
         {"responds": "question"},
         "Frozen feed.\n\n"
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
-        html=True,
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)

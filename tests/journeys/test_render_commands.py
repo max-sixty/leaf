@@ -618,7 +618,6 @@ def test_render_reads_widget_chrome_where_it_stands(
             + "\n\n"
             + SAMPLE_MARKUP
             + '<lf-badge id="rp-badge">Weighed.</lf-badge>',
-            "html": True,
         },
     )
     page = open_page(primed(browser, stage_reach_cases), url)

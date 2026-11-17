@@ -208,7 +208,7 @@ def page_data_document_readings(
     active_document = documents.pop() if documents else None
     newest = latest_revision(page_dir)
     for event in events:
-        if event.get("html"):
+        if fragment := logged_fragment(event):
             revision = event.get("revision") or newest
             selected_registry = (
                 registry
@@ -217,7 +217,7 @@ def page_data_document_readings(
             )
             documents.append(
                 data_document_readings(
-                    logged_fragment(event),
+                    fragment,
                     f"event {event['id']!r} markup",
                     selected_registry,
                 )
@@ -243,10 +243,10 @@ def initial_data_document_readings(
     """A fresh page's source and seeded messages share its initial registry."""
     documents = data_document_readings(authored, "index.html", registry)
     for event in events:
-        if event.get("html"):
+        if fragment := logged_fragment(event):
             documents.extend(
                 data_document_readings(
-                    logged_fragment(event), f"event {event['id']!r} markup", registry
+                    fragment, f"event {event['id']!r} markup", registry
                 )
             )
     return documents

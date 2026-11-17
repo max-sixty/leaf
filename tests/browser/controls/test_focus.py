@@ -402,7 +402,6 @@ def test_a_scroll_box_in_a_panel_reply_takes_the_keyboard(browser, serve):
             "parent": "c-diff",
             "revision": 1,
             "text": "The one line that decides it:\n\n" + PANEL_DIFF_MARKUP,
-            "html": True,
         },
     )
     told(page)

@@ -112,6 +112,7 @@ import {
   addressableWord,
   authoredScope,
   elementById,
+  generatedElement,
   threadInput,
   inChrome,
   keeps,
@@ -611,6 +612,18 @@ customElements.define(
       // The mark stands where the user starts reading the label, not at the line's
       // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);
+      // A card's title follows its mark, which floats beside it as the card's state
+      // seat and must come first to stand on the title's line. The words pass puts a
+      // `words.says` title before chrome it finds at the start, so the title is written
+      // here, after the mark, wherever this runs first; the pass then keeps its words.
+      const title = option.getAttribute("label");
+      if (title !== null && !option.querySelector(':scope > [data-lf-said="label"]')) {
+        const said = document.createElement("span");
+        said.dataset.lfSaid = "label";
+        generatedElement(said, { says: true });
+        said.textContent = title;
+        mark.after(said);
+      }
       return mark;
     }
 

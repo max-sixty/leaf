@@ -261,7 +261,7 @@ lf-card[label]::before {
 lf-card:has(> [data-lf-said="label"])::before {
   content: none;
 }
-lf-card > [data-lf-said="label"] + p {
+lf-card[label] > p:nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
   margin-block-start: 0;
 }
 /* Enter grabs the grip and arrows move the card. It is a symbol, the drag handle's

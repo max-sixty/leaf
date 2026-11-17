@@ -73,6 +73,13 @@ lf-options:has(> lf-option[label]) > lf-option {
   padding: var(--lf-option-pad-block) var(--lf-sp-3);
   --lf-block-frame: 1;
 }
+/* A labelled card's title stands at its start, drawn or painted from the attribute, so
+ * the frame trims only its end: a figure after the title keeps its margin, as after any
+ * heading. */
+lf-options:has(> lf-option[label]) > lf-option[label] {
+  --lf-block-frame: 0;
+  --lf-frame-end: 1;
+}
 /* The add field takes the type its options take, the row's font or, on a card, the
    page's, rather than the controls' face, so the words typed stand as the option they
    become will. */
@@ -131,7 +138,7 @@ lf-option[recommended]:not([label])::before {
   /* A consequence the author set as its own paragraph starts where the sentence written
    * after the title does. The paragraph's margin would set it lower, so those cards
    * would read looser than their neighbours. */
-  lf-option > [data-lf-said="label"] + p {
+  lf-option[label] > p:nth-child(1 of :not(.lf-ui, [data-lf-gen])) {
     margin-block-start: 0;
   }
 }

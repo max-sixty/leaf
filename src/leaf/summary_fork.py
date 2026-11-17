@@ -51,11 +51,8 @@ the fork's usage, time and the request it resent, as `forks` notes the line fork
 from pathlib import Path
 
 from .clerk import queue, read_answer, reference_paragraph
-from .events import active_summaries, build_threads
 from .refusals import Refused
-from .revision_artifact import active_enclosing
 from .service import PageTransaction
-from .thread_context import summary_hint
 
 OPENING = "<leaf-summary-fork>"
 
@@ -71,6 +68,9 @@ ANSWER = {
 }
 
 # The id the summary takes while `_fence` asks whether it would still be in force.
+# The page readings this module takes are imported where they're read: `forks`,
+# which a tool hook with nothing to deliver imports, imports this module, and such a
+# hook runs at every turn, so it loads no runtime dependency but `click`.
 _WEIGHED = "summary-fork"
 
 
@@ -78,7 +78,10 @@ def ask(page: PageTransaction, data: dict, basis: dict) -> dict | None:
     """The fork to make beside the line fork for the kept-back thread `basis` names,
     as `{"prompt", "basis"}`, where Leaf suggests a range of it to summarize; else
     None. `data` is the thread whole, as `forks._thread_data` reads it from `page`."""
+    from .events import active_summaries, build_threads
     from .forks import thread_json
+    from .revision_artifact import active_enclosing
+    from .thread_context import summary_hint
 
     threads = build_threads(page.events, active_enclosing(page.page_dir))
     thread = threads.get(basis["thread"])
@@ -181,6 +184,9 @@ def _fence(page: PageTransaction, session_id: str, basis: dict, text: str) -> bo
     """Whether the fork may still write its summary of the range `basis` names: the
     page is still the session's, and the summary, had it been written as the fork
     was asked, would be in force now."""
+    from .events import active_summaries, build_threads
+    from .revision_artifact import active_enclosing
+
     claim = page.active_claim
     if claim is None or claim["id"] != session_id:
         return False

@@ -29,7 +29,7 @@ import { WORKS } from "./control-selectors.js";
  * designMode: Pick<DesignMode, "active" | "target" | "inspectElement" | "name">,
  * pointerModeActive: () => boolean,
  * targetPaint: Pick<typeof import("./target-paint.js"), "clearAim" | "geometryChanged" | "labelAim" | "paintAim" | "shifted">,
- * shiftDrawings: () => unknown, queueLegend: DesignMode["queueLegend"],
+ * shiftDrawings: () => unknown, shiftHints: () => unknown, queueLegend: DesignMode["queueLegend"],
  * legendScrolled: DesignMode["legendScrolled"],
  * activeActionAnchor: () => import("../types/domain.js").Anchor | null,
  * refreshActionBar: () => unknown}} dependencies */
@@ -41,6 +41,7 @@ export function createPageGeometry({
   pointerModeActive,
   targetPaint,
   shiftDrawings,
+  shiftHints,
   queueLegend,
   legendScrolled,
   activeActionAnchor,
@@ -127,10 +128,12 @@ export function createPageGeometry({
     if (activeActionAnchor()) queueActionPlacement();
   }
 
-  // Layout moves what the legend names as well.
+  // Layout moves what the legend and an armed map of key chips name as well; a scroll
+  // moves them as the chips ride it, and the map hears its end itself (keyboard/hints.js).
   function pageShifted() {
     pageScrolled();
     queueLegend();
+    shiftHints();
   }
 
   function invalidate() {

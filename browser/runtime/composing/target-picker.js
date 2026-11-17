@@ -735,20 +735,15 @@ export function createTargetPicker({
 
   // The picker's hints and the open search's marks are two faces in one layer, and only
   // one of them stands at a time: search covers the map that opened it.
-  /** @type {import("../keyboard/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], PlacementReading, {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
+  /** @type {import("../keyboard/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
   const hintOptions = {
     layer: hintRoot,
     walk: "target-picker",
     read: visibleTargets,
     identity: hintElement,
-    scene: room,
-    layout: (candidates, { current, reading }) => {
-      const seated = candidates.flatMap((target) => {
-        const rect = targetShown(target) ? targetBounds(target, reading) : null;
-        return rect ? [{ target, rect }] : [];
-      });
-      return seated.map(({ target, rect }) => {
-        const steps = [...target.code];
+    layout: (candidates, { current }) =>
+      candidates.map((target) => {
+        const { rect } = target;
         return {
           candidate: target,
           model: Object.freeze({
@@ -757,7 +752,9 @@ export function createTargetPicker({
               target === current ? " lf-current" : ""
             }${rect.top < 0 ? " lf-in" : ""}`,
             hintCode: target.code,
-            sequence: keySequenceModel(progressSteps(steps, [...hints.prefix()])),
+            sequence: keySequenceModel(
+              progressSteps([...target.code], [...hints.prefix()]),
+            ),
           }),
           target: rect,
           placement: target.controlElement ? "above" : "before",
@@ -767,8 +764,7 @@ export function createTargetPicker({
           left: rect.left,
           top: Math.max(0, rect.top),
         };
-      });
-    },
+      }),
     template: hintTemplate,
     take: chooseTarget,
     words: {
@@ -1056,6 +1052,8 @@ export function createTargetPicker({
     // The map, not the mode: a direct slash opens the mode for search alone.
     choosing: () => hints.armed() && !pageSearchOpen(),
     paintTargetPickerHints,
+    // The page's layout has moved under the map (page-geometry.js, `pageShifted`).
+    targetPickerMoved: hints.moved,
     targetPickerOpen,
     openTargetPicker,
     closeTargetPicker,

@@ -418,32 +418,22 @@ export function createGoToSequence({
 
   // A generated label over an inline link must not become a span the passage walk then
   // has to understand, so the chips are chrome and the scene is read rather than marked.
-  /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], ReturnType<typeof keyBadgePlacement>, GoToHintModel>} */
+  /** @type {import("./hints.js").HintSessionOptions<ReturnType<typeof visibleCandidates>[number], GoToHintModel>} */
   const hintOptions = {
     layer: goToHintLayer,
     walk: "go-to-target",
     read: visibleCandidates,
     kept: (candidate) => !targetFilter || targetFilter.matches(candidate),
     identity: (candidate) => candidate.member,
-    scene: keyBadgePlacement,
-    layout: (candidates, { current, reading }) =>
-      candidates.flatMap((candidate) => {
-        const rect = reading.badgeBox(candidate.member);
-        if (
-          !candidate.member.checkVisibility() ||
-          !rect ||
-          !reading.exposes(candidate.member, rect, candidate.exposure)
-        )
-          return [];
-        return {
-          candidate,
-          model: goToHintModel(candidate, candidate === current),
-          target: rect,
-          placement: "corner",
-          left: rect.left,
-          top: rect.top,
-        };
-      }),
+    layout: (candidates, { current }) =>
+      candidates.map((candidate) => ({
+        candidate,
+        model: goToHintModel(candidate, candidate === current),
+        target: candidate.rect,
+        placement: "corner",
+        left: candidate.rect.left,
+        top: candidate.rect.top,
+      })),
     template: goToHintTemplate,
     take: (candidate) => {
       setGoToSequence(false);
@@ -733,6 +723,8 @@ export function createGoToSequence({
     formatGoToAddress,
     setGoToSequence,
     paintGoToHints: hints.paint,
+    // The page's layout has moved under the map (page-geometry.js, `pageShifted`).
+    goToMoved: hints.moved,
     goToSequenceActive,
     mountGoToSequence: hints.mount,
   };

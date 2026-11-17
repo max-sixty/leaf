@@ -2,11 +2,12 @@
    Enter and Escape do to an armed map, and when the map is read again.
 
    Each case arms a session over a scene of links the test states, the way a caller
-   (go-to-sequence.js, target-picker.js) does: `read` names the links in view, each
-   with its code, and `layout` puts a chip on each. A paint is called where a frame
-   would run one, and a scroll is the `scroll` and `scrollend` events the page's scroll
-   tracking hears (arrivals.js), so no case waits on a clock. The live region speaks
-   after its own delay (notifications.js), which the mocked timers run. */
+   (go-to-sequence.js, target-picker.js) does: `read` names the links in view that
+   nothing covers, each with its code and its box, and `layout` puts a chip on each. A
+   paint is called where a frame would run one, and a scroll is the `scroll` and
+   `scrollend` events the page's scroll tracking hears (arrivals.js), so no case waits
+   on a clock. The live region speaks after its own delay (notifications.js), which the
+   mocked timers run. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
@@ -43,9 +44,13 @@ function hintMap(t, names) {
     if (!links.has(name)) {
       const node = document.createElement("a");
       node.textContent = name;
-      // Nothing is laid out here, so each link states its own box.
+      // Nothing is laid out here, so each link states its own box, and counts the
+      // times it is read.
       const top = 20 + 40 * links.size;
-      node.getBoundingClientRect = () => new DOMRect(10, top, 80, 20);
+      node.getBoundingClientRect = () => {
+        boxReads += 1;
+        return new DOMRect(10, top, 80, 20);
+      };
       node.getClientRects = () => [node.getBoundingClientRect()];
       document.body.append(node);
       links.set(name, node);
@@ -53,39 +58,43 @@ function hintMap(t, names) {
     return links.get(name);
   };
   let inView = names;
-  // Links in the scene whose chips have no room to show, and the filter on the map.
+  // Links the chrome covers, the boxes it stands in, and the filter on the map.
   let covered = new Set();
+  /** @type {DOMRect[]} */
+  let barriers = [];
   let keep = () => true;
+  let boxReads = 0;
   const taken = [];
   const session = createHintSession({
     layer,
     walk: `hint-session-${++sessions}`,
     read: () => {
       return codedHints(
-        inView.map((name) => ({ name, member: link(name) })),
+        inView
+          .filter((name) => !covered.has(name))
+          .map((name) => ({
+            name,
+            member: link(name),
+            rect: link(name).getBoundingClientRect(),
+          })),
         KEYS.join(""),
       );
     },
     identity: (candidate) => candidate.member,
     kept: (candidate) => keep(candidate),
-    scene: () => ({}),
     layout: (candidates, { current }) =>
-      candidates.flatMap((candidate) => {
-        if (covered.has(candidate.name)) return [];
-        const target = candidate.member.getBoundingClientRect();
-        return {
-          candidate,
-          model: {
-            key: candidate.name,
-            code: candidate.code,
-            className: `lf-key-hint${candidate === current ? " lf-current" : ""}`,
-          },
-          target,
-          placement: "corner",
-          left: target.left,
-          top: target.top,
-        };
-      }),
+      candidates.map((candidate) => ({
+        candidate,
+        model: {
+          key: candidate.name,
+          code: candidate.code,
+          className: `lf-key-hint${candidate === current ? " lf-current" : ""}`,
+        },
+        target: candidate.rect,
+        placement: "corner",
+        left: candidate.rect.left,
+        top: candidate.rect.top,
+      })),
     template: (model) =>
       html`<span class=${model.className} data-code=${model.code}>${model.code}</span>`,
     take: (candidate) => taken.push(candidate.name),
@@ -94,7 +103,7 @@ function hintMap(t, names) {
       take: "go there",
       all: "All hints.",
     },
-    chrome: { barriers: () => [] },
+    chrome: { barriers: () => barriers },
   });
   session.mount();
   const [walk, choose] = session.walkRows({
@@ -111,7 +120,12 @@ function hintMap(t, names) {
     taken,
     links,
     show: (names) => (inView = names),
-    cover: (names) => (covered = new Set(names)),
+    // Covers links with the chrome, as the panel growing over them does.
+    cover: (names) => {
+      covered = new Set(names);
+      barriers = names.map((name) => links.get(name).getBoundingClientRect());
+    },
+    boxReads: () => boxReads,
     filter: (matches) => {
       keep = matches;
       return session.narrow();
@@ -322,7 +336,7 @@ test("a map armed while the page is in flight shows nothing until the scroll set
   );
 });
 
-test("a resize reads the scene again and keeps the heard hint where it still stands", (t) => {
+test("a layout move reads the scene again and keeps the heard hint where it still stands", (t) => {
   const map = hintMap(t, ["one", "two"]);
   map.session.arm();
   map.tab();
@@ -330,7 +344,7 @@ test("a resize reads the scene again and keeps the heard hint where it still sta
   assert.equal(map.current(), "a");
 
   map.show(["one", "two", "three"]);
-  window.dispatchEvent(new Event("resize"));
+  map.session.moved();
   map.session.paint();
   assert.deepEqual(map.shown(), ["a", "s", "d"]);
   assert.equal(map.current(), "a");
@@ -428,11 +442,25 @@ test("a target a layout moves is seated again where it now stands", (t) => {
   map.session.paint();
   const stood = map.seat("s").style.cssText;
   map.move("two", 100);
+  map.session.moved();
   map.session.paint();
   assert.notEqual(map.seat("s").style.cssText, stood);
 });
 
-test("a heard target that loses its chip's room retires the walk", (t) => {
+test("a walk redraws the chips it moves between and reads no target's box", (t) => {
+  const map = hintMap(t, ["one", "two", "three"]);
+  map.session.arm();
+  map.session.paint();
+  const reads = map.boxReads();
+  map.tab();
+  map.session.paint();
+  map.tab();
+  map.session.paint();
+  assert.equal(map.current(), "s");
+  assert.equal(map.boxReads(), reads);
+});
+
+test("a heard target the chrome comes to cover retires the walk", (t) => {
   const map = hintMap(t, ["one", "two"]);
   map.session.arm();
   map.session.paint();
@@ -441,6 +469,7 @@ test("a heard target that loses its chip's room retires the walk", (t) => {
   assert.equal(map.current(), "a");
   map.cover(["one"]);
   map.session.paint();
-  assert.deepEqual(map.shown(), ["s"]);
+  assert.deepEqual(map.shown(), ["a"]);
+  assert.equal(map.current(), null);
   assert.equal(map.canChoose(), false);
 });

@@ -240,7 +240,7 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
                 {
                     selector: {
                         "description": "d",
-                        "author": {"example": '<p class="hazard">Warning</p>'},
+                        "example": '<p class="hazard">Warning</p>',
                         **declaration,
                     }
                 }
@@ -258,18 +258,14 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
         (
             ".hazard",
             {
-                "words": {
-                    "inline": True,
-                },
+                "inline": True,
             },
             "inline",
         ),
         (
             ".hazard",
             {
-                "paint": {
-                    "space": "wide",
-                },
+                "space": "wide",
             },
             "room",
         ),
@@ -278,20 +274,13 @@ def test_an_idiom_declares_no_mark(tmp_path, monkeypatch):
         (
             ".hazard",
             {
-                "author": {
-                    "example": "",
-                },
+                "example": "",
             },
             "empty-example",
         ),
         (
             ".hazard",
-            {
-                "author": {
-                    "example": '<p class="hazard">Warning</p>',
-                    "instructions": " ",
-                }
-            },
+            {"example": '<p class="hazard">Warning</p>', "instructions": " "},
             "empty-instructions",
         ),
     ):
@@ -720,7 +709,7 @@ def test_package_check_and_page_init_refuse_an_upgraded_widget_without_its_modul
 
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-unfinished"].setdefault("words", {})["verbatim"] = True
+    registry["lf-unfinished"]["verbatim"] = True
     registry_path.write_text(json.dumps(registry))
 
     for args in (

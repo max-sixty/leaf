@@ -48,32 +48,32 @@ def test_native_sidebar_is_placed_before_widget_activation(browser, serve):
 
 
 def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
-    """An lf-ask draws no box of its own around its blocks, so they stand in the page's
-    flow: its words and its options keep the prose's edge, and a block declaring more
-    room takes it, on a page with both. A width written on the question moves nothing."""
+    """A question's section draws no box of its own around its blocks, so they stand
+    in the page's flow: its words and its options keep the prose's edge, and a block
+    declaring more room takes it. A div keeps what it holds in the column, inside a
+    question or round it."""
     options = (
         '<lf-options id="{id}-options">'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
     )
     question = (
-        '<lf-ask id="{id}"{width}><h2 id="{id}-head">Ship it?</h2>'
-        '<p id="{id}-premise">Because it fits.</p>{held}' + options + "</lf-ask>"
+        '<section id="{id}" role="group" aria-labelledby="{id}-head">'
+        '<h2 id="{id}-head">Ship it?</h2>'
+        '<p id="{id}-premise">Because it fits.</p>{held}' + options + "</section>"
     )
     evidence = '<div id="{id}-evidence" data-width="available">Evidence.</div>'
     source = leaf_page(
         "Questions in the flow",
         '<h1>Questions in the flow</h1><p id="prose">Prose sets the column.</p>'
         "<section>"
-        + question.format(id="plain", width="", held="")
-        + question.format(id="stated", width=' data-width="available"', held="")
-        + question.format(id="holds", width="", held=evidence.format(id="holds"))
+        + question.format(id="plain", held="")
+        + question.format(id="holds", held=evidence.format(id="holds"))
         + question.format(
             id="wrapped",
-            width="",
             held="<div>" + evidence.format(id="wrapped") + "</div>",
         )
         + "</section><div>"
-        + question.format(id="kept", width="", held=evidence.format(id="kept"))
+        + question.format(id="kept", held=evidence.format(id="kept"))
         + "</div>",
     )
     page = open_page(browser, serve(source))
@@ -86,10 +86,10 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
         }))""")
     column = boxes["prose"]
     assert column == [504, 1224]
-    for question_id in ("plain", "stated", "holds", "wrapped", "kept"):
+    for question_id in ("plain", "holds", "wrapped", "kept"):
         for part in ("head", "premise", "options"):
             assert boxes[f"{question_id}-{part}"] == column, (question_id, part, boxes)
-    assert boxes["plain"] == boxes["stated"] == column, boxes
+    assert boxes["plain"] == column, boxes
     # The block takes the room and the question's box, which its marks stand on, holds it.
     assert boxes["holds-evidence"][0] < 100 and boxes["holds-evidence"][1] > 1628, boxes
     assert boxes["holds"] == boxes["holds-evidence"], boxes
@@ -114,10 +114,11 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     other = "rtl" if direction == "ltr" else "ltr"
     options = '<lf-options id="{id}-o"><lf-option id="{id}-y">Yes</lf-option>'
     question = (
-        f'<lf-ask id="{{id}}" dir="{other}"><h3 id="{{id}}-h">Ship it?</h3>'
+        f'<section id="{{id}}" dir="{other}" role="group" aria-labelledby="{{id}}-h">'
+        '<h3 id="{id}-h">Ship it?</h3>'
         '<div id="{id}-block" data-width="{width}">Evidence.</div>'
         + options
-        + "</lf-options></lf-ask>"
+        + "</lf-options></section>"
     )
     source = leaf_page(
         "Flows written the other way",
@@ -189,10 +190,10 @@ def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
     source = leaf_page(
         "Question in a workspace",
         """<header><h1>Question in a workspace</h1></header>
-        <div id="region"><lf-ask id="asked"><h2>Ship it?</h2>
+        <div id="region"><section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Ship it?</h2>
           <div id="wide-evidence" data-width="wide">Evidence.</div>
           <lf-options id="choice"><lf-option id="yes">Yes</lf-option></lf-options>
-        </lf-ask></div>""",
+        </section></div>""",
         layout="workspace",
     )
     page = open_page(browser, serve(source))

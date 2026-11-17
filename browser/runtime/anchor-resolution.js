@@ -150,7 +150,7 @@ function suppliedDatum(source, key) {
 }
 
 // The elements under a referenced widget that a key addresses, in the one key space
-// every `markup.refers` verb reads. A widget whose parts have a private address (a code
+// every `refers` verb reads. A widget whose parts have a private address (a code
 // block's line ranges) answers through `lfElementsFor(key)`; otherwise the key is a
 // registered visual part's id or a projected datum's key. Only elements under the
 // source count, so a hook cannot point a caller elsewhere in the page.
@@ -182,12 +182,12 @@ export function revealAddressed(source, key) {
 /** @param {Element | null} visual */
 const visualAdmission = (visual) =>
   visual
-    ? visualPartAdmission(visual, registry[visual.localName]?.words?.visual ?? null)
+    ? visualPartAdmission(visual, registry[visual.localName]?.visual ?? null)
     : null;
 
 /** @param {Element | null} element */
 const wholeVisualSurface = (element) =>
-  element && registry[element.localName]?.words?.visual ? element : null;
+  element && registry[element.localName]?.visual ? element : null;
 
 /** The admitted parts in their registered inventory order. */
 /** @param {Element} visual */
@@ -230,12 +230,12 @@ export const visualPartLabel = (visual, part) =>
     ? registeredVisualPartLabel(visual, part)
     : null;
 
-const declaredVisualTags = () => tagsDeclaring((entry) => entry.words?.visual);
+const declaredVisualTags = () => tagsDeclaring((entry) => entry.visual);
 const declaredVisualSelector = () => declaredVisualTags().join(",");
 
 const GENERIC_VISUALS = ["svg", "img", "figure"];
 const genericVisualSelector = GENERIC_VISUALS.join(", ");
-// The tags a picture's element has: a widget that declares `words.visual`, or a plain
+// The tags a picture's element has: a widget that declares `visual`, or a plain
 // one.
 export const visualTags = () => [...declaredVisualTags(), ...GENERIC_VISUALS];
 
@@ -335,9 +335,9 @@ function addressableAt(node) {
 // addressable element.
 /** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
-  const formatted = tagsDeclaring(
-    (entry) => entry.words?.["text-format"] === "markdown",
-  ).join(",");
+  const formatted = tagsDeclaring((entry) => entry["text-format"] === "markdown").join(
+    ",",
+  );
   return (
     (formatted && closestAcross(node, formatted)) || blockAt(node) || fallback(node)
   );

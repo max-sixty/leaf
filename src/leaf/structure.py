@@ -10,7 +10,6 @@ from html import escape
 import turbohtml
 
 from .findings import Finding
-from .registry.contract import declared_fact
 from .registry.kernel import kernel_authored
 from .resource_urls import ReferenceError, resource_reference
 from .schema import ASSETS, EVENT_ID, MEDIA_DIR
@@ -87,7 +86,7 @@ AUTHORED_CLASSES = frozenset(
 )
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (paint.height), and
+# CSS pixels of a widget that draws into a box of a stated height (`height`), and
 # the page-wide ones. Delivery honours a width, bound or height only where it means
 # something (`authored_on` in the kernel registry's `$marks`), and paints it for the
 # runtime to read.
@@ -985,7 +984,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
     Layout's carry (`layout-column` is `column`), space-separated, or None.
 
     A page Layout's class is on `main`, on a shown child of a `main` that carries none,
-    or on the child of each part of such a `main`'s parts (`paint.views.parts`,
+    or on the child of each part of such a `main`'s parts (`views.parts`,
     layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
     painting the body, so delivery repeats them on the root for the Layout's own body
     rules to read before the first paint. Which part opens is the browser's, so every
@@ -1015,9 +1014,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
         boxes += [
             child
             for holder in shown(main)
-            if declared_fact(registry.get(holder.tag, {}), "paint.views", {}).get(
-                "parts"
-            )
+            if registry.get(holder.tag, {}).get("views", {}).get("parts")
             for part in shown(holder)
             for child in shown(part)
         ]

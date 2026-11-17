@@ -398,8 +398,12 @@
   <body>
     <main class="layout-workspace density-working" id="release-query-workspace">
       <header><h1>Shape a release query</h1></header>
-      <lf-ask id="release-query-ask">
-        <h2>Which release query should the agent build?</h2>
+      <section
+        id="release-query-ask"
+        role="group"
+        aria-labelledby="release-query-ask-h"
+      >
+        <h2 id="release-query-ask-h">Which release query should the agent build?</h2>
         <lf-playground
           id="release-query-playground"
           contract="data-explorer-values"
@@ -423,7 +427,7 @@
             show the query plus its result-table test.
           </lf-playground-output>
         </lf-playground>
-      </lf-ask>
+      </section>
     </main>
   </body>
 </html>

@@ -105,7 +105,6 @@ def test_a_widget_a_message_carries_holds_the_room_its_words_will_need(browser, 
             "parent": "c-room",
             "revision": 1,
             "text": "These, and who is on them:\n\n" + ROOM_WIDGETS.format(id="mr-msg"),
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -175,13 +174,12 @@ def test_a_drag_across_an_obligation_in_a_reply_is_not_a_passage_of_the_page(
             "revision": 1,
             "text": (
                 "Depends what you want to keep:\n\n"
-                '<lf-ask id="ps-decision-region"><h3>Which store should I write up?</h3>'
+                '<section id="ps-decision-region" role="group" aria-labelledby="ps-decision-region-h">\n<h3 id="ps-decision-region-h">Which store should I write up?</h3>'
                 '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></section>"
             ),
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -388,13 +386,12 @@ def thread_on_a_sent_widget(serve):
             "revision": 1,
             "text": (
                 "Depends what you want to keep:\n\n"
-                '<lf-ask id="ps-decision-region"><h3>Which store should I write up?</h3>'
+                '<section id="ps-decision-region" role="group" aria-labelledby="ps-decision-region-h">\n<h3 id="ps-decision-region-h">Which store should I write up?</h3>'
                 '<lf-options id="ps-decision">'
                 '<lf-option id="ps-redis">Redis</lf-option>'
                 '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></section>"
             ),
-            "html": True,
         },
     )
     # The shape design mode writes: an element anchor naming a widget no version holds.

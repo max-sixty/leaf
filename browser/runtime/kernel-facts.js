@@ -41,13 +41,13 @@ export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
 // The declared marks and the attribute each is painted as, which the runtime paints on
 // a message it renders and reads by name.
 const { description: _description, ...declaredMarks } = kernel.$marks;
-/** @typedef {{paint: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
+/** @typedef {{attribute: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
 /** @type {Record<keyof typeof declaredMarks, Mark> & Record<string, Mark>} */
 export const marks = declaredMarks;
 
 const kinds = Object.entries(kernel.$events.kinds);
 // The kinds said in a thread, and each widget kind with the side that writes the
-// verb (state.verbs) it carries. `contract-types.mjs` derives the matching types.
+// verb (`verbs`) it carries. `contract-types.mjs` derives the matching types.
 export const MESSAGE_KINDS = new Set(
   kinds.filter(([, kind]) => "message" in kind && kind.message).map(([name]) => name),
 );

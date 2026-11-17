@@ -51,7 +51,6 @@ from leaf import service as service_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -174,8 +173,9 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
             "Remove the old heading",
         )
     page = open_page(browser, url)
+    mark = page.locator(".lf-fp-on-user")
     expect_on_me(page, 1)
-    open_on_me(page)
+    mark.click()
     row = page.locator('.lf-fp-on-item[data-lf-list="you"]')
     expect(row).to_contain_text(question)
     expect(row.get_by_role("button", name="Reply", exact=True)).to_be_visible()
@@ -288,11 +288,10 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         serve.page_dir,
         {"responds": root},
         "The complete answer.\n\n"
-        '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
+        '<section id="stream-reply-ask" role="group" aria-labelledby="stream-reply-ask-h">\n<h3 id="stream-reply-ask-h">Use this answer?</h3>'
         '<lf-options id="stream-reply-choice">'
         '<lf-option id="stream-reply-now">Use it now</lf-option>'
-        "</lf-options></lf-ask>",
-        html=True,
+        "</lf-options></section>",
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
@@ -876,7 +875,6 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
             '<lf-board id="fb"><lf-column id="fb-todo" label="To do">'
             '<lf-card id="fb-cache"><strong>Cache</strong></lf-card></lf-column>'
             '<lf-column id="fb-done" label="Done"></lf-column></lf-board>',
-            "html": True,
         },
     )
     page = open_page(browser, url)

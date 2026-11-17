@@ -239,10 +239,10 @@ def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<section id="tv-decision-region" role="group" aria-labelledby="tv-decision-region-h">\n<h3 id="tv-decision-region-h">Which store should I write up?</h3>'
         '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
         "tv-decision",
     )
     page = open_page(browser, url)
@@ -320,10 +320,10 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     )
     seed_reply(
         serve.page_dir,
-        '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<section id="tv-decision-region" role="group" aria-labelledby="tv-decision-region-h">\n<h3 id="tv-decision-region-h">Which store should I write up?</h3>'
         '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options></lf-ask>",
+        "</lf-options></section>",
         "tv-decision-region",
     )
     page = open_page(request.getfixturevalue(engine), url)
@@ -479,7 +479,6 @@ def test_a_thread_on_a_widget_its_reply_brings_is_marked_as_the_reply_lands(
                 "text": "Depends what you want to keep:\n\n"
                 '<lf-options id="tv-decision">'
                 '<lf-option id="tv-redis">Redis</lf-option></lf-options>',
-                "html": True,
             },
             {
                 "kind": "comment",
@@ -894,18 +893,14 @@ customElements.define('lf-quote-subject', class extends LeafElement {
                     "additionalProperties": False,
                 },
                 "content": "empty",
-                "data": {
-                    "inputs": {
-                        "words": {
-                            "contract": "text-document",
-                            "source": "source",
-                            "property": "value",
-                        }
-                    },
+                "inputs": {
+                    "words": {
+                        "contract": "text-document",
+                        "source": "source",
+                        "property": "value",
+                    }
                 },
-                "author": {
-                    "example": '<lf-quote-subject id="example"></lf-quote-subject>',
-                },
+                "example": '<lf-quote-subject id="example"></lf-quote-subject>',
             }
         },
         layer_widgets={"lf-quote-subject.js": module},

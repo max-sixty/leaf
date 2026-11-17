@@ -33,12 +33,12 @@ vars:
           return f'      <lf-option id="{i}">{t}{r}<strong>{E(title)}</strong> {body}</lf-option>\n'
       def dec(i, q, ctx, opts):
           o=''.join(opt(f"{i}-{k}", *v) for k,v in opts)
-          return f'''  <lf-ask id="{i}-ask">
-          <h3>{E(q)}</h3>
+          return f'''  <section id="{i}-ask" role="group" aria-labelledby="{i}-ask-h">
+          <h3 id="{i}-ask-h">{E(q)}</h3>
           {ctx}
           <lf-options id="{i}">
       {o}    </lf-options>
-        </lf-ask>
+        </section>
       '''
       D=[]
       def section(i, h, lede, decs):

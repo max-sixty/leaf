@@ -149,22 +149,18 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "data": {
-      "inputs": {
-        "changes": {
-          "contract": "repo-feed",
-          "source": "source",
-          "property": "value"
-        }
-      },
-      "outputs": {
-        "stories": {
-          "contract": "repo-feed"
-        }
+    "inputs": {
+      "changes": {
+        "contract": "repo-feed",
+        "source": "source",
+        "property": "value"
       }
     },
-    "author": {
-      "example": "<lf-repo-feed id=\"repo-feed\" source=\"repo-changes\"></lf-repo-feed>"
-    }
+    "outputs": {
+      "stories": {
+        "contract": "repo-feed"
+      }
+    },
+    "example": "<lf-repo-feed id=\"repo-feed\" source=\"repo-changes\"></lf-repo-feed>"
   }
 }

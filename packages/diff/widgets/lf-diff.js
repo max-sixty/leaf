@@ -1037,7 +1037,7 @@ customElements.define(
     inlineSource = "";
     unplacedNotes = document.createElement("div");
     // The patch text or file manifest, set by whoever hosts the widget: Leaf from the
-    // bound source (the registry's `data.inputs.document.property`), or from the
+    // bound source (the registry's `inputs.document.property`), or from the
     // written `<pre>`; null while a bound source has none.
     static properties = { value: { attribute: false } };
 

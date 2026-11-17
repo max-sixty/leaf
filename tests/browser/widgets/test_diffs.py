@@ -448,10 +448,10 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
                 "Panel and option",
                 '<lf-tabs id="tabs" flow="page"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
-                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts">'
+                '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2><lf-options id="opts">'
                 f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
                 '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
-                "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
+                "</lf-options></section>" + "<p>Filler.</p>" * 60,
                 head="<style>#tab { max-height: 320px; overflow: auto; }</style>",
             )
         ),
@@ -719,11 +719,19 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     page = open_page(browser, url)
     page.locator("lf-diff summary").first.click()
     page.keyboard.press("Tab")
+    # Tab's glide to the comment button would otherwise carry the refocused header out
+    # of sight, and a key on focus the user can't see lets go of it rather than opening.
+    scroll_settled(page)
     page.locator("lf-diff summary").first.focus()
     page.keyboard.press("ArrowRight")
-    page.keyboard.press("]")
-    page.keyboard.press("]")
-    page.keyboard.press("]")
+    # Each step walks from the row the last one landed on, so each waits for its landing.
+    for line in (1, 40, 80):
+        page.keyboard.press("]")
+        expect(
+            page.locator(
+                f'lf-diff [data-lf-datum=\'["app/handlers.py","both",{line},{line}]\']'
+            )
+        ).to_be_focused()
     reading = """() => {
       const diff = document.querySelector('lf-diff');
       const row = diff.lfDataDatum('[\"app/handlers.py\",\"new\",81]');

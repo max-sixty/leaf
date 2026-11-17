@@ -13,7 +13,7 @@ its tabs come before one holding the browser. Its one element of its own,
 and links, or a retained file. The report replaces each citation with elements Leaf
 already ships, so the page holds no citation and no widget of its own, and a citation
 that names nothing the report can find stops it. Scores never infer a decision; only
-the review's `lf-ask` makes one. Comparisons default to complete pairs; only an
+the review's question makes one. Comparisons default to complete pairs; only an
 `aligned` citation uses a before/after wipe.
 
 Saved Leaf phases export through the standard exporter on disposable copies, retaining

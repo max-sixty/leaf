@@ -231,14 +231,14 @@ The queue recovered after reverting the timeout change.
 <div>The oldest request is waiting for review.</div></div>
 <dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl>
-<lf-options id="routes">
+<section id="routes-q" role="group" aria-label="What happens to the queue?"><lf-options id="routes">
 <lf-option id="route-one"><strong>Keep the queue</strong>
 <dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
 <lf-option id="route-two"><strong>Review the queue</strong>
 <p class="facts" id="option-prose">Keep this explanation in the option's full reading
 width while the owner checks the oldest requests.</p></lf-option>
-</lf-options>
+</lf-options></section>
 <dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
         head="""<style>
 .prose-box {inline-size:280px;overflow:hidden;}
@@ -383,7 +383,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     url = serve(
         leaf_page(
             "Inline rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -459,7 +460,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     url = serve(
         leaf_page(
             "Inline reply rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -640,23 +642,19 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
 ):
     """A rendering has no text of the page's in it to select, so an explicit Comment
     gesture anchors on the whole element. Which widgets those are is theirs to declare
-    (words.visual): the runtime names none of them, so a widget added to the vocabulary
+    (`visual`): the runtime names none of them, so a widget added to the vocabulary
     exposes the target on the strength of its entry. This rules out a consumer that
     knows one
     widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
     registry = load_registry(serve.page_dir)
-    assert registry["lf-diagram"]["words"]["visual"], (
-        "this test needs the shipped declaration"
-    )
+    assert registry["lf-diagram"]["visual"], "this test needs the shipped declaration"
     declare_on_page(
         serve.page_dir,
         # A widget core has never heard of.
         lambda registry: registry["lf-code"].update(
             {
-                "words": {
-                    "visual": "whole",
-                },
+                "visual": "whole",
             }
         ),
     )
@@ -1358,7 +1356,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
         """
 <h1 id="title">Authored block widths</h1>
 <p id="prose">Standard prose.</p>
-<section id="wide" data-width="wide">
+<section id="wide" data-width="wide" role="group" aria-label="Which case?">
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
@@ -1882,12 +1880,12 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     table += f"<tbody>{row * 2}</tbody></table>"
     body = (
         "<h1>Tables of prose</h1>"
-        '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
+        '<section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice">'
         '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
         '<section class="panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")
         + "</section>"
@@ -2235,7 +2233,7 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
         # A board's columns are as wide as what they hold, a diff's lines are as long as
         # its files', and prose is set to a measure, so a page carrying all three used
         # to be a cramped board or a page widened past its own measure for one exhibit.
-        # paint.space declares the capacity a widget needs, and the theme spends the
+        # `space` declares the capacity a widget needs, and the theme spends the
         # room the layout measured, so each exhibit grows and the prose does not move.
         # The board, a surface, takes all the room; the diff, slightly wider than the
         # column, starts at the prose's edge and stops at the shared cap.
@@ -2590,7 +2588,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render
-    (paint.space, the half of markDeclared the page keeps to itself). Nothing about a
+    (`space`, the half of markDeclared the page keeps to itself). Nothing about a
     message says so, which is why this asks: the widget is in the panel, and the panel's
     width is
     what bounds it."""
@@ -2614,9 +2612,8 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "parent": "c-fix",
             "revision": 1,
             "text": "Like this:\n\n"
-            '<lf-diagram id="fallback-flow"><pre>\n'
+            '<lf-diagram id="fallback-flow">\n<pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2667,12 +2664,11 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "parent": "c-log",
             "revision": 1,
             "text": "Here it is, with the log:\n\n"
-            '<lf-sample id="rp-quoted" label="the old copy">'
+            '<lf-sample id="rp-quoted" label="the old copy">\n'
             '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>\n\n'
             '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>\n\n'
             '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>\n\n'
             '<lf-options id="rp-choice"><lf-option id="rp-keep">Keep</lf-option></lf-options>',
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -3361,7 +3357,7 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
     included. It outranked them there, which set lf-file-tree's rows, buttons Trees
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
-    declaration.setdefault("words", {})["shadow"] = True
+    declaration["shadow"] = True
     page = open_page(
         browser,
         serve(

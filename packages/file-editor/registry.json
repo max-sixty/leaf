@@ -11,15 +11,9 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "words": {
-      "shadow": true
-    },
-    "paint": {
-      "height": true
-    },
-    "author": {
-      "instructions": "Write the element empty, and bind its `binding` to a file with `leaf file bind PAGE BINDING PATH`.",
-      "example": "<lf-file-editor id=\"notes-file\" binding=\"notes\"></lf-file-editor>"
-    }
+    "shadow": true,
+    "height": true,
+    "instructions": "Write the element empty, and bind its `binding` to a file with `leaf file bind PAGE BINDING PATH`.",
+    "example": "<lf-file-editor id=\"notes-file\" binding=\"notes\"></lf-file-editor>"
   }
 }

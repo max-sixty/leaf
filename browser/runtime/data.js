@@ -73,7 +73,7 @@ export async function notifyDataSubscribers() {
 
 /** @param {Element} element @param {string} input */
 const declaredInput = (element, input) => {
-  const declaration = registry[element.localName]?.data?.inputs?.[input];
+  const declaration = registry[element.localName]?.inputs?.[input];
   if (!declaration)
     throw new Error(
       `<${element.localName}> input ${input} is not declared by this widget`,
@@ -110,7 +110,7 @@ function outputKey(element) {
 }
 /** @param {Element} element @param {string} output @param {unknown} value */
 function acceptOutput(element, output, value) {
-  const declaration = registry[element.localName]?.data?.outputs?.[output];
+  const declaration = registry[element.localName]?.outputs?.[output];
   if (!declaration)
     throw new Error(
       `publishOutput(${element.localName}, ${output}) output is not declared by this widget`,
@@ -237,7 +237,7 @@ const dataRead = applicationState.select(
 /** @param {Element} element */
 export function awaitsData(element) {
   return (
-    Object.values(registry[element.localName]?.data?.inputs ?? {}).some(
+    Object.values(registry[element.localName]?.inputs ?? {}).some(
       (declaration) => declaration.source && element.getAttribute(declaration.source),
     ) && !dataRead.read()
   );

@@ -4,12 +4,14 @@ names."""
 from collections.abc import Set as AbstractSet
 from pathlib import Path
 
+import turbohtml
+
 from leaf.activity import answer_command
 from leaf.data import read_contracts
 from leaf.data_contracts import data_binding_errors
 from leaf.events import build_threads
-from leaf.findings import Finding, Rejected, element_at
-from leaf.passages import SourceReading
+from leaf.findings import Finding, Rejected
+from leaf.passages import JOINS_WORDS_TAGS, SourceReading
 from leaf.piped_input import NO_BODY
 from leaf.registry.kernel import kinds_declaring
 from leaf.registry.storage import require_registry
@@ -23,7 +25,6 @@ from leaf.structure import SourceDocument
 from leaf.thread_context import thread_ids, thread_names, thread_structure
 
 from ..refusals import Refused
-from ..registry.contract import declared_fact
 from .instances import (
     reference_errors,
     thread_markup_contract_errors,
@@ -48,8 +49,8 @@ def checked_text(
     asks that of a message's HTML and runs only where the message holds some; this
     asks it of the link and image destinations, which is where the runtime resolves
     one — a path quoted in a sentence stays the author's words. `html` reads the text
-    as a message drawing its HTML does (`thread.drawn_markup`), where Markdown inside
-    a `<code>` is words."""
+    as an agent's message, which draws its HTML (`thread.drawn_markup`), where
+    Markdown inside a `<code>` is words."""
     if text is None or not (text or allow_empty):
         raise Refused(f"empty text ({NO_BODY})")
     if errs := text_media_errors(text, page_dir, html=html):
@@ -152,11 +153,11 @@ def check_markup(
 ) -> SourceDocument:
     """The markup an agent's message holding HTML draws (`passages.message_markup`),
     validated against the registry it is published with — the discussion-side `page
-    check`, and the one gate of a message's `html`: the browser door refuses `html`
-    outright, so no HTML reaches the log unvalidated. Text without it needs no
-    vocabulary gate — the runtime renders it with every tag escaped, so it cannot
-    claim a widget — but its Markdown can still point at a file, which `checked_text`
-    asks about wherever a body arrives. `thread` is the thread a reply joins; a
+    check`, and the one gate of an agent's HTML: the browser door posts only the
+    user's words, which draw no HTML, so none reaches the log unvalidated. Text
+    without HTML needs no vocabulary gate, since it can't claim a widget, but its
+    Markdown can still point at a file, which `checked_text` asks about wherever a
+    body arrives. `thread` is the thread a reply joins; a
     comment opens one whose id is not yet assigned. Refuses with what's wrong.
 
     `publication` is the document and registry the message is stored with, which
@@ -181,8 +182,78 @@ def check_markup(
         read_contracts(page_dir),
         thread,
     ):
-        raise Rejected(errors, f"the HTML in the {kind} doesn't validate")
+        raise Rejected(
+            errors, f"the HTML in the {kind} doesn't validate{drawn(markup, errors)}"
+        )
     return frag
+
+
+def drawn(markup: str, findings: list[Finding]) -> str:
+    """The lines the findings name, with one either side, of the HTML a message's
+    Markdown draws. A finding counts lines of that drawing, which its writer never
+    sees, and the drawing is often the cause, as where Markdown puts a paragraph
+    around a widget."""
+    named = set()
+
+    def lines_in(value):
+        if isinstance(value, dict):
+            if isinstance(value.get("line"), int):
+                named.add(value["line"])
+            for item in value.values():
+                lines_in(item)
+        elif isinstance(value, list):
+            for item in value:
+                lines_in(item)
+
+    for finding in findings:
+        lines_in(finding.values)
+    lines = markup.rstrip("\n").split("\n")
+    shown = sorted(
+        {n for line in named for n in range(line - 1, line + 2) if 1 <= n <= len(lines)}
+    )
+    if not shown:
+        return ""
+    rows = []
+    for before, n in zip([None, *shown], shown, strict=False):
+        if before is not None and n != before + 1:
+            rows.append("     …")
+        rows.append(f"{n:>4}  {lines[n - 1]}")
+    return (
+        ". Its Markdown draws this HTML, where the findings count lines:\n"
+        + "\n".join(rows)
+        + "\nFindings"
+    )
+
+
+def split_preformatted(frag: SourceDocument) -> list[Finding]:
+    """Each `<pre>` holding a block, such as a `<p>`, `<ul>` or `<h1>`, which HTML's
+    content model keeps out of a `<pre>` and only a message's Markdown draws there: a
+    blank line inside a block of HTML ends the block, a `<pre>` within it included,
+    and Markdown reads the lines after it as its own blocks. The text loses its blank
+    lines, its indents and any list marks, `#` or asterisks, and the HTML stays well
+    formed, so no other check reports it. A block is any HTML element outside phrasing
+    content (`$passages.phrasing`); a custom element is phrasing content."""
+    findings = []
+    for pre in frag.tree.descendants:
+        if not (isinstance(pre, turbohtml.Element) and pre.tag == "pre"):
+            continue
+        block = next(
+            (
+                inner
+                for inner in pre.descendants
+                if isinstance(inner, turbohtml.Element)
+                and inner.namespace is turbohtml.Namespace.HTML
+                and inner.tag not in JOINS_WORDS_TAGS
+                and "-" not in inner.tag
+            ),
+            None,
+        )
+        if block is not None:
+            line = SourceDocument._position(block)[0]
+            findings.append(
+                Finding("split-pre", "<pre>", {"line": line, "block": block.tag})
+            )
+    return findings
 
 
 def message_markup_errors(
@@ -205,16 +276,8 @@ def message_markup_errors(
     stage reads only a fragment the stages before it accept, so it gives the first
     stage's findings, or none.
     """
-    # A block widget a Markdown paragraph holds follows words on its line, and the
-    # HTML parser may close that paragraph inside it (`passages._html_block`).
-    if misplaced := [
-        Finding("widget-in-paragraph", element_at(rec["tag"], rec["attrs"].get("id")))
-        for rec in frag.lf_elements
-        if rec["parent"] == "p"
-        and rec["tag"] in registry
-        and not declared_fact(registry[rec["tag"]], "words.inline")
-    ]:
-        return misplaced
+    if split := split_preformatted(frag):
+        return split
     if errs := (
         thread_markup_contract_errors(frag, registry)
         + extra_errors

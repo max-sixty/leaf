@@ -58,7 +58,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD, on_view_tab, open_on_me
+from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -276,8 +276,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On Me by pointer, its tab beside the leaf's menu: out with the panel's view.
-    open_on_me(page)
+    # On Me by pointer: out with the panel's view.
+    toggle.click()
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -325,8 +325,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     out()
 
-    # And On Me's tab pressed from the keyboard.
-    on_view_tab(page, "On Me").press("Enter")
+    toggle.focus()
+    page.keyboard.press("Enter")
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -344,13 +344,13 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
     html = ADDRESSED_PAGE.replace(
         "</main>",
         """
-        <lf-ask id="second-ask">
-          <h2>A second question</h2>
+        <section id="second-ask" role="group" aria-labelledby="second-ask-h">
+          <h2 id="second-ask-h">A second question</h2>
           <lf-options id="second-options">
             <lf-option id="second-one">First answer</lf-option>
             <lf-option id="second-two">Second answer</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
         </main>
         """,
     )
@@ -562,7 +562,7 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
             "author": "agent",
             "revision": 1,
             "text": "The patch, for the record.\n\n"
-            '<lf-diff id="msg-diff"><pre>'
+            '<lf-diff id="msg-diff">\n<pre>'
             "diff --git a/gateway/limits.py b/gateway/limits.py\n"
             "--- a/gateway/limits.py\n"
             "+++ b/gateway/limits.py\n"
@@ -571,7 +571,6 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
             "-        return request.remote_addr\n"
             "+        return request.token.id\n"
             "</pre></lf-diff>",
-            "html": True,
         },
     )
     told(page)
@@ -2059,15 +2058,15 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
         "label focus",
         """
 <h1 id="frames">Choose a frame</h1>
-<lf-ask id="first-question-decision"><h2>Which first frame?</h2>
+<section id="first-question-decision" role="group" aria-labelledby="first-question-decision-h"><h2 id="first-question-decision-h">Which first frame?</h2>
 <lf-options id="first-question">
   <lf-option id="first-frame"><strong>First</strong>
     <label><input id="first" type="radio" name="first-frame">
       <span>first state</span></label>
   </lf-option>
   <lf-option id="neither-first-frame"><strong>Neither</strong></lf-option>
-</lf-options></lf-ask>
-<lf-ask id="frame-question-decision"><h2>Which next frame?</h2>
+</lf-options></section>
+<section id="frame-question-decision" role="group" aria-labelledby="frame-question-decision-h"><h2 id="frame-question-decision-h">Which next frame?</h2>
 <lf-options id="frame-question">
   <lf-option id="after-frame"><strong>After</strong>
     <div id="label-thread" tabindex="-1">
@@ -2076,7 +2075,7 @@ def test_a_label_press_keeps_the_controls_current_keyboard_location(browser, ser
     </div>
   </lf-option>
   <lf-option id="before-frame"><strong>Before</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
     )
     page = open_page(browser, serve(html, anchored=[("frames", "Choose a frame")]))

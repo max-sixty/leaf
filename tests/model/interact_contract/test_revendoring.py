@@ -164,7 +164,7 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
 
     registry = vocabulary(page_dir)
     task = registry["lf-test-task"]
-    task["state"].pop("verbs")
+    task.pop("verbs")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
@@ -206,7 +206,7 @@ def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
 
     registry = vocabulary(page_dir)
     diagram = registry["lf-diagram"]
-    diagram["words"].pop("visual")
+    diagram.pop("visual")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-diagram": diagram}))
@@ -251,12 +251,12 @@ def test_revendoring_serializes_with_a_browser_action_entering_the_log(
     version = page_dir / "index.html"
     version.write_text(
         version.read_text().replace(
-            "</section>", registry["lf-board"]["author"]["example"] + "\n</section>"
+            "</section>", registry["lf-board"]["example"] + "\n</section>"
         )
     )
     publish(page_dir)
     board = registry["lf-board"]
-    board["state"]["verbs"]["move"]["record"]["within"] = "lf-options"
+    board["verbs"]["move"]["record"]["within"] = "lf-options"
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-board": board}))
@@ -284,7 +284,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     publish(page_dir)
     registry = vocabulary(page_dir)
     task = registry["lf-test-task"]
-    task["state"].pop("verbs")
+    task.pop("verbs")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
@@ -324,7 +324,7 @@ def test_message_markup_uses_the_current_layer(page_dir, in_sample):
     result = comment(page_dir, "--text", f"Try it:\n\n{markup}")
     assert result.exit_code == 0, result.output
     event = events_model.read_events(page_dir)[-1]
-    assert event["html"] is True and markup in event["text"]
+    assert markup in event["text"]
 
 
 def test_revendoring_can_change_frozen_thread_widget_vocabulary(
@@ -338,21 +338,20 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         {"kind": "comment", "id": "c1", "author": "user", "text": "choose"},
     )
     markup = (
-        '<lf-ask id="thread-choice-decision"><h3>Which option?</h3>'
+        '<section id="thread-choice-decision" role="group" aria-labelledby="thread-choice-decision-h">\n<h3 id="thread-choice-decision-h">Which option?</h3>'
         '<lf-options id="thread-choice">'
         '<lf-option id="thread-a">A</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
     )
     thread_model.post_reply(
         page_dir,
         {"parent": "c1", "responds": "c1"},
         f"Pick one:\n\n{markup}",
-        html=True,
     )
 
     registry = vocabulary(page_dir)
     options = registry["lf-options"]
-    options["state"]["verbs"]["decide"] = {
+    options["verbs"]["decide"] = {
         "decides": True,
         "detail": {
             "type": "object",
@@ -363,7 +362,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
         "unit": "widget",
     }
     option = registry["lf-option"]
-    option.setdefault("state", {})["retired-when"] = "keep"
+    option["retired-when"] = "keep"
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
     (overlay / "registry.json").write_text(

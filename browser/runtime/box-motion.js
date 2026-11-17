@@ -111,7 +111,10 @@
  * content rides, the scroller's end stays where its layout puts it
  * (scrolling.js, `contentRides`), and its scroll is anchored to nothing, so neither
  * a landing at its end nor the browser's scroll anchoring chases the ride, and a reading
- * meanwhile, news included, carries the ride on from where it is drawn. Rejected:
+ * meanwhile, news included, carries the ride on from where it is drawn. Only the
+ * send's own scroll rides: any other, such as the user's wheel, and any scroll during a
+ * ride move the content as a scroll does, and the next reading starts from where they
+ * left it (`sendScrolls`). Rejected:
  * scrolling the scroller through the ride on its own clock after its box has already
  * grown, so a card's new turn's head jumps into view before its words slide; every
  * landing during the ride would also stop it.
@@ -137,7 +140,7 @@ import { shifted } from "./rect.js";
  * parts: Part[], scrolls: boolean, whole: boolean, holdsWindow: boolean}} Part
  * @typedef {{from: Box, to: Box, carries?: [Edge, Edge], frames?: boolean,
  * revealed?: boolean, gaveUp?: number}} Moving
- * @typedef {{child: Element, top: number}} StreamStart
+ * @typedef {{child: Element, top: number, scroll: number}} StreamStart
  * @typedef {{child: Element, from: number, to: number}} Stream
  * @typedef {(element: Element | null) => Offset} Carried
  * @typedef {{duration: number, easing: string}} Timing
@@ -351,8 +354,10 @@ export function boxMotion({
   // from the shape on screen, not the rectangle a simultaneous resize would draw.
   let shapeUntil = 1;
   let rtl = false;
-  // Where each scroller's content was drawn when a send began, in the window, read by
-  // one of its children: the send's stream starts from there (`stream`).
+  // Where each scroller's content stands while no ride carries it, in the window, read
+  // by one of its children, and the scroller's scroll then: where it was drawn when a
+  // send began (`stream`), then where each reading's ride takes it, and where each
+  // scroll not the send's takes it (`keepScroll`). The send's stream starts from there.
   /** @type {Map<Element, StreamStart>} */
   let streamFrom = new Map();
   // Each scroller's content riding a stream, by that child, from where it was drawn to
@@ -360,6 +365,24 @@ export function boxMotion({
   /** @type {Map<Element, Stream>} */
   let streams = new Map();
   let stopStreaming = new AbortController();
+  // The scrollers a wheel has turned in since the send began.
+  /** @type {WeakSet<Element>} */
+  let wheeled = new WeakSet();
+  // Whether a scroll of `scroller` now is the send's, which its content rides: one made
+  // while the send's rendering lasts, before a wheel turns in the scroller, and while
+  // no ride carries the content. Every way the user scrolls but a wheel starts a
+  // gesture, after which `theirs()` no longer says "send"; a wheel starts none. A
+  // scroll during a ride moves the content as any scroll does: ridden, the scroll
+  // Firefox makes as the shrinking carry gives up its extent restarted the ride every
+  // frame.
+  /** @param {Element} scroller */
+  const sendScrolls = (scroller) =>
+    theirs() === "send" &&
+    !wheeled.has(scroller) &&
+    !(
+      streams.has(scroller) &&
+      (running[0]?.effect?.getComputedTiming().progress ?? 1) < 1
+    );
   // How far each editor had scrolled its words before the change being read: taken at
   // each reading, again as each press or key begins, and as the field opens an edit
   // (`lf-before-edit`, composing/text-field.js), since a field scrolls as it is typed
@@ -399,6 +422,20 @@ export function boxMotion({
       riding.from += dy;
       riding.to += dy;
     }
+  }
+  // A scroll not the send's moves a scroller's content as any scroll does: where that
+  // content stands, and the ride carrying it, move with it (`streamFrom`).
+  /** @param {Element} scroller */
+  function keepScroll(scroller) {
+    const then = streamFrom.get(scroller);
+    if (!then) return;
+    const dy = then.scroll - scroller.scrollTop;
+    then.scroll = scroller.scrollTop;
+    then.top += dy;
+    const riding = streams.get(scroller);
+    if (!riding) return;
+    riding.from += dy;
+    riding.to += dy;
   }
   // Carries every reading kept as far as the edges holding the root moved since
   // (`frame`), and returns the root's box.
@@ -583,6 +620,11 @@ export function boxMotion({
       motions = new Map();
       drawnFrom = null;
     }
+    // A scroll made in a frame's callbacks, as a landing makes one, fires its event
+    // only in the next frame, so this reading can come first: it takes in any scroll
+    // not the send's by the rule its event would apply.
+    for (const scroller of streamFrom.keys())
+      if (!sendScrolls(scroller)) keepScroll(scroller);
     const progress = running[0]?.effect?.getComputedTiming().progress ?? 1;
     const carried = carriedBy(progress);
     /** @type {Part[]} */
@@ -599,15 +641,12 @@ export function boxMotion({
     parts.forEach(note);
     watch();
     // A send's scroll moves a scroller's content without changing any part's layout,
-    // as in a view already at its cap: that content still rides.
-    const scrolled =
-      theirs() === "send" &&
-      [...streamFrom].some(
-        ([scroller, then]) =>
-          !(streams.has(scroller) && progress < 1) &&
-          scroller.contains(then.child) &&
-          !near(then.child.getBoundingClientRect().top, then.top),
-      );
+    // as in a view already at its cap: that content still rides. Every other scroll
+    // has been taken in.
+    const scrolled = [...streamFrom].some(
+      ([scroller, then]) =>
+        scroller.contains(then.child) && !near(scroller.scrollTop, then.scroll),
+    );
     // Nothing's layout changed, as when the observer reads a part it starts observing:
     // whatever moves keeps moving.
     if (
@@ -934,15 +973,18 @@ export function boxMotion({
     };
 
     // A scroller's content in a send: carried from where it was drawn when the send
-    // began, or from where it is drawn while the stream already carries it, so its new
-    // turn comes up at the scroller's foot under the scroller's own clip. Every child
-    // rides by the one distance its first child travels, which keeps whichever child
-    // was read first. A box stuck to the scroller's edge inside it (`position:
-    // sticky`) sticks in layout where the scroll stands now, which the carry would
-    // move off that edge, so its inset travels against the carry on the same clock:
-    // layout then sticks it where it stuck with the content standing that far back,
-    // which is where a scroll that far back would stick it, and it changes over from
-    // one head to the next as the content rides past.
+    // began, from where it is drawn while the stream already carries it, or from where
+    // the last ride or a scroll not the send's left it (`streamFrom`), so its new turn
+    // comes up at the scroller's foot under the scroller's own clip, and a reading
+    // after the ride, such as the server's answer arriving, starts from where the
+    // content stands. Every child rides by the one distance its first child travels,
+    // which keeps whichever child was read first.
+    // A box stuck to the scroller's edge inside it (`position: sticky`) sticks in
+    // layout where the scroll stands now, which the carry would move off that edge, so
+    // its inset travels against the carry on the same clock: layout then sticks it
+    // where it stuck with the content standing that far back, which is where a scroll
+    // that far back would stick it, and it changes over from one head to the next as
+    // the content rides past.
     /** @param {{element: Element}} part */
     function streamContent(part) {
       const scroller = part.element;
@@ -951,6 +993,11 @@ export function boxMotion({
       // Where layout stands the child: a part holding the scroller may already be
       // carried, which its box includes and `move` subtracts again.
       const to = then.child.getBoundingClientRect().top - carriedBy(0)(then.child)[1];
+      streamFrom.set(scroller, {
+        child: then.child,
+        top: to,
+        scroll: scroller.scrollTop,
+      });
       const dy = then.top - to;
       if (Math.abs(dy) < 0.5) return;
       contentRides(scroller, true);
@@ -1091,6 +1138,7 @@ export function boxMotion({
       streamFrom = new Map();
       stopStreaming.abort();
       stopStreaming = new AbortController();
+      wheeled = new WeakSet();
       const { signal } = stopStreaming;
       for (const element of rests?.keys() ?? []) {
         if (
@@ -1100,22 +1148,23 @@ export function boxMotion({
           continue;
         const child = [...element.children].find((node) => node.checkVisibility());
         if (!child) continue;
-        streamFrom.set(element, { child, top: child.getBoundingClientRect().top });
+        streamFrom.set(element, {
+          child,
+          top: child.getBoundingClientRect().top,
+          scroll: element.scrollTop,
+        });
         element.addEventListener(
           "scroll",
           () => {
-            if (theirs() === "send" && timing) follow(timing);
-            else stopStreaming.abort();
+            if (sendScrolls(element) && timing) follow(timing);
+            else keepScroll(element);
           },
           { signal, passive: true },
         );
-        // A wheel or a finger in the scroller starts no gesture, but the scroll it
-        // makes is the user's, which the content follows rather than rides.
-        for (const type of ["wheel", "touchstart"])
-          element.addEventListener(type, () => stopStreaming.abort(), {
-            signal,
-            passive: true,
-          });
+        element.addEventListener("wheel", () => wheeled.add(element), {
+          signal,
+          passive: true,
+        });
       }
     },
     // The box's placement lands (`place` stands it), and the box is read where it now

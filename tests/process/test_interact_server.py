@@ -570,8 +570,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
             "author": "agent",
             "parent": "aabb0011",
             "revision": 1,
-            "text": 'Seeded reply\n\n<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
-            "html": True,
+            "text": 'Seeded reply\n\n<lf-code id="seed-code">\n<pre><code class="language-python">print("seed")</code></pre></lf-code>',
         },
     )
     before = event_model.read_events(page_dir)
@@ -585,7 +584,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         assert status == 200, raw
         assert [event["text"] for event in json.loads(raw)["events"]] == [
             "Selected thread",
-            'Seeded reply\n\n<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
+            'Seeded reply\n\n<lf-code id="seed-code">\n<pre><code class="language-python">print("seed")</code></pre></lf-code>',
         ]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
@@ -1995,10 +1994,10 @@ def test_action_door_owns_created_child_meaning(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
+            '<section id="delivery-decision" role="group" aria-labelledby="delivery-decision-h"><h3 id="delivery-decision-h">When should this ship?</h3>'
             '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></section></section>",
         )
     )
     publish(page_dir)
@@ -2048,11 +2047,11 @@ def test_browser_state_is_the_same_snapshot_as_an_accepted_action(server, page_d
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
+            '<section id="delivery-decision" role="group" aria-labelledby="delivery-decision-h"><h3 id="delivery-decision-h">When should this ship?</h3>'
             '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></section></section>",
         )
     )
     publish(page_dir)
@@ -2103,11 +2102,11 @@ def test_undo_candidate_names_the_prior_durable_winner(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
+            '<section id="delivery-decision" role="group" aria-labelledby="delivery-decision-h"><h3 id="delivery-decision-h">When should this ship?</h3>'
             '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></section></section>",
         )
     )
     publish(page_dir)
@@ -2254,13 +2253,16 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     """
     old_page = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">').replace(
         "</section>",
-        '<lf-ask id="kept-decision"><h3>Kept</h3><lf-options id="kept">'
-        '<lf-option id="kept-one">One</lf-option></lf-options></lf-ask>'
-        '<lf-ask id="gone-decision"><h3>Gone</h3><lf-options id="gone">'
-        '<lf-option id="gone-one">One</lf-option></lf-options></lf-ask></section>',
+        '<section id="kept-decision" role="group" aria-labelledby="kept-decision-h"><h3 id="kept-decision-h">Kept</h3><lf-options id="kept">'
+        '<lf-option id="kept-one">One</lf-option></lf-options></section>'
+        '<section id="gone-decision" role="group" aria-labelledby="gone-decision-h"><h3 id="gone-decision-h">Gone</h3><lf-options id="gone">'
+        '<lf-option id="gone-one">One</lf-option></lf-options></section></section>',
     )
     new_page = re.sub(
-        r'<lf-ask id="gone-decision">.*?</lf-ask>', "", old_page, flags=re.DOTALL
+        r'<section id="gone-decision" role="group" aria-labelledby="gone-decision-h">.*?</section>',
+        "",
+        old_page,
+        flags=re.DOTALL,
     )
     documents = {
         1: structure_model.SourceDocument(old_page),
@@ -2385,11 +2387,11 @@ def test_a_comparison_view_uses_the_requested_log_boundary(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="delivery-decision"><h3>When should this ship?</h3>'
+            '<section id="delivery-decision" role="group" aria-labelledby="delivery-decision-h"><h3 id="delivery-decision-h">When should this ship?</h3>'
             '<lf-options id="delivery">'
             '<lf-option id="delivery-now">Now</lf-option>'
             '<lf-option id="delivery-later">Later</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></section></section>",
         )
     )
     publish(page_dir)
@@ -2564,7 +2566,7 @@ def test_a_refusal_from_corrupt_page_state_is_an_answered_fault(server, page_dir
 
 
 def test_server_validates_an_action_against_its_version_and_widget(server, page_dir):
-    board = registry_storage.load_registry(page_dir)["lf-board"]["author"]["example"]
+    board = registry_storage.load_registry(page_dir)["lf-board"]["example"]
     publish(page_dir)
     (page_dir / "index.html").write_text(
         FLOW_PAGE.replace("</section>", board + "\n</section>")
@@ -2701,10 +2703,10 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "--text",
             (
                 "Pick one:\n\n"
-                '<lf-ask id="thread-pick-decision"><h3>Which option?</h3>'
+                '<section id="thread-pick-decision" role="group" aria-labelledby="thread-pick-decision-h">\n<h3 id="thread-pick-decision-h">Which option?</h3>'
                 '<lf-options id="thread-pick">'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></section>"
                 '<lf-sample id="sample">'
                 '<lf-options id="exhibited-pick">'
                 '<lf-option id="exhibited-a"><strong>A</strong></lf-option>'
@@ -2766,11 +2768,11 @@ def test_every_kind_of_user_move_is_named_in_eight_characters(server, page_dir):
     version.write_text(
         version.read_text().replace(
             "</section>",
-            '<lf-ask id="worker-decision"><h3>What next?</h3>'
+            '<section id="worker-decision" role="group" aria-labelledby="worker-decision-h"><h3 id="worker-decision-h">What next?</h3>'
             '<lf-options id="worker">'
             '<lf-option id="worker-restart">Restart the worker</lf-option>'
             '<lf-option id="worker-park">Park it</lf-option>'
-            "</lf-options></lf-ask></section>",
+            "</lf-options></section></section>",
         )
     )
     publish(page_dir)
@@ -5071,8 +5073,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
-            "text": 'A sample answer\n\n<lf-code id="answer-code"><pre><code class="language-python">1</code></pre></lf-code>',
-            "html": True,
+            "text": 'A sample answer\n\n<lf-code id="answer-code">\n<pre><code class="language-python">1</code></pre></lf-code>',
         },
         {
             "kind": "action",
@@ -5082,7 +5083,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "revision": 27,
         },
     ]
-    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><lf-ask id="route-ask"><h2>Route</h2><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></lf-ask>'
+    child_content = '<h1>Room</h1><p id="room">A projector faces the work tables.</p><section id="route-ask" role="group" aria-labelledby="route-ask-h"><h2 id="route-ask-h">Route</h2><lf-options id="route"><lf-option id="fast">Fast</lf-option><lf-option id="slow">Slow</lf-option></lf-options></section>'
 
     def template(identity):
         return f'<template id="{identity}" data-sample data-sample-events="fixture">{child_content}</template>'
@@ -5127,7 +5128,6 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
     second = allocate("second")
     initial = events(first)
     assert initial[0]["text"] == "Review the room"
-    assert initial[1]["html"] is True
     assert '<lf-code id="answer-code"' in initial[1]["text"]
     assert initial[2]["revision"] == 1
     assert initial[2]["meaning"]["scope"] == "page"

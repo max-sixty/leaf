@@ -11,7 +11,7 @@
  * Live pages select their panel before the strip arrives. Without the runtime,
  * panels stack as labeled sections. */
 /* A set written `flow="page"` stands in the page's flow, its panels sharing the
- * document's room (`paint.flow`, layouts.css), and draws no frame. Every other set
+ * document's room (`flow`, layouts.css), and draws no frame. Every other set
  * is boxed. Which set owns the page's URL and history is a separate fact
  * (lf-tabs.js). */
 
@@ -751,13 +751,16 @@ lf-tabs[data-lf-views] > lf-tab {
 
     /* Page tabs told they have a definite height to fill (`--lf-full-height`, layouts.css),
    * as a full-height workspace's body is, give the open tab what the strip leaves. A tab
-   * that is one block, such as a playground's lf-ask, passes that height on and says so,
-   * so the playground fills the window as it does when its lf-ask is the body. A tab of
-   * reading keeps its flow, and where it runs longer the body scrolls under the sticky
-   * strip. */
+   * that is one block, such as a playground's question group, passes that height on and
+   * says so, so the playground fills the window as it does when its group is the body.
+   * The tab keeps at least its block's own height, so where the window is shorter than
+   * that the set scrolls to the tab's end, which keeps the panel's room after the
+   * playground's bar; a block that holds the height it is given and scrolls inside, such
+   * as a pane or a side list, asks no more than that height. A tab of reading keeps its
+   * flow, and where it runs longer the body scrolls under the sticky strip. */
     @container style(--lf-full-height: 1) {
       /* The set is the body's scroller here, and a block filling it, such as the
-     * playground's lf-ask, would lose its ring's sides to the scroller's edges, so the set
+     * playground's group, would lose its ring's sides to the scroller's edges, so the set
      * keeps a region's ring room inside them (base.css); its margin gives the inline room back, so the
      * strip and the panel keep the edges they had. */
     }
@@ -975,7 +978,6 @@ lf-tabs[data-lf-views] > lf-tab {
               )
           ) {
           flex: 1 1 0;
-          min-block-size: 0;
           display: flex;
           flex-direction: column;
           --lf-full-height: inherit;

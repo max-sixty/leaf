@@ -128,7 +128,7 @@ BOUNDED_WORKSPACE_PAGE = leaf_page(
 # A widget that draws 240px tall two frames after it upgrades, as a diagram draws once
 # its renderer loads. Page CSS keeps a stated height larger than the drawing, as the
 # diagram package's does.
-SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "paint": {"height": True}}
+SKETCH_DECLARATION = {**element_declaration("lf-sketch"), "height": True}
 SKETCH_WIDGET = """
 import {PendingTaskEvent, once} from '/runtime/portable-api.js';
 customElements.define('lf-sketch', class extends HTMLElement {
@@ -1342,7 +1342,7 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         held = render_gate_scheme.served(page, url, "/api/state").json()
         wait_until_ready(page, held, through="state")
         # The leaf names the agent's status.
-        assert "Ready" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
+        assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
 
@@ -1362,7 +1362,7 @@ def _author_stateful_verbatim_widget(tmp_path):
             "overruled": {"type": "boolean"},
         }
     )
-    stateful.setdefault("state", {})["verbs"] = {
+    stateful["verbs"] = {
         "change": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "user"},
@@ -1382,12 +1382,8 @@ def _author_stateful_verbatim_widget(tmp_path):
             "additionalProperties": False,
         },
         "content": "markup",
-        "words": {
-            "verbatim": True,
-        },
-        "author": {
-            "example": '<lf-shell id="shell-example">Example</lf-shell>',
-        },
+        "verbatim": True,
+        "example": '<lf-shell id="shell-example">Example</lf-shell>',
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
@@ -3312,23 +3308,23 @@ FRAMED_TABLES_PAGE = leaf_page(
 <table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
-<lf-ask id="figure-asked">
-<h2>Which session ends?</h2>
+<section id="figure-asked" role="group" aria-labelledby="figure-asked-h">
+<h2 id="figure-asked-h">Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
 <lf-options id="figure-asked-choice">
 <lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
 <lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
 </lf-options>
-</lf-ask>
+</section>
 </figure>
-<lf-ask id="asked">
-<h2>Which session moves?</h2>
+<section id="asked" role="group" aria-labelledby="asked-h">
+<h2 id="asked-h">Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
 <lf-options id="asked-choice">
 <lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
 <lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
 </lf-options>
-</lf-ask>
+</section>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
@@ -3390,8 +3386,8 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-callout"]["words"].pop("verbatim")
-    entries["lf-callout"].setdefault("words", {})["shadow"] = True
+    entries["lf-callout"].pop("verbatim")
+    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -3759,8 +3755,7 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
 ):
     """A text block starts at its holder's edge, so a wrapper reaching before the prose
     moves its words off the column, on a page the rest of which stands on it. A wide
-    wrapper keeps the prose's start edge, a caption belongs to its figure, and a
-    question takes no width at all."""
+    wrapper keeps the prose's start edge, and a caption belongs to its figure."""
     source = leaf_page(
         "Words off the column",
         """<h1>Words off the column</h1><p>Prose sets the column.</p>
@@ -3772,10 +3767,7 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
         <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
         <figure id="pictured" data-width="available"><div>Picture.</div>
           <figcaption>Caption.</figcaption></figure>
-        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>
-        <lf-ask id="asked" data-width="available"><h2>Ship it?</h2><p>Words.</p>
-          <lf-options id="choice"><lf-option id="yes">Yes</lf-option></lf-options>
-        </lf-ask>""",
+        <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>""",
     )
     page = open_page(browser, serve(source))
     resized(page, 1440, 900)
@@ -3852,10 +3844,10 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     column, and a box pulled off the leading edge, which no scroll reaches, is also
     clipped out. A box sized past only the trailing edge is reached by the root's
     sideways scroll, so it is not clipped out."""
-    item = """<lf-ask id="{id}"><h2>Which one?</h2>
+    item = """<section id="{id}" role="group" aria-labelledby="{id}-h"><h2 id="{id}-h">Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o"><lf-option id="{id}-a">This one</lf-option></lf-options>
-</lf-ask>"""
+</section>"""
     source = leaf_page(
         "Reaching past the column",
         f"""
@@ -3881,7 +3873,9 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     misplaced = render_checks_model.evaluate_probe(page, "misplacedBoxes")
     page.close()
 
-    assert grown > 100, "the lf-ask never spanned its block, so nothing here was tested"
+    assert grown > 100, (
+        "the question never spanned its block, so nothing here was tested"
+    )
     found = sorted((m["code"], m["at"]) for m in misplaced)
     assert found == [
         ("clipped-out", "<div id=bare>"),
@@ -4234,8 +4228,8 @@ def test_scrollbar_clearance_reads_generic_content_and_open_shadow_words(
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     entries = json.loads(registry_path.read_text())
-    entries["lf-callout"]["words"].pop("verbatim")
-    entries["lf-callout"].setdefault("words", {})["shadow"] = True
+    entries["lf-callout"].pop("verbatim")
+    entries["lf-callout"]["shadow"] = True
     registry_path.write_text(json.dumps(entries, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-callout.js").write_text(
         'import { once, shadowStage } from "/runtime/widget-api.js";\n'

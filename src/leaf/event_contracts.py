@@ -31,6 +31,7 @@ from leaf.obligations import (
     response_address,
 )
 from leaf.page_view import CandidatePageView, PageView
+from leaf.passages import holds_html
 from leaf.plans import plan_error
 from leaf.projection import (
     AuthoredOrders,
@@ -42,7 +43,6 @@ from leaf.projection import (
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
     created_child,
-    declared_fact,
     detail_schema,
     event_spec,
     state_specs,
@@ -59,7 +59,7 @@ from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, layer_record
 from leaf.shown_answers import shown_widget
-from leaf.thread_context import thread_names
+from leaf.thread_context import logged_fragment, thread_names
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
@@ -130,7 +130,7 @@ def command_error(event: dict, contracts: dict) -> Finding | None:
 
 
 def declared_event_error(event: dict, rec: dict, registry: dict):
-    """Why a known widget's verb or detail violates its state.verbs declaration, or
+    """Why a known widget's verb or detail violates its `verbs` declaration, or
     names a verb the event's own writer does not write."""
     kind = event["kind"]
     tag = rec["tag"]
@@ -143,7 +143,7 @@ def declared_event_error(event: dict, rec: dict, registry: dict):
     named = {"kind": kind, "tag": tag, "verb": event["action"]}
     spec = event_spec(entry, event)
     if spec is None:
-        other = declared_fact(entry, "state.verbs", {}).get(event["action"])
+        other = entry.get("verbs", {}).get(event["action"])
         if other is not None:
             return Finding(
                 "foreign-verb",
@@ -256,9 +256,7 @@ def position_record_error(
         != owner
     ):
         return Finding("outside-destination", values=named)
-    if target["tag"] not in declared_fact(
-        registry.get(unit["tag"]) or {}, "markup.owners", []
-    ):
+    if target["tag"] not in (registry.get(unit["tag"]) or {}).get("owners", []):
         return Finding("unowned-placement", values={**named, "unit_tag": unit["tag"]})
     affected = (node for node in by_id.values() if inside(node, unit))
     if collisions := attribute_slot_errors(
@@ -333,7 +331,7 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     entry = registry.get(rec["tag"]) or {}
     bindings = [
         spec
-        for spec in declared_fact(entry, "data.inputs", {}).values()
+        for spec in entry.get("inputs", {}).values()
         if rec["attrs"].get(spec.get("source")) == source
     ]
     if not bindings:
@@ -364,7 +362,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
-    spec = registry[tag]["state"]["verbs"][event["action"]]
+    spec = registry[tag]["verbs"][event["action"]]
     # A created child is new: an id the markup already holds is an authored element,
     # which a user's gesture can mark or move but never write into being.
     created = created_child(event, spec)
@@ -550,7 +548,7 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
     if error := declared_report_error(event, document, registry):
         return error
     tag = document.by_id[event["widget"]]["tag"]
-    spec = registry[tag]["state"]["verbs"][event["action"]]
+    spec = registry[tag]["verbs"][event["action"]]
     return record_contract_error(view, event, spec, readings)
 
 
@@ -655,6 +653,12 @@ def _edit_error(event: dict, events: list) -> Finding | None:
         return Finding("foreign-message", values={**message, "author": event["author"]})
     if "text" not in target:
         return Finding("wordless-message", values=message)
+    # An agent's message drawing HTML stays as it was sent, since the user may have
+    # acted on what it drew, and an edit gives none HTML to draw.
+    if logged_fragment(target):
+        return Finding("edit-holds-html", values=message)
+    if target["author"] == "agent" and holds_html(event["text"]):
+        return Finding("edit-adds-html")
     withdrawn = taken_back(events)
     if name in withdrawn:
         return Finding("withdrawn-message", values=message)

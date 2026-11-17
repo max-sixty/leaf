@@ -3481,15 +3481,11 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
     layer.mkdir(parents=True)
     hazard = {
         "description": "A tinted aside for operational hazards.",
-        "author": {
-            "example": '<aside class="hazard">Deploys freeze Friday.</aside>',
-        },
+        "example": '<aside class="hazard">Deploys freeze Friday.</aside>',
     }
     sidenote = {
         "description": "project sidenote",
-        "author": {
-            "example": '<aside class="sidenote">…</aside>',
-        },
+        "example": '<aside class="sidenote">…</aside>',
     }
     (layer / "registry.json").write_text(
         json.dumps(
@@ -3866,7 +3862,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-toned-note"].setdefault("author", {})["example"] = example
+    registry["lf-toned-note"]["example"] = example
     registry_path.write_text(json.dumps(registry))
 
     [refused] = command_findings(
@@ -4430,9 +4426,7 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
     declaration = element_declaration("lf-risk-note", upgrade=True)
-    declaration.setdefault("author", {})["example"] = (
-        "<lf-risk-note>Missing the required id.</lf-risk-note>"
-    )
+    declaration["example"] = "<lf-risk-note>Missing the required id.</lf-risk-note>"
     monkeypatch.setattr(
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
@@ -4730,7 +4724,7 @@ def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
     registry = registry_storage.load_registry(page)
     widget = registry["lf-pr-brief"]
     assert registry["$layer"]["packages"] == ["./packages/pr-walkthrough.page"]
-    assert widget["data"]["inputs"] == {
+    assert widget["inputs"] == {
         "request": {
             "contract": "pull-request",
             "source": "source",
@@ -4813,14 +4807,14 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
     registry = registry_storage.load_registry(page)
     widget = registry["lf-visual-review"]
     assert registry["$layer"]["packages"] == ["visual-review"]
-    assert widget["data"]["inputs"] == {
+    assert widget["inputs"] == {
         "run": {
             "contract": "visual-run",
             "source": "source",
             "property": "value",
         }
     }
-    assert widget["state"]["verbs"]["review"]["unit"] == "case"
+    assert widget["verbs"]["review"]["unit"] == "case"
     assert "visual-run" in registry["$data"]["contracts"]
     assert "/widgets/lf-visual-review.js" in layer_files(page)
     assert "author.md" in layer_instructions(page)
@@ -5312,63 +5306,45 @@ def instruction_page(tmp_path: Path, monkeypatch):
     owner.update(
         {
             "content": "markup",
-            "data": {
-                "inputs": {
-                    "records": {"contract": "instruction-records", "source": "source"}
-                },
+            "inputs": {
+                "records": {"contract": "instruction-records", "source": "source"}
             },
-            "author": {
-                "instructions": "Choose the owner's inputs before composing it.",
-                "example": '<lf-instruction-owner id="owner"><p class="instruction-caption">Inputs</p><lf-instruction-member id="input" kind="first"></lf-instruction-member><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
-            },
+            "instructions": "Choose the owner's inputs before composing it.",
+            "example": '<lf-instruction-owner id="owner"><p class="instruction-caption">Inputs</p><lf-instruction-member id="input" kind="first"></lf-instruction-member><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
         }
     )
     owner["attributes"]["properties"]["source"] = {"type": "string"}
     registry["lf-instruction-owner"] = owner
     registry[".instruction-summary"] = {
         "description": "A summary of the selected inputs.",
-        "author": {
-            "instructions": "Keep the summary beside its inputs.",
-            "example": '<tr class="instruction-summary"><td class="instruction-number"><lf-instruction-owner id="owner"></lf-instruction-owner></td></tr>',
-        },
+        "instructions": "Keep the summary beside its inputs.",
+        "example": '<tr class="instruction-summary"><td class="instruction-number"><lf-instruction-owner id="owner"></lf-instruction-owner></td></tr>',
     }
     registry[".instruction-number"] = {
         "description": "A numeric table cell.",
-        "author": {
-            "instructions": "Align numeric inputs in their table cell.",
-            "example": '<td class="instruction-number">12</td>',
-        },
+        "instructions": "Align numeric inputs in their table cell.",
+        "example": '<td class="instruction-number">12</td>',
     }
     registry[".instruction-caption"] = {
         "description": "A caption for the inputs.",
-        "author": {
-            "instructions": "Name what the inputs collect.",
-            "example": '<p class="instruction-caption">Inputs</p>',
-        },
+        "instructions": "Name what the inputs collect.",
+        "example": '<p class="instruction-caption">Inputs</p>',
     }
     registry[".instruction-unused"] = {
         "description": "An unrelated note.",
-        "author": {
-            "instructions": "Unused idiom instructions.",
-            "example": '<p class="instruction-unused">A different note.</p>',
-        },
+        "instructions": "Unused idiom instructions.",
+        "example": '<p class="instruction-unused">A different note.</p>',
     }
     registry["body"] = {
         "description": "The document body.",
-        "author": {
-            "instructions": "Unused body instructions.",
-            "example": "<body><p>A complete document.</p></body>",
-        },
+        "instructions": "Unused body instructions.",
+        "example": "<body><p>A complete document.</p></body>",
     }
     member = element_declaration("lf-instruction-member")
     member.update(
         {
-            "markup": {
-                "owners": ["lf-instruction-owner"],
-            },
-            "author": {
-                "instructions": "Declare each member's kind.",
-            },
+            "owners": ["lf-instruction-owner"],
+            "instructions": "Declare each member's kind.",
         }
     )
     member["attributes"]["properties"]["kind"] = {
@@ -5376,7 +5352,7 @@ def instruction_page(tmp_path: Path, monkeypatch):
         "enum": ["first", "second"],
     }
     member["attributes"]["required"].append("kind")
-    member.setdefault("author", {})["example"] = (
+    member["example"] = (
         '<lf-instruction-owner id="owner"><lf-instruction-member id="member"'
         ' kind="first">One</lf-instruction-member></lf-instruction-owner>'
     )
@@ -5386,9 +5362,9 @@ def instruction_page(tmp_path: Path, monkeypatch):
         ("lf-instruction-unused", "This optional alternative is unused."),
     ):
         entry = element_declaration(tag)
-        entry.setdefault("author", {})["instructions"] = text
-        entry.setdefault("markup", {})["owners"] = ["lf-instruction-owner"]
-        entry.setdefault("author", {})["example"] = (
+        entry["instructions"] = text
+        entry["owners"] = ["lf-instruction-owner"]
+        entry["example"] = (
             f'<lf-instruction-owner id="owner"><{tag} id="member">One</{tag}>'
             "</lf-instruction-owner>"
         )
@@ -5524,9 +5500,9 @@ def test_cli_selection_returns_the_composed_audience_map(instruction_page):
 def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
     entry = element_declaration("lf-instruction-test")
     for key, value in (
-        ("author", {**entry["author"], "instructions": ""}),
-        ("author", {**entry["author"], "instructions": " \n\t"}),
-        ("author", {**entry["author"], "instructions": {"author": "Use this."}}),
+        ("instructions", ""),
+        ("instructions", " \n\t"),
+        ("instructions", {"author": "Use this."}),
         ("x-guidance", {"author": "Use this."}),
     ):
         malformed = {**entry, key: value}
@@ -5540,12 +5516,7 @@ def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
             "<lf-instruction-test>",
         )
     registry_widgets.validate_widget_schemas(
-        {
-            "lf-instruction-test": {
-                **entry,
-                "author": {**entry["author"], "instructions": "Use this."},
-            }
-        },
+        {"lf-instruction-test": {**entry, "instructions": "Use this."}},
         "registry.json",
     )
 
@@ -5565,9 +5536,7 @@ def test_instruction_reading_uses_the_candidate_vocabulary_before_html_changes(
         instruction_page,
         lambda registry: registry["lf-instruction-owner"].update(
             {
-                "author": {
-                    "instructions": "Use the new candidate contract.",
-                },
+                "instructions": "Use the new candidate contract.",
             }
         ),
     )

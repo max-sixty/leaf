@@ -27,7 +27,7 @@ variants:
   ask-step:
     metadata:
       scenario: ask-step
-      purpose: A command only the user can run, which the agent asked them to run, goes On Me as a step asked in words, in a new thread beside a closed ask on another subject.
+      purpose: A command only the user can run, which the agent asked them to run, goes On Me as a step offering its outcomes as a choice, in a new thread beside a closed ask on another subject.
   ask-follow-up:
     metadata:
       scenario: ask-follow-up

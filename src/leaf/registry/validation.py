@@ -39,10 +39,10 @@ from .widgets import (
 )
 
 # The facts that document a declaration's keys, each beside the keys its schema
-# admits (`validate_layer_declarations`): a declaration's by path.
+# admits (`validate_layer_declarations`): a declaration's, a verb's and an obligation's.
 DOCUMENTED_KEYS: dict[str, frozenset] = {
     "$keys": DECLARATION_KEYS,
-    "$state": frozenset(cast(dict, VERB_SCHEMA["properties"])),
+    "$verbs": frozenset(cast(dict, VERB_SCHEMA["properties"])),
     "$awaits": frozenset(cast(dict, AWAITS_SCHEMA["properties"])),
 }
 

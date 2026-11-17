@@ -23,6 +23,8 @@ def reading(page, scope):
           return {done: view.done, leaves: view.leaves.map(row => row.element.id),
             stopped: view.stopped.map(row => row.element.id),
             goals: view.goals.map(row => [row.element.id, row.state, row.title]),
+            progress: Object.fromEntries(view.goals.map(row =>
+              [row.element.id, row.leaves.map(leaf => leaf.id)])),
             workers: view.workers.map(row => ({id: row.element.id, state: row.state,
               remit: row.remit?.id, assignment: row.assignment?.id ?? null}))};
         }""",
@@ -64,7 +66,25 @@ def test_public_work_roles_preserve_scope_remit_and_reports(browser, serve):
       }
     }""")
     assert reading(page, "outer") == initial
+    assert initial["progress"] == {
+        "area": ["leaf"],
+        "leaf": ["leaf"],
+        "other": ["other"],
+    }
     assert reading(page, "inner")["leaves"] == ["private"]
+    # A goal inside another role is still its goal's work, but not its child: the
+    # goal that holds it becomes a leaf too.
+    page.evaluate("""() => {
+      const leaf = document.getElementById('leaf');
+      const home = leaf.parentElement;
+      document.getElementById('worker').append(leaf);
+      window.__lfLeafHome = home;
+    }""")
+    moved = reading(page, "outer")
+    assert moved["leaves"] == ["area", "leaf", "other"]
+    assert moved["progress"]["area"] == ["leaf"]
+    page.evaluate("() => window.__lfLeafHome.append(document.getElementById('leaf'))")
+    assert reading(page, "outer") == initial
     result = CliRunner().invoke(
         cli_model.cli,
         ["page", "report", str(serve.page_dir), "leaf", "status", "value=done"],
@@ -89,17 +109,13 @@ def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
             "additionalProperties": False,
         },
         "content": "markup",
-        "markup": {
-            "owners": ["lf-test-plan"],
-        },
-        "state": {
-            "verbs": {
-                "phase": {
-                    "writer": "agent",
-                    "unit": "widget",
-                    "record": {"kind": "value", "attr": "phase"},
-                }
-            },
+        "owners": ["lf-test-plan"],
+        "verbs": {
+            "phase": {
+                "writer": "agent",
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "phase"},
+            }
         },
     }
     declarations = {

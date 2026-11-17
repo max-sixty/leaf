@@ -43,14 +43,10 @@ from leaf.validation.admission import (
 from leaf.validation.source import SourceCheck, moved_threads, source_advice
 
 
-def drawn_markup(text: str, html: bool) -> str:
-    """The markup an agent's message draws from `text`, where its writer reads the
-    text with HTML (`html`) and it holds some (`passages.holds_html`); else none,
-    and the message is Markdown alone. Only the agent's `leaf thread` commands, and
-    the questions Leaf's turn-end check asks as the agent's (`clerk._ask`), read
-    HTML: text a harness or Leaf otherwise posts for it, such as a turn's final
-    message, keeps any tag in it as words."""
-    return message_markup(text) if html and holds_html(text) else ""
+def drawn_markup(text: str) -> str:
+    """The markup an agent's message draws from `text` where its Markdown holds HTML
+    (`passages.holds_html`); else none, and the message is Markdown alone."""
+    return message_markup(text) if holds_html(text) else ""
 
 
 def _messages(events: list) -> dict[str, dict]:
@@ -62,16 +58,14 @@ def _messages(events: list) -> dict[str, dict]:
 
 
 def asking_widget(fragment, registry: dict) -> dict | None:
-    """The first widget in a message's markup that waits on the user (`state.awaits`),
+    """The first widget in a message's markup that waits on the user (`awaits`),
     which makes it the message's request for an answer."""
     return next(
         (
             rec
             for rec in fragment.lf_elements
             if local_obligation_entry(registry.get(rec["tag"]) or {})
-            and matches_when(
-                rec["attrs"], registry[rec["tag"]]["state"]["awaits"].get("when")
-            )
+            and matches_when(rec["attrs"], registry[rec["tag"]]["awaits"].get("when"))
             and not shown_in(rec, registry)
         ),
         None,
@@ -86,7 +80,7 @@ def unasked_widget(fragment, registry: dict) -> dict:
         entry = registry.get(rec["tag"]) or {}
         if not local_obligation_entry(entry) or shown_in(rec, registry):
             continue
-        when = entry["state"]["awaits"].get("when") or {}
+        when = entry["awaits"].get("when") or {}
         needs = [
             _attribute_written(attr, values)
             for attr, values in when.items()
@@ -306,10 +300,9 @@ def cmd_comment(
     the work rather than a passage belongs. An anchor is captured against the active
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
-    so a quote is met here the way it would land there. The text is the agent's
-    own, read with any HTML in it (`drawn_markup`)."""
+    so a quote is met here the way it would land there."""
     body = checked_text(page_dir, text, html=True)
-    if markup := drawn_markup(body, True):
+    if markup := drawn_markup(body):
         from leaf.render_gate.command import message_check
 
         # Apart from the page lease, since a browser run takes about a second.
@@ -322,7 +315,6 @@ def cmd_comment(
             quote,
             section,
             part,
-            html=True,
             title=title,
             obligation=obligation,
         )
@@ -336,21 +328,19 @@ def open_thread(
     section: str = "",
     part: str = "",
     *,
-    html: bool = False,
     title: str | None = None,
     obligation: bool = False,
     identity: dict | None = None,
 ) -> dict:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
-    describes, from a `body` already checked (`checked_text`) and read with HTML
-    where `html` says (`drawn_markup`); `identity` names the agent and session where
-    the writer isn't the agent's own process, as Leaf's clerk is
-    (`clerk.apply_answer`)."""
+    describes, from a `body` already checked (`checked_text`); `identity` names the
+    agent and session where the writer isn't the agent's own process, as Leaf's clerk
+    is (`clerk.apply_answer`)."""
     events = page.events
     revision, anchor = current_anchor(
         page_dir, events, quote, section, part, transaction=page
     )
-    if markup := drawn_markup(body, html):
+    if markup := drawn_markup(body):
         publication = revision_publication(page_dir, revision)
         fragment = check_markup(
             page_dir, "comment", markup, events, publication=publication
@@ -368,20 +358,17 @@ def open_thread(
         event["obligation"] = True
     if anchor:
         event["anchor"] = anchor
-    if markup:
-        event["html"] = True
     if title is not None:
         event["title"] = title
     return append_admitted(page, event)[0]
 
 
 def ask_again(
-    page: PageTransaction, question: str, body: str, identity: dict, html: bool = False
+    page: PageTransaction, question: str, body: str, identity: dict
 ) -> dict | None:
     """The agent's message asking `question` (`message:<id>`, or the bare id) again in
-    its thread in `page`, an open transaction, from a `body` already checked and read
-    with HTML where `html` says (`drawn_markup`); like any spoken reply it reopens
-    the thread if it was resolved. Where its HTML holds a widget that asks, such as a
+    its thread in `page`, an open transaction, from a `body` already checked; like
+    any spoken reply it reopens the thread if it was resolved. Where its HTML holds a widget that asks, such as a
     choice, the message asks with it. Otherwise it asks in words: a question first
     asked in words stands open on it under its own id, as `leaf thread reply <page>
     <message> --obligation <question>` posts it, and one a widget asked is asked
@@ -404,13 +391,12 @@ def ask_again(
     asked = thread_questions(page.events, addressed.thread, registry)
     if name not in asked:
         return None
-    widget = markup_asks(drawn_markup(body, html), registry)
+    widget = markup_asks(drawn_markup(body), registry)
     return _compose_and_append(
         page,
         addressed,
         identity,
         body,
-        html=html,
         attempt=None,
         failure=None,
         validate_source=False,
@@ -435,9 +421,8 @@ def markup_asks(markup: str, registry: dict) -> bool:
 def widget_asks(event: dict, registry: dict) -> bool:
     """Whether a logged message's HTML holds a widget that asks (`asking_widget`), a
     question `widget_question` names."""
-    return bool(event.get("html")) and bool(
-        asking_widget(logged_fragment(event), registry)
-    )
+    fragment = logged_fragment(event)
+    return fragment is not None and bool(asking_widget(fragment, registry))
 
 
 def widget_question(message: str) -> str:
@@ -521,7 +506,6 @@ def post_reply(
     address: dict,
     text,
     *,
-    html: bool = False,
     settlement: Settlement = REFUSE,
     attempt: str | None = None,
     identity: dict | None = None,
@@ -554,9 +538,6 @@ def post_reply(
     declaration, so a CLI retry whose text was reworded returns the first reply
     rather than refusing.
 
-    ``html`` reads the text with any HTML in it (`drawn_markup`), as the agent's own
-    `leaf thread reply` does; text a harness or Leaf posts keeps its tags as words.
-
     ``failure`` records a harness-owned failure code alongside its presentation text;
     ordinary agent answers omit it.
 
@@ -577,8 +558,8 @@ def post_reply(
     the user's message gets the agent's first words and its Working line from one
     write. A `Receipt`'s progress takes nothing in hand.
     """
-    text = checked_text(page_dir, text, html=html)
-    if markup := drawn_markup(text, html):
+    text = checked_text(page_dir, text, html=True)
+    if markup := drawn_markup(text):
         from leaf.render_gate.command import message_check
 
         # Apart from the page lease, since a browser run takes about a second.
@@ -652,7 +633,6 @@ def post_reply(
             addressed,
             posting_identity,
             text,
-            html=html,
             attempt=attempt,
             failure=failure,
             validate_source=validate_source,
@@ -872,7 +852,6 @@ def _compose_and_append(
     posting_identity: dict,
     text: str,
     *,
-    html: bool,
     attempt: str | None,
     failure: str | None,
     validate_source: bool,
@@ -886,14 +865,14 @@ def _compose_and_append(
     detach: bool,
     title: str | None,
 ) -> tuple[dict, "_Published | None"]:
-    """Check the reply's content, read with HTML where `html` says (`drawn_markup`),
-    against the page, compose its event and append it at `obligation`. Successful replies publish saved edits when `validate_source`
-    requests it. Progress and failure reports use the active revision; detaching
-    still checks saved source. Return the appended record and any checked
+    """Check the reply's content (`drawn_markup`) against the page, compose its event
+    and append it at `obligation`. Successful replies publish saved edits when
+    `validate_source` requests it. Progress and failure reports use the active
+    revision; detaching still checks saved source. Return the appended record and any checked
     publication for `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
     parent, thread_id, responds, in_hand = obligation
-    markup = drawn_markup(text, html)
+    markup = drawn_markup(text)
     event = {
         "kind": "reply",
         "author": "agent",
@@ -904,8 +883,9 @@ def _compose_and_append(
     }
     opening = _messages(events)[thread_id]
     moving = bool(quote or section or part)
+    widget = bool(markup) and bool(SourceDocument(markup).lf_elements)
     if ephemeral and (
-        todo or explicit_obligation or markup or failure or moving or detach
+        todo or explicit_obligation or widget or failure or moving or detach
     ):
         raise Rejected([Finding("ephemeral-content")])
     if detach and moving:
@@ -930,6 +910,8 @@ def _compose_and_append(
     checked = None
     if (validate_source and not ephemeral and failure is None) or detach:
         if relocating:
+            # The stand-in carries the thread's move and none of the reply's text,
+            # whose ids the reply's own check below compares with the page's.
             source_events = [
                 *events,
                 {
@@ -937,6 +919,7 @@ def _compose_and_append(
                     "id": "prospective-anchor-transition",
                     "seq": events[-1]["seq"] + 1,
                     "ts": "pending",
+                    "text": "",
                     "anchor": None,
                 },
             ]
@@ -1027,8 +1010,6 @@ def _compose_and_append(
         event["obligation"] = explicit_obligation
     if todo is not None:
         event["todo"] = todo
-    if markup:
-        event["html"] = True
     if attempt is not None:
         event["attempt"] = attempt
     if failure is not None:
@@ -1243,12 +1224,6 @@ def cmd_edit(
             admitted_event(PageView(page_dir), page.events, voiced(named))
         records = []
         if body is not None:
-            if _messages(page.events).get(message, {}).get("html"):
-                raise Rejected(
-                    [Finding("edit-holds-html", values={"message": message})]
-                )
-            if holds_html(body):
-                raise Rejected([Finding("edit-adds-html")])
             edit = {
                 "kind": "edit",
                 "author": "agent",

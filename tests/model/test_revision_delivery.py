@@ -44,9 +44,7 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
         source,
         {
             "lf-editable": {
-                "words": {
-                    "text-format": "markdown",
-                },
+                "text-format": "markdown",
             }
         },
         {},
@@ -72,15 +70,13 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
 
 
 def test_a_written_markdown_file_is_delivered_rendered_as_a_file():
-    """A written <pre> whose notation an attribute names (`paint.prepaint`) first paints
+    """A written <pre> whose notation an attribute names (`prepaint`) first paints
     as the Markdown its module will draw: a file's soft breaks are spaces, not the
     hard breaks Leaf's own words keep. Another notation, or no written text, paints
     nothing."""
     registry = {
         "lf-doc": {
-            "paint": {
-                "prepaint": "preview",
-            },
+            "prepaint": "preview",
         }
     }
     written = "**Fixed** a crash\nwhen `--config` is missing."
@@ -106,9 +102,7 @@ def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads
         source,
         {
             "lf-editable": {
-                "words": {
-                    "text-format": "markdown",
-                },
+                "text-format": "markdown",
             }
         },
         {},
@@ -752,35 +746,23 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
 
     registry = {
         "lf-zone": {
-            "markup": {
-                "reading-role": "pane",
-            },
+            "reading-role": "pane",
         },
         "lf-board": {
-            "paint": {
-                "space": "wide",
-            },
+            "space": "wide",
         },
         "lf-label": {
-            "words": {
-                "inline": True,
-            },
+            "inline": True,
         },
         "lf-feed": {
-            "paint": {
-                "bound": "end",
-            },
+            "bound": "end",
         },
         "lf-plot": {
-            "paint": {
-                "height": 400,
-            },
+            "height": 400,
         },
         "table": {
             "description": "A table.",
-            "author": {
-                "example": "<table></table>",
-            },
+            "example": "<table></table>",
         },
     }
     source = (
@@ -867,9 +849,7 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
         f"<lf-editable><pre>{escape(source)}</pre></lf-editable>",
         {
             "lf-editable": {
-                "words": {
-                    "text-format": "markdown",
-                },
+                "text-format": "markdown",
             }
         },
         {},
@@ -906,9 +886,7 @@ def test_a_written_markdown_file_first_paints_the_text_its_module_reads(body, pa
         f"<pre>{body}</pre></lf-text-document>",
         {
             "lf-text-document": {
-                "paint": {
-                    "prepaint": "preview",
-                },
+                "prepaint": "preview",
             }
         },
         {},
@@ -925,15 +903,11 @@ def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     registry = {
         "lf-new-source": {
             "content": "data",
-            "state": {
-                "awaits": {"value": "choose"},
-            },
+            "awaits": {"value": "choose"},
         },
         "lf-literal": {
             "content": "data",
-            "words": {
-                "verbatim": True,
-            },
+            "verbatim": True,
         },
     }
     delivered = mark_declared(source, registry, {})
@@ -975,9 +949,7 @@ def test_an_authored_override_holds_only_where_it_means_something():
         source,
         {
             "lf-chart": {
-                "paint": {
-                    "height": 400,
-                },
+                "height": 400,
             }
         },
         {},
@@ -1004,9 +976,7 @@ def test_an_authored_override_holds_only_where_it_means_something():
 def test_exhibit_paint_follows_the_occurrence_condition():
     registry = {
         "lf-sample": {
-            "state": {
-                "exhibit": {"when": {"interactive": [False]}},
-            },
+            "exhibit": {"when": {"interactive": [False]}},
         }
     }
     source = '<lf-sample id="quote"></lf-sample><lf-sample id="working" interactive></lf-sample>'

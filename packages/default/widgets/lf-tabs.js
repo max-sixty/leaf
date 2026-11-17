@@ -10,13 +10,13 @@
  * remembered per browser tab (`keepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
- * which selects the member before its first paint (`paint.views`).
+ * which selects the member before its first paint (`views`).
  * The first tab set placed directly in main is the page's navigation over sections of
  * that page, whatever else main holds: its panel id is the URL fragment, and history
  * follows those panel entries. A link inside a panel is still fragment travel
  * (history.js).
  *
- * The authored `flow="page"` puts the set in the document's flow (`paint.flow`), and
+ * The authored `flow="page"` puts the set in the document's flow (`flow`), and
  * the package styles its unframed face. This module reads that attribute for scrolling,
  * separately from primary URL/history ownership above. In document flow
  * ("page"), the strip sticks at the
@@ -450,7 +450,7 @@ export class TabSet extends LeafElement {
     const changed = comparisonChanges(panel).length;
     const hasAnswer = asking.has(panel);
     const items = hasAnswer ? held(panel) : [];
-    // Withdrawn items are already left out; an answer given elsewhere ends one too.
+    // Withdrawn items are already left out.
     const done = items.filter((item) => item.status !== "open");
     const answered = items.length > 0 && done.length === items.length;
     const only = items.length === 1 ? items[0] : null;

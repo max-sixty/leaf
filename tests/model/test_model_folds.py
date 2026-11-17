@@ -638,7 +638,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
     nothing and publishes no obligation, so it leaves the thread the user's to answer,
     and no card reads it as work the agent is holding. The thread's own unanswered
     input is the contrast: it publishes the obligation that holds its thread."""
-    board = model.model_layer()["lf-board"]["author"]["example"]
+    board = model.model_layer()["lf-board"]["example"]
     state = model.reading(
         HUB,
         (
@@ -648,7 +648,6 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "author": "agent",
                 "parent": "e1",
                 "responds": "e1",
-                "html": True,
                 "text": "Here is the board. Which card goes first?\n\n" + board,
                 "obligation": True,
             },
@@ -783,7 +782,6 @@ def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task(
         {
             "kind": "comment",
             "author": "agent",
-            "html": True,
             "text": "Choose a route.\n\n"
             + '<lf-options id="routes"><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },
@@ -864,9 +862,9 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
     for the whole answer it completes to)."""
     page = model.leaf_page(
         "Tail",
-        '<p id="p">One.</p><lf-ask id="ask"><h2>Which?</h2>'
+        '<p id="p">One.</p><section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2>'
         '<lf-options id="pick"><lf-option id="one">One</lf-option>'
-        '<lf-option id="two">Two</lf-option></lf-options></lf-ask>',
+        '<lf-option id="two">Two</lf-option></lf-options></section>',
     )
     pick = {
         "kind": "action",

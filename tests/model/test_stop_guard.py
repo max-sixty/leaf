@@ -902,7 +902,6 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which region?\n\n<lf-options id="thread-region">'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
@@ -1156,7 +1155,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
         "answer"
     ]
     told = [batch["handling"][ref] for ref in event["handling"]]
-    assert any("such as a choice group marked `settled`" in text for text in told)
+    assert any("such as an `lf-options` marked `settled`" in text for text in told)
     receive_through(claimed, last_deliverable_seq(claimed))
 
     assert f"records action {picked['id']}" in _stop(capsys)
@@ -1278,7 +1277,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
     if declared == "done-only":
         declare_on_page(
             claimed,
-            lambda registry: registry["lf-options"]["state"]["awaits"].update(
+            lambda registry: registry["lf-options"]["awaits"].update(
                 answered={"answer": {}}
             ),
         )
@@ -1351,8 +1350,10 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
         (page_dir / "index.html").write_text(
             PAGE.replace(
                 "</section>",
-                '<lf-ask id="triage-decision"><h3>Which follow-ups should we keep?</h3>'
-                f"{board}</lf-ask></section>",
+                '<section id="triage-decision" role="group"'
+                ' aria-labelledby="triage-decision-h">'
+                '<h3 id="triage-decision-h">Which follow-ups should we keep?</h3>'
+                f"{board}</section></section>",
             )
         )
         publish(page_dir)
@@ -1365,7 +1366,6 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
                 "kind": "comment",
                 "author": "agent",
                 "revision": 1,
-                "html": True,
                 "text": f"Sort these follow-ups.\n\n{board}",
             },
         )

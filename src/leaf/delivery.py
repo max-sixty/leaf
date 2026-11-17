@@ -314,7 +314,7 @@ _DELIVERED_EVENT = {
             "unsent": described(
                 "On the user's message or edit about a widget, one their thread is "
                 "anchored in or was sent in, the work they had made there without "
-                "sending it (`$state.unsent`), as it stood when they wrote: what "
+                "sending it (`$verbs.unsent`), as it stood when they wrote: what "
                 "the widget showed them (`thread_context.unsent_at_messages`). "
                 "Absent where none stood.",
                 _GESTURES,
@@ -546,7 +546,7 @@ def batch_data(
     from .event_facts import EventFacts
     from .obligations import settled_by_message, waiting_about, waiting_in_thread
     from .served_state.context import read_page
-    from .thread_context import batch_threads, thread_names
+    from .thread_context import batch_threads, logged_fragment, thread_names
 
     events = transaction.events
     reader = EventFacts(page_dir, events, _registry(page_dir))
@@ -560,7 +560,7 @@ def batch_data(
         for event in events
         if replies
         and event.get("author") == "agent"
-        and (event.get("html") or event.get("obligation"))
+        and (event.get("obligation") or logged_fragment(event))
     }
     reads_obligations = any(event["kind"] == "action" for event in batch) or any(
         asking.intersection(facts[event["id"]]["threads"]) for event in replies

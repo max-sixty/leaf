@@ -368,7 +368,6 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
                 "<lf-new>Use the short label.</lf-new>"
                 "</lf-suggestion>"
             ),
-            "html": True,
         },
     )
     page = open_page(browser, url)

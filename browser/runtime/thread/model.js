@@ -670,7 +670,7 @@ export function threadRecordReader() {
         resolved: thread.resolved,
         attention: thread.attention,
         // The obligations that stand in it: those widgets in its messages make, such as
-        // an `lf-ask` the user owes words to there, and those its updates publish.
+        // an `lf-options` the user owes a pick there, and those its updates publish.
         obligations: obligationsIn.get(thread.id) ?? [],
         // The agent's open to-dos on the thread: a reply that promised one says it is
         // still open (a to-do a reply opens takes the reply's id, `todos.py`), the

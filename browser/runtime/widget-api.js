@@ -27,8 +27,8 @@ export { rankAt } from "./projection/model.js";
 // arrivals and links read it.
 export { fragmentTarget } from "./anchor-resolution.js";
 export { addressableLabel, addressableWord } from "./addressable-names.js";
-// `titledElement(heading)`: the element a heading titles, the outermost one that opens
-// with it, which a count per heading counts under that heading.
+// `titledElement(heading)`: the element a heading titles, its hgroup and the section or
+// article that opens with it, which a count per heading counts under that heading.
 export { titledElement } from "./addressable-names.js";
 // What a place on the page previews: its name, first parts, state and conversations.
 export { placePreview } from "./place-preview.js";
@@ -77,7 +77,7 @@ export {
 } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-// A view's reading and writing of another widget's answer (state.shows).
+// A view's reading and writing of another widget's answer (`shows`).
 export { shownAnswer } from "./shown-answer.js";
 export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";

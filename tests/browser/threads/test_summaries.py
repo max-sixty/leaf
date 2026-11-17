@@ -56,12 +56,11 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
         serve.page_dir,
         {"responds": root},
         "Choose the first job.\n\n"
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<section id="first-job-decision" role="group" aria-labelledby="first-job-decision-h">\n<h3 id="first-job-decision-h">Which job first?</h3>'
         '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
-        "</lf-options></lf-ask>",
-        html=True,
+        "</lf-options></section>",
     )
     for i in range(8):
         append_carried_log_record(
@@ -101,12 +100,11 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
         serve.page_dir,
         {"responds": root},
         "Choose the first job.\n\n"
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<section id="first-job-decision" role="group" aria-labelledby="first-job-decision-h">\n<h3 id="first-job-decision-h">Which job first?</h3>'
         '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
-        "</lf-options></lf-ask>",
-        html=True,
+        "</lf-options></section>",
     )
     page = open_page(browser, url)
     seated = page.locator(f'#jobs .lf-msg[data-lf-event="{reply["id"]}"]')

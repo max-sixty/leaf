@@ -548,7 +548,7 @@
   --lf-mark-hover: light-dark(#dfd1edb3, #6152a079);
   --lf-mark-strong: light-dark(#dfd1ed, #6152a099);
   --lf-mark-ink: light-dark(#4a3b7d, #9d8fd6);
-  /* The words a passage highlight covers (annotation-marks.css): a comment's in
+  /* The words a passage highlight covers (marks.css): a comment's in
      --lf-mark-ink, and a draft's in the accent, each lifted in dark toward the light ink
      the dark paper's prose wears. */
   --lf-mark-ink-text: light-dark(
@@ -560,7 +560,7 @@
     color-mix(in srgb, var(--lf-accent) 60%, var(--lf-ink))
   );
   /* The draft's wash, relative to the accent so one definition serves both schemes; the
-     passage highlight (annotation-marks.css) reads it. */
+     passage highlight (marks.css) reads it. */
   --lf-mark-pending: color-mix(in srgb, var(--lf-accent) 20%, transparent);
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as

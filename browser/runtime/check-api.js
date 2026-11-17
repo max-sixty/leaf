@@ -116,7 +116,6 @@ export {
   chromeSharedClasses,
   marksSheet,
   annotationSheets,
-  annotationMarkSheets,
 } from "./stylesheets.js";
 export { claimed } from "./thread/surfaces.js";
 export { writingStore, userStore, PAGE_SCOPE } from "./storage.js";

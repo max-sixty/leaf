@@ -1,8 +1,5 @@
 # Guardrail: inputs that define the requested query remain part of the submission.
-# Baseline 015b1b9c2 and the configuration/case paragraph both passed 2/2;
-# this guards the distinction between inspection cases and the user's task data.
-# Now a probe given a page with its packages, it passed Claude Code 2 of 2, Codex 2 of 2
-# at b90df8d3a2.
+# This guards the distinction between inspection cases and the user's task data.
 description: playground-query-is-the-task
 metadata:
   purpose:

@@ -37,7 +37,7 @@
  * though not a wheel or touch that scrolls past it; a resize after Reset or Return to
  * page, or one of a frame the reader saw as it mounted or as it started, as when a
  * tab, a link or a jump brings it into view, is theirs and applies at once. The user
- * chose on 14 November 2026 to fit a frame they bring into view to its page as soon
+ * chose to fit a frame they bring into view to its page as soon
  * as the page draws, over keeping its placeholder height until they look away or
  * click into it, which left a short page standing in a blank frame. A load that
  * waited on its server arrives as news, held the same way, whoever asked for it:

@@ -487,7 +487,6 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     """Eight sweeps in test_render.py read a widget inside a whole page, and their
     corpus is examples/, so a widget no example holds is one none of the eight has ever
     seen — a gap that reads as coverage, since the widget's own tests are green.
-    lf-shot and lf-sample were outside them from the day each was written.
     examples/AGENTS.md carries the rest, including the shapes this floor doesn't
     reach."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
@@ -1804,12 +1803,11 @@ def test_page_state_reads_reactions_as_marks(page_dir):
 
 
 def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
-    """A reaction is the user's to take back however far the agent has got with it,
-    as a rewrite is, where the door used to refuse it once anything answered it. The
-    withdrawal leaves what answered it its context: the thread stays, the reaction's
-    place reads Deleted with what it said, the mark paints nothing, and nothing is
-    owed to it. A reaction on a message keeps its place the same way, and one nothing
-    stands on still leaves every reading."""
+    """A reaction is the user's to take back however far the agent has got with it, as a
+    rewrite is. The withdrawal leaves what answered it its context: the thread stays,
+    the reaction's place reads Deleted with what it said, the mark paints nothing, and
+    nothing is owed to it. A reaction on a message keeps its place the same way, and one
+    nothing stands on still leaves every reading."""
     published(page_dir)
     mark = append_command(
         page_dir,
@@ -1890,12 +1888,11 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
 
 
 def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):
-    """A message with words is the user's to take back as a reaction is, where the
-    door used to refuse it as said rather than unsaid. One the agent answered keeps
-    its place, Deleted, with the words it was sent with; one nothing answered leaves
-    every reading, and nothing is owed to it; a comment nothing answered takes its
-    thread with it. The agent hears of each withdrawal as it heard of the message, and
-    a rewrite of a message taken back is refused."""
+    """A message with words is the user's to take back as a reaction is. One the agent
+    answered keeps its place, Deleted, with the words it was sent with; one nothing
+    answered leaves every reading, and nothing is owed to it; a comment nothing answered
+    takes its thread with it. The agent hears of each withdrawal as it heard of the
+    message, and a rewrite of a message taken back is refused."""
     published(page_dir)
     asked = append_command(
         page_dir,

@@ -178,8 +178,8 @@ export function createProjectionPresentation() {
 
   // `present` is not returned. The region repaints from its own subscription above, or
   // from `presentDocument` when a caller has changed the document. Handing one caller
-  // a third way in is how the obligation inventory once got left out of a document-wide
-  // repaint.
+  // a third way in can leave an owner, such as the obligation inventory, out of a
+  // document-wide repaint.
 }
 
 /** @param {Element} root */

@@ -1,11 +1,10 @@
-# From a maintainer session (2026-10-07) asked to show a recording of a bug it had
-# reproduced with Playwright: it put the screencast on the page as a <video> twice,
-# the second time after being asked for a Playwright recording, and reached
-# lf-trace only once the user said "I still see a movie?". On Claude Code the base
-# failed 3/3, putting the video on the page and leaving the trace off as "not page
-# media", and the routed media paragraph passed 3/3; Codex passed both arms
-# (2026-10-07). authored-recording is the guardrail: a screen recording with no
-# trace stays native video.
+# A maintainer session asked to show a recording of a bug it had reproduced with
+# Playwright put the screencast on the page as a <video> twice, the second time after
+# being asked for a Playwright recording, and reached lf-trace only once the user said
+# "I still see a movie?". The failure puts the video on the page and leaves the trace
+# off as "not page media"; the routed media paragraph addresses it.
+# authored-recording is the guardrail: a screen recording with no trace stays native
+# video.
 description: playwright-recording-shows-its-trace
 metadata:
   purpose: "A browser journey recorded with Playwright is shown as its trace in lf-trace, not as its video."

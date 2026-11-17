@@ -252,8 +252,8 @@ export function createDesignMode({
     }
     // Hidden targets retain their frames until scrolling brings them back. A box takes
     // its element's corners, read once the element shows: Chromium answers a style read
-    // inside a closed tab by styling everything the tab holds, which took 38 s on a page
-    // of thirty text documents in closed tabs.
+    // inside a closed tab by styling everything the tab holds, which can take tens of
+    // seconds on a page of large text documents in closed tabs.
     const shown = entries
       .filter(({ addressable }) => addressable.checkVisibility())
       .map((entry) => ({

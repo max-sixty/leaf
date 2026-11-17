@@ -1,7 +1,5 @@
-# Added when the workspace stopped setting a reading measure: a workspace's blocks fill
-# their region, so a page whose region holds paragraphs caps them itself. The change 3 of
-# 3 on Claude Code, each capping the write-up with a grid track (46rem, 68ch, 68ch). Not
-# run on the base, whose Layout capped the prose for the page.
+# The workspace sets no reading measure: a workspace's blocks fill their region, so a
+# page whose region holds paragraphs caps them itself, such as with a grid track.
 description: workspace-prose-keeps-a-reading-width
 metadata:
   purpose:

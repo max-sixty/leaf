@@ -933,7 +933,7 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     assert by_code["not-ready"][0]["stage"] == "refused", failed
     assert by_code["not-ready"][0]["error"].startswith("the runtime could not start:")
     assert any(
-        report["kind"] == "Script"
+        report["kind"] == "script"
         and report["error"] == "net::ERR_FAILED"
         and report["frame"] == url.split("?")[0]
         and report["url"].endswith("/page/helper.js")
@@ -941,7 +941,7 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     ), failed
     assert any(
         report["status"] == 404
-        and report["kind"] == "Image"
+        and report["kind"] == "image"
         and report["url"].endswith("/page/missing-image.png")
         for report in by_code["request-status"]
     ), failed
@@ -958,3 +958,30 @@ def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(
     reading = render_gate_model.render_version(routed, url, page_code=folded)
     assert folded == failed
     assert (reading.findings, routed.opened) == ([], 1)
+
+
+def test_a_check_drawn_in_firefox_hears_what_one_in_chrome_does(bidi_firefox, serve):
+    """`page check` draws a Firefox reader's page in Firefox, which hands the check no
+    post's body and keeps no DevTools Issues panel. The page-code reading still hears
+    the runtime's report of a script that throws, in the words the watcher gets, with
+    the request that failed beside it, and the render check reads a page whose code
+    passes to the end."""
+    thrown = serve(
+        leaf_page(
+            "Throws",
+            '<p id="words">Words.</p><script type="module">'
+            'await fetch("page/missing.json");'
+            'throw new Error("thrown by the page");</script>',
+        )
+    )
+    found = run_page_code(bidi_firefox.unwatched, thrown)
+    assert [f.code for f in found] == ["page-report", "request-status"], found
+    assert "thrown by the page" in found[0].values["text"], found
+    assert found[1].values["url"].endswith("/page/missing.json"), found
+
+    clean = serve(leaf_page("Passes", '<p id="words">Words.</p>'))
+    folded = []
+    reading = render_gate_model.render_version(
+        bidi_firefox.unwatched, clean, page_code=folded
+    )
+    assert (folded, reading.failures) == ([], []), reading.findings

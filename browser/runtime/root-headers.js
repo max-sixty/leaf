@@ -8,7 +8,7 @@
  * doesn't look for it, and the page gives its targets `scroll-margin-top`
  * (page-layout.md). Rejected: hit-testing the window's top for such a header and
  * starting Leaf's sticky-header slot below it, a reading on every layout, resize and
- * scroll end for the few pages with one (the user's decision, 2026-11-15). */
+ * scroll end for the few pages with one (the user's decision). */
 import { afterScript, sizeObserver } from "./rendering.js";
 import { whileConnected } from "./arrivals.js";
 import { removeRuntimeRootStyle, setRuntimeRootStyle } from "./root-state.js";

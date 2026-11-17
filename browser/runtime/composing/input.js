@@ -793,9 +793,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // sync() asks for the paint of what the box holds. It is not how a draft gets in:
     // what the user would miss is the words and the attached images together, and the
     // images show only in the shelf, so a caller writing .value states half a draft.
-    // Emptying a box that way left an image in a box the runtime then read as
-    // still holding something — the box said "draft kept" over a comment it had just
-    // sent, and the picture rode into the next passage's draft.
+    // Emptying a box that way would leave an image in a box the runtime then reads as
+    // still holding something — the box would say "draft kept" over a comment it just
+    // sent, and the picture would ride into the next passage's draft.
     /** @type {InputSync} */
     const sync = () => refresh();
     // Closing belongs to each surface's existing owner, rather than a DOM observer
@@ -1053,8 +1053,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     );
     // The box's own scope: one row, so the hint's word, the command reference dialog's sentence and
     // the press are the same object. Every box the runtime wires gets it — the general box,
-    // each thread's reply, the selection composer, a widget thread — where the reference
-    // used to carry one row saying "in the focused composer" for a sequence that fires in all
+    // each thread's reply, the selection composer, a widget thread — rather than one row in
+    // the reference saying "in the focused composer" for a sequence that fires in all
     // of them, including widget-owned text boxes.
     // The sentence is the same in every box, so the reference names the binding once however
     // many boxes the page holds; the word is this box's, because what the press does here is
@@ -1088,10 +1088,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // next starts from the state Enter starts it from.
     //
     // Except while an input method holds unfinished words: leaving the box is what
-    // finishes them, so there the press takes the focus as it always did, and the words
-    // are committed before the click sends them. Held in the box, they were sent
-    // unfinished, and the input method's later commit wrote them back into the box the
-    // send had just emptied. Enter never meets this, since the input method takes Enter.
+    // finishes them, so there the press takes the focus, and the words
+    // are committed before the click sends them. Held in the box, they would be sent
+    // unfinished, and the input method's later commit would write them back into the box
+    // the send just emptied. Enter never meets this, since the input method takes Enter.
     ta.addEventListener("compositionstart", () => (composing = true));
     ta.addEventListener("compositionend", () => (composing = false));
     // A send key, or Send reached by the keyboard, in a covered box lifts the cover and

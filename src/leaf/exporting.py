@@ -33,9 +33,9 @@ bind a data source and an image can be attached to a message, so the file holds 
 the data the page's own markup binds (`_page_data`) and the media that markup and data
 name.
 
-Two other designs were rejected. Exports used to embed the threads and turn their
-surface off, which hid the discussion from the page's reader and left it readable in
-the file's source. Showing the threads read-only would put the discussion in front of
+Two other designs were rejected. Embedding the threads and turning their surface
+off hides the discussion from the page's reader and leaves it readable in the file's
+source. Showing the threads read-only would put the discussion in front of
 the same people.
 
 The package's resource owner allocates one object URL per embedded body before handing

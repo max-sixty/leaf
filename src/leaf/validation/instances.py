@@ -290,7 +290,7 @@ def enclosing_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         # question's place in the outline and in heading navigation.
         node = document.authoring.node_of(region)
         assert node is not None
-        title = leading_title_node(node)
+        title = leading_title_node(node, registry)
         titled = bool(title) and title["tag"] in {f"h{n}" for n in range(1, 7)}
         if all(lacks for _, lacks in held):
             widgets = [

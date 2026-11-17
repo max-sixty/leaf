@@ -576,8 +576,7 @@ const isEditing = (el) => el !== null && isHTML(el) && el.isContentEditable;
 // Whether an element stands within a line of words: HTML's phrasing content
 // (`$passages.phrasing`), or a widget declared to stand among the words around it
 // (x-inline). Every other element, a widget included, starts a block of its own, its
-// words parted from those around it (`enter`), and ends a run-in title's line
-// (`runsIntoLine`).
+// words parted from those around it (`enter`).
 /** @param {Element} element */
 const phrasing = (element) =>
   PHRASING.has(element.localName) || Boolean(registry[element.localName]?.["x-inline"]);
@@ -1325,52 +1324,6 @@ export function excerpt(el, options) {
     text: options.format === "lines" ? linesFrom(segments) : quoteFrom(segments),
     cut: segments.at(-1)?.cut === true,
   };
-}
-/** Whether authored words follow `title` on its line inside `container`, by the markup
- * alone: words its author wrote after it, before a `<br>`, an element outside phrasing
- * content (`phrasing`), or the end of a block holding the title. It is the walk's
- * reading throughout: its tree (a widget's declared tree, a slot's assignment, climbed
- * by `readingParent`), and what its `wrote` reading counts, so Leaf's own apparatus in a
- * widget's tree neither runs on nor ends the line. No style is read, so a line is the
- * same whatever the reader opens, hides or resizes.
- * @param {Element} title @param {Element} container */
-export function runsIntoLine(title, container) {
-  const counts = READINGS.wrote;
-  let past = false;
-  let ended = false;
-  let follows = false;
-  walk(
-    container,
-    (node, ctx) => {
-      if (past && !ended && counts(ctx) && node.data.trim()) follows = ended = true;
-    },
-    (child, ctx) => {
-      if (ended) return true;
-      if (!past) {
-        // What comes before the title holds none of its line, and its own words are no
-        // part of it.
-        if (child !== title) return !readingUnder(title, child);
-        past = true;
-        return true;
-      }
-      if (counts(enter(ctx, child)) && (isHTML(child, "br") || !phrasing(child)))
-        ended = true;
-      return ended;
-    },
-    null,
-    (element, ctx, entering) => {
-      if (
-        !entering &&
-        past &&
-        element !== container &&
-        counts(ctx) &&
-        !phrasing(element) &&
-        readingUnder(title, element)
-      )
-        ended = true;
-    },
-  );
-  return follows;
 }
 // What the page draws now, by what the browser computes for the element each word is
 // drawn in (its slot, its parent, or a shadow root's host), and for each break, the

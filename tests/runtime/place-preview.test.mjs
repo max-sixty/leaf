@@ -393,71 +393,25 @@ test("a place with no name of its own is named by the part it stands in, as On M
     "Deployment",
     "heading",
   );
-  // A line's leading <strong> names the line itself, and makes no part.
-  named(
-    `<h2>Suggestions</h2><p><span><strong>Replace.</strong> The meeting starts
-    at <em id="it">ten</em>.</span></p>`,
-    "Suggestions",
-    "heading",
-  );
-  assert.equal(
-    previewed(`<p><span id="it"><strong>Replace.</strong> The meeting starts
-    at ten.</span></p>`).parts[0]?.join(":"),
-    "name:Replace.",
-  );
-  // Whatever inline element carries the words the title runs into.
-  for (const follower of ["em", "a", "code", "span"])
-    named(
-      `<h2>Outer</h2><p><strong>Label</strong> <${follower} id="it">Following
-      words</${follower}></p>`,
-      "Outer",
-      "heading",
-    );
-  // A title alone on its line heads what follows it: a break ends the line.
-  named(
-    `<h2>Outer</h2><p><strong>Group</strong><br><span id="it">Target</span></p>`,
-    "Group",
-    "p",
-  );
-  // A widget set among the words around it (x-inline) runs on from the title; any other
-  // widget starts a block of its own.
+  // A bold line in prose names nothing, whether words follow it on its line or blocks
+  // stand under it, so the heading over it is the part.
+  for (const markup of [
+    `<p><span><strong>Replace.</strong> The meeting starts at <em id="it">ten</em>.</span></p>`,
+    `<ul><li><strong>Group</strong><ul><li id="it">Member.</li></ul></li></ul>`,
+    `<section><strong>Bold container</strong><p id="it">Text inside it.</p></section>`,
+  ])
+    named(`<h2>Outer</h2>${markup}`, "Outer", "heading");
+  // A widget's leading <strong> names the widget, as an option's does, and makes no part.
   Object.assign(registry, {
-    "lf-word": { "x-inline": true },
     "lf-block": {},
-    $layer: { generation: "place-preview-run-in-widgets" },
+    $layer: { generation: "place-preview-titled-widget" },
   });
   named(
-    `<h2>Outer</h2><p><strong>Label</strong> <lf-word id="it">term</lf-word></p>`,
+    `<h2>Outer</h2><lf-block><strong>Titled</strong><p id="it">Asked.</p></lf-block>`,
     "Outer",
     "heading",
   );
-  named(
-    `<h2>Outer</h2><div><strong>Group</strong><lf-block><p id="it">Asked.</p></lf-block></div>`,
-    "Group",
-    "div",
-  );
-  // The line is the markup's, whatever styles draw: a span drawn as a block still runs
-  // on from the title.
-  named(
-    `<h2>Outer</h2><p><strong>Group</strong><span style="display: contents"><span
-    style="display: block" id="it">Target</span></span></p>`,
-    "Outer",
-    "heading",
-  );
-  // A title over a nested list heads the list: no words share its line.
-  named(
-    `<h2>Outer</h2><ul><li><strong>Group</strong>
-    <ul><li id="it">Member.</li></ul></li></ul>`,
-    "Group",
-    "li",
-  );
-  // A <strong> that titles a container of blocks names the container as a part.
-  named(
-    `<h2>Earlier</h2><section><strong>Bold container</strong><p id="it">Text
-    inside it.</p></section>`,
-    "Bold container",
-    "section",
-  );
+  assert.equal(addressableLabel(document.querySelector("lf-block")), "Titled");
   // What Leaf generates in the page names nothing, whatever it is labelled.
   named(
     `<h2>Real part</h2><div data-lf-gen="1" aria-label="Leaf's own"><p id="it">Words

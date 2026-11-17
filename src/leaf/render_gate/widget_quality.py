@@ -182,7 +182,7 @@ def _readings(
     errors = []
     collect_page_errors(page, errors)
     # Runtime reports already reach the console; an example's preview writes no log.
-    answer_reports(page, lambda text: None)
+    answer_reports(page)
     try:
         observe_output_documents(page)
         held = []

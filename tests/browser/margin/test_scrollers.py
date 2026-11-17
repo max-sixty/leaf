@@ -285,9 +285,9 @@ WIDENED_TABLE_PAGE = leaf_page(
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_marks_stand_on_a_widened_table_in_every_engine(request, serve, engine):
     """A table granted room is translated into place (layouts.css), and Firefox leaves
-    an anchor's transforms out of `anchor()`, so every box anchored in one stood the
-    translation away from what it marked: at 1728px a comment's pin on a header sat
-    over the column beside it, and the Alt outline 300px left of the table. In each
+    an anchor's transforms out of `anchor()`, so every box anchored in one would stand
+    the translation away from what it marked: at 1728px a comment's pin on a header
+    over the column beside it, and the Alt outline left of the table. In each
     engine the pin stands on the header it marks and keeps that place through a
     scroll, the outline Alt raises after the scroll stands on the table, and a code
     block's Copy, which CSS anchors alone, stands inside the block's top-right
@@ -356,10 +356,10 @@ SCALED_DECK_PAGE = leaf_page(
 def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
     """A deck such as reveal.js translates and scales its slides to fit its stage, and
     Firefox leaves the anchor's transforms out of `anchor()` and `anchor-size()`, so a
-    comment's row stood 257px below the words it marked and Copy stood past the right
-    edge of its code block. A scroll inside the slide moves the words by less than the
-    scroll, and Firefox moved the row by all of it until something else placed the
-    rows again. In each engine the row stands level with its words and keeps that place
+    comment's row would stand below the words it marked and Copy past the right edge of
+    its code block. A scroll inside the slide moves the words by less than the scroll,
+    and Firefox would move the row by all of it until something else placed the rows
+    again. In each engine the row stands level with its words and keeps that place
     through a scroll of the page and, once it ends, through a scroll of the box holding
     the words; the outline Alt raises stands on that box, and Copy stands inside its
     block's top-right corner."""
@@ -472,14 +472,14 @@ def test_a_pin_on_a_line_of_a_scrolling_code_block_marks_that_line(
     request, serve, engine, lines, quote, width, layout
 ):
     """reveal.js's theme scrolls every long code block inside its `pre` (`pre code {
-    overflow: auto; max-height: 400px }`). A comment on one of its lines stood its pin
-    above the block's corner after a layout pass, and a scroll of the code then carried
-    the pin away with the lines, so where it stood depended on what moved it last; it
-    also kept standing while its line was scrolled out of the code's view. Seated as
-    prose, it then hung off the end of the line above, and at a phone's width it slid to
-    the window's edge. The pin stands level with its line inside the code box, in the
-    same place after a scroll of the code as after a fresh pass, and is withheld while
-    the line is out of the code's view."""
+    overflow: auto; max-height: 400px }`). A pin standing above the block's corner after
+    a layout pass would be carried away with the lines by a scroll of the code, so where
+    it stood would depend on what moved it last, and it would keep standing while its
+    line was scrolled out of the code's view. Seated as prose, it would hang off the end
+    of the line above, and at a phone's width slide to the window's edge. The pin stands
+    level with its line inside the code box, in the same place after a scroll of the
+    code as after a fresh pass, and is withheld while the line is out of the code's
+    view."""
     browser = request.getfixturevalue(engine)
     comment = _comment_on("listing", quote=quote)
     page = open_page(browser, serve(_listing(lines, layout), events=[comment]))
@@ -531,7 +531,7 @@ def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
     scrolls the first of them out past an edge of its box, the pin stands level with
     the first quoted line still in view, at the block's right edge, the same after a
     fresh pass, and the row hides only once none of them shows. Seated by its first line
-    wherever that line had gone, the pin stood above the code box with five quoted
+    wherever that line had gone, the pin would stand above the code box with quoted
     lines in view, or below it with one line just showing at its foot."""
     browser = request.getfixturevalue(engine)
     quote = "\n".join(LONG_NEIGHBOURS[first - 1 : first + 7]).strip()
@@ -967,9 +967,9 @@ def test_a_pin_by_a_sticky_header_takes_one_seat_at_every_scroll(
     never moves it (margin-layout.js: remeasuring after a scroll writes the same
     insets). A sticky header inside the target is drawn wherever the scroll sticks it,
     so it is read at its own place in the target: read where it was drawn, a pass made
-    while the header stuck far down the target left the seat by its top clear, and the
-    next unrelated pass after scrolling back found the header's control there and moved
-    the pin, with no input (#5165). A sticky box inside the header moves with the
+    while the header sticks far down the target leaves the seat by its top clear, and
+    the next unrelated pass after scrolling back finds the header's control there and
+    moves the pin, with no input. A sticky box inside the header moves with the
     header's offset as well as its own, which is counted once."""
     page = open_page(
         request.getfixturevalue(engine),

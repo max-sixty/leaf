@@ -25,19 +25,20 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     browser, serve
 ):
     """Anything a mouse can scroll a keyboard has to reach, and the reference is a list
-    long enough to scroll — but its rows carry no control, so nothing put the user in it
-    and they could read the first screenful of the key reference and no more.
+    long enough to scroll — but its rows carry no control, so without a stop of its own
+    nothing would put the user in it and they could read the first screenful of the key
+    reference and no more.
 
-    The sweep that fixes that asks the box whether it may scroll, and the theme says every
-    table may (`table { display: block; overflow-x: auto }`). So pointing it at the
-    reference tagged all fourteen of its tables, none of which overflows: leaving the
-    reference by Tab went from its native controls to fifteen extra stops, each wearing
-    the browser's own ring rather than the layer's. A rule saying a box *could* scroll is
-    not the same fact as a box that *has* something out of sight, and only the second is
-    somewhere a user needs to be able to stand.
+    The sweep that fixes that asks the box whether it may scroll, and the theme says
+    every table may (`table { display: block; overflow-x: auto }`). So a sweep taking
+    that answer would tag every table in the reference, none of which overflows: leaving
+    the reference by Tab would go from its native controls through a stop for each, each
+    wearing the browser's own ring rather than the layer's. A rule saying a box *could*
+    scroll is not the same fact as a box that *has* something out of sight, and only the
+    second is somewhere a user needs to be able to stand.
 
-    Asserted as the whole set rather than a count, because the count was right before and
-    the members were wrong: every stop in the overlay has to be a control the reference
+    Asserted as the whole set rather than a count, because a count can be right while
+    the members are wrong: every stop in the overlay has to be a control the reference
     offers or a box that really scrolls."""
     page = open_page(browser, serve(CONTROL_LABEL_PAGE))
     page.keyboard.press("?")
@@ -68,8 +69,7 @@ def test_only_controls_and_boxes_with_something_out_of_sight_take_a_tab_stop(
     # the whole point of the sweep. Its reachability is what is asserted here and not the
     # scroll itself: the headless shell does not move a focused div for an arrow or a
     # PageDown where Chrome does, so a motion assertion would be measuring the harness.
-    # What this can say, and what the defect was, is that the box overflows and that a
-    # user can be put on it.
+    # What this can say is that the box overflows and that a user can be put on it.
     results = page.locator(".lf-command-reference-results")
     assert page.evaluate(
         "() => { const r = document.querySelector('.lf-command-reference-results');"
@@ -558,11 +558,10 @@ def test_away_from_an_obligation_the_reference_names_widget_owned_options(
 
 def test_the_reference_reads_the_same_way_twice(browser, serve):
     """A widget registers its scope at upgrade, and the set the reference walks is
-    insertion-ordered, so the sections came out in whatever order the modules happened to
-    finish in. The same build read twice put "On a tab" above "On a card grip" once and
-    below it the next time. A reference whose headings move between loads is one a user
-    cannot learn the shape of, and any assertion on it flakes rather than fails — which is
-    how it was found, a reviewer taking a reordering for fallout from an unrelated change.
+    insertion-ordered, so read in that order the sections would come out in whatever
+    order the modules happened to finish in, which differs between two reads of the same
+    build. A reference whose headings move between loads is one a user cannot learn the
+    shape of, and any assertion on it flakes rather than fails.
 
     So the widgets' sections read in the order the page holds them. Asserted twice over:
     the same page loaded twice gives the same list, and that list is the document's own
@@ -586,9 +585,9 @@ def test_the_reference_reads_the_same_way_twice(browser, serve):
 
 
 def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
-    """The floating panel's section listed ↑ ↓ Home End twice, once for the leaf's menu
-    and once for the open view, under the same words. One walk over the open view's
-    list, the menu's among them, lists each key once."""
+    """Read once for the leaf's menu and once for the open view, the floating panel's
+    section would list ↑ ↓ Home End twice under the same words. One walk over the open
+    view's list, the menu's among them, lists each key once."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()
@@ -619,10 +618,10 @@ def test_the_reference_lists_each_of_the_panel_s_keys_once(browser, serve):
 
 def test_the_reference_keeps_its_count_line_whole_above_the_results(browser, serve):
     """The reference is a column in a window-capped box, and only its results give up
-    height to fit. Its count line was a shrinkable item too, squeezed to 13.8px under a
-    16.7px line with the results starting on its last pixel, so a row scrolled up to the
-    results' edge ran into the words above it. The line keeps a whole line, and the
-    results start a step below it."""
+    height to fit. Were its count line a shrinkable item too, it would be squeezed below
+    a whole line with the results starting on its last pixel, so a row scrolled up to
+    the results' edge would run into the words above it. The line keeps a whole line,
+    and the results start a step below it."""
     page = open_page(browser, serve(LONG_PAGE))
     page.keyboard.press("?")
     expect(page.locator(".lf-command-reference")).to_be_visible()

@@ -91,9 +91,9 @@ const commandDispatch = createCommandDispatch();
 
 // After a gesture of the user's answers something On Me lists, while On Me still lists
 // anything, the floating panel's field offers the next item there, `m`'s press, at its
-// end (notifications.js, `offerPress`). The user chose this on 6 November 2026 over the
-// field's Comment… and c, from three weeks of their keys, in which `m` came next after
-// 29% of picks and 21% of comments and replies. Which items a gesture answered is the
+// end (notifications.js, `offerPress`). The user chose this over the field's Comment…
+// and c, since `m` is the key they most often press next after a pick, a comment or a
+// reply. Which items a gesture answered is the
 // server's reading, each obligation's `answer.event` (obligations.py), so a pick, a
 // settling reaction and a reply count alike, and a playground's unsent settings never
 // do; the offer waits for that reading, so it never offers the item just answered, and

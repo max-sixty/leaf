@@ -33,7 +33,7 @@ to the host clock; observed_at and monotonic_ms belong to one browser tab.
 A page's trace keeps entered values, draft text and selections for debugging, with no
 limit on its size; only a password field's characters stay out, also after a
 show-password toggle, except in a closed shadow root (`interaction-log.js`).
-The user chose this on 2026-11-04 over recording only the structural fields leaf.page's
+The user chose this over recording only the structural fields leaf.page's
 Worker keeps, and over recording nothing unless the user turns it on.
 """
 

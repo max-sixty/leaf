@@ -29,9 +29,9 @@
    and its member stays in the map, which the walk still reaches aloud. Where
    seating in page order would withhold the chip the walk is on, that chip is seated
    first, so it shows wherever its target leaves room for one. A withheld chip's code
-   still takes it, as every member's does. Until 11 November 2026 every chip was shown,
-   moved up or down as far as a free seat lay, so a crowded column's chips slid rows
-   past their targets. Geometry belongs to each caller and is passed in so this module
+   still takes it, as every member's does. Rejected: showing every chip,
+   moved up or down as far as a free seat lies, which slides a crowded column's chips
+   rows past their targets. Geometry belongs to each caller and is passed in so this module
    introduces no ownership cycle through its callers. */
 import { bindingEnabled, cycledRow, hasRows, spell } from "./bindings.js";
 import { html, render } from "/runtime/framework.js";
@@ -298,7 +298,7 @@ export function seatHints(
   // Side by side, two chips stand `apart`, well clear of the 1px between one code's own
   // keycaps (`.lf-binding-sequence`, chrome.css), so a row of two-letter chips reads as
   // codes: touching, `na` and `ng` read as `n a n g`. Stacked chips keep only `clear`,
-  // since a code reads across. Until 14 November 2026 chips could touch side by side.
+  // since a code reads across.
   const apart = 6;
   /** @param {HintBox} box @returns {HintBox} */
   const widened = (box) => ({
@@ -369,8 +369,7 @@ export function seatHints(
   // run bury it. A narrow target beside a wide one, as an icon beside a field, keeps its
   // chip. Its member stays in the map, so its code still takes it and a walk onto it
   // shows its chip. A key is a chip's height, one keycap. Rows stacked one under another,
-  // as in a contents list, share no line and keep their chips. Until 14 November 2026
-  // such a run's chips stacked or scattered around it.
+  // as in a contents list, share no line and keep their chips.
   /** @param {HintFace} face */
   const bunched = ({ start, target }) =>
     target.width < start.height &&
@@ -656,11 +655,11 @@ export function createHintSession({
   // The map stands on a scene the browser has drawn (arrivals.js, `scrollDrawn`). A
   // scroll a script has just written, as `g` writes landing the glides under way, leaves
   // a box anchored to what it moved where it stood until the next rendering update, so a
-  // map read then named a margin entry the thread card the walk had opened was arriving
-  // to cover, and Tab walked to it. Armed before then, the map is read at once, for a key
-  // typed in those frames, and read again once the scene is drawn, unless a letter typed
-  // meanwhile holds it; `then` hears what the map found once it stands on the drawn
-  // scene.
+  // map read then would name a margin entry the thread card the walk opened is arriving
+  // to cover, and Tab would walk to it. Armed before then, the map is read at once, for
+  // a key typed in those frames, and read again once the scene is drawn, unless a
+  // letter typed meanwhile holds it; `then` hears what the map found once it stands on
+  // the drawn scene.
   /** @type {Promise<void> | null} */
   let reading = null;
   /** @param {(found: C[]) => void} [then] */

@@ -304,8 +304,7 @@ def test_a_refused_detached_comment_reopens_beside_its_words(held_events, serve)
     """Only the browser's selection knew where a detached comment's words stand, and
     nothing beside them draws its thread, so the send opens that thread in the panel.
     A refusal brings the box back beside the words, where the user wrote, and the
-    thread's view goes with the thread. The box once came back in the window's corner,
-    under a view saying the thread was not on the page."""
+    thread's view goes with the thread."""
     browser, held = held_events
     page = open_page(browser, serve(FENCED_PAGE))
     words = "Why this colour?"
@@ -925,13 +924,13 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     earlier send becomes a thread behind it.
 
     Held rather than raced: the window is one request's flight, and a machine quick
-    enough closes it before the next gesture. A loaded CI runner is not, and it said so
-    as a 💬 that never came up for the passage picked out after a send.
+    enough closes it before the next gesture. A loaded one leaves it open, where the 💬
+    for the passage picked out after a send would never come up.
 
     The next passage is the one above the first, because the sent comment's card stands
     under its passage, over whatever follows it. The card is placed and revealed some
-    frames after the send, so a passage below was reachable only on a machine quick
-    enough to press it before the card arrived."""
+    frames after the send, so a passage below would be reachable only on a machine
+    quick enough to press it before the card arrived."""
     browser, held = held_events
     page = open_page(browser, serve(NOTED_PAGE))
     select_words(page, "#p2")

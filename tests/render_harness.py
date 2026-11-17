@@ -5,17 +5,16 @@ downstream of that (a widget's upgrade, the theme's CSS, the runtime's injected
 chrome) meets for the first time in the browser, and the failures that live
 there are invisible to a linter. This suite drives the shipped examples and
 developer feature gallery through Playwright's pinned Chromium headless shell and
-asserts the handful of things that were each, at some point, wrong:
+asserts such failures as:
 
-  - a widget that upgrades into a box of no size (lf-tabs marked itself with a
-    class the runtime's chrome had already claimed for its visually-hidden live
-    region, so every tabbed page rendered blank below the lede);
+  - a widget that upgrades into a box of no size, as one does that marks itself
+    with a class the runtime's chrome claims for its visually-hidden live region;
   - the document and the thread panel scrolling in one region, which stacks two
     scrollbars in the same few pixels at the window's right edge;
-  - a text box sized by script, which had to shrink itself to re-measure and so
-    flashed a scrollbar on every keystroke;
+  - a text box sized by script that shrinks itself to re-measure, and so flashes a
+    scrollbar on every keystroke;
   - the passage under the open composer going unmarked, because focusing the box
-    drops the browser's own selection and nothing drew it back.
+    drops the browser's own selection and nothing draws it back.
 
 One journey test walks the loop the product is — select a passage, comment on
 it, drag a card, follow the next version, and find the comment still anchored —
@@ -754,14 +753,14 @@ def post_event(page, url, **kwargs):
 
 
 # What the page has sent and how much of it has come back, read off the ledger the
-# runtime paints for exactly this user. The suite once counted the same numbers from
-# outside, on the browser's own request and response events, so that nothing was put
-# inside the thing under test; that watcher was a second representation of the outbox's
-# lifecycle, and it needed a protocol of its own to keep step — a post a reload killed
-# that no event reported, a waiter woken before the listeners that counted, a body read
-# with no deadline. The runtime already states its readiness for this user
-# (`lfReadiness`); delivery is one more fact it states rather than one the harness
-# infers, and nothing is injected to obtain it.
+# runtime paints for exactly this user. Counting the same numbers from outside, on the
+# browser's own request and response events, so that nothing is put inside the thing
+# under test, would make a second representation of the outbox's lifecycle, needing a
+# protocol of its own to keep step — a post a reload killed that no event reported, a
+# waiter woken before the listeners that counted, a body read with no deadline. The
+# runtime already states its readiness for this user (`lfReadiness`); delivery is one
+# more fact it states rather than one the harness infers, and nothing is injected to
+# obtain it.
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
@@ -1181,8 +1180,8 @@ def plant_quiet_word(page, selector, holding):
 #
 # So ask the page whether it has caught up with what the server holds: its readiness
 # reading answers that against an `/api/state` answer, and names no transport.
-# Counting answered requests said the same thing only while a fixed interval made them
-# the same thing: the page now asks when its freshness reading says the page has moved, so a
+# Counting answered requests would say the same thing only if a fixed interval made them
+# the same thing: the page asks when its freshness reading says the page has moved, so a
 # count of obligations started here reaches the answer that carries the news only by luck of
 # the ordering.
 def told(page):
@@ -1215,7 +1214,7 @@ def nudge(page_dir):
 
     The page asks for state when its freshness reading says the page has moved, and the
     reading names file stamps. A test that wants the page's next obligation — to park it, or to
-    watch it refused — used to wait for the poll's timer; now it moves the revisions
+    watch it refused — doesn't wait for the poll's timer; it moves the revisions
     directory stamp, which the state fingerprint reads without changing page content.
     """
     os.utime(page_dir / "revisions")
@@ -1286,10 +1285,9 @@ def available_commands(page):
     """What the dispatcher would run from the current location now, read once after
     every repaint the input so far queued: `{command id: [keys]}`.
 
-    The bottom key line used to say this as hints; the panel says it nowhere but in a
-    command's effect, so prefer pressing the key and asserting what it did. Read this
-    where the subject is that a command is withheld, such as Undo while a gesture is
-    unaccounted for."""
+    The panel says this nowhere but in a command's effect, so prefer pressing the key
+    and asserting what it did. Read this where the subject is that a command is
+    withheld, such as Undo while a gesture is unaccounted for."""
     rendered(page)
     return page.evaluate(AVAILABLE_COMMANDS)
 
@@ -2100,7 +2098,7 @@ def fresh_taps():
     back to back near one spot are a double tap wherever the page answers fast
     enough, and the floating panel presses nothing for a run's later press on a
     control its first press drew there (floating-panel.js, `runOfClicks`): a test that
-    tapped the menu open and then the row that opened under the finger passed only on
+    taps the menu open and then the row that opened under the finger would pass only on
     a host slow enough to space them. So each tap through `Locator.tap` or
     `Touchscreen.tap`, the suite's Playwright tap routes, waits until `TAP_RUN_S` has
     passed since the page's previous tap, however far apart they land: Playwright
@@ -2606,14 +2604,13 @@ def opened_tab(page, destination, press):
 # unintercepted, and Playwright reports no request for it either. A test holding a
 # gesture's POST then watches the send land and the answer settle the draft while
 # its own counters read nothing — the trip it is waiting for never happened on this
-# side. It is the escape `held_events` was written around, and why that fixture
+# side. It is the escape `held_events` guards against, and why that fixture
 # routes from navigation onward.
 #
 # Interception is not free, though. While any route is set, Playwright pauses every
 # request the page makes until its driver lets it go, and turns Chromium's HTTP cache
-# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). Measured on a plain test
-# page in October 2026, the arm added about 30 ms of CPU to each opening's 550, in the
-# browser process and the driver. Most pages are never routed.
+# off (`Fetch.enable` on `*` and `Network.setCacheDisabled`). The arm adds CPU to each
+# opening, in the browser process and the driver. Most pages are never routed.
 #
 # So a page the suite makes arms itself when something first routes it or its
 # context, on a pattern nothing else asks for, ahead of that first route. Before the
@@ -2741,9 +2738,9 @@ class WatchedContext:
 
     Every page here is one this asks for. A page the browser opens by itself — a
     popup, a `target=_blank` — arrives on the context's `page` event instead, and
-    that is not a place these readings can be installed from: measured, a
-    `page.route` inside that handler leaves the `add_init_script` after it without
-    effect and says nothing, which is a page whose listeners are installed and whose
+    that is not a place these readings can be installed from: a `page.route` inside
+    that handler can leave the `add_init_script` after it without effect and say
+    nothing, which is a page whose listeners are installed and whose
     init scripts are missing. `opened_tab` is how the suite meets a tab Chromium
     opened.
     """
@@ -2861,7 +2858,7 @@ def one_user(browser):
     """A browser context two pages can share, which is what makes them tabs.
 
     `Browser.new_page` opens each page in a context of its own, so two of them are two
-    users with no storage between them — and a draft lives in the user's store now,
+    users with no storage between them — and a draft lives in the user's store,
     which is the whole of what these tests are about."""
     return browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light"
@@ -3368,8 +3365,7 @@ def hold_selection(page, start, end, steps=8, frame_the_press=False):
     lands, and `getSelection()` comes back empty. It reads as the widget under the
     pointer refusing the gesture, and it is neither that nor Playwright's
     interpolation — plain prose in a bare document does it, and ten separate moves do
-    it identically. Sixty start points along one line came back empty at exactly the
-    points where the two disagree, and correct at every other.
+    it identically.
 
     So the press is floored. Where the two agree, which is everywhere a drag works at
     all, that changes nothing; where they disagree it is the whole of the fix. The end

@@ -1,14 +1,13 @@
-# From session 7f4fa623, which asked the user how every list's rows should look. Each
-# of four candidates was captured on three lists (a dark panel menu, a light trace
-# list, a light review list). The session joined each candidate's three captures into
-# one image with Pillow, cut from review sheets, so every option showed a ragged
-# collage with leftover label bands and clipped text, at a different scale per list.
-# That happened late in a long session, after compaction; cold, no run joined captures
-# (0 of 14). The references sent options' captures out of the table of captures and
-# named no other layout, so cold base 05f442d0f hand-wrote a CSS grid in 10 of 10 runs,
-# 5 of them with no label on any capture (all 5 before the review sheets were added to
-# the prompt). Naming the table for an option's captures, 4 of 4 used it, with no page
-# CSS.
+# A session asked the user how every list's rows should look. Each of four
+# candidates was captured on three lists (a dark panel menu, a light trace list, a
+# light review list). The session joined each candidate's three captures into one
+# image with Pillow, cut from review sheets, so every option showed a ragged collage
+# with leftover label bands and clipped text, at a different scale per list.
+# That happened late in a long session, after compaction, which a cold run need not
+# reproduce. References that send options' captures out of the table of captures
+# and name no other layout can lead agents to hand-write a CSS grid, some with no
+# label on any capture, so the references name the table for an option's captures,
+# which needs no page CSS.
 description: option-captures-line-up
 metadata:
   purpose:

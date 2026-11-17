@@ -553,8 +553,8 @@ export const uploadMedia = async (file) => {
 };
 
 // The page reporting itself broken, to the party who can fix it: the agent
-// authored the page and its widgets, and before this the only route for a
-// live-session fault was the user pasting a console nobody told them to
+// authored the page and its widgets, and without it the only route for a
+// live-session fault is the user pasting a console nobody told them to
 // open. The event lands in the log as kind "error", author "page" — the
 // watcher hears it beside comments and reports; the user's pending count
 // never claims it. Logged once per message text per load (a reload may repeat

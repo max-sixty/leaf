@@ -264,8 +264,8 @@ def test_a_wait_watches_a_stopped_server_until_its_page_ends(
     """A stopped server neither ends a `leaf wait` nor is the wait's to start
     again: the page ends the wait, by going idle or changing hands.
 
-    A wait used to read a disabled service as a page it had lost, and end, so
-    every restart, which disables the service as a stop does, had to say it was
+    A wait that read a disabled service as a page it had lost, and ended, would
+    need every restart, which disables the service as a stop does, to say it was
     not a stop."""
     write_record(
         page_dir / "service.json",

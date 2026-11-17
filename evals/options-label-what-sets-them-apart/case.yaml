@@ -1,24 +1,16 @@
-# From session 2dbc39a0, which generated a TODO-decisions page from a Python script and,
-# when the user said the undo-reach Ask lacked context, rewrote its options with their
-# effort as trailing prose ("Small.", "Medium.") rather than as labels. The script's
-# option helper took labels as an optional argument no decision had used.
-# The label rule then lived only in the lf-option registry entry, and these children
-# read authoring-decisions.md alone, which said to add words for a tradeoff: base
-# f7750a988 labelled every differing fact in 0 of 10 Claude Code runs (most labelled
-# effort and left reach in prose). With the rule in authoring-decisions.md, 11 of 12
-# across three wordings of it, and 5 of 5 after that section was rewritten around its
-# goals. Runs that read no reference (2 of 9 there) can't see either wording.
-# Asked the same of the HTML rather than the script, base labelled both in 3 of 3,
-# so the script's unused labels argument is what reproduces the session.
-# When the rule was cut back to its goal (labels for the facts the user weighs, with no
-# order or every-option requirement) the rubric came to check that goal: base and
-# head 5 of 5 each. Under the rubric before it, head runs left the reach label
-# off the keep-today option in 2 of 5.
-# The compact-title allowance still conflicted with this rubric's title prohibition.
-# Saved-output calibration now accepts facts in compact titles or labels and rejects
-# both original responses with reach only in option bodies; no new author runs.
-# The prompt no longer says which files the session had read: at 0e538e29d, 2 of 2
-# Claude Code runs read authoring-on-me.md themselves and passed.
+# A session generated a TODO-decisions page from a Python script and, when the user
+# said the undo-reach Ask lacked context, rewrote its options with their effort as
+# trailing prose ("Small.", "Medium.") rather than as labels. The script's option
+# helper took labels as an optional argument no decision had used. Asked the same of
+# the HTML rather than the script, agents can label both, so the script's unused
+# labels argument is what reproduces the session.
+# A label rule that lives only in the lf-option registry entry, while the reference
+# says to add words for a tradeoff, can lead agents to label effort and leave reach
+# in prose. The rule in authoring-on-me.md states its goal (labels for the facts the
+# user weighs, with no order or every-option requirement), and the rubric checks
+# that goal. Runs that read no reference can't see it. The rubric accepts
+# facts in compact titles or labels and rejects reach only in option bodies. The
+# prompt doesn't say which files the session had read.
 description: options-label-what-sets-them-apart
 metadata:
   purpose:

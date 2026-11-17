@@ -297,10 +297,10 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     """A pick made while the send is open leaves the sent generation alone.
 
     Every pick rewrites the add field's draft, because the choice that draft would submit
-    has changed. A pick made while the added option was in the wire used to write over
-    the generation that send owned, so its answer settled nothing and the words it had
-    already carried into an option stayed in the box for good. A sent generation is no
-    longer the box's to write — the same mask that empties the box keeps the pick out of
+    has changed. A pick that wrote over the generation a send owns, while the added
+    option was in the wire, would leave its answer settling nothing and the words it had
+    already carried into an option in the box for good. A sent generation is not the
+    box's to write — the same mask that empties the box keeps the pick out of
     it.
     """
     browser, held = held_events
@@ -512,8 +512,9 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
     """The add field keeps room at its end for the Add press and the obligation's key, so on a
-    phone the words before that room are few: alert-review's card group at 360px cut
-    "Another option — add to select" to "Another option — ad…", which lost the verb.
+    phone the words before that room are few: alert-review's card group at 360px would
+    cut "Another option — add to select" to "Another option — ad…", which loses the
+    verb.
     The hint says the same in words that fit, and the room it keeps is measured here
     rather than restated."""
     example = named_source("alert-review")

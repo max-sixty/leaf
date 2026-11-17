@@ -100,18 +100,14 @@ def arrival_findings(browser, url):
     What it reads: a fresh context holds nothing, so every other reading in the suite
     is of a first visit — design mode off, the annotations shown —
     and each of those is something a user turns on once and gets back on every load
-    afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a drawer someone had left open came up as a ReferenceError
-    instead of a page: it was put up by code running while the runtime was still
-    evaluating, which could reach almost nothing. It reached the user, who reported
-    it.
+    afterwards. That leaves the restores as the one road onto a page with nothing
+    watching it.
 
     One page, reloaded into each restore case, which is what a returning user does:
     the store is written on the origin the page is already on and read while the next
     load evaluates. What comes back is completed presentation, any page transition that
-    began before it, and the console. Boxes are not measured again: every shipped example
-    was measured in each of these restore cases and none of them moved a box that a first
-    visit didn't.
+    began before it, and the console. Boxes are not measured again, on the premise that
+    a restore moves no box a first visit doesn't.
     """
 
     page = browser.new_page(
@@ -144,9 +140,8 @@ def arrival_findings(browser, url):
         # the served documents and want a page that has stopped asking for things,
         # while everything here is either the stamp below — which the page raises
         # for itself, and which is the stronger fact — or a console the handlers
-        # above are already attached to. Network quiet costs 3.5x what the load
-        # event does over the five navigations here, measured on
-        # the former design-decision example, and buys this nothing.
+        # above are already attached to. Network quiet can cost more than the load
+        # event does over the five navigations here, and buys this nothing.
         page.goto(url, wait_until="load")
         render_checks_model.wait_until_ready(page)
     except (PlaywrightTimeout, render_checks_model.PageNotReady):
@@ -346,9 +341,8 @@ LINKED_CELLS_PAGE = WIDE_TABLE_PAGE.replace(
 # A comparison of options in two-word cells, which a phone squeezes and neither fixed
 # viewport does: at its longest words it stands about 414px wide, so it fits the 540px
 # viewport with some 80px to spare, and at 360px it scrolls about 100px with every
-# option's cells wrapped. An author's comparison table did this on a 390px phone and
-# passed a gate that read only the fixed viewports. Both margins are wide enough that
-# CI's fonts land on the same side of them.
+# option's cells wrapped, which a gate reading only the fixed viewports would pass. Both
+# margins are wide enough that CI's fonts land on the same side of them.
 PHONE_SQUEEZED_TABLE = """
 <table id="options">
 <thead><tr><th></th><th>Stay put</th><th>Move rows</th><th>Drop state</th>
@@ -373,11 +367,11 @@ PHONE_SQUEEZED_TABLE = """
 SPILLING_PAGE = LONG_PAGE.replace(
     "</main>", "<div id='too-wide' style='width: 65vw'>Wide.</div>\n</main>"
 )
-# Two wrappers that generate no box, differing only in whether anything inside them does.
-# `#veiled` is the shape the vocabulary shipped while a suggestion was display: contents,
-# and any page can still write in a line — it is the control: the gate must not report
-# it, or it reports every page that styles a wrapper away. `#ghost` is the same wrapper
-# with its words loose inside it, where there is nothing at all for a mark to hang on.
+# Two wrappers that generate no box, differing only in whether anything inside them
+# does. `#veiled` is a shape any page can write in a line — it is the control: the gate
+# must not report it, or it reports every page that styles a wrapper away. `#ghost` is
+# the same wrapper with its words loose inside it, where there is nothing at all for a
+# mark to hang on.
 UNMARKABLE_PAGE = LONG_PAGE.replace(
     "</main>",
     "<div id='veiled' style='display: contents'>"
@@ -655,8 +649,7 @@ CODE_FAULT_PAGE = LONG_PAGE.replace(
     + "\n</main>",
 )
 
-# The shipped dark comment ink must clear the add-line tint behind it. A large real patch
-# put enough comments on that surface for the former 4.4:1 contrast gap to become visible.
+# The shipped dark comment ink must clear the add-line tint behind it.
 CODE_CONTROL_PAGE = LONG_PAGE.replace(
     "</main>",
     CODE_BLOCK + SHADOWED_DIFF_BODY.format(id="default-shadow") + "\n</main>",
@@ -673,7 +666,7 @@ NEIGHBOUR = (
 )
 # What this sweep presses is narrower, and both exclusions are about the press landing
 # rather than about the control. A <select> opens a native popup the page cannot see and
-# the next click closes instead of pressing — which is how this sweep first passed while
+# the next click closes instead of pressing — so a sweep pressing one can pass while
 # pressing nothing at all, the shape of vacuous pass AGENTS.md is about. A link is a
 # user's control and its press is a scroll, so it belongs to the set above and has
 # nothing here to disturb.
@@ -872,9 +865,9 @@ def assert_drawn_in(part, ink, width):
 
 # The item the draft stands on, which is not always the element wearing the outline: a
 # mark hangs on the boxes its element shows through, and a display: contents wrapper shows
-# through its slots. Reading the raw id said the promise was broken for every suggestion
-# on every example — while the reading that had passed all along was the vacuous one, the
-# outline sitting on a wrapper that draws nothing.
+# through its slots. Reading the raw id would say the promise was broken for every
+# suggestion on every example, while a reading of the outline's own element passes
+# vacuously, the outline sitting on a wrapper that draws nothing.
 DRAFT_MARK = """() =>
   document.querySelector(".lf-mark-el.lf-pending")?.closest("[id]")?.id ?? null"""
 # What the arm says about the next press, in the one property that is on screen before
@@ -907,11 +900,11 @@ FOCUS_IN_PAGE = """() => {
 # Except for an emptied class attribute, which is the outline coming off an element that
 # had no class of its own: DOMTokenList leaves `class=""` behind, and that is a residue of
 # the runtime's paint rather than anything the page says.
-# Generated text is blanked before the compare, because a widget may render a clock
-# and a clock is not a press: lf-test-worker's elapsed line re-renders on every poll, so the
-# minute turning during a long sweep read as a press that had reached a widget. What the
-# check is for survives untouched — a stray pick writes `selected` on the option and a
-# stray tab switch moves the panels' attributes, both of them authored rather than
+# Generated text is blanked before the compare, because a widget may render a clock and
+# a clock is not a press: lf-test-worker's elapsed line re-renders on every poll, so the
+# minute turning during a long sweep would read as a press that had reached a widget.
+# What the check is for survives untouched — a stray pick writes `selected` on the option
+# and a stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting, the marks Leaf has a box
 # draw round itself (surfaces.css), and the generated binding seat are not authored
@@ -1109,12 +1102,12 @@ def mark_edges(page, ident, ink, outset=None):
     be compared with each other rather than with an earlier frame.
 
     Each scan starts at the element's own edge and stops at the first pixel that
-    isn't the mark's colour, because the first draft counted the first ink-coloured
-    run *anywhere* along the scanline: an accent status dot sitting in the clip's own
-    padding reported 26 device pixels of "mark" on a side the mark never reached, and
-    a marked code block would have counted its identifiers. What follows from that is
-    the tolerance too — ±12 per channel admits the stroke's antialiased shoulder and
-    nothing else, where ±40 reached both --lf-accent and --lf-syn-name.
+    isn't the mark's colour, because counting the first ink-coloured run *anywhere*
+    along the scanline reads an accent status dot sitting in the clip's own padding as
+    "mark" on a side the mark never reached, and a marked code block would count its
+    identifiers. What follows from that is the tolerance too — ±12 per channel admits
+    the stroke's antialiased shoulder and nothing else, where ±40 reaches both
+    --lf-accent and --lf-syn-name.
 
     Three samples a side, returned as a set rather than a majority. A majority is a
     vote for the mark being intact when part of the edge has been painted over, which
@@ -1125,17 +1118,16 @@ def mark_edges(page, ident, ink, outset=None):
     its own ground, because a leaf page's boxes do not land on whole pixels — 17px of
     body serif at a line-height of 1.6 is 27.2px a line, so a widget's height is a stack
     of fractions. A clip is asked for in CSS pixels and answered in device ones, and
-    Chrome truncates the rect to whole CSS pixels before it scales: asked for the board
-    column 101.578px tall on this page, it dropped that 0.578 and took all of it off the
-    bottom, which put the element's own edge two device pixels from where MARK_PAD said
-    it was — outside the window below — and a stroke painted whole on all four sides was
-    read as half of one along the bottom. Squaring the clip is what makes that loss
-    nothing to model rather than something to allow for.
+    Chrome truncates the rect to whole CSS pixels before it scales, taking the fraction
+    off the bottom, which can put the element's own edge two device pixels from where
+    MARK_PAD says it is — outside the window below — so a stroke painted whole on all
+    four sides would read as half of one along the bottom. Squaring the clip is what
+    makes that loss nothing to model rather than something to allow for.
 
     The edge is then snapped in CSS space and scaled, in that order, because that is the
-    order Blink paints in: the painted edge lands at `floor(ground + 0.5) * scale`, and it
-    was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
-    window below covers, until a scale of 4 makes it two. The window is kept for a device
+    order Blink paints in: the painted edge lands at `floor(ground + 0.5) * scale`, and
+    multiplying first makes `round(gap * scale)` disagree with it — by a pixel the window
+    below covers, until a scale of 4 makes it two. The window is kept for a device
     pixel of engine drift either side."""
     outset = outset or {}
     pad = MARK_PAD + max(outset.values(), default=0)
@@ -1364,7 +1356,7 @@ def overlapped_words(page):
 
     Axe answers these as incomplete, not as violations, so a sweep keeping violations
     alone passes words it never measured. A window-sized transparent layer over the
-    first screen hid every word under it this way (#2559). The run reads the same
+    first screen hides every word under it this way. The run reads the same
     exposed documents as `serious_axe_violations`."""
     axe = Axe()
     unread = []

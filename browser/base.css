@@ -1084,6 +1084,21 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   border-top: 1px solid var(--lf-rule);
   --lf-block-frame: 1;
 }
+/* A named group (`reading-role: group`) draws no box; its title is its label, which
+ * the runtime writes as text at its start (`says`) and the reading face sets as a
+ * heading (reading.css). Until the runtime writes it, and on a page no script runs, the
+ * same words are painted from the attribute. */
+:where([data-lf-reading-role="group"]) {
+  display: block;
+}
+:where([data-lf-reading-role="group"]) > [data-lf-said="label"],
+:where([data-lf-reading-role="group"][label]):not(:has(> [data-lf-said="label"]))::before {
+  display: block;
+  font-weight: bold;
+}
+:where([data-lf-reading-role="group"][label]):not(:has(> [data-lf-said="label"]))::before {
+  content: attr(label);
+}
 /* A framed box that holds authored content is an inline-size container, so a widget
  * inside it that caps its minimum at `100cqi` is capped by the box rather than the page:
  * a board in a pane scrolls its columns inside the pane instead of running out of it. A

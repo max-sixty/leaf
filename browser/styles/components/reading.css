@@ -597,7 +597,11 @@ dl.lf-facts dd {
       margin: var(--lf-h2-start) 0 12px;
       text-wrap: balance;
     }
-    h3 {
+    /* A named group's title (base.css) is a heading of the page at the third level,
+     * where a group usually stands. */
+    h3,
+    [data-lf-reading-role="group"] > [data-lf-said="label"],
+    [data-lf-reading-role="group"]:not(:has(> [data-lf-said="label"]))::before {
       font-size: var(--lf-t-3);
       line-height: 1.3;
       margin: var(--lf-h3-start) 0 8px;
@@ -806,7 +810,8 @@ leaf-text.lf-fab-input,
 .lf-msg-body th[scope="row"] :is(code, samp) {
   max-inline-size: calc(var(--lf-thread-card-min) / 3);
 }
-.lf-msg-body :is(h1, h2, h3, h4, h5, h6) {
+.lf-msg-body
+  :is(h1, h2, h3, h4, h5, h6, [data-lf-reading-role="group"] > [data-lf-said="label"]) {
   margin: 8px 0 4px;
   font-size: inherit;
   line-height: inherit;

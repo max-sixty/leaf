@@ -157,8 +157,9 @@ holding the value the answer names, or in one without `value` while the answer n
 none, or one no owner holds. A `value` record's answer names its attribute's value. An
 `attribute` record's answer names a value when every member it picks carries the same
 value in the attribute `awaits.key` names, as `lf-options` declares `"key":
-"value"` and each `lf-option` a `value` unique within its group (`unique`); an
-empty pick, an option the user added, or picks of different values name none.
+"value"` and each `lf-option` a `value` unique within its `lf-options`
+(`unique`); an empty pick, an option the user added, or picks of different
+values name none.
 
 The view keeps no state of its own about the answer. It reads and changes the answer
 through `shownAnswer` ([module-reading.md, "Reading obligations and the On

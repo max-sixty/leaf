@@ -382,22 +382,20 @@ const keptElements = new Map();
 // (`authoredHolders`): the message less what a second copy would duplicate, each id
 // and each custom element, which a module upgrades once. A widget set among words
 // (`inline`) leaves its words, and any other goes whole, as a choice the drawing
-// asks in its own controls does. The group the author declares round such a widget,
-// `role="group"` or a `<fieldset>` (`obligations.framed_widgets` in Python), is its
-// question, so it goes whole with it rather than leaving the question's words with
-// nothing to answer them.
+// asks in its own controls does. The innermost group the author declares round a widget
+// that asks, `role="group"` or a `<fieldset>` (`obligations.widget_groups` in Python),
+// is its question, so it goes whole with it rather than leaving the question's words
+// with nothing to answer them. Any other group stays, less its widgets, as a figure
+// keeps its caption when its chart goes.
 /** @param {DocumentFragment} message */
 function heldElsewhere(message) {
   const copy = document.createElement("template");
   copy.content.append(message.cloneNode(true));
-  for (const group of copy.content.querySelectorAll('[role~="group"], fieldset'))
-    if (
-      [...group.querySelectorAll("*")].some(
-        (element) =>
-          element.localName.includes("-") && !declarationFor(element)?.inline,
-      )
-    )
-      group.remove();
+  for (const element of copy.content.querySelectorAll("*")) {
+    const declaration = declarationFor(element);
+    if (declaration?.awaits && !declaration.inline)
+      element.parentElement?.closest('[role~="group"], fieldset')?.remove();
+  }
   for (const element of copy.content.querySelectorAll("*"))
     if (!element.localName.includes("-")) element.removeAttribute("id");
     else if (declarationFor(element)?.inline)

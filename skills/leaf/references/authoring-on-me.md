@@ -19,7 +19,7 @@ the subject, keeping today's behavior included: “Generate shared types” and 
 handwritten types”, rather than “Accept” and “Not now”. Where the options differ only
 in a value, such as how long captures are kept, say once above them what that value
 costs, and each title can be the whole option. The user should be able to compare the
-options down the group without reading their prose, as through `small.tag` labels for
+options down the list without reading their prose, as through `small.tag` labels for
 the facts they weigh, such as effort or risk. Keep each label to a word or two, such as
 “2 days” rather than “about two days of work”, so a card's labels fit on one line
 beside its pick mark. Where cards stand side by side (`across`), labels that wrap push
@@ -41,14 +41,14 @@ beside the change, with a fault marked where it goes wrong, a wording as it woul
 appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
 own pictures, so nothing pairs them with another option's; a picture of both answers
-at once, such as an `lf-shot` pair, belongs to the group. Where the result spans
-several captures, such as several surfaces or states, line each capture up with its
-counterparts in the other options and name each surface or state once, so the reader
-compares one at a time down the options. The default is a table of captures in every
-option with the same columns in the same order (`authoring-evidence.md`, "Source files
-and media"), which the theme draws with no page CSS. Vary only what
-the choice changes, and show today in the option that keeps it, or above the options
-where none does.
+at once, such as an `lf-shot` pair, stands in the question's group outside the
+options. Where the result spans several captures, such as several surfaces or states,
+line each capture up with its counterparts in the other options and name each surface
+or state once, so the reader compares one at a time down the options. The default is
+a table of captures in every option with the same columns in the same order
+(`authoring-evidence.md`, "Source files and media"), which the theme draws with no
+page CSS. Vary only what the choice changes, and show today in the option that keeps
+it, or above the options where none does.
 
 When the page exists to choose among approaches, its title and headings ask the
 question without answering it. Give each alternative the same depth on the same
@@ -90,11 +90,13 @@ Make each question answerable where On Me takes the user: pressing `m` selects t
 whole question and brings its start to the top of the window, leaving earlier content
 out of view. Write each question as a group you name: the `<section>` holding the
 question and its case, with an id, `role="group"` and `aria-labelledby` naming the id
-of its opening heading, which asks the question on its own, without leaning on the
-prose around it, with any eyebrow beside the heading in an `<hgroup>`. The words the
-group is named by are the question's words on On Me and in the answer you receive; Leaf
-reads the region and its name from that markup, so `page check` refuses a widget that
-asks with no named group round it.
+of the heading that asks the question on its own, without leaning on the prose around
+it. That is usually the group's opening heading, with any eyebrow beside it in an
+`<hgroup>`; where the page's own heading asks the question, as a workspace's header
+does over a playground, the group names that heading (`page-layout.md`, "A
+workspace"). The words the group is named by are the question's words on On Me and in
+the answer you receive; Leaf reads the region and its name from that markup, so
+`page check` refuses a widget that asks with no named group round it.
 
 The group is the region `m` selects, so it holds everything the user judges: why the
 question arises, the current state and its evidence, such as a capture of today or a
@@ -171,8 +173,9 @@ remain a working copy. A playground records its complete values together on subm
 edit and an options pick are independent answers. Choose a composition that keeps the
 approved wording or settings distinct from subsequent edits.
 
-The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
-If the action or evidence changes enough to invalidate the permission, explain the
-change and mark the group `restated` before asking again (`authoring-revisions.md`,
-"Honor user state"). A new stamp neither requests nor renews permission, and recording
-it does not end the page or report that the permitted work has been done.
+The pick belongs to the `lf-options` and its id, `publish-report`, not to the section
+round it. Unrelated edits and page stamps keep it. If the action or evidence changes
+enough to invalidate the permission, explain the change and mark the `lf-options`
+`restated` before asking again (`authoring-revisions.md`, "Honor user state"). A new
+stamp neither requests nor renews permission, and recording it does not end the page
+or report that the permitted work has been done.

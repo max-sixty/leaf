@@ -220,6 +220,22 @@ grid of panes:
 }
 ```
 
+A widget that asks, such as a playground, stands in its question's group
+(`authoring-on-me.md`, "On the page"), and that group is the body. Where the header's
+heading asks the question, the group names that heading:
+
+```html
+<main class="layout-workspace density-working">
+  <header>
+    <h1 id="tune-h">Which latency window should checkout alert on?</h1>
+    <p>…</p>
+  </header>
+  <section id="tune" role="group" aria-labelledby="tune-h">
+    <lf-playground id="tune-config">…</lf-playground>
+  </section>
+</main>
+```
+
 Keep enough space to read each region's evidence and reach its decision. Readers often
 open a workspace on a laptop, in a window about 720px tall, so aim to keep each
 region's decision in view at that height. Stacked panes share the remaining height

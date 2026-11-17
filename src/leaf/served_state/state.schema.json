@@ -611,7 +611,7 @@
           "type": "boolean"
         },
         "thread": {
-          "description": "The thread it stands in: a thread input's own, a widget frozen into a message's thread, or null for a page widget.",
+          "description": "The thread it stands in: a thread input's own, a widget in a message's thread, or null for a page widget.",
           "type": ["string", "null"]
         }
       },
@@ -947,7 +947,7 @@
       "additionalProperties": false
     },
     "View": {
-      "description": "One revision's view: its document, the frozen threads as its registry reads them, and the work and undo readings drawn on it.",
+      "description": "One revision's view: its document, the threads as its registry reads them, and the work and undo readings drawn on it.",
       "type": "object",
       "properties": {
         "basis": {
@@ -961,7 +961,7 @@
         },
         "document": { "$ref": "#/$defs/ViewDocument" },
         "thread": {
-          "description": "The frozen threads as this revision reads them: its registry classifies their widgets' decisions, and so the obligations and attention those give.",
+          "description": "The threads as this revision reads them: its registry classifies their widgets' decisions, and so the obligations and attention those give.",
           "type": "object",
           "properties": {
             "projection": { "$ref": "#/$defs/Projection" },
@@ -971,7 +971,7 @@
           "additionalProperties": false
         },
         "obligations": {
-          "description": "Every obligation record of this view, its document's then its frozen threads', answered and withdrawn ones included. The one copy of each: a list row names an obligation by `id`.",
+          "description": "Every obligation record of this view, its document's then its threads', answered and withdrawn ones included. The one copy of each: a list row names an obligation by `id`.",
           "type": "array",
           "items": { "$ref": "#/$defs/Obligation" }
         },

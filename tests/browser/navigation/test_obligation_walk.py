@@ -555,10 +555,10 @@ def test_an_obligations_digits_are_drawn_whole(browser, serve):
     )
 
 
-def test_frozen_widget_obligation_walk_orders_by_its_threads_page_passage(
+def test_thread_widget_obligation_walk_orders_by_its_threads_page_passage(
     browser, serve
 ):
-    """A materialized frozen source keeps its thread's authored page order."""
+    """A materialized thread source keeps its thread's authored page order."""
     page = open_page(browser, serve(named_source("ship-review")))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -987,7 +987,7 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
     appended after the whole page, so a user located on a thread in the panel would
     measure as past every obligation there is.
 
-    The route runs through the chrome all the same: a widget frozen into a reply is an
+    The route runs through the chrome all the same: a widget in a reply is an
     obligation the walk visits, and a user working its controls is located in the space the
     step measures. So the question is which obligations the layer holds and not whether the
     layer is chrome.
@@ -1361,7 +1361,7 @@ def test_c_from_a_shot_in_a_questions_group_comments_on_the_question(browser, se
 def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     browser, serve
 ):
-    """An obligation frozen into a reply sits in a thread about a page question. Located in the
+    """An obligation in a reply sits in a thread about a page question. Located in the
     reply's obligation keeps that location whether or not it is answered: the thread leads to
     its page obligation only from a node inside no obligation, so a user back on the answered option
     does not have the page obligation's ring and digits. A contributed control for a widget in

@@ -677,13 +677,12 @@ def test_render_reads_widget_chrome_where_it_stands(
 def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
     browser, serve, tmp_path, headless_shell
 ):
-    """Nothing draws a message's widgets before the user opens its thread, and the
-    log freezes the message, so a thread command runs markup holding a widget only a
-    browser can judge once before it posts, and refuses it with the widget's own
-    error, as plain `page check` refuses a page. A host with no browser posts it
-    unrun; the body its module cannot draw then reports to the author when the user
-    opens its thread, naming the widget, and the author answers with a corrected
-    reply."""
+    """Nothing draws a message's widgets before the user opens its thread, so a
+    thread command runs markup holding a widget only a browser can judge once
+    before it posts, and refuses it with the widget's own error, as plain `page check`
+    refuses a page. A host with no browser posts it unrun; the body its module cannot
+    draw then reports to the author when the user opens its thread, naming the widget,
+    and the author answers with a corrected reply."""
     url = serve(LONG_PAGE)
     d = serve.page_dir
 

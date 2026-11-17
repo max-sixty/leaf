@@ -334,7 +334,7 @@ def write_failure_receipt(
     to a page Ask.
 
     Only the move is named. A reply's address is not always the move — a gesture on a
-    widget frozen into thread markup is answered on the thread holding it — and
+    widget in thread markup is answered on the thread holding it — and
     the writer resolves that from the same reading either way, so naming it here would
     be a second answer to a question the writer already answers. It would also be the
     wrong one on a repeat: the Worker retries the same request, and once the first

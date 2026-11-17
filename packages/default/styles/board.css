@@ -27,7 +27,7 @@
  * board scrolls its columns inside itself. Its declared reach caps the minimum at the
  * room its holder grants, including the page's occupied margins. A frame grants only
  * its own width. Only a document declares a reach (layouts.css); without one (a
- * workspace, a page with no Layout, a frozen message) the box the board stands in caps
+ * workspace, a page with no Layout, a thread message) the box the board stands in caps
  * it, a grid cell included, and so does the nearest size container: a framed box
  * holding the board (a pane's body, a card), and a sample, which cannot be one, through
  * `--lf-box-cap`. So a box narrower than the minimum scrolls the board rather than the

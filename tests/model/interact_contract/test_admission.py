@@ -323,7 +323,7 @@ def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_re
     ]
 
 
-def test_instance_contracts_follow_the_widget_in_frozen_thread_markup(
+def test_instance_contracts_follow_the_widget_in_thread_markup(
     instance_input_registry,
 ):
     commands: list[dict] = [
@@ -957,7 +957,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     )
 
 
-def test_created_ids_cannot_collide_across_page_and_frozen_content():
+def test_created_ids_cannot_collide_across_page_and_thread_content():
     markup = '<p id="reserved">Page</p><lf-options id="page-options"></lf-options>'
     commands: list[dict] = [
         {"kind": "comment", "text": "Pick a seed."},

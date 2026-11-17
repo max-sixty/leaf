@@ -325,7 +325,7 @@ _DELIVERED_EVENT = {
                 "answers them by no rule: on a widget action, those still waiting "
                 "on the user's words in a thread about that widget's obligations "
                 "(`obligations.waiting_about`); on the user's message in a thread, "
-                "those still waiting on a pick on a widget frozen there "
+                "those still waiting on a pick on a widget an agent sent there "
                 "(`obligations.waiting_in_thread`). Each is the obligation's `id` "
                 "and the `text` that asked it.",
                 {
@@ -530,7 +530,7 @@ def current_responses(
 
 
 def _users_words_in_a_thread(event: dict) -> bool:
-    """The user's reply in words, which may answer a widget frozen up its thread."""
+    """The user's reply in words, which may answer a widget sent up its thread."""
     return (
         event["kind"] == "reply"
         and event.get("author") == "user"

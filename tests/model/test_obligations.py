@@ -278,7 +278,7 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
         assert (item["id"], item["status"]) == ("widget:choice", "withdrawn")
 
 
-def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
+def test_a_pinned_view_reads_its_threads_under_its_own_registry():
     """A revision captured its thread widgets under its own registry, so a view
     pinned to it classifies their decisions there. A decision whose operation that
     registry defines otherwise is none in that view: the obligation it answers stays open

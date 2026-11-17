@@ -109,7 +109,7 @@ def id_subject(
     widget on the page, `{"kind": "thread", "id"}` for a thread. None where it names
     neither.
 
-    A thread is named by its own id, any message in it, a widget frozen into its
+    A thread is named by its own id, any message in it, a widget in its
     markup, or any other event whose history it is part of
     (`thread_memberships`). An event on a page widget, an action or a worker's report,
     names that widget, and an undo names what the gesture it withdraws named. A page id cannot collide with any of these:
@@ -277,7 +277,7 @@ def widget_messages(structure: ThreadStructure) -> dict:
 def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
     """Widget id → the thread whose message markup holds it.
 
-    The relation on its own, apart from `frozen_thread_reading`, which carries it
+    The relation on its own, apart from `thread_markup_reading`, which carries it
     alongside the records and words a vocabulary supplies. A caller needing only
     this relation does not load a registry to reach it. It takes the two readings
     rather than the log, so the caller that already holds them does not parse
@@ -298,8 +298,8 @@ def event_threads(event: dict, names: dict, widgets: dict) -> list:
     of that relation, so a delivery and a projection cannot put the same event
     in different threads.
 
-    An action on a sent widget belongs to the thread that supplied
-    its frozen contract. An action also belongs to the thread it settles,
+    An action on a sent widget belongs to the thread whose markup
+    supplied its contract. An action also belongs to the thread it settles,
     which admitted `meaning.answer` names — the same key `build_threads` folds on to close
     one. Those are usually different threads and often only the second exists: the
     shipped settling verb is `lf-suggestion`'s decide, whose widget stands on the

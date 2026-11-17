@@ -180,7 +180,7 @@ function connectionMessage(value) {
 export function mountSample(frame, { template, source, window: asWindow = false }) {
   if ((template == null) === (source == null))
     throw new Error("a sample needs either an authored template id or source document");
-  // A template is declared in its revision's document or in a message's frozen
+  // A template is declared in its revision's document or in a message's
   // markup, which the server reads from the log beside the current revision.
   let revision = runtime.currentRevision;
   /** @type {string | undefined} */

@@ -420,7 +420,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "detail": {"value": ["response-yes"]},
         },
     )
-    # A widget input is answered on its frozen message, not on its own event id.
+    # A widget input is answered on the message holding it, not on its own event id.
     selected_ref = response_reference(page_dir, selected)
     destination = delivery_model.response_address(selected_ref)
     assert destination["parent"] == asked["id"]

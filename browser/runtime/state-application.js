@@ -136,20 +136,20 @@ export function createStateApplication({
             : null,
       })),
     );
-    const [activation, , frozenDocuments] = await Promise.all([
+    const [activation, , preparedMessages] = await Promise.all([
       prepareActivation(state),
       markdown,
       Promise.all(
         messages.map(async ({ message, preparation }) => ({
           message,
-          frozen: await preparation,
+          prepared: await preparation,
         })),
       ),
     ]);
     const bodies = new Map(
-      frozenDocuments.map(({ message, frozen }) => [
+      preparedMessages.map(({ message, prepared }) => [
         message.id,
-        frozen ? frozen.body : { text: messageText(message) },
+        prepared ? prepared.body : { text: messageText(message) },
       ]),
     );
 
@@ -178,7 +178,7 @@ export function createStateApplication({
       // Each message's widgets as this reading's wording authors them: an edit's
       // island replaces what the wording before it captured, and the ids that wording
       // held and this one doesn't leave (messages.js, `islandChange`).
-      const islands = islandChange(frozenDocuments);
+      const islands = islandChange(preparedMessages);
       let authored = prior.authored;
       let descriptors = prior.descriptors;
       for (const id of islands.retired) {
@@ -188,14 +188,14 @@ export function createStateApplication({
         authored.delete(id);
         descriptors.delete(id);
       }
-      for (const { frozen } of frozenDocuments) {
-        if (!frozen) continue;
-        for (const [id, baseline] of frozen.authored) {
+      for (const { prepared } of preparedMessages) {
+        if (!prepared) continue;
+        for (const [id, baseline] of prepared.authored) {
           if (authored.get(id) === baseline) continue;
           if (authored === prior.authored) authored = new Map(authored);
           authored.set(id, baseline);
         }
-        for (const [id, descriptor] of frozen.descriptors.descriptors) {
+        for (const [id, descriptor] of prepared.descriptors.descriptors) {
           if (descriptors.get(id) === descriptor) continue;
           if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
           descriptors.set(id, descriptor);
@@ -207,8 +207,8 @@ export function createStateApplication({
         descriptors,
         messageBodies: bodies,
       };
-      for (const { frozen } of frozenDocuments)
-        if (frozen) commitWidgetDescriptors(frozen.descriptors);
+      for (const { prepared } of preparedMessages)
+        if (prepared) commitWidgetDescriptors(prepared.descriptors);
       // The user's place across the change this reading brings, kept once the page
       // shows it (user-place.js, `holdUserPlace`). A revision places the reader with its
       // own landing instead (version.js).
@@ -225,9 +225,9 @@ export function createStateApplication({
       try {
         // Optional interface preparation joins imports and installation, without
         // pretending to be a semantic renderer. Adoption already claimed every document
-        // region for this epoch, and frozen
-        // thread widgets joining the document reopen the ones they change. Waiting for
-        // that proof is what replaces naming the renderers and the order they run in.
+        // region for this epoch, and thread widgets joining the document reopen the
+        // ones they change. Waiting for that proof is what replaces naming the renderers
+        // and the order they run in.
         if (installed) await settlePageInterface();
         await whenDocumentPresented();
         // Version-owned mechanical landing follows proof and reports its own failures;

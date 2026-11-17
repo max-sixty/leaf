@@ -1115,7 +1115,7 @@ _TEXT = {
         f" {_seat(v['then'])}; use a new source id for the new meaning"
     ),
     # Message markup, which no version settles.
-    "frozen-settlement": lambda at, v: (
+    "message-settlement": lambda at, v: (
         f"{at} is a settlement holder, but a version settles only the page's markup,"
         " never a message's; put the change in the next version instead"
     ),
@@ -1755,8 +1755,8 @@ _TEXT = {
     # An action or a report, against its widget's declaration.
     "unknown-sender": lambda at, v: (
         f"unknown report widget {v['widget']!r} in revision r{v['revision']} — reports"
-        " name page widgets only, since no version can answer a report in frozen"
-        " thread markup"
+        " name page widgets only, since no version can answer a report in thread"
+        " markup"
         if v["kind"] == "report"
         else f"unknown action widget {v['widget']!r} in revision r{v['revision']} or"
         " agent-authored thread markup"

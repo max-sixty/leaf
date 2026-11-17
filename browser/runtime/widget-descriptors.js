@@ -116,7 +116,7 @@ export function commitWidgetDescriptors(stage, retired = []) {
 }
 
 // The element standing for a widget id: the one the document holds under it, else the
-// bound node not yet mounted (a message's frozen markup before the thread places it).
+// bound node not yet mounted (a message's markup before the thread places it).
 /** @param {string} id */
 export const widgetElement = (id) => elementById(id) ?? elements.get(id) ?? null;
 

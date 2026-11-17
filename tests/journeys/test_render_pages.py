@@ -389,7 +389,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 
         # Each carried thread must be disclosed for the gate's geometry readings:
         # hidden bodies have no boxes. The public page check never opens Threads,
-        # so exercise its own probes here against every frozen message's widgets.
+        # so exercise its own probes here against every thread message's widgets.
         # A question answered in words has no control of its own.
         if carried_ids:
             for thread_id in sorted(carried_threads):

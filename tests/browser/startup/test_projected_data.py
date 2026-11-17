@@ -940,7 +940,7 @@ def test_a_data_widget_draws_each_publication_and_recovers(browser, serve):
 def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
     browser, serve
 ):
-    """Active and frozen consumers keep their declarations as a source is rebound.
+    """Page and thread consumers keep their declarations as a source is rebound.
 
     A changed contract must reach the browser even with identical value bytes, clear
     the incompatible consumer, and leave it able to recover.
@@ -1020,7 +1020,7 @@ customElements.define(TAG, class extends LeafElement {
     thread_model.post_reply(
         serve.page_dir,
         {"responds": "question"},
-        "Frozen feed.\n\n"
+        "Thread feed.\n\n"
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])

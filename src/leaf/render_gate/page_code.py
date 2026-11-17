@@ -16,8 +16,8 @@ and one rendering frame after it, in the light scheme, at the render viewport, o
 
 A thread message's markup is run the same way before it posts (`message_page`,
 `command.message_check`), wherever it places one of those widgets. Nothing else draws
-it before the user opens its thread, and the log freezes it, so posting is the one
-moment its author can still fix it. In the `widgets-draw-as-written` evals, 5 of 6
+it before the user opens its thread, so posting is the one moment its author can
+fix it before the user sees it. In the `widgets-draw-as-written` evals, 5 of 6
 Codex thread messages holding a Mermaid sequence diagram didn't draw (a `;` in a
 loop label or note ends the statement), and their authors never ran `--render`. A
 message with no such widget waits on no browser.

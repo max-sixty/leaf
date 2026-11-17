@@ -87,13 +87,13 @@ QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
     """
 <h1 id="title">Field day</h1>
-<lf-ask id="map-ask">
-  <h3>Which map should the sample team carry?</h3>
+<section id="map-ask" role="group" aria-labelledby="map-ask-h">
+  <h3 id="map-ask-h">Which map should the sample team carry?</h3>
   <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 <div id="local-shortcuts" tabindex="0">
   <button id="shortcut-focus-note" type="button">Write sample note</button>
   <label>Sample note <input id="shortcut-note" type="text" /></label>
@@ -118,10 +118,11 @@ commandsChanged(document.querySelector("#local-shortcuts"));
 
 def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     """A let-go lands on what the user is reading in the page region they last acted
-    in. Opening Threads over a pane once replaced that region with the panel's list, so
-    closing it landed on the workspace header; and a pane showing no words where it
-    stood (a figure, a spacer) had no block to land on, so the user was dropped on the
-    body and the pane forgotten. Either way `d` and `u` stopped moving the pane.
+    in. It guards two failures: opening Threads over a pane replacing that region with
+    the panel's list, so closing it lands on the workspace header; and a pane showing
+    no words where it stands (a figure, a spacer) having no block to land on, so the
+    user is dropped on the body and the pane forgotten. Either way `d` and `u` stop
+    moving the pane.
 
     A pane that flows inside a scrolling workspace body keeps answering after it scrolls
     out of the window, which a test of the pane's own visibility must not mistake for a
@@ -282,7 +283,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("m")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator("lf-ask[data-lf-obligation]")).to_be_focused()
+    expect(card.locator("section[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")
@@ -1283,9 +1284,9 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
 ):
     """Contents must be available before the reader works through this long review.
 
-    The former sidebar placed the outline after the complete PR facts and history;
-    when the tracks stacked, it also came after the entire article. The authored
-    reading order now puts navigation first and supporting evidence in the article.
+    The authored reading order puts navigation first and supporting evidence in the
+    article. An outline placed after the complete PR facts and history would, when the
+    tracks stack, also come after the entire article.
     """
     source = named_source("pr-walkthrough")
     url = serve(source)
@@ -1822,8 +1823,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A press a widget built joins the same namespace, declared by the constructor that
     # made it rather than by an entry here. A pick spends no page letter of its own — the
-    # register holds capabilities, and a control is a route to one — so before this the
-    # only keyboard way to it was Tab. The arrival is the press, so the option is chosen.
+    # register holds capabilities, and a control is a route to one — so without that
+    # declaration the only keyboard way to it would be Tab. The arrival is the press, so
+    # the option is chosen.
     page.evaluate(
         """() => document.scrollingElement.scrollTo(
              0, document.getElementById('opts-decision').offsetTop - 80)"""

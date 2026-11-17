@@ -1,6 +1,5 @@
 """Version corpus, registry, message, and export tests."""
 
-import copy
 import json
 import os
 import re
@@ -15,6 +14,7 @@ from interact_support import (
     COMMAND_SUBJECTS,
     FLOW_PAGE,
     PAGE,
+    PLAN_OPENING,
     ROOT,
     SHIPPED_PACKAGES,
     STATED_TIMEOUT,
@@ -44,22 +44,23 @@ from leaf import event_log as events_model
 from leaf import events as event_folds_model
 from leaf import files as files_model
 from leaf import layer as layer_model
+from leaf import obligations as obligations_model
 from leaf import revisioning as revisioning_model
 from leaf import schema as schema_model
 from leaf import service as service_model
 from leaf import todos as todos_model
 from leaf.findings import Finding, Rejected
 from leaf.registry import storage as registry_storage
-from leaf.registry.contract import declared_fact, element_declarations
+from leaf.registry.contract import element_declarations
 from leaf.structure import SourceDocument
 from leaf.themes import DEFAULT_THEME
-from leaf.thread_context import thread_digest
+from leaf.thread_context import logged_fragment, thread_digest
 from leaf.validation import composition as validation_model
 from leaf.validation.admission import (
     check_markup,
     revision_publication,
 )
-from leaf.validation.instances import reference_errors
+from leaf.validation.instances import question_errors, reference_errors
 from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
@@ -260,118 +261,117 @@ def test_sample_admits_interactive_widgets(page_dir):
     assert errs == []
 
 
-def test_an_enclosing_widget_titles_any_number_of_independent_sources(page_dir):
-    """An enclosing widget supplies one title without imposing source count or
-    identity."""
+def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
+    """A widget that asks on a page stands in a group the author declares and names:
+    the group is where going to the obligation starts and its name the obligation's
+    prompt, read from the markup with no heading inferred. `page check` refuses a
+    widget no group holds, and a group without a name or an id; a message's widget, a
+    mention in a sample, a widget that asks nothing and one set among words need
+    none."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one">'
         '<lf-option id="o-one"><strong>One</strong></lf-option>'
         "</lf-options>"
     )
-    second = (
-        '<lf-options id="g-two">'
-        '<lf-option id="o-two"><strong>Two</strong></lf-option>'
-        "</lf-options>"
-    )
+    second = first.replace("one", "two").replace("One", "Two")
 
-    assert (
-        fragment_errors(
-            f'<lf-ask id="decision-one"><h2>Choose</h2><p>Context.</p>{first}</lf-ask>',
-            registry,
-        )
-        == []
-    )
-    assert fragment_errors(first, registry) == []
+    def refused(body):
+        document = SourceDocument(f"<main>{body}</main>")
+        return [(f.code, f.at) for f in question_errors(document, registry)]
 
-    # Evidence can quote another obligation source without giving this obligation a
-    # second live source. The runtime already excludes state.exhibit descendants from
-    # the obligation list, so the authored boundary must read the same relation.
-    with_evidence = (
-        '<lf-ask id="decision-with-evidence"><h2>Choose</h2>'
-        f'{first}<lf-sample id="quoted-example" label="another question">'
-        f"{second}</lf-sample></lf-ask>"
+    def prompts(body):
+        document = SourceDocument(f"<main>{body}</main>")
+        return obligations_model.obligation_sources(document, registry).prompts
+
+    # aria-labelledby names the question by the heading's words, however the heading
+    # stands in the group; several widgets in one group share it.
+    group = '<section id="d" role="group" aria-labelledby="d-h">{}</section>'
+    for named in (
+        group.format(f'<h2 id="d-h">Choose</h2><p>Context.</p>{first}'),
+        group.format(f'<hgroup><p>#5</p><h2 id="d-h">Choose</h2></hgroup>{first}'),
+        group.format(f'<p>Context.</p>{first}<h2 id="d-h">Choose</h2>'),
+    ):
+        assert refused(named) == [], named
+        assert prompts(named)["g-one"] == {"text": "Choose", "target": "d"}, named
+    shared = group.format(f'<h2 id="d-h">Choose</h2>{first}{second}')
+    assert prompts(shared)["g-two"] == prompts(shared)["g-one"]
+    # Several labels join; an aria-label names a group with no element, and a
+    # fieldset's legend names it natively.
+    assert prompts(
+        '<h2 id="area">Storage</h2><section id="d" role="group"'
+        f' aria-labelledby="area d-h"><h3 id="d-h">Which store?</h3>{first}</section>'
+    )["g-one"] == {"text": "Storage Which store?", "target": "d"}
+    labelled = f'<div id="d" role="group" aria-label="Which store?">{first}</div>'
+    assert refused(labelled) == []
+    assert prompts(labelled)["g-one"] == {"text": "Which store?", "target": "d"}
+    fieldset = f'<fieldset id="d"><legend>Which store?</legend>{first}</fieldset>'
+    assert refused(fieldset) == []
+    assert prompts(fieldset)["g-one"] == {"text": "Which store?", "target": "d"}
+    # The innermost group is the question.
+    nested = group.format(
+        '<h2 id="d-h">Choose</h2><fieldset id="part"><legend>First part</legend>'
+        f"{first}</fieldset>"
     )
-    assert fragment_errors(with_evidence, registry) == []
-    # A sample's widget asks nothing, quoted or interactive, so it can't fill a
-    # question around the sample.
+    assert prompts(nested)["g-one"]["target"] == "part"
+
+    # A section opened by a heading is no question until its author says so: Leaf
+    # reads no heading to find one.
+    for ungrouped in (first, f'<section id="d"><h2>Choose</h2>{first}</section>'):
+        assert refused(ungrouped) == [
+            ("ungrouped-question", "<lf-options id=g-one>")
+        ], ungrouped
+    assert prompts(first)["g-one"] == {"text": "", "target": "g-one"}
+
+    # A group holding a question needs a name, which a name pointing at nothing
+    # isn't, and an id, its place to stand. One finding on the group says all it
+    # lacks, however many of its widgets ask.
+    def lacking(body):
+        document = SourceDocument(f"<main>{body}</main>")
+        return [
+            (f.code, f.at, f.values["lacks"])
+            for f in question_errors(document, registry)
+        ]
+
+    assert lacking(
+        f'<section id="d" role="group"><h2>Choose</h2>{first}</section>'
+    ) == [("question-group", "<section id=d>", ["name"])]
+    assert lacking(
+        f'<section id="d" role="group" aria-labelledby="gone">{first}</section>'
+    ) == [("question-group", "<section id=d>", ["name"])]
+    assert lacking(
+        f'<section role="group" aria-labelledby="d-h"><h2 id="d-h">Choose</h2>{first}'
+        "</section>"
+    ) == [("question-group", "<section>", ["id"])]
+    (both,) = question_errors(
+        SourceDocument(f'<main><section role="group">{first}{second}</section></main>'),
+        registry,
+    )
+    assert both.values["lacks"] == ["id", "name"]
+    assert both.values["widgets"] == ["<lf-options id=g-one>", "<lf-options id=g-two>"]
+    assert "aria-labelledby" in str(both)
+    # A fieldset is named by its legend, so that is what its finding asks for.
+    (fieldset,) = question_errors(
+        SourceDocument(f'<main><fieldset id="d">{first}</fieldset></main>'), registry
+    )
+    assert fieldset.values["lacks"] == ["name"]
+    assert "<legend>" in str(fieldset) and "aria-labelledby" not in str(fieldset)
+
+    # A settled group, which asks nothing, a sample's widgets, which ask nothing beyond
+    # the sample, and a suggestion, which its sentence names, need no group.
+    assert refused(first.replace('id="g-one"', 'id="g-one" settled')) == []
     for mode in ("", " interactive"):
-        only_shown = (
-            '<lf-ask id="decision-shown"><h2>Choose</h2>'
-            f'<lf-sample id="shown-only" label="another question"{mode}>{second}'
-            "</lf-sample></lf-ask>"
+        assert (
+            refused(f'<lf-sample id="s" label="a question"{mode}>{first}</lf-sample>')
+            == []
         )
-        codes = [error.code for error in fragment_errors(only_shown, registry)]
-        assert codes == ["empty-question"], mode
-
-    # The obligation's title is what the shared name rule reads, so a heading in an
-    # hgroup after its eyebrow, a subheading, or context before the heading all
-    # name the obligation. A frame whose leading title is not a heading is refused.
-    for titled in (
-        f'<lf-ask id="d"><hgroup><p>#5</p><h2>Choose</h2></hgroup>{first}</lf-ask>',
-        f'<lf-ask id="d"><p>#5</p><h2>Choose</h2>{first}</lf-ask>',
-        f'<lf-ask id="d"><h2>Choose</h2><h3>Again</h3>{first}<p>After.</p></lf-ask>',
-    ):
-        assert fragment_errors(titled, registry) == []
-
-    # A frame around another frame holds what that one holds, so a question with
-    # parts asks through its inner frames.
-    nested = (
-        '<lf-ask id="outer"><h2>Choose</h2>'
-        f'<lf-ask id="inner"><h3>First part</h3>{first}</lf-ask></lf-ask>'
+    suggestion = (
+        '<lf-suggestion id="s"><lf-old>daily</lf-old><lf-new>weekly</lf-new>'
+        "</lf-suggestion>"
     )
-    assert fragment_errors(nested, registry) == []
-
-    for untitled in (
-        f'<lf-ask id="d"><p>Context.</p>{first}</lf-ask>',
-        f'<lf-ask id="d"><strong>Choose</strong>{first}</lf-ask>',
-    ):
-        assert found(fragment_errors(untitled, registry), "untitled-question")
-
-    # A context framing no widget, or only widgets that ask nothing, would show a
-    # question the On Me list never counts; a question answered in words is a
-    # message's obligation instead. A retired source still counts: settling a
-    # decision keeps its context.
-    for empty in (
-        '<lf-ask id="question">Is this enough?</lf-ask>',
-        '<lf-ask id="decision-empty"><h2>Nothing to answer</h2></lf-ask>',
-    ):
-        assert found(fragment_errors(empty, registry), "empty-question", widgets=[])
-
-    def lacking(at, lacks):
-        return [{"at": at, "line": 1, "lacks": lacks}]
-
-    # A draft asks only where its author marks it, so unmarked it fills no question.
-    unasked = '<lf-draft id="g-draft"><pre>\nThe wording.</pre></lf-draft>'
-    assert found(
-        fragment_errors(
-            f'<lf-ask id="decision-unasked"><h2>Choose</h2>{unasked}</lf-ask>',
-            registry,
-        ),
-        "empty-question",
-        widgets=lacking("<lf-draft id=g-draft>", {"required": [True]}),
-    )
-    settled = first.replace('id="g-one"', 'id="g-one" settled')
-    settled_obligation = (
-        f'<lf-ask id="decision-settled"><h2>Chosen</h2>{settled}</lf-ask>'
-    )
-    assert fragment_errors(settled_obligation, registry) == []
-    # The registry's `retired` is what says the flag ended an obligation; a flag
-    # that merely stops a widget asking leaves the context framing nothing.
-    unretired = copy.deepcopy(registry)
-    del unretired["lf-options"]["state"]["awaits"]["retired"]
-    assert found(
-        fragment_errors(settled_obligation, unretired),
-        "empty-question",
-        widgets=lacking("<lf-options id=g-one>", {"settled": [False]}),
-    )
-    assert (
-        fragment_errors(
-            f'<lf-ask id="decision-crowded"><h2>Two decisions</h2>{first}{second}</lf-ask>',
-            registry,
-        )
-        == []
-    )
+    assert refused(f"<p>Refill {suggestion}.</p>") == []
+    # A message's widget is named by the message, so its markup needs no group.
+    assert fragment_errors(first, registry) == []
 
 
 def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
@@ -436,8 +436,7 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
 def test_registry_examples_validate(page_dir):
     registry = registry_storage.load_registry(page_dir)
     assert any(
-        tag.startswith("lf-") and "example" in entry.get("author", {})
-        for tag, entry in registry.items()
+        tag.startswith("lf-") and "example" in entry for tag, entry in registry.items()
     )
     assert (
         validation_model.validate_registry_examples(registry, "vendored registry")
@@ -447,10 +446,10 @@ def test_registry_examples_validate(page_dir):
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
     registry = registry_storage.load_registry(page_dir)
-    registry["lf-diff"].setdefault("author", {})["example"] = (
+    registry["lf-diff"]["example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
-    registry["lf-code"].setdefault("author", {})["example"] = (
+    registry["lf-code"]["example"] = (
         '<lf-code id="shared"><pre>one/file.py</pre></lf-code>'
     )
 
@@ -487,7 +486,6 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     """Eight sweeps in test_render.py read a widget inside a whole page, and their
     corpus is examples/, so a widget no example holds is one none of the eight has ever
     seen — a gap that reads as coverage, since the widget's own tests are green.
-    lf-shot and lf-sample were outside them from the day each was written.
     examples/AGENTS.md carries the rest, including the shapes this floor doesn't
     reach."""
     registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
@@ -534,11 +532,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
     gallery_registry = json.loads(
         (page_files(gallery) / "registry.json").read_text(encoding="utf-8")
     )
-    apparatus = {
-        tag
-        for tag, entry in gallery_registry.items()
-        if declared_fact(entry, "state.exhibit")
-    }
+    apparatus = {tag for tag, entry in gallery_registry.items() if entry.get("exhibit")}
     assert apparatus
     eyebrows = re.findall(
         r'<p class="bg-feature-elements">(.*?)</p>',
@@ -583,11 +577,11 @@ def test_a_widget_takes_the_attributes_any_element_takes():
         return [
             (e.code, e.values["keyword"], e.values["path"])
             for e in fragment_errors(
-                '<lf-ask id="kind-ask"><h2>Choose a route</h2>'
+                '<section id="kind-ask" role="group" aria-labelledby="kind-ask-h"><h2 id="kind-ask-h">Choose a route</h2>'
                 '<lf-options id="kind-options">'
                 f'<lf-option id="route" {attributes}>Page</lf-option>'
                 '<lf-option id="other">Ticket</lf-option>'
-                "</lf-options></lf-ask>",
+                "</lf-options></section>",
                 registry,
             )
         ]
@@ -607,7 +601,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
 
 
 def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_page):
-    """An attribute a member declares unique within its owner (markup.unique), such as a
+    """An attribute a member declares unique within its owner (`unique`), such as a
     playground preset's `for`, refuses a repeat in the same owner, and a preset carries
     the id a comment on it records, since without one the comment lands on the whole
     playground. Both doors refuse a break before any browser draws it: message markup,
@@ -617,11 +611,11 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
 
     def playground(preset):
         return (
-            '<lf-ask id="ask"><h2>Which?</h2><lf-playground id="a">'
+            '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2><lf-playground id="a">'
             '<aside><input type="range" name="size" max="4" value="2" /></aside>'
             f"{preset}"
             "<lf-playground-output>Use it.</lf-playground-output>"
-            "</lf-playground></lf-ask>"
+            "</lf-playground></section>"
         )
 
     def preset(*names, ident=' id="preset-loud"'):
@@ -745,7 +739,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
         )
 
     def question(decision_id, markup):
-        return f'<lf-ask id="{decision_id}"><h2>Pick?</h2>{markup}</lf-ask>'
+        return f'<section id="{decision_id}"><h2>Pick?</h2>{markup}</section>'
 
     # `flag-first` is an option on the page (PAGE fixture) — refused.
     clash = reply(
@@ -802,7 +796,7 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
     assert ok.exit_code == 0, ok.output
     # And a new version taking the reply's id fails check.
     (page_dir / "index.html").write_text(
-        PAGE.replace('<section id="plan">', '<section id="plan"><p id="q1">stolen</p>')
+        PAGE.replace(PLAN_OPENING, PLAN_OPENING + '<p id="q1">stolen</p>')
     )
     status, findings = check_findings(page_dir)
     assert status == 1
@@ -815,9 +809,7 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
     instead, silently. One rule over both places an id can be authored: a version, and
     the widget markup in Claude's reply."""
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            '<section id="plan">', '<section id="plan"><p id="lf-msg-7">mine</p>'
-        )
+        PAGE.replace(PLAN_OPENING, PLAN_OPENING + '<p id="lf-msg-7">mine</p>')
     )
     status, findings = check_findings(page_dir)
     assert status == 1
@@ -837,10 +829,10 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--text",
             (
                 "Pick:\n\n"
-                '<lf-ask id="pick-decision"><h2>Pick?</h2>'
+                '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h">\n<h2 id="pick-decision-h">Pick?</h2>'
                 '<lf-options id="lf-pick">'
                 '<lf-option id="o1"><strong>A</strong></lf-option>'
-                "</lf-options></lf-ask>"
+                "</lf-options></section>"
             ),
         ],
     )
@@ -1465,6 +1457,137 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     assert events_model.read_events(page_dir) == before
 
 
+def test_an_agent_edit_rewrites_its_messages_html(page_dir):
+    """An agent may rewrite the HTML in its own message, as it may its words: Leaf
+    checks the new markup as it checks a new message's, and every reading of the
+    message's elements takes the latest wording. A user's answer stays keyed to the
+    widget's ids, so the edit goes in and Leaf tells the agent where that answer now
+    shows. An id any wording held stays the message's own, so no other message
+    takes it and inherits the user's answer."""
+    from leaf.thread_context import thread_structure
+
+    published(page_dir)
+
+    def options(name, *picks):
+        return (
+            f'<lf-options id="{name}">'
+            + "".join(
+                f'<lf-option id="{name}-{pick}">{pick}</lf-option>' for pick in picks
+            )
+            + "</lf-options>"
+        )
+
+    def edit(message, text):
+        return CliRunner().invoke(
+            cli_model.cli, ["thread", "edit", str(page_dir), message, "--text", text]
+        )
+
+    asked = comment(page_dir, "--text", "Ship it?\n\n" + options("ship", "now"))
+    assert asked.exit_code == 0, asked.output
+    asked = json.loads(asked.stdout)
+    chosen = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "ship",
+            "action": "choose",
+            "detail": {"value": ["ship-now"]},
+        },
+    )
+
+    def said():
+        """What the user's choice says, in the words they chose it in."""
+        from leaf.gesture_words import GestureWords
+        from leaf.registry.storage import require_registry
+
+        events = events_model.read_events(page_dir)
+        words = GestureWords(events, require_registry(page_dir), {}.__getitem__)
+        return words.gesture(next(e for e in events if e["id"] == chosen["id"]))
+
+    # The page moves on to a second revision, which the edit is checked against.
+    (page_dir / "index.html").write_text(
+        PAGE.replace("<title>t</title>", "<title>Second</title>")
+    )
+    publish(page_dir)
+    relabel = options("ship", "tonight", "later").replace("ship-tonight", "ship-now")
+    relabelled = edit(asked["id"], "Ship it?\n\n" + relabel)
+    assert relabelled.exit_code == 0, relabelled.output
+    told = json.loads(relabelled.stdout)
+    assert told["records"][0]["revision"] == 2
+    assert [(f["code"], f["values"]["kept"]) for f in told["findings"]] == [
+        ("edit-answered-widget", True)
+    ]
+    drawn = thread_structure(events_model.read_events(page_dir))
+    assert "ship-later" in drawn.by_id
+    assert said() == {"form": "choice", "chosen": ["now"]}
+
+    # An option the user wrote lives in the log, so their pick of it shows on any
+    # wording that keeps the widget.
+    route = comment(page_dir, "--text", "Which route?\n\n" + options("route", "a"))
+    route = json.loads(route.stdout)
+    for action, detail in [
+        ("add", {"option": "route-mine", "text": "Mine"}),
+        ("choose", {"value": ["route-mine"]}),
+    ]:
+        append_command(
+            page_dir,
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 2,
+                "widget": "route",
+                "action": action,
+                "detail": detail,
+            },
+        )
+    reworded = edit(route["id"], "Which route, then?\n\n" + options("route", "a"))
+    assert reworded.exit_code == 0, reworded.output
+    assert {
+        (f["at"], f["values"]["kept"]) for f in json.loads(reworded.stdout)["findings"]
+    } == {("<lf-options id=route>", True)}
+
+    # Keeping the widget but not the option the user chose leaves their answer
+    # showing nowhere.
+    replaced = edit(asked["id"], "Ship it?\n\n" + options("ship", "later"))
+    assert replaced.exit_code == 0, replaced.output
+    told = json.loads(replaced.stdout)
+    assert [(f["code"], f["values"]["kept"]) for f in told["findings"]] == [
+        ("edit-answered-widget", False)
+    ]
+
+    withdrawn = edit(asked["id"], "Withdrawn: the plan changed.")
+    assert withdrawn.exit_code == 0, withdrawn.output
+    told = json.loads(withdrawn.stdout)
+    assert [(f["code"], f["values"]["kept"]) for f in told["findings"]] == [
+        ("edit-answered-widget", False)
+    ]
+    drawn = thread_structure(events_model.read_events(page_dir))
+    assert asked["id"] not in drawn.fragments and "ship" not in drawn.ids
+    assert said() == {"form": "choice", "chosen": ["now"]}
+
+    # Its ids stay the message's: another message can't take them, and it can.
+    taken = comment(page_dir, "--text", "Ship it?\n\n" + options("ship", "now"))
+    assert taken.exit_code != 0 and "ids-taken" in taken.output
+    restored = edit(asked["id"], "Ship it?\n\n" + options("ship", "now"))
+    assert restored.exit_code == 0, restored.output
+
+    plain = comment(page_dir, "--text", "Which store?")
+    plain = json.loads(plain.stdout)
+    widened = edit(plain["id"], "Which store?\n\n" + options("store", "redis"))
+    assert widened.exit_code == 0, widened.output
+    assert json.loads(widened.stdout).get("findings") is None
+    drawn = thread_structure(events_model.read_events(page_dir))
+    assert "store" in drawn.fragments[plain["id"]].by_id
+
+    # The new markup meets the gate a new message's does.
+    before = events_model.read_events(page_dir)
+    clash = edit(plain["id"], "Which store?\n\n" + options("ship", "redis"))
+    assert clash.exit_code != 0 and "ids-taken" in clash.output
+    assert events_model.read_events(page_dir) == before
+
+
 def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
     """A rewrite replaced the words its message had when the user made it, and
     taking back an earlier rewrite later changes nothing it replaced."""
@@ -1666,26 +1789,25 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     assert events_model.read_events(page_dir)[-1]["text"] == "Revised."
 
 
-def test_html_enters_only_through_the_cli_gate(server, page_dir):
-    """The browser door refuses the field rather than silently dropping it: every
-    message the log holds with `html` has been through `check_markup`, which is what
-    lets the thread structure and the panel index it unasked."""
+def test_html_the_user_types_stays_words(server, page_dir):
+    """Only an agent's message draws its HTML, and every one has been through
+    `check_markup`, which is what lets the thread structure and the panel index it
+    unasked. A tag the user types through the browser door is words: the message
+    holds no markup."""
     publish(page_dir)
-    before = events_model.read_events(page_dir)
     status, body = fetch(
         f"{server}/api/event",
         data=json.dumps(
             {
                 "kind": "comment",
                 "revision": 1,
-                "text": 'hi\n\n<lf-diagram id="m"><pre>graph LR\n  A --> B</pre></lf-diagram>',
-                "html": True,
+                "text": 'hi\n\n<lf-diagram id="m">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
             }
         ).encode(),
     )
-    assert status == 400
-    assert "html" in json.loads(body)["error"]
-    assert events_model.read_events(page_dir) == before
+    assert status == 200, body
+    message = events_model.read_events(page_dir)[-1]
+    assert (message["author"], logged_fragment(message)) == ("user", None)
 
 
 @pytest.mark.parametrize(
@@ -1804,12 +1926,11 @@ def test_page_state_reads_reactions_as_marks(page_dir):
 
 
 def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
-    """A reaction is the user's to take back however far the agent has got with it,
-    as a rewrite is, where the door used to refuse it once anything answered it. The
-    withdrawal leaves what answered it its context: the thread stays, the reaction's
-    place reads Deleted with what it said, the mark paints nothing, and nothing is
-    owed to it. A reaction on a message keeps its place the same way, and one nothing
-    stands on still leaves every reading."""
+    """A reaction is the user's to take back however far the agent has got with it, as a
+    rewrite is. The withdrawal leaves what answered it its context: the thread stays,
+    the reaction's place reads Deleted with what it said, the mark paints nothing, and
+    nothing is owed to it. A reaction on a message keeps its place the same way, and one
+    nothing stands on still leaves every reading."""
     published(page_dir)
     mark = append_command(
         page_dir,
@@ -1890,12 +2011,11 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
 
 
 def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):
-    """A message with words is the user's to take back as a reaction is, where the
-    door used to refuse it as said rather than unsaid. One the agent answered keeps
-    its place, Deleted, with the words it was sent with; one nothing answered leaves
-    every reading, and nothing is owed to it; a comment nothing answered takes its
-    thread with it. The agent hears of each withdrawal as it heard of the message, and
-    a rewrite of a message taken back is refused."""
+    """A message with words is the user's to take back as a reaction is. One the agent
+    answered keeps its place, Deleted, with the words it was sent with; one nothing
+    answered leaves every reading, and nothing is owed to it; a comment nothing answered
+    takes its thread with it. The agent hears of each withdrawal as it heard of the
+    message, and a rewrite of a message taken back is refused."""
     published(page_dir)
     asked = append_command(
         page_dir,

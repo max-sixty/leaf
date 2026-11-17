@@ -14,7 +14,8 @@ PAGE = """<!doctype html>
 <head><meta charset="utf-8"><title>Control</title></head>
 <body>
 <main>
-<h1>Control page</h1>
+<section id="control" role="group" aria-labelledby="control-h">
+<h1 id="control-h">Control page</h1>
 <lf-playground id="pg">
   <aside><label id="radius">Corner radius <input type="range" name="radius" min="0" max="24" value="12"></label></aside>
   <lf-playground-preset id="preset-wide" label="Wide">
@@ -23,6 +24,7 @@ PAGE = """<!doctype html>
   <p>Preview</p>
   <lf-playground-output>Radius {radius}</lf-playground-output>
 </lf-playground>
+</section>
 </main>
 </body>
 </html>
@@ -36,8 +38,7 @@ MESSAGE = {
     "session": "control",
     "revision": 1,
     "text": "Which fix first?\n\n"
-    '<lf-chart id="bad"><pre>{marks: [Plot.lineY([1, 2, 3], {x: nosuchvar})]}</pre></lf-chart>',
-    "html": True,
+    '<lf-chart id="bad">\n<pre>{marks: [Plot.lineY([1, 2, 3], {x: nosuchvar})]}</pre></lf-chart>',
     "id": "c58f503e",
     "attention": False,
     "ts": "2026-10-24T22:04:00.076-07:00",

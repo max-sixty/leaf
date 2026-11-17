@@ -37,7 +37,6 @@ from leaf_dev.browser import (
     Window,
     go_to_threads,
     load,
-    open_on_me,
     panel_view,
     scroll_settled,
     settle,
@@ -1254,8 +1253,7 @@ def option_picked(page: Page) -> None:
 
 def option_answered(page: Page) -> None:
     """The panel's row once the server has read a pick that leaves more On Me, where the
-    On Me mark counts what is left and wears `m`, the key of the Next On Me it
-    presses."""
+    field's end offers the next item On Me lists."""
     page.locator("#off-release-hold").click()
     expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
 
@@ -1306,8 +1304,9 @@ def option_references(page: Page) -> None:
 
 
 def on_me(page: Page) -> None:
-    """On Me, opened by its tab beside the leaf's menu."""
-    expect(open_on_me(page)).to_be_visible()
+    """On Me, opened from the floating panel's On Me mark."""
+    page.locator(".lf-fp-on-user").click()
+    expect(page.locator(panel_view("queue"))).to_be_visible()
 
 
 def on_me_question(page: Page) -> None:
@@ -2023,13 +2022,11 @@ def gallery_drawing(page: Page) -> None:
 
 
 def gallery_ask_figure(page: Page) -> None:
-    """An `lf-ask` enclosing a chart, with its question at the window's top so the chart and
-    every option either share the window or run past it."""
+    """A question's group enclosing a chart, with its question at the window's top so
+    the chart and every option either share the window or run past it."""
     page.get_by_role("tab", name="Page & layout", exact=True).click()
     settle(page)
-    page.locator("#bg-ask-across lf-ask").evaluate(
-        "el => el.scrollIntoView({block: 'start'})"
-    )
+    page.locator("#bg-across-ask").evaluate("el => el.scrollIntoView({block: 'start'})")
 
 
 def theme_hierarchy(page: Page) -> None:
@@ -2304,7 +2301,7 @@ def ship_answered(page: Page) -> None:
     page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
     page.keyboard.press("Escape")
     page.locator("#off-release-ship").click()
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").click()
     expect(page.locator(".lf-fp-opened")).to_be_visible()
 
 
@@ -2325,7 +2322,7 @@ def card_ask_by_keyboard(page: Page) -> None:
     """The agent's ask in a margin card, reached by Next On Me (`m`), which focuses the
     ask, so the location ring stands round it inside the card's transcript."""
     page.keyboard.press("m")
-    expect(page.locator(".lf-margin-preview lf-ask")).to_be_focused()
+    expect(page.locator(".lf-margin-preview [data-lf-obligation]")).to_be_focused()
     settle(page)
 
 
@@ -2469,9 +2466,10 @@ def obligation_marker_by_keyboard(page: Page) -> None:
 
 
 def ask_by_keyboard(page: Page) -> None:
-    """The next open obligation, an `lf-ask`, reached with `m`: its ring and its marker in view."""
+    """The next open obligation, a question's group, reached with `m`: its ring and its
+    marker in view."""
     page.keyboard.press("m")
-    page.locator("lf-ask").first.wait_for()
+    page.locator("[data-lf-obligation]").first.wait_for()
 
 
 def steps_in_view(page: Page) -> None:
@@ -2550,7 +2548,7 @@ def overflowing_tabs(page: Page) -> None:
 
 
 def widget_inline_hints(page: Page) -> None:
-    """A standalone command scope with an active inline hint, outside an `lf-ask`."""
+    """A standalone command scope with an active inline hint, outside a question."""
     page.locator("#bg-widget-shortcut-hints").scroll_into_view_if_needed()
     page.keyboard.press("Tab")
     page.locator("#bg-local-shortcuts").focus()

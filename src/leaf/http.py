@@ -290,9 +290,8 @@ class PostRoute:
 # The stored copy outlives the visit in the browser's disk cache. Locally it holds what
 # the page directory already holds in plain files, for the same user. On leaf.page it
 # holds a visitor's comments, replies and images, and Back shows them to whoever next
-# uses that browser profile. leaf.page answered `no-store` to keep them out until
-# 2026-11-08, when the maintainer reversed that choice for an instant Back (issue
-# #4024).
+# uses that browser profile. Answering `no-store` on leaf.page would keep them out;
+# the maintainer chose an instant Back over that.
 CACHE_CONTROL = "no-cache"
 # A revision's resources and page media (`media.media_name`) are named by digests of
 # their bytes, so a name never changes what it answers and the browser keeps one copy

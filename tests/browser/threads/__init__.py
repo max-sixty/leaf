@@ -150,8 +150,6 @@ def append_agent_reply(page_dir, parent, text, markup=None):
         "revision": 1,
         "text": text if markup is None else f"{text}\n\n{markup}",
     }
-    if markup is not None:
-        event["html"] = True
     return append_carried_log_record(page_dir, event)
 
 
@@ -252,12 +250,8 @@ def _shadow_tree_widget(tag):
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "shadow": True,
-        },
-        "author": {
-            "example": f'<{tag} id="example"></{tag}>',
-        },
+        "shadow": True,
+        "example": f'<{tag} id="example"></{tag}>',
     }
     module = f"""
 import {{shadowStage}} from '/runtime/widget-api.js';
@@ -287,7 +281,10 @@ CHANGE_HEAD = "<h1 id='dc-h'>Session store</h1>"
 CHANGE_PAGE = leaf_page("doc-change", CHANGE_HEAD + PAGE_CHANGE)
 
 
-REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-")
+# A reply's widget starts a line of its own, so Markdown keeps it one block.
+REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-").replace(
+    "<lf-old>", "\n<lf-old>", 1
+)
 
 
 def seed_reply(d, markup, anchor_id, chatter=0, after=0):
@@ -328,7 +325,6 @@ def seed_reply(d, markup, anchor_id, chatter=0, after=0):
             "parent": "tv-decisioned",
             "revision": 1,
             "text": "Depends what you want to keep:\n\n" + markup,
-            "html": True,
         },
     )
     append_carried_log_record(
@@ -482,8 +478,11 @@ def seated_page(serve, kind):
     return serve(
         leaf_page(
             "seat",
-            f'<h1>Review the plan</h1>{SEAT_FILLER}<lf-verdict id="proposal" asks>'
-            f"Should these jobs share a visit?</lf-verdict>{SEAT_FILLER}",
+            f"<h1>Review the plan</h1>{SEAT_FILLER}"
+            '<section id="proposal-q" role="group"'
+            ' aria-label="Should these jobs share a visit?">'
+            '<lf-verdict id="proposal" asks>Should these jobs share a visit?</lf-verdict>'
+            f"</section>{SEAT_FILLER}",
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,

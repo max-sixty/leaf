@@ -16,7 +16,9 @@
   },
   {
     "id": "a titled member's chips stand before its title",
-    "registry": { "lf-option": {} },
+    "registry": {
+      "lf-option": {}
+    },
     "markup": "<lf-option id=\"it\"><small class=\"tag\">effort: low</small><strong>Flag first</strong> Ship dark.</lf-option>",
     "name": "Flag first"
   },
@@ -41,18 +43,33 @@
     "name": ""
   },
   {
-    "id": "a leading header holds the title",
-    "markup": "<div id=\"it\"><header><h1>Review</h1></header><p>Body.</p></div>",
-    "name": "Review"
+    "id": "a div that opens with a heading has no name",
+    "markup": "<div id=\"it\"><h2>Review</h2><p>Body.</p></div>",
+    "name": ""
   },
   {
-    "id": "an eyebrow stands above a header's title",
-    "markup": "<section id=\"it\"><header><p>Stage 2</p><h2>Migration rehearsal</h2></header></section>",
+    "id": "an article is named by the heading it opens with",
+    "markup": "<article id=\"it\"><h2>Release notes</h2><p>Body.</p></article>",
+    "name": "Release notes"
+  },
+  {
+    "id": "an aside is not named by its heading",
+    "markup": "<aside id=\"it\"><h2>Note</h2><p>Body.</p></aside>",
+    "name": ""
+  },
+  {
+    "id": "a section does not open with a heading after words",
+    "markup": "<section id=\"it\"><p>Intro.</p><h2>Later</h2></section>",
+    "name": ""
+  },
+  {
+    "id": "an eyebrow stands above an hgroup's heading",
+    "markup": "<section id=\"it\"><hgroup><p>Stage 2</p><h2>Migration rehearsal</h2></hgroup></section>",
     "name": "Migration rehearsal"
   },
   {
-    "id": "words before a title mean it is not one",
-    "markup": "<p id=\"it\">This is <strong>important</strong> text.</p>",
+    "id": "a heading in a section's header does not name it",
+    "markup": "<section id=\"it\"><header><h2>Migration</h2></header></section>",
     "name": ""
   },
   {
@@ -61,25 +78,36 @@
     "name": "Review"
   },
   {
-    "id": "a title group names its owner",
-    "markup": "<section id=\"it\"><header><hgroup><p>Stage 2</p><h2>Migration</h2></hgroup></header></section>",
-    "name": "Migration"
+    "id": "a section names nothing by a nested section's heading",
+    "markup": "<section id=\"it\"><section><h2>Inner</h2></section></section>",
+    "name": ""
+  },
+  {
+    "id": "words before a title mean it is not one",
+    "markup": "<p id=\"it\">This is <strong>important</strong> text.</p>",
+    "name": ""
   },
   {
     "id": "a widget's label names its element",
-    "registry": { "lf-column": {} },
+    "registry": {
+      "lf-column": {}
+    },
     "markup": "<lf-column id=\"it\" label=\"Ready\"><lf-card><strong>A</strong></lf-card></lf-column>",
     "name": "Ready"
   },
   {
     "id": "a widget's label comes before a heading",
-    "registry": { "lf-column": {} },
+    "registry": {
+      "lf-column": {}
+    },
     "markup": "<lf-column id=\"it\" label=\"Ready\"><h3>Later</h3></lf-column>",
     "name": "Ready"
   },
   {
     "id": "without its attribute an element takes its heading",
-    "registry": { "lf-column": {} },
+    "registry": {
+      "lf-column": {}
+    },
     "markup": "<lf-column id=\"it\"><h3>Later</h3></lf-column>",
     "name": "Later"
   },
@@ -87,8 +115,8 @@
     "id": "an attribute shown first is not a name",
     "registry": {
       "lf-reading": {
-        "words": {
-          "says": { "value": "before" }
+        "says": {
+          "value": "before"
         }
       }
     },
@@ -99,8 +127,8 @@
     "id": "a gloss's tip is no part of a heading's name",
     "registry": {
       "lf-gloss": {
-        "words": {
-          "says": { "tip": "after" }
+        "says": {
+          "tip": "after"
         }
       }
     },

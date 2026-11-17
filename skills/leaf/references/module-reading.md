@@ -14,7 +14,7 @@ Inline values stay in their sentence, and ordinary HTML source indentation colla
 name one of the widget's own parts, use `wrote(element)`, which returns only the words
 the author wrote. Read a widget's `<pre>` body with `bodyText(this)`, which trims
 leading blank lines and trailing whitespace. A widget that also declares an input
-(`data.inputs`) reads that input's property instead, which Leaf sets to the `<pre>`'s
+(`inputs`) reads that input's property instead, which Leaf sets to the `<pre>`'s
 text when the markup binds nothing (`package-data.md`, "External or derived data").
 
 An agent's message can carry markup that repeats ids on the page, so look up an id
@@ -25,7 +25,7 @@ misses. `under(node, root)` says whether `node` is in `root` across shadow bound
 and `inChrome(node)` whether it is in Leaf's own interface, as a widget in a Thread
 reply is. A widget that acts on the document around it, as a contents list or a depth
 dial does, reads it with `viewDocument(node)`: the view member holding the node
-(`paint.views`, `module-authoring.md`), else the `main` holding it, else null.
+(`views`, `module-authoring.md`), else the `main` holding it, else null.
 
 ### Naming elements
 
@@ -34,28 +34,22 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
 `addressableWord(element)` gives the word for its kind instead: the fixed word its
-entry declares (`words.word`), as `lf-ask` says "question", else what its element answers
+entry declares (`word`), as `lf-visual-review` says "review", else what its element answers
 from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
 says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
 returns the words that describe it. A
 widget whose title is an attribute holds it in `label`, as a column does, which names
 its element on every widget that takes it (the registry's `$attributes`).
+`authoredTitle()` is the page's own `<title>`, which `document.title` doesn't give
+while the tab's title counts what waits on the user in front of it.
 
-`titledElement(heading)` is the element a heading titles: the outermost element whose
-first heading it is, such as its `hgroup`, the question it opens and a `section`
-wrapping that question; where it titles no element, the heading itself. A `section`,
-`article`, `aside` or `nav` takes its first heading whatever else it holds, past any
-wrapper; any other element only where every other heading inside ranks below it, no
-words stand before it outside a `header` or `hgroup`, and each element between them
-takes it too. An element its `label` attribute names, such as a tab, is not titled by a
-heading inside it. Every element between the two is titled by the heading too. `lf-toc`
-links each heading to one of them, and a heading's link preview counts a thread about
-any of them. The headings that count are those the reading of its document lists, the
-page's or a message's, Leaf's chrome aside, and "first" means first in reading order,
-which the slots of a widget declaring `words.shadow` can reorder. A heading the reading
-doesn't read, such as one among such a widget's children that none of its slots shows,
-titles only itself.
+`titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
+or `article` that opens with it, alone or in that `hgroup`, and a widget it leads, such
+as a card, unless the widget's `label` names it; where it titles no element, the heading
+itself. A heading after other content, or opening any other element, titles only
+itself. `lf-toc` links each heading to one of them, and a heading's
+link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does, and
 `excerptWords(text, cap)` cuts text to at most `cap` characters at a word boundary.
@@ -63,15 +57,14 @@ titles only itself.
 ### Reading declarations
 
 Read the registry rather than repeating it. `declarationFor(element)` returns the
-widget's entry, whose facts sit in groups by what they are about, as
-`declarationFor(card)?.state?.shows` reads a view's `state.shows`.
-`matchesWhen(element, when)` says whether the element's attributes satisfy a `when`,
-such as a `state.awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
+widget's entry, each fact under its own name, as `declarationFor(card)?.shows` reads a
+view's `shows`. `matchesWhen(element, when)` says whether the element's attributes
+satisfy a `when`, such as an `awaits`'s. `layerFact(name)` returns a frozen layer-wide `$`
 declaration, such as `$reactions`.
 
 ### Following a reference
 
-Reach another widget through an attribute declared in `markup.refers`
+Reach another widget through an attribute declared in `refers`
 ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
 not by looking up the id yourself.
 
@@ -97,14 +90,14 @@ to its parts.
 
 ### Markdown
 
-A widget whose entry declares `words.text-format: markdown` has its data body arrive
+A widget whose entry declares `text-format: markdown` has its data body arrive
 rendered as block Markdown while the recorded body stays the source. It reads as a
 Markdown file, as `renderMarkdown(text, false)` does (below). Adopt the rendered
 `.lf-markdown-body` and repaint changing prose with `paintMarkdown(body, source)`.
 `markdownSourceOffset(body, node, offset)` maps a caret in the rendered body back to the
 source.
 
-An entry declaring `paint.prepaint` names the attribute that gives the notation of the
+An entry declaring `prepaint` names the attribute that gives the notation of the
 widget's written `<pre>`. Where that attribute says `markdown`, the `<pre>` arrives with
 its rendering as a file beside it, in a `.lf-markdown-body[data-lf-prepaint]`, so the
 page first paints at that rendering's size. The module still reads the `<pre>`, and
@@ -242,12 +235,14 @@ including those with the agent. Each record looks like this:
 }
 ```
 
-A widget's obligation takes its answer and completion from its `state.awaits`
+A widget's obligation takes its answer and completion from its `awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
 show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
-is `null` for authored state. `prompt.target` is where the user goes to answer;
-`prompt.text` is `null` for a widget with no heading and for an update. `thread`
-and `message` name the Thread and message of a widget inside a Thread. A user's answer
+is `null` for authored state. `prompt.target` is where the user goes to answer: the
+group the author declares round the widget, `role="group"` or a `<fieldset>`, or else
+the widget itself; `prompt.text` is that group's name, from its `aria-labelledby`, its
+`aria-label` or a fieldset's legend, else the widget's own name, and `null` for an
+update. `thread` and `message` name the Thread and message of a widget inside a Thread. A user's answer
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:
 
@@ -275,7 +270,7 @@ pass, as a `Map` from each region to its obligations; a module that marks every 
 or section in one render reads it, since asking `obligationsIn` once per region costs
 the regions times the obligations.
 `regionsAwaiting(regions)` returns the `Set` of `regions` whose markup holds a widget
-declaring `state.awaits`, whether its obligation has yet to arrive or was withdrawn, as
+declaring `awaits`, whether its obligation has yet to arrive or was withdrawn, as
 `lf-tabs` reads it to keep a row's room for an answer. It reads the captured widgets,
 not the regions' elements, and follows each revision, so ask it rather than
 reading the regions' elements in a render.
@@ -299,7 +294,7 @@ Me, and resolves to whether it arrived. A control that calls it prevents `moused
 default, so focus stays put and a second press steps on. The user answers an obligation
 through the widget's own command.
 
-An element declaring `state.shows`, such as a board card, is a view of another widget's
+An element declaring `shows`, such as a board card, is a view of another widget's
 answer ([package-data.md, "Views of an answer"](package-data.md#views-of-an-answer)).
 `shownAnswer(element)` reads it in `render()`, which then redraws with every change to
 that widget's state, and returns `null` where the element shows no answer. Otherwise
@@ -334,7 +329,7 @@ lists `goals`, `workers`, `leaves`, `stopped` goals, `liveWorkers`, and `running
 
 ### Page history and reports
 
-A widget that shows the page's history declares `state.history` and reads
+A widget that shows the page's history declares `history` and reads
 `readHistory()`: `{phase, events}`, the server's rows, newest first, each carrying its
 thread, whether it was undone, the agent's name as `agent`, and a gesture's words. A
 widget restoring something from `tabStore` compares it with the history once `phase` is

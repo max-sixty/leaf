@@ -19,10 +19,10 @@ PLACES_PAGE = (
     )
     .replace(
         "<p id='p50'>",
-        '<lf-ask id="ask"><h2>Which route?</h2><lf-options id="routes">'
+        '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which route?</h2><lf-options id="routes">'
         '<lf-option id="left">Take the left route</lf-option>'
         '<lf-option id="right">Take the right route</lf-option>'
-        "</lf-options></lf-ask><p id='p50'>",
+        "</lf-options></section><p id='p50'>",
     )
 )
 
@@ -73,7 +73,7 @@ AT_EACH_KEY = """addEventListener("keydown", () => { globalThis.__lfAtKey = scro
   {capture: true});"""
 
 
-# Daily, by the user's choice (2026-11-14): each case fits the browser tier's budget,
+# Daily, by the user's choice: each case fits the browser tier's budget,
 # but together they take minutes of CPU, which each push to main would pay.
 @pytest.mark.parametrize("when", ["at once", "under way"])
 @pytest.mark.parametrize("follow", FOLLOWS)

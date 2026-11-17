@@ -45,7 +45,6 @@ from .layer import DOCUMENT_LAYER_ORDER
 from .passages import markdown_markup
 from .registry.contract import (
     authored_inert,
-    declared_fact,
     holds_for,
     is_element_name,
 )
@@ -410,8 +409,8 @@ def mark_declared(
     neither is marked.
 
     A mark is declared by the element's tag, so a selector idiom declares none. An
-    element whose written `<pre>` is Markdown, as `words.text-format` or
-    `paint.prepaint` declares, is painted with its rendering, so the page first paints
+    element whose written `<pre>` is Markdown, as `text-format` or
+    `prepaint` declares, is painted with its rendering, so the page first paints
     the words, at the size, its module will show.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
@@ -430,11 +429,7 @@ def mark_declared(
         )
         marks = {}
         for key, mark in kernel_marks().items():
-            declared = (
-                holds_for(attrs, declared_fact(declaration, key))
-                if key in ("state.exhibit", "paint.flow")
-                else declared_fact(declaration, key)
-            )
+            declared = holds_for(attrs, declaration.get(key))
             authored = mark.get("authored")
             inert = authored and authored_inert(
                 key, declaration, attrs, content=content
@@ -450,12 +445,11 @@ def mark_declared(
                 )
             else:
                 continue
-            if key == "paint.views":
+            if key == "views":
                 # Only the browser evaluates view selectors, including before modules.
-                views = declaration["paint"]["views"]
-                marks["data-lf-view-members"] = views["members"]
-                value = "parts" if views.get("parts") else ""
-            marks[mark["paint"]] = value
+                marks["data-lf-view-members"] = declared["members"]
+                value = "parts" if declared.get("parts") else ""
+            marks[mark["attribute"]] = value
         sizes = [
             size
             for value in attrs.values()
@@ -471,9 +465,9 @@ def mark_declared(
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names
-        # (`paint.prepaint`), first paint as the rendering their module will draw.
-        words = declared_fact(declaration, "words.text-format") == "markdown"
-        prepaint = declared_fact(declaration, "paint.prepaint")
+        # (`prepaint`), first paint as the rendering their module will draw.
+        words = declaration.get("text-format") == "markdown"
+        prepaint = declaration.get("prepaint")
         file = bool(prepaint) and attrs.get(prepaint) == "markdown"
         text = pre_body(element) if words or file else None
         if text is not None:

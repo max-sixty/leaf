@@ -17,7 +17,7 @@
  * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
- * an Escape became a cross-session nudge (measured at 2.1.307 with the
+ * an Escape would become a cross-session nudge (measured at 2.1.307 with the
  * claude-code journey).
  *
  * Starting an idle turn always draws a row, and no hook or exit code wakes the
@@ -382,10 +382,7 @@ let forkAgain = false;
  * Claude Code's own lines for the fork's tokens (`Forked agent [plugin_model_fork]
  * finished`); the module logs no usage of its own, since the debug log redacts
  * a `*_tokens` field, and hands the fork's usage and time, or why it gave no answer,
- * to Leaf, which notes them with the answer in each page's diagnostics. In the
- * claude-code journey on 2026-11-04, with the session at xhigh, 102 forks at low
- * over a 57–202k-token conversation read 98% of it from the cache, cost
- * $0.04–0.12 each at list price and took 0.5–8 s. */
+ * to Leaf, which notes them with the answer in each page's diagnostics. */
 async function clerk($: EngineInterface, session: string) {
   if (forking) {
     forkAgain = true;
@@ -432,8 +429,7 @@ async function clerk($: EngineInterface, session: string) {
 // attachments, hook context and compaction summaries. The fork reads the
 // conversation as it would next go out: with a tool call running, to `sent`, since
 // the call's tool_use can't go out before its result; otherwise to `row`, a turn's
-// final reply included (`notes/fork-replies.md`, under the fork probes, and a
-// turn-end ask in the claude-code journey on 2026-11-01 that quoted only that reply).
+// final reply included (`notes/fork-replies.md`, under the fork probes).
 // Each fork hands this to Leaf, so a fork's diagnostics say where a replay cuts the
 // conversation.
 let lastStep:
@@ -452,14 +448,13 @@ function request() {
  * its time, its usage, and the main thread's request it resent (`request`).
  *
  * The fork thinks at the session's effort, and Leaf's prompt asks it to answer
- * straight away (`clerk.py` and `forks.py` hold what each fork measured at either
- * effort). A fork at another effort reads the conversation from the cache only where Claude Code's per-message
- * effort reaches the model; elsewhere, as on Vertex, through a proxy that rewrites
- * mid-conversation system messages, or with `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`,
- * it writes the conversation to the cache again from the session's first reply on
- * (#5891, #5904). Learning that per backend from each check's usage (#5892, #5907)
- * cost a stored answer per backend, a rewrite to learn it and another to check it
- * again each week. */
+ * straight away. A fork at another effort reads the conversation from the cache only
+ * where Claude Code's per-message effort reaches the model; elsewhere, as on Vertex,
+ * through a proxy that rewrites mid-conversation system messages, or with
+ * `CLAUDE_CODE_DISABLE_EXPERIMENTAL_BETAS`, it writes the conversation to the cache
+ * again from the session's first reply on. Learning that per backend from each
+ * check's usage would cost a stored answer per backend, a rewrite to learn it and
+ * another to check it again each week. */
 async function runFork(
   $: EngineInterface,
   asked: { prompt: string },

@@ -127,7 +127,7 @@ lf-text-document .lf-text-document-run > *::highlight(lf-token-ok-ink) {
 lf-text-document .lf-text-document-run > *::highlight(lf-token-danger-ink) {
   color: var(--lf-danger-ink);
 }
-/* A run of rows (lf-text-document.js, `inRuns`) is drawn only while it is in view. */
+/* A run of rows (lf-text-document.js, `run`) is drawn only while it is in view. */
 lf-text-document .lf-text-document-run {
   content-visibility: auto;
 }
@@ -143,8 +143,8 @@ lf-text-document .lf-text-document-run:only-child {
      drawn as the fold opens (notes/browser-support.md, "An `auto` box under a fold in
      Firefox").
    - Its rows count no numbers. Firefox styles and builds the generated content of
-     rows it doesn't draw: in a folded document of 70,000 lines the numbers took about
-     120 of the 150 ms its styling cost. */
+     rows it doesn't draw, and in a long folded document the numbers can be most of its
+     styling cost. */
 :where([hidden="until-found"], details:not([open]))
   lf-text-document
   .lf-text-document-run {
@@ -168,7 +168,7 @@ lf-text-document .lf-text-document-run:only-child {
    scrolling inside the box rather than at full length in the page.
 
    A Markdown preview of written text is the exception the first paint allows: Leaf
-   draws its rendering beside the `<pre>` before the module does (`paint.prepaint`), so the
+   draws its rendering beside the `<pre>` before the module does (`prepaint`), so the
    page first paints at the preview's own height up to the bound, which the Source tab
    takes too. A one-paragraph quote in a 28rem box drew a 530px frame around 156px of
    text.
@@ -188,9 +188,8 @@ lf-text-document .lf-text-document-run:only-child {
   /* The listing restarts the sticky-header slot from the first paint with every value
      the runtime's mark on a box that scrolls sets (state.css, `[data-lf-scrolls]`), so
      the mark changes nothing its rows inherit. Firefox styles the rows of runs it
-     skips too (notes/browser-support.md, "Styling content Firefox skips"), and a mark
-     that changed three of the values took a 270 to 570 ms frame on a listing of 97,000
-     rows. */
+     skips too (notes/browser-support.md, "Styling content Firefox skips"), so a mark
+     that changed the values would restyle every row of a long listing. */
   lf-text-document:not([preview])[data-lf-bound] pre {
     block-size: var(--lf-bound, 28rem);
     overflow: auto;

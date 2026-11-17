@@ -26,7 +26,7 @@ const moduleOwnsBox = (el) => {
     if (content === "markup") return false;
     return (
       content !== "members" ||
-      !(declarationFor(child)?.markup?.owners || []).includes(parent.localName)
+      !(declarationFor(child)?.owners || []).includes(parent.localName)
     );
   }
   return false;
@@ -34,19 +34,19 @@ const moduleOwnsBox = (el) => {
 
 // A box that draws an inset and shows a different one. A child's outer margin normally
 // collapses through its parent and is spent between blocks; where the parent draws
-// something at that edge, or holds a formatting context of its own, it cannot get out and
-// is painted as the parent's inset instead. So the number a stylesheet states is not the
-// number a user sees, and which of the two they get depends on what the author wrote
-// inside: a card ending in a sentence showed its 16px, the same card ending in a paragraph
-// showed 29. base.css states the trim and a box opts in where it draws the frame
-// (`--lf-block-frame`); this is what says when one hasn't.
+// something at that edge, or holds a formatting context of its own, it cannot get out
+// and is painted as the parent's inset instead. So the number a stylesheet states is
+// not the number a user sees, and which of the two they get depends on what the author
+// wrote inside: a card ending in a sentence shows the inset its stylesheet states, and
+// the same card ending in a paragraph shows more. base.css states the trim and a box
+// opts in where it draws the frame (`--lf-block-frame`); this is what says when one
+// hasn't.
 //
 // It is a reading of the rendered page because nothing else can be. The trim is a style
 // query, the frame is a declaration in whichever layer drew the box, and a project overlays
 // its own theme over leaf's — so which rule won, and whether the child that ended up at the
 // edge is the one the stylesheet's author had in mind, are facts only the browser holds. A
-// lint over the CSS would be reading the declarations and not the result, which is the same
-// mistake the reserved-width lint made before the press sweep replaced it.
+// lint over the CSS would be reading the declarations and not the result.
 //
 // A content box that holds draws its frame by holding, since the box ends where it
 // does. The document shell's padding instead spaces content from the viewport: Leaf's
@@ -57,7 +57,7 @@ const moduleOwnsBox = (el) => {
 // container collapses no margin anywhere, so a margin on an item at its edge is a
 // placement rather than room that could not get out — the switch under a screenshot
 // pair carries 3px of exactly that, the UA's own on a checkbox. And an edge whose box
-// is a generated one (a pseudo-element, a `words.says` word, an injected control) is
+// is a generated one (a pseudo-element, a `says` word, an injected control) is
 // the layer's own paint, stated in the same rule as the frame: what the trim looks for
 // is the first and last block the page itself put there, so this looks for the same,
 // and a card's absolutely-positioned pick mark is not the thing under its last

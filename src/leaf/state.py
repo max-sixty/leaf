@@ -793,7 +793,7 @@ AGENT_TURNS = Record(
             }
         ),
     ),
-    since=48,
+    since=50,
 )
 # The agent turn the running `leaf` command names with `leaf --turn ID`, which Leaf's
 # prompt to a fork tells it to begin each `leaf` command with (`forks.work_prompt`),

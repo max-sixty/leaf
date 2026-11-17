@@ -21,13 +21,17 @@ from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
 from .findings import Finding, Rejected
 from .page_view import InitialPageView
-from .passages import message_markup
 from .projection import generated_children, logged_words
 from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant
 from .state import now_iso
 from .structure import SourceDocument
-from .thread_context import sample_events, thread_names, thread_structure
+from .thread_context import (
+    logged_fragment,
+    sample_events,
+    thread_names,
+    thread_structure,
+)
 from .validation.admission import message_markup_errors
 from .validation.markup import text_media_errors
 
@@ -173,15 +177,16 @@ def initial_sample_events(
                 raise _refused(
                     "fixture-id-repeated", reference, event=seq, id=event["id"]
                 )
-            if event["id"] in child.ids | thread_structure(events).ids:
+            if event["id"] in child.ids | thread_structure(events).holders.keys():
                 raise _refused("fixture-id-taken", reference, event=seq, id=event["id"])
             if event.get("anchor"):
                 event["anchor"] = _fixture_anchor(
                     event["anchor"], AdmissionReadings(view, events, registry)
                 )
+            fragment = logged_fragment(event)
             if "text" in event and (
                 errors := text_media_errors(
-                    event["text"], page_dir, html=bool(event.get("html"))
+                    event["text"], page_dir, html=fragment is not None
                 )
             ):
                 raise _refused(
@@ -190,8 +195,7 @@ def initial_sample_events(
                     event=seq,
                     findings=[found.json(text=False) for found in errors],
                 )
-            if event.get("html"):
-                fragment = SourceDocument(message_markup(event["text"]))
+            if fragment:
                 readings = initial_data_document_readings(child, events, registry)
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)
@@ -207,7 +211,10 @@ def initial_sample_events(
                     contracts,
                     event["id"]
                     if kind == "comment"
-                    else thread_names(events).get(event.get("parent")),
+                    else thread_names(events).get(
+                        event.get("parent", event.get("message"))
+                    ),
+                    replacing=event.get("message"),
                 ):
                     raise _refused(
                         "fixture-markup",

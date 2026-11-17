@@ -1,20 +1,16 @@
 {
   "registry": {
     "lf-sample": {
-      "state": {
-        "exhibit": {
-          "when": {
-            "interactive": [false]
-          }
+      "exhibit": {
+        "when": {
+          "interactive": [false]
         }
       }
     },
     "lf-group": {},
     "lf-pick": {},
     "lf-quote": {
-      "state": {
-        "exhibit": true
-      }
+      "exhibit": true
     }
   },
   "cases": [

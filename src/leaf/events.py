@@ -33,8 +33,8 @@ def document_identity(scope: str, revision: int | None = None) -> dict:
     """The document a widget event is made in, from its scope and revision.
 
     A `page` event's document is the revision it names; a `thread` event's is the
-    frozen thread markup, which lasts the page's whole lifetime and so carries no
-    revision. Admission, thread folds, and the browser all key documents on this
+    message markup, which no revision carries: an edit rewrites it in place
+    (`thread_context.thread_structure`). Admission, thread folds, and the browser all key documents on this
     identity."""
     if scope == "thread":
         return {"kind": "thread"}
@@ -845,11 +845,10 @@ def action_retracted(event: dict, floors: dict, within: dict) -> bool:
 
     One predicate for every reader of liveness — the fold's survival test, the
     words gate's, and the thread a decision settles — because a decision the log
-    has taken back has to be absent everywhere at once. It was written out twice
-    and a third reader went without: `build_threads` settled a thread on a decision
-    and never asked, so a suggestion the next version rewrote came back pending
-    with the thread it had answered still filed away, and the user was never asked
-    the question again."""
+    has taken back has to be absent everywhere at once. A reader that goes without,
+    as `build_threads` settling a thread on a decision without asking would, brings
+    a suggestion the next version rewrote back pending with the thread it answered
+    still filed away, and the user is never asked the question again."""
     return any(
         floors.get(i, 0) > event["revision"] for i in action_rests_on(event, within)
     )

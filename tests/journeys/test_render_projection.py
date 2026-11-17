@@ -78,7 +78,6 @@ from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
-from leaf.registry.contract import declared_fact
 from leaf.registry.storage import layer_record
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as scheme_model
@@ -317,12 +316,12 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
 ):
     """A read that never comes back is a sentence, not a hang.
 
-    Every document the gate reads used to be fetched inside the page, and
-    `page.evaluate` sends the driver no timeout at all — measured, an evaluate
-    awaiting a fetch that never answers is still running at 200s. So a server that
-    accepted a request and then went quiet left `page check --render` running with
-    nothing printed, which is the one failure a user cannot tell from slowness: the
-    gate stopping is loud, and the gate never stopping looks like a slow machine.
+    `page.evaluate` sends the driver no timeout at all: an evaluate awaiting a fetch
+    that never answers keeps running. So a document the gate fetched inside the page,
+    from a server that accepted the request and then went quiet, would leave
+    `page check --render` running with nothing printed, which is the one failure a user
+    cannot tell from slowness: the gate stopping is loud, and the gate never stopping
+    looks like a slow machine.
 
     Stall the gate's second read of this version, after its first read delivered the
     page. Stalling that first read would wedge navigation instead and report the
@@ -464,7 +463,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     }
     declarations["lf-tally"]["attributes"].setdefault("required", []).append("count")
     declarations["lf-tally"]["content"] = "data"
-    declarations["lf-tally"].setdefault("author", {})["example"] = (
+    declarations["lf-tally"]["example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
     # The registry holds a widget-unit verb to the attribute a version retracts a
@@ -472,7 +471,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     declarations["lf-tally"]["attributes"]["properties"]["restated"] = {
         "type": "boolean"
     }
-    declarations["lf-tally"].setdefault("state", {})["verbs"] = {
+    declarations["lf-tally"]["verbs"] = {
         "step": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "count"},
@@ -549,7 +548,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         (tag, verb)
         for tag, entry in registry.items()
         if tag.startswith("lf-")
-        for verb in declared_fact(entry, "state.verbs", {})
+        for verb in entry.get("verbs", {})
     }
     assert {(tag, verb) for _id, tag, _key, verb in in_force} == declared, (
         "the gate applies the state in force, so a declared verb missing from it is a "
@@ -586,7 +585,7 @@ def test_the_render_gate_reads_a_page_that_has_finished_arriving(
     rather than teleports.
 
     Both windows are load-shaped — a busy server, a few hundred milliseconds — which
-    is how this page passed at a desk and reported words drawn over words under a
+    is how this page can pass at a desk and report words drawn over words under a
     full suite. Holding the action back until the page's first read has answered, and
     the gate's own read until the action is in, makes the window the same every run:
     the page reads as broken for about three seconds, and the gate must have nothing
@@ -768,12 +767,12 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
     rule, and the quote anchored in it detaches instead of pointing at words the
-    page's reading has dropped. The mark and the hide used to be each holder
-    module's own duty, stated in the module contract and the key table and enforced
-    nowhere, and the first family that forgot would have split the page's reading
-    from the file's in silence. Later the layer painted them only through a
-    controller the module subscribed to, which left the same duty under another
-    name. The second half drives it all back out: the fold
+    page's reading has dropped. The mark and the hide are not each holder module's
+    own duty, which the module contract and the key table would state and nothing
+    enforce, so the first family that forgot would split the page's reading from the
+    file's in silence; nor does the layer paint them only through a controller the
+    module subscribes to, which leaves the same duty under another name. The second
+    half drives it all back out: the fold
     keeps the last surviving action per verb and unit, so a decision on an outcome
     that settles nothing displaces the one before it, and the mark, the marker and
     the hide follow it."""
@@ -977,7 +976,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         wherever it stands — and `m` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each reach the
     agent live, so only its Done press closes it, as an `answer` action
-    state.awaits.answered names for a `multiple` group. The thread's own reply box is
+    `awaits.answered` names for a `multiple` group. The thread's own reply box is
     the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
     Threads, while `t` reaches a particular thread and `c` reaches its reply box.
@@ -1027,11 +1026,9 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # And it butts that hairline, like every other cell of the control. This is the one
     # place the reading is asked at all: the joined-cell readings in the render gate see
     # a served version, and a thread group lives in the panel the runtime builds, so the
-    # gate never reaches it. The press was written as a control floating inside the
-    # group on a margin of its own, and the theme comment said so — but the group is a
-    # grid and had been stretching it to the full column all along, so what the 8px
-    # actually drew was a hairline with dead ground under it, on every thread the agent
-    # asked a set question in.
+    # gate never reaches it. The group is a grid and stretches the press to the full
+    # column, so an 8px margin of the press's own draws a hairline with dead ground
+    # under it, on every thread the agent asks a set question in.
     seam = page.locator("#tq-set").evaluate(
         """el => { const done = el.querySelector('.lf-done');
                    const last = done.parentElement.previousElementSibling;
@@ -1057,7 +1054,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect_obligations_answered(page, "2/2")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     expect(page.locator(".lf-live")).to_have_text("Marked answered")
-    # Said once, by the log's answer. An `answered` attribute on the group said it
+    # Said once, by the log's answer. An `answered` attribute on the group would say it
     # again in the author's namespace, where the entry admits nothing undeclared and no
     # version could ever have carried a record of a thread verb — invisible to every
     # consumer but shallowSigs, which reads what no version can assert as state one
@@ -1096,7 +1093,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a `multiple` set, whose state.awaits.answered condition is an `answer` in force.
+    # a `multiple` set, whose `awaits.answered` condition is an `answer` in force.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -1140,8 +1137,8 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
         '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
     )
     question = (
-        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options">'
-        '<lf-option id="yes">Yes</lf-option></lf-options></lf-ask>'
+        '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Decision?</h2><lf-options id="options">'
+        '<lf-option id="yes">Yes</lf-option></lf-options></section>'
     )
     second = first.replace("</main>", question + "</main>")
     url = serve(first)
@@ -1203,7 +1200,7 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     """A request started by the old realm cannot apply a later response in the new one."""
 
     # A new executable identity requires the fresh-document path. An in-place patch
-    # can retain the page-comment editor and no longer waits for this draft.
+    # can retain the page-comment editor and doesn't wait for this draft.
     version_url = serve(executable_revision(LIVE_V1, "one"))
     page = open_page(browser, live_url(version_url))
     general = page_comment(page)
@@ -1296,11 +1293,11 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
             '<h1>Route history</h1><lf-activity id="feed"></lf-activity>' + destination,
         ).replace("</head>", executable + "</head>")
 
-    route = """<lf-ask id="route-ask"><h2>Which route?</h2>
+    route = """<section id="route-ask" role="group" aria-labelledby="route-ask-h"><h2 id="route-ask-h">Which route?</h2>
       <lf-options id="route">
         <lf-option id="route-fast">Fast path</lf-option>
         <lf-option id="route-slow">Slow path</lf-option>
-      </lf-options></lf-ask>"""
+      </lf-options></section>"""
     url = live_url(serve(source(route)))
     page = open_page(browser, url)
     page.locator("#route-fast .lf-pick").click()

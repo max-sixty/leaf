@@ -1,13 +1,10 @@
-# From session d47e9799, whose decision section compared three designs in a table as
-# rows A, B and C, ordered by how far each departed from today, then listed the
-# lf-option cards as C, B, A: the recommended option first and the one closest to today
-# last, the order 243 of 312 recommending groups on that machine's pages used. The
-# overnight-2026-10-20 page did the same to a four-row table (D, C, B, A).
-# Notes alone passed on base 8 of 8; the session was copying its own page, so each
-# prompt pastes the page's earlier decisions, all recommended-first. Base 3a2e96564
-# then failed one-order in 2 of 5 and window-sizes' subject-order in 4 of 5; with the
-# authoring-decisions.md paragraph on ordering options by the subject, 9 of 9 and 5 of
-# 5, every run reading that reference.
+# A session's decision section compared three designs in a table as rows A, B and C,
+# ordered by how far each departed from today, then listed the lf-option cards as C,
+# B, A: the recommended option first and the one closest to today last. Another
+# page did the same to a four-row table (D, C, B, A).
+# Notes alone may not reproduce it; the session was copying its own page, so each
+# prompt pastes the page's earlier decisions, all recommended-first.
+# authoring-on-me.md's paragraph on ordering options by the subject addresses it.
 description: options-keep-one-order
 metadata:
   purpose:
@@ -25,7 +22,7 @@ vars:
     The page so far holds ten proposals, each put to the user like these two:
 
     ```html
-    <lf-ask id="ask-resolve-glyph">
+    <section id="ask-resolve-glyph" role="group" aria-labelledby="resolve-glyph">
       <h3 id="resolve-glyph">Resolve and Reopen are a bare ✓: one press hides the thread, and reopening looks like a status</h3>
       <p>
         A card's Resolve is a ✓ beside ✕. One press closes the card, removes the
@@ -45,18 +42,18 @@ vars:
         <lf-option id="resolve-words"><small class="tag">effort: ~25 lines</small><small class="tag ok">recommended</small><strong>Write Resolve and Reopen as words, and make the resolved line reopen</strong></lf-option>
         <lf-option id="resolve-keep"><small class="tag">effort: none</small><strong>Keep the ✓ glyphs</strong> Their names stay in tooltips only, which a phone never shows.</lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
 
-    <lf-ask id="ask-answer-control">
+    <section id="ask-answer-control" role="group" aria-labelledby="answer-control">
       <h3 id="answer-control">A question asked in words shows no way to answer it</h3>
       <p>
-        A bare <code>lf-ask</code> renders as an ordinary paragraph, and the only
+        A question asked in words renders as an ordinary paragraph, and the only
         sign it is a question is a <code>?</code> in the rail. On Me has the same
         gap: a card whose widget lives in an undrawn thread message gets only the
         quiet words “Discuss” and “Show”, and neither says an answer is owed.
       </p>
       <p>
-        Proposal: give a bare <code>lf-ask</code> an <strong>Answer</strong> press
+        Proposal: give a question asked in words an <strong>Answer</strong> press
         that opens its comment box labelled “Answer…”. When On Me can't draw a
         card's choices, draw its way there as an <strong>Answer</strong> press.
         Cost: about 40 lines, one default-package widget plus theme.
@@ -65,17 +62,17 @@ vars:
         <lf-option id="answer-build"><small class="tag">effort: ~40 lines</small><small class="tag ok">recommended</small><strong>Draw an Answer press on bare questions and on On Me cards</strong></lf-option>
         <lf-option id="answer-keep"><small class="tag">effort: none</small><strong>Keep the rail’s ? as the only sign</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
     ```
 
     You read the code. Your notes:
 
-    - Today a widget has four inputs to its On Me card. `state.awaits` in its registry
+    - Today a widget has four inputs to its On Me card. `awaits` in its registry
       entry says whether it asks and what answers it. Its keyboard commands marked
       `decision: true` are copied onto the card as plain buttons, and a press clicks
       the widget's real control on the page (`choicesOf` in `obligations/view.js`).
       `static answerWords(value, element)` words a finished answer. The heading comes
-      from an enclosing `lf-ask`. The panel owns the rest of the card: Discuss, Show,
+      from the section around it. The panel owns the rest of the card: Discuss, Show,
       Undo and the walk's order.
     - Copying needs the control to exist on the page, so a widget in a thread message
       nobody has opened gets only Discuss and Show. The card can't show what is being
@@ -94,11 +91,11 @@ vars:
         unchanged. Deletes `choicesOf` and the copied buttons. Two live elements then
         share one id; you haven't checked the four runtime lookups that resolve an
         obligation by id, browser-local state such as a draft, or heavy widgets. Size
-        unknown: prototype it on `lf-options` and `lf-ask` first.
+        unknown: prototype it on `lf-options` first.
     - You recommend C: each widget keeps one renderer and decides its own look in both
       places.
 
-    Write the `lf-ask` that puts this decision to the user, after
+    Write the section that puts this decision to the user, after
     `ask-answer-control`, with a comparison of the three designs. The page directory is not reachable from here, so reply with
     the section's HTML.
 assert:
@@ -120,11 +117,11 @@ assert:
       design in which the widget draws itself in the card. Fail if another option is
       marked recommended or none is.
 variants:
-  # A sibling from overnight-2026-10-20 (#44), with a different subject and no letters
-  # in the notes: four window sizes on a scale of how far each moves from today, and
-  # the recommendation inside the scale, where moving it first breaks the scale.
-  # With the recommendation at the scale's far end, base wrote the scale reversed,
-  # which no single output can tell from a recommendation moved first.
+  # A sibling with a different subject and no letters in the notes: four window
+  # sizes on a scale of how far each moves from today, and the recommendation inside
+  # the scale, where moving it first breaks the scale. With the recommendation at the
+  # scale's far end, a run can write the scale reversed, which no single output can
+  # tell from a recommendation moved first.
   window-sizes:
     metadata:
       purpose:
@@ -141,8 +138,8 @@ variants:
         Earlier decisions on the page look like this one:
 
         ```html
-        <lf-ask id="d43">
-          <h3>#43 How strong should the window-height requirements be?</h3>
+        <section id="d43" role="group" aria-labelledby="d43-h">
+          <h3 id="d43-h">#43 How strong should the window-height requirements be?</h3>
           <p>
             Clipped controls and sideways scroll stay refusals, now also at the new height.
             The question is the two that aren't checked: a workspace's decision in view, and a
@@ -155,7 +152,7 @@ variants:
             <lf-option id="d43-refuse"><strong>Refuse an overflowing pane</strong> Every page fits, at the cost of refusing a long file or reading list that may scroll.</lf-option>
             <lf-option id="d43-guide"><strong>Guidance only</strong> No check; the goal line alone.</lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
         ```
 
         Your notes, from measuring the gate on 40 example pages:
@@ -174,7 +171,7 @@ variants:
         - You recommend adding 1280×720 with the width sweep: it reads the shorter
           window at every width and keeps the 900 px reading, for 2 to 3 s a check.
 
-        Write the `lf-ask` for this decision, #44, with a comparison of the four
+        Write the section for this decision, #44, with a comparison of the four
         choices. The page directory is not reachable from
         here, so reply with the section's HTML.
     assert:
@@ -207,16 +204,15 @@ variants:
           Pass only if exactly one `lf-option` carries a `recommended` label, and it
           is the choice that adds 1280×720 with the width sweep. Fail if another
           option is marked recommended or none is.
-  # From session d9c4e332's overnight-work page. The session had listed the options to
-  # the user in chat as A, B and C with its pick first, then wrote the page's cards in
-  # the subject's order, keep-today first and its pick second, and kept "I'd take the
-  # first option" in the prose, which then named the option it argued against. No run
-  # reproduced a wrong pointer, since a run writes the prose and cards together, so this
-  # grades the habit that let it through: naming an option by position. Without the
-  # pasted earlier decision, in the recommended-first order and "first option" wording
-  # most local pages used before #3790, base did so in 3 of 8; with it, 5 of 8 and 4 of
-  # 8. The authoring-decisions.md sentence on naming an option by its title passed 8 of
-  # 8, every run reading that reference.
+  # A session's overnight-work page. The session had listed the options to the user
+  # in chat as A, B and C with its pick first, then wrote the page's cards in the
+  # subject's order, keep-today first and its pick second, and kept "I'd take the
+  # first option" in the prose, which then named the option it argued against. A run
+  # writes the prose and cards together, so it may not reproduce a wrong pointer;
+  # this grades the habit that let it through: naming an option by position. The
+  # pasted earlier decision, in the recommended-first order and "first option"
+  # wording, tempts it. authoring-on-me.md's sentence on naming an option by its
+  # title addresses it.
   spine-pick:
     metadata:
       purpose:
@@ -240,8 +236,8 @@ variants:
         An earlier decision on the page reads:
 
         ```html
-        <lf-ask id="skill-ask">
-          <h2>Should the grind workflow become a skill?</h2>
+        <section id="skill-ask" role="group" aria-labelledby="skill-ask-h">
+          <h2 id="skill-ask-h">Should the grind workflow become a skill?</h2>
           <p>
             Every agent tonight read the same brief, and three of its rules came from
             friction an agent hit. No skill covers a batch of agents over the TODO
@@ -257,7 +253,7 @@ variants:
             </lf-option>
             <lf-option id="skill-keep"><strong>Keep the brief in <code>.tmp/</code></strong></lf-option>
           </lf-options>
-        </lf-ask>
+        </section>
         ```
 
         Your notes:
@@ -273,7 +269,7 @@ variants:
           widget, and changes a rule every widget relies on.
         - Keeping the rule means the spine keeps appearing at upgrade.
 
-        Write the `lf-ask` that puts this decision on the page, with your
+        Write the section that puts this decision on the page, with your
         recommendation and its reason in the prose. The page directory is not
         reachable from here, so reply with the section's HTML.
     assert:

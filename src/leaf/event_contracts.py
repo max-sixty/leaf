@@ -15,7 +15,6 @@ from leaf.event_meaning import AdmissionReadings, admit_widget_event
 from leaf.events import (
     active_summaries,
     build_threads,
-    note_settlements,
     spoken_turns,
     summary_range,
     taken_back,
@@ -25,11 +24,7 @@ from leaf.events import (
 from leaf.findings import Finding
 from leaf.harness import message_identity
 from leaf.layer import incompatible_layer
-from leaf.obligations import (
-    questions_in_words,
-    quoted_in,
-    response_address,
-)
+from leaf.obligations import questions_in_words, quoted_in
 from leaf.page_view import CandidatePageView, PageView
 from leaf.plans import plan_error
 from leaf.projection import (
@@ -42,7 +37,6 @@ from leaf.projection import (
 from leaf.read_state import read_contract_error
 from leaf.registry.contract import (
     created_child,
-    declared_fact,
     detail_schema,
     event_spec,
     state_specs,
@@ -130,7 +124,7 @@ def command_error(event: dict, contracts: dict) -> Finding | None:
 
 
 def declared_event_error(event: dict, rec: dict, registry: dict):
-    """Why a known widget's verb or detail violates its state.verbs declaration, or
+    """Why a known widget's verb or detail violates its `verbs` declaration, or
     names a verb the event's own writer does not write."""
     kind = event["kind"]
     tag = rec["tag"]
@@ -143,7 +137,7 @@ def declared_event_error(event: dict, rec: dict, registry: dict):
     named = {"kind": kind, "tag": tag, "verb": event["action"]}
     spec = event_spec(entry, event)
     if spec is None:
-        other = declared_fact(entry, "state.verbs", {}).get(event["action"])
+        other = entry.get("verbs", {}).get(event["action"])
         if other is not None:
             return Finding(
                 "foreign-verb",
@@ -256,9 +250,7 @@ def position_record_error(
         != owner
     ):
         return Finding("outside-destination", values=named)
-    if target["tag"] not in declared_fact(
-        registry.get(unit["tag"]) or {}, "markup.owners", []
-    ):
+    if target["tag"] not in (registry.get(unit["tag"]) or {}).get("owners", []):
         return Finding("unowned-placement", values={**named, "unit_tag": unit["tag"]})
     affected = (node for node in by_id.values() if inside(node, unit))
     if collisions := attribute_slot_errors(
@@ -333,7 +325,7 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     entry = registry.get(rec["tag"]) or {}
     bindings = [
         spec
-        for spec in declared_fact(entry, "data.inputs", {}).values()
+        for spec in entry.get("inputs", {}).values()
         if rec["attrs"].get(spec.get("source")) == source
     ]
     if not bindings:
@@ -355,8 +347,8 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     document = view.document(revision)
     # One reading of the panel's document for the whole door: the id universe the
     # declaration is looked up in and the projection a record is judged against
-    # are the same frozen fragments, and parsing them twice was two readings that
-    # could only ever agree.
+    # are the same frozen fragments, and parsing them twice would be two readings
+    # that could only ever agree.
     thread = readings.thread
     thread_by_id = thread.by_id
     if error := declared_action_error(event, document.by_id, thread_by_id, registry):
@@ -364,7 +356,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
-    spec = registry[tag]["state"]["verbs"][event["action"]]
+    spec = registry[tag]["verbs"][event["action"]]
     # A created child is new: an id the markup already holds is an authored element,
     # which a user's gesture can mark or move but never write into being.
     created = created_child(event, spec)
@@ -466,9 +458,9 @@ def stale_move_error(view, event: dict, spec: dict, reading, readings):
 def declared_report_error(event: dict, page, registry: dict):
     """Why a report violates its declaration or names a non-page widget.
 
-    Page markup only, never a reply's: a report has to be answerable, and thread
-    markup is frozen in the log, so no version could ever absorb or overrule one
-    made there."""
+    Page markup only, never a reply's: a report has to be answerable, and no
+    version carries thread markup, so none could ever absorb or overrule one made
+    there."""
     rec = page.by_id.get(event["widget"])
     tag = rec["tag"] if rec else None
     if tag is None:
@@ -550,7 +542,7 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
     if error := declared_report_error(event, document, registry):
         return error
     tag = document.by_id[event["widget"]]["tag"]
-    spec = registry[tag]["state"]["verbs"][event["action"]]
+    spec = registry[tag]["verbs"][event["action"]]
     return record_contract_error(view, event, spec, readings)
 
 
@@ -761,29 +753,16 @@ def _plan_error(event: dict, readings) -> Finding | None:
 
 def _todo_error(view, event: dict, readings) -> Finding | None:
     """A `todo` event stands on a thread, a widget that seats work, an element,
-    or the page. A completing note and `todo_end` share completion authority, and a
-    start names explicit agent work or an owed update (`todos.todo_error`)."""
+    or the page; a `todo_end` names an open to-do; and a start names explicit agent
+    work or an owed update (`todos.todo_error`)."""
     from leaf.todos import start_reading
 
-    progress_parent = (
-        event["parent"] if event["kind"] == "reply" and "start" in event else None
-    )
     if start := start_reading(event):
         event = start
-    elif event["kind"] == "note":
-        if not note_settlements(event, "todo"):
-            return None
     elif event["kind"] not in {"todo", "todo_end"}:
         return None
     held = event["kind"] in {"todo", "start"}
     workflows = readings.work.workflows if held else []
-    if progress_parent is not None and not any(
-        record["source"]["id"] == event["item"]
-        and record["next_actor"] == "agent"
-        and response_address(record).get("parent") == progress_parent
-        for record in readings.work.updates["all"]
-    ):
-        return Finding("progress-parent", values={"parent": progress_parent})
 
     def seat_error(widget: str) -> Finding | None:
         if not view.revisions:

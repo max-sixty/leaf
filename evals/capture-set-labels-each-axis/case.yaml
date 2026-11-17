@@ -1,19 +1,15 @@
-# From session aace0a1e, whose bug page showed four captures (two cases, each before
-# and after an agent's step arrives) as two images, each joined from a before and an
-# after frame with ffmpeg, after lf-shot's divider hid the move. Which half was before
-# was said only in the prose above, and which image was which case only in captions.
-# Cold, base 29c077de6 kept the four captures apart and labeled where they stand in 1 of
-# 3 runs (one joined them with vstack); the table of captures in "Source files and
-# media" did in 3 of 3. Without the prompt's pointer to that section, 4 of 4 Claude
-# Code runs at 0e538e29d read authoring-evidence.md themselves and passed, as 4 of 4
-# pointed runs did.
+# A session's bug page showed four captures (two cases, each before and after an
+# agent's step arrives) as two images, each joined from a before and an after frame
+# with ffmpeg, after lf-shot's divider hid the move. Which half was before was said
+# only in the prose above, and which image was which case only in captions. Cold,
+# an agent may join them, as with vstack, or leave where they stand unlabeled; the
+# table of captures in "Source files and media" keeps them apart and labeled.
 #
-# `own-target` was added when a pointed comment on one screenshot in such a table
-# landed on the table: at befe324b2 the captures carried no id in 4 of 4 Claude Code
-# runs. With "Stable anchors" restated alone, 3 of 4 put one on each `<img>` and one
-# put it on the link around the image, where the aim's bracket stands on the link's
-# line and not around the image. With the capture default naming the `<img>` as well,
-# 12 of 12 put it there.
+# The `own-target` metric covers a pointed comment on one screenshot in such a table
+# landing on the table because the captures carry no id. With "Stable anchors"
+# restated alone, an agent may put the id on the link around the image, where the
+# aim's bracket stands on the link's line and not around the image; the capture
+# default names the `<img>` as well.
 description: capture-set-labels-each-axis
 metadata:
   purpose:

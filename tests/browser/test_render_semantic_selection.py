@@ -451,8 +451,8 @@ DENSE_TARGETS_PAGE = leaf_page(
     "dense visual targets",
     '<h1 id="title">Visual targets</h1><div class="visual-grid">'
     + "".join(
-        f'<figure id="visual-{i}"><svg viewBox="0 0 32 18" width="32" height="18" '
-        f'role="img" aria-label="Visual {i}"><rect x="1" y="1" width="30" '
+        f'<figure id="visual-{i}" aria-label="Visual {i}"><svg viewBox="0 0 32 18" '
+        'width="32" height="18" aria-hidden="true"><rect x="1" y="1" width="30" '
         'height="16" fill="none" stroke="currentColor"></rect></svg></figure>'
         for i in range(60)
     )

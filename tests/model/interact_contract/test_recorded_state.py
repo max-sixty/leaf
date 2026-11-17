@@ -30,7 +30,7 @@ from model.interact_contract import (
 
 def test_unrecorded_fold_units_are_required_strings(page_dir):
     registry = vocabulary(page_dir)
-    add = registry["lf-options"]["state"]["verbs"]["add"]
+    add = registry["lf-options"]["verbs"]["add"]
     add.pop("creates")
     add["detail"]["properties"]["option"] = {"type": "integer"}
     declare_vocabulary(page_dir, registry)
@@ -52,7 +52,7 @@ def test_unrecorded_fold_units_are_required_strings(page_dir):
 )
 def test_recorded_effects_fix_their_fold_unit(page_dir, tag, verb, unit):
     registry = vocabulary(page_dir)
-    spec = registry[tag]["state"]["verbs"][verb]
+    spec = registry[tag]["verbs"][verb]
     spec["unit"] = unit
     registry[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
     declare_vocabulary(page_dir, registry)
@@ -156,9 +156,9 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
     registry = vocabulary(page_dir)
     options = registry["lf-options"]
     if writer == "agent":
-        options["state"].pop("awaits")
+        options.pop("awaits")
         options["attributes"]["properties"]["overruled"] = {"type": "boolean"}
-        options["state"]["verbs"]["choose"]["writer"] = "agent"
+        options["verbs"]["choose"]["writer"] = "agent"
     registry_validation.validate_registry(registry, "test registry")
     page = ModelPage(
         '<lf-options id="owned" multiple>'
@@ -238,11 +238,11 @@ def test_scalar_record_admission_inherits_the_destination_schema(page_dir):
 )
 def test_recorded_declarations_cannot_override_the_fixed_payload(page_dir, mutation):
     registry = vocabulary(page_dir)
-    spec = registry["lf-board"]["state"]["verbs"]["move"]
+    spec = registry["lf-board"]["verbs"]["move"]
     if mutation == "detail":
         spec["detail"] = {"type": "object", "additionalProperties": False}
     elif mutation == "text-field":
-        registry["lf-test-worker"]["state"]["verbs"]["state"]["text"] = "doing"
+        registry["lf-test-worker"]["verbs"]["state"]["text"] = "doing"
     else:
         spec["record"][mutation.removeprefix("record-")] = "custom"
     declare_vocabulary(page_dir, registry)
@@ -300,7 +300,7 @@ def test_report_text_is_required_only_when_declared(page_dir):
             page, [], {**command, "kind": "action", "author": "user", "detail": detail}
         )
 
-    del registry["lf-test-worker"]["state"]["verbs"]["state"]["text"]
+    del registry["lf-test-worker"]["verbs"]["state"]["text"]
     page = ModelPage(
         '<lf-test-worker id="agent" state="working">Agent</lf-test-worker>',
         registry=registry,
@@ -322,7 +322,7 @@ def test_report_text_is_required_only_when_declared(page_dir):
 )
 def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
     registry = vocabulary(page_dir)
-    del registry[tag]["state"]["verbs"][verb][field]
+    del registry[tag]["verbs"][verb][field]
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
@@ -345,9 +345,9 @@ def test_distinct_verbs_cannot_claim_one_physical_record_slot(
     page_dir, tag, verb, kind, attr
 ):
     registry = vocabulary(page_dir)
-    declared = registry[tag]["state"]["verbs"][verb]
+    declared = registry[tag]["verbs"][verb]
     parallel = json.loads(json.dumps(declared))
-    registry[tag]["state"]["verbs"]["parallel"] = parallel
+    registry[tag]["verbs"]["parallel"] = parallel
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
@@ -368,7 +368,7 @@ def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
     """A rank lies between the unit's neighbours, which only the widget holding the
     container can read, so a widget cannot record its own position."""
     registry = vocabulary(page_dir)
-    registry["lf-options"]["state"]["verbs"]["move"] = {
+    registry["lf-options"]["verbs"]["move"] = {
         "unit": "widget",
         "record": {"kind": "position", "within": "lf-column"},
     }
@@ -393,30 +393,30 @@ def _independent_member_records():
     for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card"):
         with_modules(registry, tag)[tag] = element_declaration(tag, upgrade=True)
         registry[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
-        registry[tag]["author"].pop("example", None)
+        registry[tag].pop("example", None)
     board, zone, card = (
         registry[tag] for tag in ("lf-audit-board", "lf-audit-zone", "lf-audit-card")
     )
     board["content"] = "members"
-    board.setdefault("state", {})["verbs"] = {
+    board["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {"kind": "position", "within": "lf-audit-zone"},
         }
     }
-    zone.setdefault("markup", {})["owners"] = ["lf-audit-board"]
+    zone["owners"] = ["lf-audit-board"]
     zone["content"] = "members"
-    zone.setdefault("state", {})["verbs"] = {
+    zone["verbs"] = {
         "choose": {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "selected"},
         },
     }
-    card.setdefault("markup", {})["owners"] = ["lf-audit-zone"]
+    card["owners"] = ["lf-audit-zone"]
     card["attributes"]["properties"].update(
         selected={"type": "boolean"}, phase={"type": "string"}
     )
-    card.setdefault("state", {})["verbs"] = {
+    card["verbs"] = {
         "phase": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}}
     }
     registry_validation.validate_registry(registry, "independent member records")
@@ -530,7 +530,7 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
 
     page = _independent_member_records()
     registry = page.registry(1)
-    registry["lf-audit-zone"]["state"]["verbs"]["choose"]["record"]["attr"] = "phase"
+    registry["lf-audit-zone"]["verbs"]["choose"]["record"]["attr"] = "phase"
     registry_validation.validate_registry(registry, "reusable record declarations")
     reading = page.reading(1, registry)
     findings = widget_errors(reading.document.lf_elements, registry)
@@ -538,14 +538,14 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
 
     # These declarations are valid until a move changes their actual composition.
     zone = registry["lf-audit-zone"]
-    zone["state"].pop("verbs")
-    zone.setdefault("markup", {})["owners"] = ["lf-audit-left", "lf-audit-right"]
+    zone.pop("verbs")
+    zone["owners"] = ["lf-audit-left", "lf-audit-right"]
     for tag, attr in (("lf-audit-left", "selected"), ("lf-audit-right", "phase")):
         holder = element_declaration(tag, upgrade=True)
         holder["content"] = "members"
-        holder.setdefault("markup", {})["owners"] = ["lf-audit-board"]
+        holder["owners"] = ["lf-audit-board"]
         holder["attributes"]["properties"]["restated"] = {"type": "boolean"}
-        holder.setdefault("state", {})["verbs"] = {
+        holder["verbs"] = {
             "choose": {"unit": "widget", "record": {"kind": "attribute", "attr": attr}}
         }
         with_modules(registry, tag)[tag] = holder
@@ -581,10 +581,8 @@ def test_creates_targets_are_members_while_authored_widgets_keep_owner_capabilit
     child = registry["lf-option"]
     child.update(
         {
-            "words": {
-                "shadow": True,
-                "visual": "whole",
-            },
+            "shadow": True,
+            "visual": "whole",
         }
     )
     with_modules(registry, "lf-option")
@@ -592,10 +590,10 @@ def test_creates_targets_are_members_while_authored_widgets_keep_owner_capabilit
     child["attributes"]["properties"].update(
         phase={"type": "string"}, restated={"type": "boolean"}
     )
-    child.setdefault("state", {})["verbs"] = {"phase": _value_verb("phase")}
+    child["verbs"] = {"phase": _value_verb("phase")}
     with pytest.raises(registry_contract.RegistryError) as refused:
         registry_validation.validate_registry(registry, "independent created owner")
     assert refused.value.findings[0].code == "creates-semantic-owner"
 
-    del registry["lf-options"]["state"]["verbs"]["add"]
+    del registry["lf-options"]["verbs"]["add"]
     registry_validation.validate_registry(registry, "independent authored owner")

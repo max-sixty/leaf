@@ -231,14 +231,14 @@ The queue recovered after reverting the timeout change.
 <div>The oldest request is waiting for review.</div></div>
 <dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl>
-<lf-options id="routes">
+<section id="routes-q" role="group" aria-label="What happens to the queue?"><lf-options id="routes">
 <lf-option id="route-one"><strong>Keep the queue</strong>
 <dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
 <lf-option id="route-two"><strong>Review the queue</strong>
 <p class="facts" id="option-prose">Keep this explanation in the option's full reading
 width while the owner checks the oldest requests.</p></lf-option>
-</lf-options>
+</lf-options></section>
 <dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
         head="""<style>
 .prose-box {inline-size:280px;overflow:hidden;}
@@ -383,7 +383,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     url = serve(
         leaf_page(
             "Inline rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -459,7 +460,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     url = serve(
         leaf_page(
             "Inline reply rollback",
-            '<h1>Review</h1><lf-verdict id="proposal" asks>Ship it?</lf-verdict>',
+            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -640,23 +642,19 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
 ):
     """A rendering has no text of the page's in it to select, so an explicit Comment
     gesture anchors on the whole element. Which widgets those are is theirs to declare
-    (words.visual): the runtime names none of them, so a widget added to the vocabulary
+    (`visual`): the runtime names none of them, so a widget added to the vocabulary
     exposes the target on the strength of its entry. This rules out a consumer that
     knows one
     widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
     registry = load_registry(serve.page_dir)
-    assert registry["lf-diagram"]["words"]["visual"], (
-        "this test needs the shipped declaration"
-    )
+    assert registry["lf-diagram"]["visual"], "this test needs the shipped declaration"
     declare_on_page(
         serve.page_dir,
         # A widget core has never heard of.
         lambda registry: registry["lf-code"].update(
             {
-                "words": {
-                    "visual": "whole",
-                },
+                "visual": "whole",
             }
         ),
     )
@@ -814,8 +812,8 @@ def test_a_screenshot_comment_contour_paints_above_its_edge_to_edge_frame(
 def test_a_focused_card_comment_never_paints_over_the_cards_contents(browser, serve):
     """The selected thread may strengthen its contour, but it stays hollow.
 
-    This is the checkout-release regression: the metric fills its host edge to edge,
-    so a mark projected above the widget also sat above every word the widget draws.
+    The metric fills its host edge to edge, so a mark projected above the widget would
+    also sit above every word the widget draws.
     Comparing the interior with the card's mark taken off makes the guarantee
     independent of the widget's DOM, colors, and stacking choices.
     """
@@ -1358,7 +1356,7 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
         """
 <h1 id="title">Authored block widths</h1>
 <p id="prose">Standard prose.</p>
-<section id="wide" data-width="wide">
+<section id="wide" data-width="wide" role="group" aria-label="Which case?">
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
@@ -1404,8 +1402,8 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
 
 def test_a_boards_minimum_keeps_the_room_the_column_can_grant(browser, serve):
     """A widget's preferred minimum never claims the sidebar's margin. Native wide and
-    available blocks read the same capacity; four and five board columns previously
-    overrode it at mid widths, while the control without a sidebar fitted there.
+    available blocks read the same capacity; four and five board columns don't
+    override it at mid widths, where the control without a sidebar fits.
     A board too narrow to share between columns stacks them inside that allocation,
     so neither it nor the page scrolls sideways.
     """
@@ -1481,8 +1479,8 @@ def test_a_table_granted_room_stands_on_the_prose_axis(
     browser keeps an over-wide box at its holder's start, not its own. Where the page
     arranges the box itself, as in a cell of its own two-track grid or as an item of
     that grid, the room beside it is the page's other track, so the table stays in its
-    box and scrolls its columns there: its natural width had widened its track and
-    crushed the other to 30px, and as an item it had stood across both tracks. Chromium,
+    box and scrolls its columns there: its natural width would widen its track and
+    crush the other, and as an item it would stand across both tracks. Chromium,
     Firefox and WebKit place them the same."""
     browser = request.getfixturevalue(engine)
     head = "".join(f"<th>Column {i}</th>" for i in range(8))
@@ -1622,8 +1620,8 @@ def test_a_scrolling_breakout_table_keeps_its_caption_in_its_scrollport(
 def test_a_table_caption_reads_at_its_tables_size_and_colour(browser, serve):
     """A caption names what its table covers, such as which case a table among
     several shows, so it reads at least at the size and in the colour of the cells
-    it names. Set as apparatus, at the chip size in the muted colour, it was the
-    faintest text around the table, and a reader took three tables for one (#5403)."""
+    it names. Set as apparatus, at the chip size in the muted colour, it would be the
+    faintest text around the table, and a reader could take three tables for one."""
     page = open_page(
         browser,
         serve(
@@ -1716,7 +1714,8 @@ def test_what_an_outer_column_draws_outside_itself_stays_whole(
     in its first or last column draws outside its box keeps its outer side only if the
     cell keeps room for it: a capture's frame, a shadow reaching 8px beside the image,
     alone, linked or in a figure, and the ring on a link the keyboard stands on, in
-    either direction. A focused link in the first column lost its ring's outer side."""
+    either direction. A focused link in the first column would lose its ring's outer
+    side."""
     src = SHOT_SRC["before"]
     capture = f'<img src="{src}" width="300" height="150" alt="A capture.">'
     body = (
@@ -1762,8 +1761,8 @@ def test_a_tables_rows_span_the_prose_and_its_outer_words_stand_in_alike(
     """A table as wide as the column runs its row lines from where the prose starts to
     where it ends, and sets its first column's words, a short heading's included, as far
     inside the start as its last column's stop inside the end, in either direction. A
-    right-to-left table kept the left-to-right gutter on its first column's right and set
-    its words from the left."""
+    right-to-left table that kept the left-to-right gutter on its first column's right
+    would set its words from the left."""
     words = "Each column holds enough words to fill its share of the measure. "
     body = (
         f"<h1>Columns</h1><p id='prose'>{words * 4}</p>"
@@ -1811,7 +1810,7 @@ def test_a_tables_rows_span_the_prose_and_its_outer_words_stand_in_alike(
 def test_a_row_of_metrics_sets_every_figure_on_one_line(request, serve, engine):
     """A row of metric tiles reads as figures compared across it, so each figure stands
     on one line whichever labels wrap and whichever figures carry a change beside them.
-    A label wrapping to a second line had set its own figure a line lower."""
+    A label wrapping to a second line could set its own figure a line lower."""
     tile = '<dl id="{}" class="metric"><dt>{}</dt><dd><strong>{}</strong>{}</dd></dl>'
     page = open_page(
         request.getfixturevalue(engine),
@@ -1881,12 +1880,12 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     table += f"<tbody>{row * 2}</tbody></table>"
     body = (
         "<h1>Tables of prose</h1>"
-        '<lf-ask id="asked"><h2>Which copy should a session read?</h2>'
+        '<section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice">'
         '<lf-option id="asked-reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
         '<section class="panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")
         + "</section>"
@@ -1910,10 +1909,10 @@ def test_a_box_sized_to_its_content_gives_a_table_its_columns_width(
 ):
     """A box that takes its width from what it holds, such as a flex item or a grid's
     `auto` track, gives a table its columns' width, as it would the browser's own
-    table, so the table scrolls nothing. While the table was an inline-size container it
-    asked such a box for no width: two tables side by side in a flex row and one in an
-    auto track stood 0px wide, and a headed table beside a note 65px with a column out
-    of sight."""
+    table, so the table scrolls nothing. A table that was an inline-size container
+    would ask such a box for no width: two tables side by side in a flex row and one in
+    an auto track would stand no width at all, and a headed table beside a note would
+    keep a column out of sight."""
     table = (
         '<table id="{}"><thead><tr><th>Region</th><th>Hosts</th></tr></thead>'
         "<tbody><tr><td>us-east-1</td><td>14</td></tr></tbody></table>"
@@ -2003,10 +2002,10 @@ def test_a_breakout_grows_only_from_a_holder_that_spans_the_column(
     request, serve, direction, engine
 ):
     """An explicit flow shares the column's room; ordinary holders contain their exhibits.
-    A focus ring beside a breakout leaves nothing to scroll sideways: Firefox counted a
-    breakout moved by a relative offset at its place in flow once a ring restyled its
+    A focus ring beside a breakout leaves nothing to scroll sideways: Firefox can count
+    a breakout moved by a relative offset at its place in flow once a ring restyles its
     holder, so closing a thread card, which rings the paragraph it leaves the user at,
-    left the page 456px wider than a 1728px window."""
+    could leave the page wider than the window."""
     browser = request.getfixturevalue(engine)
     source = leaf_page(
         "Native exhibit tracks",
@@ -2147,11 +2146,11 @@ def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, se
 def test_a_sample_fills_the_room_its_authored_width_takes(browser, serve):
     """The breakout rule widens a block by negative margins, which an auto-width box
     fills and a box with a width of its own does not. A sample is a table box with a
-    stated width, so `data-width="available"` moved it left by the margin and left it
-    at the column's width. Each wide sample is measured against a plain block given the
-    same width, which is where the room ends. A sample with no width of its own is the
-    control for the inherited surplus: in a list item inside a wide section it takes the
-    item's width, not the item's width plus the section's surplus."""
+    stated width, so `data-width="available"` would move it left by the margin and leave
+    it at the column's width. Each wide sample is measured against a plain block given
+    the same width, which is where the room ends. A sample with no width of its own is
+    the control for the inherited surplus: in a list item inside a wide section it takes
+    the item's width, not the item's width plus the section's surplus."""
     source = leaf_page(
         "Sample widths",
         """
@@ -2234,7 +2233,7 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
         # A board's columns are as wide as what they hold, a diff's lines are as long as
         # its files', and prose is set to a measure, so a page carrying all three used
         # to be a cramped board or a page widened past its own measure for one exhibit.
-        # paint.space declares the capacity a widget needs, and the theme spends the
+        # `space` declares the capacity a widget needs, and the theme spends the
         # room the layout measured, so each exhibit grows and the prose does not move.
         # The board, a surface, takes all the room; the diff, slightly wider than the
         # column, starts at the prose's edge and stops at the shared cap.
@@ -2290,11 +2289,11 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
 
 def test_paper_holds_no_room_for_the_chrome_it_does_not_print(browser, serve):
     """The panel stands over the foot of the document, so the document leaves it room.
-    The panel is not on a sheet — the runtime's whole layer is withheld from print — and
-    chrome's room went to paper anyway once: written as body's own padding it printed as
-    a blank strip under the last line.
+    The panel is not on a sheet — the runtime's whole layer is withheld from print — but
+    chrome's room written as body's own padding would print as a blank strip under the
+    last line.
 
-    The reservations now belong to the document box whose chrome they make room for,
+    The reservations belong to the document box whose chrome they make room for,
     rather than to the scroll container. The same CSS disappears with the chrome in
     print, so paper cannot inherit an empty screen-only strip.
 
@@ -2368,8 +2367,8 @@ def test_a_wide_widget_keeps_its_margins_and_its_comment_lands_on_it(browser, se
 
 def test_a_box_that_shows_less_than_it_holds_says_so(browser, serve):
     """A drawing that genuinely could not fit scrolls, and on a platform drawing overlay
-    scrollbars the scrollbar is no sign at rest: measured, a twelve-node flowchart in a
-    tab panel showed seven of them at 1200, 1440 and 1920 with nothing saying so. So the
+    scrollbars the scrollbar is no sign at rest: a flowchart in a tab panel can show
+    only some of its nodes with nothing saying so. So the
     box marks each edge with content beyond it, which fades the drawing there. The line
     of code that fits is the control: a mark on a box holding nothing back would be a
     promise of more with nothing behind it."""
@@ -2443,23 +2442,23 @@ def test_a_scroller_reclassifies_when_an_ancestor_changes_its_style(browser, ser
 def test_a_drawing_wider_than_its_column_is_laid_out_for_it_or_fades_where_cut(
     browser, serve, subtests
 ):
-    """Three agent-written pages drew a five-step plan `flowchart LR`; at 1440px each
-    box showed two and a half steps, and every reader took the plan for three.
+    """A five-step plan drawn `flowchart LR` can show only part of its steps in the
+    column, and a reader then takes the plan for fewer steps.
 
     So a drawing is laid out for the column it stands in: the chain turns top-down
     there and shows all five steps, at the size it was drawn, with nothing to scroll.
     On a phone, two branches side by side, whose labels the renderer's own narrowing
     keeps at their width, are drawn again with narrower labels, and fit too.
 
-    What can't narrow that far, a row of six calls side by side, still scrolls, and
-    the layer's fade marked its cut edge all the way to the ground, where
-    a node faded out looks like the node's own end. So a drawing's fade stops short of
+    What can't narrow that far, a row of six calls side by side, still scrolls, and a
+    fade marking its cut edge all the way to the ground would make a node faded out
+    look like the node's own end. So a drawing's fade stops short of
     the ground: the node cut at an edge fades toward the page's ground and still reaches
     the scrollport's side, which is what reads as cut. This reads the pixels rather
     than the rule, in a row through the cut node's fill above its label: at the very
     edge the fill is lighter than a little inside the box and still darker than the
-    ground. Over blank canvas the edge is the ground itself, where a grey shadow used
-    to lie. The fade follows the scroll: the end edge while the drawing runs on past
+    ground. Over blank canvas the edge is the ground itself, with no grey shadow. The
+    fade follows the scroll: the end edge while the drawing runs on past
     it, the start edge once it is scrolled. The same five steps drawn top-down fit the
     column and fade nothing."""
     page = open_page(browser, serve(LONG_CHAIN_PAGE))
@@ -2589,7 +2588,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render
-    (paint.space, the half of markDeclared the page keeps to itself). Nothing about a
+    (`space`, the half of markDeclared the page keeps to itself). Nothing about a
     message says so, which is why this asks: the widget is in the panel, and the panel's
     width is
     what bounds it."""
@@ -2613,9 +2612,8 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
             "parent": "c-fix",
             "revision": 1,
             "text": "Like this:\n\n"
-            '<lf-diagram id="fallback-flow"><pre>\n'
+            '<lf-diagram id="fallback-flow">\n<pre>\n'
             "graph LR\n  R[request] --> C{cookie}\n  C --> S[session]\n</pre></lf-diagram>",
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2666,12 +2664,11 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
             "parent": "c-log",
             "revision": 1,
             "text": "Here it is, with the log:\n\n"
-            '<lf-sample id="rp-quoted" label="the old copy">'
+            '<lf-sample id="rp-quoted" label="the old copy">\n'
             '<p>Sessions <lf-gloss tip="Still under review.">draft</lf-gloss> live in Redis.</p></lf-sample>\n\n'
             '<pre id="rp-log" data-bound="end">one\ntwo\nthree</pre>\n\n'
             '<section id="rp-room" data-width="wide"><p>Wide on a page.</p></section>\n\n'
             '<lf-options id="rp-choice"><lf-option id="rp-keep">Keep</lf-option></lf-options>',
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2698,11 +2695,11 @@ def test_a_message_carries_the_marks_a_page_would_except_its_room(browser, serve
 
 def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     """The room is the page's to give, and a widget inside a box that paints is not held
-    by the page. A quoted board that took the window stood outside the gutter marking it
-    as quoted — the exhibit escaping its own exhibit — while a diagram in an option card
-    was worse for being invisible: a live option group clips to its own cells, so the widest
-    part of the evidence an option argued on was cut off at the card's edge rather than
-    drawn past it, and nothing on the page said a word.
+    by the page. A quoted board that took the window would stand outside the gutter
+    marking it as quoted — the exhibit escaping its own exhibit — while a diagram in an
+    option card is worse for being invisible: a live option group clips to its own cells,
+    so the widest part of the evidence an option argued on would be cut off at the card's
+    edge rather than drawn past it, and nothing on the page would say a word.
 
     A plain section is the control. It paints nothing and is the column's own width, so a
     board inside one takes the room exactly as it would standing alone — which is what
@@ -2717,11 +2714,11 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
 
     The row form is the declaration's limit, and the reason the sizing is asserted
     too. A row option is a table hugging its words, and legacy table sizing answers
-    to content where every modern layout clamps a scroll container — so with the
-    frame declared all along, a diagram in a row grew the row, the row grew the
-    shared track, and the group's clip cut the evidence off at its border. And a
+    to content where every modern layout clamps a scroll container — so even with the
+    frame declared, a diagram in a row would grow the row, the row would grow the
+    shared track, and the group's clip would cut the evidence off at its border. And a
     separated table adds its padding outside the width it is given, so every row on
-    every joined group stood 30px past its group, diagram or no diagram, the clip
+    every joined group would stand past its group, diagram or no diagram, the clip
     spending the overhang out of the pick's word-room. The box a wide widget gets
     answers to the room and never to its content (contain: inline-size, base.css),
     and the row keeps its reservation inside the width it states (box-sizing:
@@ -2786,8 +2783,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
         f"{boxes['rowPick']['right']:.0f}, group ends at {boxes['rowGroup']['right']:.0f}"
     )
     # A board's own card is the same box asked from inside a scroller, which is where the
-    # gate below had been blind: this diagram stood 332px past its card and across the
-    # next column of the board, and every reading of the page called it clean.
+    # gate below is blind: this diagram can stand past its card and across the next
+    # column of the board while every reading of the page calls it clean.
     assert boxes["inBoardCard"]["left"] >= boxes["boardCard"]["left"] - 1, (
         "the diagram crossed its card's left edge on the board"
     )
@@ -2892,8 +2889,8 @@ def test_a_sidebar_pages_aside_takes_the_width_the_page_sets(browser, serve):
 def test_a_wide_table_scrolls_inside_a_sidebar_pages_body_on_a_phone(browser, serve):
     """A sidebar page's row sets its body's width, not what the body holds, so on a
     phone a table wider than the window scrolls inside the body and the page scrolls
-    nothing. A body as wide as its widest content stood as wide as the table's columns,
-    past the window."""
+    nothing. A body as wide as its widest content would stand as wide as the table's
+    columns, past the window."""
     cells = "".join(f"<td>measured value {i}</td>" for i in range(8))
     source = leaf_page(
         "a sidebar page",
@@ -2912,9 +2909,9 @@ def test_a_sidebar_pages_items_trim_their_words_at_both_edges(browser, serve):
     """Each item in a sidebar page's row trims its words' outer margins, through any
     wrapper, as a column does at its edges: beside the body, a track whose heading sits in
     a wrapper starts level with a body whose heading doesn't, and stacked, the body ends
-    at its last line, so only the row's gap stands before the track. Only an item's own
-    first child was trimmed, so a wrapped heading stood its margin lower, and every item
-    but the last kept its last paragraph's margin."""
+    at its last line, so only the row's gap stands before the track. Trimming only an
+    item's own first child would stand a wrapped heading its margin lower, and leave
+    every item but the last its last paragraph's margin."""
     source = leaf_page(
         "a sidebar page",
         "<header><h1>Review</h1></header>"
@@ -3326,8 +3323,8 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     browser, serve
 ):
     """A bare button or field an author writes into the page reads in Leaf's type, as
-    Leaf's own controls do; left to the browser it drew 13.33px Arial beside the
-    page's own type (#2559). The default weighs nothing, so a page rule of element
+    Leaf's own controls do; left to the browser it draws 13.33px Arial beside the
+    page's own type. The default weighs nothing, so a page rule of element
     selectors alone still sets its type."""
     page = open_page(
         browser,
@@ -3360,7 +3357,7 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
     included. It outranked them there, which set lf-file-tree's rows, buttons Trees
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
-    declaration.setdefault("words", {})["shadow"] = True
+    declaration["shadow"] = True
     page = open_page(
         browser,
         serve(

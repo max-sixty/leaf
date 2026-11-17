@@ -43,6 +43,7 @@ from leaf import structure as structure_model
 from leaf.delivery import current_responses
 from leaf.events import build_threads
 from leaf.revisioning import activate_source
+from leaf.thread_context import logged_fragment
 
 
 def undelivered(page_dir, input_id: str) -> str:
@@ -366,7 +367,8 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
     page_dir,
 ):
     """A diagnostic on any message names the delivery route for the thread's
-    exact owed input; proactive replies cannot infer that input."""
+    exact owed input; a proactive reply cannot infer that input, so it answers
+    nothing and its note names the route too."""
     own = json.loads(
         comment(published(page_dir), "--quote", "Ship dark", "--text", "note").output
     )
@@ -387,8 +389,9 @@ def test_a_message_whose_thread_owes_a_reply_is_sent_to_its_delivery_reference(
         cli_model.cli,
         ["thread", "reply", str(page_dir), own["id"], "--text", "more"],
     )
-    assert posted.exit_code != 0
-    assert f"{undelivered(page_dir, asked['id'])} answers it" in posted.output
+    assert posted.exit_code == 0, posted.output
+    [owed] = json.loads(posted.stdout)["findings"]
+    assert f"{undelivered(page_dir, asked['id'])} answers it" in owed["text"]
     answered = CliRunner().invoke(
         cli_model.cli,
         [
@@ -465,9 +468,9 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
         {"kind": "comment", "id": "c1", "author": "user", "text": "Choose?"},
     )
     frozen = (
-        '<lf-ask id="thread-ask"><h2>Choose one</h2>'
+        '<section id="thread-ask" role="group" aria-labelledby="thread-ask-h">\n<h2 id="thread-ask-h">Choose one</h2>'
         '<lf-options id="thread-picks"><lf-option id="thread-option">'
-        "Thread option</lf-option></lf-options></lf-ask>"
+        "Thread option</lf-option></lf-options></section>"
     )
     answered = CliRunner().invoke(
         cli_model.cli,
@@ -1242,7 +1245,7 @@ def test_a_quote_may_not_run_across_a_widgets_parts(page_dir):
 
 def test_a_verbatim_body_is_quotable_where_a_source_body_is_not(page_dir):
     """The registry draws the line: lf-draft renders the authored Markdown into a body
-    the anchor pass can see (words.verbatim), and lf-diagram renders a picture instead."""
+    the anchor pass can see (`verbatim`), and lf-diagram renders a picture instead."""
     result = comment(
         drafted(page_dir), "--quote", "every mutating command", "--text", "which ones?"
     )
@@ -1726,12 +1729,11 @@ def test_a_closed_thread_stops_asking(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "html": True,
-            "text": 'Which mitigations?\n\n<lf-ask id="gm-decision"><h3>Which mitigations?</h3>'
+            "text": 'Which mitigations?\n\n<section id="gm-decision" role="group" aria-labelledby="gm-decision-h">\n<h3 id="gm-decision-h">Which mitigations?</h3>'
             "<p>The retry budget is shared.</p>"
             '<lf-options id="gm">'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></section>",
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -1761,13 +1763,12 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
                     "kind": "comment",
                     "author": "agent",
                     "revision": 1,
-                    "html": True,
                     "text": (
                         f"Choose {suffix}\n\n"
-                        f'<lf-ask id="group-{suffix}-decision"><h3>Choose {suffix}</h3>'
+                        f'<section id="group-{suffix}-decision" role="group" aria-labelledby="group-{suffix}-decision-h">\n<h3 id="group-{suffix}-decision-h">Choose {suffix}</h3>'
                         f'<lf-options id="group-{suffix}">'
                         f'<lf-option id="option-{suffix}"><strong>{suffix}</strong></lf-option>'
-                        "</lf-options></lf-ask>"
+                        "</lf-options></section>"
                     ),
                 },
             )
@@ -1845,7 +1846,7 @@ def test_native_message_html_shares_admission_and_id_ownership(page_dir):
         ],
     )
     assert answered.exit_code == 0, answered.output
-    held = [e for e in events_model.read_events(page_dir) if e.get("html")]
+    held = [e for e in events_model.read_events(page_dir) if logged_fragment(e)]
     assert [e["text"] for e in held] == [
         f"Results:\n\n{table}",
         f"Log:\n\n{log}",
@@ -1883,8 +1884,8 @@ def test_message_html_may_not_dress_the_document_it_is_put_into(page_dir, native
     Native evidence and widgets pass through the same presentation gate."""
     published(page_dir)
     widget = (
-        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1">'
-        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h">\n<h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
+        '<lf-option id="d1-a">A</lf-option></lf-options></section>'
     )
     if native:
         widget = '<pre id="native-log">Ready</pre>'
@@ -1915,18 +1916,18 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
     task as answered and `state` reporting that nobody had answered anything,
     while the browser had been folding that same action all along.
 
-    It is named by its thread rather than by a version, because thread markup is
-    frozen in the log and page versions do not bound its state."""
+    It is named by its thread rather than by a version, because page versions do
+    not bound thread markup's state."""
     published(page_dir)
     assert (
         comment(
             page_dir,
             "--text",
-            'Pick one:\n\n<lf-ask id="ps-decision"><h3>Which store?</h3>'
+            'Pick one:\n\n<section id="ps-decision" role="group" aria-labelledby="ps-decision-h">\n<h3 id="ps-decision-h">Which store?</h3>'
             '<lf-options id="ps-q">'
             '<lf-option id="ps-redis">Redis</lf-option>'
             '<lf-option id="ps-cookie">A signed cookie</lf-option>'
-            "</lf-options></lf-ask>",
+            "</lf-options></section>",
         ).exit_code
         == 0
     )
@@ -1957,8 +1958,8 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
     author's to write, as in the page itself."""
     published(page_dir)
     widget = (
-        '<lf-ask id="d1-decision"><h3>Choose one</h3><lf-options id="d1">'
-        '<lf-option id="d1-a">A</lf-option></lf-options></lf-ask>'
+        '<section id="d1-decision" role="group" aria-labelledby="d1-decision-h">\n<h3 id="d1-decision-h">Choose one</h3><lf-options id="d1">'
+        '<lf-option id="d1-a">A</lf-option></lf-options></section>'
     )
     if native:
         widget = '<table id="native-checks"><tr><td>Passed</td></tr></table>'
@@ -1974,6 +1975,28 @@ def test_message_html_may_not_declare_the_document(page_dir, native):
     assert comment(page_dir, "--text", f"look:\n\n{handled}").exit_code == 0
 
 
+def test_a_blank_line_that_splits_a_messages_pre_is_refused(page_dir):
+    """A blank line ends a block of HTML, a `<pre>` inside a widget included, and
+    Markdown reads the lines after it as its own blocks, such as paragraphs or a list,
+    so the code loses its blank lines, indents and marks while the HTML stays well
+    formed. A fence, or a `<pre>` opening its own line after a blank line, keeps them."""
+    published(page_dir)
+    code = "def a():\n    return 1\n\ndef b():\n    return 2"
+    for split in (code, "steps:\n\n- build\n- ship"):
+        refused = comment(
+            page_dir,
+            "--text",
+            f'Here:\n\n<lf-code id="split">\n<pre>{split}</pre>\n</lf-code>',
+        )
+        assert refused.exit_code != 0 and "split-pre" in refused.output, refused.output
+    for kept in (
+        f'<lf-code id="fenced">\n\n```python\n{code}\n```\n\n</lf-code>',
+        f'<lf-code id="own-line">\n\n<pre>{code}</pre>\n\n</lf-code>',
+    ):
+        assert code in passages_model.message_markup(kept)
+        assert comment(page_dir, "--text", f"Here:\n\n{kept}").exit_code == 0
+
+
 def test_data_widget_prose_members_are_quotable_without_admitting_source():
     registry = with_modules(
         {
@@ -1982,9 +2005,7 @@ def test_data_widget_prose_members_are_quotable_without_admitting_source():
             },
             "lf-remark": {
                 "content": "markup",
-                "markup": {
-                    "owners": ["lf-source"],
-                },
+                "owners": ["lf-source"],
             },
         },
         "lf-source",

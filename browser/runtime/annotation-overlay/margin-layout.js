@@ -55,9 +55,9 @@
    carrier is one anchor for every row its scroller holds. So a change that moves the
    page moves the root lane's rows by the pass's writes, not by carriers anchored to the
    blocks they stand by: Chromium 158 lays out every anchored fixed or absolute box again
-   on each layout of the document, whatever changed, at 25 to 55 µs each on a page of
-   12,000 elements, so a carrier for each of 256 sections added 6 to 14 ms to every
-   layout of the page, as each keystroke into a field brings (measured 2026-11-15).
+   on each layout of the document, whatever changed, so a carrier for each section
+   would add its cost to every layout of the page, as each keystroke into a field
+   brings.
    Rows whose targets scroll with
    the document stand in the root lane; each
    bounded reading region (one whose body scrolls on its own) gets a lane of its own,
@@ -493,7 +493,7 @@ function scrollSources(node) {
 // it stood (`paintedBox`; notes/browser-support.md, "A cached `elementFromPoint` answer
 // in Chromium"). Painting and the user's presses are right either way, so what the root
 // lane buys is a row scripts, Playwright's actions and probes find where it is drawn.
-// Rejected: a carrier anchored to every passage's words, as #3091 had it, which in
+// Rejected: a carrier anchored to every passage's words, which in
 // Chromium and WebKit also carried a row through a transform moving its words while the
 // transform ran. A row in the root lane trails such a transform, as a row on an element
 // does, and both are placed again once a CSS transition or animation ends
@@ -808,6 +808,13 @@ function takeFaceRecords() {
 // Leaf's own surfaces moves no seat. The marks the runtime draws on page boxes stand in
 // attributes this does not hear (page-paint.js); an anchor name it writes inline into a
 // box's style is heard as any other restyle.
+//
+// TODO(#5194): any attribute write heard here places every pin again, 59 ms at 256
+// sections and most of it `coverIn`, so a key in a diff's file filter pays for the whole
+// page. A prototype that read again only the pins within a window's height of the screen,
+// shifted the rest with their targets and read those when a scroll brought them near,
+// took that key from 70 to 17 ms in 120 fewer lines; a pin far off-screen could then
+// stand over a control a change brought until a scroll nears it.
 /** @param {MutationRecord[]} records */
 function heardPage(records) {
   const page = records.filter((record) => !onSurface(record.target));
@@ -1900,8 +1907,8 @@ function seatingMove(seating, resized, byBox, holders, reading) {
 
 // A pass reads only the rows whose records a change dropped (`seatings`), but it still
 // seats every row, a kept one from its record: `pinSeating` and `seatEntry` run over
-// all of them, and each row's seat is set again. That is about 8 ms a pass on the
-// 1,024-section page `leaf-dev bench` generates. Not yet built: seat only the rows
+// all of them, and each row's seat is set again, a cost that grows with the page
+// (`leaf-dev bench` measures it). Not yet built: seat only the rows
 // whose records were dropped and the rows their new seats push, and leave every other
 // row as it stands.
 /** @param {Layer} layer */

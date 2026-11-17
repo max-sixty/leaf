@@ -30,7 +30,7 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
         },
         "content": "data",
     }
-    stage = {**source, "content": "markup", "words": {"shadow": True}}
+    stage = {**source, "content": "markup", "shadow": True}
     url = serve(
         leaf_page(
             "Source states",
@@ -375,12 +375,11 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     """One rule, read off the marker `offer` already writes, rather than each widget
     deciding for itself whether the user can press what it drew.
 
-    The measured fault was that they could not tell: on the command hub a chip that
-    opened a section and a badge that counted something computed the same ground, the
-    same ink, the same 999px corner and the same 11.5px size, so the only way to learn
-    which was which was to press one. That is not a fact about chips — it is what happens
-    when "this is pressable" has no owner, and every widget that draws a small filled
-    shape has to remember to say it again.
+    The fault is that they cannot tell: a chip that opens a section and a badge that
+    counts something can compute the same ground, the same ink, the same corner and the
+    same size, so the only way to learn which is which is to press one. That is not a
+    fact about chips — it is what happens when "this is pressable" has no owner, and
+    every widget that draws a small filled shape has to remember to say it again.
 
     So the layer says it once, against `data-lf-offer`, and the value is what it reads:
     `offer` writes the tag, input type, or role for a thing to press and the empty string

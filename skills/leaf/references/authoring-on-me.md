@@ -19,7 +19,7 @@ the subject, keeping today's behavior included: “Generate shared types” and 
 handwritten types”, rather than “Accept” and “Not now”. Where the options differ only
 in a value, such as how long captures are kept, say once above them what that value
 costs, and each title can be the whole option. The user should be able to compare the
-options down the group without reading their prose, as through `small.tag` labels for
+options down the list without reading their prose, as through `small.tag` labels for
 the facts they weigh, such as effort or risk. Keep each label to a word or two, such as
 “2 days” rather than “about two days of work”, so a card's labels fit on one line
 beside its pick mark. Where cards stand side by side (`across`), labels that wrap push
@@ -41,14 +41,14 @@ beside the change, with a fault marked where it goes wrong, a wording as it woul
 appear, or a code change's text or effect before and after. A change they would
 neither see nor picture, such as a refactor, needs only words. Each option holds its
 own pictures, so nothing pairs them with another option's; a picture of both answers
-at once, such as an `lf-shot` pair, belongs to the group. Where the result spans
-several captures, such as several surfaces or states, line each capture up with its
-counterparts in the other options and name each surface or state once, so the reader
-compares one at a time down the options. The default is a table of captures in every
-option with the same columns in the same order (`authoring-evidence.md`, "Source files
-and media"), which the theme draws with no page CSS. Vary only what
-the choice changes, and show today in the option that keeps it, or above the options
-where none does.
+at once, such as an `lf-shot` pair, stands in the question's group outside the
+options. Where the result spans several captures, such as several surfaces or states,
+line each capture up with its counterparts in the other options and name each surface
+or state once, so the reader compares one at a time down the options. The default is
+a table of captures in every option with the same columns in the same order
+(`authoring-evidence.md`, "Source files and media"), which the theme draws with no
+page CSS. Vary only what the choice changes, and show today in the option that keeps
+it, or above the options where none does.
 
 When the page exists to choose among approaches, its title and headings ask the
 question without answering it. Give each alternative the same depth on the same
@@ -59,7 +59,7 @@ How to build an alternative waits for the user's pick.
 
 Let the user answer in the form the answer takes: a widget wherever it is a choice or
 an edit, and a thread message with `--obligation` for a conversational answer. Any
-widget whose registry entry declares `state.awaits` asks, a package's as well as the
+widget whose registry entry declares `awaits` asks, a package's as well as the
 bundled `lf-options`, which asks with no attribute until you mark it `settled`; a
 question about content that asks nothing, such as a chart or a passage, goes in a
 thread on it. Put the widget where the question arises: a question a thread raises, such as which way to do
@@ -86,12 +86,36 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 ## On the page
 
-Make each question answerable where On Me takes the user: pressing `m` brings its
-heading to the top of the window, leaving earlier content out of view. Inside the
-answering widget or an enclosing `lf-ask`, build the question around the material the
-user judges: a heading that asks it, why it arises, the current state and its evidence.
-Shared evidence and its limits come before the answering control; optional detail
-follows it.
+Make each question answerable where On Me takes the user: pressing `m` selects the
+whole question and brings its start to the top of the window, leaving earlier content
+out of view. Write each question as a group you name: the `<section>` holding the
+question and its case, with an id, `role="group"` and `aria-labelledby` naming the id
+of the heading that asks the question on its own, without leaning on the prose around
+it. That is usually the group's opening heading, with any eyebrow beside it in an
+`<hgroup>`; where the page's own heading asks the question, as a workspace's header
+does over a playground, the group names that heading (`page-layout.md`, "A
+workspace"). The words the group is named by are the question's words on On Me and in
+the answer you receive; Leaf reads the region and its name from that markup, so
+`page check` refuses a widget that asks with no named group round it.
+
+The group is the region `m` selects, so it holds everything the user judges: why the
+question arises, the current state and its evidence, such as a capture of today or a
+measured table. Shared evidence and its limits come before the answering control;
+optional detail follows it. Where a section shows a finding and then asks about it,
+that section is the group and its heading asks; a smaller group round only the heading
+and options, after the evidence, leaves the evidence outside what `m` selects. Each
+widget in the group that asks is its own question with its own answer.
+
+```html
+<section id="material-q" role="group" aria-labelledby="material-h">
+  <h2 id="material-h">Which material for the housing?</h2>
+  <p>Aluminium costs three times as much and halves the weight.</p>
+  <table id="material-weights">
+    …
+  </table>
+  <lf-options id="material">…</lf-options>
+</section>
+```
 
 On a quick-answer page, open with the question and put optional detail in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
@@ -101,15 +125,15 @@ the claim and its evidence. Only a question about the whole record comes last.
 
 Where evidence, option pictures or option cards set across need more than the prose's
 width, set `data-width` on the block that holds them, such as the `lf-options`, figure
-or playground. An `lf-ask` takes no width of its own, so the question's words keep the
-column's edge beside it (`page-layout.md`, "Bounds and widths"). Size an option's picture
+or playground, so the block takes the room while the question's words keep the
+column's edge (`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
 it to the region that differs, and scale it down as far as that difference still reads,
 so all the options fit the window together. A difference of size or extent, such as how
 much of a thread a panel shows, reads at a scale where the words inside it don't, and a
 picture that links its original keeps the detail a click away.
 
-The `lf-ask`, `lf-options` and `lf-option` instructions give their markup and
+The `lf-options` and `lf-option` instructions give their markup and
 presentation, including when to set option cards side by side with `across`.
 
 ## One answer in its section and on a board
@@ -121,11 +145,15 @@ answer in both views. Read the `lf-board` instructions for composing those views
 
 When the user must permit an action, ask for it as a question whose options keep
 things as they are and take the action, so declining is an answer too. Put the exact
-action and the evidence the user needs in the `lf-ask` heading and prose:
+action and the evidence the user needs in the question's heading and prose:
 
 ```html
-<lf-ask id="publish-report-question">
-  <h2>Publish this report to the team workspace?</h2>
+<section
+  id="publish-report-question"
+  role="group"
+  aria-labelledby="publish-report-heading"
+>
+  <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
     <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
@@ -133,7 +161,7 @@ action and the evidence the user needs in the `lf-ask` heading and prose:
       ><strong>Publish it to the team workspace</strong></lf-option
     >
   </lf-options>
-</lf-ask>
+</section>
 ```
 
 Other unanswered questions do not block it. When permission depends on an earlier
@@ -145,8 +173,9 @@ remain a working copy. A playground records its complete values together on subm
 edit and an options pick are independent answers. Choose a composition that keeps the
 approved wording or settings distinct from subsequent edits.
 
-The pick belongs to the group with that id. Unrelated edits and page stamps keep it.
-If the action or evidence changes enough to invalidate the permission, explain the
-change and mark the group `restated` before asking again (`authoring-revisions.md`,
-"Honor user state"). A new stamp neither requests nor renews permission, and recording
-it does not end the page or report that the permitted work has been done.
+The pick belongs to the `lf-options` and its id, `publish-report`, not to the section
+round it. Unrelated edits and page stamps keep it. If the action or evidence changes
+enough to invalidate the permission, explain the change and mark the `lf-options`
+`restated` before asking again (`authoring-revisions.md`, "Honor user state"). A new
+stamp neither requests nor renews permission, and recording it does not end the page
+or report that the permitted work has been done.

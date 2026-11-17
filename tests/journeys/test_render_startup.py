@@ -181,9 +181,9 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     """Presentation is not a state answer; every Decision route needs the same reading."""
     source = leaf_page(
         "Slow decision",
-        '<h1>Slow decision</h1><lf-ask id="decision"><h2>Proceed?</h2>'
+        '<h1>Slow decision</h1><section id="decision" role="group" aria-labelledby="decision-h"><h2 id="decision-h">Proceed?</h2>'
         '<lf-options id="pick"><lf-option id="yes">Proceed</lf-option>'
-        '<lf-option id="no">Wait</lf-option></lf-options></lf-ask>',
+        '<lf-option id="no">Wait</lf-option></lf-options></section>',
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     watched(page)
@@ -202,8 +202,8 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     page.goto(serve(source), wait_until="load")
     holding(page, held, 1, "the unanswered private-state read")
     expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-    # Cross the former ten-second presentation deadline with a read still in flight.
-    # This is the interval that used to invent an offline answer and release choices.
+    # Cross ten seconds with a read still in flight: a presentation deadline there
+    # would invent an offline answer and release choices.
     page.wait_for_function("performance.now() > 11_000")
     expect(page.locator("body")).not_to_have_attribute("data-lf-presented", "1")
     expect(page.locator(".lf-fp-leaf")).to_have_attribute(
@@ -575,12 +575,8 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "shadow": True,
-        },
-        "author": {
-            "example": '<lf-probe id="probe"></lf-probe>',
-        },
+        "shadow": True,
+        "example": '<lf-probe id="probe"></lf-probe>',
     }
     widget = """import {once, shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""

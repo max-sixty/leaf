@@ -75,10 +75,7 @@ profiled run and durations from one without.
 --browser firefox measures Playwright's Firefox, on macOS, and reads only `cpu`.
 Firefox offers no count of its tasks, so there an input's CPU is the page's main
 thread's as the OS counts it (`ContentClock`), the clock Chromium's thread ticks read.
-Over the same windows in Chromium on 2026-11-05, the OS's count was at most 0.7 ms per
-input above the ticks. Driven alike through geckodriver that day, the Firefox 159 on
-this Mac read about 10% below Playwright's build, Firefox 157, with the same functions
-on top. To name what took Firefox's time, run under the Gecko profiler's variables;
+To name what took Firefox's time, run under the Gecko profiler's variables;
 the browser writes a profile of the whole run as it closes, which
 <https://profiler.firefox.com> reads, and its samples' `threadCPUDelta` sum to the
 OS's count:
@@ -89,10 +86,9 @@ OS's count:
 
 CPU time spreads less than elapsed time on a loaded host, and each exponent compares
 sizes within one run. `event`, `painted`, `answered` and `shown` are elapsed time, which
-a busy host stretches, and so does a run held to the efficiency cores: on 2026-11-05
-`taskpolicy -c utility` read a click's `shown` at 110 to 170 ms on pages the default
-policy showed in 30 to 35. The daily CI run measures the generated pages and charts
-their readings (`.github/workflows/ci.yaml`, `bench`).
+a busy host stretches, and so does a run held to the efficiency cores, as
+`taskpolicy -c utility` holds it. The daily CI run measures the generated pages and
+charts their readings (`.github/workflows/ci.yaml`, `bench`).
 """
 
 import ctypes
@@ -189,9 +185,9 @@ FITTED = 3
 # Where a reading grows by less than its floor above BASE, what little it grew is the
 # host's noise, and its exponent leaves that size out. A floor is a share of the BASE
 # page's load CPU from the same run. A slower machine slows that reading as much as
-# every other, so it fits the same sizes to the same exponent. With the BASE page
-# loading in 150-210 ms on an unloaded M5 Max, the shares put a floor near 10 ms of
-# CPU and near 50 ms of elapsed time. Sizes and counts no machine's speed changes have
+# every other, so it fits the same sizes to the same exponent. Where the BASE page
+# loads in about 200 ms, the shares put a floor near 10 ms of CPU and near 50 ms of
+# elapsed time. Sizes and counts no machine's speed changes have
 # floors of their own.
 FLOOR_SHARES = {"cpu": 0.05, "elapsed": 0.25}
 COUNT_FLOORS = {"KB": 10, "requests": 1}
@@ -199,8 +195,7 @@ COUNT_FLOORS = {"KB": 10, "requests": 1}
 # path's is its own (`server_paths.floors`), and a held count's is at least one. A
 # keystroke's CPU is a few ms, less than the load's share, so a floor from the load
 # would hide its doubling, and a POST's 4 KB answer growing to 20 KB stays under the
-# fixed 10 KB. In the daily runs of 2026-11-12 to 14, an input's CPU differed between
-# two rounds by a median of 4%, and by 18% at the 90th percentile.
+# fixed 10 KB.
 HELD_FLOOR_SHARE = 0.25
 # Root `AGENTS.md`, "Responsiveness": a gesture shows the server's reading within this
 # many ms on the largest page.
@@ -233,9 +228,8 @@ THREAD_TEXT = "Bench thread.\n\n" + "\n\n".join(
     f"Earlier conversation paragraph {line + 1}." for line in range(20)
 )
 # The steps each of `side_documents`' sources holds, two lines a step: a few percent of
-# one of #4781's 4 MB documents, long enough that a walk of every document's rows on
-# each tab opened (#5996) shows at 256, and short enough to keep the daily run to
-# minutes.
+# a 4 MB document, long enough that a walk of every document's rows on each tab
+# opened shows at 256, and short enough to keep the daily run to minutes.
 DOCUMENT_STEPS = 1024
 # A word every line of `steps` holds, which `matches` searches for.
 WORD = "value"
@@ -391,16 +385,16 @@ OWNERS = 6
 
 
 def ask(g: int, options: int = 4) -> str:
-    """Section `g`: a heading, a paragraph and an `lf-ask` of `options` options."""
+    """Section `g`: a heading, a paragraph and a question section of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" multiple>'
+        f'<section id="q{g}" role="group" aria-labelledby="q{g}-h"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
             f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
             for i in range(1, options + 1)
         )
-        + "</lf-options></lf-ask></section>"
+        + "</lf-options></section></section>"
     )
 
 
@@ -457,9 +451,9 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
+        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
     )
     sections = "".join(
         f'<section id="s{g}"><h2>Section {g}</h2>'
@@ -484,9 +478,9 @@ def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
+        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
     )
     document = (
         '<lf-text-document id="listing" label="steps.py">'
@@ -499,12 +493,12 @@ def document_lines(n: int) -> str:
 def documents(n: int) -> int:
     """How many documents `side_documents(n)` holds: the one shown, one in a closed
     tab for each eight of `n`, and one more, so the BASE page has the two closed tabs
-    `reveal` opens and 256 holds about #4781's thirty."""
+    `reveal` opens and 256 holds about thirty."""
     return 2 + n // 8
 
 
 def side_documents(n: int) -> str:
-    """#4781's page: a side list of tabs, each holding a text document bound to a
+    """A page of a side list of tabs, each holding a text document bound to a
     source of its own (`document_sources`), the first tab's shown and the rest closed.
     The documents grow in number and each stays as long, so a cost that grows with
     the documents the page holds, such as every source sent on a write to one
@@ -550,9 +544,9 @@ def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
+        '<section id="q0" role="group" aria-labelledby="q0-h"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
     )
     rows = "".join(
         f"<tr><td>Row {r}</td><td><code>branch-{r}</code></td><td>{r} days</td>"
@@ -1981,8 +1975,8 @@ def traced(page: Page, directory: Path, name: str):
     browser = page.context.browser
     assert browser is not None
     recorded = []
-    # The trace starts first: on 2026-11-05 a profile started before it held no
-    # samples in the window the trace's marks bound.
+    # The trace starts first: a profile started before it can hold no samples in the
+    # window the trace's marks bound.
     browser.start_tracing(page=page, path=str(trace), categories=CATEGORIES)
     try:
         with cpu_profile(page, profile):

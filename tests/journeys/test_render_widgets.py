@@ -66,12 +66,12 @@ MOTION_SAMPLE_CONTENT = """
 <lf-sample id="card-sample" label="Current sample">
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
-    <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
+    <section id="sample-choice-ask" role="group" aria-labelledby="sample-choice-ask-h"><h3 id="sample-choice-ask-h">Choose a sample</h3>
       <lf-options id="sample-choice">
         <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
         <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </section>
     <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
   </template>
 </lf-sample>
@@ -104,12 +104,12 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         return f"""
 <lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
-  <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
+  <section id="ask-{key}" role="group" aria-labelledby="q-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
     <lf-options id="o-{key}">
       <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
       <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
     </lf-options>
-  </lf-ask>
+  </section>
 </lf-tab>"""
 
     source = leaf_page(
@@ -291,13 +291,13 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     source = leaf_page(
         "Session-store follow-ups",
         """<h1>Session-store follow-ups</h1>
-<lf-ask id="session-triage-decision">
-  <h2>Which follow-ups should we keep?</h2>
+<section id="session-triage-decision" role="group" aria-labelledby="session-triage-decision-h">
+  <h2 id="session-triage-decision-h">Which follow-ups should we keep?</h2>
   <lf-options id="session-triage" multiple>
     <lf-option id="rolling-expiry">Rolling expiry</lf-option>
     <lf-option id="bounded-fallback">Bounded fallback</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 """,
     )
     page = open_page(browser, serve(source))
@@ -329,9 +329,9 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     # The workspace's full height reaches every obligation in it; an obligation held in a pane is
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
-        '<lf-ask id="session-triage-decision">',
-        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
-    ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
+        '<section id="session-triage-decision" role="group" aria-labelledby="session-triage-decision-h">',
+        '<lf-pane id="triage-pane" label="Triage"><div>\n<section id="session-triage-decision" role="group" aria-labelledby="session-triage-decision-h">',
+    ).replace("</section>\n", "</section>\n</div></lf-pane>\n")
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
@@ -404,7 +404,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     outline.
 
     Under a mouse a sidebar before a `layout-column` holding only the map narrows to its
-    spine rather than keeping a column's width (#5619), and the prose stands where a
+    spine rather than keeping a column's width, and the prose stands where a
     column page's would. Section rows divide the available height according to the content they
     lead, a moving lens shows the visible band, and late content growth redraws both.
     Labels reveal over the body without moving the map or changing the item under the
@@ -447,8 +447,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     capacity = nav.get_by_role("link", name="Check capacity", exact=False)
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
-    # Every row says its own word as text, the start row included. Its word used to be an
-    # attribute the map drew with `content: attr()`, which left the link that names
+    # Every row says its own word as text, the start row included. Its word is not an
+    # attribute the map draws with `content: attr()`, which leaves the link that names
     # the whole document saying nothing at all to any reading that asks a link what it
     # says — the accessible name it falls back to, a text dump, the widget's own outline.
     said = nav.locator("a").evaluate_all(
@@ -487,7 +487,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
-    # The map stands in the narrowed sidebar, which keeps no column's width (#5619),
+    # The map stands in the narrowed sidebar, which keeps no column's width,
     # and the prose stands centred in the Layout, as a column page's does.
     placed = page.locator("#route").evaluate("""aside => {
       const layout = aside.parentElement.getBoundingClientRect();
@@ -1788,8 +1788,8 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         """
 <h1>Tone playground</h1>
 <p id="host-note">The page around the playground.</p>
-<lf-ask id="tone-ask">
-  <h2>Which tone?</h2>
+<section id="tone-ask" role="group" aria-labelledby="tone-ask-h">
+  <h2 id="tone-ask-h">Which tone?</h2>
   <lf-playground id="tone-playground">
     <aside><fieldset id="tone"><legend>Tone</legend>
       <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
@@ -1806,7 +1806,7 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
     <lf-playground-output id="tone-instruction">Use the
       <output for="tone"></output> tone.</lf-playground-output>
   </lf-playground>
-</lf-ask>
+</section>
 """,
     )
     page = open_page(browser, serve(source))
@@ -1888,8 +1888,8 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
         "focus playground",
         """
 <h1>Ring playground</h1>
-<lf-ask id="ring-ask">
-  <h2>Which ring?</h2>
+<section id="ring-ask" role="group" aria-labelledby="ring-ask-h">
+  <h2 id="ring-ask-h">Which ring?</h2>
   <lf-playground id="ring-playground">
     <lf-playground-preset id="preset-wide" label="Wide">
       <lf-playground-setting for="width" value="4"></lf-playground-setting>
@@ -1913,7 +1913,7 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     <lf-playground-output>Use the
       <output for="ring"></output> ring.</lf-playground-output>
   </lf-playground>
-</lf-ask>
+</section>
 """,
     )
     page = open_page(browser, serve(source))

@@ -5,32 +5,30 @@ a page where the fork says how, and passes the agent what else it finds out of d
 It is experimental, and runs only in Claude Code.
 
 An agent does the user's work and Leaf's bookkeeping in one context, and late in long
-sessions the bookkeeping slips: on 2026-10-25 five sessions holding live pages left
-the decisions waiting on the user only in their chat replies, so On Me read empty, and
-rewording the skill changed 0 of 6 replays of such a session. A fork of the whole
-conversation reads what the agent said, so Leaf asks one. The user chose this shape on
-2026-10-29 over a digest of the final reply, an advisor that prompts the agent, and a
-clerk agent that also rewrites the page. On 2026-10-31 they split its results by who
-can act on them: Leaf writes a result only where the fork's answer settles it and the
-record is one Leaf keeps for that purpose, an ask On Me, and everything else reaches
-the agent as a message, which it acts on or forks off. That
-reverses the advisor's rejection for those findings alone. Only the agent opens a
-to-do on its own list, since that list holds work the user wants done. Later that day
-they asked that the fork also make small fixes itself, such as a lede that still says
+sessions the bookkeeping slips: sessions holding live pages leave the decisions waiting
+on the user only in their chat replies, so On Me reads empty, and rewording the skill
+doesn't reliably change that. A fork of the whole conversation reads
+what the agent said, so Leaf asks one. The user chose this shape over a digest of the
+final reply, an advisor that prompts the agent, and a clerk agent that also rewrites the
+page. They split its results by who can act on them: Leaf writes a result only where the
+fork's answer settles it and the record is one Leaf keeps for that purpose, an ask On
+Me, and everything else reaches the agent as a message, which it acts on or forks off,
+so for those findings alone the fork is the advisor they otherwise rejected. Only the
+agent opens a to-do on its own list, since that list holds work the user wants done.
+They asked that the fork also make small fixes itself, such as a lede that still says
 work is running, and tell the agent what it changed, which keeps the agent in control:
 it hears the old and new words and changes them back or rewrites them as it would its
-own edit. That reverses the rejection of a clerk that rewrites the page for fixes of a
-few words; a fix that needs more goes to the agent as a message.
+own edit. So the fork rewrites the page, which they rejected for a clerk, only for fixes
+of a few words; a fix that needs more goes to the agent as a message.
 
-Four principles, the user's, bound what the fork may do, the first three set on
-2026-10-30:
+Four principles, the user's, bound what the fork may do:
 
 - It adds attention, not an actor. The fork is the agent looking again at its own
   bookkeeping, and gives the agent reminders; it does none of the user's work.
 - The user never meets it. What it writes is the agent's own record, authored by the
   agent's session with nothing marking the fork, and it adds no mark, message, status
-  or control of its own. A first version marked its to-dos "added by Leaf"; the user
-  rejected that as a second entity on the page.
+  or control of its own: the user rejected marking its to-dos "added by Leaf" as a
+  second entity on the page.
 - The agent stays sovereign. The agent hears each record at its next step, with its
   id and words, as its own, and keeps, withdraws or replaces it as it would one it
   wrote. Leaf opens no thread whose title a thread the agent opened on the page to
@@ -41,92 +39,79 @@ Four principles, the user's, bound what the fork may do, the first three set on
   agent, or the user who opened it, has the newer reading. A finding still
   reaches the agent then, naming the turn it came from, since the agent judges
   whether it still holds.
-- It is a check, not a review (2026-11-15). It answers briefly from what it holds:
+- It is a check, not a review. It answers briefly from what it holds:
   the conversation it inherits, which the cache serves, and the page facts Leaf
   hands it. It does no research, so each thing Leaf asks of it must be one those
   two settle, and it leaves out a finding they don't.
   Claude Code's `$.model.fork` already denies every tool call and stops the fork
   after a second request (read in 2.1.325's source), so the rule bounds what Leaf
   asks rather than what the fork can do. Leaf's question is never cached, and an
-  uncached token costs ten times a cached one: on 37 forks of five sessions on
-  Opus 5.5 from 2026-11-14 to 11-15, the input the cache didn't serve was a median
-  24,000 of 248,000 tokens and 38% of a fork's cost.
+  uncached token costs ten times a cached one.
 
 What the fork is asked is prose in the shipped skill,
 `skills/leaf/references/turn-end-check.md`, which the agent can also read when one of
-the clerk's lines puzzles it; `fork_prompt` sends it verbatim with each page's facts
-and the answer's form. It asks for two things. Asks: what Leaf's rule for On Me puts
-there that the agent left to the user and no On Me item holds. The fork reads that
-rule, and the guidance for how a question reads in a thread, as the agent does
-(`guidance`), since the user chose on 2026-10-31 that the fork apply Leaf's standard
-policy rather than a wording of its own, so a question such as whether a suggested
-follow-up goes On Me is settled once, by that rule. On 2026-11-05 they chose the same
-for how a question reads: the reference's own wording for it gave 47 of 47 recorded
-questions as one unbroken paragraph, and the agent's guidance now shapes both.
-Findings for the agent:
-anything a page still holds that no longer fits the work as it now stands, an On Me
-item already settled elsewhere, work promised or set running that no page shows,
-for which the fork sees the items the page shows started, and an open thread whose
-agent messages the user would misread (`overtaken`). A first version also wrote
-the status line and named missed page steps; the user narrowed it on 2026-10-29 to
-the asks alone, in Leaf's own words rather than any one user's markers, then on
-2026-10-31 added back the findings. They left out an open-ended question about the
-agent's instructions, which drew 12 noise findings of 63 in the first version's replay
-and loses what it checks against once compaction drops the skill. What the page state
-alone settles, such as input not yet delivered, is code's to report rather than a
-model's.
+the clerk's lines puzzles it; `fork_prompt` sends it verbatim with each page's facts and
+the answer's form. It asks for two things. Asks: what Leaf's rule for On Me puts there
+that the agent left to the user and no On Me item holds. The fork reads that rule, and
+the guidance for how a question reads in a thread, as the agent does (`guidance`), since
+the user chose that the fork apply Leaf's standard policy rather than a wording of its
+own, so a question such as whether a suggested follow-up goes On Me is settled once, by
+that rule. They chose the same for how a question reads, since a wording of the
+reference's own can give each question as one unbroken paragraph, so the agent's
+guidance shapes both. Findings for the agent: anything a page still holds that no
+longer fits the work as it now stands, an On Me item already settled elsewhere, work
+promised or set running that no page shows, for which the fork sees the items the page
+shows started, and an open thread whose agent messages the user would misread
+(`overtaken`). The user cut the status line and missed page steps from what the fork is
+asked, and has it ask for the asks in Leaf's own words rather than any one user's
+markers. They left out an open-ended question about the agent's instructions, which
+draws noise findings and loses what it checks against once compaction drops the skill.
+What the page state alone settles, such as input not yet delivered, is code's to report
+rather than a model's.
 
-The same day they left status lines out until a session shows a started item's line
-going stale while its work runs in the background. The fork is good at them: replayed
-with each started line swapped for one the conversation shows is over (`fork6.py`), it
-restated 15 of 15, and it left all 9 runs with current lines alone. But none of the
-21 recorded turn ends held a stale line, and Leaf can't yet write one truthfully: a
-start written after the turn closed keeps the page reading working for the working
-grace after the background work stops, since `activity._start_age` dates a start's
-hold by when it was written rather than by the turn it names. Restating lines needs
-that changed first.
+The user left status lines out until a session shows a started item's line going stale
+while its work runs in the background. The fork can restate a started line the
+conversation shows is over and leave current lines alone, but Leaf can't yet write one
+truthfully: a start
+written after the turn closed keeps the page reading working for the working grace after
+the background work stops, since `activity._start_age` dates a start's hold by when it
+was written rather than by the turn it names. Restating lines needs that changed first.
 
-On 2026-11-15 the user chose to try three findings for what long sessions forget once
-compaction drops the rule a reference states, each kept only if replays of the turns
-where it should have fired catch it, a replay of ordinary recent turns stays near
-today's noise, and the fork takes no longer. Two became `overtaken`, which applies the
-agent's own guidance for threads (`GUIDANCE`): a correction posted as a new reply to
-the agent's unanswered one rather than edited into it (#5724), and a thread question
-or state later work overtook (#5804). Replayed at the turn where three #5724
-sessions left such a pile, it named the pile in 2 of 2 runs on triager-health, 1 of 1
-on agent-launch-wait and 0 of 1 on package-interface, where the check before it named
-it in 0 of 1 replays and 1 of 4 live forks. The wording before this one, which
-differed only in how it phrased the two cases, named no `overtaken` on 15 ordinary
-recent turns, and only on 2 others whose timer the replay itself had stopped; the
-fork took 1.13 times as long as a base replay run hours earlier (95% interval
-0.94–1.34). The third, a section reporting a finding without the material it
-rests on (#5401), was dropped: it missed the one such case left to replay, and on
-other turns asked for the run or script behind a count far more often than the user
-asks for material.
+The user chose to try findings for what long sessions forget once compaction drops
+the rule a reference states, each kept only if replays of the turns where it should
+have fired catch it, a replay of ordinary recent turns stays near the noise without
+it, and the fork takes no longer. `overtaken` applies the agent's own guidance for
+threads (`GUIDANCE`) to two: a correction posted as a new reply to the agent's
+unanswered one rather than edited into it, and a thread question or state later
+work overtook. Leaf asks for no finding of a section reporting a finding without the
+material it rests on: that question misses the case it is for, and on other turns
+asks for the run or script behind a count far more often than the user asks for
+material.
 
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` reads them),
 the answer it must give (`ANSWER`), and what Leaf does with that answer
-(`apply_answer`). A harness only makes the fork and carries the two halves
-(`cmd_fork`): Claude Code's hooks module calls `$.model.fork` from `turn.complete`
-(`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork`
-(ephemeral) and Pi's extension by resending its session, each handing the answer back
-the same way; neither does yet.
+(`apply_answer`). A harness only makes the fork and carries the two halves (`cmd_fork`):
+Claude Code's hooks module calls `$.model.fork` from `turn.complete`
+(`hooks/claude-code.ts`). Codex would fork with App Server's `thread/fork` (ephemeral)
+and Pi's extension by resending its session, each handing the answer back the same way;
+neither does yet.
 
 The fork can't author the page, so each ask is the agent's message in a thread,
 written as the agent's guidance has it write one (`threads.md`), and Leaf posts its
 text as the agent's `leaf thread` command does, drawing the HTML in it. Where the
-agent offered answers the user picks among, or left them the go-ahead for an action
-it takes once they agree, such as a merge, the message holds an `lf-options`
-group, as "Ask for a pick" has the agent write it, so the pick shows as the group's
+agent offered answers the user picks among, left them the go-ahead for an action it
+takes once they agree, such as a merge, or asked what a step only they can take
+showed them, such as whether a build installed, the message usually holds an
+`lf-options`, as "Ask for a pick" has the agent write it, so the pick shows as its
 state, `1`–`9` answer it, and a reply in words leaves it open, passing it to the
-agent until the agent answers. Any other ask, a step only the user can take included,
-is the message with an obligation: On Me lists it until the user replies or settles
-it, and their reply reaches the agent as any reply does. Where Leaf refuses the HTML
-(`check_markup`), the fork has no next attempt, so the message asks in words with an
-obligation and shows the HTML as text, and the agent hears why. An ask that asks an
-earlier question again, such as a step the user took that didn't work or a choice
-they closed without picking, names it, and Leaf asks it in its thread
+agent until the agent answers. Any other ask, such as what an error the user saw
+said, is the message with an obligation: On Me lists it until the user replies or
+settles it, and their reply reaches the agent as any reply does. Where Leaf refuses the
+message (`check_markup`), the fork has no next attempt, so Leaf asks nothing and hands
+the agent the message and why, as a line the agent owes, and the agent asks. An ask
+that asks an earlier question again, such as a step the user took that didn't work
+or a choice they closed without picking, names it, and Leaf asks it in its thread
 (`thread.ask_again`), a question first asked in words under its own id, as the
 agent's `--obligation <id>` does (`obligations`), reopening the thread if the user
 closed it. Any other opens a thread of its own, on
@@ -136,35 +121,28 @@ once leave it. An ask Leaf can't put in its question's thread, as where that thr
 owes the user a reply, is taken as one naming none, since the fork has no next
 attempt.
 
-Until 2026-11-16 the fork's reference had it ask a merge waiting on the user's
-approval as a step, in words asking for a reply. On 44 real pages from 2026-11-01 to
-11-16, none of 88 asks to merge or land work, 72 of them the fork's, was a choice,
-and 17 of the 21 the user answered in words said "yes" or the merge command the agent
-had told them to run. The user asked for a single press, so whether an action asks
-for permission or is a step now depends on who takes it once the user agrees, a rule
-the fork reads in the agent's guidance (`conversation-loop.md`).
+An action the agent takes once the user agrees, such as a merge waiting on their
+approval, is usually asked as a choice the user presses, as the user asked, rather than as a
+step in words asking for a reply, which users answer with "yes" or the command the
+agent told them to run. So whether an action asks for permission or is a step depends
+on who takes it once the user agrees, a rule the fork reads in the agent's guidance
+(`conversation-loop.md`).
 
-The fork once opened every ask in a new thread. On 2026-11-11 the user closed a
-thread asking them to run `/reload-plugins`, having run it in the wrong session; the
-agent restated the step only in chat, and the fork, which saw neither the closed
-question nor any way to ask it again, opened a second thread on the same subject.
-The user asked why Leaf hadn't reopened the first and continued there, so the fork
-now asks a question again as the agent would, under its id in its thread, rather
-than asking a second one beside it. A new question on an old subject still opens a
-thread of its own. The title check above stays: replayed with this question on
-2026-11-11, the real turn ends where it had fired found the fork asking again, in a
-new thread under the same title, a question the agent had withdrawn as already asked
-on the page, in 4 of 4 runs.
+The fork asks a question again as the agent would, under its id in its thread,
+rather than asking a second one beside it, as the user asked: a fork that opens every
+ask in a new thread, and sees neither a question the user closed nor any way to ask
+it again, opens a second thread on the same subject when the agent restates the step
+only in chat. A new question on an old subject still opens a thread of its own. The
+title check above is needed too: without it the fork asks again, in a new thread
+under the same title, a question the agent withdrew as already asked on the page.
 
-A first version wrote every ask as a to-do on the user on the page, titled from the
-chat line, and `m` left a long title cut to half a line in the panel (2026-10-31).
 The user asked for the routes a question asked well takes, a widget that asks or a
-thread, and for a while let the fork put a step On Me as a to-do on the user, which
-the user ended with Done. On 2026-11-03 the user removed to-dos on the user
-altogether (`todos`): what is asked of the user is answered through the widget or
-thread it stands on, never a Done Leaf adds, so a step is asked in a thread too. A
-clarifying reply such as "where do I run it?" answers it, as any reply does, until the
-agent's answer reopens it (`obligations`).
+thread, rather than an ask written as a to-do on the user titled from the chat line,
+whose long title `m` left cut to half a line in the panel. The user removed to-dos on
+the user altogether (`todos`): what is asked of the user is answered through the
+widget or thread it stands on, never a Done Leaf adds, so a step is asked in a thread
+too. A clarifying reply such as "where do I run it?" answers it, as any reply does,
+until the agent's answer reopens it (`obligations`).
 
 The fork reads each page's words as the user reads them, a block to a line
 (`page_text`, from the passage reading `leaf thread create` quotes against), so it
@@ -215,60 +193,22 @@ gave an answer `ANSWER` refuses, is noted with its reason. Claude Code keeps no 
 `$.model.fork` exchange, only its token counts in the debug log, so this record is
 what a later replay or audit scores against what the agent did next.
 
-Measured on 2026-10-29 by replaying 21 recorded turn ends three times each on Opus
-5.5 (`~/.tmp/leaf.agent-channels/replay/`, `fork3.py` and `score3.py`), with the asks
-alone: the fork found 59 of the 63 labelled asks missing from On Me; 62 of its 64
-findings were labelled asks and 2 borderline, none false; 2 of 39 runs at clean turn
-ends named anything. Warm, a fork cost $0.08 (median). The same replay of the
-reference on 2026-10-31 (`fork4.py`, `score4.py`, `REPORT4.md`) found 63 of the 63
-asks, named one at 1 of 39 clean turn ends, and named 87 out-of-date passages, 81 of
-them real and 1 false, and 7 pieces of unshown work, 6 real and none false; the
-sample held no settled item, and one case added for it found both in 3 of 3 runs.
-Warm, a fork cost $0.125 and wrote about seven times
-the output. Rewording what failed, measured on those cases (`fork5.py`), cleared the
-false and chat-reply findings at the cost of one hedged but true one. With each page's
-text in the prompt and edits allowed (`fork8.py`), once on eight turn ends, the fork
-named 34 stale passages against 17 without the text, and gave edits for 26, of which
-25 read right. Replayed through `fixed_source` on the pages' sources (`place8.py`),
-every one quoted words the page shows once, 24 landed where the user reads them and
-2, whose changing words cross a link or a code span, were refused; none landed
-anywhere else. The text adds about 1,000 to 11,000 input tokens per page. Claude
-Code's fork reuses the session's cached prefix while its system prompt and tools
-match the session's, which `$.model.fork` keeps by resending the main thread's own
-last request.
+Claude Code's fork reuses the session's cached prefix while its system prompt and
+tools match the session's, which `$.model.fork` keeps by resending the main thread's
+own last request.
 
 The fork thinks at the session's own effort, and the check's reference asks it to
 answer straight away without thinking it over, as Claude Code's `$.model.fork`
-documentation suggests for a quick side job. From 2026-11-04 to 2026-11-14 the fork
-asked for `low` effort instead, which can cost a rewrite of the conversation to the
-cache (`runFork` in `hooks/claude-code.ts` says when). On the 15 turn-end cases of
-`leaf-dev eval run 'turn-end-check*' --base` on 2026-11-14, a fork at xhigh asked to
-answer straight away passed all 15, as the low fork did, and wrote 1.62 times its
-output (95% interval 1.26–2.09) in 1.23 times its time (1.10–1.38). The measurements
-below are of that low fork.
-
-On turns planted in the claude-code journey on 2026-11-04, with the session at
-xhigh, which leave an ask in the chat, answer it there,
-make the page stale or set work running that no page shows, or leave nothing, the low fork named all 19 planted items and nothing at any
-of the 13 quiet turns over five runs, as the session's effort did, with 0.45 times
-the output (95% interval 0.31–0.63, 32 turns matched across six runs) and 0.62 times
-the time.
-
-A real session's drift is subtler than those plants. The 18 forks that named items
-in real sessions at xhigh on 2026-11-04 were each replayed at low three times. The
-replays matched all of their unshown work and asks left in the chat, 54% of their
-stale passages and none of their offers of bolder work, which put no decision to the
-user. Replays vary even at xhigh. Two of those forks, replayed at xhigh as a control,
-matched their original findings half the time (7 of 14), and on the longest page the
-xhigh and low replays caught the same share of its stale passages. A low replay
-wrote a median 283 output tokens in 5.6 s, against 1,140 in 11.5 s at xhigh. The
-fork runs off the turn's path, but the sooner it answers, the less often a turn
-opened meanwhile drops its asks (`basis`).
+documentation suggests for a quick side job. Asking for `low` effort instead can cost
+a rewrite of the conversation to the cache (`runFork` in `hooks/claude-code.ts` says
+when), and a fork at xhigh asked to answer straight away does as well as a low fork
+on the turn-end cases. The fork runs off the turn's path, but the sooner it answers, the
+less often a turn opened meanwhile drops its asks (`basis`).
 
 `leaf-dev eval run 'turn-end-check*' --harness claude-code --base` scores a change to
 what the fork is asked, how hard it thinks or how Leaf takes its answer, on a short
-constructed
-conversation for each decision the prompt asks about (`dev/leaf_dev/fork_eval.py`).
+constructed conversation for each decision the prompt asks about
+(`dev/leaf_dev/fork_eval.py`).
 """
 
 import json
@@ -278,7 +218,6 @@ from html import escape
 from itertools import chain, islice
 from pathlib import Path
 
-from .registry.contract import declared_fact
 from .registry.kernel import title_limit
 from .schema import SKILL_FILE
 from .state import (
@@ -803,6 +742,9 @@ def apply_answer(
                         for record, line in _ask(
                             page_dir, page, mine["asks"], identity
                         ):
+                            if record is None:
+                                owed.append(line)
+                                continue
                             wrote.append(record)
                             here["wrote"].append(record["id"])
                             lines.append(line)
@@ -852,73 +794,63 @@ def _ask(page_dir: Path, page, asks: list[dict], identity: dict):
     agent's `leaf thread` command posts its text, so the HTML in it draws
     (`drawn_markup`). A widget in it that asks, such as a choice (`threads.md`, "Ask
     for a pick"), asks the question, and otherwise the message asks with an
-    obligation. Where Leaf refuses the HTML, the message asks in words, showing it as
-    text, so the ask isn't lost to it. One that asks an earlier question `again` asks
-    it in its thread (`ask_again`), which the message reopens if it was closed; any
-    other opens a thread of its own, none whose title a thread the agent opened there
-    to ask something already has. Where Leaf can't ask the question again, as where
-    its thread owes the user a reply, the ask is taken as one naming none."""
+    obligation. Where Leaf refuses the message, as for HTML that doesn't validate or
+    a picture the page hasn't got, nothing is posted for it: the record is None, and
+    the line, which the agent owes, hands the agent the ask and why, so it asks the
+    user itself. One that asks an earlier question `again` asks it in its
+    thread (`ask_again`), which the message reopens if it was closed; any other opens
+    a thread of its own, none whose title a thread the agent opened there to ask
+    something already has. Where Leaf can't ask the question again, as where its
+    thread owes the user a reply, the ask is taken as one naming none."""
     from .findings import Rejected
     from .registry.storage import require_registry
-    from .thread import drawn_markup, fit_title, widget_asks
+    from .thread import fit_title, widget_asks
+    from .thread_context import thread_structure
     from .validation.admission import checked_text
 
     registry = require_registry(page_dir)
     # The asks the agent made there, by title: the threads it opened to ask
     # something, in words or with a widget that asks.
+    drawing = thread_structure(page.events).fragments
     asked_in = {
         event["title"].casefold()
         for event in page.events
         if event["kind"] == "comment"
         and event["author"] == "agent"
         and "title" in event
-        and (event.get("obligation") or widget_asks(event, registry))
+        and (event.get("obligation") or widget_asks(drawing.get(event["id"]), registry))
     }
-    # Every message is checked before the first is written, so a refused one leaves
-    # the page as the fork found it.
-    messages = [
-        (
-            fit_title(item["title"]),
-            checked_text(page_dir, item["text"], html=True),
-            item["passage"].strip(),
-            item["again"].strip(),
-        )
-        for item in asks
-    ]
-    for title, text, passage, again in messages:
+    for item in asks:
+        title, text = fit_title(item["title"]), item["text"]
+        passage, again = item["passage"].strip(), item["again"].strip()
         ask = (page_dir, page, title, text, passage, again, identity, registry)
-        refused = None
         try:
-            record = _ask_one(*ask, True, asked_in)
+            checked_text(page_dir, text, html=True)
+            record = _ask_one(*ask, asked_in)
         except Rejected as error:
-            if not drawn_markup(text, True):
-                raise
-            record, refused = _ask_one(*ask, False, asked_in), error
+            yield None, _unasked(str(page_dir), title, text, error)
+            continue
         if record is not None:
-            yield (
-                record,
-                _told(str(page_dir), title, text, passage, record, again, refused),
-            )
+            yield record, _told(str(page_dir), title, text, passage, record, again)
 
 
 def _ask_one(
-    page_dir, page, title, text, passage, again, identity, registry, html, asked_in
+    page_dir, page, title, text, passage, again, identity, registry, asked_in
 ) -> dict | None:
-    """The message putting one ask On Me, its text read with HTML where `html` says
-    (`drawn_markup`): in the thread of the question it asks `again` where Leaf can
-    ask it there, and otherwise in a thread of its own, on `passage` where the page
-    shows it once, unless the agent opened one to ask something under its title
-    (`asked_in`), where there is none. A refusal of its HTML reaches the caller from
-    either thread, which asks it in words instead (`_ask`)."""
+    """The message putting one ask On Me: in the thread of the question it asks
+    `again` where Leaf can ask it there, and otherwise in a thread of its own, on
+    `passage` where the page shows it once, unless the agent opened one to ask
+    something under its title (`asked_in`), where there is none. A refusal of its
+    HTML reaches the caller from either thread (`_ask`)."""
     from .findings import Rejected
     from .thread import ask_again, drawn_markup, markup_asks
 
-    if again and (record := ask_again(page, again, text, identity, html)):
+    if again and (record := ask_again(page, again, text, identity)):
         return record
     if title.casefold() in asked_in:
         return None
-    asks = markup_asks(drawn_markup(text, html), registry)
-    put = (page_dir, page, title, text, identity, html, not asks)
+    asks = markup_asks(drawn_markup(text), registry)
+    put = (page_dir, page, title, text, identity, not asks)
     try:
         record = _put(*put, passage)
     except Rejected:
@@ -1056,7 +988,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
     """Where `document`'s source writes the `words` the user reads at `target` in
     `passages`, its page's reading, as the match, whether it stands in an attribute
     and whether in a `<pre>`; or None. Each place the source may write them, in its text or in
-    the value of an attribute a widget shows (`words.says`), gets a character of its
+    the value of an attribute a widget shows (`says`), gets a character of its
     own just before it, and the marked page's reading (`read`) says which mark
     stands at `target`. A copy in a script, a style, the head, a comment or a body
     the user rewrote shows nowhere, so it is never the one found.
@@ -1086,7 +1018,7 @@ def _place(document, registry: dict, words: str, target: int, passages, read):
                     document.offsets(location.end_tag)[0],
                 )
             )
-        for name in declared_fact(registry.get(element.tag) or {}, "words.says") or {}:
+        for name in (registry.get(element.tag) or {}).get("says") or {}:
             if name in location.attrs:
                 start, end = document.offsets(location.attrs[name])
                 _, equals, value = source[start:end].partition("=")
@@ -1223,12 +1155,12 @@ def unqueue(session_id: str, turns: set[str]) -> None:
             path.unlink(missing_ok=True)
 
 
-def _put(page_dir, page, title, text, identity, html, obligation, passage) -> dict:
+def _put(page_dir, page, title, text, identity, obligation, passage) -> dict:
     """The thread putting one ask On Me as the agent's own in `page`, an open
-    transaction, on `passage` where it names one, its text read with HTML where
-    `html` says, with an obligation where no widget in it asks; refused, as `thread
-    create --quote` is, where the page doesn't show `passage` once, and as the
-    agent's message is, where its HTML doesn't validate (`check_markup`)."""
+    transaction, on `passage` where it names one, with an obligation where no widget
+    in it asks; refused, as `thread create --quote` is, where the page doesn't show
+    `passage` once, and as the agent's message is, where its HTML doesn't validate
+    (`check_markup`)."""
     from .thread import open_thread
 
     return open_thread(
@@ -1236,10 +1168,21 @@ def _put(page_dir, page, title, text, identity, html, obligation, passage) -> di
         page,
         text,
         passage,
-        html=html,
         title=title,
         obligation=obligation,
         identity=identity,
+    )
+
+
+def _unasked(path: str, title: str, text: str, error: Exception) -> str:
+    """The line handing the agent an ask whose message Leaf refused, which the agent
+    owes: the message and why, so it asks the user itself."""
+    quoted = "\n".join(f"> {line}" for line in text.splitlines())
+    return (
+        f'From your last reply, Leaf would have asked the user "{title}" On Me in '
+        f"{path} with this message:\n{quoted}\nIt refused the message, so nothing "
+        f"was asked: {error}\nIf it is still theirs to decide, ask it yourself "
+        "(`references/threads.md`)."
     )
 
 
@@ -1250,12 +1193,10 @@ def _told(
     passage: str,
     record: dict,
     again: str = "",
-    refused: Exception | None = None,
 ) -> str:
     """The line telling the agent what Leaf put On Me as its own, where (a new
     thread, or the thread of the question `again` it asks again), and whether a
-    widget in it asks or the user's reply answers it; with why Leaf showed its HTML
-    as words, where it `refused` it."""
+    widget in it asks or the user's reply answers it."""
     from .obligations import question_ids
 
     if record["kind"] == "reply":
@@ -1280,12 +1221,6 @@ def _told(
         )
         put = f", in a new thread on {where}, opened by your message {record['id']}"
     quoted = "\n".join(f"> {line}" for line in text.splitlines())
-    shown = (
-        f"Leaf refused the HTML in it, so the message shows it as words and asks with "
-        f"an obligation: {refused}\n"
-        if refused
-        else ""
-    )
     answer = (
         "the user's reply reaches you as any reply does"
         if record.get("obligation")
@@ -1294,7 +1229,7 @@ def _told(
     withdraw = f"leaf thread resolve {path} {record['id']}"
     return (
         f'From your last reply, Leaf asked the user "{title}" On Me{put}:\n{quoted}\n'
-        f"{shown}It is yours like any message you write: {answer}, and if it isn't "
+        f"It is yours like any message you write: {answer}, and if it isn't "
         f"theirs to decide, resolve its thread with `{withdraw}`, and ask it another "
         "way if you'd rather."
     )

@@ -248,8 +248,8 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
 
 
 def test_z_takes_back_a_reply_the_user_sent(browser, serve):
-    """`z` takes back the user's newest gesture, a reply they sent included, where it
-    used to stop at the reply as said rather than unsaid. The reply's thread is out
+    """`z` takes back the user's newest gesture, a reply they sent included, and doesn't
+    stop at the reply as said rather than unsaid. The reply's thread is out
     of view, so the first press opens it and says what the next takes; the second
     takes the reply back."""
     url = serve(LONG_PAGE, comments=3)
@@ -487,8 +487,9 @@ def test_z_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
     browser, serve
 ):
     """A choice in front of the user, made in another tab, is taken back by one press,
-    as before. `z` once showed it first if the agent had picked it up, so the same press
-    did two things depending on a delivery the user never saw happen."""
+    whether or not the agent has picked it up. `z` doesn't show it first if the agent
+    has, which would have the same press do two things depending on a delivery the user
+    never saw happen."""
     url = serve(UNDO_PAGE)
     choice = append_command(
         serve.page_dir,
@@ -525,11 +526,11 @@ FAR_CHOICE_PAGE = leaf_page(
     """
 <h1 id="h">Far</h1>
 {paras}
-<lf-ask id="picks-decision"><h2>Should we keep the mounts?</h2>
+<section id="picks-decision" role="group" aria-labelledby="picks-decision-h"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
 <lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
   <lf-option id="opt-b" selected>Replace the mounts</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 """,
 ).format(
     paras="\n".join(
@@ -1416,12 +1417,12 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     outer = declarations["lf-outer-board"]
     outer["attributes"]["properties"]["restated"] = {"type": "boolean"}
     outer["content"] = "members"
-    outer.setdefault("author", {})["example"] = (
+    outer["example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
         "</lf-outer-board>"
     )
-    outer.setdefault("state", {})["verbs"] = {
+    outer["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -1432,7 +1433,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     }
     standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
     declarations["lf-column"] = standard["lf-column"]
-    declarations["lf-column"]["markup"]["owners"].append("lf-outer-board")
+    declarations["lf-column"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { LeafElement } from "/runtime/widget-api.js";
@@ -1715,7 +1716,7 @@ def test_accounting_an_action_also_applies_the_undo_that_arrived_with_it(
     browser, serve
 ):
     """A complete read may first reveal both optimistic A and another tab's undo of A.
-    The outbox entry is no longer a hold against that same read: the withdrawal must
+    The outbox entry is not a hold against that same read: the withdrawal must
     restore authored state before accounting releases A, or the sender keeps showing a
     gesture the log and every fresh page have already taken back."""
     page = open_page(browser, serve(BOARD_PAGE))
@@ -2631,7 +2632,7 @@ PANED_LONG_PAGE = leaf_page(
 )
 
 
-# The item field is the one that used to retire; the passage field rides the pane.
+# The item field is the one at risk of retiring; the passage field rides the pane.
 @pytest.mark.parametrize(
     ("target", "scroller"), [("item", "page"), ("item", "pane"), ("passage", "pane")]
 )
@@ -2640,10 +2641,10 @@ def test_a_comment_field_scrolled_away_and_back_is_still_there(
 ):
     """Scrolling away from a comment and back returns to the field as the user left
     it: standing beside its target, with their words and their caret in it. Geometry
-    says where the field stands, never whether: an item's field used to read "the
-    target is off screen" as "the target is gone" and put the field away, words and
-    all, the moment its item left the window. The field now follows out of view
-    without retiring its draft; on return it stands beside the target."""
+    says where the field stands, never whether: an item's field that read "the target
+    is off screen" as "the target is gone" would put the field away, words and all,
+    the moment its item left the window. The field follows out of view without
+    retiring its draft; on return it stands beside the target."""
     page = open_page(
         browser, serve(LONG_PAGE if scroller == "page" else PANED_LONG_PAGE)
     )
@@ -2710,9 +2711,9 @@ def test_the_comment_field_stands_in_the_margin_beside_the_passage(browser, serv
     placement asks is whether the box and its two 8px gaps fit beside the column in
     body's client box, and that box is the window less whatever the platform spends on
     a scrollbar — nothing under macOS's overlay ones, 15px of gutter on the Linux
-    runner. 1440 made the question exact rather than true: the margin fitted the box
-    with nothing at all to spare where this was written, and fell 15px short where it
-    ran, so a placement doing precisely what it should read as a bug."""
+    runner. At 1440 the question is exact rather than true: the margin fits the box
+    with nothing at all to spare under the overlay scrollbars and falls 15px short on
+    the Linux runner, so a placement doing precisely what it should reads as a bug."""
     page = open_page(browser, serve(LONG_PAGE))
     resized(page, 1600, 900)
     page.locator("#p30").scroll_into_view_if_needed()
@@ -2851,9 +2852,7 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
                     "additionalProperties": False,
                 },
                 "content": "markup",
-                "author": {
-                    "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
-                },
+                "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
             }
         },
         layer_widgets={
@@ -2902,8 +2901,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "author": "agent",
             "revision": 1,
             "parent": "question",
-            "text": 'Here is the detail.\n\n<lf-preparation id="detail"><p>Supporting detail</p></lf-preparation>',
-            "html": True,
+            "text": 'Here is the detail.\n\n<lf-preparation id="detail">\n<p>Supporting detail</p></lf-preparation>',
         },
     )
     append_command(

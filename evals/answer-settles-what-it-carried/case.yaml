@@ -1,14 +1,10 @@
-# Added when the agent's answer about a decision rode on the decision's On Me row
-# (`also`): once the user picks, the answer stands alone on On Me until the user
-# replies or resolves the thread, though the pick often settles it. The user wanted
-# the agent to judge whether it still needs them. A pick's delivery now carries the
-# agent's questions still waiting in a thread about the widget (`waiting`), with a
-# clause to end the ones the pick settles. The envelopes are real deliveries frozen
-# from a page; the old arm drops `waiting` and its clause.
-# Without `waiting`: settled 0/3 on Claude Code and on Codex, still-asking 3/3 on each.
-# With it: settled 3/3 and still-asking 3/3 on each harness. The clause then said to end
-# a settled question with `leaf task end`; since 15 November 2026 it says to resolve the
-# question's thread.
+# The agent's answer about a decision rides on the decision's On Me row (`also`):
+# once the user picks, the answer stands alone on On Me until the user replies or
+# resolves the thread, though the pick often settles it. The user wants the agent to
+# judge whether it still needs them. A pick's delivery carries the agent's questions
+# still waiting in a thread about the widget (`waiting`), with a clause to end the
+# ones the pick settles by resolving the question's thread. The envelopes are real
+# deliveries frozen from a page; the old arm drops `waiting` and its clause.
 description: answer-settles-what-it-carried
 metadata:
   purpose:

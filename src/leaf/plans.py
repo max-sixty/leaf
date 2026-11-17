@@ -13,7 +13,7 @@ The plan keeps the breakdown apart from what is owed. A to-do or an obligation k
 owner, rules and end (`todos`, `obligations`); a plan only arranges them beside plain steps.
 So a rewrite that leaves out an open to-do ends nothing: the to-do stays on its list,
 outside the plan. A plain step is no promise: work that must stay owed past the turn
-is a to-do the plan names. This is the shape the user chose on 2026-10-16 over giving
+is a to-do the plan names. This is the shape the user chose over giving
 to-dos a parent, which would have needed rules wherever a to-do ends (a stamp's
 `--completes`, `leaf task end`) and left obligations out of the tree, over grouping
 to-dos by the element they stand on, which shows no steps ahead, and over writing the

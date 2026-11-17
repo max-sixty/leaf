@@ -2,19 +2,19 @@
 
 One record contains its prompt, typed answer, completion and next actor. Its thread
 and exact owning message locate frozen sources without depending on a live renderer.
-A widget source owns identity; an enclosing widget (`state.encloses`) contributes only
-prompt words and arrival. A `records` declaration expands a widget's bound external
-input using its data contract's record list and key. Each record owns the stable
+A widget source owns identity; the group the author declares round it contributes
+only prompt words and arrival (`widget_groups`). A `records` declaration expands a
+widget's bound external input using its data contract's record list and key. Each record owns the stable
 widget-and-unit identity and reads its own action coordinate; replacing that input
 changes membership without changing the answers of retained records.
 The inventory is complete even when a work queue hides a resolved thread or an
 older prompt.
 
 On the page, the user answers an obligation only through its source: a widget
-through the actions its `state.awaits` declares, an agent message through a reply or
+through the actions its `awaits` declares, an agent message through a reply or
 settling reaction in its thread. Leaf adds no control of its own, such as a generic
 Done, and nothing reaches On Me unless a widget or a thread answers it (`todos` records
-the decision). Any widget may ask by declaring `state.awaits`; content that doesn't is
+the decision). Any widget may ask by declaring `awaits`; content that doesn't is
 asked about in a thread anchored to it.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
@@ -34,23 +34,23 @@ where they asked back or the step is still to do, its reply's `obligation` names
 question by id, as one reply can name each question the user's message answered. The
 question then stands open again under the id and the words of the message that first
 asked it, so a plan step naming it follows under the same title, and stands on that
-reply, which On Me shows and the user's next message answers. The user chose this on
-4 November 2026 over handing the question to the agent until it replied, as a widget's
+reply, which On Me shows and the user's next message answers. The user chose this
+over handing the question to the agent until it replied, as a widget's
 does, which left On Me full until the agent had read each reply, and over asking again
 under a new id, which left the plan step reading done. Asking again is the declaration
 asking is, an `obligation` naming the questions, rather than a second one beside it.
 
 A record's `status` is one of three, and this module is their one producer: `open`;
-`answered`, its typed answer in the record; and `withdrawn`, an obligation the
-document no longer makes. A question asked in a thread message, in words or by a
-widget frozen in it, also ends when either side resolves its thread after the message
-now asking it: it stays `open` with nobody's move, though a later reply reopens the
-thread, until a message asks it again under its id (`question_ids`) or the resolve is
-taken back. That is how the agent ends one the user answered on another surface, or
-that no longer applies, so the thread reads as settled wherever it shows. The user asked for this on 15 November
-2026 over an agent end of its own (`todo_end` on the question's id, read as
-`answered_elsewhere` or `withdrawn` with the agent's note), which added a status, a
-line under the question and a Done row, and left half of the threads it ended open. A
+`answered`, its typed answer in the record; and `withdrawn`, an obligation the document
+no longer makes. A question asked in a thread message, in words or by a widget frozen in
+it, also ends when either side resolves its thread after the message now asking it: it
+stays `open` with nobody's move, though a later reply reopens the thread, until a
+message asks it again under its id (`question_ids`) or the resolve is taken back. That
+is how the agent ends one the user answered on another surface, or that no longer
+applies, so the thread reads as settled wherever it shows. The user asked for this over
+an agent end of its own (`todo_end` on the question's id, read as `answered_elsewhere`
+or `withdrawn` with the agent's note), which added a status, a line under the question
+and a Done row, and left threads it ended open. A
 page widget's answer given elsewhere goes into its declared state in a revision."""
 
 import hashlib
@@ -69,7 +69,7 @@ from leaf.events import (
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.gesture_words import element_name
+from leaf.gesture_words import element_name, group_name
 from leaf.page_memory import Slot
 from leaf.projection import (
     AuthoredOrders,
@@ -83,7 +83,7 @@ from leaf.projection import (
     page_reading,
     projected_action_holders,
 )
-from leaf.registry.contract import declared_fact, exhibits, matches_when
+from leaf.registry.contract import exhibits, matches_when
 from leaf.registry.kernel import verb_writers
 from leaf.registry.reactions import reaction_tokens
 from leaf.thread_context import widget_messages
@@ -94,13 +94,47 @@ if TYPE_CHECKING:
 
 def local_obligation_entry(entry: dict) -> bool:
     """Whether a widget can originate an obligation when its predicate holds."""
-    return declared_fact(entry, "state.awaits") is not None
+    return entry.get("awaits") is not None
 
 
-def encloses(entry: dict) -> bool:
-    """Whether this widget frames the obligations inside it (`state.encloses`): its leading
-    heading gives their prompt, and going to one of them lands on it."""
-    return bool(declared_fact(entry, "state.encloses"))
+def _is_group(node: dict) -> bool:
+    """Whether the author declares `node` a group: `role="group"`, or a `<fieldset>`,
+    which is one natively."""
+    return (
+        node["tag"] == "fieldset"
+        or "group" in (node["attrs"].get("role") or "").split()
+    )
+
+
+def widget_groups(content: list, registry: dict):
+    """Each widget in `content` that can ask, as its authoring node and its question:
+    the innermost element round it that the author declares a group (`_is_group`), or
+    None. The group's name (`gesture_words.group_name`) is the widget's prompt, and the
+    group is where the obligation stands and going to it starts while it holds no
+    other (`obligations/place.js` in the browser), so the group needs an id to be a
+    place, as `page check` requires. Python reads only the authored source, so a group
+    the runtime draws, such as a control's own, holds no question. A widget set among
+    words (`inline`), such as a suggestion, has none: its sentence and its own words
+    name it.
+
+    The author declares the question's region and name, and Leaf reads no heading to
+    find them: the user chose data the author writes over a reading of the page's
+    headings. Finding the section a heading opens round the widget is the alternative a
+    later change might reach for; it fails because it infers a region the author never
+    marked, so a section of prose round several questions would become their region.
+    A widget of Leaf's own round the question is the other; it fails because a group in
+    plain HTML already says what such a tag would."""
+
+    def walk(nodes: list, group: dict | None):
+        for node in nodes:
+            if isinstance(node, str):
+                continue
+            entry = registry.get(node["tag"]) or {}
+            if local_obligation_entry(entry):
+                yield node, None if entry.get("inline") else group
+            yield from walk(node["content"], node if _is_group(node) else group)
+
+    yield from walk(content, None)
 
 
 def question_ids(message: dict) -> list[str]:
@@ -159,21 +193,14 @@ def obligation_registrations(
             "restated" in record["attrs"],
             frozenset(
                 verb
-                for verb, spec in declared_fact(
-                    registry[record["tag"]], "state.verbs", {}
-                ).items()
+                for verb, spec in registry[record["tag"]].get("verbs", {}).items()
                 if (spec.get("record") or {}).get("kind") == "value"
                 and spec["record"]["attr"] in declaration.get("when", {})
             ),
             Slot(),
         )
         for unit, record in document.by_id.items()
-        if (
-            declaration := declared_fact(
-                registry.get(record["tag"], {}), "state.awaits"
-            )
-        )
-        is not None
+        if (declaration := registry.get(record["tag"], {}).get("awaits")) is not None
     }
 
 
@@ -317,9 +344,9 @@ def previously_requested(
 
 
 def answer_verbs(entry: dict) -> dict:
-    """Each verb (state.verbs) whose current state answers this widget's local obligation,
-    mapped to the condition that state has to meet (state.awaits.answered)."""
-    return (declared_fact(entry, "state.awaits") or {}).get("answered") or {}
+    """Each verb (`verbs`) whose current state answers this widget's local obligation,
+    mapped to the condition that state has to meet (`awaits.answered`)."""
+    return (entry.get("awaits") or {}).get("answered") or {}
 
 
 def verb_answers(
@@ -357,7 +384,7 @@ def verb_answers(
             key in held[0]["detail"] and held[0]["detail"][key] == value
             for key, value in condition["detail"].items()
         )
-    spec = entry["state"]["verbs"][verb]
+    spec = entry["verbs"][verb]
     record = spec.get("record")
     if record and record["kind"] in ("attribute", "value"):
         value = folded_value(*held) if held else markup_value(unit, spec, byid, marks)
@@ -420,23 +447,26 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
 
     A section is about the innermost obligation whose widget encloses it, answered or not;
     failing one, about every obligation whose widget it encloses; failing those, about
-    every obligation whose prompt target (its enclosing widget) is the innermost to
-    enclose it. So a note on one obligation's option, or on a part of a frame holding
-    one obligation, leaves its framed sibling out, while one on the frame's heading or on
-    a section holding the frame is about them all. `within` is the document's
-    containment (`Passages.enclosing`). A datum identity narrows an owning widget's
-    record obligations to the exact case being discussed.
+    every obligation whose prompt target (its group, `widget_groups`) is the innermost
+    to enclose it. So a note on one obligation's option, or on a part of a group
+    holding one obligation, leaves its sibling in the group out, while one on anything
+    else in the group, such as the heading naming it where the group holds that
+    heading, or on a section holding the group, is about them all. A note on a name
+    that stands outside its group, as a workspace header's heading can, is about none
+    of the group's obligations. `within` is the document's containment
+    (`Passages.enclosing`). A datum identity narrows an owning widget's record
+    obligations to the exact case being discussed.
 
     The records are indexed once by source, prompt target and each id enclosing
     their source, so a caller asking for every thread on the page reads each
     thread's anchor against the indexes rather than every record again.
     """
     items: dict[str, list[dict]] = {}
-    framed: dict[str, list[dict]] = {}
+    grouped: dict[str, list[dict]] = {}
     enclosed: dict[str, list[dict]] = {}
     for record in records:
         items.setdefault(record["source"]["id"], []).append(record)
-        framed.setdefault(record["prompt"]["target"], []).append(record)
+        grouped.setdefault(record["prompt"]["target"], []).append(record)
         for around in set(within.get(record["source"]["id"], ())):
             enclosed.setdefault(around, []).append(record)
 
@@ -448,7 +478,7 @@ def discussed_by(records: list[dict], within: dict) -> Callable[[dict], list[dic
             item
             if item is not None
             else enclosed.get(section)
-            or next((framed[i] for i in reversed(chain) if i in framed), [])
+            or next((grouped[i] for i in reversed(chain) if i in grouped), [])
         )
         datum = anchor.get("identity", anchor.get("datum"))
         return [
@@ -526,20 +556,20 @@ def discussed(records: list[dict], anchors: list[dict], within: dict) -> None:
 
 
 def shown_in(rec: dict, registry: dict) -> bool:
-    """Inside an element whose tag declares state.exhibit, a widget is shown rather than
+    """Inside an element whose tag declares `exhibit`, a widget is shown rather than
     asked, so it puts nothing on the user's list, whether or not the declaration's
     condition holds there. The condition decides only whether it also takes no input
     (`quoted_in`): a widget in an interactive `lf-sample` records its actions in the
     page's log and Undo as a demonstration, and a page's On Me holds only what the page
     itself asks. Same holder-chain walk as `quoted_in`."""
     return any(
-        bool(declared_fact(registry.get(node["tag"], {}), "state.exhibit"))
+        bool(registry.get(node["tag"], {}).get("exhibit"))
         for node in enclosing_widgets(rec)
     )
 
 
 def quoted_in(rec: dict, registry: dict) -> bool:
-    """Inside an element the registry marks state.exhibit where its condition holds, a
+    """Inside an element the registry marks `exhibit` where its condition holds, a
     widget is a mention rather than a use: it takes no input and asks nothing.
 
     The holder chain answers it, which is the walk `enclosing_slot` makes and the
@@ -618,7 +648,7 @@ def answering_action(
     own condition holds with it in place. Editable answers retain user provenance
     after the author suppresses the request. Admission stamps `meaning.answer` on
     exactly these."""
-    awaits = declared_fact(entry, "state.awaits") or {}
+    awaits = entry.get("awaits") or {}
     return (
         verb in answer_verbs(entry)
         and (
@@ -645,8 +675,9 @@ class ObligationSources(NamedTuple):
 
     `asking` holds each declared widget, with whether it stands inside an exhibit
     (`shown_in`).
-    `nodes` maps each id to its authoring node, whose words name an obligation's
-    prompt.
+    `prompts` maps each one's id to its prompt: `text`, the words naming it, its group's
+    name (`widget_groups`) or else its own, and `target`, the id of the element going
+    to it starts at, its group or else itself.
 
     These depend on the document and the vocabulary alone, and finding them is most
     of the cost of reading a page's obligations. A stored revision's reading
@@ -655,7 +686,7 @@ class ObligationSources(NamedTuple):
     the log decides."""
 
     asking: tuple[tuple[dict, bool], ...]
-    nodes: dict[str, dict]
+    prompts: dict[str, dict]
 
 
 def obligation_sources(source, registry: dict) -> ObligationSources:
@@ -665,26 +696,29 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
         list(source.fragments.values()) if hasattr(source, "fragments") else [source]
     )
 
-    def nodes(content):
-        for node in content:
-            if isinstance(node, dict):
-                yield node
-                yield from nodes(node["content"])
-
     declared = [
         record
         for document in documents
         for record in document.lf_elements
         if local_obligation_entry(registry.get(record["tag"]) or {})
     ]
-    return ObligationSources(
-        tuple((record, shown_in(record, registry)) for record in declared),
-        {
+    prompts = {}
+    for document in documents:
+        nodes = {
             node["attrs"]["id"]: node
-            for document in documents
-            for node in nodes(document.authoring.content)
+            for node in document.authoring.nodes
             if node["attrs"].get("id")
-        },
+        }
+        for node, group in widget_groups(document.authoring.content, registry):
+            if not (identity := node["attrs"].get("id")):
+                continue
+            text = group_name(group, nodes) if group else ""
+            prompts[identity] = {
+                "text": text or element_name(node, registry),
+                "target": (group["attrs"].get("id") if group else None) or identity,
+            }
+    return ObligationSources(
+        tuple((record, shown_in(record, registry)) for record in declared), prompts
     )
 
 
@@ -712,7 +746,7 @@ class _ObligationReducer:
         self.revision = revision
         self.events = [] if events is None else events
         self.data = data or {"sources": {}}
-        self.nodes = sources.nodes
+        self.prompts = sources.prompts
         self.records = [record for record, _shown in sources.asking]
         self.positioned_holders = projected_action_holders(projection, byid, registry)
 
@@ -727,17 +761,13 @@ class _ObligationReducer:
         return self.registry[record["tag"]]
 
     def _declaration(self, record):
-        return declared_fact(self._entry(record), "state.awaits", {})
+        return self._entry(record).get("awaits", {})
 
     def _local(self, record):
         return matches_when(
             replayed_attrs(record, self.projection),
             self._declaration(record).get("when"),
         )
-
-    def _holder(self, record):
-        unit = record["attrs"].get("id")
-        return self.positioned_holders.get(unit, record.get("holder"))
 
     def _answered(self, record):
         return obligation_answered(
@@ -750,17 +780,6 @@ class _ObligationReducer:
             self.positioned_holders,
         )
 
-    def _surface(self, record):
-        """The reading and arrival region the user is sent to for this source: the
-        nearest enclosing widget (`state.encloses`) holding it, or the source
-        itself."""
-        holder = self._holder(record)
-        while holder:
-            if encloses(self.registry.get(holder["tag"]) or {}):
-                return holder
-            holder = self._holder(holder)
-        return record
-
     def _record_inventory(self, record: dict) -> list[dict]:
         """One obligation per current bound record, identified independently of order.
 
@@ -770,9 +789,9 @@ class _ObligationReducer:
         """
         owner = record["attrs"]["id"]
         entry = self._entry(record)
-        declaration = entry["state"]["awaits"]
+        declaration = entry["awaits"]
         records = declaration["records"]
-        binding = entry["data"]["inputs"][records["input"]]
+        binding = entry["inputs"][records["input"]]
         source = self.data["sources"].get(record["attrs"].get(binding["source"]))
         if (
             not source
@@ -804,7 +823,7 @@ class _ObligationReducer:
             value, present = obligation_value(
                 owner,
                 verb,
-                entry["state"]["verbs"][verb],
+                entry["verbs"][verb],
                 self.byid,
                 self.marks,
                 self.orders,
@@ -833,7 +852,7 @@ class _ObligationReducer:
                     "message": None,
                     "prompt": {
                         "text": datum[records["label"]],
-                        "target": self._surface(record)["attrs"]["id"],
+                        "target": self.prompts[owner]["target"],
                     },
                     "answer": {
                         "value": value,
@@ -870,7 +889,7 @@ class _ObligationReducer:
 
         def historical_request(old_revision, old, unit):
             previous = old.document.by_id[unit]
-            declaration = old.registry[previous["tag"]]["state"]["awaits"]
+            declaration = old.registry[previous["tag"]]["awaits"]
             if old_revision not in history_readings:
                 history_readings[old_revision] = page_reading(
                     old, self.events, old_revision
@@ -965,7 +984,6 @@ class _ObligationReducer:
             if record_units:
                 records.extend(self._record_inventory(record))
                 continue
-            surface = self._surface(record)
             entry = self._entry(record)
             status = (
                 "answered"
@@ -974,11 +992,11 @@ class _ObligationReducer:
                 if self.local[id(record)]
                 else "withdrawn"
             )
-            value_verb = entry["state"]["awaits"]["value"]
+            value_verb = entry["awaits"]["value"]
             value, has_content = obligation_value(
                 unit,
                 value_verb,
-                entry["state"]["verbs"][value_verb],
+                entry["verbs"][value_verb],
                 self.byid,
                 self.marks,
                 self.orders,
@@ -1003,14 +1021,13 @@ class _ObligationReducer:
                 key=lambda event: event["seq"],
                 default=None,
             )
-            text = element_name(self.nodes[surface["attrs"]["id"]], self.registry)
             records.append(
                 {
                     "id": "widget:" + unit,
                     "source": {"kind": "widget", "id": unit, "tag": record["tag"]},
                     "thread": None,
                     "message": None,
-                    "prompt": {"text": text, "target": surface["attrs"]["id"]},
+                    "prompt": dict(self.prompts[unit]),
                     "answer": {"value": value, "event": event_reference(provenance)}
                     if has_content
                     else None,
@@ -1214,7 +1231,8 @@ def waiting_in_thread(
     """The agent's questions frozen as widgets in a thread, asked before a seq, that
     still wait on the user's pick, as a function of the thread and that seq: the
     user's words there may or may not answer them. Each is its `id` and the words
-    that asked it: the widget's framing heading, else the message holding it.
+    that asked it: its prompt, the name of the group the message writes round the
+    widget or else the widget's own (`obligation_sources`), else the message holding it.
 
     The open questions are grouped by thread once, so a batch asking for each of
     the user's words reads the records once rather than once per message."""

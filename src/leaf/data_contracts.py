@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 from .files import latest_revision
 from .findings import Finding, element_at
 from .refusals import Refused
-from .registry.contract import declared_fact, element_declarations
+from .registry.contract import element_declarations
 from .registry.schema import (
     json_validator,
     json_value,
@@ -20,7 +20,7 @@ from .registry.schema import (
 from .revision_artifact import read_revision, revision_history
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
-from .thread_context import logged_fragment
+from .thread_context import thread_structure
 
 
 class DataError(Refused):
@@ -79,9 +79,7 @@ def data_bindings(lf_elements: list, registry: dict):
     element-by-input relation walks it through this one generator.
     """
     for ordinal, rec in enumerate(lf_elements):
-        for input_name, spec in declared_fact(
-            registry.get(rec["tag"], {}), "data.inputs", {}
-        ).items():
+        for input_name, spec in registry.get(rec["tag"], {}).get("inputs", {}).items():
             source = rec["attrs"].get(spec.get("source"))
             if isinstance(source, str) and re.fullmatch(DATA_SOURCE_NAME, source):
                 yield ordinal, rec, input_name, spec, source
@@ -158,12 +156,10 @@ def data_document_readings(
         )
     declarations = {
         rec["tag"]: {
-            "data": {
-                "inputs": declaration,
-            },
+            "inputs": declaration,
         }
         for rec in document.lf_elements
-        if (declaration := declared_fact(registry.get(rec["tag"], {}), "data.inputs"))
+        if (declaration := registry.get(rec["tag"], {}).get("inputs"))
     }
     records = [
         {
@@ -175,7 +171,7 @@ def data_document_readings(
                     "id",
                     *(
                         spec["source"]
-                        for spec in declarations[rec["tag"]]["data"]["inputs"].values()
+                        for spec in declarations[rec["tag"]]["inputs"].values()
                         if "source" in spec
                     ),
                 }
@@ -194,9 +190,10 @@ def page_data_document_readings(
 ) -> list[tuple[list, str, dict]]:
     """Read each historical data consumer with its captured registry.
 
-    A message's markup uses its admitted revision's registry; a seeded message on a
-    page without revisions uses the initial registry. These readings permit historical
-    producers and inventories without restricting later documents' bindings.
+    A message's markup, as it now reads (`thread_structure`), uses the registry of
+    the revision its wording was admitted with; a seeded message on a page without
+    revisions uses the newest. These readings permit historical producers and
+    inventories without restricting later documents' bindings.
     """
     documents = [
         [
@@ -207,21 +204,17 @@ def page_data_document_readings(
     ]
     active_document = documents.pop() if documents else None
     newest = latest_revision(page_dir)
-    for event in events:
-        if event.get("html"):
-            revision = event.get("revision") or newest
-            selected_registry = (
-                registry
-                if revision is None
-                else read_revision(page_dir, revision).registry
+    structure = thread_structure(events)
+    for message, fragment in structure.fragments.items():
+        revision = structure.wordings[message][-1].get("revision") or newest
+        selected_registry = (
+            registry if revision is None else read_revision(page_dir, revision).registry
+        )
+        documents.append(
+            data_document_readings(
+                fragment, f"event {message!r} markup", selected_registry
             )
-            documents.append(
-                data_document_readings(
-                    logged_fragment(event),
-                    f"event {event['id']!r} markup",
-                    selected_registry,
-                )
-            )
+        )
     # The active document owns current bindings ahead of older messages' markup.
     if active_document is not None:
         documents.append(active_document)
@@ -242,13 +235,10 @@ def initial_data_document_readings(
 ) -> list:
     """A fresh page's source and seeded messages share its initial registry."""
     documents = data_document_readings(authored, "index.html", registry)
-    for event in events:
-        if event.get("html"):
-            documents.extend(
-                data_document_readings(
-                    logged_fragment(event), f"event {event['id']!r} markup", registry
-                )
-            )
+    for message, fragment in thread_structure(events).fragments.items():
+        documents.extend(
+            data_document_readings(fragment, f"event {message!r} markup", registry)
+        )
     return documents
 
 
@@ -314,16 +304,14 @@ def data_binding_inventory(lf_elements: list, registry: dict) -> dict:
 def measurement_lag_entries(lf_elements: list, registry: dict, stored: dict) -> list:
     """Authored measurements whose bound source has completed a later run.
 
-    An input (`data.inputs`) that declares `measured` joins the live half (its source)
+    An input (`inputs`) that declares `measured` joins the live half (its source)
     to the frozen half (the run receipt attribute it names). Invalid attributes stay
     with widget validation, and an unset source says only that no later run is known, so
     neither becomes advice here.
     """
     entries = []
     for rec in lf_elements:
-        for spec in declared_fact(
-            registry.get(rec["tag"], {}), "data.inputs", {}
-        ).values():
+        for spec in registry.get(rec["tag"], {}).get("inputs", {}).values():
             if "measured" not in spec:
                 continue
             source = rec["attrs"].get(spec.get("source"))
@@ -393,8 +381,8 @@ def record_labels(contract: str, registry: dict) -> set[str]:
     return {
         records["label"]
         for entry in element_declarations(registry).values()
-        if (records := (declared_fact(entry, "state.awaits") or {}).get("records"))
-        and entry["data"]["inputs"][records["input"]]["contract"] == contract
+        if (records := (entry.get("awaits") or {}).get("records"))
+        and entry["inputs"][records["input"]]["contract"] == contract
     }
 
 

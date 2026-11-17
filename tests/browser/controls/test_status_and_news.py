@@ -47,9 +47,9 @@ LEAVES = panel_view("leaves")
 def test_a_status_kind_change_is_announced_in_the_status_s_own_words(browser, serve):
     """The dot going red is not an announcement.
 
-    The chrome once flipped to the offline colour and rewrote its line while the live
-    region went on holding whatever it last said, so a user who is not watching the
-    chrome learned nothing. A kind changing — work starting, a turn ending, the server
+    A chrome that flips to the offline colour and rewrites its line while the live
+    region goes on holding whatever it last said tells a user who is not watching the
+    chrome nothing. A kind changing — work starting, a turn ending, the server
     going, then refusing this tab's key — is what is worth interrupting for, and what it says is the status's own
     sentence rather than a second account of it. The age moving and a count turning over
     are not kinds and stay out of the region."""
@@ -166,11 +166,11 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     the news rewrote may grow or shrink into free room, as the status press does when the
     sentence it carries changes; nothing else may move for it.
 
-    The panel's row is where all of it lands. On the banner `Threads: 9` becoming
-    `Threads: 10` — a comment posted from the terminal while the user reads — slid
-    the version picker 6px left, and the Accept all a second tab's decision put away
-    took the New-version chip with it; a new version now says itself in the field's
-    words and offers Open latest at its end, so the marks keep their seats.
+    The panel's row is where all of it lands. `Threads: 9` becoming `Threads: 10` — a
+    comment posted from the terminal while the user reads — would slide the version
+    picker left, and the Accept all a second tab's decision puts away would take the
+    New-version chip with it; a new version says itself in the field's words and offers
+    Open latest at its end, so the marks keep their seats.
 
     Driven by writing the events a real one would leave, since that is what the page
     reads either way, and there is no other way to reach this half: every gesture the
@@ -183,11 +183,11 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url, pin=True)
     on_me = "document.querySelector('.lf-fp-on-user').getAttribute('aria-label')"
-    # What the mark counts, apart from the news its name goes on to say.
-    owing = "document.querySelector('.lf-fp-on-user .lf-fp-num').textContent"
+    # What the mark counts, less the news its name goes on to say.
+    owing = f"{on_me}.split(', ')[0]"
     expect_open_threads(page, 9)
     page_at_rest(page)
-    owed = int(page.evaluate(f"() => {owing}"))
+    owed = int(page.evaluate(f"() => {on_me}").removeprefix("On Me: "))
 
     def publish_v2():
         stamp_page(d, html, "two")
@@ -232,12 +232,12 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "another tab decides two of the three pending suggestions",
             lambda: decide("sug-refill", "sug-thistle"),
-            f"() => {owing} === '{owed - 2}'",
+            f"() => {owing} === 'On Me: {owed - 2}'",
         ),
         (
             "another tab decides the last one",
             lambda: decide("sug-in-card"),
-            f"() => {owing} === '{owed - 3 or ''}'",
+            f"() => {owing} === '{'On Me: ' + str(owed - 3) if owed > 3 else 'On Me'}'",
         ),
     ]:
         page.evaluate(DEFINE_BOXES)

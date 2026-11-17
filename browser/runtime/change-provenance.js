@@ -15,7 +15,7 @@
    The tie is one of order, so the words state order: the version was saved while
    these comments waited, or with none waiting. They say neither that it answers a
    comment nor which paragraph followed which, since the log establishes neither. The
-   user chose on 5 November 2026 to say what each change came from rather than only
+   user chose to say what each change came from rather than only
    what it did; the version is the part of that the log can back.
 
    `versionProvenance` is the one value a surface that describes a change reads, the ⇄

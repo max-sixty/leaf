@@ -25,10 +25,14 @@ message with no such widget waits on no browser.
 What fails it is what the runtime would report to the agent. `runtime/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
 every fault the runtime reports about the page itself, as an `error` event; that is
-the event `leaf wait` delivers. The run intercepts those posts rather than reading the browser's own
-channels, so the check and the watcher fail on one set, spelled the same way and
-naming the same source location. The preview server is read-only, so the reports
-are answered here and reach no log.
+the event `leaf wait` delivers. It first writes the same words to the console after
+`leaf: `, and the run reads them there rather than the browser's own error channels,
+so the check and the watcher fail on the same reports, spelled the same way and naming
+the same source location; past the twenty a load the runtime posts, the check reads
+on. The console line, not the post, because Firefox, which the check draws in for a
+reader who uses it (`browser.launch_browser`), hands the run no post's body. The
+preview server is read-only, so the posts are answered here and reach no log
+(`scheme.answer_reports`).
 
 A failed browser run also reports failed network requests. Those readings explain a
 failure; they do not decide one: optional assets and other requests that fail without a
@@ -53,7 +57,6 @@ from leaf.revision_artifact import RevisionArtifact
 from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument, element_attrs, script_kind
 
-from ..registry.contract import declared_fact
 from .scheme import answer_reports, served
 
 
@@ -80,7 +83,7 @@ def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -
     implementations = artifact.implementations
     return any(
         implementations[record["tag"]]["owner"] == "page"
-        or declared_fact(registry[record["tag"]], "content") == "data"
+        or registry[record["tag"]].get("content") == "data"
         or any(
             isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
             for value in record["attrs"].values()
@@ -114,6 +117,11 @@ def message_page(markup: str) -> SourceDocument:
     return SourceDocument(source)
 
 
+# How `runtime/layer-client.js` `reportPageError` opens the console line it writes for
+# each report, ahead of the words it posts.
+REPORTED = "leaf: "
+
+
 class PageCode:
     """The page-code reading of one browser page, from before its navigation: every
     error the runtime reports, and the requests that failed while it ran. A page opened
@@ -122,12 +130,19 @@ class PageCode:
 
     def __init__(self, page):
         self.reports = []
-        answer_reports(
-            page,
-            lambda text: self.reports.append(
-                Finding("page-report", values={"text": text})
-            ),
-        )
+        heard = set()
+
+        def console(message):
+            # Every report, as `reportPageError` writes it before posting it; the
+            # runtime posts each words once a load, so they are read once here too.
+            if message.type == "error" and message.text.startswith(REPORTED):
+                text = message.text.removeprefix(REPORTED)
+                if text not in heard:
+                    heard.add(text)
+                    self.reports.append(Finding("page-report", values={"text": text}))
+
+        page.on("console", console)
+        answer_reports(page)
         self.network_errors = _failed_requests(page)
 
     def findings(self, page, unready: PageNotReady | None = None) -> list[Finding]:
@@ -143,7 +158,8 @@ class PageCode:
             )
         # A page that refused to start still answers, and posts why; one that missed a
         # stage may not answer at all. The report is posted asynchronously, and the
-        # route answers it only while this process is waiting on the page.
+        # route answers it, and the console line reaches this process, only while it
+        # is waiting on the page.
         if unready is None or unready.stage == "refused":
             wait_for_probe(page, "sendsAcked")
         return [*reports, *self.network_errors] if reports else []
@@ -151,81 +167,56 @@ class PageCode:
 
 def _failed_requests(page) -> list[Finding]:
     """The requests of `page` that fail or answer an error status from now on, filled
-    in as they do."""
-    cdp = page.context.new_cdp_session(page)
-    cdp.send("Page.enable")
-    cdp.send("Network.enable")
-    pending = {}
-    frame_urls = {}
+    in as they do, each with its resource type and the address of the frame that made
+    it, which the bootstrap rewrites before any request it makes, taking off its marks
+    (`asked_again`) and the host key. A request the page itself abandons, as a
+    navigation does, is not a failure: Chromium names it `net::ERR_ABORTED`, Firefox
+    `NS_BINDING_ABORTED`."""
+    from playwright.sync_api import Error as PlaywrightError
+
     network_errors = []
 
-    def cdp_frame(params):
-        frame = params["frame"]
-        frame_urls[frame["id"]] = frame.get("url", "")
+    def frame_of(request) -> str:
+        try:
+            return request.frame.url
+        except PlaywrightError:
+            # A service worker's request belongs to no frame.
+            return "<no-frame>"
 
-    def cdp_same_document(params):
-        # The address the frame shows, which the bootstrap rewrites before any request
-        # it makes, taking off its marks (`asked_again`) and the host key.
-        frame_urls[params["frameId"]] = params["url"]
-
-    def cdp_started(params):
-        request = params["request"]
-        request_id = params["requestId"]
-        kind = params.get("type", "Other")
-        frame_id = params.get("frameId", "<no-frame>")
-        pending[request_id] = (kind, frame_id, request["url"])
-
-    def cdp_finished(params):
-        pending.pop(params["requestId"], None)
-
-    def cdp_failed(params):
-        request = pending.pop(params["requestId"], None)
-        failure = params.get("errorText", "request failed")
-        if request and "ERR_ABORTED" not in failure:
-            kind, frame_id, failed_url = request
-            network_errors.append(
-                Finding(
-                    "request-failed",
-                    values={
-                        "kind": kind,
-                        "error": failure,
-                        "frame": frame_urls.get(frame_id, frame_id),
-                        "url": failed_url,
-                    },
-                )
+    def failed(request):
+        failure = request.failure or "request failed"
+        if "ERR_ABORTED" in failure or "NS_BINDING_ABORTED" in failure:
+            return
+        network_errors.append(
+            Finding(
+                "request-failed",
+                values={
+                    "kind": request.resource_type,
+                    "error": failure,
+                    "frame": frame_of(request),
+                    "url": request.url,
+                },
             )
+        )
 
-    def cdp_response(params):
-        response = params["response"]
-        if response["status"] >= 400:
-            request = pending.get(params["requestId"])
-            if request:
-                kind, frame_id, failed_url = request
-                frame_url = frame_urls.get(frame_id, frame_id)
-            else:
-                kind, frame_url, failed_url = (
-                    "Other",
-                    "<unknown-frame>",
-                    response["url"],
-                )
-            network_errors.append(
-                Finding(
-                    "request-status",
-                    values={
-                        "status": response["status"],
-                        "kind": kind,
-                        "frame": frame_url,
-                        "url": failed_url,
-                    },
-                )
+    def answered(response):
+        if response.status < 400:
+            return
+        request = response.request
+        network_errors.append(
+            Finding(
+                "request-status",
+                values={
+                    "status": response.status,
+                    "kind": request.resource_type,
+                    "frame": frame_of(request),
+                    "url": request.url,
+                },
             )
+        )
 
-    cdp.on("Page.frameNavigated", cdp_frame)
-    cdp.on("Page.navigatedWithinDocument", cdp_same_document)
-    cdp.on("Network.requestWillBeSent", cdp_started)
-    cdp.on("Network.loadingFinished", cdp_finished)
-    cdp.on("Network.loadingFailed", cdp_failed)
-    cdp.on("Network.responseReceived", cdp_response)
+    page.on("requestfailed", failed)
+    page.on("response", answered)
     return network_errors
 
 

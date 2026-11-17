@@ -149,7 +149,7 @@ const hasUnread = (thread) => thread.unread.length > 0;
 /**
  * Whether a thread is news: still open and holding words the user hasn't read. A
  * resolved thread's unread words aren't, so the news the panel counts never outnumbers
- * the open threads; a reply reopens its thread, and the user chose on 21 October to
+ * the open threads; a reply reopens its thread, and the user chose to
  * leave what reaches a closed one unannounced.
  * @param {Pick<Thread, "resolved"> & Unread} thread */
 export const isNews = (thread) => !thread.resolved && hasUnread(thread);
@@ -670,7 +670,7 @@ export function threadRecordReader() {
         resolved: thread.resolved,
         attention: thread.attention,
         // The obligations that stand in it: those widgets in its messages make, such as
-        // an `lf-ask` the user owes words to there, and those its updates publish.
+        // an `lf-options` the user owes a pick there, and those its updates publish.
         obligations: obligationsIn.get(thread.id) ?? [],
         // The agent's open to-dos on the thread: a reply that promised one says it is
         // still open (a to-do a reply opens takes the reply's id, `todos.py`), the

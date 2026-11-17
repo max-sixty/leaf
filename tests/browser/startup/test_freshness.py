@@ -354,11 +354,8 @@ def test_a_state_read_waits_while_news_answers_and_ends_when_a_look_fails(
     """A state read waits for its answer while the server answers the page's news
     looks, and ends as offline once a look goes unanswered.
 
-    `publish-site` deployed release `5b6be522…`, ran a hosted agent turn on it, and
-    then read the reloaded page still on the revision from before the turn. A
-    container that has just run a turn answers its next state read in seconds rather
-    than milliseconds — measured against a live deployment at 123 ms before a turn and
-    2252-3918 ms after one. A bound inside that spread does not delay such a read, it
+    A container that has just run a turn can answer its next state read in seconds
+    rather than milliseconds. A bound inside that spread does not delay such a read, it
     ends it: an expiry is a completed offline answer, so the page takes the container
     for gone while the answer it asked for is still on its way. A slow container still
     answers news, so the looks, not a deadline on the read, say when the server is gone.
@@ -399,9 +396,9 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
     url = serve(
         leaf_page(
             "Offline choice",
-            '<h1>Offline choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<h1>Offline choice</h1><section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2>'
             '<lf-options id="options"><lf-option id="one">First</lf-option>'
-            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+            '<lf-option id="two">Second</lf-option></lf-options></section>',
         )
     )
     append_command(
@@ -434,9 +431,9 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
     url = serve(
         leaf_page(
             "Waiting choice",
-            '<h1>Waiting choice</h1><lf-ask id="ask"><h2>Which?</h2>'
+            '<h1>Waiting choice</h1><section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2>'
             '<lf-options id="options"><lf-option id="one">First</lf-option>'
-            '<lf-option id="two">Second</lf-option></lf-options></lf-ask>',
+            '<lf-option id="two">Second</lf-option></lf-options></section>',
         )
     )
     append_command(
@@ -520,7 +517,7 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
     """A wake-up the page could not act on is not lost. A freshness answer says when the
     page has moved wakes state once per changed reading, so a read that failed — refused here, a
     dropped request in the world — is asked again on the page's own tick, the
-    spacing a failed exchange has always had. Without that a page would sit under
+    spacing a failed exchange has. Without that a page would sit under
     an offline status until something else happened to it."""
     page = open_page(browser, serve(LONG_PAGE), init_script=COUNT_ASKS)
     open_threads(page)
@@ -553,9 +550,9 @@ def test_a_page_whose_read_failed_asks_again_on_its_own(browser, serve):
 def test_a_page_asks_its_source_before_reloading_onto_the_same_document(browser, serve):
     """A reload is only an answer when the document would come back different.
 
-    The page refuses an answer from another layer because it cannot read that state, and
-    it used to reload on the spot. That is right when re-vendoring has moved the page out
-    from under an open tab. It is wrong the other way around — a server behind the
+    The page refuses an answer from another layer because it cannot read that state.
+    Reloading on the spot is right when re-vendoring has moved the page out from under
+    an open tab. It is wrong the other way around — a server behind the
     document it served, which is what the website looks like while a release's containers
     are still starting — because the reload lands on the same document and the next answer
     says the same thing, so the user watches the page restart for as long as the
@@ -665,8 +662,8 @@ def test_a_page_whose_module_failed_to_load_asks_its_server_once_more(
 ):
     """A module can fail on its way from a server that is still there, as when the
     machine's network changes under the request (`net::ERR_NETWORK_CHANGED`). The page
-    then lacks it however long it waits, and it waited only for another server, so a
-    page whose server kept answering never started. Once that server answers, the page
+    then lacks it however long it waits, and a page that waited only for another server
+    would never start while its server kept answering. Once that server answers, the page
     asks it for the document once more, and starts. A page that lost only its theme
     upgrades without it, and asks too, though the network change took the first probe
     with it and the page upgraded before a probe answered. A module the server fails

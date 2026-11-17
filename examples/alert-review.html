@@ -33,8 +33,12 @@
           group="Mostly noise"
           summary="0 of 47 pages real"
         >
-          <lf-ask id="ar-canary-decision">
-            <h4>How should the canary probe page?</h4>
+          <section
+            id="ar-canary-decision"
+            role="group"
+            aria-labelledby="ar-canary-decision-h"
+          >
+            <h4 id="ar-canary-decision-h">How should the canary probe page?</h4>
             <dl class="facts">
               <dt>Rule</dt>
               <dd><code>payments_canary_probe_failed</code></dd>
@@ -96,7 +100,7 @@
                 <strong>Keep paging on one failed probe</strong> No change to the rule.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-latency"
@@ -104,8 +108,12 @@
           group="Mostly noise"
           summary="1 of 31 pages real"
         >
-          <lf-ask id="ar-latency-decision">
-            <h4>What should the latency alert page on?</h4>
+          <section
+            id="ar-latency-decision"
+            role="group"
+            aria-labelledby="ar-latency-decision-h"
+          >
+            <h4 id="ar-latency-decision-h">What should the latency alert page on?</h4>
             <p>Checkout's latency objective is 1.2 seconds at p99 over ten minutes.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -137,7 +145,7 @@
                 <strong>Keep the current threshold</strong> No change to the rule.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-webhooks"
@@ -145,8 +153,12 @@
           group="Mostly noise"
           summary="2 of 22 pages real"
         >
-          <lf-ask id="ar-webhooks-decision">
-            <h4>What should the webhook alert measure?</h4>
+          <section
+            id="ar-webhooks-decision"
+            role="group"
+            aria-labelledby="ar-webhooks-decision-h"
+          >
+            <h4 id="ar-webhooks-decision-h">What should the webhook alert measure?</h4>
             <p>Depth tracks partner traffic; age tracks whether we are keeping up.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -178,7 +190,7 @@
                 <strong>Keep paging at 5,000</strong> No change to the rule.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-export"
@@ -186,8 +198,14 @@
           group="Mostly noise"
           summary="0 of 18 pages real"
         >
-          <lf-ask id="ar-export-decision">
-            <h4>What should happen during the nightly batch?</h4>
+          <section
+            id="ar-export-decision"
+            role="group"
+            aria-labelledby="ar-export-decision-h"
+          >
+            <h4 id="ar-export-decision-h">
+              What should happen during the nightly batch?
+            </h4>
             <p>Finance reads the export at 07:00 UTC.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -247,7 +265,7 @@
                 <strong>Keep paging</strong> No change to the rule.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-disk"
@@ -255,8 +273,12 @@
           group="Mostly noise"
           summary="0 of 9 pages real"
         >
-          <lf-ask id="ar-disk-decision">
-            <h4>Should the 80% disk alert page at all?</h4>
+          <section
+            id="ar-disk-decision"
+            role="group"
+            aria-labelledby="ar-disk-decision-h"
+          >
+            <h4 id="ar-disk-decision-h">Should the 80% disk alert page at all?</h4>
             <p>The 95% alert has not fired this quarter.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -285,7 +307,7 @@
                 <strong>Keep paging at 80%</strong> No change to the rule.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-settlement"
@@ -293,8 +315,14 @@
           group="Mostly noise"
           summary="3 of 6 pages real"
         >
-          <lf-ask id="ar-settlement-decision">
-            <h4>Should a settlement failure wait for its retry?</h4>
+          <section
+            id="ar-settlement-decision"
+            role="group"
+            aria-labelledby="ar-settlement-decision-h"
+          >
+            <h4 id="ar-settlement-decision-h">
+              Should a settlement failure wait for its retry?
+            </h4>
             <p>The scheduler retries once, five minutes after a failure.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -319,7 +347,7 @@
                 <strong>Keep paging on the first failure</strong> No change to the rule.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-3ds"
@@ -327,8 +355,12 @@
           group="Mostly noise"
           summary="1 of 3 pages real"
         >
-          <lf-ask id="ar-3ds-decision">
-            <h4>Should one issuer's outage page us?</h4>
+          <section
+            id="ar-3ds-decision"
+            role="group"
+            aria-labelledby="ar-3ds-decision-h"
+          >
+            <h4 id="ar-3ds-decision-h">Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -379,7 +411,7 @@
                 <strong>Keep paging on the overall rate</strong> No change to the rule.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-cert"
@@ -387,8 +419,14 @@
           group="Wrong owner"
           summary="0 of 7 pages real"
         >
-          <lf-ask id="ar-cert-decision">
-            <h4>Who should hear about the sandbox certificate?</h4>
+          <section
+            id="ar-cert-decision"
+            role="group"
+            aria-labelledby="ar-cert-decision-h"
+          >
+            <h4 id="ar-cert-decision-h">
+              Who should hear about the sandbox certificate?
+            </h4>
             <p>It expires in six days.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -414,7 +452,7 @@
                 up for a fix it cannot make.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-kafka"
@@ -422,8 +460,12 @@
           group="Wrong owner"
           summary="0 of 5 pages real"
         >
-          <lf-ask id="ar-kafka-decision">
-            <h4>Who should hear about ledger consumer lag?</h4>
+          <section
+            id="ar-kafka-decision"
+            role="group"
+            aria-labelledby="ar-kafka-decision-h"
+          >
+            <h4 id="ar-kafka-decision-h">Who should hear about ledger consumer lag?</h4>
             <p>Lag that outlasts a rebalance does delay the ledger export.</p>
             <dl class="facts">
               <dt>Rule</dt>
@@ -448,7 +490,7 @@
                 <strong>Keep paging payments</strong> No change to the rule.
               </lf-option>
             </lf-options>
-          </lf-ask>
+          </section>
         </lf-tab>
         <lf-tab
           id="ar-errors"

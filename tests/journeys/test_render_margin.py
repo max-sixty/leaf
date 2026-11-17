@@ -88,11 +88,11 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 # a parked pointer and back.
 OBLIGATION_IN_LONG_PAGE = LONG_PAGE.replace(
     "<p id='p20'>",
-    """<lf-ask id="route-ask"><h2>Which route should the walk follow?</h2>
+    """<section id="route-ask" role="group" aria-labelledby="route-ask-h"><h2 id="route-ask-h">Which route should the walk follow?</h2>
 <lf-options id="route">
   <lf-option id="route-garden">Through the garden</lf-option>
   <lf-option id="route-river">Along the river</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <p id='p20'>""",
     1,
 )
@@ -427,7 +427,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     editor = preview.locator("leaf-text")
     # The answer's arrival uncovers the card's foot over 300ms, and until it has, the
     # reply box's clipped part takes no press: the click lands on the thread, and
-    # Playwright's retry scrolls the box into view (#5942).
+    # Playwright's retry scrolls the box into view.
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     expect(editor).to_be_focused()

@@ -8,9 +8,7 @@ import "../../packages/default/widgets/lf-tabs.js";
 
 adoptRegistry({
   "lf-tabs": {
-    paint: {
-      views: { members: "lf-tab" },
-    },
+    views: { members: "lf-tab" },
   },
 });
 
@@ -43,9 +41,7 @@ test("view reads leave generated holders untouched and keeping a choice paints t
     await import("../../browser/runtime/storage.js");
   adoptRegistry({
     "lf-package-views": {
-      paint: {
-        views: { members: ".view", parts: true },
-      },
+      views: { members: ".view", parts: true },
     },
   });
   const holders = ["opening", "keeping"].map((id) => {

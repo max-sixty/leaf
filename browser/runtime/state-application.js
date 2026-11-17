@@ -26,6 +26,7 @@ import { announce, gesture, notice } from "./notifications.js";
 import { markStateApplied, settlePageInterface } from "./presentation.js";
 import {
   loadMessageMarkdown,
+  islandChange,
   prepareAuthoredMessage,
   messageText,
 } from "./thread/messages.js";
@@ -174,17 +175,28 @@ export function createStateApplication({
       const installed =
         following !== null && activation ? await activation.install() : null;
       const prior = installed?.document ?? readApplication().document;
+      // Each message's widgets as this reading's wording authors them: an edit's
+      // island replaces what the wording before it captured, and the ids that wording
+      // held and this one doesn't leave (messages.js, `islandChange`).
+      const islands = islandChange(frozenDocuments);
       let authored = prior.authored;
       let descriptors = prior.descriptors;
+      for (const id of islands.retired) {
+        if (!authored.has(id) && !descriptors.has(id)) continue;
+        if (authored === prior.authored) authored = new Map(authored);
+        if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
+        authored.delete(id);
+        descriptors.delete(id);
+      }
       for (const { frozen } of frozenDocuments) {
         if (!frozen) continue;
         for (const [id, baseline] of frozen.authored) {
-          if (authored.has(id)) continue;
+          if (authored.get(id) === baseline) continue;
           if (authored === prior.authored) authored = new Map(authored);
           authored.set(id, baseline);
         }
         for (const [id, descriptor] of frozen.descriptors.descriptors) {
-          if (descriptors.has(id)) continue;
+          if (descriptors.get(id) === descriptor) continue;
           if (descriptors === prior.descriptors) descriptors = new Map(descriptors);
           descriptors.set(id, descriptor);
         }
@@ -205,6 +217,8 @@ export function createStateApplication({
         await notifyChangedData();
         return;
       }
+      islands.commit();
+      commitWidgetDescriptors({ bindings: [] }, islands.retired);
       observeServerNow(state.now);
       observeWorkingGrace(state.working_grace_ms);
       stateApplying = true;
@@ -241,7 +255,7 @@ export function createStateApplication({
         } else presentedNews = { reading: newsReading, observed: reading.observed };
         // The agent's new words are heard, not shown: the On Me mark's dot and each
         // margin marker's already show unread news, so the seat keeps the agent's status.
-        // The user chose this on 25 October over a line counting the messages.
+        // The user chose this over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
         // The leaf answers news as it arrives, with the badge and dots, rather than when
         // a notice held behind the user's own command shows it.

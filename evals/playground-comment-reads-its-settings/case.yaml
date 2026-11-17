@@ -1,10 +1,8 @@
-# Added with the playground's `tune` verb (2026-10-31). A user commented on a
-# playground preview without submitting, and has changed the settings since, so
-# `leaf page state` shows newer ones than the comment is about. The delivered comment
-# carries the settings the preview showed as `unsent`, so the case measures whether
-# the agent takes them from the comment rather than from the state it read. Before
-# deliveries carried `unsent`, the case gave only the state, and agents read the log
-# for the comment's settings 4/4 with the playground's instruction and 3/4 without.
+# A user commented on a playground preview without submitting, and has changed the
+# settings since, so `leaf page state` shows newer ones than the comment is about.
+# The delivered comment carries the settings the preview showed as `unsent`, so the
+# case measures whether the agent takes them from the comment rather than from the
+# state it read.
 description: playground-comment-reads-its-settings
 metadata:
   purpose: "Playground: a comment about the preview is read against the settings

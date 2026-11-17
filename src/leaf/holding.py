@@ -183,7 +183,7 @@ def holder(turn: str | None, stamps: dict[str, dict], running: set[str]) -> dict
     `activity.running_agent_turns`), `closed` or `lapsed`
     (`activity.agent_turn_state`). Any other turn, or none, is the session's main
     thread (`MAIN`), which has whatever no agent's turn holds."""
-    # TODO(2026-11-14): the shipped instructions no longer keep a worker subagent off
+    # TODO: the shipped instructions don't keep a worker subagent off
     # the page, and its `leaf` commands act as the main thread. If workers come to act
     # on pages, give each a turn of its own (`state.acting_turn`) and name it here.
     if turn not in stamps:
@@ -445,8 +445,8 @@ def authorize(
     the main thread itself, a fork's command without its turn, a worker, the user's
     terminal or another session (`state.acting_turn`). It may write anywhere, and its
     answer may take the thread from the turn that held it, by the module header's
-    rule. The user chose on 2026-11-14 that such a write goes through on a thread a
-    fork's or a line turn holds, rather than being refused, and says so beside its
+    rule. The user chose that such a write goes through on a thread a fork's or a
+    line turn holds, rather than being refused, and says so beside its
     result: the advice this returns (`fork-holds-thread`), where the thread's holder
     owes its answer (`owed_by`), whose `answers`, whether the write took the thread,
     its writer sets once the write is in (`thread.post_reply`). `thread`, where

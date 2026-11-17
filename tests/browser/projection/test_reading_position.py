@@ -321,11 +321,11 @@ def test_a_revision_keeps_the_pane_read_over_a_pane_holding_offscreen_focus(
 def test_revision_changes_keep_the_complete_heading_below_user_chrome(browser, serve):
     """A partly cut title is the page opening, not a reading place to preserve.
 
-    A revision change used the heading as its semantic landmark and restored its exact
-    viewport coordinate. When the user had moved just far enough for the first title
-    line to sit above the scroller's landable top (then under the fixed banner), both
-    an arriving current revision and a chosen historical version faithfully restored
-    that broken view: the later line looked like the whole heading. The scroller
+    A revision change that used the heading as its semantic landmark and restored its
+    exact viewport coordinate would, when the user had moved just far enough for the
+    first title line to sit above the scroller's landable top, faithfully restore that
+    broken view for both an arriving current revision and a chosen historical version:
+    the later line would look like the whole heading. The scroller
     declares its landable top through scroll-padding, so a heading landmark must honor
     that edge while ordinary passage landmarks retain their exact coordinate.
     """
@@ -437,7 +437,7 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     add_test_widget(package, "lf-shadow-reading", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-shadow-reading"].setdefault("words", {})["shadow"] = True
+    declarations["lf-shadow-reading"]["shadow"] = True
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
         """import { once, shadowStage } from "/runtime/widget-api.js";
@@ -678,11 +678,11 @@ def test_revision_reveals_an_active_region_without_any_reading_landmark(browser,
 def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
     """Obligation repaint keeps the reading of the panel's On Me view the user scrolled."""
     questions = "".join(
-        f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
+        f'<section id="ask-{index}" role="group" aria-labelledby="ask-{index}-h"><h2 id="ask-{index}-h">Question {index} about this project</h2>'
         f'<lf-options id="options-{index}">'
         f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
         f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
-        "</lf-options></lf-ask>"
+        "</lf-options></section>"
         for index in range(30)
     )
     page = open_page(
@@ -846,11 +846,9 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
             "additionalProperties": False,
         },
         "content": "markup",
-        "author": {
-            "example": '<lf-owned-scroll id="example">'
-            "<div data-scroll-body><button>Control</button></div>"
-            "</lf-owned-scroll>",
-        },
+        "example": '<lf-owned-scroll id="example">'
+        "<div data-scroll-body><button>Control</button></div>"
+        "</lf-owned-scroll>",
     }
     module = """
 import {registerReadingRegion} from '/runtime/widget-api.js';
@@ -934,11 +932,11 @@ def test_the_reading_position_restores_onto_a_section_that_draws_no_box(browser,
     an element that generates no box measures (0,0) at the document's origin.
 
     Read raw, that answer arrives on both sides of the subtraction — once when the
-    place is written down and once when it is put back — so the correction came out 0
-    and a restore that had somewhere to land did nothing at all. The user was left at
-    the top of a page they had been thirty paragraphs into. It is quiet twice over: only
-    a user whose quote the new version rewrote reaches this branch, and a page whose
-    sections all draw boxes never sees it."""
+    place is written down and once when it is put back — so the correction would come
+    out 0 and a restore that had somewhere to land would do nothing at all, leaving the
+    user at the top of a page they had been thirty paragraphs into. It is quiet twice
+    over: only a user whose quote the new version rewrote reaches this branch, and a
+    page whose sections all draw boxes never sees it."""
     url = serve(BOXLESS_SECTION_PAGE)
     d = serve.page_dir
     page = open_page(browser, live_url(url))

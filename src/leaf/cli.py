@@ -7,8 +7,8 @@ ending the command, `{"error", "findings"}` (`LeafGroup`), which its exit status
 marks. stdout is the one stream only Leaf writes. stderr also carries whatever the
 launcher, the interpreter and Leaf's dependencies print, such as a warning, a
 traceback or a library's log record, so Leaf puts nothing a reader parses there.
-Findings went on stderr until a library's log line broke the suite's parse of it; a
-reader piping stdout alone now meets them in the pipe rather than beside it.
+Findings stay off stderr, where a library's log line breaks a parse of them; a
+reader piping stdout alone meets them in the pipe rather than beside it.
 `--help`, `--version` and `--root` print text.
 
 A command returns its result and never prints it: `LeafGroup.main` prints what it
@@ -888,7 +888,7 @@ def picture(page_dir: Path, message: str) -> dict:
 def report(page_dir: Path, widget: str, verb: str, fields: tuple) -> dict:
     """Report a state change onto a page widget, as a worker.
 
-    VERB is one of the widget's agent-written verbs (state.verbs), and each NAME=VALUE
+    VERB is one of the widget's agent-written `verbs`, and each NAME=VALUE
     one of its fields: `leaf page report <page> t-parser status value=review text="Ready
     for review"` moves a task. The page shows the report at once, marked provisional,
     until a stamped version writes it into the markup or overrules it.
@@ -1527,7 +1527,7 @@ def thread_reply(
     **options,
 ) -> dict | None:
     """Answer a delivered update by its `answer.ref` alone, or post into the
-    thread PAGE MESSAGE names, which is refused while that thread owes an answer.
+    thread PAGE MESSAGE names, which answers nothing that thread owes.
     The text is Markdown, and HTML in it draws, checked here.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
@@ -1551,7 +1551,6 @@ def thread_reply(
             resolve_dir(destination),
             {"parent": message},
             text,
-            html=True,
             validate_source=True,
             **options,
         )
@@ -1575,7 +1574,7 @@ def thread_reply(
     # An answer that declares nothing must carry a widget that asks; `post_reply`
     # refuses it otherwise (`undeclared-answer`).
     options["asks_back"] = not declared and answers
-    return post_response(destination, text, html=True, **options)
+    return post_response(destination, text, **options)
 
 
 @thread.command("edit", short_help="Edit a message's text, or its thread's title.")
@@ -1596,7 +1595,7 @@ def thread_edit(
     or with --title rename the thread MESSAGE is in, whoever opened it. --title
     alone leaves the text as it is.
 
-    A message holding HTML is not editable, and an edit adds none. Keep a title
+    The replacement may hold HTML, checked as a new message's is. Keep a title
     stable unless the thread's subject changes.
     """
     from leaf.thread import cmd_edit
@@ -1641,7 +1640,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
-    A to-do on a widget needs a widget that declares state.work or holds an
+    A to-do on a widget needs a widget that declares `work` or holds an
     unsettled update. A thread attachment provides discussion context;
     replying does not complete the task. To leave the user something to do or
     answer, send a message with --obligation instead."""

@@ -41,8 +41,9 @@ rubrics:
       choosing it does, and an option marked recommended only where the agent
       advised it. An action the agent takes once the user agrees, such as a merge, is
       asked as such a choice. For a step only the user can take,
-      it says what to do, and asks for a reply only for what the user alone can report or the agent's next step waits
-      on, not for an effect the agent could check itself and nothing waits on. A finding's summary says correctly what the conversation
+      it says what to do, and asks for an answer only for what the user alone can report or the agent's next step waits
+      on, not for an effect the agent could check itself and nothing waits on, as a
+      choice where the answers can be listed, such as installed or failed. A finding's summary says correctly what the conversation
       shows. Each change makes the page say what the conversation shows now, in the
       page's own register. Each item not labelled is one the question asks for and
       the conversation clearly shows: an ask the agent left to the user that no On Me
@@ -379,8 +380,8 @@ cases:
           choice: true
     assert:
       - *items
-  # From a real closeout (2026-11-16), whose fork asked the user in words to run the
-  # command, so they typed it as a reply.
+  # A closeout whose fork would ask the user in words to run the command, so they would
+  # type it as a reply.
   ask-permission:
     fork: turn-end
     page: turn-end-check/pages/cache-chosen.html
@@ -490,7 +491,7 @@ cases:
         - kind: question
           words: *flag-step
           thread: null
-          choice: false
+          choice: true
     assert:
       - *items
   ask-follow-up:
@@ -570,7 +571,6 @@ cases:
         - kind: question
           words: *flag-step
           thread: q1
-          choice: false
     assert:
       - *items
   ask-step-done:
@@ -705,8 +705,8 @@ cases:
                       </tbody>
                     </table>
                   </section>
-                  <section id="slow-next">
-                    <h2>Which should I fix first?</h2>
+                  <section id="slow-next" role="group" aria-labelledby="slow-next-h">
+                    <h2 id="slow-next-h">Which should I fix first?</h2>
                     <lf-options id="slow-first">
                       <lf-option id="slow-first-sort"><strong>Index the price field</strong> The most called of the three; one index build, about an hour.</lf-option>
                       <lf-option id="slow-first-facet"><strong>Cap the wildcard facet</strong> The slowest; a facet over 100 terms falls back to a prefix match.</lf-option>

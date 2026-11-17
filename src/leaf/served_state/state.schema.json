@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://leaf.page/schema/served-state.json",
   "title": "Served state",
-  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds; a request naming a reading the tab holds may be answered with a `Tail` instead. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to a verb (state.verbs), as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
+  "description": "The answer `GET /api/state` serves a page's runtime, which the POST /api/event answer carries as `state` and leaf.page publishes as `/_leaf/state/*.json`: `Reading`, which `served_state.page.read_served_page` composes, with what the serving route adds; a request naming a reading the tab holds may be answered with a `Tail` instead. Leaf alone writes it, so nothing validates it in flight; the tests validate real readings against this schema, and the browser build generates its type from it (`build/browser/contract-types.mjs`). It is not part of the page protocol: the runtime that reads it comes from the Leaf that serves it (`runtime_selection.py`), so a change needs no bump. `leaf:event` refers to any kernel event record, `leaf:event/<kind>` to one kind's and `leaf:verb` to a verb (`verbs`), as `registry.schema.leaf_resources` composes them; an object here adding served fields to an event record closes it again with `unevaluatedProperties`.",
   "$ref": "#/$defs/Reading",
   "properties": {
     "layer": {
@@ -46,7 +46,7 @@
           "type": "string"
         },
         "working_grace_ms": {
-          "description": "How long working may go unheard before it reads as quiet, measured on the `now` clock. `activity` is already folded; a package dating a worker's own reports asks `quietSince`, which reads this rather than a copy.",
+          "description": "How long working may go unheard before it reads as quiet, measured on the `now` clock. `activity` is already folded; a package dating a worker's own reports reads `readWork`'s `quiet`, which reads this rather than a copy.",
           "type": "integer"
         },
         "taken": {
@@ -238,7 +238,7 @@
           "anyOf": [{ "$ref": "#/$defs/Browser" }, { "type": "null" }]
         },
         "events": {
-          "description": "The log, as logged: a message's text is Markdown the page's vendored runtime renders, with the HTML the CLI gate validated where it carries `html`. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps. An export's reading is folded from less of it (`exporting._page_log`).",
+          "description": "The log, as logged: a message's text is Markdown the page's vendored runtime renders, an agent's with the HTML its writer's gate validated. The wire adds nothing, so the only vocabulary a page's frozen layer has to keep speaking is the log's own, which `$events` already stamps. An export's reading is folded from less of it (`exporting._page_log`).",
           "type": "array",
           "items": { "$ref": "#/$defs/Event" }
         },
@@ -893,7 +893,7 @@
           "additionalProperties": false
         },
         "history": {
-          "description": "The newest rows, newest first, sent only to a page holding a widget that declares `state.history`.",
+          "description": "The newest rows, newest first, sent only to a page holding a widget that declares `history`.",
           "type": "array",
           "items": { "$ref": "#/$defs/HistoryRow" }
         },
@@ -1166,7 +1166,7 @@
       "properties": {
         "text": { "type": ["string", "null"] },
         "target": {
-          "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
+          "description": "Where the user goes to answer: the id of the group the author declares round a widget, or of the widget itself, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
           "type": ["string", "null"]
         }
       },
@@ -1406,6 +1406,10 @@
           "properties": {
             "agent": { "type": "string" },
             "key": { "type": "string" },
+            "html": {
+              "description": "An agent's message whose current Markdown holds HTML (`thread_context.thread_structure`), which the browser draws as markup.",
+              "const": true
+            },
             "content_version": { "type": "string" },
             "completed_by": {
               "description": "The ordinary or provisional reply that supersedes this progress message. Hide it only while that reply is presented.",

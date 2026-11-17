@@ -1,30 +1,19 @@
 # Guardrail for options-draw-their-arrangement: on the same layout-shift page, a choice
-# between two messages differs only in wording, so its options stay words. With the
-# child reading the registry entries, base 4c29f3003 and the drawn-option entry both
-# kept every option words (3 of 3).
-# Under the earlier labels-first rubric, the label/recommendation checks failed at
-# e9c98892c (0/2) and passed with comparison labels first and literal recommendation
-# markup (2/2); matching the source's high effort reproduced that contrast.
-# d38eba87a later left label placement to the author, but this case and the registry
-# retained the old sequence. They now follow the adopted goal: the alternatives'
-# factual difference is apparent from titles or labels, including candidate wording
-# used as titles. Saved-output calibration accepts both title forms and rejects
-# indistinguishable titles, a recommendation on the wrong option and an invented pick.
-# Those calibration results are rubric checks, not new authoring samples or evidence
-# of general instruction reliability.
-# Once SKILL.md asked every page for pictures, the section drew the 68px shift above
-# the options (2/2) while the options stayed words; options-draw-nothing alone judges
-# the drawing, so comparison-labels no longer forbids a figure outside the options.
-# reason-beside-options: while the registry's examples wrote the reason into the
-# recommended card (`<em>My take: …</em>`), base 2c52f93ec kept it out of the cards
-# in 1 of 5 Claude Code runs; with the reason in the lf-ask's prose, 5 of 5.
-# As an authoring case naming no entry to read, at 0e538e29d, 2 of 2 Claude Code authors
-# read the entries through `leaf page instructions --use`, and 1 of 2 kept every option
-# words. The other showed each wording among the report's lines in a `<pre>`, as
-# authoring-on-me.md's "a wording as it would appear" asks, which options-draw-nothing
-# failed as an HTML mockup. It now passes text shown in its setting and fails only a
-# drawing, and the regraded run passed 2 of 2. Now a probe given a page with its
-# packages, it passed Claude Code 2 of 2, Codex 2 of 2 at b90df8d3a2.
+# between two messages differs only in wording, so its options stay words.
+# Label placement is left to the author: the alternatives' factual difference is
+# apparent from titles or labels, including candidate wording used as titles. The
+# rubric accepts both title forms and rejects indistinguishable titles, a
+# recommendation on the wrong option and an invented pick.
+# The section may draw the 68px shift above the options while the options stay
+# words; options-draw-nothing alone judges the drawing, so comparison-labels doesn't
+# forbid a figure outside the options.
+# options-draw-nothing passes a wording shown in its setting, such as each wording
+# among the report's lines in a `<pre>`, as authoring-on-me.md's "a wording as it
+# would appear" asks, and fails only a drawing.
+# reason-beside-options: registry examples that write the reason into the recommended
+# card (`<em>My take: …</em>`) can lead agents to put it in the cards; the examples
+# put the reason in the lf-ask's prose.
+# The case is a probe given a page with its packages.
 description: options-stay-words-for-wording
 metadata:
   purpose:
@@ -72,7 +61,7 @@ assert:
     metric: reason-beside-options
     value: |
       Find why the author recommends the detailed wording. Pass only if that reason is
-      prose outside every `lf-option`, such as a paragraph in the `lf-ask` before or
+      prose outside every `lf-option`, such as a paragraph in the question's section before or
       after the `lf-options` group. Inside the cards, each option may state its own
       properties and consequences at a similar depth, such as naming the widget or
       matching the other findings' form. Fail if any `lf-option` holds the author's

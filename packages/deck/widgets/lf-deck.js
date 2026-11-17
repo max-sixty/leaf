@@ -1,6 +1,6 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
- * through unread conversations. Each authored child is a card, an `lf-ask` or a
- * decision widget the user answers there with its own controls. A card waits while it
+ * through unread conversations. Each authored child is a card, the named group of a
+ * question or a decision widget the user answers there with its own controls. A card waits while it
  * holds an obligation open on the user (`obligationsIn`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
@@ -17,7 +17,7 @@
  * first reading is in, as offline, Later and Next step to the next card in order.
  *
  * Which card is open is view state for this user, as a tab set's open panel is
- * (`paint.views`): the runtime names the opening card (`openingView`), the module
+ * (`views`): the runtime names the opening card (`openingView`), the module
  * records each card it shows (`keepView`), so a reload comes back to it, and no event
  * carries it. Where neither the address nor the tab names a card, the deck opens on the
  * first that waits once the first reading is in. Inactive cards are
@@ -48,7 +48,7 @@
  *
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
- * around the questions it is waiting on, chosen by the user on 2026-10-24. */
+ * around the questions it is waiting on, chosen by the user. */
 import { html, nothing } from "/vendor/lit.js";
 import {
   agentName,

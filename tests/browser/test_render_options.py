@@ -140,11 +140,11 @@ def test_the_runtime_does_not_replace_a_pages_keyframes(browser, serve):
 
 def test_substantial_options_stack_and_align_their_facts(browser, serve):
     """A titled option is a full-width card and the cards stack, terse or
-    substantial alike. The grid this replaced laid terse options across at
-    ~13rem, and its geometry moved with the count — a fourth option orphaned
-    under the first row, every cell as tall as the row's longest argument —
-    where a page whose options held real argument grew a comparison table and
-    an "in detail" section outside the widget it decides in. Stacked, the
+    substantial alike. A grid laying terse options across would move its
+    geometry with the count — a fourth option orphaned under the first row,
+    every cell as tall as the row's longest argument — and a page whose options
+    held real argument would grow a comparison table and an "in detail" section
+    outside the widget it decides in. Stacked, the
     comparison stays inside the group: every option's `.facts` list docks right
     at one fixed width, so scalars align down the page like that table's column.
 
@@ -239,8 +239,8 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         assert separate, "the pick's check covers an authored chip"
 
     # More chips than fit on a line wrap along the band rather than over the card's edge.
-    # The pair this replaced could not: each was an absolutely-positioned box sized to
-    # room the theme had reserved by knowing both words in advance. A full-width card
+    # A pair of absolutely-positioned boxes, sized to room the theme reserved by knowing
+    # both words in advance, could not. A full-width card
     # outgrows the band at the desktop column, so the narrow window is where the wrap
     # is still reachable. Last, because the width moves every box read above.
     page.set_viewport_size({"width": 400, "height": 900})
@@ -312,9 +312,9 @@ def test_a_live_card_pick_shows_the_check_and_remains_pressable(browser, serve):
 
 
 @pytest.mark.parametrize("cards", [False, True], ids=["rows", "cards"])
-def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
-    """Standalone options, their add field and Done own working digits, aligned down
-    their form's badge column."""
+def test_a_questions_options_own_their_digit_bindings(browser, serve, cards):
+    """A question's options, their add field and Done own working digits, aligned
+    down their form's badge column."""
     one = "<strong>One</strong> First choice." if cards else "One"
     two = "<strong>Two</strong> Second choice." if cards else "Two"
     page = open_page(
@@ -322,11 +322,13 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
         serve(
             leaf_page(
                 "standalone options",
-                '<h1>Which apply?</h1><button id="outside">Outside</button>'
+                '<button id="outside">Outside</button>'
+                '<section id="apply" role="group" aria-labelledby="apply-h">'
+                '<h1 id="apply-h">Which apply?</h1>'
                 '<lf-options id="choices" multiple>'
                 f'<lf-option id="one">{one}</lf-option>'
                 f'<lf-option id="two">{two}</lf-option>'
-                "</lf-options>",
+                "</lf-options></section>",
             )
         ),
     )
@@ -338,7 +340,7 @@ def test_standalone_options_own_their_digit_bindings(browser, serve, cards):
     expect(page.locator("#two")).not_to_have_attribute("selected", "")
     unhinted = done.bounding_box()
     page.keyboard.press("m")
-    expect(group).to_be_focused()
+    expect(page.locator("#apply")).to_be_focused()
     hints = group.locator(".lf-key-badge[data-lf-binding-badge]")
     expect(hints).to_have_text(["1", "2", "3", "4"])
     # Done's digit sits inside the button, out of flow: wearing it moves no edge.
@@ -371,10 +373,10 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
         serve(
             leaf_page(
                 "stable option numbers",
-                '<h1>Stable numbers</h1><lf-ask id="question"><h2>Which apply?</h2>'
+                '<h1>Stable numbers</h1><section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Which apply?</h2>'
                 '<lf-options id="choices" multiple>'
                 '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
-                "</lf-options></lf-ask>",
+                "</lf-options></section>",
             )
         ),
     )
@@ -544,7 +546,7 @@ def test_obligation_addresses_are_screen_only_apparatus(browser, serve):
         }"""
     )
     assert "1" not in selected and "2" not in selected, (
-        f"the lf-ask's binding digits came away with its authored words: {selected!r}"
+        f"the question's binding digits came away with its authored words: {selected!r}"
     )
     assert badges.evaluate_all(
         "els => els.every(el => getComputedStyle(el).userSelect === 'none')"
@@ -575,8 +577,8 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     waiting. Each card's generated mark stands in the state slot at its opening edge
     as an empty ring — the same slot the pick turns it into a compact header state
     in — because a user who has not hovered sees none of the frame's other
-    promises: a blind drive read three cards, found nothing that looked like a
-    control, and chose only after a hover happened to shade one. Selection also
+    promises: a blind drive can read the cards, find nothing that looks like a
+    control, and choose only after a hover happens to shade one. Selection also
     keeps the quiet cell tint.
 
     Pinned because the rules making the group one control are ranked against the ones
@@ -632,7 +634,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
                       const drawn = (e) => { const s = getComputedStyle(e);
                           return s.outlineStyle === 'none' ? 0 : parseFloat(s.outlineWidth); };
                           return [on.id, on.matches(':has(> .lf-pick:focus-visible)'),
-                                  drawn(on.closest('lf-ask')), drawn(on), drawn(el),
+                                  drawn(on.closest('lf-options')), drawn(on), drawn(el),
                               getComputedStyle(on).backgroundColor
                                 !== getComputedStyle(on.nextElementSibling).backgroundColor]; }"""
     on, held, decision_ring, card_ring, mark_ring, washed = mark.evaluate(ring_on)
@@ -826,14 +828,13 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
                 f"{bare}"
             )
 
-            # And they open at one column, which is the half a user sees first: the question
-            # hung a whole binding column left of the words it was a question about. Every cell,
+            # And they open at one column, which is the half a user sees first: a question can
+            # hang a whole binding column left of the words it is a question about. Every cell,
             # the user's own among them: that cell holds the option they write when none of the
-            # authored ones is the answer, so a cell drawn short of the column starts the one box
-            # the group takes words in outside the run of boxes the group is. Its own 12px did
-            # exactly that, and this line excused it as apparatus. What is compared is the cell,
-            # not the caret: a text box holds its words off its own frame, which is the box's and
-            # no business of the group's.
+            # authored ones is the answer, so a cell drawn short of the column starts the one
+            # box the group takes words in outside the run of boxes the group is. What is
+            # compared is the cell, not the caret: a text box holds its words off its own frame,
+            # which is the box's and no business of the group's.
             words = {c["opens"] for c in option_cells}
             assert len(words) == 1, (
                 f"#{group}'s cells open at {sorted(words)}, so the question, its answers and "
@@ -944,23 +945,23 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
         serve(
             leaf_page(
                 "First Ask",
-                """<lf-ask id="page-ask"><h2>Choose the route</h2>
+                """<section id="page-ask" role="group" aria-labelledby="page-ask-h"><h2 id="page-ask-h">Choose the route</h2>
 <lf-options id="page-options"><lf-option id="page-route">Route A</lf-option></lf-options>
-</lf-ask>
+</section>
 <p id="between-asks">Context before another question.</p>
-<lf-ask id="later-ask"><h2>Choose the backup</h2>
+<section id="later-ask" role="group" aria-labelledby="later-ask-h"><h2 id="later-ask-h">Choose the backup</h2>
   <lf-options id="later-options"><lf-option id="later-route">Route B</lf-option></lf-options>
-</lf-ask>
+</section>
 <div id="own-frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
-  <lf-ask id="framed-ask"><h2>Choose the route</h2>
+  <section id="framed-ask" role="group" aria-labelledby="framed-ask-h"><h2 id="framed-ask-h">Choose the route</h2>
     <lf-options id="framed-options"><lf-option id="framed-route">Route A</lf-option></lf-options>
-  </lf-ask>
+  </section>
 </div>
 <lf-sample id="sample" label="a first Ask">
   <template id="sample-page" data-sample>
-    <lf-ask id="sample-ask"><h2>Choose the route</h2>
+    <section id="sample-ask" role="group" aria-labelledby="sample-ask-h"><h2 id="sample-ask-h">Choose the route</h2>
       <lf-options id="sample-options"><lf-option id="sample-route">Route A</lf-option></lf-options>
-    </lf-ask>
+    </section>
   </template>
 </lf-sample>""",
             )
@@ -970,17 +971,17 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     for root in (page, page.frame_locator("#sample iframe")):
         gap = root.locator("main").evaluate(
             """main => {
-                const heading = main.querySelector('lf-ask > h2');
+                const heading = main.querySelector('section > h2');
                 return heading.getBoundingClientRect().top
                   - main.getBoundingClientRect().top
                   - parseFloat(getComputedStyle(main).paddingTop);
             }"""
         )
-        assert abs(gap) < 1, f"the first lf-ask leaves {gap}px above its question"
+        assert abs(gap) < 1, f"the first question leaves {gap}px above its heading"
 
     framed_gap = page.locator("#own-frame").evaluate(
         """frame => {
-            const heading = frame.querySelector('lf-ask > h2');
+            const heading = frame.querySelector('section > h2');
             const style = getComputedStyle(frame);
             return heading.getBoundingClientRect().top
               - frame.getBoundingClientRect().top
@@ -989,14 +990,14 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
         }"""
     )
     assert abs(framed_gap) < 1, (
-        f"a framed lf-ask leaves {framed_gap}px above its question"
+        f"a framed question leaves {framed_gap}px above its heading"
     )
     later_gap = page.locator("#later-ask > h2").evaluate(
         """heading => heading.getBoundingClientRect().top
           - document.querySelector('#between-asks').getBoundingClientRect().bottom"""
     )
     assert abs(later_gap - 48) < 1, (
-        f"an lf-ask later in the page keeps {later_gap}px rather than 48px above its question"
+        f"a question later in the page keeps {later_gap}px rather than 48px above its heading"
     )
 
 
@@ -1010,27 +1011,27 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<lf-ask id="cell-decision"><h2>Where should a session live?</h2>
+<section id="cell-decision" role="group" aria-labelledby="cell-decision-h"><h2 id="cell-decision-h">Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" data-width="available">
   <lf-option id="cc-redis"><strong>Redis</strong> A store we already run.</lf-option>
   <lf-option id="cc-pg"><strong>Postgres</strong> One fewer moving part.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="rows-decision"><h2>Which jobs are worth starting?</h2>
+</lf-options></section>
+<section id="rows-decision" role="group" aria-labelledby="rows-decision-h"><h2 id="rows-decision-h">Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-rows" multiple data-width="available">
   <lf-option id="cr-drill">A revocation drill</lf-option>
   <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<lf-ask id="page-decision"><h2>Who owns the migration?</h2>
+<section id="page-decision" role="group" aria-labelledby="page-decision-h"><h2 id="page-decision-h">Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" data-width="available">
   <lf-option id="pc-platform"><strong>Platform</strong> They run the store.</lf-option>
   <lf-option id="pc-accounts"><strong>Accounts</strong> They own the table.</lf-option>
-</lf-options></lf-ask></div>
+</lf-options></section></div>
 """,
     head=regions_side_by_side("layout", "2fr 1fr"),
     layout="sidebar",
@@ -1040,10 +1041,10 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 def test_a_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve):
     """A joined group's frame, dividers and marks belong to its options, so on a page
     wider than the column every cell reaches the frame, however wide the box the page
-    stands the group in. Declared a group of members instead, it passed the measure
-    through: the frame took the grid cell's or the page's whole width while each option
-    stopped at the measure, so every mark and every hairline between options ended
-    100px and more short of the frame's right edge, over an empty strip.
+    stands the group in. Declared a group of members instead, it would pass the measure
+    through: the frame would take the grid cell's or the page's whole width while each
+    option stopped at the measure, so every mark and every hairline between options
+    would end short of the frame's right edge, over an empty strip.
 
     In a grid cell and straight on a wide page, and in both forms: the frame is what
     differs between a grid cell and the page, and a row has the hairline without the
@@ -1057,7 +1058,7 @@ def test_a_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve)
           const box = group.getBoundingClientRect();
           const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
           const cells = [...group.children].filter((cell) => cell.checkVisibility());
-          const prose = group.closest('lf-ask').querySelector(':scope > p');
+          const prose = group.closest('section').querySelector(':scope > p');
           return {
             id,
             frame: box.width,
@@ -1263,7 +1264,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
     assert page.locator("#quoted-settled lf-option:visible").count() == 3
 
     # The exception, once that group is open: the card the document marks carries its
-    # inert check below the prose. It needs the strip a live header state no longer does.
+    # inert check below the prose. It needs the strip a live header state doesn't.
     assert page.locator("#q-lax").evaluate(pad) != page.locator("#l-shim").evaluate(pad)
 
     # Standalone cards also answer with a wash, while quoted cards remain inert.
@@ -1438,12 +1439,12 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
 
     with subtests.test("a group says how many of it the user may take"):
         # How many a group takes is the one thing about it a user has to know before
-        # pressing anything, and for a while the page said it nowhere. A `multiple`
-        # group drew the identical circles a single-pick group draws — the shape every
-        # platform uses for "one of these" — so the two questions were pixel-for-pixel
-        # the same and the only thing that distinguished them was the author remembering
-        # to say so in prose. A user who took the marks at their word would pick once
-        # and expect the next click to replace it.
+        # pressing anything. A `multiple` group drawing the identical circles a
+        # single-pick group draws — the shape every platform uses for "one of these" —
+        # would make the two questions pixel-for-pixel the same, and the only thing to
+        # distinguish them the author remembering to say so in prose. A user who took
+        # the marks at their word would pick once and expect the next click to replace
+        # it.
         #
         # So the mark carries the arity, in both of the registers one control has: its
         # corner is round for one and square for any, and its word is "choose one" or
@@ -1575,14 +1576,14 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
     with subtests.test("a row label keeps the spacing it was written with"):
         # A row is a line of prose with apparatus after it, and the prose is the
         # author's: what it says between two words is a space, and the page owes them
-        # that space and no other. Laid out as flex items it owed them whatever the
-        # row's own `gap` was, because every stretch of a label became an item of its
-        # own and a flex item's edge whitespace is trimmed — `Replace the
-        # <code>M8</code> mounts` came out with 8px either side of the code and without
-        # the space that was written there, and zeroing the gap took the space away
-        # without giving it back. So the room between the last word and the code it runs
-        # into is read against the space itself: that the space is on the screen at all,
-        # and that nothing else is standing in for it.
+        # that space and no other. Laid out as flex items it would owe them whatever
+        # the row's own `gap` was, because every stretch of a label becomes an item of
+        # its own and a flex item's edge whitespace is trimmed — `Replace the
+        # <code>M8</code> mounts` would come out with 8px either side of the code and
+        # without the space that was written there, and zeroing the gap would take the
+        # space away without giving it back. So the room between the last word and the
+        # code it runs into is read against the space itself: that the space is on the
+        # screen at all, and that nothing else is standing in for it.
         room = """() => {
                     const code = document.querySelector('#job-mounts code');
                     const text = code.previousSibling;   // "Replace the "
@@ -1606,13 +1607,12 @@ def test_a_group_marks_its_arity_and_its_rows_keep_their_column_and_words(
         # user — and the file's reading of that same version — find the chip inside the
         # row's own words rather than out among the row's machinery.
         #
-        # The rule was written against an attribute rendered by `words.says`, where the
-        # edge a pseudo-element would have taken stops being the element's own words the
-        # moment a module injects chrome, and appending put the page's words on the far
-        # side of it. A chip is authored markup now, written before the title, so it
-        # cannot land there by construction — which is the stronger form of the same
-        # guarantee, and this holds the outcome rather than the mechanism that used to
-        # threaten it.
+        # In an attribute rendered by `says`, the edge a pseudo-element would take
+        # stops being the element's own words the moment a module injects chrome, and
+        # appending puts the page's words on the far side of it. A chip is authored
+        # markup, written before the title, so it cannot land there by construction —
+        # which is the stronger form of the same guarantee, and this holds the outcome
+        # rather than the mechanism that would threaten it.
         #
         # The mark leads the row and the `for` reference ends it, so the words are what
         # stands between them, and the chip is read against both edges rather than
@@ -1661,9 +1661,9 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
             leaf_page(
                 "ten routes",
                 '<h1 id="h">Ten routes</h1>'
-                '<lf-ask id="routes-decision"><h2>Which routes survive?</h2>'
+                '<section id="routes-decision" role="group" aria-labelledby="routes-decision-h"><h2 id="routes-decision-h">Which routes survive?</h2>'
                 f'<lf-options id="routes" multiple>{options}</lf-options>'
-                "</lf-ask>",
+                "</section>",
             )
         ),
     )
@@ -1852,15 +1852,15 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, sub
     source = leaf_page(
         "Block references",
         """<h1>Follow-up</h1>
-<lf-options id="follow">
+<section id="follow-q" role="group" aria-label="What next?"><lf-options id="follow">
   <lf-option id="short" for="plan">Ship it.</lf-option>
   <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
   fix until the vendor names a release.</lf-option>
-</lf-options>
-<lf-options id="same">
+</lf-options></section>
+<section id="same-q" role="group" aria-label="Ship or hold?"><lf-options id="same">
   <lf-option id="same-ship" for="stall">Ship it.</lf-option>
   <lf-option id="same-hold" for="stall">Hold it.</lf-option>
-</lf-options>
+</lf-options></section>
 <section id="plan"><h2>Release plan</h2><p>Monday.</p></section>
 <section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
 </section>""",
@@ -1897,10 +1897,10 @@ def test_one_chip_holds_every_short_fact(browser, serve):
     """Three uses of a chip, on one page: an author's inline label, a facet of a
     decision, and a value in a native facts list.
 
-    They stated the chip three times and agreed on every number but one, which is the
-    kind of agreement nobody is keeping: the inline label alone padded itself top and
-    bottom, so it stood four pixels taller than the chips in a band while matching them
-    everywhere else. One rule states the chip now and each wearer adds only where it
+    Stating the chip three times, they would agree on every number but one, which is
+    the kind of agreement nobody is keeping: an inline label that alone padded itself
+    top and bottom would stand taller than the chips in a band while matching them
+    everywhere else. One rule states the chip and each wearer adds only where it
     sits, which is why this reads the rendered box rather than the declarations — a
     wearer is free to restate, and the box is what a user compares."""
     page = open_page(browser, serve(CHIP_PAGE))
@@ -2094,11 +2094,10 @@ def test_a_send_waits_for_the_send_before_it(browser, serve):
     nothing heals it, since replay states a widget whole and every later reading of the
     page is of the log it left.
 
-    It reached CI before it was ever seen here, on the test above: two clicks three
-    lines apart landed reversed on a loaded runner, twice, while two dozen runs of that
-    same sequence in the dockerised Linux suite never once managed it. So the race is
-    stated rather than run for. The first send is stopped in the wire and the second
-    click made while it is still there, which is the whole of a loaded machine's
+    Two clicks three lines apart can land reversed on a loaded runner, while runs of
+    that same sequence in the dockerised Linux suite rarely if ever reproduce it. So the
+    race is stated rather than run for. The first send is stopped in the wire and the
+    second click made while it is still there, which is the whole of a loaded machine's
     contribution; what the page does about that click is the instrument, since it paints
     a pick before it sends and so has already done whatever it was going to do about
     sending by the time the paint is readable.
@@ -2215,9 +2214,7 @@ def test_local_work_chrome_does_not_take_its_holder_gesture(browser, serve, tmp_
                         "additionalProperties": False,
                     },
                     "content": "markup",
-                    "state": {
-                        "work": True,
-                    },
+                    "work": True,
                 }
             }
         )
@@ -2257,7 +2254,7 @@ def test_widget_work_in_a_declared_shadow_tree_keeps_its_button_and_leaves_with_
     browser, serve, subtests
 ):
     """A task on a widget follows an id through declared shadow roots. This stages an
-    authored prose widget the way a future words.shadow vocabulary member may. Crossing
+    authored prose widget the way a future `shadow` vocabulary member may. Crossing
     that supported boundary must not turn the shared local line back into an unstyled
     block, and its ending must reach the same tree: the lookup already promises to find
     it there, and the cleanup cannot leave the provisional line behind after the server
@@ -2316,8 +2313,8 @@ def test_the_box_is_offered_only_where_something_can_answer_it(browser, serve):
     What the options go behind is `hidden="until-found"`, which is find-in-page's to
     reopen and so collapses the box with content-visibility rather than by removing it.
     That is containment, and containment passes over a table box without a word — a
-    question row states its layout as a table, so a settled group of them stayed on
-    screen under a shut disclosure, reading as one that had never collapsed."""
+    question row states its layout as a table, so a settled group of them would stay
+    on screen under a shut disclosure, reading as one that had never collapsed."""
     page = open_page(browser, serve(SETTLED_OBLIGATION_PAGE))
 
     box = page.locator("#jobs .lf-another")
@@ -2415,7 +2412,6 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
             "parent": "c-decision",
             "revision": 1,
             "text": SAMPLE_TEXT + "\n\n" + SAMPLE_MARKUP,
-            "html": True,
         },
     )
     page = open_page(browser, url)
@@ -2485,7 +2481,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
 def test_a_table_in_a_reply_keeps_its_figures_whole(browser, serve):
     """A reply is Markdown, so it can hold a table, and on a phone the panel is narrow.
     Prose there breaks anywhere — the thing a reply overflows on is a URL no wrap
-    can help — and a table caught the same rule: "12,000" came out as "12,0" over
+    can help — and a table under the same rule would show "12,000" as "12,0" over
     "00", in the column of figures the table was written to compare. Both halves
     are asserted together, since turning the breaking off everywhere reads the
     same in a cell and is the actual regression to fear."""
@@ -2581,10 +2577,9 @@ def test_a_thread_obligations_done_press_keeps_its_keys_and_one_workflow(
 def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     """A titled card's pick mark and the digit the obligation walk puts in its place share one
     seat in the card's corner, and a margin pin standing in that corner steps below the
-    controls it finds there. It found the 11px mark alone, so once an answer brought the
-    pin it stood over the lower edge of the first card's digit, which then gave way to a
-    chip hung on the mark's corner, 10px higher, with the mark showing under it. The mark
-    now takes the digit's box, and every card wears its own digit. A chosen card is filled
+    controls it finds there. Finding the mark alone, once an answer brought the pin it
+    would stand over the lower edge of the first card's digit. The mark takes the
+    digit's box, and every card wears its own digit. A chosen card is filled
     in the tint of an ok chip, so its "recommended" chip keeps a ground of its own there."""
     page = open_page(browser, serve(named_source("alert-review")))
     resized(page, 1440, 900)
@@ -2623,8 +2618,8 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
 def test_an_obligation_digit_hangs_off_a_corner_clear_of_its_neighbours(browser, serve):
     """The walk hangs an obligation control's digit off the control's upper-left corner. In
     the notification playground at 1024px its Create button wraps under Reset and Copy,
-    8px below them, and a digit hung on that corner stood over Reset's; it now takes the
-    first corner that stands over no other control."""
+    8px below them, and a digit hung on that corner would stand over Reset's, so it
+    takes the first corner that stands over no other control."""
     page = open_page(browser, serve(named_source("notification-playground")))
     resized(page, 1024, 768)
     page.keyboard.press("m")
@@ -2712,13 +2707,14 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
 ):
     """Authors write a card's consequence after its title as a plain sentence, as one
     holding an inline element, or as a paragraph, and each reads as one card: the
-    paragraph's own margin had set it three times as far under the title, and the
-    title's margin set the sentence with an element 4px lower than a plain one."""
+    paragraph's own margin would set it further under the title, and the title's
+    margin would set the sentence with an element lower than a plain one."""
     page = open_page(
         browser,
         serve(
             leaf_page(
                 "option shapes",
+                '<section id="shapes-q" role="group" aria-label="How should it roll out?">'
                 '<lf-options id="shapes">'
                 '<lf-option id="sentence"><strong>Ship it</strong> The cohort gets it now.'
                 "</lf-option>"
@@ -2726,7 +2722,7 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
                 "<em>half</em> now.</lf-option>"
                 '<lf-option id="paragraph"><strong>Hold it</strong>'
                 "<p>The cohort waits for the fix.</p></lf-option>"
-                "</lf-options>",
+                "</lf-options></section>",
             )
         ),
     )

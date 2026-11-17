@@ -258,7 +258,8 @@ function advance(entry, signal, admitted = null) {
  *   registry: Record<
  *     string,
  *     {
- *       state?: { verbs?: Record<string, ActionSpec>; awaits?: { value?: string } };
+ *       verbs?: Record<string, ActionSpec>;
+ *       awaits?: { value?: string };
  *       [name: string]: unknown;
  *     }
  *   > & {
@@ -397,7 +398,7 @@ function normalizedObligations(
       const sourceId = item.source.id;
       const sourceUnit = item.source.unit;
       const widget = widgets.get(sourceId);
-      const declaration = descriptors.get(item.source.id)?.declaration.state?.awaits;
+      const declaration = descriptors.get(item.source.id)?.declaration.awaits;
       const verb = declaration?.value;
       if (!verb || !widget) return item;
       const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
@@ -834,7 +835,7 @@ function widgetReading(inputs, descriptor) {
   const classified = inputs.entries.classified.toSorted(
     (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
   );
-  const actionSpecs = descriptor.declaration.state?.verbs ?? {};
+  const actionSpecs = descriptor.declaration.verbs ?? {};
   const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
   const durableUndo = inputs.entries.undo;
@@ -1679,9 +1680,7 @@ export function createSemanticApplication({ presentation } = {}) {
           ? before.document.descriptors.get(event.widget)?.declaration
           : null;
       const spec =
-        event.kind === "action" && widget
-          ? declaration?.state?.verbs?.[event.action]
-          : null;
+        event.kind === "action" && widget ? declaration?.verbs?.[event.action] : null;
       const unit =
         event.kind === "action" && spec
           ? spec.unit === "widget"

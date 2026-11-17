@@ -1,4 +1,4 @@
-/* A block Leaf bounds (paint.bound, or data-bound on an occurrence, painted as
+/* A block Leaf bounds (`bound`, or data-bound on an occurrence, painted as
    data-lf-bound) holds its own height and scrolls inside it. The theme bounds the box;
    this module makes the box a reading region and keeps an `end` bound's place.
 
@@ -61,9 +61,9 @@ import { authoredScope, pageDocument } from "./passages.js";
 import { compoundReadingRegionId, registerReadingRegion } from "./reading-regions.js";
 import { marks } from "./kernel-facts.js";
 
-// The bound's paint (`$marks`), read from the generated table rather than the registry,
+// The bound's attribute (`$marks`), read from the generated table rather than the registry,
 // since the watch starts at boot, before any registry has loaded.
-const BOUND = marks["paint.bound"].paint;
+const BOUND = marks.bound.attribute;
 const BOUNDED = `[${BOUND}]`;
 const FOLLOWING = `[${BOUND}="end"]`;
 // Each block's hold, for the element's life, and the holds registered now.

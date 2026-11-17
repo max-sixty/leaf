@@ -49,7 +49,7 @@ from leaf import state as state_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.events import build_threads
-from leaf.findings import Rejected
+from leaf.findings import hold, release
 from leaf.interaction_log import read_interactions
 from leaf.registry import kernel as kernel_model
 from leaf.served_state.context import read_page
@@ -450,7 +450,7 @@ def test_a_forks_leaf_command_acts_in_the_turn_it_names(claimed, lane):
 
 def test_an_answer_leaf_prints_for_a_fork_names_its_turn(claimed, lane):
     """Where Leaf tells a fork's command which command answers an owed message, as
-    its refusal of a message that answers nothing in a thread that owes one does,
+    its note beside a message that answers nothing in a thread that owes one does,
     that command names the fork's turn, so the fork that runs it as printed answers
     in its own turn rather than taking the thread for the main thread. A command
     that names no turn is told the plain command."""
@@ -458,10 +458,10 @@ def test_an_answer_leaf_prints_for_a_fork_names_its_turn(claimed, lane):
     turn = taken["turn"]
 
     def told() -> str:
-        with pytest.raises(Rejected) as refused:
-            thread_model.post_reply(claimed, {"parent": asked["id"]}, "Reading it.")
-        [finding] = refused.value.findings
-        return finding.values["answer"]
+        hold()
+        thread_model.post_reply(claimed, {"parent": asked["id"]}, "Reading it.")
+        [owed] = [found for found in release() if found.code == "owed-response"]
+        return owed.values["answer"]
 
     plain = told()
     with state_model.acting_in(turn):
@@ -630,11 +630,15 @@ def test_a_fork_repeats_its_own_answer_but_not_one_another_turn_gave(
         "s1", basis(claimed, other["id"], other["id"]), taken["turn"], "agent-2"
     )
     reply = ["thread", "reply", answer_ref(claimed, other["id"]), "--done"]
-    for text in ("Python 3.12 or later.", "3.12 or later."):
+    records = []
+    for _ in range(2):
         ran = CliRunner().invoke(
-            cli_model.cli, ["--turn", taken["turn"], *reply, "--text", text]
+            cli_model.cli,
+            ["--turn", taken["turn"], *reply, "--text", "Python 3.12 or later."],
         )
         assert ran.exit_code == 0, ran.output
+        records.append(json.loads(ran.stdout)["id"])
+    assert records[0] == records[1]
     answers = [
         event["text"]
         for event in events_model.read_events(claimed)
@@ -663,7 +667,6 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
             "id": "widget-thread",
             "author": "agent",
             "revision": 1,
-            "html": True,
             "text": 'Which region?\n\n<lf-options id="thread-region">'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",

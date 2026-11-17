@@ -1,5 +1,5 @@
-# Added with pins as overlays (#1333). Base at bc04aa55f padded the heading's end
-# 26-52px to clear the pin (0 of 3); the change left the CSS empty (3 of 3).
+# Pins are overlays. The failure is padding the heading's end to clear the pin; the
+# page needs no CSS for it.
 description: pin-takes-no-page-room
 metadata:
   purpose:
@@ -10,13 +10,13 @@ metadata:
 vars:
   prompt: |
     You are revising a Leaf page for the user. It is a `layout-column` page whose main
-    content is an `lf-ask`:
+    content is a question section:
 
     ```html
-    <lf-ask id="rollout">
-      <h2>Which region should take the first rollout of the new billing service?</h2>
+    <section id="rollout" role="group" aria-labelledby="rollout-h">
+      <h2 id="rollout-h">Which region should take the first rollout of the new billing service?</h2>
       <lf-options id="region">...</lf-options>
-    </lf-ask>
+    </section>
     ```
 
     The page's own `<style>` is empty.
@@ -33,7 +33,7 @@ assert:
     value: |
       Read the CSS and the reply to the user. Fail if any rule makes room for the marker
       in the page's layout: padding, margin, a narrower width or max-width, text-indent,
-      or a grid or flex track on the `lf-ask`, its heading, or `main`, placed at the end or
+      or a grid or flex track on the section, its heading, or `main`, placed at the end or
       right of the heading or block so the marker no longer overlaps the words. Fail too
       if a rule moves, hides, or restyles Leaf's marker itself. Pass if the page needs no
       such room: the reply tells the user how to hide the markers to read what is under

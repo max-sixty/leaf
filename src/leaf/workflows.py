@@ -604,7 +604,7 @@ def handed_over(
     actions = []
     for projection, settlement in documents:
         for coordinate, (source, spec) in projection.actions.items():
-            # Work the user hasn't sent is no update (`$state.unsent`).
+            # Work the user hasn't sent is no update (`$verbs.unsent`).
             if source["author"] != "user" or spec.get("unsent"):
                 continue
             item = obligation_by_source.get(
@@ -625,8 +625,8 @@ def handed_over(
             )
 
     # One receipt per widget and unit, for the user's newest action on it. A tick and
-    # the Done press that followed are two verbs on one unit, and each minted a line:
-    # the thread showed "✓ Sent · just now" twice under one question. The later action
+    # the Done press that follows are two verbs on one unit, and each would mint a
+    # line, showing "✓ Sent · just now" twice under one question. The later action
     # supersedes the earlier for what the user is owed — that the press landed. In
     # frozen thread markup the reply answering the newest answers them all. On the page
     # each still settles by its own record: Done hands the tick over rather than

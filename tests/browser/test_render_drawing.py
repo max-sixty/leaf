@@ -88,13 +88,13 @@ MAP_CHOICE_PAGE = leaf_page(
 """
     + FILLER.replace("filler-", "before-")
     + """
-<lf-ask id="map-ask">
-  <h3>Which map should the sample team carry?</h3>
+<section id="map-ask" role="group" aria-labelledby="map-ask-h">
+  <h3 id="map-ask-h">Which map should the sample team carry?</h3>
   <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 """
     + FILLER.replace("filler-", "after-"),
 )
@@ -739,9 +739,9 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
 
 def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
     """Draw mode lasts while the user moves about the page, so on a phone two fingers
-    still scroll and zoom it, and one finger draws. The mode once set `touch-action:
-    none` on the whole document, so neither scrolling nor zoom worked until the user
-    left it."""
+    still scroll and zoom it, and one finger draws. A mode that set `touch-action:
+    none` on the whole document would leave neither scrolling nor zoom working until
+    the user left it."""
     filler = "".join(f"<p>Paragraph {n}. " + "Filler. " * 30 + "</p>" for n in range(8))
     html = TARGETS_PAGE.replace("</main>", filler + "</main>")
     context = browser.new_context(
@@ -926,9 +926,10 @@ def test_draw_mode_captures_widget_controls(browser, serve):
         serve(
             leaf_page(
                 "Drawing over a choice",
-                '<h1>Choose a route</h1><lf-options id="route">'
+                '<section id="route-q" role="group" aria-labelledby="route-h">'
+                '<h1 id="route-h">Choose a route</h1><lf-options id="route">'
                 '<lf-option id="trail">Trail</lf-option>'
-                '<lf-option id="street">Street</lf-option></lf-options>',
+                '<lf-option id="street">Street</lf-option></lf-options></section>',
             )
         ),
     )

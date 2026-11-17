@@ -126,11 +126,11 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             '<lf-old><a id="startup-link" href="#after">Continue reading</a>',
         ).replace(
             "</main>",
-            """<lf-ask id="startup-decision"><h2>Startup choice</h2>
+            """<section id="startup-decision" role="group" aria-labelledby="startup-decision-h"><h2 id="startup-decision-h">Startup choice</h2>
 <lf-options id="startup-choice">
   <lf-option id="startup-a">First</lf-option>
   <lf-option id="startup-b">Second</lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <lf-draft id="startup-note"><pre>Ship on Tuesday from the blue room.</pre></lf-draft>
 """
             + SHADOWED_DIFF,
@@ -753,8 +753,9 @@ def test_a_firefox_departure_reports_none_of_the_loads_it_aborts(
             serve(
                 leaf_page(
                     "Departing",
+                    '<section id="ship-q" role="group" aria-label="When?">'
                     '<lf-options id="ship"><lf-option id="now">Now</lf-option>'
-                    '<lf-option id="later">Later</lf-option></lf-options>',
+                    '<lf-option id="later">Later</lf-option></lf-options></section>',
                 )
             ),
             wait_until="commit",

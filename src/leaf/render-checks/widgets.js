@@ -105,12 +105,12 @@ export const missingUpgrades = (modules) =>
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const invalidVisualProviders = (declarations) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry.words?.visual)
+    .filter(([, entry]) => entry.visual)
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
         code: "visual-parts",
         at: locate(el),
-        problems: visualPartProblems(el, entry.words?.visual),
+        problems: visualPartProblems(el, entry.visual),
       })),
     )
     .filter((instance) => instance.problems.length);
@@ -126,14 +126,13 @@ export const invalidVisualProviders = (declarations) =>
 // built, in the platform's vocabulary (aria-*, role, hidden, tabindex) or under data-*,
 // which is the layer's and a widget's alike.
 //
-// lf-options had two of the other kind, and both were quiet. `answered` recorded a verb
-// only a thread can post, and a thread's markup is frozen in the log, so no version
-// could ever have honored a record of it; `open` recorded which way this tab last left
-// a disclosure, which no version carries at all. Neither reached a consumer, and the
-// one reader that did see them read them wrong: shallowSigs excludes exactly the
-// attributes no version can assert, and its exclusion list is the runtime's own paint —
-// so a widget writing beside it is counted as state the author wrote, in the reading
-// `page check --render` uses to decide whether a version overrules the user.
+// A record of a verb only a thread can post (no version carries a thread's markup, so
+// none could honor it) or of which way this tab last left a disclosure (which no
+// version carries at all) has no consumer, and the one reader that does see such an
+// attribute reads it wrong: shallowSigs excludes exactly the attributes no version can
+// assert, and its exclusion list is the runtime's own paint — so a widget writing
+// beside it is counted as state the author wrote, in the reading `page check --render`
+// uses to decide whether a version overrules the user.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
@@ -294,7 +293,7 @@ const withFirstSizes = (holder, inside) => {
 // Each authored widget whose border box changed between the pre-upgrade box and
 // its presented box (`firstBoxes` in driver.js). A holder is left out only where
 // putting the changed widgets inside it back to their first sizes puts its own box
-// back, which proves the change was theirs: an lf-ask that grew by exactly what its
+// back, which proves the change was theirs: a section that grew by exactly what its
 // options grew is not named beside them, and one that also grew on its own, in its
 // flow or in a size it sets itself, is. An inline widget runs through its holder's
 // lines, which no size puts back, so nothing proves its holder's change was the
@@ -335,11 +334,11 @@ export function changedBoxes() {
   }));
 }
 
-// paint.height's paint ($marks in runtime/kernel-registry.json): the stated height a
+// `height`'s attribute ($marks in runtime/kernel-registry.json): the stated height a
 // page reserves for a drawing, or empty where it states none.
 const STATED_HEIGHT = "data-lf-height";
 
-// Each drawn element whose tag declares paint.height and whose drawing is taller or
+// Each drawn element whose tag declares `height` and whose drawing is taller or
 // shorter than the box it first showed before drawing (`undrawnHeights` in driver.js).
 // The drawing's height is the element's box with its paint lifted for one read, since a
 // package may keep a stated height larger than its drawing, as the diagram's does. The

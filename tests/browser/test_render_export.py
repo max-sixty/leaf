@@ -645,9 +645,8 @@ def test_an_export_draws_the_widgets_its_markup_names_and_brings_no_others(
             "parent": root["id"],
             "revision": 1,
             "text": "Here:\n\n"
-            '<lf-diagram id="sketch"><pre>flowchart LR\n  A --> B\n'
+            '<lf-diagram id="sketch">\n<pre>flowchart LR\n  A --> B\n'
             "</pre></lf-diagram>",
-            "html": True,
         },
     )
     out = tmp_path / "reachable.html"

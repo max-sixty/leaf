@@ -256,7 +256,7 @@ def test_thread_summary_is_admitted_as_one_ordered_thread_range(page_dir):
 
 def test_a_summary_leaves_no_older_discussion_in_full_above_it(page_dir):
     """A summary that would leave an older message outside every summary is refused,
-    naming the range admission takes, apart from the thread's opening message (#5531).
+    naming the range admission takes, apart from the thread's opening message.
     A reaction is a mark on a message and completed progress is drawn nowhere, so
     neither counts; pending progress is drawn, so it does. A summary it overlaps is
     replaced whole, so what that one covered counts too."""
@@ -521,9 +521,9 @@ def test_summary_hint_folds_completed_progress_and_stops_at_pending(page_dir):
 
 
 def test_summary_hint_leaves_no_older_discussion_above_it(page_dir):
-    """Progress completed mid-thread once split the earlier discussion into runs,
-    and the hint took the longest, leaving the older run in full above the
-    summary (#5531)."""
+    """Were progress completed mid-thread to split the earlier discussion into runs,
+    a hint that took the longest would leave the older run in full above the
+    summary."""
     root = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Plan the rollout."}
     )
@@ -567,7 +567,7 @@ def test_a_summary_hint_names_only_a_range_admission_takes(
     page_dir, reply_text, widened
 ):
     """The hint is the range admission takes, so following it is never refused and
-    never leaves older discussion in full above a summary (#5531). A rewrite that
+    never leaves older discussion in full above a summary. A rewrite that
     retires a summary leaves its run uncovered above a later one. Where that run is
     long enough, the hint names it. Where it is too short, the hint names the next
     long-enough run widened over it, replacing the later summary between them, so a

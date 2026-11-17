@@ -81,8 +81,8 @@ draft withheld, so Stop lets the turn end on its own answer rather than continui
 it over the update. As the turn ends it releases the reservation,
 and a completed joined turn's final message is refused, so `TurnFold.commit`
 offers the update again as a correction (`prepare_reply_correction`), answered in
-a turn of its own. Rejected: queueing each delivery with `thread/queue/add`
-(#3357, reverted), which put every delivery in the transcript as a user message.
+a turn of its own. Rejected: queueing each delivery with `thread/queue/add`, which
+puts every delivery in the transcript as a user message.
 
 Codex's hooks import this module between steps and before Stop
 (`offer_hook_delivery`), so `thread`, which brings the page model and its validators,

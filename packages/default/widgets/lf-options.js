@@ -14,15 +14,15 @@
  * markup, so the file's reading of the page holds every word the page shows.
  *
  * A group takes the user's pick, with no attribute to say so; only an exhibit shows
- * one that takes none (below). An attribute that made a group take picks (`required`,
- * before it `choose`) was rejected: nearly every group carried it, and one written
- * without it drew cards nobody could press while `page check` passed. Every option
+ * one that takes none (below). Rejected: an attribute that makes a group take picks
+ * (`required` or `choose`), since nearly every group would carry it, and one written
+ * without it draws cards nobody can press while `page check` passes. Every option
  * carries one injected mark that is both the keyboard path and the state — a toggle
  * reading "choose one" or "choose any" as the group takes one option or several. Once
  * picked, the same mark becomes a check while the option's cell takes a quiet tint.
- * Cards and rows mark a pick alike, tint plus check: on 2026-10-26 the user chose this
- * over a "✓ selected" chip in a live titled card's corner, a word only cards wore,
- * crowding the author's own chips. The checkbox state carries the same fact for a user
+ * Cards and rows mark a pick alike, tint plus check: the user chose this over a
+ * "✓ selected" chip in a live titled card's corner, a word only cards wore, crowding
+ * the author's own chips. The checkbox state carries the same fact for a user
  * listening. In an exhibit the mark renders as an image-like span, so authored state
  * keeps the check and an accessible name without pretending it can be pressed.
  *
@@ -55,7 +55,7 @@
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
  * whole, posted as an `answer` action and held as the obligation's closing condition
- * (state.awaits.answered). Answered is paint on the press, never a wider word. A
+ * (`awaits.answered`). Answered is paint on the press, never a wider word. A
  * second press withdraws that answer through the widget's exact undo, reopening the
  * obligation; the set can still change after either press, and each toggle reaches the
  * agent.
@@ -409,8 +409,8 @@ customElements.define(
 
     // The one statement a live channel can't derive: the set is whole. Done is a
     // reversible gesture; its pressed state is the answer action in force. It records
-    // the user's answer, so it wears the commit face, which the user chose on 26
-    // October over the quiet word face every other worded press wears. Its digit
+    // the user's answer, so it wears the commit face, which the user chose over the
+    // quiet word face every other worded press wears. Its digit
     // is inside the button, as an option's is inside the option, so a press on it is a
     // press on Done; the seat is out of flow, so it moves neither label nor edges.
     #doneRow() {
@@ -626,8 +626,8 @@ customElements.define(
       // Pointing at the mark reads nothing: its round or square corner says whether the
       // group takes one option or any, the option's words stand beside it, and the digit
       // drawn on its option while focus is in the group says its key. Its name stays a
-      // listener's. Until 15 November 2026 it previewed "choose one", the word its shape
-      // stands for.
+      // listener's, rather than a preview of "choose one", the word its shape stands
+      // for.
       mark.lfPreview = () => false;
       this.#controls.set(option, mark);
       // First, so the row form's table puts it in the cell before the words. A card

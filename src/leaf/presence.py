@@ -329,7 +329,7 @@ def presence_with_activity(
     agent is working. Keeping private activity records out of that dictionary makes
     them unavailable to every browser-facing consumer by construction.
 
-    `full_state` spreads it into the page's own state answer, so the runtime's one
+    `read_served_page` spreads it into the page's own state answer, so the runtime's one
     claim-against-proof judgment reads these fields. The server's row publication
     carries only the compact presentation fields derived from these facts. A captured
     host publication without a process keeps durable acknowledgement and pending
@@ -431,7 +431,7 @@ def presence_reading(page_dir: Path, files: str) -> str:
     names every page input, and on the claimant's wait lease, the one input of
     presence outside them. A move in either invalidates it immediately; process
     and lock leases are refreshed when the interval expires. The facts are read
-    the way `presence` and `full_state` read them, so a freshness answer and the
+    the way `presence` and `read_served_page` read them, so a freshness answer and the
     state it prompts name the same reading once the bounded cache interval has
     elapsed.
     """

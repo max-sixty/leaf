@@ -354,18 +354,18 @@ const stamped = (version) =>
 export const revisionBase = ({ revision, version, url }) =>
   Object.freeze({ revision, url, name: `v${version}` });
 // The version picker: a press that says which version this is, and a menu that says
-// what each one was and what it changed. It was a <select>, and the two things that
-// cost were both the control's rather than the styling's. A select takes its inner
-// height from Chrome's own metrics and refuses line-height, so it could never stand
+// what each one was and what it changed. Rejected: a <select>, whose two costs are
+// both the control's rather than the styling's. A select takes its inner
+// height from Chrome's own metrics and refuses line-height, so it can never stand
 // level with the buttons beside it; and its closed label is its selected option's whole
-// text, so the note had to be in both places or neither — 190px of bar, the widest
-// control on the row, for about nine characters of a note that then ellipsized. A press
+// text, so the note has to be in both places or neither, which makes it the widest
+// control on the row for a note it then cuts short. A press
 // states the version alone, and the menu is the only place the notes are, where a row
 // can wrap and carry one whole.
 //
-// The diff was a second press beside it, and everything the two shared was in the
-// menu already. It named the previous version because a control with one label can
-// offer one base, and the previous version is the least useful of them on a page that
+// Rejected: the diff as a second press beside it, since everything the two share is in
+// the menu already. A control with one label can offer one base, such as the previous
+// version, and the previous version is the least useful of them on a page that
 // ships a version whenever the work moves: what the user wants marked is what has
 // changed since they last looked, which is as far back as they were away. The base is
 // the menu's to say, so every version older than this one offers itself as one.
@@ -449,40 +449,17 @@ function menuRows(state, notes, active) {
 /** @param {import("../types/contract.js").ServedState | null} state */
 function pickerModel(state) {
   const active = runtime.active;
-  const base = diffOn.value ? diffBase.value : null;
   const offered = state !== null && versionsOffered();
   const behind = active !== null && behindCurrent();
   const sourceFailed = LIVE_ROOT && Boolean(state?.source_error);
-  const currentLabel = runtime.currentLabel ?? "Draft";
-  const newer = behind ? `; ${active.label} available` : "";
   return Object.freeze({
-    picker: Object.freeze({
-      offered,
-      token: currentVersionToken(),
-      compared: diffOn.value || diffPendingBase.value !== null,
-      news: behind,
-      keyTitle: offered
-        ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading a comparison with ${diffPendingBase.value.name}${newer}`
-          : base
-            ? `${currentLabel}: showing what changed since ${base.name} — pick a version, or press Compare again to stop${newer}`
-            : `${currentLabel}: versions; read one, or mark what changed since it${newer}`
-        : currentLabel,
-      ariaLabel: offered
-        ? diffPendingBase.value !== null
-          ? `${currentLabel}: loading comparison with ${diffPendingBase.value.name}; open versions${newer}`
-          : base
-            ? `${currentLabel}: comparing with ${base.name}; open versions${newer}`
-            : `${currentLabel}: open versions${newer}`
-        : currentLabel,
-    }),
+    picker: Object.freeze({ offered, token: currentVersionToken() }),
     latest: Object.freeze({
       // The agent's latest save failed its check, so the page shows the last one that
       // passed; `error` is what the check said.
       failed: sourceFailed,
       error: state && sourceFailed ? state.source_error : null,
       disabled: sourceFailed,
-      keyTitle: state && sourceFailed ? state.source_error : "Open the current page",
       label: latestVersionLabel({
         failed: sourceFailed,
         activeLabel: behind ? active.label : null,
@@ -499,10 +476,7 @@ function pickerModel(state) {
       base:
         (diffPendingBase.value ?? (diffOn.value ? diffBase.value : null))?.revision ??
         null,
-      currentRevision: runtime.currentRevision,
       on: diffOn.value,
-      pendingBase: diffPendingBase.value,
-      baseRevision: diffBase.value?.revision ?? null,
     }),
   });
 }
@@ -569,26 +543,24 @@ const diffBlockSel = () =>
   [
     TEXT_BLOCK,
     "aside",
-    ...tagsDeclaring((e) => e.markup?.owners && (e.content ?? "markup") === "markup"),
+    ...tagsDeclaring((e) => e.owners && (e.content ?? "markup") === "markup"),
     // Preserving widgets contribute their own prose. The leaf-blocks-only rule below
     // avoids counting nested blocks twice. One set among the words around it
-    // (words.inline), such as a gloss, is part of its paragraph's words instead, or
+    // (`inline`), such as a gloss, is part of its paragraph's words instead, or
     // that rule would skip the paragraph and miss a change to the words around it. A
     // suggestion's slots stay blocks: the decision retiring one makes the suggestion
     // opaque, and its paragraph's words would run across it.
-    ...tagsDeclaring((e) => !e.words?.inline && e.words?.verbatim),
+    ...tagsDeclaring((e) => !e.inline && e.verbatim),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body, so the text on screen is the
 // module's and can't compare; and one whose slots a decision retires, which holds two
 // versions of one passage and is already its own mark. Plus svg, drawn by either.
 const diffOpaqueSel = () =>
   [
-    ...tagsDeclaring(
-      (e, tag) => upgrades(tag) && !e.words?.verbatim && e.content === "data",
-    ),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && e.content === "data"),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e, tag) => upgrades(tag) && e.data?.inputs),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && e.inputs),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
@@ -681,13 +653,11 @@ function diffBlocks(root) {
     if ([...b.querySelectorAll(blocks)].some((child) => !child.closest(opaque)))
       continue; // leaf blocks only, excluding opaque children on both sides
     let key = comparisonWords(b, opaque);
-    // A words.says value is the page's words at the element's edge (renderSaid), so it
+    // A `says` value is the page's words at the element's edge (renderSaid), so it
     // belongs to what this block says: folded into the key at its declared edge, a
     // version that moves a metric's number or an event's time marks though no prose
     // changed. Both sources hold the attribute, so the key reads it on both sides.
-    for (const [attr, edge] of Object.entries(
-      registry[b.localName]?.words?.says ?? {},
-    )) {
+    for (const [attr, edge] of Object.entries(registry[b.localName]?.says ?? {})) {
       const said = b.getAttribute(attr);
       if (said) key = edge === "before" ? `${said} ${key}` : `${key} ${said}`;
     }
@@ -703,7 +673,7 @@ function diffBlocks(root) {
     // opaque to comparison.
     /** @type {Set<string>} */
     const bindingAttrs = new Set();
-    for (const input of Object.values(entry.data?.inputs ?? {})) {
+    for (const input of Object.values(entry.inputs ?? {})) {
       if (input.source) bindingAttrs.add(input.source);
       if (input.reference) bindingAttrs.add(input.reference);
     }
@@ -1052,7 +1022,7 @@ function changedSince(base, current = currentSource()) {
   };
 }
 // The view a block stands in, which shows and hides as one: the nearest `details`
-// holding it, member of a widget's declared views (`paint.views`), such as a tab, or
+// holding it, member of a widget's declared views (`views`), such as a tab, or
 // element a disclosure control names (ARIA's `aria-expanded` with `aria-controls`),
 // such as a settled options group's options, which share their one control's view.
 // Each is structure, so a change's extent doesn't depend on which views were open when
@@ -1061,7 +1031,7 @@ function changedSince(base, current = currentSource()) {
 function viewOf(block, controls) {
   for (let at = /** @type {Element | null} */ (block); at; at = at.parentElement) {
     if (at.localName === "details") return at;
-    const members = registry[at.parentElement?.localName ?? ""]?.paint?.views?.members;
+    const members = registry[at.parentElement?.localName ?? ""]?.views?.members;
     if (members && at.matches(members)) return at;
     const control = at.id ? controls.get(at.id) : undefined;
     if (control) return control;
@@ -1314,9 +1284,9 @@ function commitDiff({ marked, paired, words, changes }) {
 // The change's card (margin-bars.js draws it) answers what a change replaced without
 // travel to the other version and back, and without moving the page under the reader:
 // it stands over the change, in the chrome, and reads text from the two sources taken
-// at the comparison (`diffWordsOf`, a change's `removed`). The user chose it on 3
-// November over splicing the old words into the live blocks, which moved the text under
-// a press and could not show a block the hunk took out, and over two columns.
+// at the comparison (`diffWordsOf`, a change's `removed`). The user chose it
+// over splicing the old words into the live blocks, which moves the text under
+// a press and cannot show a block the hunk took out, and over two columns.
 
 // A marked block's two readings, where its live words are its source's: a block a module
 // writes into shows what the page shows and compares nothing.
@@ -1901,7 +1871,7 @@ export function createVersionController({
   // page has run by the time a patch asks: startup awaits each import before the state
   // feed starts, and an activation awaits the arriving revision's (`prepareActivation`).
   // A `members` container retains authored markup while the inputs its renderer
-  // consumes stay the same. A structured member list, or a declared paint.views list,
+  // consumes stay the same. A structured member list, or a declared `views` list,
   // consumes its direct members' identities and attributes, and the face a member
   // opens with: a leading <template>, whose markup the list draws in place of the
   // member's label (lf-tabs.js). A template's markup is its content, which isn't
@@ -1935,7 +1905,7 @@ export function createVersionController({
       (content !== "members" && content !== "markup")
     )
       return false;
-    const members = content === "members" || entry.paint?.views !== undefined;
+    const members = content === "members" || entry.views !== undefined;
     return sameAuthoredMarkup(
       shell(before, members),
       shell(after, members),
@@ -1958,8 +1928,8 @@ export function createVersionController({
         owner === pageDocument() ? inPage(node) : under(node, owner),
       declared: upgraded,
       // `main` holds nearly all of a page's content, so a page module that moves or
-      // replaces one of its children is patched around, as it was when `main` was the
-      // patch root, rather than rebuilding the page beneath the user.
+      // replaces one of its children is patched around rather than rebuilding the page
+      // beneath the user.
       traversed: (element) =>
         element.localName === "main" && element.parentElement === pageDocument(),
       reaches: (before, after) => reachesMembers(before, after, arrivingRoot),

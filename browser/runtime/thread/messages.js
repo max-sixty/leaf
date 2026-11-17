@@ -1,4 +1,4 @@
-/* Synchronous Lit message presentation and frozen authored message islands.
+/* Synchronous Lit message presentation and authored message islands.
 
    Every surface uses the same message, header and body vocabulary. Generated
    metadata, prose, workflow and reaction placement have one owner. Each message
@@ -6,7 +6,8 @@
    reading, so a retained text viewport never clips an attachment. Each message
    retains its header and body together, sharing delivery, unread and fold state.
    Its header declares its stationary text-reflow boundary. An agent's message holding
-   HTML is one validated authored fragment, its words included, which no edit changes. A new message cues its own words once on first presentation, in every
+   HTML is one validated authored fragment, its words included, prepared again for each
+   edit of it. A new message cues its own words once on first presentation, in every
    surface: one the user just sent, and any turn, whoever wrote it, joining a thread
    view that was already presented. Opening a view cues nothing it already holds, and
    admission and later descriptor paints never replay the cue.
@@ -361,7 +362,18 @@ export function draftPreview(drafts, about = null) {
 }
 
 // A rollback can withdraw an authored island, but a retry may not instantiate it
-// twice. Its native identity is independent of the prose cache.
+// twice. Its native identity is independent of the prose cache. Each wording of a
+// message has an island of its own, so a drawing that holds back an agent's edit
+// (held-news.js) keeps drawing the words and controls it shows, and the reading the
+// page adopts decides which island the message's widgets answer for
+// (`islandChange`). Each island lives until the page reloads, one for each edit an
+// agent makes to a message holding HTML, which is rare. An edit redraws its
+// message's island whole, so a value typed into a field in it, an open disclosure
+// or focus there is lost: a rare path, which redraws rather than carrying a
+// mechanism of its own (SOUL.md, "Keep the foundation small and extensible"). For
+// the same reason a thread gesture names no wording: one a tab makes before an
+// edit reaches it is read in the wording in force when it lands
+// (`thread_context.message_wording`).
 /** @typedef {{
  * message: string,
  * body: {text: string, heldElsewhere: string, document: {thread: string, message: string}},
@@ -370,29 +382,93 @@ export function draftPreview(drafts, about = null) {
  * nodes: readonly ChildNode[], root: DocumentFragment,
  * preparation: Promise<PreparedAuthoredMessage> | null,
  * }} PreparedAuthoredMessage */
-/** @type {Map<string, PreparedAuthoredMessage>} */
+/** Each message → its islands by the Markdown each was prepared from.
+ * @type {Map<string, Map<string, PreparedAuthoredMessage>>} */
 const authoredMessages = new Map();
-// Each element with an id that a prepared message keeps, with its message's document,
-// read once as the message is prepared, so finding one by id (`messageHolding`) costs
-// one read however many messages the page holds. Its ids are the authored ones, which
-// the message keeps for its lifetime.
+/** Each message → the island the adopted reading draws its widgets from.
+ * @type {Map<string, PreparedAuthoredMessage>} */
+const adoptedIslands = new Map();
+// Each element with an id that an adopted island keeps, with its message's document,
+// so finding one by id (`messageHolding`) costs one read however many messages the
+// page holds. Its ids are the authored ones, which no other message takes.
 /** @type {Map<string, {element: Element, document: {thread: string, message: string}}>} */
 const keptElements = new Map();
 // The markup a drawing that doesn't hold an authored message draws in its place
 // (`authoredHolders`): the message less what a second copy would duplicate, each id
 // and each custom element, which a module upgrades once. A widget set among words
-// (`words.inline`) leaves its words, and any other goes whole, as a choice the drawing
-// asks in its own controls does.
+// (`inline`) leaves its words, and any other goes whole, as a choice the drawing
+// asks in its own controls does. The innermost group the author declares round a widget
+// that asks, `role="group"` or a `<fieldset>` (`obligations.widget_groups` in Python),
+// is its question, so it goes whole with it rather than leaving the question's words
+// with nothing to answer them. Any other group stays, less its widgets, as a figure
+// keeps its caption when its chart goes.
 /** @param {DocumentFragment} message */
 function heldElsewhere(message) {
   const copy = document.createElement("template");
   copy.content.append(message.cloneNode(true));
+  for (const element of copy.content.querySelectorAll("*")) {
+    const declaration = declarationFor(element);
+    if (declaration?.awaits && !declaration.inline)
+      element.parentElement?.closest('[role~="group"], fieldset')?.remove();
+  }
   for (const element of copy.content.querySelectorAll("*"))
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declarationFor(element)?.words?.inline)
+    else if (declarationFor(element)?.inline)
       element.replaceWith(...element.childNodes);
     else element.remove();
   return copy.innerHTML;
+}
+
+/** @param {PreparedAuthoredMessage} island @returns {Iterable<Element>} */
+function* islandElements(island) {
+  for (const node of island.nodes)
+    if (node instanceof Element) {
+      if (node.id) yield node;
+      yield* node.querySelectorAll("[id]");
+    }
+}
+
+/**
+ * What adopting a reading changes about the islands its messages draw their widgets
+ * from, against the reading adopted before it: `retired`, the widget ids an island
+ * held that its message's island in this reading doesn't, as when an edit rewrote
+ * the message or left it no HTML; and `commit`, which makes this reading's islands
+ * the adopted ones once the page adopts it. `frozen` is null for a message drawn
+ * as Markdown alone. A message whose island is unchanged costs one lookup.
+ * @param {readonly {message: {id: string, attempt?: string | null},
+ *   frozen: PreparedAuthoredMessage | null | undefined}[]} entries
+ */
+export function islandChange(entries) {
+  /** @type {[string, PreparedAuthoredMessage | null, PreparedAuthoredMessage | null][]} */
+  const changed = [];
+  /** @type {string[]} */
+  const retired = [];
+  for (const { message, frozen = null } of entries) {
+    const key = message.attempt ?? message.id;
+    const prior = adoptedIslands.get(key) ?? null;
+    if (prior === frozen) continue;
+    changed.push([key, prior, frozen]);
+    for (const id of prior?.descriptors.descriptors.keys() ?? [])
+      if (!frozen?.descriptors.descriptors.has(id)) retired.push(id);
+  }
+  return {
+    retired,
+    commit() {
+      for (const [key, prior, frozen] of changed) {
+        for (const element of prior ? islandElements(prior) : [])
+          if (keptElements.get(element.id)?.element === element)
+            keptElements.delete(element.id);
+        if (!frozen) {
+          adoptedIslands.delete(key);
+          continue;
+        }
+        adoptedIslands.set(key, frozen);
+        for (const element of islandElements(frozen))
+          if (!keptElements.has(element.id))
+            keptElements.set(element.id, { element, document: frozen.body.document });
+      }
+    },
+  };
 }
 
 /** @param {{id: string, attempt?: string, text?: string}} message @param {string} thread
@@ -401,13 +477,16 @@ export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
   if (typeof thread !== "string" || !thread)
     throw new TypeError("an authored message needs its thread's id");
-  let prepared = authoredMessages.get(key);
+  const source = message.text ?? "";
+  let islands = authoredMessages.get(key);
+  if (!islands) authoredMessages.set(key, (islands = new Map()));
+  let prepared = islands.get(source);
   if (!prepared) {
-    // Captured once for the message's lifetime, so never from the escaped source the
-    // renderer stands in with until it loads.
+    // Captured once for each wording, so never from the escaped source the renderer
+    // stands in with until it loads.
     if (!markdownReady())
       throw new Error("leaf: an authored message needs its loaded Markdown renderer");
-    const markup = renderAuthoredMarkdown(message.text ?? "");
+    const markup = renderAuthoredMarkdown(source);
     const template = document.createElement("template");
     template.innerHTML = markup;
     // A page's media at the address the page answers at, as the message's Markdown
@@ -446,10 +525,7 @@ export function prepareAuthoredMessage(message, thread) {
       root: template.content,
       preparation: null,
     };
-    authoredMessages.set(key, prepared);
-    for (const element of template.content.querySelectorAll("[id]"))
-      if (!keptElements.has(element.id))
-        keptElements.set(element.id, { element, document: prepared.body.document });
+    islands.set(source, prepared);
   }
   for (const descriptor of prepared.descriptors.descriptors.values())
     if (
@@ -457,7 +533,7 @@ export function prepareAuthoredMessage(message, thread) {
       descriptor.document.thread !== thread ||
       descriptor.document.message !== message.id
     )
-      throw new TypeError("an authored message changed its frozen document identity");
+      throw new TypeError("an authored message changed its document identity");
   // The captured document owns preparation for its entire lifetime. Concurrent
   // state reads join it, including after its nodes leave the inert fragment for a
   // drawing. A failed import remains a failed state read; the next read may retry.
@@ -470,9 +546,12 @@ export function prepareAuthoredMessage(message, thread) {
     },
   ));
 }
-/** @param {{id: string, attempt?: string | null}} message */
+// The island of the wording a drawing shows, its Markdown (`messageReading`).
+/** @param {{id: string, attempt?: string | null, markdown: string | null}} message */
 const authoredMessage = (message) => {
-  const prepared = authoredMessages.get(message.attempt ?? message.id);
+  const prepared = authoredMessages
+    .get(message.attempt ?? message.id)
+    ?.get(message.markdown ?? "");
   if (!prepared)
     throw new Error("authored message presentation preceded semantic preparation");
   return prepared;
@@ -495,8 +574,8 @@ const authoredMessage = (message) => {
 // conversation, as On Me's cards are (primary-reader.js, `messagesAside`). A drawing
 // aside holds the widgets only while no other drawing shows the message, so opening On
 // Me takes no choice out of a thread the user sees, and no arrival lands in it
-// (`authoredHolder`). Until 15 November 2026 On Me's card ranked as the primary
-// reader's view, and opening it emptied a thread on the page of its widgets.
+// (`authoredHolder`). Rejected: On Me's card ranking as the primary
+// reader's view, so opening it empties a thread on the page of its widgets.
 export const HOLDS = Object.freeze({ reader: 4, margin: 3, page: 2, aside: 1 });
 /** @typedef {{node: HTMLDivElement, model: ReturnType<typeof messageReading>,
  * present: (model: ReturnType<typeof messageReading>) => HTMLDivElement}} PresentedMessage */
@@ -654,7 +733,10 @@ export class MessageView {
   #copy = null;
   // Bumped each time this view takes the message's widgets back from another drawing.
   #authoredTake = 0;
-  #dressed = false;
+  // The island this view last dressed (`prepareAuthoredMessage`'s `nodes`), which an
+  // edit replaces.
+  /** @type {readonly ChildNode[] | null} */
+  #dressed = null;
   /** @type {ReturnType<typeof motion> | null} */
   #arrivalMotion = null;
   /** @type {(() => void) | null} */
@@ -781,7 +863,8 @@ export class MessageView {
       }
       settleAuthoredSoon(authoredKey);
     }
-    const holds = authoredHolders.get(authoredKey) === presentation;
+    const holds =
+      model.body.authored && authoredHolders.get(authoredKey) === presentation;
     // Whether this drawing holds the message's widgets, for a surface whose own
     // controls give way to them, as On Me's card's choices do (floating-panel.css).
     keeps(this.node, "data-lf-holds", holds ? "" : null);
@@ -899,11 +982,11 @@ export class MessageView {
       `,
       this.node,
     );
-    if (model.body.authored && !this.#dressed) {
+    if (model.body.authored && this.#dressed !== authored) {
       markDeclared(this.node);
       renderSaid(this.node);
       renderQuiet(this.node);
-      this.#dressed = true;
+      this.#dressed = authored;
     }
     // Markdown is an opaque property part: tokenization and typesetting never rewrite
     // Lit markers.

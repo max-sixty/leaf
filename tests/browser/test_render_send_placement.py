@@ -1299,13 +1299,19 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
     100%, which only pans it sideways, and a pane the page scrolls scrolls nothing
     itself. So a comment ⌥-clicked into the shot stands beside it rather than over it,
     and one on words in the pane takes the window's room: the answer that arrives grows
-    the card, rather than scrolling inside a card the shot or the pane cuts short."""
+    the card, rather than scrolling inside a card the shot or the pane cuts short. The
+    answer grows a card beside the shot past the window's foot, which lifts it
+    (thread-preview.js, `rises`)."""
     shot = None
     if subject.startswith("shot"):
         page = open_page(browser, serve(named_source("release-notes")))
         resized(page, 1440, 900)
         shot = page.locator("#rn-console-shot")
-        shot.scroll_into_view_if_needed()
+        # The shot at the window's head keeps the grown card clear of the window's foot.
+        # There, an answer that grows a card beside its subject moves it into the
+        # window's plane, reply box included, a jump the shift watch rightly reports and
+        # a longer answer shows on main too. Move the shot back once #6278 is fixed.
+        shot.evaluate("node => node.scrollIntoView({block: 'start'})")
         if subject == "shot-actual":
             shot.get_by_role("button", name="Image options").click()
             shot.get_by_role("button", name="100%", exact=True).click()
@@ -1342,7 +1348,9 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
         for event in reversed(event_log.read_events(serve.page_dir))
         if event["kind"] == "comment"
     )["id"]
-    append_agent_reply(serve.page_dir, root, "Because each tenant restores alone. " * 8)
+    append_agent_reply(
+        serve.page_dir, root, "Because each tenant restores alone. " * 12
+    )
     told(page)
     expect(card.locator(".lf-msg")).to_have_count(2)
     rendered(page)

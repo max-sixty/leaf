@@ -285,7 +285,7 @@ interface ShadowRoot {
 
 interface Element {
   /** The word a widget's module names its kind by where it depends on the element
-   * (`addressable-names.widgetWord`); a fixed word is the declaration's `words.word`. */
+   * (`addressable-names.widgetWord`); a fixed word is the declaration's `word`. */
   lfWord?(): string;
   lfSays?(): string;
 }

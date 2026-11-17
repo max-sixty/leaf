@@ -30,9 +30,9 @@ def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
     Both namespaces are reserved by prefix, so the fourth element here wears a
     class the runtime does not coin today and is refused all the same. A list of
     the names it happens to write is a list that admits the next one it coins:
-    .lf-quiet was outside the list this once held, and the chrome stylesheet
-    clipped an authored copy of it to 1x1 with both render gates skipping the
-    class unconditionally, so nothing anywhere said the page's own words had
+    were .lf-quiet outside such a list, the chrome stylesheet would clip an
+    authored copy of it to 1x1 with both render gates skipping the class
+    unconditionally, so nothing anywhere would say the page's own words had
     gone. The <p class="note"> is the control: an ordinary class is the author's
     to write, and the count below is exact so a reservation that swallowed it
     would be caught here rather than in a page that stopped rendering. The box
@@ -100,11 +100,11 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
 
 @pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
 def test_a_reference_names_any_element_the_page_holds(page_dir, target):
-    """A `markup.refers` attribute takes the id of whatever element it names, a section
+    """A `refers` attribute takes the id of whatever element it names, a section
     whose id a widget couldn't carry included, and `page check` refuses only a value
     naming no element."""
     (page_dir / "index.html").write_text(
-        PAGE.replace('<section id="plan">', '<section id="Plan_Notes">').replace(
+        PAGE.replace('<section id="plan"', '<section id="Plan_Notes"').replace(
             '<lf-option id="flag-first">', f'<lf-option id="flag-first" for="{target}">'
         )
     )
@@ -136,10 +136,10 @@ def test_check_rejects_an_unknown_authored_width(page_dir):
 def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
     """An allocation means something only where the kernel's `$marks` say it does,
     and delivery paints none elsewhere, so the page would show no sign of it: a width
-    on a question, which draws no box of its own, a width on `main`, which would size
-    the page, and a stated height on a block no module draws into. `page check` names
-    each so the author can move it. A width on the table inside the question, and a
-    height on a chart, mean what they say. A tab set draws no box of its own only where
+    on `main`, which would size the page, and a stated height on a block no module
+    draws into. `page check` names each so the author can move it. A width on the
+    question's section or on the table inside it, and a height on a chart, mean what
+    they say. A tab set draws no box of its own only where
     it is written `flow="page"`, so a width there means nothing and on a boxed set it
     holds."""
     tabs = (
@@ -155,8 +155,9 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
             + tabs.format(id="boxed-tabs", flow=""),
         )
         .replace(
-            '<div id="plan-choice-decision">',
-            '<lf-ask id="plan-choice-decision" data-width="available">',
+            '<div id="plan-choice-decision" role="group" aria-labelledby="plan-choice-question">',
+            '<section id="plan-choice-decision" role="group"'
+            ' aria-labelledby="plan-choice-question" data-width="available">',
         )
         .replace(PAGE_GROUP, '<lf-options id="plan-choice">')
         .replace(
@@ -165,7 +166,7 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
             '<table id="kept" data-width="wide"><tr><td>A</td></tr></table>\n'
             '<div id="sized" data-height="200">box</div>\n'
             '<lf-chart id="c" data-height="240"><pre>{ariaLabel: "x", marks: []}</pre>'
-            "</lf-chart>\n  </lf-ask>",
+            "</lf-chart>\n  </section>",
         )
     )
     status, findings = check_findings(page_dir)
@@ -175,7 +176,6 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
         for f in found(findings, "inert-allocation")
     ] == [
         ("<main>", "data-width", "content", "advice"),
-        ("<lf-ask id=plan-choice-decision>", "data-width", "flow", "advice"),
         ("<div id=sized>", "data-height", "declared", "advice"),
         ("<lf-tabs id=page-tabs>", "data-width", "flow", "advice"),
     ]
@@ -226,10 +226,10 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     """Child documents keep their own ids, widgets, passages, and validation reading."""
     html = (
         '<main><p id="visible">Visible words.</p>'
-        '<template id="practice" data-sample><lf-ask id="nested-ask">'
-        '<h2>Hidden question</h2><lf-options id="nested-options">'
+        '<template id="practice" data-sample><section id="nested-ask" role="group" aria-labelledby="nested-ask-h">'
+        '<h2 id="nested-ask-h">Hidden question</h2><lf-options id="nested-options">'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
-        "</lf-options></lf-ask></template></main>"
+        "</lf-options></section></template></main>"
     )
     parser = structure_model.SourceDocument(html)
 
@@ -282,14 +282,10 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
     at a part's depth under any other child names none."""
     registry = {
         "lf-parts": {
-            "paint": {
-                "views": {"members": "lf-part", "parts": True},
-            },
+            "views": {"members": "lf-part", "parts": True},
         },
         "lf-tabs": {
-            "paint": {
-                "views": {"members": "lf-tab"},
-            },
+            "views": {"members": "lf-tab"},
         },
     }
     parts = structure_model.SourceDocument(
@@ -400,7 +396,6 @@ def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
                 "author": "agent",
                 "revision": 1,
                 "text": f"Try:\n\n{sample}",
-                "html": True,
             },
         ]
         findings = sample_holder_findings(
@@ -464,8 +459,7 @@ def test_sample_checks_available_history_beside_forward_thread_references(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
-            "text": 'An answer\n\n<lf-code id="duplicate"><pre><code class="language-python">1</code></pre></lf-code>',
-            "html": True,
+            "text": 'An answer\n\n<lf-code id="duplicate">\n<pre><code class="language-python">1</code></pre></lf-code>',
         },
     )
     (page_dir / "index.html").write_text(
@@ -521,7 +515,7 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     asks that reader of every sheet delivery rewrites, a template's and a shadow
     root's included, and refuses with its words. A nested rule in a style attribute
     parses as a block's contents but not as the declaration list delivery reads,
-    and once passed every check only for delivery to refuse it with no reason."""
+    and unasked would pass every check only for delivery to refuse it."""
     from leaf.revision_artifact import ArtifactError
     from leaf.revision_delivery import DeliveryAddress, rebase_document
 
@@ -796,7 +790,7 @@ def test_sample_fixture_refusals_reach_page_check(
     [
         ('<lf-unknown id="widget">Unknown</lf-unknown>', "unknown-widget"),
         (
-            '<lf-code id="child"><pre><code class="language-python">1</code></pre></lf-code>',
+            '<lf-code id="child">\n<pre><code class="language-python">1</code></pre></lf-code>',
             "ids-taken",
         ),
         (
@@ -812,7 +806,6 @@ def test_sample_fixture_message_markup_uses_the_message_gate(page_dir, markup, c
                 "kind": "comment",
                 "author": "agent",
                 "text": f"Example\n\n{markup}",
-                "html": True,
             }
         ]
     )

@@ -16,8 +16,8 @@
  * the recording's start, which a reader assumes, so nothing says so; a basis that
  * departs from it, the first captured event or a clock per stream, stands under the
  * point's heading. The zoom readout is the scale alone, since the image's grab
- * cursor says it drags and its accessible name says how keys pan it. Rejected
- * (2026-10-19): a muted line saying each of these at rest, and the default basis as
+ * cursor says it drags and its accessible name says how keys pan it. Rejected: a
+ * muted line saying each of these at rest, and the default basis as
  * the heading's hover title, which neither a key nor a finger reaches.
  *
  * Each fact about where the playhead stands has one label at rest: its time in the
@@ -25,7 +25,7 @@
  * checkpoint in the selected point's details. The toolbar adds the shown image's own
  * time only where it differs from the playhead's; the image's badge names the input
  * and its relation alone, and its caption only what nothing else says, the page where
- * the recording has several, a frame, and a preview. Rejected (2026-10-25): the same
+ * the recording has several, a frame, and a preview. Rejected: the same
  * time on five labels around one image, and the moment's name in the toolbar beside
  * its selected row.
  *
@@ -41,8 +41,8 @@
  * stays visible at recorded pace, or until a later input is sent, and only on a
  * capture taken from that checkpoint on. An input still to come shows only in the Input
  * lane: marking its target through the call's wait for actionability read as a
- * click that had already happened (2026-10-13, replacing a mark across the whole
- * call). It never implies a held key. At rest the badge also says whether the
+ * click that had already happened. It never implies a held key. At rest the badge
+ * also says whether the
  * shown capture comes just before, during or after the input's call; during
  * playback it names the input alone, since that relation changes faster than it
  * can be read at recorded pace. During
@@ -348,7 +348,7 @@ export class Trace extends LeafElement {
     });
   }
   // The recording, set by whoever hosts the widget: Leaf from the bound source (the
-  // registry's `data.inputs.trace.property`), or null while that source has none.
+  // registry's `inputs.trace.property`), or null while that source has none.
   static properties = { value: { attribute: false } };
 
   constructor() {

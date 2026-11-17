@@ -18,13 +18,13 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_slot_naming_two_holders_retires_under_neither_until_decided(
     browser, serve, tmp_path, monkeypatch
 ):
-    """`markup.owners` is a list, and the retired-slot selector is built from it. Written
-    `${entry["markup"]["owners"]}` the list interpolates comma-joined, so a slot naming
+    """`owners` is a list, and the retired-slot selector is built from it. Written
+    `${entry["owners"]}` the list interpolates comma-joined, so a slot naming
     two owners wrote a selector *list* whose first member was the bare owner tag: every
     instance of it read as a retired slot however the log stood, its words silenced from
     the anchor pass, while the pair that was meant matched nothing at all.
 
-    Unreachable until this layer's licensing opened `state.retired-when` past the
+    Unreachable until this layer's licensing opened `retired-when` past the
     suggestion family, which is why the shipped vocabulary — every slot of it naming
     one holder — could never have said so. The page holds an undecided trial, so
     nothing here is retired and a quote inside it must anchor like any other."""
@@ -67,12 +67,11 @@ def test_a_settled_holder_in_a_reply_joins_the_panel_wearing_its_mark(
             "revision": 1,
             "text": (
                 "Should the cache warm lazily?\n\n"
-                '<lf-trial id="rq-cache">'
+                '<lf-trial id="rq-cache">\n'
                 '<lf-current><p id="rq-now">Warm on deploy.</p></lf-current>'
                 '<lf-proposed><p id="rq-next">Warm on first request.</p></lf-proposed>'
                 "</lf-trial>"
             ),
-            "html": True,
         },
     )
     append_command(
@@ -105,13 +104,13 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
     declarations = json.loads(registry_path.read_text())
     holder = declarations["lf-trial"]
     if shadow:
-        holder.setdefault("words", {})["shadow"] = True
+        holder["shadow"] = True
     holder["attributes"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     holder["attributes"].setdefault("required", []).append("decision")
-    holder.setdefault("author", {})["example"] = holder["author"]["example"].replace(
+    holder["example"] = holder["example"].replace(
         'id="trial-cache"', 'id="trial-cache" decision="open"'
     )
-    decide = holder["state"]["verbs"]["decide"]
+    decide = holder["verbs"]["decide"]
     decide["detail"]["properties"]["decision"] = {"enum": ["open", "shelved"]}
     decide["detail"]["required"].append("decision")
     registry_path.write_text(json.dumps(declarations))

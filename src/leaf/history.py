@@ -17,12 +17,11 @@ Bookkeeping stays out: `read`, `pickup`, `receipt`, `summary`, `thread_title`,
 appearing as its own row.
 
 `history` is a served reading only a page that renders it pays for: the state
-carries it when the page's markup holds a widget whose entry declares `state.history`.
+carries it when the page's markup holds a widget whose entry declares `history`.
 """
 
 from .events import taken_back
 from .gesture_words import GestureWords
-from .registry.contract import declared_fact
 from .schema import agent_name
 from .thread_context import event_threads
 
@@ -40,18 +39,16 @@ SHOWN = THREAD_KINDS | {
 
 def wants_history(readings) -> bool:
     """Whether any of these documents (`SourceReading`s) holds a widget declaring
-    `state.history` in its own registry."""
+    `history` in its own registry."""
     return any(
-        declared_fact(reading.registry.get(record["tag"], {}), "state.history")
+        reading.registry.get(record["tag"], {}).get("history")
         for reading in readings
         for record in reading.document.lf_elements
     )
 
 
 def _report(event: dict, words: GestureWords) -> dict:
-    spec = declared_fact(words.declaration(event), "state.verbs", {}).get(
-        event["action"], {}
-    )
+    spec = words.declaration(event).get("verbs", {}).get(event["action"], {})
     record = spec.get("record") or {}
     value = event["detail"].get("value") if record else None
     return {

@@ -111,8 +111,8 @@
    grows out of the field (annotation-chrome.css) stands where the frame stood and no
    word moves. Near the window's foot the field therefore rises while room still shows
    below it. Rejected: letting the reserved row the box grows toward stand past the
-   window's edge (#3139), which kept the words still while typing but moved them at
-   Send by that row; and painting the frame as the card while it is written (#3157),
+   window's edge, which kept the words still while typing but moved them at
+   Send by that row; and painting the frame as the card while it is written,
    which left Send nothing to grow.
 
    Send hands the editor's frame to the card (`adopt`). Its next choice keeps the

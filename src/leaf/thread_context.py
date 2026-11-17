@@ -477,6 +477,74 @@ def thread_digest(
     }
 
 
+def summary_hint(thread: dict, summaries: list) -> dict | None:
+    """The range Leaf suggests summarizing in `thread`, whose summaries in force are
+    `summaries`, as `{"from", "through"}`, or None where none is worth suggesting.
+
+    It keeps the newest exchange verbatim, and is offered for the earliest run of
+    uncovered messages before it that is long enough to suggest. Completed progress
+    is not drawn, so a run folds it; pending progress is still being said, so a run
+    stops at it. The hint spans that run and every summary in force among the older
+    messages, so a summary that follows it replaces them and the thread keeps one
+    summary of its earlier discussion, rather than gaining one more beside the last
+    each time a run grows long enough. A fold of progress alone counts too. Its ends
+    are messages the thread still says, which a summary's own `from` may no longer
+    be once the user took that message back. The hint is the range admission takes
+    (`events.summary_range`), read as admission reads it, against the summaries that
+    stand once it replaces those it overlaps whole: widened over any message it
+    would leave in full above a summary. So following it is never refused, and a
+    short stretch a retired summary left above a later one doesn't stop every later
+    hint."""
+    covered = {identity for summary in summaries for identity in summary["covers"]}
+    prefix = {message["id"] for message in conversation_turns(thread)[:-2]}
+    completed = progress_completions(thread)
+    ids = [message["id"] for message in thread["msgs"]]
+    at = {identity: index for index, identity in enumerate(ids)}
+    runs = []
+    run = []
+    for message in thread["msgs"]:
+        if message["id"] in covered or (
+            message.get("ephemeral") and message["id"] not in completed
+        ):
+            if run:
+                runs.append(run)
+                run = []
+        elif message["id"] in prefix:
+            run.append(message)
+    if run:
+        runs.append(run)
+    candidate = next(
+        (
+            run
+            for run in runs
+            if len(run) >= 2
+            and (
+                len(run) >= 4
+                or sum(len(message.get("text", "")) for message in run) >= 2000
+            )
+        ),
+        [],
+    )
+    if not candidate:
+        return None
+    inside = covered | {message["id"] for message in candidate}
+    bound = max(at[identity] for identity in prefix)
+    span = [
+        message["id"]
+        for message in spoken_turns(thread)
+        if message["id"] in inside and at[message["id"]] <= bound
+    ]
+    start, end = span[0], span[-1]
+    folded = {"covers": ids[at[start] : at[end] + 1]}
+    standing = [
+        summary
+        for summary in summaries
+        if not set(summary["covers"]).intersection(folded["covers"])
+    ]
+    start, end = summary_range(thread, [*standing, folded], start, end)
+    return {"from": start, "through": end}
+
+
 def batch_threads(
     events: list, batch: list, within: dict, *, whole: bool = False
 ) -> list:
@@ -516,6 +584,8 @@ def batch_threads(
 
     `whole` carries every message and gesture, for a reader that can't page
     through the rest, as a fork can't (`forks.line_prompt`)."""
+    from leaf.delivery import pickup_receipts
+
     names = thread_names(events)
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)
@@ -554,6 +624,11 @@ def batch_threads(
     # action naming ids nothing in the envelope spells out, which is the defect
     # this whole reading exists to fix, surviving in the long-thread case.
     summaries_for = active_summaries(events, threads)
+    kept = {
+        identity
+        for receipt in pickup_receipts(events, phase="held")
+        for identity in receipt["events"]
+    }
     carried = []
     for t in named:
         if t not in threads:
@@ -566,69 +641,13 @@ def batch_threads(
         digest = thread_digest(threads[t], delivered, pin, whole=whole)
         summaries = summaries_for[t]
         digest["summaries"] = summaries
-        covered = {identity for summary in summaries for identity in summary["covers"]}
-        # Keep the newest exchange verbatim. A hint is offered for the earliest run
-        # of uncovered messages before it that is long enough to suggest. Completed
-        # progress is not drawn, so a run folds it; pending progress is still being
-        # said, so a run stops at it. The hint spans that run and every summary in
-        # force among the older messages, so a summary that follows it replaces
-        # them and the thread keeps one summary of its earlier discussion, rather
-        # than gaining one more beside the last each time a run grows long enough.
-        # A fold of progress alone counts too. Its ends are messages the thread
-        # still says, which a summary's own `from` may no longer be once the user
-        # took that message back. The hint is the range admission takes
-        # (`events.summary_range`), read as admission reads it, against the
-        # summaries that stand once it replaces those it overlaps whole: widened
-        # over any message it would leave in full above a summary. So following it
-        # is never refused, and a short stretch a retired summary left above a
-        # later one doesn't stop every later hint.
-        prefix = {message["id"] for message in conversation_turns(threads[t])[:-2]}
-        completed = progress_completions(threads[t])
-        ids = [message["id"] for message in threads[t]["msgs"]]
-        at = {identity: index for index, identity in enumerate(ids)}
-        runs = []
-        run = []
-        for message in threads[t]["msgs"]:
-            if message["id"] in covered or (
-                message.get("ephemeral") and message["id"] not in completed
-            ):
-                if run:
-                    runs.append(run)
-                    run = []
-            elif message["id"] in prefix:
-                run.append(message)
-        if run:
-            runs.append(run)
-        candidate = next(
-            (
-                run
-                for run in runs
-                if len(run) >= 2
-                and (
-                    len(run) >= 4
-                    or sum(len(message.get("text", "")) for message in run) >= 2000
-                )
-            ),
-            [],
-        )
-        if candidate:
-            inside = covered | {message["id"] for message in candidate}
-            bound = max(at[identity] for identity in prefix)
-            span = [
-                message["id"]
-                for message in spoken_turns(threads[t])
-                if message["id"] in inside and at[message["id"]] <= bound
-            ]
-            start, end = span[0], span[-1]
-            folded = {"covers": ids[at[start] : at[end] + 1]}
-            standing = [
-                summary
-                for summary in summaries
-                if not set(summary["covers"]).intersection(folded["covers"])
-            ]
-            start, end = summary_range(threads[t], [*standing, folded], start, end)
+        # A thread whose newest message in the batch Leaf kept back for a line fork
+        # is one a fork beside that line fork summarizes (`summary_fork`), so the
+        # hint is the fork's, and the session isn't asked to spend a step on it too.
+        newest = [event["id"] for event in batch if t in memberships[event["id"]]][-1]
+        if newest not in kept and (hint := summary_hint(threads[t], summaries)):
             # The range only: what the agent does with it is a `handling` clause.
-            digest["summary_hint"] = {"from": start, "through": end}
+            digest["summary_hint"] = hint
         digest["elided"]["actions"] = len(gestures.get(t, [])) - len(acted)
         digest["actions"] = acted
         carried.append(digest)

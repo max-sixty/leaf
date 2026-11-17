@@ -303,13 +303,16 @@ with `leaf page state <page> <message>` and choose a contiguous range, starting 
 ending on spoken messages rather than reactions. Leave out messages whose wording
 still matters to the current exchange. A range may take in summaries already in the
 thread, and the new summary replaces them. Take them in, as the hint does, so the
-user reads one account of the earlier discussion rather than a row of summaries, and
-write it from the originals rather than only the older summaries. No message but the
-thread's first may stay unsummarized above any summary. Leaf refuses a range that
-would leave one there, a fold without prose included, and names a wider range it
-accepts; write that summary to cover the added messages too. Summarize the range's
-decisions, reasoning, and open questions in Markdown prose, and put its outcomes in
-the page too:
+user reads one account of the earlier discussion rather than a row of summaries. No
+message but the thread's first may stay unsummarized above any summary. Leaf refuses
+a range that would leave one there, a fold without prose included, and names a wider
+range it accepts; write that summary to cover the added messages too.
+
+A summary gives the range's decisions, reasoning, and open questions in Markdown
+prose, written from the original messages rather than only from the summaries it
+replaces.
+
+Put the range's outcomes in the page too, and write the summary:
 
 ```bash
 leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --file summary.md

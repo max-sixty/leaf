@@ -4195,7 +4195,7 @@
       const after = before && boxAt(node, painted);
       // A box the page stopped drawing, as a closed editor's, has no place to move to;
       // words_watch.js judges the words it held.
-      if (!before || !after?.width || !after.height) continue;
+      if (!before || !after || !paintAt(node, painted)?.shown) continue;
       const standing = entry ? after : boxAt(node, held);
       if (!standing || !moved(standing, before)) continue;
       const from = layoutAt(node, typing.at),

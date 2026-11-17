@@ -21,7 +21,9 @@ import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
 
 /** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
- * @typedef {import("../types/contract.js").WidgetDeclaration["x-visual"]} VisualDeclaration
+ * @typedef
+ * {NonNullable<import("../types/contract.js").WidgetDeclaration["words"]>["visual"]}
+ * VisualDeclaration
  * @typedef {{read: () => Iterable<VisualPart>, reveal: ((id: string) => void) | null,
  * label: ((id: string) => string | null | undefined) | null}} Registration */
 /** @type {WeakMap<Element, Registration>} */

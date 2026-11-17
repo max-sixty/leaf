@@ -2,7 +2,7 @@
 
 A page can carry code of its own: module scripts, and page widgets below `/page/`,
 with whatever each imports. It can also place a widget whose module reads content the
-static check only proves exists: a body of data (`x-content: data`), such as a chart's
+static check only proves exists: a body of data (`content: data`), such as a chart's
 Plot expression, a diagram's Mermaid source or a diff, in a notation only the widget's
 module reads, or page media an attribute names, such as a screenshot pair whose two
 widths have to match. No static reading can say whether that code throws or whether
@@ -53,6 +53,7 @@ from leaf.revision_artifact import RevisionArtifact
 from leaf.schema import MEDIA_DIR
 from leaf.structure import SourceDocument, element_attrs, script_kind
 
+from ..registry.contract import declared_fact
 from .scheme import answer_reports, served
 
 
@@ -79,7 +80,7 @@ def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -
     implementations = artifact.implementations
     return any(
         implementations[record["tag"]]["owner"] == "page"
-        or registry[record["tag"]].get("x-content") == "data"
+        or declared_fact(registry[record["tag"]], "content") == "data"
         or any(
             isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
             for value in record["attrs"].values()

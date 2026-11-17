@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 
-from interact_support import PAGE
+from interact_support import PAGE, PAGE_GROUP
 from playwright.sync_api import expect
 
 from leaf_dev import ROOT
@@ -71,9 +71,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         "playground",
         page_dir,
     )
-    source = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-options" choose>'
-    ).replace(
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="plan-options">').replace(
         "<h2>Plan</h2>",
         '<h2>Plan</h2><lf-risk-note id="risk">Custom package works.</lf-risk-note>',
     )

@@ -358,7 +358,7 @@ def questions_page(sections: int) -> str:
         + "".join(
             f'<section id="s{g}"><h2>Section {g}</h2>'
             f'<p id="p{g}">Some words about section {g}.</p>'
-            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose>'
+            f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}">'
             f'<lf-option id="o{g}-1">One</lf-option>'
             f'<lf-option id="o{g}-2">Two</lf-option></lf-options></lf-ask></section>'
             for g in range(1, sections + 1)
@@ -768,7 +768,7 @@ PHONE_PAGE = leaf_page(
 PHONE_READING_PAGE = leaf_page(
     "phone reading",
     "<h1 id='t'>Phone</h1>"
-    + "<aside class='note'><lf-draft id='note'><pre>A draft set in the sidenote's"
+    + "<aside style='font-size: 13px'><lf-draft id='note'><pre>A draft set in the sidenote's"
     " type.</pre></lf-draft></aside>"
     + "".join(
         f"<p id='p{n}'>Paragraph {n}. "

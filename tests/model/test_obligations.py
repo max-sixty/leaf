@@ -22,7 +22,7 @@ from leaf.work_reading import WorkReading
 OPTIONS = '<lf-options id="choice" {attrs}><lf-option id="a">A</lf-option><lf-option id="b">B</lf-option></lf-options>'
 
 
-def page(attrs="choose", context=None):
+def page(attrs="", context=None):
     content = OPTIONS.format(attrs=attrs)
     if context:
         content = f'<lf-ask id="{context}"><h2>Which route?</h2>{content}</lf-ask>'
@@ -65,10 +65,10 @@ def test_a_decision_is_independent_and_survives_revision_until_restated():
     """A permission is an ordinary decision: it answers its own request, and a
     completion stamp does not ask again."""
     permit = (
-        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-options id="permit"><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options>'
     )
-    document = model.leaf_page("Permission", permit + OPTIONS.format(attrs="choose"))
+    document = model.leaf_page("Permission", permit + OPTIONS.format(attrs=""))
     approved = {
         "kind": "action",
         "id": "approval",
@@ -88,7 +88,7 @@ def test_a_decision_is_independent_and_survives_revision_until_restated():
 
     # The stamp that records the pick in the markup settles the agent's update.
     revised = document.replace("Permission", "Permission and progress").replace(
-        '<lf-option id="publish">', '<lf-option id="publish" chosen>'
+        '<lf-option id="publish">', '<lf-option id="publish" selected>'
     )
     stamp = {
         "kind": "note",
@@ -107,7 +107,7 @@ def test_a_decision_is_independent_and_survives_revision_until_restated():
     assert items["widget:permit"]["status"] == "open"
 
     # Restating asks again, so the new version carries no pick.
-    changed = document.replace('id="permit" choose', 'id="permit" choose restated')
+    changed = document.replace('id="permit"', 'id="permit" restated')
     state = model.reading(
         {1: document, 2: changed}, [approved, {**stamp, "restated": ["permit"]}]
     )
@@ -131,7 +131,7 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "author": "agent",
             "html": True,
             "text": "Choose the first route.\n\n"
-            + OPTIONS.format(attrs="choose").replace('id="', 'id="root-'),
+            + OPTIONS.format(attrs="").replace('id="', 'id="root-'),
         },
         {
             "kind": "reply",
@@ -140,7 +140,7 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
             "parent": "thread",
             "html": True,
             "text": "Choose the later route too.\n\n"
-            + OPTIONS.format(attrs="choose").replace('id="', 'id="later-'),
+            + OPTIONS.format(attrs="").replace('id="', 'id="later-'),
         },
         {
             "kind": "comment",
@@ -164,7 +164,7 @@ def test_obligations_name_their_exact_owning_message_without_conflating_thread_i
 
 
 def test_partial_and_completed_empty_values_are_distinct_from_no_answer_and_undo_reopens():
-    document = page("choose multiple")
+    document = page("multiple")
     events: list[dict] = [
         {
             "kind": "action",
@@ -188,16 +188,20 @@ def test_partial_and_completed_empty_values_are_distinct_from_no_answer_and_undo
     assert (reopened["status"], reopened["answer"]["value"]) == ("open", [])
 
 
-def test_unrequested_widget_is_absent_but_removed_predicate_withdraws_existing_request():
-    assert page_obligations(model.reading(page("")))["all"] == []
-    [withdrawn] = page_obligations(model.reading({1: page(), 2: page("")}), 2)["all"]
+def test_a_widget_never_asked_is_absent_and_one_that_stops_asking_withdraws_its_request():
+    assert page_obligations(model.reading(page("settled")))["all"] == []
+    [withdrawn] = page_obligations(model.reading({1: page(), 2: page("settled")}), 2)[
+        "all"
+    ]
     assert (withdrawn["status"], withdrawn["answer"], withdrawn["next_actor"]) == (
         "withdrawn",
         None,
         None,
     )
     assert (
-        page_obligations(model.reading({1: page(), 2: page("restated")}), 2)["all"]
+        page_obligations(model.reading({1: page(), 2: page("settled restated")}), 2)[
+            "all"
+        ]
         == []
     )
 
@@ -206,7 +210,7 @@ def test_pinned_document_uses_unrequested_intermediate_history_for_registration(
     registry = model.model_layer()
     readings = {
         index: SourceReading(
-            SourceDocument(page("choose" if index == 2 else "")), registry
+            SourceDocument(page("" if index == 2 else "settled")), registry
         )
         for index in range(1, 5)
     }
@@ -236,23 +240,27 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
     def registry(attr):
         layer = deepcopy(model.model_layer())
         layer["lf-value-ask"] = {
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "active": {"type": "boolean"},
-                "value": {"type": "boolean"},
-                "chosen": {"type": "boolean"},
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "active": {"type": "boolean"},
+                    "value": {"type": "boolean"},
+                    "chosen": {"type": "boolean"},
+                },
+                "required": ["id"],
+                "additionalProperties": False,
             },
-            "required": ["id"],
-            "additionalProperties": False,
-            "x-content": "none",
-            "x-awaits": {
-                "when": {"active": [True]},
-                "value": "set",
-                "answered": {"set": {}},
-            },
-            "x-state": {
-                "set": {"unit": "widget", "record": {"kind": "value", "attr": attr}}
+            "content": "none",
+            "state": {
+                "awaits": {
+                    "when": {"active": [True]},
+                    "value": "set",
+                    "answered": {"set": {}},
+                },
+                "verbs": {
+                    "set": {"unit": "widget", "record": {"kind": "value", "attr": attr}}
+                },
             },
         }
         return layer
@@ -322,22 +330,26 @@ def test_a_pinned_view_reads_its_frozen_threads_under_its_own_registry():
 def test_false_and_zero_are_typed_answers(value):
     registry = deepcopy(model.model_layer())
     registry["lf-value-ask"] = {
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "active": {"type": "boolean"},
-            "value": {"type": ["boolean", "integer"]},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "active": {"type": "boolean"},
+                "value": {"type": ["boolean", "integer"]},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "none",
-        "x-awaits": {
-            "when": {"active": [True]},
-            "value": "set",
-            "answered": {"set": {}},
-        },
-        "x-state": {
-            "set": {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
+        "content": "none",
+        "state": {
+            "awaits": {
+                "when": {"active": [True]},
+                "value": "set",
+                "answered": {"set": {}},
+            },
+            "verbs": {
+                "set": {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
+            },
         },
     }
     document = model.leaf_page(
@@ -377,7 +389,7 @@ def test_changed_partial_value_does_not_reuse_an_earlier_completion_event():
             "detail": {"value": ["b"]},
         },
     ]
-    state = model.reading(page("choose multiple"), events)
+    state = model.reading(page("multiple"), events)
     [item] = page_obligations(state)["all"]
     assert item["answer"] == {"value": ["b"], "event": None}
 
@@ -402,7 +414,9 @@ def answered_in_words(*later):
 def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     """A message's obligation is answered in words: it waits on the user, titled by its
     words, until their next message in its thread, which is its answer."""
-    [item] = served_obligations(model.reading(page(""), answered_in_words()))["all"]
+    [item] = served_obligations(model.reading(page("settled"), answered_in_words()))[
+        "all"
+    ]
     assert (item["id"], item["status"], item["next_actor"]) == (
         "message:asking",
         "open",
@@ -410,7 +424,7 @@ def test_a_question_in_a_reply_waits_on_the_user_until_their_next_message():
     )
     assert item["prompt"]["text"] == "Weekly or daily?"
     state = model.reading(
-        page(""),
+        page("settled"),
         answered_in_words(
             {
                 "kind": "reply",
@@ -456,7 +470,7 @@ def test_a_reopened_question_keeps_its_id_and_words_and_stands_on_the_reply():
     """A question the agent reopens waits on the user again under the id and words it
     had, so a plan step naming it keeps its title, and stands on the reopening reply:
     what they said before it no longer answers it, and their next message does."""
-    state = model.reading(page(""), reopened())
+    state = model.reading(page("settled"), reopened())
     [item] = served_obligations(state)["all"]
     assert (item["id"], item["status"], item["next_actor"]) == (
         "message:asking",
@@ -469,7 +483,7 @@ def test_a_reopened_question_keeps_its_id_and_words_and_stands_on_the_reply():
     assert lists(state)[0] == ["message:asking"]
 
     state = model.reading(
-        page(""),
+        page("settled"),
         reopened(
             {
                 "kind": "reply",
@@ -505,7 +519,7 @@ def test_a_question_asked_again_after_a_resolve_stands_until_the_next():
         ((resolved, again), "user"),
         ((resolved, again, {**resolved, "id": "second"}), None),
     ):
-        state = model.reading(page(""), answered_in_words(*events))
+        state = model.reading(page("settled"), answered_in_words(*events))
         [item] = served_obligations(state)["all"]
         assert (item["status"], item["next_actor"]) == ("open", actor)
 
@@ -541,7 +555,7 @@ def test_on_me_lists_one_row_for_each_place_the_user_answers_at():
     document = model.leaf_page(
         "Questions",
         '<p id="intro">Context.</p><section id="case"><h2>Which route?</h2>'
-        + OPTIONS.format(attrs="choose")
+        + OPTIONS.format(attrs="")
         + "</section>",
     )
 
@@ -597,10 +611,10 @@ FRAMED = model.leaf_page(
     "Questions",
     '<p id="intro">Context.</p><section id="case">'
     '<lf-ask id="frame"><h2 id="head">Two routes</h2><div id="first">'
-    + OPTIONS.format(attrs="choose")
+    + OPTIONS.format(attrs="")
     + "</div>"
-    + OPTIONS.format(attrs="choose").replace('id="', 'id="y-')
-    + OPTIONS.format(attrs="").replace('id="', 'id="shown-')
+    + OPTIONS.format(attrs="").replace('id="', 'id="y-')
+    + OPTIONS.format(attrs="settled").replace('id="', 'id="shown-')
     + "</lf-ask></section>",
 )
 
@@ -672,8 +686,7 @@ def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_re
         "author": "agent",
         "parent": "t",
         "html": True,
-        "text": "Which route?\n\n"
-        + OPTIONS.format(attrs="choose").replace('id="', 'id="t-'),
+        "text": "Which route?\n\n" + OPTIONS.format(attrs="").replace('id="', 'id="t-'),
     }
     opened = {"kind": "comment", "id": "t", "author": "user", "text": "Help me pick."}
     later = {"kind": "reply", "id": "r", "author": "user", "parent": "t", "text": "C?"}
@@ -684,7 +697,7 @@ def test_a_reply_after_a_thread_obligation_is_the_agents_turn_until_the_agent_re
         "responds": "r",
         "text": "No C, sorry.",
     }
-    document = page("")
+    document = page("settled")
     assert lists(model.reading(document, [opened, asked])) == (
         ["widget:t-choice"],
         ["update:t"],
@@ -718,26 +731,33 @@ def conditional_registry():
     """A value write can originate a request between document revisions."""
     registry = deepcopy(model.model_layer())
     registry["lf-conditional"] = {
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "phase": {"enum": ["closed", "open"]},
-            "ready": {"type": "boolean"},
-        },
-        "required": ["id", "phase"],
-        "additionalProperties": False,
-        "x-content": "none",
-        "x-state": {
-            "phase": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}},
-            "answer": {
-                "unit": "widget",
-                "detail": {"type": "object", "additionalProperties": False},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "phase": {"enum": ["closed", "open"]},
+                "ready": {"type": "boolean"},
             },
+            "required": ["id", "phase"],
+            "additionalProperties": False,
         },
-        "x-awaits": {
-            "when": {"phase": ["open"], "ready": [True]},
-            "value": "answer",
-            "answered": {"answer": {}},
+        "content": "none",
+        "state": {
+            "verbs": {
+                "phase": {
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "phase"},
+                },
+                "answer": {
+                    "unit": "widget",
+                    "detail": {"type": "object", "additionalProperties": False},
+                },
+            },
+            "awaits": {
+                "when": {"phase": ["open"], "ready": [True]},
+                "value": "answer",
+                "answered": {"answer": {}},
+            },
         },
     }
     return registry
@@ -782,7 +802,7 @@ def test_conditional_request_retains_registration_between_value_actions():
     )["all"]
     assert historical["status"] == "withdrawn"
     report_registry = deepcopy(registry)
-    report_registry["lf-conditional"]["x-state"]["phase"]["writer"] = "agent"
+    report_registry["lf-conditional"]["state"]["verbs"]["phase"]["writer"] = "agent"
     reports = [{**event, "kind": "report", "author": "agent"} for event in events]
     [reported] = page_obligations(
         model.reading(document, reports, registry=report_registry)
@@ -824,7 +844,7 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
     """
     registry = conditional_registry()
     if writer == "report":
-        registry["lf-conditional"]["x-state"]["phase"]["writer"] = "agent"
+        registry["lf-conditional"]["state"]["verbs"]["phase"]["writer"] = "agent"
     document = model.leaf_page(
         "Conditional",
         '<lf-conditional id="conditional" phase="closed" ready></lf-conditional>',
@@ -941,7 +961,7 @@ def test_historical_conditional_registration_reuses_work_and_tracks_event_change
 
 def test_settled_request_repicks_keep_the_new_user_gesture_as_provenance():
     state = model.reading(
-        {1: page(), 2: page("choose settled")},
+        {1: page(), 2: page("settled")},
         [
             {
                 "kind": "action",
@@ -1009,10 +1029,10 @@ def test_a_todo_end_names_only_a_todo():
 
 def test_repicking_a_withdrawn_request_records_provenance_without_reclosing_thread():
     registry = deepcopy(model.model_layer())
-    registry["lf-options"]["properties"]["resolves"] = {"type": "string"}
+    registry["lf-options"]["attributes"]["properties"]["resolves"] = {"type": "string"}
     documents = {
-        1: page('choose resolves="thread"'),
-        2: page('choose settled resolves="thread"'),
+        1: page('resolves="thread"'),
+        2: page('settled resolves="thread"'),
     }
     events: list[dict] = [
         {"kind": "comment", "id": "thread", "text": "Which choice resolves this?"},
@@ -1076,7 +1096,7 @@ EXHIBITS = json.loads(
 
 @pytest.mark.parametrize("case", EXHIBITS["cases"], ids=lambda case: case["id"])
 def test_a_widget_is_quoted_where_the_browser_fences_it(case):
-    """A widget strictly inside an x-exhibit is a mention, read off the holder chain by
+    """A widget strictly inside a state.exhibit is a mention, read off the holder chain by
     the rule the browser's `quoted` and its descriptors' `quoted` flag read off the
     page."""
     document = SourceDocument(model.leaf_page("Exhibits", case["markup"]))
@@ -1227,8 +1247,8 @@ def test_data_record_feedback_hands_only_its_obligation_to_the_agent():
 def test_data_record_requests_keep_conditional_registration_and_framed_arrival():
     registry = deepcopy(model.model_layer("visual-review"))
     entry = registry["lf-visual-review"]
-    entry["properties"]["choose"] = {"type": "boolean"}
-    entry["x-awaits"]["when"] = {"choose": [True]}
+    entry["attributes"]["properties"]["required"] = {"type": "boolean"}
+    entry["state"]["awaits"]["when"] = {"required": [True]}
     source = json.loads(
         (
             Path(__file__).parents[2]
@@ -1262,11 +1282,11 @@ def test_data_record_requests_keep_conditional_registration_and_framed_arrival()
         == []
     )
     [asked] = page_obligations(
-        model.reading(document("choose"), registry=registry, data=data)
+        model.reading(document("required"), registry=registry, data=data)
     )["all"]
     assert asked["prompt"]["target"] == "frame"
     state = model.reading(
-        {1: document("choose"), 2: document("")}, registry=registry, data=data
+        {1: document("required"), 2: document("")}, registry=registry, data=data
     )
     [withdrawn] = page_obligations(state, 2)["all"]
     assert withdrawn["id"] == asked["id"]
@@ -1280,11 +1300,11 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
 
     registry = deepcopy(model.model_layer("visual-review"))
     entry = registry["lf-visual-review"]
-    entry["x-awaits"]["records"]["input"] = "missing"
-    with pytest.raises(RegistryError, match=r"x-awaits\.records"):
+    entry["state"]["awaits"]["records"]["input"] = "missing"
+    with pytest.raises(RegistryError, match=r"state.awaits\.records"):
         validate_registry(registry, "test")
-    entry["x-awaits"]["records"]["input"] = "run"
-    entry["x-awaits"]["records"]["label"] = "missing"
+    entry["state"]["awaits"]["records"]["input"] = "run"
+    entry["state"]["awaits"]["records"]["label"] = "missing"
     source = json.loads(
         (
             Path(__file__).parents[2]
@@ -1294,8 +1314,8 @@ def test_record_obligations_validate_input_and_label_at_their_boundaries():
     value_2 = payload_error("run", "visual-run", source, registry)
     assert value_2 is not None
     assert "obligation label 'missing'" in value_2
-    entry["x-awaits"]["records"]["label"] = "title"
+    entry["state"]["awaits"]["records"]["label"] = "title"
     assert payload_error("run", "visual-run", source, registry) is None
-    entry["x-awaits"]["answered"]["review"]["detail"] = {"approved": "yes"}
+    entry["state"]["awaits"]["answered"]["review"]["detail"] = {"approved": "yes"}
     with pytest.raises(RegistryError, match="detail condition"):
         validate_registry(registry, "test")

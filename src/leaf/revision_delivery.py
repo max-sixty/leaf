@@ -43,8 +43,13 @@ import turbohtml
 
 from .layer import DOCUMENT_LAYER_ORDER
 from .passages import markdown_markup
-from .registry.contract import exhibits, is_element_name
-from .registry.kernel import authored_inert, kernel_marks
+from .registry.contract import (
+    authored_inert,
+    declared_fact,
+    holds_for,
+    is_element_name,
+)
+from .registry.kernel import kernel_marks
 from .revision_artifact import (
     Resource,
     RevisionArtifact,
@@ -405,9 +410,9 @@ def mark_declared(
     neither is marked.
 
     A mark is declared by the element's tag, so a selector idiom declares none. An
-    element whose written `<pre>` is Markdown, as `x-text-format` or `x-prepaint`
-    declares, is painted with its rendering, so the page first paints the words, at
-    the size, its module will show.
+    element whose written `<pre>` is Markdown, as `words.text-format` or
+    `paint.prepaint` declares, is painted with its rendering, so the page first paints
+    the words, at the size, its module will show.
     """
     tree = turbohtml.parse(source, scripting=True, source_locations=True)
     index = source_index(source)
@@ -426,12 +431,14 @@ def mark_declared(
         marks = {}
         for key, mark in kernel_marks().items():
             declared = (
-                exhibits(attrs, declaration)
-                if key == "x-exhibit"
-                else declaration.get(key)
+                holds_for(attrs, declared_fact(declaration, key))
+                if key in ("state.exhibit", "paint.flow")
+                else declared_fact(declaration, key)
             )
             authored = mark.get("authored")
-            inert = authored and authored_inert(key, declaration, content=content)
+            inert = authored and authored_inert(
+                key, declaration, attrs, content=content
+            )
             # A flow takes no width of its own, whatever its markup says.
             if inert == "flow":
                 continue
@@ -443,10 +450,11 @@ def mark_declared(
                 )
             else:
                 continue
-            if key == "x-views":
+            if key == "paint.views":
                 # Only the browser evaluates view selectors, including before modules.
-                marks["data-lf-view-members"] = declaration[key]["members"]
-                value = "parts" if declaration[key].get("parts") else ""
+                views = declaration["paint"]["views"]
+                marks["data-lf-view-members"] = views["members"]
+                value = "parts" if views.get("parts") else ""
             marks[mark["paint"]] = value
         sizes = [
             size
@@ -463,9 +471,9 @@ def mark_declared(
         if marks:
             edits.append((attribute_insertion(element, index), _attributes(marks)))
         # Declared Markdown words, and a written file whose notation an attribute names
-        # (`x-prepaint`), first paint as the rendering their module will draw.
-        words = declaration.get("x-text-format") == "markdown"
-        prepaint = declaration.get("x-prepaint")
+        # (`paint.prepaint`), first paint as the rendering their module will draw.
+        words = declared_fact(declaration, "words.text-format") == "markdown"
+        prepaint = declared_fact(declaration, "paint.prepaint")
         file = bool(prepaint) and attrs.get(prepaint) == "markdown"
         text = pre_body(element) if words or file else None
         if text is not None:

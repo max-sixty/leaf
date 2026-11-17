@@ -271,9 +271,17 @@ def message_check(page_dir: Path, kind: str, markup: str) -> None:
     from leaf.findings import Rejected
     from leaf.registry.storage import read_page_registry
     from leaf.revision_artifact import ArtifactError, capture_artifact
+    from leaf.structure import SourceDocument
+    from leaf.validation.markup import structure_errors
 
     from .page_code import message_page, places_judged_widget
 
+    if structure_errors(SourceDocument(markup, fragment=True)):
+        # Markup the HTML parser repairs, such as a widget a `<pre>` closed along
+        # with the paragraph Markdown drew around it, is the markup gate's to
+        # refuse, showing the HTML Markdown drew, where a run would report only
+        # the widget the repair emptied.
+        return
     layer = read_page_registry(page_dir)
     if layer is None:
         return

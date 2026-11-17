@@ -72,8 +72,7 @@ JavaScript is outside the CSS inventory. The report's `words` counts the prose a
 sees on arrival (`shown`) apart from that inside a closed `<details>` or under `hidden`
 (`collapsed`), so collapsed supporting material, such as a quoted source, adds nothing
 to what the reader faces. It counts only blocks of a sentence or more, so a table of
-short cells, code and pictures cost nothing, and `longest_run` is the longest stretch
-of prose with nothing else to break it, where the page reads as a wall of text.
+short cells and code cost nothing.
 
 **About this page** in the Leaf menu shows page details, the displayed revision's inventory and a
 passive reading of the current tab. **Copy diagnostics** copies the structured report,

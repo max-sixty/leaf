@@ -4601,7 +4601,7 @@ def test_news_under_the_open_menu_moves_nothing_in_it(browser, serve):
         ".map(n => { const r = n.getBoundingClientRect(); return [r.top, r.height]; })"
     )
     before = page.evaluate(boxes)
-    page.wait_for_timeout(600)  # Let Chrome's recent-input grace expire before news.
+    page.wait_for_function("() => !lfInputRenderingOpen()")
     for line in (
         "Drafting the rollout plan for the schema migration across every cluster",
         "Checking",

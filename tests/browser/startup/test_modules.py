@@ -154,7 +154,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     would satisfy every refusal below and
     say nothing about which of them holds.
 
-    The shadow rules follow the same line: `/shadow.css` is what a `words.shadow` widget
+    The shadow rules follow the same line: `/shadow.css` is what a `shadow` widget
     renders under, so a page with no such widget never asks for it, and the theme
     arrives once, through the document's `<link>`.
     """

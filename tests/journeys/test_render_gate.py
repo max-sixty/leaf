@@ -1036,9 +1036,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
             "additionalProperties": False,
         },
         "content": "markup",
-        "author": {
-            "example": "<lf-piece>Example</lf-piece>",
-        },
+        "example": "<lf-piece>Example</lf-piece>",
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     modules = {
@@ -1714,15 +1712,13 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
         "lf-callout"
     ]
     callout["attributes"]["properties"]["parts"] = {"type": "string", "minLength": 1}
-    callout.setdefault("words", {})["visual"] = {"parts": "parts"}
+    callout["visual"] = {"parts": "parts"}
     prefixed = prefixed_visual_layer("out", "inn")["lf-test-visual"]
     layer = {
         **GENERIC_VISUAL_LAYER,
         "lf-test-visual-prefixed": {
             **prefixed,
-            "author": {
-                "example": '<lf-test-visual-prefixed id="example"></lf-test-visual-prefixed>'
-            },
+            "example": '<lf-test-visual-prefixed id="example"></lf-test-visual-prefixed>',
         },
         "lf-callout": callout,
     }
@@ -1762,7 +1758,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     """Bug-backs for the module contracts the gate enforces, one project widget each,
     on one page, beside the DevTools issues the page owns.
 
-    `lf-callout` declares words.verbatim while its module renders other words in the
+    `lf-callout` declares `verbatim` while its module renders other words in the
     body's stead (quotes would strand on words the screen no longer shows).
     `author-card` is the clean control beside it: a page script's own custom element
     with a shadow root it attached itself, which the gate accepts, since the passage
@@ -1773,7 +1769,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     The word pass stops at a shadow boundary on purpose — which widgets the page holds
     is the document's question — so an element a module stages into its own tree keeps
     its declarations and gets no pass, and the failure is silence: no error, no missing
-    box. It stages a declared lf-reading whose declaration names a words.says word, and
+    box. It stages a declared lf-reading whose declaration names a `says` word, and
     the gate is asked for it. A staged element rather than a module that wipes its own
     body after the pass has run, which is the same failure by a route that races the
     module's own render, and a bug-back that has to win a race is a bug-back that
@@ -1795,11 +1791,11 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     declarations = json.loads(registry_path.read_text())
     for tag in ("lf-stager", "lf-veil"):
         # Each module shows a tree of its own rather than the body, and declares it.
-        declarations[tag]["words"].pop("verbatim")
-        declarations[tag].setdefault("words", {})["shadow"] = True
+        declarations[tag].pop("verbatim")
+        declarations[tag]["shadow"] = True
     veil = declarations["lf-veil"]
     veil["attributes"]["properties"]["label"] = {"type": "string"}
-    veil.setdefault("words", {})["says"] = {"label": "before"}
+    veil["says"] = {"label": "before"}
     registry_path.write_text(json.dumps(declarations, indent=2))
     modules = {
         "lf-stager": (

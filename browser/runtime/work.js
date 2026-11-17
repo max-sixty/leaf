@@ -117,7 +117,7 @@ export function workAncestor(element, role) {
 /** @param {Element} element @param {GoalRole | WorkerRole} role */
 function stateVerb(element, role) {
   const stamped = registry.$states[element.localName];
-  const matches = Object.entries(declarationFor(element)?.state?.verbs ?? {}).flatMap(
+  const matches = Object.entries(declarationFor(element)?.verbs ?? {}).flatMap(
     ([verb, spec]) => {
       const state = stamped?.[verb];
       return spec.unit === "widget" &&

@@ -22,7 +22,7 @@ customElements.define(
   "lf-pr-brief",
   class extends LeafElement {
     // The pull request, set by whoever hosts the widget: Leaf from the bound source
-    // (the registry's `data.inputs.request.property`), or null while that source has
+    // (the registry's `inputs.request.property`), or null while that source has
     // none.
     static properties = { value: { attribute: false } };
 

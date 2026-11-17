@@ -100,7 +100,7 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
 
 @pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
 def test_a_reference_names_any_element_the_page_holds(page_dir, target):
-    """A `markup.refers` attribute takes the id of whatever element it names, a section
+    """A `refers` attribute takes the id of whatever element it names, a section
     whose id a widget couldn't carry included, and `page check` refuses only a value
     naming no element."""
     (page_dir / "index.html").write_text(
@@ -282,14 +282,10 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
     at a part's depth under any other child names none."""
     registry = {
         "lf-parts": {
-            "paint": {
-                "views": {"members": "lf-part", "parts": True},
-            },
+            "views": {"members": "lf-part", "parts": True},
         },
         "lf-tabs": {
-            "paint": {
-                "views": {"members": "lf-tab"},
-            },
+            "views": {"members": "lf-tab"},
         },
     }
     parts = structure_model.SourceDocument(

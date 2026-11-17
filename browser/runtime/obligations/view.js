@@ -26,7 +26,7 @@
    on every clipped edge keeps its scroll position. DOM measurements and renderer
    nodes never enter the obligation record.
 
-   Blanket actions come from state.awaits.all and invoke each source's declared decision
+   Blanket actions come from `awaits.all` and invoke each source's declared decision
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
@@ -190,7 +190,7 @@ export function createObligationView({
     },
   });
 
-  // One blanket answer per outcome a widget declares one for (state.awaits.all), each
+  // One blanket answer per outcome a widget declares one for (`awaits.all`), each
   // deciding its obligations one at a time so the log records what was consented to rather than
   // one blanket yes — accepting the rest after rejecting one stays honest. The widget's
   // module exposes a method named for its deciding verb that takes the outcome; the
@@ -202,8 +202,8 @@ export function createObligationView({
   // message declares it under its own publication. Which outcomes exist is what the
   // obligations' own declarations answer, so core names none.
   function buildBulkAnswers() {
-    for (const tag of tagsDeclaring((entry) => entry.state?.awaits?.all)) {
-      const outcome = registry[tag].state?.awaits.all;
+    for (const tag of tagsDeclaring((entry) => entry.awaits?.all)) {
+      const outcome = registry[tag].awaits.all;
       if (bulkAnswers.has(outcome)) continue;
       const label = capitalized(outcome);
       bulkAnswers.set(outcome, label);

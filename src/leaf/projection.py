@@ -21,7 +21,6 @@ from leaf.passages import (
 )
 from leaf.registry.contract import (
     decides,
-    declared_fact,
     event_spec,
     retirement_slots,
     same_state_definition,
@@ -103,11 +102,7 @@ def enclosing_slot(rec: dict, registry: dict):
     for node in (rec, *enclosing_widgets(rec)):
         entry = registry.get(node["tag"]) or {}
         holder = node["holder"]
-        if (
-            declared_fact(entry, "state.retired-when")
-            and holder
-            and holder["tag"] in entry["markup"]["owners"]
-        ):
+        if entry.get("retired-when") and holder and holder["tag"] in entry["owners"]:
             return node, holder
     return None
 
@@ -140,7 +135,7 @@ def retirement_holders(parser: SourceDocument, registry: dict) -> list:
         slot, holder = pair
         held = holders.get(holder["attrs"].get("id"))
         if held is not None:
-            held["retires"][registry[slot["tag"]]["state"]["retired-when"]].add(wid)
+            held["retires"][registry[slot["tag"]]["retired-when"]].add(wid)
     return list(holders.values())
 
 
@@ -473,9 +468,7 @@ def projected_action_holders(
             target = byid.get(event["detail"]["value"])
             if target:
                 holder = target if target["tag"] in registry else target.get("holder")
-                permitted = declared_fact(
-                    registry.get(unit_rec["tag"]) or {}, "markup.owners", []
-                )
+                permitted = (registry.get(unit_rec["tag"]) or {}).get("owners", [])
                 if holder and holder["tag"] in permitted:
                     holders[unit] = holder
     return holders
@@ -833,7 +826,7 @@ def page_reading(
 
 def rewritten_bodies(actions: dict) -> dict:
     """id → (verb, text): the user's current rewrite of each element whose
-    element declaration records a verb as the body (state.verbs record kind "body"), as
+    element declaration records a verb as the body (`verbs` record kind "body"), as
     replay leaves it. The action projection is read here for the one record kind
     whose state is words rather than markup, so the passage reading can hold
     those words where the authored body was."""
@@ -912,7 +905,7 @@ def retirement_outcomes(actions: dict) -> dict:
     """widget id → the outcome its deciding action in force names.
 
     The registry explicitly marks the deciding verb (`decides`), whose `outcome`
-    values a member's `state.retired-when` and the verb's own `withdraws` name, so
+    values a member's `retired-when` and the verb's own `withdraws` name, so
     nothing here knows a widget or verb by name."""
     return {
         widget: e["detail"]["outcome"]

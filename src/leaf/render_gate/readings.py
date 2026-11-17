@@ -22,7 +22,6 @@ from leaf.projection import (
 )
 from leaf.registry.contract import (
     MODULES,
-    declared_fact,
     is_element_name,
     retirement_slots,
 )
@@ -307,7 +306,7 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
-    # words.verbatim promises the words the page renders. Source provenance was
+    # `verbatim` promises the words the page renders. Source provenance was
     # captured before upgrade, so anonymous page and frozen-message owners have the
     # same coordinate as the file reading without acquiring authored ids. Its file
     # side is the settled projection, so a page that never applied that projection is
@@ -434,8 +433,7 @@ def open_widgets(registry: dict) -> list[str]:
     return [
         tag
         for tag, entry in registry.items()
-        if is_element_name(tag)
-        and declared_fact(entry, "content") in ("markup", "members")
+        if is_element_name(tag) and entry.get("content") in ("markup", "members")
     ]
 
 

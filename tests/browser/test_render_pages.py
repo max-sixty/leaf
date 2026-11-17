@@ -642,23 +642,19 @@ def test_a_widget_declaring_it_renders_a_picture_exposes_a_comment_target(
 ):
     """A rendering has no text of the page's in it to select, so an explicit Comment
     gesture anchors on the whole element. Which widgets those are is theirs to declare
-    (words.visual): the runtime names none of them, so a widget added to the vocabulary
+    (`visual`): the runtime names none of them, so a widget added to the vocabulary
     exposes the target on the strength of its entry. This rules out a consumer that
     knows one
     widget by name and silently misses the next."""
     url = serve(PICTURE_PAGE)
     registry = load_registry(serve.page_dir)
-    assert registry["lf-diagram"]["words"]["visual"], (
-        "this test needs the shipped declaration"
-    )
+    assert registry["lf-diagram"]["visual"], "this test needs the shipped declaration"
     declare_on_page(
         serve.page_dir,
         # A widget core has never heard of.
         lambda registry: registry["lf-code"].update(
             {
-                "words": {
-                    "visual": "whole",
-                },
+                "visual": "whole",
             }
         ),
     )
@@ -2237,7 +2233,7 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
         # A board's columns are as wide as what they hold, a diff's lines are as long as
         # its files', and prose is set to a measure, so a page carrying all three used
         # to be a cramped board or a page widened past its own measure for one exhibit.
-        # paint.space declares the capacity a widget needs, and the theme spends the
+        # `space` declares the capacity a widget needs, and the theme spends the
         # room the layout measured, so each exhibit grows and the prose does not move.
         # The board, a surface, takes all the room; the diff, slightly wider than the
         # column, starts at the prose's edge and stops at the shared cap.
@@ -2592,7 +2588,7 @@ def test_a_wide_widget_in_a_reply_takes_the_panels_room(browser, serve):
     420px panel, and the explanation would be the half of it the panel could show.
 
     The mark that would do that is the one deliberately left out of the message render
-    (paint.space, the half of markDeclared the page keeps to itself). Nothing about a
+    (`space`, the half of markDeclared the page keeps to itself). Nothing about a
     message says so, which is why this asks: the widget is in the panel, and the panel's
     width is
     what bounds it."""
@@ -3361,7 +3357,7 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
     included. It outranked them there, which set lf-file-tree's rows, buttons Trees
     dresses in mono, in the sans."""
     declaration = element_declaration("lf-own-controls", upgrade=True)
-    declaration.setdefault("words", {})["shadow"] = True
+    declaration["shadow"] = True
     page = open_page(
         browser,
         serve(

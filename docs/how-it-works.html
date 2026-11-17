@@ -513,7 +513,7 @@ leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updat
 leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
-                registry entry declares <code>state.awaits</code>, creates an
+                registry entry declares <code>awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
                 answer, and lifecycle; the group the author names around it, with
                 <code>role="group"</code> and <code>aria-labelledby</code>, supplies the
@@ -857,8 +857,7 @@ flowchart TD
                     When the agent runs <code>leaf page instructions</code>, which
                     prints each package's <code>instructions/</code> files by audience.
                     Each <code>--use</code> adds that entry's
-                    <code>author.instructions</code> and its data contracts'
-                    instructions.
+                    <code>instructions</code> and its data contracts' instructions.
                   </td>
                 </tr>
                 <tr>
@@ -1845,7 +1844,7 @@ flowchart TD
                   <td>Verb</td>
                   <td>
                     A fold <code>unit</code> and a recorded effect or custom payload
-                    schema, declared under <code>state.verbs</code>
+                    schema, declared under <code>verbs</code>
                   </td>
                   <td>Package, in <code>registry.json</code></td>
                 </tr>
@@ -1897,28 +1896,26 @@ flowchart TD
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
-"state": {
-  "verbs": {
-    "choose": {
-      "unit": "widget",
-      "record": {"kind": "attribute", "attr": "selected"}
-    },
-    "add": {
-      "detail": {"type": "object",
-                 "properties": {"option": {"type": "string"},
-                                "text": {"type": "string", "minLength": 1}},
-                 "required": ["option", "text"], "additionalProperties": false},
-      "unit": "option",
-      "creates": {"child": "lf-option", "words": "text"}
-    },
-    "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
+"verbs": {
+  "choose": {
+    "unit": "widget",
+    "record": {"kind": "attribute", "attr": "selected"}
   },
-  "awaits": {
-    "value": "choose",
-    "answered": {
-      "choose": {"when": {"multiple": [false]}},
-      "answer": {"when": {"multiple": [true]}}
-    }
+  "add": {
+    "detail": {"type": "object",
+               "properties": {"option": {"type": "string"},
+                              "text": {"type": "string", "minLength": 1}},
+               "required": ["option", "text"], "additionalProperties": false},
+    "unit": "option",
+    "creates": {"child": "lf-option", "words": "text"}
+  },
+  "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
+},
+"awaits": {
+  "value": "choose",
+  "answered": {
+    "choose": {"when": {"multiple": [false]}},
+    "answer": {"when": {"multiple": [true]}}
   }
 }
 </code></pre>
@@ -2218,14 +2215,13 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares verbs (<code>state.verbs</code>),
-                <code>state.awaits.answered</code>, <code>creates</code>, and
-                agent-written verbs.
+                >: how a package declares <code>verbs</code>,
+                <code>awaits.answered</code>, <code>creates</code>, and agent-written
+                verbs.
               </li>
               <li>
-                <a href="/extending/#state.verbs">Registry keys</a>: the exact
-                definition of <code>state.verbs</code>, <code>state.awaits</code>, and
-                the keys beside them.
+                <a href="/extending/#verbs">Registry keys</a>: the exact definition of
+                <code>verbs</code>, <code>awaits</code>, and the keys beside them.
               </li>
               <li>
                 <a
@@ -2787,7 +2783,7 @@ flowchart TD
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
               obligation is answered by the actions its
-              <code>state.awaits</code> declaration names, such as a pick, or the Done a
+              <code>awaits</code> declaration names, such as a pick, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there or a settling reaction, such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and ends a thread

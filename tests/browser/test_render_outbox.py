@@ -1417,12 +1417,12 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     outer = declarations["lf-outer-board"]
     outer["attributes"]["properties"]["restated"] = {"type": "boolean"}
     outer["content"] = "members"
-    outer.setdefault("author", {})["example"] = (
+    outer["example"] = (
         '<lf-outer-board id="x-outer"><lf-column id="x-col" label="Todo">'
         '<lf-card id="x-card"><strong>Card</strong></lf-card></lf-column>'
         "</lf-outer-board>"
     )
-    outer.setdefault("state", {})["verbs"] = {
+    outer["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -1433,7 +1433,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     }
     standard = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())
     declarations["lf-column"] = standard["lf-column"]
-    declarations["lf-column"]["markup"]["owners"].append("lf-outer-board")
+    declarations["lf-column"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
         """import { LeafElement } from "/runtime/widget-api.js";
@@ -2852,9 +2852,7 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
                     "additionalProperties": False,
                 },
                 "content": "markup",
-                "author": {
-                    "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
-                },
+                "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
             }
         },
         layer_widgets={

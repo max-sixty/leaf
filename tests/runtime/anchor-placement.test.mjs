@@ -63,9 +63,7 @@ const stage = (host) => shadowStage(host, [...host.childNodes]);
 test("placement stands where a fresh resolution does, after every change", async () => {
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: "placement-seeded" },
   });

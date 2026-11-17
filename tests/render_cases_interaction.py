@@ -1160,23 +1160,23 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
         "pattern": "^[0-9]+$",
     }
     declarations["lf-drift"]["attributes"].setdefault("required", []).append("offset")
-    declarations["lf-drift"]["author"]["example"] = declarations["lf-drift"]["author"][
-        "example"
-    ].replace('id="drift"', 'id="drift" offset="120"')
+    declarations["lf-drift"]["example"] = declarations["lf-drift"]["example"].replace(
+        'id="drift"', 'id="drift" offset="120"'
+    )
     declarations["lf-drift"]["attributes"]["properties"]["deep"] = {"type": "boolean"}
     declarations["lf-drift"]["attributes"]["properties"]["bare"] = {"type": "boolean"}
     deep = deep or bare
     if deep:
         # The body is rendered from the widget's own root, so the entry stops
         # claiming the user gets it verbatim from the markup.
-        declarations["lf-drift"].setdefault("words", {})["shadow"] = True
-        del declarations["lf-drift"]["words"]["verbatim"]
+        declarations["lf-drift"]["shadow"] = True
+        del declarations["lf-drift"]["verbatim"]
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
     declarations["lf-drift"]["attributes"]["properties"]["restated"] = {
         "type": "boolean"
     }
-    declarations["lf-drift"].setdefault("state", {})["verbs"] = {
+    declarations["lf-drift"]["verbs"] = {
         "settle": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "offset"},
@@ -1325,27 +1325,23 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
         "additionalProperties": False,
     },
     "content": "markup",
-    "state": {
-        "verbs": {
-            "settle": {
-                "detail": {
-                    "type": "object",
-                    "properties": {"answer": {"type": "string", "enum": ["yes", "no"]}},
-                    "required": ["answer"],
-                    "additionalProperties": False,
-                },
-                "unit": "widget",
-            }
-        },
-        "awaits": {
-            "value": "settle",
-            "when": {"asks": [True]},
-            "answered": {"settle": {}},
-        },
+    "verbs": {
+        "settle": {
+            "detail": {
+                "type": "object",
+                "properties": {"answer": {"type": "string", "enum": ["yes", "no"]}},
+                "required": ["answer"],
+                "additionalProperties": False,
+            },
+            "unit": "widget",
+        }
     },
-    "author": {
-        "example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
+    "awaits": {
+        "value": "settle",
+        "when": {"asks": [True]},
+        "answered": {"settle": {}},
     },
+    "example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }
 
 

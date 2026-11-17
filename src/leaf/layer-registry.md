@@ -116,7 +116,7 @@ Every composition, `page init`'s layer and a page's own declarations over it, wr
 `page/widgets/<tag>.js`, which wins. A tag with a module is an upgraded widget, and no
 declaration says so. It then stamps the facts the browser reads rather than derives
 (`registry/layer.stamp_composition`), overwriting any a layer declared: `$decisions`,
-each widget's deciding verb (`state.verbs`) and the member tags each of its outcomes
+each widget's deciding verb (`verbs`) and the member tags each of its outcomes
 retires, and `$states`, each verb's writer and the operation definition an admitted
 event records. It also completes the attribute schemas validation reads: an attribute
 naming one of the layer's words, such as a tone, takes the layer's list as its `enum`,

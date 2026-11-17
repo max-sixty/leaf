@@ -381,7 +381,7 @@ const keptElements = new Map();
 // The markup a drawing that doesn't hold an authored message draws in its place
 // (`authoredHolders`): the message less what a second copy would duplicate, each id
 // and each custom element, which a module upgrades once. A widget set among words
-// (`words.inline`) leaves its words, and any other goes whole, as a choice the drawing
+// (`inline`) leaves its words, and any other goes whole, as a choice the drawing
 // asks in its own controls does. The innermost group the author declares round a widget
 // that asks, `role="group"` or a `<fieldset>` (`obligations.widget_groups` in Python),
 // is its question, so it goes whole with it rather than leaving the question's words
@@ -393,12 +393,12 @@ function heldElsewhere(message) {
   copy.content.append(message.cloneNode(true));
   for (const element of copy.content.querySelectorAll("*")) {
     const declaration = declarationFor(element);
-    if (declaration?.state?.awaits && !declaration.words?.inline)
+    if (declaration?.awaits && !declaration.inline)
       element.parentElement?.closest('[role~="group"], fieldset')?.remove();
   }
   for (const element of copy.content.querySelectorAll("*"))
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declarationFor(element)?.words?.inline)
+    else if (declarationFor(element)?.inline)
       element.replaceWith(...element.childNodes);
     else element.remove();
   return copy.innerHTML;

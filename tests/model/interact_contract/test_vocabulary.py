@@ -102,7 +102,7 @@ def test_a_composed_vocabulary_carries_its_decisions(page_dir):
         }
     }
     member = deepcopy(layer["lf-old"])
-    member["state"]["retired-when"] = "reject"
+    member["retired-when"] = "reject"
     layer_3 = registry_storage.layer_record(page_dir)
     assert layer_3 is not None
     widget_paths = set(registry_storage.layer_widgets(layer_3, page_dir))
@@ -130,7 +130,7 @@ def test_two_layers_each_add_a_member_one_decision_retires(order):
     registry = deepcopy(model_layer())
     for tag in order:
         member = deepcopy(registry["lf-old"])
-        member["state"]["retired-when"] = outcome[tag]
+        member["retired-when"] = outcome[tag]
         registry_layer.merge_layer_declarations(registry, {tag: member})
     registry_validation.validate_registry(registry, "two layers")
     registry_layer.stamp_composition(registry)
@@ -212,7 +212,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
     declaration["attributes"]["properties"] |= {
         name: {"type": "boolean"} for name in ("overruled", "restated")
     } | {"reading": {"type": "string"}}
-    declaration.setdefault("state", {})["verbs"] = {
+    declaration["verbs"] = {
         "set": {
             "unit": "widget",
             "detail": {"type": "object", "additionalProperties": False},
@@ -235,7 +235,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
         verb: {
             "writer": writer,
             "definition": registry_contract.state_definition(
-                "lf-local", declaration, declaration["state"]["verbs"][verb]
+                "lf-local", declaration, declaration["verbs"][verb]
             ),
         }
         for verb, writer in (("set", "user"), ("measure", "agent"))
@@ -267,9 +267,7 @@ def test_a_composed_vocabulary_carries_each_verbs_writer_and_definition(page_dir
                 {
                     "lf-local": {
                         **element_declaration("lf-local"),
-                        "author": {
-                            "example": '<lf-local id="bad" unknown="bad">Example</lf-local>'
-                        },
+                        "example": '<lf-local id="bad" unknown="bad">Example</lf-local>',
                     }
                 }
             ),
@@ -310,9 +308,7 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
                 "lf-beta": _faulty(
                     "lf-beta",
                     **{
-                        "words": {
-                            "says": ["label"],
-                        },
+                        "says": ["label"],
                     },
                 ),
                 "$data": {
@@ -331,18 +327,14 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
                 "lf-beta": _faulty(
                     "lf-beta",
                     **{
-                        "words": {
-                            "says": {"label": "before"},
-                        },
+                        "says": {"label": "before"},
                     },
                 ),
                 "lf-eps": _faulty(
                     "lf-eps",
                     **{
                         "content": "empty",
-                        "markup": {
-                            "reading-role": "pane",
-                        },
+                        "reading-role": "pane",
                     },
                 ),
                 # What only a module provides, with no module for the tag.
@@ -360,17 +352,13 @@ def _faulty(tag: str, *, upgrade: bool = False, **keys) -> dict:
                 "lf-gamma": _faulty(
                     "lf-gamma",
                     **{
-                        "author": {
-                            "example": '<lf-gamma id="g" tone="x">G</lf-gamma>',
-                        },
+                        "example": '<lf-gamma id="g" tone="x">G</lf-gamma>',
                     },
                 ),
                 "lf-delta": _faulty(
                     "lf-delta",
                     **{
-                        "author": {
-                            "example": '<lf-delta id="d" tone="x">D</lf-delta>',
-                        },
+                        "example": '<lf-delta id="d" tone="x">D</lf-delta>',
                     },
                 ),
             },
@@ -443,12 +431,12 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     def publish_choice(needs_attention):
         pick = _stateful_page_declaration(page_dir, "lf-pick")
         if needs_attention and declaration == "obligation":
-            pick.setdefault("state", {})["awaits"] = {
+            pick["awaits"] = {
                 "value": "first",
                 "answered": {"first": {}},
             }
         elif needs_attention:
-            pick["state"]["verbs"]["first"]["attention"] = True
+            pick["verbs"]["first"]["attention"] = True
         write_json(page_dir / "page" / "registry.json", {"lf-pick": pick})
         (page_dir / "index.html").write_text(
             model.leaf_page(
@@ -614,7 +602,7 @@ def test_candidate_vocabulary_changes_leave_old_actions_in_captured_history(page
     )
     assert next(iter(projected.projection.desired.values()))[0]["id"] == first["id"]
 
-    declaration["state"]["verbs"]["second"] = declaration["state"]["verbs"].pop("first")
+    declaration["verbs"]["second"] = declaration["verbs"].pop("first")
     authored.write_text(json.dumps({"lf-local": declaration}))
     refused = revisioning_model.activate_source(page_dir)
 
@@ -818,7 +806,7 @@ def test_revised_state_definitions_keep_original_history_and_admit_new_typed_sta
     assert original["meaning"]["state"]["record"] == {"kind": "value", "attr": "value"}
     next_value = "new"
     if change == "slot":
-        declaration["state"]["verbs"]["first"]["record"]["attr"] = "target"
+        declaration["verbs"]["first"]["record"]["attr"] = "target"
     elif change == "enum":
         declaration["attributes"]["properties"]["value"]["enum"] = ["new"]
     elif change == "broaden":

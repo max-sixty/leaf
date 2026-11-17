@@ -11,9 +11,9 @@
   /** @type {{route: string, probes: Record<string, (...args: unknown[]) => unknown> | null, error: {reason: unknown} | null} | null} */
   let loading = null;
 
-  // The block size each element whose tag declares paint.height first shows before its
+  // The block size each element whose tag declares `height` first shows before its
   // module marks it drawn (`lf-rendered`), read as the page arrives without holding it.
-  // Delivery paints paint.height as `data-lf-height` on each such element, empty where
+  // Delivery paints `height` as `data-lf-height` on each such element, empty where
   // the page states no height, so every one arrives with the parse. A ResizeObserver
   // delivers a box after the layout of the frame that paints it. An element first shown
   // already drawn gets no reading, since it never showed a box before drawing.

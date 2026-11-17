@@ -31,9 +31,7 @@ let generation = 0;
 const freshVocabulary = () =>
   Object.assign(registry, {
     "lf-staged": {
-      words: {
-        shadow: true,
-      },
+      shadow: true,
     },
     $layer: { generation: `reading-pieces-${(generation += 1)}` },
   });

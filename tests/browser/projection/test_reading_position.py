@@ -437,7 +437,7 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     add_test_widget(package, "lf-shadow-reading", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-shadow-reading"].setdefault("words", {})["shadow"] = True
+    declarations["lf-shadow-reading"]["shadow"] = True
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
         """import { once, shadowStage } from "/runtime/widget-api.js";
@@ -846,11 +846,9 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
             "additionalProperties": False,
         },
         "content": "markup",
-        "author": {
-            "example": '<lf-owned-scroll id="example">'
-            "<div data-scroll-body><button>Control</button></div>"
-            "</lf-owned-scroll>",
-        },
+        "example": '<lf-owned-scroll id="example">'
+        "<div data-scroll-body><button>Control</button></div>"
+        "</lf-owned-scroll>",
     }
     module = """
 import {registerReadingRegion} from '/runtime/widget-api.js';

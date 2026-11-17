@@ -3530,7 +3530,7 @@ def test_a_selection_of_the_whole_page_still_finds_its_passage(browser, serve):
 
 
 def test_select_all_on_a_page_with_a_diff_leaves_the_page_responsive(browser, serve):
-    """Select-all on a page holding a words.shadow widget. The composed selection spans
+    """Select-all on a page holding a `shadow` widget. The composed selection spans
     <html>, past the words the page reads, and the capture can grow its neighbourhood
     forever from a position that reading lacks, pinning the tab. The press is bounded so
     that regression fails here rather than hanging the run."""
@@ -3701,9 +3701,7 @@ def test_version_comparison_distinguishes_authored_graphics_from_button_icons(
                     "additionalProperties": False,
                 },
                 "content": "markup",
-                "author": {
-                    "example": '<lf-decoration id="decoration"></lf-decoration>',
-                },
+                "example": '<lf-decoration id="decoration"></lf-decoration>',
             }
         },
         layer_widgets={
@@ -4026,7 +4024,7 @@ def test_a_diff_anchors_to_the_side_it_was_read_on(browser, serve):
     )
     chosen = page.evaluate_handle("""() => {
         const skip = '.lf-ui, script, style';
-        // Rooted at the shadow root: lf-diff renders in one (words.shadow), so the
+        // Rooted at the shadow root: lf-diff renders in one (`shadow`), so the
         // lines this drags across are in the composed tree and not under the host
         // element.
         const w = document.createTreeWalker(document.getElementById('patch').shadowRoot,
@@ -4617,7 +4615,7 @@ def test_an_id_staged_into_a_shadow_tree_is_still_the_pages_id(browser, serve):
     would quietly do nothing — here, an anchor stored and a mark never painted, with no
     error to find.
 
-    Staged by hand because the one shipped words.shadow widget builds its tree out of
+    Staged by hand because the one shipped `shadow` widget builds its tree out of
     parsed data and mints no ids, so nothing reaches this yet; what the next one does is
     exactly this move. The clearing sweep is the other half — a mark the repaint cannot
     reach is a mark that outlives its reason — so the second comment has to take the
@@ -4961,12 +4959,8 @@ LATE_STAGE = {
         "additionalProperties": False,
     },
     "content": "markup",
-    "words": {
-        "shadow": True,
-    },
-    "author": {
-        "example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
-    },
+    "shadow": True,
+    "example": '<lf-late-stage id="example"><p>Words.</p></lf-late-stage>',
 }
 LATE_STAGE_MODULE = """
 import {shadowStage} from '/runtime/widget-api.js';
@@ -6013,7 +6007,7 @@ def test_page_search_finds_a_shipped_options_chip_and_title_apart(
     registry = json.loads(
         (Path(__file__).parents[2] / "packages/default/registry.json").read_text()
     )
-    url = serve(leaf_page("Ask", registry["lf-options"]["author"]["example"]))
+    url = serve(leaf_page("Ask", registry["lf-options"]["example"]))
     page = open_page(request.getfixturevalue(engine), url)
     page.keyboard.press("/")
     page.get_by_role("searchbox", name="Search page text").fill("recommended Status")
@@ -6058,7 +6052,7 @@ def test_page_search_finds_the_words_a_slot_outside_a_shadow_tree_holds(
 def test_page_search_reads_a_said_label_apart_from_its_elements_words(
     engine, request, serve
 ):
-    """A declared `words.says` label, drawn as its element's caption, reads apart from the
+    """A declared `says` label, drawn as its element's caption, reads apart from the
     words the element holds, as the file's reading reads it: page search finds the two
     with a space between them."""
     url = serve(
@@ -6080,13 +6074,9 @@ def test_page_search_reads_a_said_label_apart_from_its_elements_words(
                     "additionalProperties": False,
                 },
                 "content": "markup",
-                "words": {
-                    "says": {"label": "before"},
-                },
-                "author": {
-                    "example": '<lf-said-label id="example" label="Head">Words.'
-                    "</lf-said-label>",
-                },
+                "says": {"label": "before"},
+                "example": '<lf-said-label id="example" label="Head">Words.'
+                "</lf-said-label>",
             }
         },
     )
@@ -6548,9 +6538,9 @@ def test_travel_to_a_thread_shows_the_first_line_its_passage_draws(
     assert 0 <= box["y"] and box["y"] + box["height"] <= 900, box
 
 
-# A widget whose words read as the page's prose (`words.verbatim`), staged in a
+# A widget whose words read as the page's prose (`verbatim`), staged in a
 # declared shadow tree as it connects.
-VERBATIM_STAGE = {**LATE_STAGE, "words": {**LATE_STAGE["words"], "verbatim": True}}
+VERBATIM_STAGE = {**LATE_STAGE, "verbatim": True}
 STAGED_ON_CONNECT = """
 import {shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-late-stage', class extends HTMLElement {

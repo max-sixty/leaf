@@ -117,14 +117,10 @@ def starter_element_declaration(tag: str) -> dict:
             "required": ["id"],
             "additionalProperties": False,
         },
-        "words": {
-            "verbatim": True,
-        },
-        "author": {
-            "example": f'<{tag} id="{name}"><strong>{title}</strong> '
-            "The retry budget is three attempts before manual review."
-            f"</{tag}>",
-        },
+        "verbatim": True,
+        "example": f'<{tag} id="{name}"><strong>{title}</strong> '
+        "The retry budget is three attempts before manual review."
+        f"</{tag}>",
     }
 
 

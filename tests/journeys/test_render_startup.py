@@ -575,12 +575,8 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
             "additionalProperties": False,
         },
         "content": "empty",
-        "words": {
-            "shadow": True,
-        },
-        "author": {
-            "example": '<lf-probe id="probe"></lf-probe>',
-        },
+        "shadow": True,
+        "example": '<lf-probe id="probe"></lf-probe>',
     }
     widget = """import {once, shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""

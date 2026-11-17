@@ -414,7 +414,7 @@
   /* A flow is a box whose blocks stand in the flow around it, so they share its room:
    * a section, an article or a disclosure (`details`), as HTML writes a document's
    * parts, and a widget that draws no box of its own around its blocks
-   * (`paint.flow`). One carrying a Layout of its own, a `layout-` class, arranges what
+   * (`flow`). One carrying a Layout of its own, a `layout-` class, arranges what
    * it holds, and one carrying a width of its own (`data-width`) is a block that takes
    * the room itself, so its children use the room inside it; neither is a flow. A flow shares the room of
    * the column's flow it stands in, at any depth; one in any other box has none to
@@ -763,7 +763,7 @@
     --lf-aside: calc(var(--lf-sidebar) - var(--lf-sp-4));
   }
   /* A document's sidebar whose track holds only an element that rests as a spine
-   * (`paint.spine`, painted `data-lf-spine`), as the contents map does, narrows to that
+   * (`spine`, painted `data-lf-spine`), as the contents map does, narrows to that
    * spine on a screen where a fine pointer can reach into it, so the room a column
    * would take goes to the body, whose prose stands as a column page's does (below).
    * The aside comes before the body, so what the element reveals spreads from the spine
@@ -777,7 +777,7 @@
    * nothing reaches in at all.
    * Rejected: narrowing every document sidebar. It broke a
    * paragraph in one into a few letters a line, and the render check passed it.
-   * TODO: `paint.spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
+   * TODO: `spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
    * `--lf-track-spine`) widen the public interface for one widget's look. Narrowing
    * automatically needs some declaration, since the aside is a size container and takes
    * no width from its content. Without one, the page would narrow its sidebar with

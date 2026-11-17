@@ -881,7 +881,7 @@ WORK_PAGE = FLOW_PAGE.replace(
 
 
 def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
-    """A to-do on a page widget needs a widget that declares `state.work` or holds an
+    """A to-do on a page widget needs a widget that declares `work` or holds an
     unsettled move. Dropping its widget leaves it open; `page stamp --completes`
     ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
@@ -1702,7 +1702,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
 
 
 def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_dir):
-    """state.work admits a task on a widget; it is not the task's only later seat.
+    """`work` admits a task on a widget; it is not the task's only later seat.
 
     Re-vendoring can remove that declaration while the live widget remains, because
     the page-edge margin entry continues to present the task already admitted.
@@ -1730,7 +1730,7 @@ def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_d
     card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-card"
     ]
-    card["state"].pop("work")
+    card.pop("work")
     layer = Path.cwd() / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
@@ -1747,7 +1747,7 @@ def test_revendoring_can_change_server_work_while_the_target_holds_a_todo(page_d
 
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page_dir)
-    assert "work" not in registry["lf-card"].get("state", {})
+    assert "work" not in registry["lf-card"]
     [todo] = state_json(page_dir)["todos"]
     assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}
 

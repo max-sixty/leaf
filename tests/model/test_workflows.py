@@ -473,8 +473,7 @@ def test_a_frozen_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
             "author": "agent",
             "parent": asked["id"],
             "responds": asked["id"],
-            "text": "Here is the board.\n\n"
-            + registry["lf-board"]["author"]["example"],
+            "text": "Here is the board.\n\n" + registry["lf-board"]["example"],
         },
     )
     moved = append_command(

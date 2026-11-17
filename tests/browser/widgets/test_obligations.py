@@ -119,9 +119,7 @@ PLATE_PACKAGE = {
             "additionalProperties": False,
         },
         "content": "markup",
-        "words": {
-            "visual": "whole",
-        },
+        "visual": "whole",
     }
 }
 
@@ -178,7 +176,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
     as well as titled cards, while a group of words stays one control with hairlines
     between its cells. A
     picture is a drawing, a capture or a widget whose entry declares it draws one
-    (`words.visual`), wrapped in the link that opens it or not.
+    (`visual`), wrapped in the link that opens it or not.
 
     The cards read down unless the author asks for `across`, so each picture stands at
     the size its author gave it, in the reading column or a group given `data-width`;
@@ -619,7 +617,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     heading, premise, and evidence stood immediately above it, `d` would centre the
     options and make the user scroll backward before they could answer. The group the
     author names round the question encodes that broader unit while the nested
-    state.awaits widget still owns the action: the walk rings the region, aligns its
+    `awaits` widget still owns the action: the walk rings the region, aligns its
     opening at the window's head, and stands the user on it.
 
     On it, and not on the control that answers it. The scroll puts the region's opening
@@ -1252,7 +1250,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
 
     A question's group is its arrival: its name, the context, then the control. A
     suggestion stands mid-sentence, named by its own words, so no group holds it
-    (`words.inline`). Arriving on the change alone would put its own top edge at the
+    (`inline`). Arriving on the change alone would put its own top edge at the
     window's head and take the sentence with it, leaving the user on the change with
     nothing on screen saying what they would be accepting. Leaf reads no heading for
     it: the section's heading stays above the window.

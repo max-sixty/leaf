@@ -11,7 +11,7 @@
  * Live pages select their panel before the strip arrives. Without the runtime,
  * panels stack as labeled sections. */
 /* A set written `flow="page"` stands in the page's flow, its panels sharing the
- * document's room (`paint.flow`, layouts.css), and draws no frame. Every other set
+ * document's room (`flow`, layouts.css), and draws no frame. Every other set
  * is boxed. Which set owns the page's URL and history is a separate fact
  * (lf-tabs.js). */
 

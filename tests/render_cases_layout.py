@@ -486,9 +486,7 @@ DRAWING_CONTROL_LAYER = {
             "additionalProperties": False,
         },
         "content": "empty",
-        "author": {
-            "example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
-        },
+        "example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
     }
 }
 DRAWING_CONTROL_WIDGETS = {

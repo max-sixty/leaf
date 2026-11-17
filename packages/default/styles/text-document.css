@@ -6,6 +6,12 @@ lf-text-document {
   margin: 14px 0;
   min-height: 2px;
 }
+/* The frame, caption and listing are code, in the code's scheme (tokens.css, at
+   --lf-pre-bg). A document that previews its text stands on the page's paper instead,
+   since the preview is prose, so only its Source tab is code (below). */
+lf-text-document:not([preview]) {
+  color-scheme: var(--lf-code-scheme, inherit);
+}
 /* The frame clips its rounded corners with `clip`, which makes no scroll container
    (base.css, at `--lf-top`), so the Preview/Source strip sticks against the page's
    scroller as every horizontal tab strip does. `hidden` made the frame the strip's
@@ -143,11 +149,14 @@ lf-text-document .lf-text-document-run:only-child {
   lf-text-document
   .lf-text-document-run {
   content-visibility: visible;
+  /* Each row's rule names the run as its ancestor, which lets Chromium pass over the
+     rule for an element outside one (browser/AGENTS.md, "A rule costs only the
+     elements it could style"); `&::before` nested in `& > *` names none. */
   & > * {
     counter-increment: none;
-    &::before {
-      content: none;
-    }
+  }
+  & > *::before {
+    content: none;
   }
 }
 /* A document scrolls its listing in a box `--lf-bound` tall under a caption that
@@ -159,7 +168,7 @@ lf-text-document .lf-text-document-run:only-child {
    scrolling inside the box rather than at full length in the page.
 
    A Markdown preview of written text is the exception the first paint allows: Leaf
-   draws its rendering beside the `<pre>` before the module does (`x-prepaint`), so the
+   draws its rendering beside the `<pre>` before the module does (`paint.prepaint`), so the
    page first paints at the preview's own height up to the bound, which the Source tab
    takes too. A one-paragraph quote in a 28rem box drew a 530px frame around 156px of
    text.
@@ -272,6 +281,15 @@ lf-text-document[preview] .lf-text-document-view > lf-tabs {
 lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab {
   margin: 0;
   padding: 0;
+}
+/* The Source tab is code to its foot, in the code's scheme: it takes the preview's
+   height (below), which a short listing doesn't fill. */
+lf-text-document[preview]
+  .lf-text-document-view
+  > lf-tabs
+  > lf-tab:has(> .lf-text-document-listing) {
+  color-scheme: var(--lf-code-scheme, inherit);
+  background: var(--lf-pre-bg);
 }
 /* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face
    (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does, the

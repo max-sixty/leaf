@@ -67,11 +67,17 @@ export {
 } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
 export { answeredInWords, readObligations } from "./obligations/model.js";
-// The obligations a region of the page holds, by the rule every count and walk of them reads.
-export { obligationsByRegion, obligationsIn } from "./obligations/place.js";
+// The obligations a region of the page holds, by the rule every count and walk of them
+// reads, and which regions hold a widget that asks the user something, including one
+// whose obligation the inventory hasn't listed yet or lists as withdrawn.
+export {
+  obligationsByRegion,
+  obligationsIn,
+  regionsAwaiting,
+} from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-// A view's reading and writing of another widget's answer (x-shows).
+// A view's reading and writing of another widget's answer (state.shows).
 export { shownAnswer } from "./shown-answer.js";
 export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";
@@ -140,12 +146,7 @@ export { RequestError } from "./layer-client.js";
 export { generate } from "./llm-api.js";
 export { connection } from "./http-api.js";
 export { clearDraft, loadDraft, saveDraft, sendDraft, watchDraft } from "./drafts.js";
-export {
-  declarationFor,
-  elementsDeclaring,
-  layerFact,
-  matchesWhen,
-} from "./registry.js";
+export { declarationFor, layerFact, matchesWhen } from "./registry.js";
 export {
   flashDuration,
   foldDuration,
@@ -171,7 +172,7 @@ export { copyControl } from "./copy-control.js";
 export { plainPress, pressIsKeyboardActivation } from "./pointer.js";
 export { onUserInput } from "./focus.js";
 export { keepView, openingView, viewDocument, viewMembers } from "./storage.js";
-export { highlightBlocks } from "./syntax.js";
+export { dressCode } from "./code-dressing.js";
 export { readHistory, reportSequence, reportsReady } from "./reports.js";
 // The one watcher of the page's readings (module-reading.md, "Page readings").
 export {

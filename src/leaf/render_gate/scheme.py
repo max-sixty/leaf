@@ -17,6 +17,7 @@ from leaf.render_checks import (
     HANDOVER_DEADLINE_MS,
     SERVED_TIMEOUT_MS,
     PageNotReady,
+    asked_again,
     close_render_page,
     evaluate_probe,
     install_window_errors,
@@ -82,27 +83,32 @@ def served(page, url: str, path: str, timeout_ms: int | None = None):
     return page.request.get(urljoin(url, path), timeout=timeout_ms)
 
 
-def answer_reports(page, heard) -> None:
+def answer_reports(page) -> None:
     """Answer here the events the runtime sends on its own, an error report and a
     bookkeeping event, so a reading neither writes to the page's log nor draws the
-    refusal a read-only server gives the post.
+    refusal a read-only server gives the post. The reading takes a report's words from
+    the console instead (`page_code.PageCode`).
 
-    An error the page reports to its agent hands its text to `heard`. A bookkeeping
-    event, such as the `read` a page sends once it has shown an agent message whole,
-    is refused as final, so the page doesn't send it again. It is refused under a 200,
-    because Chrome reports a failed fetch as a console error, which the gate counts
-    against the page. Every other event goes through, so a page that writes without
-    a gesture still draws the server's refusal."""
+    An error report is answered with no content. A bookkeeping event, such as the
+    `read` a page sends once it has shown an agent message whole, is refused as final,
+    so the page doesn't send it again. It is refused under a 200, because Chrome
+    reports a failed fetch as a console error, which the gate counts against the page.
+    Every other event goes through, so a page that writes without a gesture still
+    draws the server's refusal. Firefox hands the route no post's body over WebDriver
+    BiDi, so there every post is refused here, under a 200 as well, since a refusal
+    from the server would read as a failed request beside the page's real reports.
+    Firefox puts no failed fetch in its console, so a page there that writes without
+    a gesture goes unreported either way."""
     bookkeeping = kinds_declaring("bookkeeping")
+
+    refused = Refused("a render check records no reading")
 
     def report(route):
         event = route.request.post_data_json
-        if event["kind"] == "error":
-            heard(event["text"])
+        if event is None or event["kind"] in bookkeeping:
+            route.fulfill(status=200, json=event_rejection(event or {}, refused)[1])
+        elif event["kind"] == "error":
             route.fulfill(status=204)
-        elif event["kind"] in bookkeeping:
-            refused = Refused("a render check records no reading")
-            route.fulfill(status=200, json=event_rejection(event, refused)[1])
         else:
             route.continue_()
 
@@ -284,12 +290,12 @@ def _render_page(
     # takes it, unless it is the page-code reading's too.
     code = PageCode(page) if page_code is not None else None
     if code is None:
-        answer_reports(page, lambda text: None)
+        answer_reports(page)
     devtools = DevtoolsIssues(page)
     install_window_errors(page, window_error)
     try:
         observe_output_documents(page)
-        page.goto(url)
+        page.goto(asked_again(url))
         wait_for_probe(page, "runtimeStarted", fixed_server=True)
     except PageNotReady as error:
         return never_ready(error, "no-runtime")
@@ -327,7 +333,7 @@ def _render_page(
         registry = served_here("/registry.json").json()
         # The readings in the page consume element declarations, so they are handed
         # only those:
-        # $keys spells its members in the x- keys' own names, and a sweep over
+        # $keys spells its members in a declaration's own keys, and a sweep over
         # every declaration took it for a widget called $keys.
         declarations = element_declarations(registry)
         visual_provider_problems = evaluate_probe(

@@ -82,7 +82,8 @@ function patches(...files) {
 /**
  * An esbuild plugin editing upstream modules as they load. Each adaptation names
  * the modules it edits by path, one adaptation to a module; one that edits nothing in
- * a build fails it.
+ * a build fails it. An edited module loads as the build's `loader` option says for its
+ * extension, as a stylesheet bundled as text does.
  */
 export function adapt(adaptations) {
   const used = new Set();
@@ -95,6 +96,8 @@ export function adapt(adaptations) {
           return {
             contents: await edit(await readFile(at, "utf8"), at),
             resolveDir: path.dirname(at),
+            // esbuild reads what a plugin returns as JavaScript unless told otherwise.
+            loader: builder.initialOptions.loader?.[path.extname(at)],
           };
         }),
       );
@@ -486,6 +489,32 @@ const bundles = {
     target: "chrome105",
   }),
 
+  // Temml typesets the LaTeX in a page's `<code class="language-math">` as MathML the
+  // browser draws itself (`runtime/formulas.js`). Its sheet travels in the module as
+  // text, as PhotoSwipe's does, so only a page that shows a formula loads it, and the
+  // font that sheet names for primes and script capitals travels inside the sheet, so
+  // an export needs no file beside the module.
+  temml: () => ({
+    out: `${assets}/vendor/temml.esm.js`,
+    entryPoints: [input("entries/temml/entry.mjs")],
+    loader: { ".css": "text" },
+    banner: { js: `/*! Temml ${version("temml")} — MIT — temml.org */` },
+    adapt: [
+      {
+        file: /temml\/dist\/Temml-Local\.css$/,
+        edit: (source, at) =>
+          seam(
+            source,
+            "url('Temml.woff2')",
+            `url(data:font/woff2;base64,${readFileSync(
+              path.join(path.dirname(at), "Temml.woff2"),
+            ).toString("base64")})`,
+            "Temml font",
+          ),
+      },
+    ],
+  }),
+
   // Bundle only jsdiff's array comparison for the core browser runtime.
   jsdiff: () => ({
     out: `${assets}/vendor/jsdiff.esm.js`,
@@ -855,9 +884,11 @@ async function bundle(spec) {
 /**
  * The runtime's table of the grammars `syntax` bundles (`runtime/syntax-languages.js`):
  * a literal import for each, so an export binds it, and each name and alias Shiki
- * gives a grammar, which a native Markdown fence uses, read here so that identifying a
+ * gives a grammar, which a `language-…` class names, read here so that identifying a
  * block loads no grammar. Both come from this build, which a page's grammars need
- * anyway, so the browser doesn't read `$languages.names` itself.
+ * anyway, so the browser doesn't read `$languages.names` itself. `page check` reads the
+ * names too, as the one line of JSON `syntaxLanguageNames` is written on
+ * (`leaf.validation.markup.COLOURED_LANGUAGES`).
  */
 async function syntaxLoaders() {
   const names = languages();

@@ -38,6 +38,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -183,13 +184,12 @@ def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
 
 
 PLAYGROUND_SETTINGS = (
-    '<lf-playground id="pg"><lf-playground-control id="budget" name="budget"'
-    ' label="Page budget" kind="range" value="10" min="0" max="30">'
-    '</lf-playground-control><lf-playground-control id="finance" name="finance"'
-    ' label="Count finance pages" kind="toggle" value="false">'
-    "</lf-playground-control><lf-playground-preview><p>The budget.</p>"
-    "</lf-playground-preview><lf-playground-output>Budget"
-    ' <lf-playground-value for="budget"></lf-playground-value></lf-playground-output>'
+    '<lf-playground id="pg"><aside><label id="budget">Page budget'
+    ' <input type="range" name="budget" min="0" max="30" value="10"></label>'
+    '<label id="finance"><input type="checkbox" name="finance"'
+    ' role="switch"> Count finance pages</label></aside><p>The budget.</p>'
+    "<lf-playground-output>Budget"
+    ' <output for="budget"></output></lf-playground-output>'
     "</lf-playground>"
 )
 
@@ -209,7 +209,7 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
 
 # Option cards whose picks Done completes.
 FEEDERS = """<lf-ask id="ask"><h2>Which feeders should we refill?</h2>
-<lf-options id="feeders" choose multiple>
+<lf-options id="feeders" multiple>
 <lf-option id="feeder-porch"><strong>The porch feeder</strong> Seen from the kitchen.
 </lf-option>
 <lf-option id="feeder-oak"><strong>The oak feeder</strong> Out of the wind.</lf-option>
@@ -664,7 +664,8 @@ def test_a_finger_holding_a_thread_s_words_again_reads_it_again(browser, serve):
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, serve):
-    """An age says how long ago, and its preview says when, in the reader's own zone:
+    """An age says how long ago, and its preview says when, in the reader's own zone
+    and as their locale writes it:
     a message's age to a resting pointer, and the message a walk landed the keyboard
     on to `K`, in its head where its age stands, or would where the message above has
     the same one, which a screen reader hears as the message's description; the
@@ -706,7 +707,9 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     )
     browser = request.getfixturevalue(engine)
     context = browser.new_context(
-        viewport={"width": 1200, "height": 900}, timezone_id="America/Los_Angeles"
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
     )
     context.clock.install()
     page = open_page(browser, url, context=context)
@@ -720,7 +723,7 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     expect(preview).to_be_hidden()
     page.keyboard.press("Shift+K")
     expect(question).to_be_focused()
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:22 PM PT")
     assert "lf-preview" in question.evaluate(DESCRIBED)
     # It stands by the head, where the age the message above shares would stand, not
     # by the whole message.
@@ -735,7 +738,7 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     dwelt(page)
     expect(preview).to_be_visible()
     expect(preview).to_have_attribute("data-lf-route", "focus")
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:22 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:22 PM PT")
     page.mouse.move(0, 0)
     page.keyboard.press("Escape")
 
@@ -745,14 +748,14 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     box = age.bounding_box()
     page.mouse.move(box["x"] - 30, box["y"] - 30)
     age.hover()
-    expect(preview).to_have_text("Sat 15 Aug 2026, 14:02 PT")
+    expect(preview).to_have_text("Sat, Aug 15, 2026, 2:02 PM PT")
     page.mouse.move(0, 0)
     expect(preview).to_be_hidden()
 
     resolved = thread_row(page, settled).locator("time")
     expect(resolved).to_have_attribute("datetime", "2026-08-16T01:30:00Z")
     expect(resolved).not_to_have_attribute("title", re.compile(".*"))
-    assert preview_text(resolved) == "Sat 15 Aug 2026, 18:30 PT"
+    assert " ".join(preview_text(resolved).split()) == "Sat, Aug 15, 2026, 6:30 PM PT"
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -792,14 +795,14 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
 <lf-ask id="decision"><h3>Patch decision</h3>
-<lf-options id="decision-options" choose>
-  <lf-option id="decision-ship" chosen>Ship with the resend.</lf-option>
+<lf-options id="decision-options">
+  <lf-option id="decision-ship" selected>Ship with the resend.</lf-option>
   <lf-option id="decision-hold">Hold the patch.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="meeting"><h3>Where should the group meet?</h3>
-<lf-options id="meeting-options" choose settled>
+<lf-options id="meeting-options" settled>
   <lf-option id="meeting-door">At the door</lf-option>
-  <lf-option id="meeting-desk" chosen>At reception</lf-option>
+  <lf-option id="meeting-desk" selected>At reception</lf-option>
 </lf-options></lf-ask>
 <h2 id="support">Support</h2>
 <p id="support-playbook">The playbook covers the spinner.</p>
@@ -907,83 +910,6 @@ CV</div><div hidden="until-found">SECRET FOUND</div></div>
 )
 
 
-LEAD_IN_PAGE = leaf_page(
-    "Lead-ins",
-    """
-<h2>Outer</h2>
-<p><a id="to-folded" href="#folded">folded words</a>,
-<a id="to-kept" href="#kept">words after a kept newline</a>,
-<a id="to-drawn" href="#drawn">words after a drawn title</a>,
-<a id="to-slotted" href="#slotted">words after a slotted title</a> and
-<a id="to-tallied" href="#tallied">words after a tally</a></p>
-<details id="fold"><summary>Disclosure</summary><div><strong>Group</strong>
-<span hidden>words</span><p id="folded">Folded words.</p></div></details>
-<div style="white-space: pre-line"><strong>Kept</strong>
-<span id="kept">Kept words.</span></div>
-<p><strong><span id="drawn-title">Group</span></strong> runs on
-<span id="drawn">Drawn words.</span></p>
-<p><span id="slot-words"><strong>Slotted</strong> continues
-<span id="slotted">Slotted words.</span></span></p>
-<p><strong>Tallied</strong><lf-tally id="lead-tally" for="fold"></lf-tally> after
-<span id="tallied">Tallied words.</span></p>
-<p id="elsewhere">Words elsewhere.</p>
-""",
-)
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_bold_lead_in_runs_on_by_its_markup_whatever_draws_it(engine, request, serve):
-    """Whether a bold title runs into its line, and so makes no part, is a fact about
-    the markup, so the name a card gives what follows it stands while the page draws it
-    differently: with the disclosure around it closed or open and after an edit
-    elsewhere, a title followed by words the page hides runs into them; a newline the
-    whitespace keeps is no break; a title whose words a widget's declared tree draws
-    runs into the words after it, as one a declared tree's slot draws does; and a widget
-    set among the words, whose tree holds Leaf's own apparatus, is no break either."""
-    page = open_page(request.getfixturevalue(engine), serve(LEAD_IN_PAGE))
-    page.evaluate(
-        """async () => {
-          const {registry} = await import('/runtime/registry.js');
-          const {shadowStage} = await import('/runtime/shadow-stage.js');
-          registry['lf-staged-title'] = {'x-shadow': true};
-          // The title's words move into a widget's declared tree, drawn where they stood.
-          const words = document.getElementById('drawn-title');
-          const host = document.createElement('lf-staged-title');
-          words.replaceWith(host);
-          shadowStage(host, [words]);
-          // A title and its words assigned to a slot inside a declared tree's span.
-          registry['lf-slot-host'] = {'x-shadow': true};
-          const held = document.getElementById('slot-words');
-          const slotHost = document.createElement('lf-slot-host');
-          held.replaceWith(slotHost);
-          const line = document.createElement('span');
-          line.append(document.createElement('slot'));
-          shadowStage(slotHost, [line]);
-          slotHost.append(...held.childNodes);
-        }"""
-    )
-    preview = page.locator(PREVIEW)
-
-    def named(link, name):
-        page.mouse.move(0, 0)
-        expect(preview).to_be_hidden()
-        page.locator(link).hover()
-        expect(preview.locator(".lf-preview-word")).to_have_text(name)
-
-    named("#to-folded", "Disclosure")
-    page.locator("#fold > summary").click()
-    expect(page.locator("#folded")).to_be_visible()
-    named("#to-folded", "Disclosure")
-    page.evaluate(
-        "() => { document.getElementById('elsewhere').firstChild.data = 'Other words.'; }"
-    )
-    named("#to-folded", "Disclosure")
-    named("#to-kept", "Outer")
-    named("#to-drawn", "Outer")
-    named("#to-slotted", "Outer")
-    named("#to-tallied", "Outer")
-
-
 def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
     """A message's markup is outlined as the page is, and an edit the log accepts
     outlines it again: the paragraph after a heading the edit changed stands under the
@@ -1048,7 +974,7 @@ def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, se
     )
     page.mouse.move(1, 1)
     page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     band = page.locator(".lf-rows-group").filter(
         has_text="Should this wait for the vendor's release?"
     )
@@ -1736,21 +1662,21 @@ def _held(page, cdp, selector, words):
 # holds of the author's markup: an option's chip beside its mark, a link in an option,
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
-    '<lf-code id="code" language="python"><pre>marked_code = 1</pre></lf-code>'
-    '<lf-options id="opts" choose><lf-option id="o1"><small class="tag">small cohort'
+    '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
+    '<lf-options id="opts"><lf-option id="o1"><small class="tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
     '<lf-option id="o2"><strong>Start wide</strong> Then '
     '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options>'
     '<lf-suggestion id="sug"><lf-old><p id="old">Refill every feeder each morning.'
     "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"
     "</lf-new></lf-suggestion>"
-    '<lf-playground id="pg"><lf-playground-control id="tone" name="tone" label="Tone"'
-    ' kind="choice" value="quiet"><lf-playground-choice id="tone-quiet" value="quiet"'
-    ' label="Quiet"></lf-playground-choice><lf-playground-choice id="tone-bold"'
-    ' value="bold" label="Bold"></lf-playground-choice></lf-playground-control>'
-    '<lf-playground-preview><p id="pg-words">The candidate banner reads well.</p>'
-    "</lf-playground-preview><lf-playground-output>Use"
-    ' <lf-playground-value for="tone"></lf-playground-value></lf-playground-output>'
+    '<lf-playground id="pg"><aside><fieldset id="tone"><legend>Tone</legend>'
+    '<label id="tone-quiet"><input type="radio" name="tone"'
+    ' value="quiet" checked> Quiet</label><label id="tone-bold">'
+    '<input type="radio" name="tone" value="bold"> Bold</label></fieldset></aside>'
+    '<p id="pg-words">The candidate banner reads well.</p>'
+    "<lf-playground-output>Use"
+    ' <output for="tone"></output></lf-playground-output>'
     "</lf-playground>"
     + "<p>More words.</p>"
     * 4
@@ -2323,18 +2249,14 @@ def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
     assert held["top"] >= 0 and held["bottom"] <= held["window"] and held["cut"], held
 
 
-# A widget that draws its own content (`x-content: empty`), as `lf-toc` does, which so
+# A widget that draws its own content (`content: empty`), as `lf-toc` does, which so
 # takes the pointer (widget-elements.js, `aimableAt`) though no press acts on it: a
 # column of links across the page's column, the middle one previewing a line of detail
 # under its name, as a contents row with marks does.
 ROUTE = {
-    **{
-        key: value
-        for key, value in element_declaration("lf-route", upgrade=True).items()
-        if key != "x-verbatim"
-    },
-    "x-content": "empty",
-    "x-example": '<lf-route id="route"></lf-route>',
+    **element_declaration("lf-route"),
+    "content": "empty",
+    "author": {"example": '<lf-route id="route"></lf-route>'},
 }
 ROUTE_WIDGET = """
 customElements.define('lf-route', class extends HTMLElement {

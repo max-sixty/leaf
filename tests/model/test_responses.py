@@ -14,6 +14,7 @@ from click.testing import CliRunner
 from conftest import LEAF_COMMAND
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     _codex_delivery,
     _observer,
     acknowledged_through,
@@ -51,11 +52,11 @@ from leaf.refusals import Refused
 class ResponseOptions(TypedDict, total=False):
     ephemeral: bool
     failure: str
-    markup: str
+    html: bool
 
 
 QUESTION = (
-    '<lf-options id="question" choose><lf-option id="question-a"><strong>A</strong>'
+    '<lf-options id="question"><lf-option id="question-a"><strong>A</strong>'
     "</lf-option></lf-options>"
 )
 
@@ -107,24 +108,24 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
 
 
 def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
-    """Agents writing a choice from memory leave out the attribute that makes it
-    ask, and satisfying the refusal with `--obligation` would leave options nobody
-    can press. So the refusal names the attribute the widget's registry entry asks
-    with."""
+    """An agent writing a widget from memory can leave out the attribute that makes
+    it ask, and satisfying the refusal with `--obligation` would leave the widget
+    asking nothing. So the refusal names the attribute the widget's registry entry
+    asks with."""
     asked = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which one?"}
+        page_dir, {"kind": "comment", "author": "user", "text": "Which wording?"}
     )
-    shown = QUESTION.replace(" choose", "")
+    shown = '<lf-draft id="wording"><pre>\nShip on Monday.</pre></lf-draft>'
     refused = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", response_reference(page_dir, asked), "--text", "Which?"]
-        + ["--markup", shown],
+        ["thread", "reply", response_reference(page_dir, asked)]
+        + ["--text", f"Edit it?\n\n{shown}"],
     )
 
     assert refused_on(refused.stdout).values == {
-        "tag": "lf-options",
-        "id": "question",
-        "needs": "`choose`",
+        "tag": "lf-draft",
+        "id": "wording",
+        "needs": "`required`",
     }
 
 
@@ -143,7 +144,7 @@ def test_a_message_asks_by_its_widget_or_its_words_not_both(page_dir):
     ):
         refused = CliRunner().invoke(
             cli_model.cli,
-            [*command, "--obligation", "--text", "Which?", "--markup", QUESTION],
+            [*command, "--obligation", "--text", f"Which?\n\n{QUESTION}"],
         )
         assert refused.exit_code != 0
         assert refused_on(refused.stdout).code == "obligation-beside-widget"
@@ -228,17 +229,22 @@ def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, e
         if earlier == "progress":
             with pytest.raises(Refused) as refused:
                 thread_model.post_response(
-                    reference, "Checking.", ephemeral=True, markup="<p>Checking.</p>"
+                    reference,
+                    "Checking.\n\n<p>Checking.</p>",
+                    ephemeral=True,
+                    html=True,
                 )
             assert refused_on(refused.value).code == "ephemeral-content"
         options: ResponseOptions = (
             {"ephemeral": True}
             if earlier == "progress"
-            else {"failure": "unavailable", "markup": "<p>Unavailable.</p>"}
+            else {"failure": "unavailable", "html": True}
         )
         thread_model.post_response(
             reference,
-            "Checking." if earlier == "progress" else "Unavailable.",
+            "Checking."
+            if earlier == "progress"
+            else "Unavailable.\n\n<p>Unavailable.</p>",
             **options,
         )
     assert advised("first") == report["findings"]
@@ -316,9 +322,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "--done",
             reference,
             "--text",
-            "Choose",
-            "--markup",
-            '<lf-unknown id="bad"></lf-unknown>',
+            'Choose\n\n<lf-unknown id="bad"></lf-unknown>',
             "--title",
             "Options",
         ],
@@ -327,7 +331,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     assert not any(
         event["kind"] == "thread_title" for event in events_model.read_events(page_dir)
     )
-    markup = '<lf-options id="response-options" choose><lf-option id="response-yes"><strong>Yes</strong></lf-option></lf-options>'
+    markup = '<lf-options id="response-options"><lf-option id="response-yes"><strong>Yes</strong></lf-option></lf-options>'
     posted = CliRunner().invoke(
         cli_model.cli,
         [
@@ -336,9 +340,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "--done",
             reference,
             "--text",
-            "Choose here.",
-            "--markup",
-            markup,
+            f"Choose here.\n\n{markup}",
             "--title",
             "Options",
             "--section",
@@ -348,7 +350,8 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     assert posted.exit_code == 0, posted.output
     records = [json.loads(line) for line in posted.output.splitlines()]
     assert [event["kind"] for event in records] == ["reply"]
-    assert records[0]["markup"] == markup
+    assert records[0]["html"] is True
+    assert markup in records[0]["text"]
     assert records[0]["anchor"]["section"] == "plan"
     assert records[0]["title"] == "Options"
     selected = append_command(
@@ -373,9 +376,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "reply",
             selected_ref,
             "--text",
-            "Which store owns it?",
-            "--markup",
-            QUESTION,
+            f"Which store owns it?\n\n{QUESTION}",
             "--detach",
         ],
     )
@@ -383,7 +384,8 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     record = json.loads(questioned.output)
     assert record["parent"] == asked["id"]
     assert record["responds"] == selected["id"]
-    assert record["markup"] == QUESTION
+    assert record["html"] is True
+    assert QUESTION in record["text"]
     assert record["anchor"] is None
 
 
@@ -723,11 +725,10 @@ def test_provider_response_commits_full_content_before_reconnect(
         "message_identity",
         lambda: {"session": author, "agent": "Worker"},
     )
-    markup = '<lf-options id="provider-choice" choose><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
+    markup = '<lf-options id="provider-choice"><lf-option id="provider-yes"><strong>Yes</strong></lf-option></lf-options>'
+    shown = QUESTION if rich == "question" else markup
     flags = {
         "question": [
-            "--markup",
-            QUESTION,
             "--title",
             "Storage choice",
             "--section",
@@ -735,8 +736,6 @@ def test_provider_response_commits_full_content_before_reconnect(
         ],
         "markup": [
             "--done",
-            "--markup",
-            markup,
             "--title",
             "Storage choice",
             "--section",
@@ -745,7 +744,14 @@ def test_provider_response_commits_full_content_before_reconnect(
     }[rich]
     authored = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", target["ref"], "--text", "Choose the store.", *flags],
+        [
+            "thread",
+            "reply",
+            target["ref"],
+            "--text",
+            f"Choose the store.\n\n{shown}",
+            *flags,
+        ],
     )
     assert authored.exit_code == 0, authored.output
     assert json.loads(authored.output)["kind"] == "reply"
@@ -765,19 +771,22 @@ def test_provider_response_commits_full_content_before_reconnect(
     assert (reply["parent"], reply["responds"], reply["text"], reply["title"]) == (
         comment["id"],
         comment["id"],
-        "Choose the store.",
+        f"Choose the store.\n\n{shown}",
         "Storage choice",
     )
-    if rich == "question":
-        assert reply["markup"] == QUESTION
-        assert reply["anchor"]["section"] == "plan"
-    else:
-        assert reply["markup"] == markup
-        assert reply["anchor"]["section"] == "plan"
+    assert reply["html"] is True
+    assert reply["anchor"]["section"] == "plan"
     assert (reply["session"], reply["agent"]) == (author, "Worker")
     retried = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", target["ref"], "--text", "Choose the store.", *flags],
+        [
+            "thread",
+            "reply",
+            target["ref"],
+            "--text",
+            f"Choose the store.\n\n{shown}",
+            *flags,
+        ],
     )
     assert retried.exit_code == 0, retried.output
     assert json.loads(retried.output) == reply
@@ -797,7 +806,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     comment, target, delivery_id, _stream = _reserved_author_response(page_dir)
     identity = {"session": "worker-1", "agent": "Indexer"}
     thread_model.post_response(
-        target["ref"], "Worker question?", markup=QUESTION, identity=identity
+        target["ref"], f"Worker question?\n\n{QUESTION}", html=True, identity=identity
     )
     payload = delivery_model.read_delivery(delivery_id)
     before = cleanup_model.session_record("codex-thread")
@@ -845,15 +854,18 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     [answer] = thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     )
-    assert (answer["text"], answer["session"], answer["agent"], answer["markup"]) == (
-        "Worker question?",
+    assert (answer["text"], answer["session"], answer["agent"], answer["html"]) == (
+        f"Worker question?\n\n{QUESTION}",
         "worker-1",
         "Indexer",
-        QUESTION,
+        True,
     ), errors
     assert (
         thread_model.post_response(
-            target["ref"], "Worker question?", markup=QUESTION, identity=identity
+            target["ref"],
+            f"Worker question?\n\n{QUESTION}",
+            html=True,
+            identity=identity,
         )
         == answer
     )
@@ -866,8 +878,8 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
     answer = thread_model.post_response(
         target["ref"],
-        "My question?",
-        markup=QUESTION,
+        f"My question?\n\n{QUESTION}",
+        html=True,
         identity={"session": "codex-thread", "agent": "Codex"},
     )
     assert stream.finish(ending) is None
@@ -877,7 +889,7 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     assert comment["id"] not in delivery_model.current_responses(
         page_dir, events_model.read_events(page_dir)
     )
-    assert thread_model.post_response(target["ref"], "Retry", markup=QUESTION) == answer
+    assert thread_model.post_response(target["ref"], "Retry", html=True) == answer
     with pytest.raises(Refused) as refused:
         thread_model.post_response(target["ref"], "Retry", todo="Promise it")
     assert refused_on(refused.value).code == "redeclared-answer"
@@ -976,7 +988,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
     comment, target, _delivery_id, old = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        target["ref"], "Older question?", markup=QUESTION, identity=identity
+        target["ref"], f"Older question?\n\n{QUESTION}", html=True, identity=identity
     )
     newer = append_command(
         page_dir,
@@ -999,10 +1011,10 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (reply["responds"], reply["text"], reply["markup"]) == (
+    assert (reply["responds"], reply["text"], reply["html"]) == (
         comment["id"],
-        "Older question?",
-        QUESTION,
+        f"Older question?\n\n{QUESTION}",
+        True,
     )
     stream = read_record(page_dir / "stream.json")
     assert stream["reply"]["text"] == "Newer opening"
@@ -1012,7 +1024,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
 
 def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
     comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
-    markup = '<lf-options id="corrected-choice" choose><lf-option id="corrected-yes">Yes</lf-option></lf-options>'
+    markup = '<lf-options id="corrected-choice"><lf-option id="corrected-yes">Yes</lf-option></lf-options>'
     runner = CliRunner()
     refused = runner.invoke(
         cli_model.cli,
@@ -1022,9 +1034,7 @@ def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
             str(page_dir),
             comment["id"],
             "--text",
-            "Choose.",
-            "--markup",
-            markup,
+            f"Choose.\n\n{markup}",
         ],
     )
     assert refused.exit_code != 0
@@ -1037,21 +1047,20 @@ def test_bound_thread_refusal_routes_rich_content_to_addressed_reply(page_dir):
             "--done",
             target["ref"],
             "--text",
-            "Choose.",
-            "--markup",
-            markup,
+            f"Choose.\n\n{markup}",
         ],
     )
     assert corrected.exit_code == 0, corrected.output
     answer = json.loads(corrected.output)
-    assert answer["markup"] == markup
+    assert answer["html"] is True
+    assert markup in answer["text"]
     assert stream.finish("completed", "Provider final") is None
     assert thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     ) == [answer]
 
 
-@pytest.mark.parametrize("invalid", ["source", "markup", "title"])
+@pytest.mark.parametrize("invalid", ["source", "html", "title"])
 def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, invalid):
     comment, target, _delivery_id, stream = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
@@ -1064,32 +1073,40 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
     )
     options = {
         "source": {},
-        "markup": {"markup": '<lf-unknown id="bad"></lf-unknown>'},
+        "html": {},
         "title": {"title": ""},
     }[invalid]
     before = events_model.read_events(page_dir)
     with pytest.raises(Refused):
         thread_model.post_response(
-            target["ref"], "Invalid", identity=identity, **options
+            target["ref"],
+            'Invalid\n\n<lf-unknown id="bad"></lf-unknown>'
+            if invalid == "html"
+            else "Invalid",
+            html=invalid == "html",
+            identity=identity,
+            **options,
         )
     assert events_model.read_events(page_dir) == before
     assert files_model.latest_revision(page_dir) == before_revision
     (page_dir / "index.html").write_text(source)
     answer = thread_model.post_response(
-        target["ref"], "Corrected question?", markup=QUESTION, identity=identity
+        target["ref"],
+        f"Corrected question?\n\n{QUESTION}",
+        html=True,
+        identity=identity,
     )
     assert stream.finish("completed", "Provider final") is None
     assert thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     ) == [answer]
     assert answer is not None
-    assert answer["markup"] == QUESTION
+    assert answer["html"] is True
+    assert QUESTION in answer["text"]
 
 
 def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_dir):
-    source = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-    )
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
     action = append_command(
@@ -1248,7 +1265,10 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
     )
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        new_target["ref"], "New owner's question?", markup=QUESTION, identity=identity
+        new_target["ref"],
+        f"New owner's question?\n\n{QUESTION}",
+        html=True,
+        identity=identity,
     )
     if settled:
         append_command(
@@ -1272,8 +1292,8 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (answer["responds"], answer["text"], answer["markup"]) == (
+    assert (answer["responds"], answer["text"], answer["html"]) == (
         comment["id"],
-        "New owner's question?",
-        QUESTION,
+        f"New owner's question?\n\n{QUESTION}",
+        True,
     )

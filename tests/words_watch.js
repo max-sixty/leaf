@@ -326,7 +326,6 @@
     };
     return send.apply(this, arguments).then(
       async (response) => {
-        settle();
         if (response.ok)
           try {
             const answer = await response.clone().json();
@@ -342,6 +341,9 @@
           } catch {
             // An answer the watch can't read credits nothing.
           }
+        // The write stays out until its answer is heard, so no moment between the
+        // response's headers and its body holds the words in neither.
+        settle();
         return response;
       },
       (error) => {

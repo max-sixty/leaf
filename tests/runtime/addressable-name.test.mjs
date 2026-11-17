@@ -1,9 +1,9 @@
 /* What names an element: the one reading of the name the authoring contract gives it.
 
-   A section is named by its heading, a disclosure by its summary, a titled compound
-   member by its leading <strong>, and a registered widget that takes a `label` by
-   that attribute. Anything else has no name, and the caller decides what
-   stands in for one. The words come through the passage reader, so
+   A section is named by its heading, a disclosure by its summary, a registered
+   widget's titled member by its leading <strong>, and a registered widget that takes
+   a `label` by that attribute. Anything else, a bold line in prose included, has no
+   name, and the caller decides what stands in for one. The words come through the passage reader, so
    generated chrome inside an element names nothing.
 
    The chrome's label (`addressableLabel`) reads that name first and an element's words
@@ -55,6 +55,7 @@ test("no element has no name", () => {
 });
 
 test("generated chrome names nothing, and does not hide the title behind it", () => {
+  declare({ "lf-card": {} });
   assert.equal(
     named('<lf-card id="it"><strong class="lf-ui">6 · 🎯</strong>Words.</lf-card>'),
     "",
@@ -65,6 +66,7 @@ test("generated chrome names nothing, and does not hide the title behind it", ()
     ),
     "Real title",
   );
+  declare();
 });
 
 const labelled = (markup) => {
@@ -129,11 +131,6 @@ test("past every name, plain markup is its words and a widget is its word", () =
   assert.equal(
     labelled(`<h1>Page title</h1><div id="it">${members}</div>`),
     "Card words",
-  );
-  // A picture's own name stands in for words it does not have.
-  assert.equal(
-    labelled('<figure id="it"><svg role="img" aria-label="Visual 0"></svg></figure>'),
-    "Visual 0",
   );
   for (const tag of Object.keys(registry)) delete registry[tag];
 });

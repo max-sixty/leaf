@@ -1,7 +1,7 @@
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { selectEnds } from "../native-selection.js";
-import { anchoringIsReady } from "../anchor-resolution.js";
+import { anchoringIsReady, captured } from "../anchor-resolution.js";
 import { bindings, bindingEnabled, cycledRow, hasRows } from "../keyboard/bindings.js";
 import { el, offerAction, searchField } from "../widget-elements.js";
 import { LAYOUT } from "../widget-upgrade.js";
@@ -652,7 +652,7 @@ export function createTargetPicker({
 
   /** @param {PickerTarget} candidate */
   function chooseTarget(candidate) {
-    const target = candidate.capture ? candidate.capture() : candidate;
+    const target = captured(candidate);
     closeTargetPicker();
     releaseFocus();
     commentOnTarget(target);
@@ -735,20 +735,15 @@ export function createTargetPicker({
 
   // The picker's hints and the open search's marks are two faces in one layer, and only
   // one of them stands at a time: search covers the map that opened it.
-  /** @type {import("../keyboard/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], PlacementReading, {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
+  /** @type {import("../keyboard/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
   const hintOptions = {
     layer: hintRoot,
     walk: "target-picker",
     read: visibleTargets,
     identity: hintElement,
-    scene: room,
-    layout: (candidates, { current, reading }) => {
-      const seated = candidates.flatMap((target) => {
-        const rect = targetShown(target) ? targetBounds(target, reading) : null;
-        return rect ? [{ target, rect }] : [];
-      });
-      return seated.map(({ target, rect }) => {
-        const steps = [...target.code];
+    layout: (candidates, { current }) =>
+      candidates.map((target) => {
+        const { rect } = target;
         return {
           candidate: target,
           model: Object.freeze({
@@ -757,7 +752,9 @@ export function createTargetPicker({
               target === current ? " lf-current" : ""
             }${rect.top < 0 ? " lf-in" : ""}`,
             hintCode: target.code,
-            sequence: keySequenceModel(progressSteps(steps, [...hints.prefix()])),
+            sequence: keySequenceModel(
+              progressSteps([...target.code], [...hints.prefix()]),
+            ),
           }),
           target: rect,
           placement: target.controlElement ? "above" : "before",
@@ -767,12 +764,11 @@ export function createTargetPicker({
           left: rect.left,
           top: Math.max(0, rect.top),
         };
-      });
-    },
+      }),
     template: hintTemplate,
     take: chooseTarget,
     words: {
-      describe: (target) => (target.capture ? target.capture() : target).label,
+      describe: (target) => captured(target).label,
       take: "choose",
       all: "All target hints.",
     },

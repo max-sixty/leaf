@@ -426,7 +426,10 @@ Entry points per concern (paths under `runtime/`; each header owns the details):
 through its `nextRender`, `nextFrame`, `cancelRender` and `sizeObserver`; lint refuses
 the browser's own. A rendering callback does its layout reads before its writes, since
 a read after a write forces a synchronous layout. `getComputedStyle` forces style, and
-in Chromium so can a read of the page's selection, such as `rangeCount`.
+in Chromium so can a read of the page's selection, such as `rangeCount`. On a Leaf page a
+forced style also lays out whatever in `body` is out of date, a closed tab's panel
+included: `body` is a size container, and a size query reads it
+(notes/browser-support.md, "A style read lays out a size container's contents").
 
 A box that follows page content is positioned by CSS, with an anchor, a sticky offset
 or a scroll timeline, because a scroll handler trails the scroll by a frame. Paint over
@@ -485,7 +488,19 @@ only the root's subtree, never its later siblings.
 No `:has()` reads where focus is, by `:focus`, `:focus-visible` or a mark `focus.js`
 writes: each made every focus move restyle much of the page
 (`test_no_has_reads_where_focus_is`). A rule for focus anywhere in a box reads the box's
-`data-lf-focus-within` or `data-lf-focus-visible-within`. A rule for one control's focus
+`data-lf-focus-within` or `data-lf-focus-visible-within` in the box's own compound.
+Chromium answers a change to a state that a compound before the subject reads by
+restyling every element under the changed one that the subject could match, whether or
+not the rule matches there. Focus marks every ancestor of the focused element, `main`
+included, and Go-to marks `body`, so a subject naming only a type, as `td` or `a` does,
+restyled every cell or link on the page as focus entered `main`. What the box holds
+names a class only it carries (toc.css, the map's words), or asks the box for a
+property the box sets by a style query on a container the box names (reading.css, the
+sticky row names). The query leaves what the box holds alone only while no style under
+the container depends on it; once one does, Chromium restyles everything under the
+container when the property changes. An inherited property restyles everything the box
+holds when it changes, and so does an explicit `inherit` on each element between the
+box and its readers. A rule for one control's focus
 reads the box that control names with `--lf-focus-box` (base.css), which `focus.js`
 marks `data-lf-control-focus` and `data-lf-control-focus-visible`.
 
@@ -497,6 +512,23 @@ their rules name those. A rule on the root alone would reach other elements only
 where highlight styles inherit, and there it pins every mark to the root's tokens and
 `color-scheme`, and makes Chromium restyle every element when even a non-inheriting
 custom property changes on `html`.
+
+### A rule costs only the elements it could style
+
+A rule should cost only the elements it could style. In Chromium, a rule costs every
+element unless it names a key: Chromium files each rule under one id, class, attribute
+or type its subject names, and skips a rule at once for an element whose ancestors lack
+the key an ancestor compound names. A key counts alone, in an `:is()` or `:where()` of
+one selector, or in a nested rule's `&` when the rule it stands in has one selector. A
+list names none, so `:is(.a, .b)`, `:where(p, li)` and `&::after` under two selectors
+each cost every element a match. Write each member as a selector of its own, as
+`.a, .b`. Where a lighter member must keep the list's weight, name the key at no weight
+before the list, as `:where(.a):is(.a, .b[x])`, and in a nested rule under a list name
+one, as `&:where(.a)::after`. Or give the rule an ancestor that names one, as
+`:where(svg) :where(:not(foreignObject *))` does. A subject that can name none, such as
+`*` or a frame's edge trims (`reading.css`), costs every element, so write one only for
+what every element needs. Check: `test_a_rule_s_subject_names_a_key`, whose docstring
+holds the measurement.
 
 ### Layouts, styles and controls
 
@@ -528,12 +560,15 @@ custom property changes on `html`.
   refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
   never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
   tokens. The kernel's rules name no class a page coins for itself either, so a page's
-  own `.button` or `.choice` keeps its author's look: a page takes a Leaf control's
-  face by writing that control's name (`lf-btn`, `lf-choice`), which a kernel idiom
-  declares and `page check` therefore lets it write. The kernel's other classes for
-  authors are the Layouts' (`layout-column`, `density-working`), and a theme's idioms,
-  such as the reading theme's `.tag`, come with the theme a page takes. A library's names on an element
-  Leaf draws for that library, such as Pierre's row attributes, stay the library's.
+  own `.button` or `.choice` keeps its author's look. A page's own controls take Leaf's
+  faces by element, where its theme turns on markup's reading face, never by writing
+  Leaf's names (`styles/components/controls.css`, "The faces of Leaf's control
+  roles"); the `lf-` classes a page may write are those a kernel idiom declares, such
+  as `lf-scroll`, which `page check` therefore lets it write. The kernel's other
+  classes for authors are the Layouts' (`layout-column`, `density-working`), and a
+  theme's idioms, such as the reading theme's `.tag`, come with the theme a page takes.
+  A library's names on an element Leaf draws for that library, such as Pierre's row
+  attributes, stay the library's.
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
   `test_the_kernel_styles_no_class_a_page_coins`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's
@@ -592,7 +627,7 @@ reads (root `AGENTS.md`, "The document starts state; the log changes it"):
 | Fact                                                                                                           | Authority                                                                                                                                                                                                                                                                                                                                                                           |
 | -------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | authored widget state                                                                                          | the validated source markup, captured before upgrade                                                                                                                                                                                                                                                                                                                                |
-| external data                                                                                                  | the latest page data; Leaf sets each bound source on the widget property x-data names (data.js)                                                                                                                                                                                                                                                                                     |
+| external data                                                                                                  | the latest page data; Leaf sets each bound source on the property its input names (data.js)                                                                                                                                                                                                                                                                                         |
 | version shown                                                                                                  | the revision the delivery prelude names; a newer revision with the same executable identity patches in place, and a different one loads a fresh document                                                                                                                                                                                                                            |
 | accepted history                                                                                               | the server's event log and its `/api/state` answer, which the publisher adopts whole; an answer to a request naming the reading the tab holds may carry only the changes since, which the reader applies to that reading first (`completeState` in `layer-client.js`); each answer has one `through_seq`, and a version comparison asks `/api/view` at the sequence already applied |
 | unresolved browser work, refusals included                                                                     | the publisher's one ordered list; the server records no refusal, since the condition behind one can change while the user's words stay the same                                                                                                                                                                                                                                     |
@@ -712,7 +747,8 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | What a place on the page shows as a preview, and the place a link into the page names                 | `place-preview.js` `placePreview`, `linkedPlace`                                   |
 | What a thread says when pointed at, on its passage mark and its margin entry                          | `thread/messages.js` `threadPreview`                                               |
 | The clock time behind an age, and what an age's `<time>` previews                                     | `presence.js` `clockTime`, `agePreview`                                            |
-| When a message was said, naming its day unless that is today                                          | `presence.js` `saidAt`                                                             |
+| When a message was said: how long ago within the hour, then its time and day                          | `presence.js` `saidAt`                                                             |
+| A time of day as the reader's platform writes it                                                      | `presence.js` `timeOfDay`                                                          |
 | The keys that press a control from where the user is                                                  | `keyboard/control-keys.js` `controlKeys`                                           |
 | The keys the command hints label a control with from where the user is                                | `keyboard/command-hints.js` `drawnKeys`                                            |
 | Whether a margin entry changed since the inventory last collected: it is no longer the same object    | `annotation-inventory.js` `createAnnotationInventory`                              |
@@ -729,7 +765,6 @@ adds its row. Rows marked _lint_ are enforced in `eslint.config.mjs`.
 | Which element a heading titles                                                                        | `addressable-names.js` `titledElement`                                             |
 | A document's outline, and what stood over each element, as the walk reading it met them               | `passages.js` `documentOutline`, `headed`                                          |
 | Which reading of the page stands, for what is derived from it                                         | `passages.js` `pageReadingVersion`                                                 |
-| Whether a title runs into words on its line, read off the markup                                      | `passages.js` `runsIntoLine`                                                       |
 
 ### Facts both runtimes know
 
@@ -784,13 +819,13 @@ them itself.
 ## The widget vocabulary stays open
 
 Core names a widget only when it is part of how Leaf works (root `AGENTS.md`, "Keep the
-layer open"). Each `x-` key's meaning is its `$keys` entry in `registry.json`. Use a
-boolean only when false has one clear meaning; otherwise declare named values.
+layer open"). Each declaration fact's meaning is its `$keys` entry in `registry.json`.
+Use a boolean only when false has one clear meaning; otherwise declare named values.
 
 Python models only the text changes the registry declares. A module that changes text
 in a way the file can't reproduce is fenced, and browser capture stops at the fence, so
 a selection across it never becomes a quote the file can't confirm. Declare words Python
-can model with `x-says` or the content key.
+can model with `words.says` or `content`.
 
 ## Render gates
 

@@ -274,10 +274,6 @@
     2 * var(--lf-margin-entry) + var(--lf-margin-gap) + var(--lf-rail-hang) +
       var(--lf-focus-ring-room)
   );
-  /* A note's preferred text measure plus the gutter beside its passage. The
-     column Layout centers this pair when both fit; native flex wrapping stacks
-     them otherwise (layouts.css). */
-  --lf-note: 384px;
   /* A page thread's card is read as prose, so its preferred measure is the column's,
      720px at 17px, at the card's 14px face. Beside its words a card stands at the
      minimum until `size-width` widens it (placement-rules.json). The minimum chooses whether the card and the
@@ -314,7 +310,7 @@
   --lf-pane-bar-pad-block: 10px;
   --lf-pane-bar-pad: var(--lf-pane-bar-pad-block) 14px;
   --lf-pane-inset: 14px;
-  /* How wide a block with `x-space: wide` may stand, from the prose's start edge
+  /* How wide a block with `paint.space: wide` may stand, from the prose's start edge
      (layouts.css, "Breakouts"): one number for the whole vocabulary, because a width per
      widget is how a page becomes a ransom note. It is the width at which 100 columns of
      code, the common limit of formatters such as rustfmt, read unwrapped in the widest
@@ -489,6 +485,15 @@
         calc(b * min(0.5, 1 + 0.014 / hypot(a, b)))
     )
   );
+  /* A code block's colours. Each code surface's own sheet sets `color-scheme:
+     var(--lf-code-scheme, inherit)`, so a theme or page that sets --lf-code-scheme to
+     `dark` or `light` draws its code in that scheme whatever the page's is: every
+     light-dark() token inside the block, these, the syntax colours, the status inks and
+     the paper a thread among the code's rows stands on, takes that scheme's branch.
+     Unset, the block inherits the scheme of whatever holds it, which a page may set on
+     any part of itself, so the token has no value here: one naming the root's scheme
+     would draw light code in a page's dark panel. Chromium, Firefox and WebKit all read
+     `inherit` as a var() fallback. */
   --lf-pre-bg: light-dark(#fff, #1b1b1a);
   --lf-code-chrome: light-dark(#f6f8fa, #222220);
   --lf-code-ink: light-dark(#24292f, #e8e7e3);

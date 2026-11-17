@@ -68,22 +68,28 @@ customElements.define("lf-local", class extends LeafElement {
 PAGE_DECLARATION = {
     "lf-local": {
         "description": "A page-owned local widget.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "choice": {"type": "string"},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "choice": {"type": "string"},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-state": {
-            "choose": {
-                "unit": "widget",
-                "record": {"kind": "value", "attr": "choice"},
-            }
+        "content": "empty",
+        "state": {
+            "verbs": {
+                "choose": {
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "choice"},
+                }
+            },
         },
-        "x-example": '<lf-local id="local-example" choice="idle"></lf-local>',
+        "author": {
+            "example": '<lf-local id="local-example" choice="idle"></lf-local>',
+        },
     }
 }
 
@@ -175,16 +181,22 @@ GENERIC_VISUAL_PAGE = leaf_page(
 GENERIC_VISUAL_LAYER: dict[str, dict] = {
     "lf-test-visual": {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "parts": {"const": "all"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "parts": {"const": "all"},
+            },
+            "required": ["id", "parts"],
+            "additionalProperties": False,
         },
-        "required": ["id", "parts"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-visual": {"parts": "parts"},
-        "x-example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
+        "content": "empty",
+        "words": {
+            "visual": {"parts": "parts"},
+        },
+        "author": {
+            "example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
+        },
     }
 }
 
@@ -226,10 +238,13 @@ def prefixed_visual_layer(*prefixes):
     return {
         "lf-test-visual": {
             **entry,
-            "properties": {"id": entry["properties"]["id"]},
-            "required": ["id"],
-            "x-visual": {"prefixes": list(prefixes)},
-            "x-example": '<lf-test-visual id="visual"></lf-test-visual>',
+            "attributes": {
+                **entry["attributes"],
+                "properties": {"id": entry["attributes"]["properties"]["id"]},
+                "required": ["id"],
+            },
+            "words": {**entry["words"], "visual": {"prefixes": list(prefixes)}},
+            "author": {"example": '<lf-test-visual id="visual"></lf-test-visual>'},
         }
     }
 
@@ -244,17 +259,23 @@ SHADOW_VISUAL_PAGE = leaf_page(
 SHADOW_VISUAL_LAYER = {
     "lf-test-shadow-visual": {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "parts": {"const": "all"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "parts": {"const": "all"},
+            },
+            "required": ["id", "parts"],
+            "additionalProperties": False,
         },
-        "required": ["id", "parts"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-shadow": True,
-        "x-visual": {"parts": "parts"},
-        "x-example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
+        "content": "empty",
+        "words": {
+            "shadow": True,
+            "visual": {"parts": "parts"},
+        },
+        "author": {
+            "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
+        },
     }
 }
 SHADOW_VISUAL_WIDGETS = {
@@ -699,10 +720,10 @@ diff --git a/feeders/mount.py b/feeders/mount.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-<lf-code id="patch" language="python"><pre>
+<lf-code id="patch"><pre><code class="language-python">
 def bracket():
     return "steel"
-</pre></lf-code>
+</code></pre></lf-code>
 """,
 )
 
@@ -937,21 +958,19 @@ ROOM_GEOMETRY = (
     + SHELL_BOX
     + """,
              board: box('sprint'), diff: box('patch'), prose: box('prose'),
-             widePatch: box('wide-patch'),
-             note: box('note'), later: box('later') };
+             widePatch: box('wide-patch') };
 }"""
 )
 # A wide widget inside each of the two kinds of holder: a box that paints (the quoted
-# frame, the option's card, the metric, a native nested section's rail, the note a code block
-# builds, the page's own div) and a wrapper that doesn't (a plain section). The div is
-# the case the theme cannot name: it draws its box in the page's own style and declares
-# the frame there, which is the whole of what a project writes to hold an exhibit inside
-# its own card.
+# frame, the option's card, the metric, a nested task's rail, the note a code block
+# builds, the page's own div) and a wrapper that doesn't (a plain section). The divs are
+# the case the theme cannot name: each draws its box in the page's own style, and being
+# no flow, keeps what it holds inside it.
 FRAMED_WIDE_PAGE = leaf_page(
     "framed",
     """
 <h1 id="t">Framed</h1>
-<section id="loose" class="layout-flow">
+<section id="loose">
   <lf-board id="in-section">
     <lf-column id="s1" label="Todo"><lf-card id="sk1"><strong>One</strong></lf-card></lf-column>
     <lf-column id="s2" label="Done"></lf-column>
@@ -964,7 +983,7 @@ FRAMED_WIDE_PAGE = leaf_page(
   </lf-board>
 </lf-sample>
 <lf-ask id="pick-decision"><h2>Should the option include evidence?</h2>
-<lf-options id="pick" choose>
+<lf-options id="pick">
   <lf-option id="opt-a"><strong>With evidence</strong>
     <lf-diagram id="in-card"><pre>
 graph LR
@@ -975,7 +994,7 @@ graph LR
   <lf-option id="opt-b"><strong>Without</strong></lf-option>
 </lf-options></lf-ask>
 <lf-ask id="row-pick-decision"><h2>Where should the cable run?</h2>
-<lf-options id="row-pick" choose>
+<lf-options id="row-pick">
   <lf-option id="row-a">Along the fence line
     <lf-diagram id="in-row"><pre>
 graph LR
@@ -1010,22 +1029,22 @@ graph LR
   </section>
 </div>
 <section id="plan">
-  <section id="t-outer" class="nested-frame"><strong>Rebuild the feeders</strong>
-    <section id="t-inner" class="nested-frame"><strong>Fit the baffles</strong>
+  <div id="t-outer" class="nested-frame"><strong>Rebuild the feeders</strong>
+    <div id="t-inner" class="nested-frame"><strong>Fit the baffles</strong>
       <lf-diagram id="in-task"><pre>
 graph LR
   A[request] --> B[queue]
   B --> C[worker]
 </pre></lf-diagram>
-    </section>
-  </section>
+    </div>
+  </div>
 </section>
-<lf-code id="walk" language="python" hi="2"><pre>
+<lf-code id="walk" hi="2"><pre><code class="language-python">
 def bracket(temp):
     if temp &lt; 0:
         return "steel"
     return "cedar"
-</pre>
+</code></pre>
   <lf-note id="line-note" at="2">Freezing is the only threshold that matters.
     <lf-diagram id="in-note"><pre>
 graph LR
@@ -1214,41 +1233,6 @@ OWN_MARGIN_FURNITURE = WIDE_AND_NARROW_PAGE.replace(
     "<main class=\"layout-column\">\n<div id='own-rail' style='position: absolute; left: 100%;"
     " margin-left: 22px; top: 0; width: 160px; height: 600px'>Mine.</div>",
 )
-# The two things on this page that want a margin, on one page and level with each other.
-# The note is written immediately before the board so they share a band of the page rather
-# than stacking, which is the only arrangement in which either can be over the other.
-NOTE_AND_WIDE_PAGE = leaf_page(
-    "room and margin",
-    """
-<h1 id="t">Feeders</h1>
-<div class="layout-note"><p id="prose">The board is as wide as its columns are; this sentence is not.</p>
-<aside class="note" id="note">Counts are the warden's own, taken at dawn from the
-south hide, and the perch numbers are the ones she disputes.</aside></div>
-<lf-board id="sprint">
-  <lf-column id="col-todo" label="Todo">
-    <lf-card id="card-heater"><strong>Heated perch</strong> Wire the south feeder.</lf-card>
-  </lf-column>
-  <lf-column id="col-doing" label="Doing">
-    <lf-card id="card-baffle"><strong>Squirrel baffle</strong></lf-card>
-  </lf-column>
-  <lf-column id="col-review" label="Review"></lf-column>
-  <lf-column id="col-done" label="Done"></lf-column>
-</lf-board>
-<p id="gap" style="margin-block: 600px">Prose far enough below the note that nothing of
-it reaches this part of the page.</p>
-<lf-board id="later">
-  <lf-column id="late-todo" label="Todo">
-    <lf-card id="card-seed"><strong>Seed mix</strong> Switch to sunflower hearts.</lf-card>
-  </lf-column>
-  <lf-column id="late-done" label="Done"></lf-column>
-</lf-board>
-""",
-).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
-
-# Wide enough for a note to hang in the margin with the column centred, the room
-# either side of it holding the note's 384px, with an exhibit growing past prose into
-# that same margin.
-NOTE_BAND = 1600
 
 
 SCROLLED = "() => document.scrollingElement.scrollTop > 0"
@@ -1261,14 +1245,14 @@ WHERE_I_STAND_PAGE = leaf_page(
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
 <lf-ask id="shape-decision"><h2>Which material?</h2>
-<lf-options id="shape" choose>
+<lf-options id="shape">
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, and the
   <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="settled-decision"><h2>Should we keep it?</h2>
-<lf-options id="settled" choose settled>
-  <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week, with the
+<lf-options id="settled" settled>
+  <lf-option id="st-keep" selected><strong>Keep it</strong> Decided last week, with the
   <a href="https://example.invalid/keep">note behind it</a>.</lf-option>
   <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-ask>

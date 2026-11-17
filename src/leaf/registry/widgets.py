@@ -2,11 +2,12 @@
 
 from jsonschema.exceptions import SchemaError
 
-from leaf.schema import ATTRIBUTE_KEYS, EXTENSION_SCHEMA
+from leaf.schema import ATTRIBUTE_FACTS, DECLARATION_SCHEMA, FACT_NEEDS
 
 from .contract import (
     deciding_outcomes,
     deciding_verb,
+    declared_fact,
     gathering,
     reference_relation_problem,
     registry_error,
@@ -34,31 +35,36 @@ def validate_widget_schemas(declarations: dict, path) -> None:
 
 
 def _validate_widget_schema(tag: str, entry: dict, path) -> None:
-    try:
-        check_schema(entry)
-    except SchemaError as error:
-        raise registry_error(
-            "declaration-schema", path, tag, **schema_reading(error)
-        ) from error
-    description = entry.get("description")
-    if not isinstance(description, str) or not description.strip():
-        raise registry_error("no-description", path, tag)
-    extensions = {key: value for key, value in entry.items() if key.startswith("x-")}
-    errors = sorted(json_validator(EXTENSION_SCHEMA).iter_errors(extensions), key=str)
+    errors = sorted(json_validator(DECLARATION_SCHEMA).iter_errors(entry), key=str)
     if errors:
         raise registry_error(
-            "invalid-extensions", path, tag, **schema_reading(errors[0])
+            "invalid-declaration", path, tag, **schema_reading(errors[0])
         )
-    if entry.get("x-text-format") == "markdown" and entry.get("x-content") != "data":
+    try:
+        check_schema(entry["attributes"])
+    except SchemaError as error:
+        raise registry_error(
+            "attributes-schema", path, tag, **schema_reading(error)
+        ) from error
+    for fact, needs in FACT_NEEDS.items():
+        if declared_fact(entry, fact) is None:
+            continue
+        for need in needs:
+            if declared_fact(entry, need) is None:
+                raise registry_error("needs-fact", path, tag, fact=fact, needs=need)
+    if (
+        declared_fact(entry, "words.text-format") == "markdown"
+        and declared_fact(entry, "content") != "data"
+    ):
         raise registry_error("markdown-needs-data", path, tag)
-    # An unbound data widget's <pre> is its one x-data input's text (element-data.js,
+    # An unbound data widget's <pre> is its one input's text (element-data.js,
     # "Bound values"), so it can feed only one, and none where the <pre> is already
     # the element's words or its recorded state.
-    inputs = entry.get("x-data", {})
-    if entry.get("x-content") == "data" and inputs:
+    inputs = declared_fact(entry, "data.inputs", {})
+    if declared_fact(entry, "content") == "data" and inputs:
         if len(inputs) > 1:
             raise registry_error("data-input", path, tag, reason="inputs")
-        if entry.get("x-text-format") == "markdown":
+        if declared_fact(entry, "words.text-format") == "markdown":
             raise registry_error("data-input", path, tag, reason="words")
         if any(
             spec.get("record", {}).get("kind") == "body"
@@ -121,27 +127,27 @@ def _validate_widget_structure(
     tag: str, entry: dict, registry: dict, declarations: dict, data: dict, path
 ) -> tuple[dict, set]:
     for key, named in (
-        ("x-owners", entry.get("x-owners", [])),
-        ("x-unique", entry.get("x-unique", {}).values()),
-        ("x-within", entry.get("x-within", [])),
+        ("markup.owners", declared_fact(entry, "markup.owners", [])),
+        ("markup.unique", declared_fact(entry, "markup.unique", {}).values()),
     ):
         if unknown := sorted(set(named) - set(declarations)):
             raise registry_error(
                 "unknown-declarations", path, tag, key=key, names=unknown
             )
-    properties = entry.get("properties", {})
-    layout = entry.get("x-reading-role")
+    attributes = entry["attributes"]
+    properties = attributes.get("properties", {})
+    required = set(attributes.get("required", []))
+    layout = declared_fact(entry, "markup.reading-role")
     if layout:
-        if entry.get("x-content") != "markup":
+        if declared_fact(entry, "content") != "markup":
             raise registry_error(
                 "requires",
                 path,
                 tag,
-                key="x-reading-role",
-                needs="x-content",
+                key="markup.reading-role",
+                needs="content",
                 value="markup",
             )
-        required = set(entry.get("required", []))
         if "id" not in required or not _typed(properties, "id", "string"):
             raise registry_error("reading-role-attr", path, tag, role=layout, attr="id")
         if layout == "pane" and (
@@ -150,7 +156,7 @@ def _validate_widget_structure(
             raise registry_error(
                 "reading-role-attr", path, tag, role="pane", attr="label"
             )
-    for input_name, spec in entry.get("x-data", {}).items():
+    for input_name, spec in declared_fact(entry, "data.inputs", {}).items():
         contract = spec["contract"]
         source_attr = spec.get("source")
         if contract not in data["contracts"]:
@@ -161,7 +167,7 @@ def _validate_widget_structure(
             raise registry_error(
                 "data-source", path, tag, input=input_name, attr=source_attr
             )
-    for output_name, spec in entry.get("x-output", {}).items():
+    for output_name, spec in declared_fact(entry, "data.outputs", {}).items():
         if spec["contract"] not in data["contracts"]:
             raise registry_error(
                 "unknown-output-contract",
@@ -170,28 +176,28 @@ def _validate_widget_structure(
                 output=output_name,
                 contract=spec["contract"],
             )
-    for input_name, spec in entry.get("x-data", {}).items():
+    for input_name, spec in declared_fact(entry, "data.inputs", {}).items():
         if (reference := spec.get("reference")) and (
-            reference not in entry.get("x-refers", {})
-            or entry["x-refers"][reference].get("key")
+            reference not in declared_fact(entry, "markup.refers", {})
+            or entry["markup"]["refers"][reference].get("key")
         ):
             raise registry_error(
                 "data-reference", path, tag, input=input_name, attr=reference
             )
     # A measured input joins the source's current run to the receipt the authored
     # value was written with, so every element names both.
-    for input_name, spec in entry.get("x-data", {}).items():
+    for input_name, spec in declared_fact(entry, "data.inputs", {}).items():
         run_attr = spec.get("measured")
         if run_attr is None:
             continue
         source_attr = spec.get("source")
-        if source_attr not in entry.get("required", []):
+        if source_attr not in required:
             raise registry_error(
                 "measured-source", path, tag, input=input_name, attr=source_attr
             )
         run_schema = properties.get(run_attr)
         if not (
-            run_attr in entry.get("required", [])
+            run_attr in required
             and isinstance(run_schema, dict)
             and run_schema.get("type") == "string"
             and run_schema.get("minLength", 0) >= 1
@@ -199,32 +205,32 @@ def _validate_widget_structure(
             raise registry_error(
                 "measured-run", path, tag, input=input_name, attr=run_attr
             )
-    said = set(entry.get("x-says", {}))
-    if entry.get("x-awaits") is not None and not _typed(properties, "id", "string"):
-        raise registry_error("addressable-id", path, tag, key="x-awaits")
-    for key in ATTRIBUTE_KEYS:
-        declared = entry.get(key) or ()
+    said = set(declared_fact(entry, "words.says", {}))
+    if declared_fact(entry, "state.awaits") is not None and not _typed(
+        properties, "id", "string"
+    ):
+        raise registry_error("addressable-id", path, tag, key="state.awaits")
+    for key in ATTRIBUTE_FACTS:
+        declared = declared_fact(entry, key) or ()
         named = {declared} if isinstance(declared, str) else set(declared)
         if unknown := sorted(named - set(properties)):
             raise registry_error(
                 "undeclared-attributes", path, tag, key=key, names=unknown
             )
-    for attribute, reference in entry.get("x-refers", {}).items():
+    for attribute, reference in declared_fact(entry, "markup.refers", {}).items():
         if problem := reference_relation_problem(reference, registry, declarations):
             code, values = problem
             raise registry_error(code, path, tag, attr=attribute, **values)
-    if isinstance(entry.get("x-visual"), dict):
-        if not (
-            "id" in entry.get("required", []) and _typed(properties, "id", "string")
-        ):
+    if isinstance(declared_fact(entry, "words.visual"), dict):
+        if not ("id" in required and _typed(properties, "id", "string")):
             raise registry_error("visual-id", path, tag)
-        part_attribute = entry["x-visual"].get("parts")
+        part_attribute = entry["words"]["visual"].get("parts")
         if part_attribute and part_attribute not in properties:
             raise registry_error(
                 "undeclared-attributes",
                 path,
                 tag,
-                key="x-visual.parts",
+                key="words.visual.parts",
                 names=[part_attribute],
             )
     return properties, said
@@ -237,27 +243,28 @@ def _validate_shown_answers(tag: str, entry: dict, declarations: dict, path) -> 
 
     The view names its widget through a plain reference, and its compound owners
     carry the attribute naming the answer they hold. An answer read by member
-    (`x-awaits.key`) is a set of members, which the key names one by one, so the
+    (`state.awaits.key`) is a set of members, which the key names one by one, so the
     key is unique among the members of one widget."""
-    if shows := entry.get("x-shows"):
-        reference = entry["x-refers"].get(shows["attr"])
+    if shows := declared_fact(entry, "state.shows"):
+        reference = entry["markup"]["refers"].get(shows["attr"])
         if reference is None or reference:
             raise registry_error("shows-reference", path, tag, attr=shows["attr"])
         if lacking := sorted(
             owner
-            for owner in entry["x-owners"]
-            if shows["value"] not in declarations[owner].get("properties", {})
+            for owner in entry["markup"]["owners"]
+            if shows["value"]
+            not in declarations[owner]["attributes"].get("properties", {})
         ):
             raise registry_error(
                 "shows-value", path, tag, attr=shows["value"], owners=lacking
             )
-    awaits = entry.get("x-awaits") or {}
+    awaits = declared_fact(entry, "state.awaits") or {}
     if key := awaits.get("key"):
-        spec = entry.get("x-state", {}).get(awaits["value"], {})
+        spec = declared_fact(entry, "state.verbs", {}).get(awaits["value"], {})
         keyed = [
             member
-            for member, declared in declarations.items()
-            if declared.get("x-unique", {}).get(key) == tag
+            for member, declaration in declarations.items()
+            if declared_fact(declaration, "markup.unique", {}).get(key) == tag
         ]
         if (spec.get("record") or {}).get("kind") != "attribute" or not keyed:
             raise registry_error("awaits-key", path, tag, key=key)
@@ -267,23 +274,22 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     # A predicate names declared attributes. Booleans test presence or absence;
     # strings must be values the attribute's schema admits, or the widget silently
     # disappears from every consumer.
-    awaits = entry.get("x-awaits", {})
-    if entry.get("x-encloses"):
-        if "id" not in entry.get("required", []):
+    awaits = declared_fact(entry, "state.awaits", {})
+    if declared_fact(entry, "state.encloses"):
+        if "id" not in entry["attributes"].get("required", []):
             raise registry_error("enclosing-id", path, tag)
-        if entry.get("x-content") != "markup":
+        if declared_fact(entry, "content") != "markup":
             raise registry_error("enclosing-prose", path, tag)
     conditions = [
-        ("x-awaits", awaits.get("when", {})),
+        ("state.awaits", awaits.get("when", {})),
         *(
-            ("x-awaits", condition.get("when", {}))
+            ("state.awaits", condition.get("when", {}))
             for condition in awaits.get("answered", {}).values()
         ),
-        (
-            "x-exhibit",
-            entry["x-exhibit"]["when"]
-            if isinstance(entry.get("x-exhibit"), dict)
-            else {},
+        *(
+            (fact, rule["when"])
+            for fact in ("state.exhibit", "paint.flow")
+            if isinstance(rule := declared_fact(entry, fact), dict)
         ),
     ]
     for declaration, condition in conditions:
@@ -313,13 +319,13 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     }
     data_bindings = {
         spec[key]
-        for spec in entry.get("x-data", {}).values()
+        for spec in declared_fact(entry, "data.inputs", {}).values()
         for key in ("source", "reference")
         if key in spec
     }
     if dynamic := sorted(data_bindings & mutable_values):
         raise registry_error("binding-written", path, tag, attrs=dynamic)
-    for spec in entry.get("x-data", {}).values():
+    for spec in declared_fact(entry, "data.inputs", {}).values():
         if (run_attr := spec.get("measured")) in mutable_values:
             raise registry_error("run-written", path, tag, attr=run_attr)
     return awaits
@@ -333,15 +339,15 @@ def _validate_widget_interactions(
     awaits: dict,
     path,
 ) -> None:
-    if entry.get("x-work"):
-        if entry.get("x-inline"):
+    if declared_fact(entry, "state.work"):
+        if declared_fact(entry, "words.inline"):
             raise registry_error("work-inline", path, tag)
-        if entry.get("x-content") != "markup":
+        if declared_fact(entry, "content") != "markup":
             raise registry_error(
-                "work-content", path, tag, content=entry.get("x-content")
+                "work-content", path, tag, content=declared_fact(entry, "content")
             )
     answered = awaits.get("answered", {})
-    if entry.get("x-awaits") is not None and not answered:
+    if declared_fact(entry, "state.awaits") is not None and not answered:
         raise registry_error("awaits-unanswered", path, tag)
     # The user answers their own obligation, so only a verb the user writes can answer it.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}

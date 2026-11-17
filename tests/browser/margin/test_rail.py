@@ -32,34 +32,6 @@ from leaf_dev.example_data import named_source
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
-def test_column_width_does_not_clear_a_sidenote(browser, serve):
-    """A callout keeps the prose measure, as text does, so it must not drop below a
-    sidenote that ordinary neighboring paragraphs flow beside, as a breakout does."""
-    source = leaf_page(
-        "Column beside sidenote",
-        """
-<h1 id="title">Column beside sidenote</h1>
-<div class="layout-note"><div>
-<p id="before">The first line of ordinary prose.</p>
-<aside class="callout" id="column"><p>A callout keeps the column.</p></aside>
-<p id="after">The following line of ordinary prose.</p>
-</div><aside class="note" id="note"><p>Supporting context in the margin, long enough to
-run several lines beside the prose and the callout that follow it.</p></aside></div>
-""",
-    ).replace(
-        '<main class="layout-column">', '<main class="layout-column layout-notes">'
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1400, 900)
-    at = page.evaluate(
-        """() => ({
-          column: document.getElementById('column').getBoundingClientRect().top,
-          note: document.getElementById('note').getBoundingClientRect().bottom,
-        })"""
-    )
-    assert at["column"] < at["note"], at
-
-
 def test_a_held_marker_keeps_the_keyboard_when_the_rail_falls(browser, serve):
     """A marker the keyboard is on stays drawn when the shell loses its rail: it stands
     as a pin in its block's corner instead, so the user stays on it.
@@ -350,38 +322,6 @@ def test_a_page_that_can_grow_margin_status_reserves_its_rail_before_the_first_g
     ), "withdrawing the move handed the strip back and moved the column with it"
 
 
-def test_a_marker_level_with_a_hanging_note_pins_and_one_below_it_keeps_the_rail(
-    browser, serve
-):
-    """A sidenote hanging in the right margin holds the strip the rail stands in, so the
-    marker of a paragraph level with it stands on the paragraph as a pin rather than
-    over the note. The control is a paragraph far below the note, whose marker keeps
-    the rail."""
-    filler = "".join(f"<p>Filler paragraph {i}.</p>" for i in range(12))
-    source = leaf_page(
-        "a note beside its paragraph",
-        '<h1 id="t">Notes</h1><div class="layout-note">'
-        '<p id="beside">The paragraph the note glosses.</p>'
-        '<aside class="note" id="note">A note beside the '
-        "paragraph it glosses, long enough to stand a few lines tall.</aside></div>"
-        f"{filler}"
-        '<p id="below">A paragraph well below the note.</p>',
-    ).replace(
-        '<main class="layout-column">', '<main class="layout-column layout-notes">'
-    )
-    page = open_page(
-        browser, serve(source, events=[_comment_on("beside"), _comment_on("below")])
-    )
-    resized(page, 1600, 900)
-    margins_laid_out(page)
-    note = page.locator("#note").bounding_box()
-    prose = page.locator("#beside").bounding_box()
-    assert note["x"] >= prose["x"] + prose["width"]
-    for target, place in (("beside", "pin"), ("below", "rail")):
-        row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
-        expect(row).to_have_attribute("data-lf-place", place)
-
-
 @pytest.mark.parametrize(
     ("main", "body", "place"),
     [
@@ -614,8 +554,11 @@ def test_the_margin_layer_follows_the_page_in_the_tab_order(browser, serve):
 def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine):
     """Tab from the page's last stop enters the rail at its highest row in view, after a
     scroll either way and when a new row is drawn there, and with no row in view at the
-    row nearest the window, from either side of a gap. The rail reads which rows stand
-    in view from the rows near the window, which change with each of these."""
+    row nearest the window, from either side of a gap. A row half past the window's top
+    is passed over for the row below it, by Tab, by the walk, and by Shift+Tab back
+    after a scroll carried the focused row there, so the page stays where it was.
+    The rail reads which rows stand in view from the rows near the window, which change
+    with each of these."""
     rows = [f"row-{n}" for n in range(12)]
     # `late` stands between rows 3 and 4 and gains its comment while the page is open.
     near = "".join(
@@ -663,22 +606,31 @@ def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine)
         at = page.evaluate("() => scrollY")
         assert at == pytest.approx(top, abs=1), (at, top)
 
+    def focused_row():
+        """The target of the marker focus stands on, or None off the rail."""
+        return page.evaluate(
+            """() => {
+              let at = document.activeElement;
+              while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+              return at?.matches('.lf-margin-marker')
+                ? at.closest('[data-lf-margin-for]').dataset.lfMarginFor : null;
+            }"""
+        )
+
     def tab_in():
         """Tab from the page's last stop until a marker takes focus, which is the
         rail's one stop, and name its target."""
         for _ in range(20):
             page.keyboard.press("Tab")
-            reached = page.evaluate(
-                """() => {
-                  let at = document.activeElement;
-                  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
-                  return at?.matches('.lf-margin-marker')
-                    ? at.closest('[data-lf-margin-for]').dataset.lfMarginFor : null;
-                }"""
-            )
-            if reached:
+            if reached := focused_row():
                 return reached
         raise AssertionError("Tab never reached the rail")
+
+    def still_at(top):
+        """The page stands where it stood, once whatever the last key began is done."""
+        scroll_settled(page)
+        rendered(page)
+        assert page.evaluate("() => scrollY") == pytest.approx(top, abs=1)
 
     # Rows 0 to 3 scrolled past: row 4 is the highest the window shows, and `late`,
     # above it, has no row yet.
@@ -697,6 +649,36 @@ def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine)
     # Back up: rows 2 and 3 come into view above the rows the window already held.
     scroll_to((markers["row-1"]["bottom"] + markers["row-2"]["top"]) / 2)
     assert tab_in() == "row-2"
+    # Row 6 half past the window's top. A Tab onto it would move the page 400 px, since
+    # Chromium and Firefox centre a focused box they count out of view, so the way in is
+    # row 7 and the page stays where it was.
+    half_past = markers["row-6"]["top"] + 20
+    scroll_to(half_past)
+    assert tab_in() == "row-7"
+    still_at(half_past)
+    # The walk passes over row 6 too. Landing there left its ring off screen and made it
+    # the stop, so Shift+Tab back into the rail moved the page as Tab onto it had.
+    page.keyboard.press("Home")
+    assert focused_row() == "row-7"
+    page.keyboard.press("ArrowUp")
+    assert focused_row() != "row-6"
+    page.keyboard.press("Tab")
+    assert focused_row() is None
+    page.keyboard.press("Shift+Tab")
+    assert focused_row() == "row-7"
+    still_at(half_past)
+    # A scroll while the user stands on row 7 carries it half past the top, and the stop
+    # stays on it while they do. Leaving the rail reads the stop again, so Shift+Tab
+    # back lands on row 8 with the page still.
+    carried = markers["row-7"]["top"] + 20
+    page.evaluate("top => scrollTo({top, behavior: 'instant'})", carried)
+    still_at(carried)
+    assert focused_row() == "row-7"
+    page.keyboard.press("Tab")
+    assert focused_row() is None
+    page.keyboard.press("Shift+Tab")
+    assert focused_row() == "row-8"
+    still_at(carried)
     # In the gap, nearer the far row below than the last row above, and then the reverse.
     last_near = markers["row-11"]["bottom"]
     far = markers["far"]["top"]

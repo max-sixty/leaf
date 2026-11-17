@@ -275,14 +275,17 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     ) == [8, 12, "backward"]
     user.keyboard.press("Escape")
     expect(field).to_be_hidden()
-    # The composer returns to the reviewed case; Threads opens over it in the panel and
-    # Escape puts it away, leaving the page to the reader.
+    # The composer returns to the reviewed case; Threads opens over it in the panel,
+    # where the key lands on the kept draft's row, its first, and Escape puts it away,
+    # leaving the page to the reader.
     expect(second).to_be_focused()
     threads = user.locator(panel_view("threads"))
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
     expect(threads).to_be_visible()
-    expect(threads).to_be_focused()
+    draft = threads.locator(".lf-fp-draft")
+    expect(draft).to_contain_text("Restore Back to releases")
+    expect(draft).to_be_focused()
     user.keyboard.press("Escape")
     panel_settled(user, open=False)
     assert user.evaluate("() => document.activeElement === document.body")
@@ -304,7 +307,7 @@ def test_an_authenticated_navigation_journey_becomes_credential_free_review_evid
     user.keyboard.press("g")
     user.keyboard.press("Shift+t")
     expect(threads).to_be_visible()
-    expect(threads).to_be_focused()
+    expect(draft).to_be_focused()
     user.keyboard.press("Escape")
     panel_settled(user, open=False)
     assert user.evaluate("() => document.activeElement === document.body"), (

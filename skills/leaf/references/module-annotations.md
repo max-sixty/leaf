@@ -99,8 +99,7 @@ const withdraw = placeMarginRail(({ column, shell, width, hang }) =>
 ```
 
 Place the rail in room the page keeps empty. Leaf stands entries there over anything
-else the page puts in it, apart from Leaf's own `layout-note` asides, beside which an
-entry pins. `place` only reads layout, and looks up the elements it measures each time
+else the page puts in it. `place` only reads layout, and looks up the elements it measures each time
 it runs, since a revision can replace them. After your own code moves that room, call
 `layoutChanged(element)` on what moved, so Leaf asks again (`module-authoring.md`).
 
@@ -119,9 +118,9 @@ whatever is placed.
 ## Visual parts
 
 A visual whose drawn parts carry ids, such as `commit:3f2a`, lets users comment on each
-part. It declares the ids' prefixes in `x-visual.prefixes` (here `commit:`) and calls
-`registerVisualParts(source, read, {reveal, label})` once. `read()` returns the parts
-drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
+part. It declares the ids' prefixes in `words.visual.prefixes` (here `commit:`) and
+calls `registerVisualParts(source, read, {reveal, label})` once. `read()` returns the
+parts drawn now as `{id, element, label}`, each id a nonempty string with no whitespace.
 `reveal(id)` shows a part when someone follows its thread, even if it is visible
 already, so cancel work that would hide it. `label(id)` names a part in Threads without
 changing the visual, or returns `null`. Call the returned `update()` after the parts or

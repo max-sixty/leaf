@@ -47,6 +47,7 @@ export function geometryReading(open) {
     labels: shrunkLabelReading(drawn),
     clipped: clippedControls(),
     covered: coveredWords(),
+    broken: brokenNames(),
     squeezed: squeezedBoxes(),
   };
 }
@@ -106,7 +107,8 @@ function containedSpace() {
         breaksOut(holder)
       )
         return [];
-      if (!holder.matches(".layout-flow, [data-lf-flow]")) holders.push(at(holder));
+      if (getComputedStyle(holder).getPropertyValue("--lf-flow").trim() !== "1")
+        holders.push(at(holder));
     }
     return [];
   });
@@ -423,9 +425,8 @@ export function misplacedBoxes() {
   // rather than of a list of tags, because the fault is visual and so is the property
   // — a widget that stands outside a frame, a tint or a fill reads as a broken page,
   // and one that grows through a transparent wrapper (a section, a tab's panel) reads
-  // as the exhibit it is. A box that draws one says so where it draws it
-  // (--lf-block-frame: 1, base.css) and the theme reads that declaration to withhold
-  // the room; this is what says so when a box that draws hasn't made it.
+  // as the exhibit it is. Only a flow hands its room on (layouts.css), so a widget
+  // escapes a frame that is one: a section, article or disclosure that draws.
   /** @param {Element} el */
   const draws = (el) => {
     const s = getComputedStyle(el);
@@ -542,7 +543,7 @@ export function misplacedBoxes() {
   }
   // Authored furniture may occupy room outside its parent, as an absolutely
   // positioned label does. Report a wide exhibit that crosses that occupied room.
-  // Notes and sidebars in the document's native flow already own their boxes;
+  // Sidebars in the document's native flow already own their boxes;
   // this reading covers only furniture `marginReading` finds outside the column.
   for (const el of wides) {
     if (!el.checkVisibility()) continue;
@@ -566,7 +567,7 @@ export function misplacedBoxes() {
   // answers for what ran out of it on the side it scrolls toward, scrollLeft running
   // from zero to the overflow and never the other way. A box that marks where it cut
   // answers for the rest, the mark being what says there is a rest. And a box that
-  // only clips answers for nothing at all: what leaves a choose group, a board or a
+  // only clips answers for nothing at all: what leaves an option group, a board or a
   // table is drawn nowhere and said nowhere either, and every other reading here
   // calls such a page well — checkVisibility() is true of a clipped box, so screen
   // and print agree, and the copy withholds the clip and shows the words the live
@@ -949,6 +950,75 @@ export function squeezedBoxes() {
       place: place(table),
       scrolls: table.scrollWidth - table.clientWidth,
       columns: columns.map(({ heading, width, wraps }) => ({ heading, width, wraps })),
+    });
+  }
+  return found;
+}
+
+// `brokenNames` reads each table that fits its box and draws a short name in `<code>`
+// on more than one line. A table's automatic layout sets every column the same fraction
+// of the way from its least width to its most, and the theme lets code break at any
+// character (reading.css), so a column of names beside a column of prose can be left
+// narrower than its names: `x-awaits` stood as `x-`, `await` and `s` in a 67px column
+// beside 560px of prose in Firefox, which every reading in Chrome passed (#6096). How
+// far each column gets differs by engine, which is why the check draws in the reader's
+// (`render_gate/browser.py`).
+//
+// A name is a `<code>` that is the whole of its cell's words and holds no space: the
+// code in a sentence breaks at a hyphen where the sentence's line ends, as prose does,
+// and a command wraps at its spaces. A row heading's name is the theme's to keep
+// whole, up to a third of the column, so a longer one breaks by design and is left
+// out. Short is a third of the table's width: a longer identifier breaks because the
+// theme lets it, rather than holding its column open. A name's lines are
+// its text's line boxes, read with a range, whose tops differ by more than a pixel
+// from line to line; its whole width is their widths summed. A table that scrolls is
+// `squeezedBoxes`'s to report, since every column there stands at its least width
+// already. The finding names the table, how many names break and the first few, and
+// leaves the remedy to the author: a row heading, or the page's own `white-space:
+// nowrap` on the column.
+export function brokenNames() {
+  const page = pageDocument();
+  if (!page) return [];
+  // A cell's words, leaving out what Leaf drew in it, such as a comment's badge.
+  /** @param {Element} cell */
+  const cellWords = (cell) => {
+    let text = "";
+    const walker = document.createTreeWalker(cell, NodeFilter.SHOW_TEXT);
+    for (let node; (node = walker.nextNode());)
+      if (!uiInside(node.parentElement, cell)) text += node.textContent;
+    return text.trim();
+  };
+  const found = [];
+  const range = document.createRange();
+  for (const table of page.querySelectorAll("table")) {
+    if (!inPage(table) || !table.checkVisibility()) continue;
+    if (table.scrollWidth - table.clientWidth > 1) continue;
+    const third = table.getBoundingClientRect().width / 3;
+    /** @type {string[]} */
+    const names = [];
+    for (const code of table.querySelectorAll("td code, th:not([scope=row]) code")) {
+      const cell = code.closest("td, th");
+      if (!cell || cell.closest("table") !== table) continue;
+      const name = code.textContent?.trim() ?? "";
+      if (!name || /\s/.test(name) || cellWords(cell) !== name) continue;
+      if (!code.checkVisibility()) continue;
+      range.selectNodeContents(code);
+      const drawn = [...range.getClientRects()].filter((rect) => rect.width > 1);
+      const tops = drawn.map((rect) => rect.top).sort((a, b) => a - b);
+      const lines = tops.filter(
+        (top, i) => i === 0 || top - (tops[i - 1] ?? top) > 1,
+      ).length;
+      const whole = drawn.reduce((sum, rect) => sum + rect.width, 0);
+      if (lines > 1 && whole <= third) names.push(name);
+    }
+    if (!names.length) continue;
+    const unique = [...new Set(names)];
+    found.push({
+      code: "broken-name",
+      at: at(table),
+      place: place(table),
+      count: unique.length,
+      names: unique.slice(0, 3),
     });
   }
   return found;

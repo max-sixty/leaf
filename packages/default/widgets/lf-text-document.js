@@ -6,7 +6,7 @@
  * viewport, which keeps its scroll place independent, and switching keeps the page
  * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
  * tall. A Markdown preview of written text instead takes its rendered height, which
- * its first paint already holds (`x-prepaint`), and its Source tab takes the same
+ * its first paint already holds (`paint.prepaint`), and its Source tab takes the same
  * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
  * source, a press shows every line (`cut`), as a thread's Full quote shows a whole
  * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
@@ -29,6 +29,7 @@
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
 import {
+  codeLanguage,
   failSoft,
   ensureSyntaxLanguage,
   keeps,
@@ -792,6 +793,13 @@ function drawLater(doc, value, rendering) {
 
 class TextDocument extends LeafElement {
   rendering = 0;
+  // The language the text is coloured in (`codeLanguage`), read at setup while the
+  // written `<pre>` that may name it stands: the first draw replaces the `<pre>`, and a
+  // revision that names another language brings a new element. Only a document naming
+  // none takes its preview's: one naming a language Leaf can't colour stays uncoloured,
+  // as `page check` tells its author.
+  /** @type {string | null | undefined} */
+  language;
   /** @type {(() => void) | null} */
   finishFrame = null;
   /** @type {Promise<void> | undefined} */
@@ -837,8 +845,8 @@ class TextDocument extends LeafElement {
   // the document. A closed tab skips its contents' layout (`hidden="until-found"`), so
   // the height is read while the preview shows, after each of its resizes. A document
   // drawn on Source, as after a reload, never showed its preview; it keeps the box the
-  // page first painted (`firstBox`), which holds the preview's rendering (`x-prepaint`).
-  // Either reaches the Source tab before the frame paints.
+  // page first painted (`firstBox`), which holds the preview's rendering
+  // (`paint.prepaint`). Either reaches the Source tab before the frame paints.
   /** @param {number | null} [firstBox] */
   holdSource(firstBox = null) {
     const preview = this.view?.preview;
@@ -926,6 +934,7 @@ class TextDocument extends LeafElement {
   }
 
   setup() {
+    this.language = codeLanguage(this);
     // A departure abandons the rendering in flight and its frame's wait, and the
     // colour of the runs it drew, which a return draws again as they show.
     whileConnected(this, () => {
@@ -940,7 +949,7 @@ class TextDocument extends LeafElement {
   }
 
   // The text, set by whoever hosts the widget: Leaf from the bound source or output
-  // (the registry's `x-data.document.property`), or from the written `<pre>`; null
+  // (the registry's `data.inputs.document.property`), or from the written `<pre>`; null
   // while a bound source has none.
   static properties = { value: { attribute: false } };
 
@@ -955,8 +964,14 @@ class TextDocument extends LeafElement {
         if (!skipped) this.drawn.add(target);
         const code = this.sourceView?.code;
         if (target.parentElement !== code || !code) return;
-        if (skipped) this.shown.delete(target);
-        else this.shown.add(target);
+        // A run reported skipped while it stands in view stays shown, read off the
+        // boxes as `list` reads them. As a tab opens again, Chromium reports the runs
+        // in view skipped before it draws them, and its report that they draw can
+        // come after the frame that does.
+        if (skipped) {
+          if (runsInView(code).includes(target)) return;
+          this.shown.delete(target);
+        } else this.shown.add(target);
         this.colourShown();
       },
       { capture: true },
@@ -1002,8 +1017,7 @@ class TextDocument extends LeafElement {
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
-      const language = this.getAttribute("language") ?? preview;
-      // A language with no grammar fails the document here, before it draws.
+      const language = this.language === undefined ? preview : this.language;
       if (language) await ensureSyntaxLanguage(language);
       if (preview === "markdown") {
         let failure;

@@ -381,8 +381,13 @@ def open_as_user(run: Run, url: str) -> None:
     comment phase, and until then every render check read the fixed laptop window
     while the user's stated window was 1600×1000: authors hunted for a way to
     change it, setting `LEAF_RENDER_VIEWPORT=1600x1000` and grepping Leaf's source,
-    in 8 of 12 width revisions on 2026-10-24."""
+    in 8 of 12 width revisions on 2026-10-24. The check passes over a browser a script
+    drives (`render_gate.command._reader_view`), as this one is, so the tab says it
+    is not driven, standing in for the user's own browser."""
     with headless_shell() as browser, tab(browser, run.journey_window) as view:
+        view.add_init_script(
+            "Object.defineProperty(Navigator.prototype, 'webdriver', {get: () => false})"
+        )
         load(view, url)
         deadline = time.monotonic() + 20
         while not read_user_views(run.authored_page, None)["sessions"]:

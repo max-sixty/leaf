@@ -3,12 +3,12 @@
 (() => {
   const arrived = new URL(location.href);
   // `_leaf-recovered` is the mark recovery puts on the one document it asks for, so a
-  // document that comes back on the same dead release can tell that asking again is
-  // not going to produce a different one. `t` is the host key a handover link carries;
-  // the server has already answered it with the cookie every later request rides on,
-  // so what stays in the address bar is a link the user can copy, share, or screen
-  // without handing out every page on the machine. All three leave before the user
-  // sees them.
+  // document that comes back on the same dead release, or fails to load again from the
+  // same server, can tell that asking again is not going to produce a different one.
+  // `t` is the host key a handover link carries; the server has already answered it
+  // with the cookie every later request rides on, so what stays in the address bar is
+  // a link the user can copy, share, or screen without handing out every page on the
+  // machine. All three leave before the user sees them.
   const recovered = arrived.searchParams.has("_leaf-recovered");
   const marks = ["_leaf-revision", "_leaf-recovered", "t"];
   if (marks.some((mark) => arrived.searchParams.has(mark))) {
@@ -444,21 +444,35 @@
     };
   }
 
-  // `awaits` is whether a replacement server would answer this fault, which is so
-  // where the page is incomplete (prepaint.js): it lacks something it needs however
-  // far it gets, so the notice stands until a server that can start the page replaces
-  // this one. An uncaught error in code that did load leaves nothing to wait for: the
-  // same server would serve the same bytes, so if the page upgrades it has started
-  // with everything it is going to get. A fault that is the page's own (`page`) is
-  // answered by no server: the page holds what its author wrote, so the notice says
-  // the page has a problem and waits for nothing.
-  /** @param {string} reason @param {boolean} awaits @param {boolean} page */
-  function recover(reason, awaits, page) {
+  // A page is incomplete where something it needs did not arrive (prepaint.js, which
+  // takes `data-lf-interactive` off the root for each such fault, the first or a
+  // later one): it lacks that however far it gets, so the notice stands until a load
+  // brings it. The load may have failed on its way from a server that is still
+  // there, as when the machine's network changes under the request, and the browser
+  // keeps a failed module for the document's life, so once that server answers the
+  // page asks it for the document once more, marked. One that comes back incomplete
+  // from it waits for a server that can start the page to replace this one. A page
+  // that only met an uncaught error in code that did load waits for that server
+  // alone: the same server would serve the same bytes, so if the page upgrades it has
+  // started with everything it is going to get. A fault that is the page's own
+  // (`page`) is answered by no server: the page holds what its author wrote, so the
+  // notice says the page has a problem and waits for nothing.
+  /** @param {string} reason @param {boolean} page */
+  function recover(reason, page) {
     recordStartupFault(reason);
     stopHoldingKeys();
     if (recovering) return;
     recovering = true;
-    let started = false;
+    // The notice says the page has not started, and a page that has upgraded whole has
+    // started, before the fault reached this or after, so a user who is using the page
+    // would otherwise be reading that Leaf could not start, over a request a second
+    // that no answer ends. A page that is incomplete has not started however far it
+    // got, as one whose theme did not arrive, or whose runtime declared it failed once
+    // it had upgraded and so shows its readable fallback (prepaint.js); it asks.
+    const whole = () =>
+      Boolean(document.body?.hasAttribute("data-lf-upgraded")) &&
+      root.hasAttribute("data-lf-interactive");
+    let started = !page && whole();
     const status = document.createElement("p");
     status.className = "lf-chrome";
     status.setAttribute("data-lf-runtime", "");
@@ -471,30 +485,32 @@
     };
     if (document.body) show();
     else document.addEventListener("DOMContentLoaded", show, { once: true });
-    if (page) return;
-
-    // The notice says the page has not started, and a page that upgrades has started,
-    // so a user who is using the page would otherwise be reading that Leaf could not
-    // start, over a request a second that no answer ends.
-    if (!awaits) {
-      const upgrade = new MutationObserver(() => {
-        if (!document.body?.hasAttribute("data-lf-upgraded")) return;
-        upgrade.disconnect();
-        started = true;
-        status.remove();
-      });
-      upgrade.observe(document, {
-        attributes: true,
-        attributeFilter: ["data-lf-upgraded"],
-        childList: true,
-        subtree: true,
-      });
-    }
+    if (page || started) return;
+    const upgrade = new MutationObserver(() => {
+      if (!whole()) return;
+      upgrade.disconnect();
+      started = true;
+      status.remove();
+    });
+    upgrade.observe(document, {
+      attributes: true,
+      attributeFilter: ["data-lf-upgraded"],
+      subtree: true,
+    });
 
     // A round carries what it learned to the end rather than acting where it learned
     // it. The round in flight when the page upgrades resolves after it, and the user
     // is then using a page this would otherwise navigate out from under them, so the
     // one place that acts is the one place that has to ask whether the page started.
+    // The one document recovery asks for is this address marked, reloaded as a
+    // revision's handoff reloads (version.js), past a cache that answered the address
+    // the user typed.
+    const ask = () => {
+      const next = new URL(location.href);
+      next.searchParams.set("_leaf-recovered", "");
+      history.replaceState(history.state, "", next);
+      location.reload();
+    };
     const check = async () => {
       if (started) return;
       let restart = null;
@@ -503,20 +519,13 @@
         if (probe === null)
           throw new Error("Startup recovery requires its delivery probe");
         const response = await fetch(probe, { cache: "no-store" });
-        if (response.status === 404) {
-          // The release this document names is gone, so nothing this document can load
-          // will come back and only a newer one can start the page. Ask for it once,
-          // marked, and past a cache that answered the address the user typed. A
-          // marked document that arrives still naming the dead release says something
-          // between here and the source is serving a copy of it; asking again lands on
-          // that same copy as fast as the network allows, so the page waits on the
-          // probe at the cadence every other unstarted page waits at.
-          if (release && !recovered) {
-            const next = new URL(location.href);
-            next.searchParams.set("_leaf-recovered", "");
-            restart = () => location.replace(next);
-          }
-        }
+        // The release this document names is gone, so nothing this document can load
+        // will come back and only a newer one can start the page. A marked document
+        // that arrives still naming the dead release says something between here and
+        // the source is serving a copy of it; asking again lands on that same copy as
+        // fast as the network allows, so the page waits on the probe at the cadence
+        // every other unstarted page waits at.
+        if (response.status === 404 && release && !recovered) restart = ask;
         const current = response.headers.get("Leaf-Server");
         const generation = response.headers.get("Leaf-Layer");
         const currentRelease = response.headers.get("Leaf-Release");
@@ -526,6 +535,12 @@
           (release && currentRelease && currentRelease !== release)
         ) {
           restart ??= () => location.reload();
+        } else if (
+          response.ok &&
+          !recovered &&
+          !root.hasAttribute("data-lf-interactive")
+        ) {
+          restart ??= ask;
         }
       } catch {
         // The stopped server has not been replaced yet.
@@ -539,7 +554,7 @@
 
   // The prepaint names each startup fault and marks the page for it (prepaint.js).
   window.addEventListener("lf-startup-fault", (event) =>
-    recover(event.detail.reason, event.detail.incomplete, event.detail.page),
+    recover(event.detail.reason, event.detail.page),
   );
   // A sample opened as a window of its own has no containing page to connect it, so its
   // runtime never starts (leaf.js waits on `lfSample.ready`) and would take nothing held.

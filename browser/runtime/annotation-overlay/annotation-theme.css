@@ -78,7 +78,7 @@
  * holds, and the rail stays, since it covers nothing. A row the user asked for by name
  * (`data-lf-revealed`) stays while they stand in it. Hidden rather than taken out of
  * layout, so nothing moves and nothing is measured again. */
-:root[data-lf-annotations="hidden"]
+.lf-chrome[data-lf-annotations-hidden]
   .lf-margin-cluster[data-lf-place="pin"]:not([data-lf-revealed]) {
   visibility: hidden;
 }

@@ -301,6 +301,23 @@
       // two defects. The innermost box is the more useful of the two answers anyway: it
       // is the box the control lives in.
       const taken = {};
+      // A mark on a box that ends the page's flow at the window's foot, as a question
+      // filling a full-height workspace does, runs its bottom band below the window: Leaf
+      // doesn't pad the page for a mark (#5306). The focused control's own ring is still
+      // held to its foot, since a landing keeps a control's ring room, and so is a box
+      // fixed there, which no scroll moves.
+      const own = el === focused || el === wearer || carriesFocus(el, focused);
+      const root = document.scrollingElement;
+      const fixed = (n) => {
+        for (let a = n; a; a = above(a))
+          if (getComputedStyle(a).position === "fixed") return true;
+        return false;
+      };
+      const pastFoot =
+        !own &&
+        b.bottom >= innerHeight - 0.5 &&
+        root.scrollTop + root.clientHeight >= root.scrollHeight - 0.5 &&
+        !fixed(el);
       // What of the page the ring can show through: every band that clips it, and the
       // window. The pixel reading below samples only there.
       const clip = { top: 0, left: 0, bottom: innerHeight, right: innerWidth };
@@ -339,7 +356,12 @@
           bottom: ring.bottom - band.bottom,
           right: ring.right - band.right,
         }))
-          if (!taken[side] && by > 0.5 && shows[side])
+          if (
+            !taken[side] &&
+            by > 0.5 &&
+            shows[side] &&
+            !(side === "bottom" && pastFoot && band.bottom >= innerHeight - 0.5)
+          )
             taken[side] =
               `its ${side} edge is ${Math.round(by * 10) / 10}px outside ` +
               who +
@@ -690,6 +712,17 @@
           ),
         );
         const end = radius + grow + w + 1;
+        // A focus preview stands clear of its control and of what the user could work
+        // next, and may cover the rest of the page (preview.js, #5614), such as the
+        // question around the control, so only the focused control's own ring is read
+        // under it.
+        const preview = document.getElementById("lf-preview");
+        const previewed =
+          !own && preview?.matches(":popover-open")
+            ? preview.getBoundingClientRect()
+            : null;
+        const inside = (r, x, y) =>
+          x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
         // A press of the box's own standing in front is chrome seated on its border on
         // purpose, as a draft's toolbar and a code block's Copy are, so the ring under
         // it is not read; the box's other contents, such as a card message's sticky
@@ -715,6 +748,7 @@
             const [x, y] = horizontal ? [t, line] : [line, t];
             if (x < clip.left || x >= clip.right || y < clip.top || y >= clip.bottom)
               continue;
+            if (previewed && inside(previewed, x, y)) continue;
             if (orderedAt(x, y) && exposed(x, y)) points.push([x, y]);
           }
           if (points.length >= 4) runs.push({ side, points });
@@ -732,7 +766,7 @@
         mark: el.matches(".lf-mark-el"),
         pseudo: pseudo ? "after" : null,
         carrier: outlined ? "outline" : "box-shadow",
-        focused: el === focused || el === wearer || carriesFocus(el, focused),
+        focused: own,
         sample:
           el === focused ||
           carriesFocus(el, focused) ||
@@ -771,7 +805,7 @@
   // `summary`, a widget's own native control — and replacing it everywhere would be a
   // change to how the product looks rather than a thing this test is owed.
   //
-  // The layer's focus ring is the second, on the stop, a child, or an ancestor: a `choose` group
+  // The layer's focus ring is the second, on the stop, a child, or an ancestor: an option group
   // takes the ring for the pick mark inside it, whose own rule states `outline: none`
   // exactly so the two do not both draw, and the user sees the group.
   //

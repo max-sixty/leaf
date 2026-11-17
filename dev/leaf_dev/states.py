@@ -37,6 +37,7 @@ from leaf_dev.browser import (
     Window,
     go_to_threads,
     load,
+    open_on_me,
     panel_view,
     scroll_settled,
     settle,
@@ -64,6 +65,13 @@ def failed_widget(page: Page) -> None:
             'source row: ' + 'unbroken_source_value_'.repeat(12));
     }""")
     expect(page.locator("#failed-exhibit > .lf-error")).to_be_visible()
+
+
+def worktree_cases_open(page: Page) -> None:
+    """The larger set of examples opened, its first workbench in view: a wide list of
+    worktrees in a section inside a disclosure."""
+    page.locator("#worktree-example-cases > summary").click()
+    page.locator("#worktree-example-single-case").scroll_into_view_if_needed()
 
 
 def worktree_summaries(page: Page) -> None:
@@ -1246,7 +1254,8 @@ def option_picked(page: Page) -> None:
 
 def option_answered(page: Page) -> None:
     """The panel's row once the server has read a pick that leaves more On Me, where the
-    field's end offers the next item On Me lists."""
+    On Me mark counts what is left and wears `m`, the key of the Next On Me it
+    presses."""
     page.locator("#off-release-hold").click()
     expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
 
@@ -1297,9 +1306,8 @@ def option_references(page: Page) -> None:
 
 
 def on_me(page: Page) -> None:
-    """On Me, opened from the floating panel's On Me mark."""
-    page.locator(".lf-fp-on-user").click()
-    expect(page.locator(panel_view("queue"))).to_be_visible()
+    """On Me, opened by its tab beside the leaf's menu."""
+    expect(open_on_me(page)).to_be_visible()
 
 
 def on_me_question(page: Page) -> None:
@@ -1325,20 +1333,18 @@ def on_me_question(page: Page) -> None:
 
 
 def on_me_thread_choice(page: Page) -> None:
-    """On Me opened on the card of a choice the agent asked in a thread with
-    `--markup`, drawn nowhere else, the card focused so its options wear their
-    digits."""
+    """On Me opened on the card of a choice the agent asked in a thread, drawn
+    nowhere else, the card focused so its options wear their digits."""
     as_agent(
         "thread",
         "create",
         "--section",
         "plan-context",
         "--text",
-        "Open the pull request now, or hold it?",
-        "--markup",
-        '<lf-options id="pr-timing" choose>'
-        '<lf-option id="pr-now"><strong>Open it now</strong></lf-option>'
-        '<lf-option id="pr-hold"><strong>Hold it</strong></lf-option>'
+        "Open the pull request now, or hold it?\n\n"
+        '<lf-options id="pr-timing">\n'
+        '<lf-option id="pr-now"><strong>Open it now</strong></lf-option>\n'
+        '<lf-option id="pr-hold"><strong>Hold it</strong></lf-option>\n'
         "</lf-options>",
     )
     page.reload()
@@ -2298,7 +2304,7 @@ def ship_answered(page: Page) -> None:
     page.locator(".lf-margin-preview:not([hidden]) .lf-done").click()
     page.keyboard.press("Escape")
     page.locator("#off-release-ship").click()
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     expect(page.locator(".lf-fp-opened")).to_be_visible()
 
 
@@ -2473,6 +2479,13 @@ def steps_in_view(page: Page) -> None:
     page.locator("#security-contract-list").scroll_into_view_if_needed()
 
 
+def deep_record_open(page: Page) -> None:
+    """The architecture record opened, its proposed-states diagram in view: a wide
+    drawing in a section inside a disclosure."""
+    page.locator("#security-deep-record > summary").click()
+    page.locator("#security-states").scroll_into_view_if_needed()
+
+
 def disclosures_in_view(page: Page) -> None:
     """Two closed disclosures written one after the other at the page's end."""
     page.locator("#security-source-disclosure").scroll_into_view_if_needed()
@@ -2595,7 +2608,7 @@ def playground_controls(page: Page) -> None:
     control = page.get_by_role("slider", name="Concurrent release events")
     control.focus()
     control.press("ArrowRight")
-    page.locator(".lf-playground-controls").scroll_into_view_if_needed()
+    page.locator(".lf-playground-controls-region").scroll_into_view_if_needed()
 
 
 def playground_instruction(page: Page) -> None:
@@ -2606,10 +2619,12 @@ def playground_instruction(page: Page) -> None:
 
 
 def playground_tall_stage(page: Page) -> None:
-    """The last alert's controls, pressed far down a stage taller than the window."""
-    control = page.locator("lf-playground-preview lf-playground-control").last
-    control.scroll_into_view_if_needed()
-    control.get_by_role("radio").last.click()
+    """The last alert's last choice, pressed far down a stage taller than the window."""
+    choice = page.locator(
+        ".lf-playground-preview-body label:has(> input[type=radio])"
+    ).last
+    choice.scroll_into_view_if_needed()
+    choice.get_by_role("radio").click()
     page.mouse.move(0, 0)
 
 
@@ -2706,6 +2721,14 @@ def live_sample_embedded(page: Page) -> None:
     ).to_be_visible()
 
 
+def gallery_comparison(page: Page) -> None:
+    """A section comparing alternatives: its guide, a row of tiles and a table."""
+    page.locator("#bg-gallery-tabs").get_by_role(
+        "tab", name="Page & layout", exact=True
+    ).click()
+    page.locator("#bg-neutral-comparison").scroll_into_view_if_needed()
+
+
 def interactive_sample(page: Page) -> None:
     """An interactive sample, whose widgets use this page's state, under its note."""
     page.locator("#bg-inline-sample").scroll_into_view_if_needed()
@@ -2776,6 +2799,12 @@ STATES = (
         "lost-update",
         authored_timeline_step,
         region="#race",
+    ),
+    State(
+        "gallery-comparison",
+        "feature-gallery",
+        gallery_comparison,
+        region="#bg-neutral-comparison",
     ),
     State(
         "native-code",
@@ -2962,7 +2991,7 @@ STATES = (
         "playground-text",
         "notification-playground",
         playground_text,
-        region='lf-playground-control:has(> input[type="text"])',
+        region="lf-playground :has(> input[placeholder])",
     ),
     State("drawing-comment", "feature-gallery", drawing_comment),
     State("drawing-comment-hover", "feature-gallery", drawing_comment_hover),
@@ -3059,6 +3088,12 @@ STATES = (
         "worktree-diffs",
         worktree_summaries,
         region="#worktree-example-workbench",
+    ),
+    State(
+        "worktree-cases-open",
+        "worktree-diffs",
+        worktree_cases_open,
+        region="#worktree-example-single-case",
     ),
     State("diff-file-reply", "diff-thread-gallery", diff_file_reply),
     State("diff-moved-reply", "diff-thread-gallery", diff_moved_reply),
@@ -3471,6 +3506,12 @@ STATES = (
         region="#security-contract-list",
     ),
     State("stacked-disclosures", "security-boundary", disclosures_in_view),
+    State(
+        "deep-record-open",
+        "security-boundary",
+        deep_record_open,
+        region="#security-states",
+    ),
     State(
         "security-flow",
         "security-boundary",

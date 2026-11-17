@@ -142,10 +142,12 @@ EVENT_LOG = named_source("how-it-works")
 
 
 def code_block(page: SourceDocument, block_id: str) -> str:
-    """The text of one authored `lf-code`'s `<pre>`."""
+    """The text of one authored `lf-code`'s `<pre>`, as the widget reads it
+    (widget-upgrade.js, `bodyText`): leading blank lines, such as the one after the
+    `<code>` naming its language, are the block's layout."""
     select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
     assert select_one_result_2 is not None
-    return select_one_result_2.text
+    return select_one_result_2.text.lstrip("\n")
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -350,10 +352,12 @@ def test_the_event_log_page_quotes_the_registry():
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
     shown = json.loads("{" + code_block(source, "options-verbs") + "}")
     assert shown == {
-        "x-state": entry["x-state"],
-        "x-awaits": {
-            "value": entry["x-awaits"]["value"],
-            "answered": entry["x-awaits"]["answered"],
+        "state": {
+            "verbs": entry["state"]["verbs"],
+            "awaits": {
+                "value": entry["state"]["awaits"]["value"],
+                "answered": entry["state"]["awaits"]["answered"],
+            },
         },
     }
 

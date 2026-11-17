@@ -5,8 +5,9 @@
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
 // which layout coordinates remove, except where it carries the control a gesture was
 // made on (Scrolls a gesture makes); sticky positioning, through its scroller's travel;
-// CSS anchor positioning, through its anchor's scroll; and native animation, scroll-
-// driven included, through sampled translation or reflow from size changes.
+// CSS anchor positioning, through its anchor's scroll; and native animation that a
+// scroll drives or an input began (Each trusted gesture), through sampled translation
+// or reflow from size changes.
 // Beside those, it credits only what that rule itself declares:
 // a gesture's rendering, the document while it parses, the page before it
 // presents or as it returns from a hidden tab, runtime regions declared with
@@ -56,7 +57,8 @@
 // mechanical scroller's ownership. Portals with one unique anchor, in their tree or
 // inside the `anchor-scope` that limits its name, or a popover's implicit anchor, the
 // `source` it was shown with, and a direct native anchor inset, inline or in their
-// tree's own rules, retain that scroller and their anchor's own animation too; nested
+// tree's own rules, or a `position-area` placing them against that anchor, retain that
+// scroller and their anchor's own animation too; nested
 // CSS expressions, ambiguous names and rules that disagree receive no inferred
 // ownership.
 //
@@ -109,8 +111,10 @@
 // tick reads it. The runtime holds news that arrives while the gesture is unresolved
 // until that frame paints (state-application.js), so its delivery carries no news.
 // A native size animation also credits a later box when its size change travels
-// through the layout path to that box and matches its movement. Its continued
-// lifetime never owns unrelated page movement. A script re-times motion by cancelling
+// through the layout path to that box and matches its movement, and a node inside its
+// own box, such as the label a growing button centres, by an amount between the moves
+// of that box's two edges (`innerReflow`). Its continued lifetime never owns unrelated
+// page movement. A script re-times motion by cancelling
 // an effect and beginning another in its place in the same task. The new effect
 // continues that motion where it has the cancelled effect's target and moving
 // properties, ends at the same values in its last keyframe, and starts within a pixel
@@ -142,28 +146,75 @@
 // (`stickyInsetMotion`). Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
-// Chrome's paint signal and landmark poses answer distinct questions. The ledger
-// retains samples that precede the source-associated frame window and is classified
-// before paint admission, so delayed observer delivery cannot erase a sampled move.
-// A never-painted roundtrip is dismissed; matching source motion can corroborate a
-// sampled roundtrip already restored when the observer hears it. Transform-only
-// motion produces no Layout Instability event and is outside this paint signal.
-// A painted one-frame roundtrip omitted from Chrome's sources and reverted before
-// any subsequent sampled pose remains an unresolved observability limit.
+// Runs of motion. Movement without input is judged from the sensor's own readings,
+// which add up a slow animation's steps, rather than from Chrome's layout-shift
+// entries. Chrome reports a shift only of layout, never of a transform, and only for a
+// box that moved at least 3 CSS px between two paints, so its report alone would judge
+// a slow animation by the frame rate that draws it. A run of motion starts at a frame
+// whose reading changed while no input, typing or presentation owned it. It goes on
+// while each frame's reading changes or a box keeps moving on its own clock, as a
+// running animation that moves a box or a closing disclosure does. A frame that reads
+// no change while nothing moves ends it, and so does a frame that input, typing or
+// presentation owns. Each frame of a run compares every protected landmark with its
+// reading in the frame before the run, crediting the motion owned in any frame of the
+// run (`audit`). So a slow animation's steps, each under a pixel on a fast host, add up
+// to the move a starved host draws in one frame, and both fail. A declaration's
+// permission (append growth, widening, reflow) is asked only of one frame's step, since
+// two permitted transitions need not form one from the first frame to the last, and
+// the run's comparison takes away what each step it permitted moved. A landmark first
+// read during the run, or read again after it left the page, is compared from the
+// frame that read it then.
+//
+// A landmark held by a box whose scroll offset changed in a frame, the root's
+// included, is judged on that frame's step alone, and from where that frame left it.
+// Its moves in that frame stand only where Chrome reports painting them, as every move
+// did before runs. A scroll moves a landmark on screen and not in layout, and these
+// comparisons read a move as the landmark's own where both its screen and its layout
+// positions changed. In a frame that scrolls, the two can change for different
+// reasons: a sticky track whose own scroller scrolls as the page scrolls past it
+// moves on screen by its scroll and in layout by its sticking. Chrome removes
+// scrolling from what it reports. Scroll anchoring, holding the page still as content
+// above grows, changes the root's offset too, so it puts every landmark the root holds
+// on Chrome's report for that frame.
+//
+// A move fails where the next reading still finds the landmark away from where the run
+// began (`standingMotion`). Typing is judged the same way, from where the key found its
+// field and the boxes holding it to each reading of the key's rendering
+// (`standingTyping`). The sensor reads in an animation frame callback, and the page's
+// own callbacks in that frame can change layout before it paints, so a pose read once
+// may never have been painted, as when a frame's callback undoes a task's write. Such a
+// roundtrip fails only where Chrome reports painting it: a layout-shift entry whose
+// source moved as far as the landmark did in its last frame. The ledger keeps the
+// samples from before the entry's frame until the entry is judged, so a late observer
+// delivery still finds them. A page that writes the same layout in a task before every
+// frame and undoes it in a callback before every paint shows a pose in every reading
+// that it never paints, and fails though it held still.
+//
+// The readings include transforms, so a transform that carries reading or a control
+// without input fails as a layout move does: browser/AGENTS.md ("The page holds still
+// under the user's aim") keeps still what the user reads, whatever moves it.
+//
+// Three verdicts still depend on the frame rate. A roundtrip that Chrome doesn't
+// report, a transform's or one under 3 px a frame, fails on a fast host, which reads it
+// in several frames, and may pass on a starved host, which reads it once. A landmark's
+// move in frames where a scroll also moves it stands only on Chrome's report, so one
+// under 3 px a frame, or a transform's, passes on a fast host and may fail on a
+// starved one. A step that moves a landmark less than a pixel is never asked for a
+// declaration's permission, so a declared region growing that slowly fails what
+// follows it on a fast host and passes on a starved one, whose steps are larger.
 //
 // Unchanged frames. A reading appends to the ledger only where a node's reading
 // differs from its last, so a frame on which nothing could have changed keeps the
 // last complete reading and its population instead of reading every node again.
-// Every passive verdict starts from a layout-shift entry, and an entry, whether the
-// observer hears it or a paint checkpoint takes it, makes the reading that judges
-// it complete: every node outside skipped content is read, and the entry's paint is
-// read then where the following frame kept an unchanged reading, unless a later
-// input already makes that endpoint ambiguous. So whatever moved a landmark
-// without input, its verdict compares complete readings. Announcements keep the
-// readings between entries current, which input ownership and typing's verdicts
-// rest on: a frame reads completely when a change was announced since the last
-// complete reading, and on the frame after one that read an announced change, since
-// native anchoring follows its scroller a frame late. Each announcement is made in
+// Only a complete reading, which reads every node outside skipped content, appends a
+// changed pose, so a run's verdict compares complete readings. A layout-shift entry,
+// whether the observer hears it or a paint checkpoint takes it, also makes a reading
+// complete, reading the entry's paint where the following frame kept an unchanged
+// reading, unless a later input already makes that endpoint ambiguous. Announcements
+// keep the readings current, which runs, input ownership and typing's verdicts rest
+// on: a frame reads completely when a change was announced since the last complete
+// reading, and on the frame after one that read an announced change, since native
+// anchoring follows its scroller a frame late. Each announcement is made in
 // the task of the change it covers: DOM writes in the document and every shadow
 // root; a running animation anywhere in the composed tree, or one that stopped or
 // left the set, except a scroll-driven one, which moves only as the scroll and
@@ -271,8 +322,19 @@
     if (translationBindings.get(animation)) properties.push("translate");
     return properties;
   };
-  // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts.
-  const up = renderedParent;
+  // Use the runtime's rendered ancestry, including forwarding slots and shadow hosts. A
+  // light child of a host whose closed shadow root the watch saw attached renders in a
+  // slot there too, though `assignedSlot` names none from outside, as an editor's
+  // placeholder renders inside the box that carries its words (text-field.js).
+  const closedRoots = new WeakMap();
+  const up = (node) => {
+    const parent = renderedParent(node);
+    const root = parent && node.parentNode === parent ? closedRoots.get(parent) : null;
+    if (root)
+      for (const slot of root.querySelectorAll("slot"))
+        if (slot.assignedNodes().includes(node)) return slot;
+    return parent;
+  };
   // Decorative media is not an independent reading. Hidden accessibility trees
   // include hoisted target paint and icon faces; their retained text/controls are
   // still measured separately, so this declaration cannot hide a moved button.
@@ -603,6 +665,10 @@
       values.length > 0 && values.every((value) => anchorInset(value, axis)) && !auto
     );
   };
+  // A box `position-area` places in the grid its anchor draws around itself follows
+  // that anchor on both axes, as a menu hung under its button does.
+  const placedByArea = (style) =>
+    Boolean(style.positionArea) && style.positionArea !== "none";
   // The box a positioned box's `position-anchor` names. A name an `anchor-scope`
   // limits resolves inside the scoping box, so a name declared once per repeated
   // component still names one anchor for each; elsewhere it must be unique in its tree.
@@ -882,6 +948,7 @@
   const attachShadow = Element.prototype.attachShadow;
   Element.prototype.attachShadow = function (init) {
     const root = attachShadow.call(this, init);
+    if (root.mode === "closed") closedRoots.set(this, root);
     addRoot(root);
     watchTree(root);
     announce();
@@ -1434,6 +1501,9 @@
   // Unchanged frames: the last complete reading's population, the ledger entries
   // appended so far, the unannounced frames in a row, and what the last read saw.
   const VERIFY = 30;
+  // The boxes whose scroll offset a reading has seen change since the last frame's
+  // audit, a reading between frames, as an observer's, included.
+  const scrolledSince = new Set();
   let held = [];
   let written = 0;
   let quiet = 0;
@@ -1495,15 +1565,21 @@
       )
         closure.settledAt = at;
     }
-    const running =
-      animations.some(
-        ({ playState, timeline }) =>
-          playState === "running" &&
-          !(
-            typeof window.ScrollTimeline === "function" &&
-            timeline instanceof ScrollTimeline
-          ),
-      ) || [...nativeClosures.values()].some(({ settledAt }) => settledAt === null);
+    const timed = animations.filter(
+      ({ playState, timeline }) =>
+        playState === "running" &&
+        !(
+          typeof window.ScrollTimeline === "function" &&
+          timeline instanceof ScrollTimeline
+        ),
+    );
+    const closing = [...nativeClosures.values()].some(
+      ({ settledAt }) => settledAt === null,
+    );
+    const running = timed.length > 0 || closing;
+    // Whether a box is still moving on its own clock, which keeps a run of motion going
+    // through a frame that changes no reading (`audit`).
+    const moving = closing || timed.some(moves);
     observeWrites(writes.takeRecords());
     // A child frame reads completely on every frame, since its embedding page can
     // hide or move it without telling it; only a hidden tab announces itself here.
@@ -1539,6 +1615,7 @@
           nodes: held,
           motion: [],
           written,
+          moving: false,
           complete: false,
         });
       return at;
@@ -1589,6 +1666,7 @@
           motion: animations.filter(
             (animation) => animated.get(animation)?.at(-1)?.scroll,
           ),
+          moving,
           complete: true,
         }
       : null;
@@ -1599,6 +1677,7 @@
       const prior = scrolls.at(-1)?.scroll;
       if (prior?.left !== scroll.left || prior?.top !== scroll.top) {
         if (verifying) misses.push([node, ["scroll offset"]]);
+        if (prior) scrolledSince.add(node);
         written++;
         scrolls.push({ at, scroll });
         pruneSamples(scrolls);
@@ -1673,11 +1752,13 @@
         anchorX:
           !range &&
           ["fixed", "absolute"].includes(position) &&
-          ["left", "right"].some((side) => anchoredInset(node, style, side, "left")),
+          (placedByArea(style) ||
+            ["left", "right"].some((side) => anchoredInset(node, style, side, "left"))),
         anchorY:
           !range &&
           ["fixed", "absolute"].includes(position) &&
-          ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top")),
+          (placedByArea(style) ||
+            ["top", "bottom"].some((side) => anchoredInset(node, style, side, "top"))),
         nativeLeft: nativeOrigin.left,
         nativeTop: nativeOrigin.top,
         insetX: range ? null : `${node.style.left}|${node.style.right}`,
@@ -2027,6 +2108,8 @@
       for (const animation of rendering.own)
         if (activeMotion(animation)) motion.push(animation);
     audit();
+    standingMotion();
+    standingTyping();
     judge(waiting.splice(0));
     nativeFrame(tick);
   };
@@ -2782,6 +2865,8 @@
       ];
     });
   };
+  // How far the append growth `growth` carried `node` between `around`'s frames, in
+  // layout pixels, where that carry is its whole move; otherwise nothing.
   const permittedAppend = (node, previousRect, currentRect, around, growth) => {
     const first = around[0].at,
       last = around[2].at;
@@ -2865,12 +2950,15 @@
       node.nodeType === Node.TEXT_NODE
         ? ["left", "top", "bottom"]
         : ["left", "right", "top", "bottom"];
+    const carry = { left: 0, top: by - rise };
     return edges.every((edge) => {
       const axis = edge === "left" || edge === "right" ? "left" : "top";
       const prior = previousRect[edge] - priorBox[axis] + before[axis];
       const next = currentRect[edge] - nextBox[axis] + after[axis];
-      return Math.abs(next - prior - (axis === "top" ? by - rise : 0)) < 1;
-    });
+      return Math.abs(next - prior - carry[axis]) < 1;
+    })
+      ? carry
+      : null;
   };
   const paintState = (node, rect, at) => {
     const own = paintAt(node, at);
@@ -3272,6 +3360,25 @@
       if (next === after) return true;
     return false;
   };
+  // Why `element` doesn't move with `box`, its ancestor, as `{reason, node}`, or null
+  // where it does. An in-flow box moves with its parent, and an absolutely positioned
+  // one with its containing block: its nearest positioned ancestor or a box nearer
+  // still, such as a transformed one. So an absolute box moves with `box` only where a
+  // positioned box at or below `box` holds it, as a diff line holds its comment button.
+  const unplacedBy = (element, box, at) => {
+    let placed = true;
+    for (let inner = element; inner !== box; inner = paintAt(inner, at).parent) {
+      const style = paintAt(inner, at);
+      if (style.display === "contents") continue;
+      if (style.position === "fixed" || style.float !== "none")
+        return { reason: "receiver-out-of-flow", node: inner };
+      if (style.position === "absolute") placed = false;
+      else if (!placed && style.position !== "static") placed = true;
+    }
+    return placed || paintAt(box, at).position !== "static"
+      ? null
+      : { reason: "uncontained-absolute-receiver", node: box };
+  };
   const sizeReaches = (target, element, from, to, axis, change, proof) => {
     const reject = (reason, node, readings = {}) => {
       if (proof) proof.rejection = { reason, node, ...readings };
@@ -3297,23 +3404,11 @@
     const flow = boxParent(branch, from);
     if (!inFlow(branch, from)) return reject("source-out-of-flow", branch);
     if (!flow) return reject("missing-flow", branch);
-    // An in-flow box moves with its parent, and an absolutely positioned one with its
-    // containing block: its nearest positioned ancestor or a box nearer still, such as
-    // a transformed one. So an absolute box is carried only where a positioned box
-    // between it and the follower holds it, as a diff line holds its comment button.
     const reach = path.indexOf(flow);
     if (reach < 1) return reject("receiver-outside-flow", flow);
     const follower = path[reach - 1];
-    let placed = true;
-    for (const box of path.slice(0, reach - 1)) {
-      const style = paintAt(box, to);
-      if (style.position === "fixed" || style.float !== "none")
-        return reject("receiver-out-of-flow", box);
-      if (style.position === "absolute") placed = false;
-      else if (!placed && style.position !== "static") placed = true;
-    }
-    if (!placed && paintAt(follower, to).position === "static")
-      return reject("uncontained-absolute-receiver", follower);
+    const unplaced = unplacedBy(element, follower, to);
+    if (unplaced) return reject(unplaced.reason, unplaced.node);
     // Block-level children stack vertically in a horizontal-writing block flow.
     // A block container can also hold inline siblings, whose height does not carry
     // the next sibling down; flex, grid, and vertical writing have other axes.
@@ -3329,6 +3424,91 @@
     if (!followsAt(branch, follower, from))
       return reject("receiver-not-following", follower);
     return true;
+  };
+  // A box places its content between its edges, as a flex box or a button centres its
+  // label. So while a native animation changes the box's size, a node inside it moves
+  // by an amount between the moves of the box's two edges. Those moves are counted
+  // beyond the box's own credits and must grow or shrink it, at one edge or at both
+  // apart; a box carried whole credits nothing here. The node's move is counted beyond
+  // its other credits, and the node must move with the box (`unplacedBy`). The box's
+  // alignment, which would say where in that span the node belongs, is not readable (a
+  // button centres its label by no property), so another move within the span is
+  // credited too, as `sticky_inset` credits one within its span. `boxes` keeps each
+  // box's own credits for the comparison, which every node it holds, and every box
+  // inside it, asks for.
+  const innerReflow = (motion, node, element, from, to, animations, boxes) => {
+    const resizing = [...new Set(animations.map(continued))].filter((animation) =>
+      effectProperties(animation).some((property) => SIZE_GEOMETRY.has(property)),
+    );
+    if (!resizing.length) return;
+    const held = ancestryAt(element, from),
+      holding = ancestryAt(element, to);
+    const holders = resizing.filter(
+      ({ effect: { target } }) =>
+        target !== node &&
+        held.includes(target) &&
+        holding.includes(target) &&
+        paintAt(target, from)?.display !== "contents" &&
+        paintAt(target, to)?.display !== "contents",
+    );
+    if (!holders.length) return;
+    const first = layoutAt(node, from),
+      last = layoutAt(node, to);
+    if (!first || !last) return;
+    const between = (value, a, b) =>
+      value >= Math.min(a, b) - 1 && value <= Math.max(a, b) + 1;
+    for (const [axis, end] of [
+      ["left", "right"],
+      ["top", "bottom"],
+    ]) {
+      const moved = last[axis] - first[axis] - motion[axis];
+      if (Math.abs(moved) < 1) continue;
+      for (const animation of holders) {
+        const target = animation.effect.target;
+        const inline =
+          (paintAt(target, to)?.writingMode === "horizontal-tb") === (axis === "left");
+        const sizes = [
+          axis === "left" ? "width" : "height",
+          inline ? "inlineSize" : "blockSize",
+        ];
+        const properties = effectProperties(animation);
+        if (!properties.some((property) => sizes.includes(property))) continue;
+        const before = layoutAt(target, from),
+          after = layoutAt(target, to);
+        if (!before || !after) continue;
+        const proof = { target, axis, inner: true, before, after, first, last };
+        motion.sizePropagation.push(proof);
+        const change = after[end] - after[axis] - (before[end] - before[axis]);
+        if (Math.abs(change) < 1) {
+          proof.rejection = { reason: "source-size-unchanged" };
+          continue;
+        }
+        if (!boxes.has(target))
+          boxes.set(target, animationMotion(target, from, to, animations, boxes));
+        // Where the box's head edge went beyond its own credits; its foot went
+        // `change` farther.
+        const own = boxes.get(target)[axis];
+        const head = after[axis] - before[axis] - own;
+        const rejection = !between(head, 0, -change)
+          ? { reason: "source-carried" }
+          : !between(moved, head, head + change)
+            ? { reason: "receiver-movement-mismatch" }
+            : unplacedBy(element, target, to);
+        if (rejection) {
+          proof.rejection = { ...rejection, own };
+          continue;
+        }
+        credit(motion, "animation_inner_reflow", target, axis, moved, {
+          before,
+          after,
+          first,
+          last,
+          own,
+          properties,
+        });
+        break;
+      }
+    }
   };
   // A sticky box's inset is the line it sticks at, not an offset. While the box stands
   // at that line, a change of the inset moves it by that change within its containing
@@ -3385,7 +3565,7 @@
         block,
       });
   };
-  const animationMotion = (node, from, to, animations) => {
+  const animationMotion = (node, from, to, animations, boxes = new Map()) => {
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const motion = { left: 0, top: 0, terms: [], sizePropagation: [] };
     if (!element) return motion;
@@ -3561,6 +3741,7 @@
       }
       seen.set(target, properties);
     }
+    innerReflow(motion, node, element, from, to, animations, boxes);
     return motion;
   };
   // The credit owners retain their accepted terms. A failing comparison keeps
@@ -3641,9 +3822,47 @@
     if (!held) frameNodes.set(frame.nodes, (held = new Set(frame.nodes)));
     return held.has(node);
   };
-  const protectedMotion = (around) => {
-    const growth = appendGrowth(around);
-    for (const node of new Set(around.flatMap(({ nodes }) => nodes))) {
+  // A rect moved back by `by`.
+  const unmoved = (rect, by) => ({
+    left: rect.left - by.left,
+    right: rect.right - by.left,
+    top: rect.top - by.top,
+    bottom: rect.bottom - by.top,
+    width: rect.width,
+    height: rect.height,
+  });
+  // Compares each protected node read at frame `to` with its reading at the frame
+  // `from` gives it, crediting `animations` across them, less the displacement
+  // `permitted` holds for it, and keeps each uncredited move of a node `judged` accepts
+  // for admission. A move a declaration permits (append growth, widening, reflow) is
+  // added to `permits` instead, so a run takes away what each of its transitions
+  // permitted rather than asking whether its endpoints form one permitted transition.
+  // `step` is the frame before `to`, whose reading Chrome's painted shift is measured
+  // from. A move of a node `reported` accepts stands only on Chrome's report (`judge`),
+  // and adds nothing to `permits`.
+  const protectedMotion = (
+    to,
+    {
+      from,
+      animations,
+      step,
+      judged = () => true,
+      permitted = null,
+      permits = null,
+      reported = () => false,
+    },
+  ) => {
+    // Append growth is read once for each frame compared from, and only once a move
+    // asks for it.
+    const growths = new Map();
+    for (const node of to.nodes) {
+      const start = from(node);
+      if (!start || start === to) continue;
+      const around = [start, start, to];
+      const growth = () => {
+        if (!growths.has(start)) growths.set(start, appendGrowth(around));
+        return growths.get(start);
+      };
       const readings = around.map(({ at }) => readingAt(node, at));
       if (!readings.every(Boolean)) continue;
       if (!readings.some(({ paint }) => paint.reading || paint.control || paint.reflow))
@@ -3660,7 +3879,6 @@
         // A changed text node is a new reading, even when Lit retained its DOM
         // identity. Its old and new glyph fragments are not the same landmark.
         if (node.nodeType === Node.TEXT_NODE && prior.words !== next.words) continue;
-        const animations = around.flatMap((frame) => frame.motion);
         const scroll = scrollMotion(
           node,
           around[before].at,
@@ -3679,14 +3897,16 @@
           i++
         ) {
           const previousRect = prior.fragments[i],
-            currentRect = next.fragments[i];
+            drawnRect = next.fragments[i];
           if (
             !previousRect.width ||
             !previousRect.height ||
-            !currentRect.width ||
-            !currentRect.height
+            !drawnRect.width ||
+            !drawnRect.height
           )
             continue;
+          const shift = permitted?.get(node)?.[i] ?? { left: 0, top: 0 };
+          const currentRect = unmoved(drawnRect, shift);
           if (
             !carried(previousRect, currentRect, "top", "bottom") &&
             !carried(previousRect, currentRect, "left", "right")
@@ -3696,8 +3916,8 @@
             to = layoutAt(node, around[after].at);
           const layoutLeft = previousRect.left - prior.rect.left + from.left;
           const layoutTop = previousRect.top - prior.rect.top + from.top;
-          const nextLeft = currentRect.left - next.rect.left + to.left;
-          const nextTop = currentRect.top - next.rect.top + to.top;
+          const nextLeft = drawnRect.left - next.rect.left + to.left - shift.left;
+          const nextTop = drawnRect.top - next.rect.top + to.top - shift.top;
           const x =
             carried(previousRect, currentRect, "left", "right") &&
             Math.abs(layoutLeft - nextLeft) >= 1 &&
@@ -3710,36 +3930,56 @@
             Math.abs(currentRect.top - previousRect.top - scroll.top - motion.top) >= 1;
           if (!x && !y) continue;
           const fromPaint = paintState(node, previousRect, around[before].at);
-          const toPaint = paintState(node, currentRect, around[after].at);
+          const toPaint = paintState(node, drawnRect, around[after].at);
           if (
-            fromPaint.paintable &&
-            toPaint.paintable &&
-            (fromPaint.visible || toPaint.visible) &&
-            readIn(around[before], node) &&
-            readIn(around[after], node) &&
-            !permittedAppend(node, previousRect, currentRect, around, growth) &&
-            !permittedWidening(
-              {
-                node,
-                previousRect: fromPaint.painted,
-                currentRect: toPaint.painted,
-              },
-              around,
-            ) &&
-            !permittedReflow(
-              {
-                node,
-                previousRect: fromPaint.painted,
-                currentRect: toPaint.painted,
-              },
-              around,
-            )
+            !fromPaint.paintable ||
+            !toPaint.paintable ||
+            !(fromPaint.visible || toPaint.visible) ||
+            !readIn(around[before], node) ||
+            !readIn(around[after], node)
           )
+            continue;
+          const painted = {
+            node,
+            previousRect: fromPaint.painted,
+            currentRect: toPaint.painted,
+          };
+          // A run's comparison spans transitions a declaration may not permit together,
+          // so it takes away only what each step's own comparison found permitted.
+          const appended =
+            !permitted &&
+            permittedAppend(node, previousRect, drawnRect, around, growth());
+          if (
+            appended ||
+            (!permitted &&
+              (permittedWidening(painted, around) || permittedReflow(painted, around)))
+          ) {
+            if (!permits || reported(node)) continue;
+            // Append growth measures how far it carried the node, so a drift beside it
+            // within its tolerance stays the node's own. Widening and reflow say only
+            // that the node stayed inside the box declaring them, so the step's move is
+            // theirs.
+            const step = appended || {
+              left: currentRect.left - previousRect.left - scroll.left - motion.left,
+              top: currentRect.top - previousRect.top - scroll.top - motion.top,
+            };
+            const held = permits.get(node) ?? [];
+            const by = held[i] ?? { left: 0, top: 0 };
+            held[i] = { left: by.left + step.left, top: by.top + step.top };
+            permits.set(node, held);
+            continue;
+          }
+          if (judged(node))
             pendingMotion.push({
               node,
               fragment: i,
               previousRect,
               currentRect,
+              drawnRect,
+              permitted,
+              reported: reported(node),
+              stepAt: step.at,
+              stepRect: readingAt(node, step.at)?.fragments[i] ?? previousRect,
               before: around[before].at,
               after: around[after].at,
               evidence: motionComparison(
@@ -3761,29 +4001,121 @@
   };
   const inputOwns = (at) =>
     renderings.some((gesture) => at >= gesture.start && at <= gesture.through);
+  // A run of motion without input: the frame before it, from which each of its frames
+  // is judged, and the motion credited across it. It ends at a frame that reads no
+  // change while no box moves on its own clock, or where input, typing or the page's
+  // presentation takes the frame (the header's "Runs of motion").
+  let run = null;
   const audit = () => {
+    const scrollers = [...scrolledSince];
+    scrolledSince.clear();
     if (frames.length < 2) return;
     const at = nativePerformance.now(),
-      frame = frames.at(-1).at;
-    const rendering = renderings.findLast(({ start }) => start <= at);
-    if (rendering?.typing && at <= rendering.typing.until) return;
-    const entry = { startTime: at, sources: [] };
-    // Gesture ownership is its bounded rendering, not Chrome's half-second credit.
-    if (presenting(entry) || inputOwns(frame)) return;
-    const before = frames.at(-2),
+      before = frames.at(-2),
       after = frames.at(-1);
+    const rendering = renderings.findLast(({ start }) => start <= at);
+    // Gesture ownership is its bounded rendering, not Chrome's half-second credit.
+    if (
+      (rendering?.typing && at <= rendering.typing.until) ||
+      presenting({ startTime: at }) ||
+      inputOwns(after.at)
+    ) {
+      run = null;
+      return;
+    }
     // No pose was appended between the two readings, so none moved.
-    if (before.written === after.written) return;
-    protectedMotion([before, before, after]);
-  };
-  // A painted layout transition admits the retained landmark ledger. Chrome's
-  // source list never selects which landmarks get checked; source geometry only
-  // corroborates a sampled roundtrip already undone by the time it is heard.
-  const admittedMotion = (entry, next, rendering) => {
-    if (presenting(entry)) return;
-    const admitted = pendingMotion.filter(
-      (move) => move.before <= entry.startTime && move.after <= next,
+    const changed = before.written !== after.written;
+    if (!changed && !after.moving) {
+      run = null;
+      return;
+    }
+    run ??= {
+      from: before,
+      motion: new Set(before.motion),
+      permitted: new Map(),
+      arrived: new Map(),
+    };
+    for (const animation of after.motion) run.motion.add(animation);
+    if (!changed) return;
+    const animations = [...run.motion];
+    const { from, permitted, arrived } = run;
+    // Whether a scroll may have moved the node this frame: a box holding it changed its
+    // scroll offset (the header's "Runs of motion"). Each box is asked on its own,
+    // since scrolls opposite ways cancel in a sum. The walk ends at a box fixed to the
+    // window, which no scroll carries; one fixed inside a transformed box names that box
+    // as its offset parent, and goes with it.
+    const shifted = new Set(
+      scrollers.filter((box) => {
+        const was = scrollAt(box, before.at),
+          now = scrollAt(box, after.at);
+        return (
+          Boolean(was && now) &&
+          (Math.abs(now.left - was.left) >= 0.5 || Math.abs(now.top - was.top) >= 0.5)
+        );
+      }),
     );
+    const scrolls = (node) => {
+      for (let box = shifted.size ? node : null; box;) {
+        const paint = paintAt(box, after.at);
+        if (paint?.position === "fixed" && !paint.block) return false;
+        box = paint?.parent;
+        if (shifted.has(box)) return true;
+      }
+      return false;
+    };
+    // A node first read during the run, read again after it left the page, or moved by
+    // a scroll this frame is judged from the frame that read it then.
+    for (const node of after.nodes)
+      if (!readIn(before, node) || scrolls(node)) {
+        arrived.set(node, after);
+        permitted.delete(node);
+      }
+    const origin = (node) => arrived.get(node) ?? (readIn(from, node) ? from : null);
+    // This frame's step records what a declaration permits, and judges a node a scroll
+    // moved, on Chrome's report. On the run's first frame it is the run's own
+    // comparison too.
+    protectedMotion(after, {
+      from: () => before,
+      animations,
+      step: before,
+      judged: (node) => from === before || scrolls(node),
+      permits: permitted,
+      reported: scrolls,
+    });
+    // The run's comparison judges each node from where it stood when the run began.
+    if (from !== before)
+      protectedMotion(after, { from: origin, animations, step: before, permitted });
+  };
+  // A move stands where the reading after it still finds the node away from where the
+  // run began (the header's "Runs of motion" says what that proves). Each move is
+  // judged so once, on the next reading, since a later one can find the node moved by
+  // something else, such as input. One the next reading no longer finds, a roundtrip,
+  // stands only where Chrome reports painting it, so it waits for that report
+  // (`judge`), as do a move whose next reading input owns, which leaves its pose
+  // ambiguous, and a move a scroll made (`reported`).
+  const standingMotion = () => {
+    const previous = frames.at(-2)?.at,
+      next = frames.at(-1).at;
+    if (presenting({ startTime: next }) || inputOwns(next)) return;
+    admittedMotion(
+      pendingMotion.filter((move) => move.after === previous && !move.reported),
+      next,
+    );
+  };
+  // Typing's own frames are judged the same way, from the key's poses to each reading
+  // its rendering owns, while no newer input or presentation has closed it.
+  const standingTyping = () => {
+    const previous = frames.at(-2)?.at,
+      next = frames.at(-1).at;
+    const typing = renderings.findLast(({ start }) => start <= previous)?.typing;
+    if (typing && previous >= typing.at && next <= typing.until)
+      typed(null, typing, previous, next);
+  };
+  // Chrome's source list never selects which landmarks get checked; with a painted
+  // layout shift (`entry`), source geometry corroborates a sampled roundtrip already
+  // undone by the time it is heard.
+  const admittedMotion = (admitted, next, entry = null) => {
+    const sources = entry?.sources ?? [];
     const groups = new Map();
     for (const move of admitted) {
       const byFragment = groups.get(move.node) ?? new Map();
@@ -3792,8 +4124,10 @@
       byFragment.set(move.fragment, chain);
       groups.set(move.node, byFragment);
     }
+    // Chrome measures a shift from the paint before, so its source moved as far as the
+    // node did in its last frame.
     const confirms = (move) =>
-      entry.sources.some((source) => {
+      sources.some((source) => {
         const element =
           move.node.nodeType === Node.TEXT_NODE ? up(move.node) : move.node;
         if (source.node !== move.node && source.node !== element) return false;
@@ -3801,52 +4135,69 @@
           Math.abs(
             source.currentRect.left -
               source.previousRect.left -
-              (move.currentRect.left - move.previousRect.left),
+              (move.drawnRect.left - move.stepRect.left),
           ) < 1 &&
           Math.abs(
             source.currentRect.top -
               source.previousRect.top -
-              (move.currentRect.top - move.previousRect.top),
+              (move.drawnRect.top - move.stepRect.top),
           ) < 1
         );
       });
+    const settled = new Set(entry ? admitted : []);
     for (const [node, fragments] of groups)
       for (const [fragment, chain] of fragments) {
         const first = chain[0],
           last = chain.at(-1);
-        const current = readingAt(node, next)?.fragments[fragment];
+        // Where the next reading finds the node, less what the run's transitions
+        // permitted it, as its moves are measured.
+        const drawn = readingAt(node, next)?.fragments[fragment];
+        const current =
+          drawn &&
+          unmoved(drawn, last.permitted?.get(node)?.[fragment] ?? { left: 0, top: 0 });
         const net =
           carried(first.previousRect, last.currentRect, "top", "bottom") ||
           carried(first.previousRect, last.currentRect, "left", "right");
-        const stable = net && (!current || moved(current, first.previousRect));
+        // A node gone from the next reading stood only if Chrome painted its move.
+        const stable =
+          net && (current ? moved(current, first.previousRect) : entry !== null);
         const proof = stable
           ? { previousRect: first.previousRect, currentRect: last.currentRect }
           : chain.find(confirms);
-        if (proof)
-          report(JSON.stringify(["moved", name(node)]), {
-            code: "moved-without-input",
+        if (!proof) continue;
+        for (const move of chain) settled.add(move);
+        report(JSON.stringify(["moved", name(node)]), {
+          code: "moved-without-input",
+          node: name(node),
+          by: by(proof.previousRect, proof.currentRect),
+          beside: beside(sources, node),
+          evidence: {
+            kind: "passive",
             node: name(node),
-            by: by(proof.previousRect, proof.currentRect),
-            beside: beside(entry.sources, node),
-            evidence: {
-              kind: "passive",
-              node: name(node),
-              fragment,
-              paint_at: entry.startTime,
-              comparisons: (stable ? chain : [proof]).map((move) => move.evidence),
-            },
-          });
+            fragment,
+            // The paint Chrome reported, or the reading that found the move standing.
+            paint_at: entry?.startTime ?? next,
+            comparisons: (stable ? chain : [proof]).map((move) => move.evidence),
+          },
+        });
       }
     for (let i = pendingMotion.length - 1; i >= 0; i--)
-      if (admitted.includes(pendingMotion[i])) pendingMotion.splice(i, 1);
+      if (settled.has(pendingMotion[i])) pendingMotion.splice(i, 1);
   };
   // Chrome's rects are what a node paints, clipped to the viewport, so they are held
   // against the frame's own reading, never against the key's.
-  const typed = (entry, typing, painted) => {
+  // With no painted shift (`entry`), a node is judged where the reading after
+  // `painted`, at `held`, still finds it away from where the key found it, as a run's
+  // move is (`standingMotion`).
+  const typed = (entry, typing, painted, held = null) => {
     painted = Math.min(painted, typing.until);
     for (const [node, before] of typing.found) {
       const after = before && boxAt(node, painted);
-      if (!before || !after) continue;
+      // A box the page stopped drawing, as a closed editor's, has no place to move to;
+      // words_watch.js judges the words it held.
+      if (!before || !after || !paintAt(node, painted)?.shown) continue;
+      const standing = entry ? after : boxAt(node, held);
+      if (!standing || !moved(standing, before)) continue;
       const from = layoutAt(node, typing.at),
         to = layoutAt(node, painted);
       if (!from || !to) continue;
@@ -3870,12 +4221,13 @@
         by: by(before, after),
         found: box(before),
         painted: box(after),
-        beside: beside(entry.sources, node),
+        beside: beside(entry?.sources ?? [], node),
         evidence: {
           kind: "typing",
           node: name(node),
           field: name(typing.field),
-          paint_at: entry.startTime,
+          // The paint Chrome reported, or the reading that found the move standing.
+          paint_at: entry?.startTime ?? held,
           comparisons: [
             motionComparison(
               typing.at,
@@ -3912,14 +4264,27 @@
       }
       const rendering = renderings.findLast(({ start }) => start <= at);
       if (observed && frame !== -1)
-        protectedMotion([frames[frame], frames[frame], observed]);
+        protectedMotion(observed, {
+          from: () => frames[frame],
+          animations: frames[frame].motion,
+          step: frames[frame],
+        });
       const typing = rendering?.typing;
       if (typing && at <= typing.until) {
         // A later frame may include the next gesture; typed() caps its reading at
         // the closing pose captured before that gesture began.
         if (frame !== -1) typed(entry, typing, next);
       }
-      admittedMotion(entry, next ?? nativePerformance.now(), rendering);
+      if (!presenting(entry)) {
+        const painted = next ?? nativePerformance.now();
+        admittedMotion(
+          pendingMotion.filter(
+            (move) => move.before <= entry.startTime && move.after <= painted,
+          ),
+          painted,
+          entry,
+        );
+      }
     }
   };
   // Native records, delivered to the observer or taken at a paint checkpoint. A
@@ -3977,7 +4342,7 @@
     const needed = Math.min(
       through,
       ...waiting.map((entry) => entry.startTime),
-      ...pendingMotion.map((move) => move.before),
+      ...pendingMotion.map((move) => move.stepAt),
       ...renderings
         .filter(
           (rendering) =>
@@ -3995,8 +4360,12 @@
     // Native frame starts associate painted shifts; poses are sampled later in the
     // callback's synchronous turn. Retaining that frame cannot retire an earlier
     // input pose its readers still need. All coordinate histories keep the same
-    // earliest required reading.
-    retainedFrom = Math.min(needed, frames[0]?.at ?? -Infinity);
+    // earliest required reading, back to the frame a run is judged from.
+    retainedFrom = Math.min(
+      needed,
+      run?.from.at ?? Infinity,
+      frames[0]?.at ?? -Infinity,
+    );
     for (let i = renderings.length - 1; i >= 0; i--) {
       const rendering = renderings[i];
       if (

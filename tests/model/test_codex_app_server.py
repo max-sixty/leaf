@@ -19,6 +19,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _codex_delivery,
     _delivery_item,
@@ -2136,7 +2137,7 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
     end a second time.
     """
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     action = append_command(
@@ -2921,9 +2922,7 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
         prepared = _codex_delivery(page_dir)
     else:
         (page_dir / "index.html").write_text(
-            PAGE.replace(
-                "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-            )
+            PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
         )
         publish(page_dir)
         append_command(
@@ -3145,7 +3144,7 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
     """An action delivery has no reply reservation that could prevent a duplicate
     start."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     append_command(
@@ -3341,7 +3340,6 @@ def test_abandonment_recovery_releases_the_seat_and_preserves_manual_answers(
             page_dir,
             target,
             text="Manual answer",
-            markup="",
         )
     assert codex_model.recover_codex_receipt("codex-thread")
     assert not thread_model.delivery_reply_reserved(
@@ -3836,7 +3834,6 @@ def test_manual_answer_retires_an_unknown_start_before_the_provider_becomes_idle
         page_dir,
         target,
         text="Manual winner",
-        markup="",
     )
     # The watcher settles the harness attempt without contacting the provider;
     # prolonged disconnect cannot block later input behind the manual winner.

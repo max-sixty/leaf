@@ -214,7 +214,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             // Inside what was selected, not merely somewhere: a matcher that finds
             // the right words in the wrong place paints, and paints a lie.
             //
-            // A mark can now land inside a widget's shadow tree (x-shadow), and two
+            // A mark can now land inside a widget's shadow tree (words.shadow), and two
             // ranges in different trees cannot be compared at all — comparing them
             // throws rather than answering. So the question crosses the way the
             // runtime's own does: the tree renders where its host stands, so a mark
@@ -305,9 +305,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + '<pre id="plain" tabindex="0"><code>'
             + escape(plain_source)
             + '</code></pre><a id="after-copy" href="#title">After code</a>'
-            + '<lf-code id="numbered" language="python" hi="2"><pre>'
+            + '<lf-code id="numbered" hi="2"><pre><code class="language-python">'
             + escape(widget)
-            + "</pre></lf-code>"
+            + "</code></pre></lf-code>"
             + '<lf-draft id="draft"><pre>A draft copies its own Markdown.</pre></lf-draft>',
             head="<style>#plain { anchor-name: --authored-plain; }"
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",

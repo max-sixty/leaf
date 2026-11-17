@@ -643,8 +643,8 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
             "id": "widget-thread",
             "author": "agent",
             "revision": 1,
-            "text": "Which region?",
-            "markup": '<lf-options id="thread-region" choose>'
+            "html": True,
+            "text": 'Which region?\n\n<lf-options id="thread-region">'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },
@@ -2363,9 +2363,9 @@ def test_a_hold_ending_while_the_reply_goes_in_leaves_the_thread_to_the_session(
     asked = said(claimed, "Is the fence inside the append?")
     checked = thread_model.checked_text
 
-    def bound_passes(page_dir, text):
+    def bound_passes(page_dir, text, **options):
         forks_model.look("s1", claimed, now=float("inf"))
-        return checked(page_dir, text)
+        return checked(page_dir, text, **options)
 
     monkeypatch.setattr(thread_model, "checked_text", bound_passes)
     assert forks_model.route(

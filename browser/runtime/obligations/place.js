@@ -29,6 +29,7 @@
    obligation, and also falls back to an obligation's unique context. */
 import { projectedDatum } from "../anchor-resolution.js";
 import { elementById } from "../passages.js";
+import { readPart } from "../semantic-state.js";
 import { composedParentNode } from "../shadow.js";
 import { readObligations } from "./model.js";
 
@@ -99,3 +100,40 @@ export const obligationsIn = (region, items = readObligations().all) =>
   /** @type {import("../framework/application.js").ObligationRecord[]} */ (
     obligationsByRegion([region], items).get(region)
   );
+
+// The regions among `regions` that hold a widget declaring `state.awaits`, one whose markup
+// asks the user something, in the page or in a message's markup. A region holds it
+// whatever the inventory says of its obligation: before the first reading the
+// obligation isn't listed yet, and once it is withdrawn the inventory lists it as
+// withdrawn, which `obligationsByRegion` leaves out. A queue's row keeps room for the
+// answer through both. The widgets are the documents' captured ones
+// (widget-descriptors.js), which change with each revision and each message whose
+// markup is captured, and each climbs once from its element, as an obligation's source
+// does in `obligationsByRegion`. So the cost grows with the widgets and not with the
+// elements the regions hold, of which a panel holding a 96,000-line text document has
+// about 97,000.
+const authoredWidgets = readPart((root) => root.document.descriptors);
+/** @type {WeakMap<ReadonlyMap<string, import("../framework/application.js").WidgetDescriptor>, string[]>} */
+const awaitingIds = new WeakMap();
+/** @param {readonly Node[]} regions */
+export function regionsAwaiting(regions) {
+  const widgets = authoredWidgets();
+  let ids = awaitingIds.get(widgets);
+  if (!ids) {
+    ids = [...widgets.values()]
+      .filter(({ declaration }) => declaration.state?.awaits !== undefined)
+      .map(({ id }) => id);
+    awaitingIds.set(widgets, ids);
+  }
+  const wanted = new Set(regions);
+  /** @type {Set<Node>} */
+  const awaiting = new Set();
+  for (const id of ids)
+    for (
+      let at = /** @type {Node | null} */ (elementById(id));
+      at;
+      at = composedParentNode(at)
+    )
+      if (wanted.has(at)) awaiting.add(at);
+  return awaiting;
+}

@@ -4,6 +4,7 @@
    resolves in the code's face on the <pre> and a note inherits that width, not its own
    face's `ch`. The rendered lines own the block's containment. */
 lf-code {
+  color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
   contain: inline-size;
   /* Its code block wears markup's reading face (`reading.css`) whatever look the page
      takes, since the block's frame and type are the widget's own. */
@@ -140,27 +141,28 @@ lf-code lf-note {
   display: block;
 }
 /* The note wears this box wherever it stands: docked at its line inside the frame,
-   or after the source before upgrade. Its spacing is padding and the card is drawn
-   inside it, so frame-edge margin trimming cannot change the box when the note moves
-   between source lines. The indent stops at 22 characters, as a wrapped line's hang
-   does, so a deep note in a narrow frame keeps room for its words. The card fits its
-   words, up to a measure that keeps a long note readable at its size, so a short
-   note is a short card. */
+   or after the source before upgrade. Its block spacing is padding and the card is
+   drawn inside it, so frame-edge margin trimming cannot change the box when the note
+   moves between source lines. The line's indent, which the module copies only once it
+   docks the note, is the note's inline-start margin rather than part of its box, so a
+   card that fits its words keeps the size it had at first paint. The indent stops at 22
+   characters, as a wrapped line's hang does, so a deep note in a narrow frame keeps
+   room for its words. The card fits its words, up to a measure that keeps a long note
+   readable at its size, so a short note is a short card. */
 lf-code > lf-note,
 lf-code > pre > lf-note {
-  --lf-code-note-at: calc(
-    var(--lf-code-gutter) + var(--lf-code-gap) + min(var(--lf-code-indent, 0), 22) *
-      var(--lf-code-ch)
-  );
+  --lf-code-note-indent: calc(min(var(--lf-code-indent, 0), 22) * var(--lf-code-ch));
+  --lf-code-note-at: calc(var(--lf-code-gutter) + var(--lf-code-gap));
   position: relative;
   isolation: isolate;
   box-sizing: border-box;
   inline-size: fit-content;
   max-inline-size: min(
-    100%,
+    100% - var(--lf-code-note-indent),
     calc(var(--lf-code-note-at) + 24px + 66ch + var(--lf-code-inset-inline))
   );
   margin: 0;
+  margin-inline-start: var(--lf-code-note-indent);
   padding: 13px calc(var(--lf-code-inset-inline) + 12px) 17px
     calc(var(--lf-code-note-at) + 12px);
   color: var(--lf-code-ink);

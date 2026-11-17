@@ -28,12 +28,10 @@ import { clamp, overlaps, overlapsAcross, shifted, union } from "../rect.js";
 // not reach into the rail. A block grown past the rail's inner edge (`rail.edge`, on the
 // rail's side) by more than half a marker would stand under a rail marker, so its row
 // stands on it as a pin instead: the figure keeps its shape and the comment lands on
-// what it is about. `reach` is how far across the block reaches each way. A note hanging
-// in the rail's margin level with the row holds the rail's strip there, so that row pins
-// too (`noted`).
-/** @param {{rail: import("../content-layout.js").Rail | null, besideRail: boolean, reach: {left: number, right: number}, half: number, noted: boolean}} reading */
-export function rowPlacement({ rail, besideRail, reach, half, noted }) {
-  if (!rail || !besideRail || noted) return "pin";
+// what it is about. `reach` is how far across the block reaches each way.
+/** @param {{rail: import("../content-layout.js").Rail | null, besideRail: boolean, reach: {left: number, right: number}, half: number}} reading */
+export function rowPlacement({ rail, besideRail, reach, half }) {
+  if (!rail || !besideRail) return "pin";
   const into = rail.side === "right" ? reach.right - rail.edge : rail.edge - reach.left;
   return into > half ? "pin" : "rail";
 }

@@ -24,6 +24,7 @@ export {
   resolveAnchor,
   aimTargets,
   aimTargetAt,
+  captured,
 } from "./anchor-resolution.js";
 export {
   shownBand,
@@ -83,7 +84,7 @@ export {
   live,
 } from "./keyboard/bindings.js";
 export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
-export { captureDraftEditing, draftsWaiting } from "./drafts.js";
+export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
 export {
   onCurrentLocation,
   releaseFocus,

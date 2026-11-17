@@ -92,10 +92,12 @@
   // (passages.js, `refusesBareText`): incomplete too, but no server fixes it. The
   // first fault names the page and is said once more as `lf-startup-fault`, which a
   // served page's bootstrap answers by saying the page has a problem where it is the
-  // page's own, and otherwise by waiting for a server that can start the page
-  // (bootstrap.js); an export has no server to wait for. A later fault only takes the
-  // mark off where it is incomplete. The first is the earliest evidence and a later one
-  // is often its consequence; the bootstrap's report keeps the first as well.
+  // page's own, and otherwise by asking its server for the page again where it is
+  // incomplete, and by waiting for a server that can start the page (bootstrap.js);
+  // an export has no server to wait for. A later fault only takes the mark off where
+  // it is incomplete, which the bootstrap reads when it acts. The first is the
+  // earliest evidence and a later one is often its consequence; the bootstrap's
+  // report keeps the first as well.
   /** @param {string} reason @param {boolean} incomplete @param {unknown} [error] @param {boolean} [page] */
   const fault = (reason, incomplete, error = null, page = false) =>
     window.lfDocumentLifetime.whenActive(`fault ${reason}`, () => {
@@ -125,7 +127,7 @@
             }
           : null;
       window.dispatchEvent(
-        new CustomEvent("lf-startup-fault", { detail: { reason, incomplete, page } }),
+        new CustomEvent("lf-startup-fault", { detail: { reason, page } }),
       );
     });
   window.addEventListener(

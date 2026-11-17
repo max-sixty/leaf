@@ -70,7 +70,7 @@
           </p>
         </header>
 
-        <section id="terms" class="layout-flow">
+        <section id="terms">
           <h2>Names on this page</h2>
           <dl id="terms-list">
             <dt id="term-main-thread">Main thread</dt>
@@ -175,7 +175,7 @@
           </dl>
         </section>
 
-        <section id="path" class="layout-flow">
+        <section id="path">
           <h2>The path of one thread message</h2>
           <p id="path-kept">
             When the user writes in a thread, none of whose waiting messages has reached
@@ -240,7 +240,7 @@ flowchart TD
             lease still decided when keeping back ends.
           </p>
 
-          <section id="sorting" class="layout-flow">
+          <section id="sorting">
             <h3>How the line fork sorts a message</h3>
             <table id="sorting-table">
               <thead>
@@ -309,7 +309,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="take" class="layout-flow">
+          <section id="take">
             <h3>A working fork takes a message</h3>
             <p id="take-steps">
               When the line fork judges <code>take</code>, Leaf posts the working
@@ -363,7 +363,7 @@ sequenceDiagram
           </section>
         </section>
 
-        <section id="holding" class="layout-flow">
+        <section id="holding">
           <h2>Who holds a message</h2>
           <p id="holding-turns">
             Leaf ties work to the turn it runs in: a pickup, a start or an agent's reply
@@ -456,7 +456,7 @@ flowchart TD
             </figcaption>
           </figure>
 
-          <section id="holding-rule" class="layout-flow">
+          <section id="holding-rule">
             <h3>One rule for a fork's writes</h3>
             <p id="holding-rule-text">
               A fork's turn may act only on the messages it holds or that no turn holds.
@@ -472,7 +472,7 @@ flowchart TD
             </p>
           </section>
 
-          <section id="takeover" class="layout-flow">
+          <section id="takeover">
             <h3>When the main thread takes a thread over</h3>
             <p id="takeover-waits">
               While a fork's turn runs, the main thread isn't given the messages the
@@ -500,7 +500,7 @@ flowchart TD
           </section>
         </section>
 
-        <section id="acting" class="layout-flow">
+        <section id="acting">
           <h2>Who a <code>leaf</code> command acts as</h2>
           <p id="acting-environment">
             A working fork's shell commands run in the session's environment, so a
@@ -614,7 +614,7 @@ flowchart TD
           </p>
         </section>
 
-        <section id="ending" class="layout-flow">
+        <section id="ending">
           <h2>When a fork's run ends</h2>
           <p id="ending-judged">
             As a working fork's run ends, the hooks module tells Leaf
@@ -731,7 +731,7 @@ flowchart TD
             </tbody>
           </table>
 
-          <section id="telling" class="layout-flow">
+          <section id="telling">
             <h3>How a fork tells the main thread</h3>
             <p id="telling-clerk">
               Claude Code tells the main thread nothing of a fork a hooks module spawns:
@@ -792,7 +792,7 @@ flowchart TD
           </section>
         </section>
 
-        <section id="follow-ups" class="layout-flow">
+        <section id="follow-ups">
           <h2>Follow-ups and flurries</h2>
           <p id="follow-ups-one-fork">
             Leaf gives a thread's work to one working fork where it can, so a flurry of
@@ -881,7 +881,7 @@ flowchart TD
           </ul>
         </section>
 
-        <section id="coordinator" class="layout-flow">
+        <section id="coordinator">
           <h2>The main thread as coordinator</h2>
           <p id="coordinator-role">
             The main thread stays in charge of the session's work. It hears each fork's
@@ -919,7 +919,7 @@ flowchart TD
             </lf-diagram>
           </figure>
 
-          <section id="obligations" class="layout-flow">
+          <section id="obligations">
             <h3>To-dos</h3>
             <p id="obligations-fork">
               <span class="tag ok">built</span>
@@ -947,7 +947,7 @@ flowchart TD
           </section>
         </section>
 
-        <section id="status" class="layout-flow">
+        <section id="status">
           <h2>What's built and what's planned</h2>
           <table id="status-table">
             <thead>
@@ -1039,7 +1039,7 @@ flowchart TD
           </table>
         </section>
 
-        <section id="sources" class="layout-flow">
+        <section id="sources">
           <h2>Where each rule is written</h2>
           <ul id="sources-list">
             <li id="source-lifetime">

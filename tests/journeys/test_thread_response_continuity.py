@@ -273,10 +273,20 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         resting = reply_editing_pose(editor)
         if edit == "mirrored-composing":
             expect(editor).to_be_focused()
-        assert other.evaluate(
+            # Two tabs writing one draft keep the first write, so the other tab
+            # writes over the composing words only once it has heard them.
+            other.evaluate(
+                "async () => { window.loadDraft = (await window.__lfWidgetApi()).loadDraft; }"
+            )
+            other.wait_for_function(
+                "parent => window.loadDraft('reply:' + parent)?.text === 'Composing'",
+                arg=parent,
+            )
+        # The other tab's words reach this one through the page's server.
+        other.evaluate(
             """async parent => {
               const {saveDraft} = await window.__lfWidgetApi();
-              return saveDraft('reply:' + parent, 'First line');
+              saveDraft('reply:' + parent, 'First line');
             }""",
             parent,
         )

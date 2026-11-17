@@ -5,6 +5,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     draft_control,
+    latest_press,
     leaf_page,
     open_page,
     round_trip,
@@ -33,19 +34,20 @@ def cancel_draft(page, draft_id="draft-ops"):
 def editing_revision_source(mode, body=None):
     body = (
         body
-        or '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Current editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root" choose><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
+        or '<h1 id="subject">Editor continuity</h1><p id="passage">A stable passage stays exact across the revision.</p><textarea id="authored-draft" aria-label="Authored draft" style="height:80px"></textarea><lf-draft id="draft-root"><pre>Current editable text.</pre></lf-draft><lf-ask id="choice-root"><h2>Which choice?</h2><lf-options id="options-root"><lf-option id="initial">Initial choice</lf-option></lf-options></lf-ask><lf-test-plan id="command-root" label="Tasks"><lf-test-task id="seat-root" status="active" talk>What should we do?</lf-test-task></lf-test-plan>'
     )
     module = """<script type="module">
 window.__rendererLifetime={birth:performance.timeOrigin,hits:0,version:'MODE'};
 addEventListener('renderer-lifetime-probe',()=>window.__rendererLifetime.hits++);
-// Native prototype activation route: activate the panel's offered Latest, its row
-// notice's press, without transferring the editor's focus to the panel before the
+// Native prototype activation route: activate the Open latest the panel's field offers
+// at its end, without transferring the editor's focus to the panel before the
 // carry is captured. It listens in capture, since a key typed into a Leaf field never
 // bubbles to the page (field-keys.js).
 addEventListener('keydown',event=>{
   if(event.code==='KeyR' && event.ctrlKey && event.altKey){
     event.preventDefault();
-    document.querySelector('.lf-floating-panel .lf-fp-row-notice-press')?.click();
+    [...document.querySelectorAll('.lf-floating-panel .lf-fp-field .lf-compose-press')]
+      .find(press => press.textContent.includes('Open latest'))?.click();
   }
 },true);
 </script>""".replace("MODE", mode)
@@ -74,6 +76,14 @@ def replace_editing_document(page, serve):
     )
     told(page)
     if page.evaluate("performance.timeOrigin") == birth:
-        page.keyboard.press("Control+Alt+r")
+        if latest_press(page).count():
+            page.keyboard.press("Control+Alt+r")
+        else:
+            # A reply in the panel's field leaves its end no press: run what the press
+            # runs, which moves no focus either.
+            page.evaluate(
+                "import('/runtime/version-picker.js')"
+                ".then(({versionPicker}) => versionPicker.latest())"
+            )
     wait_for_revision(page, 2)
     assert page.evaluate("performance.timeOrigin") != birth

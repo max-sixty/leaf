@@ -210,9 +210,9 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
 # Option cards whose picks Done completes.
 FEEDERS = """<lf-group id="ask" label="Which feeders should we refill?"><h2 id="ask-h">Which feeders should we refill?</h2>
 <lf-options id="feeders" multiple>
-<lf-option id="feeder-porch" label="The porch feeder">Seen from the kitchen.
+<lf-option id="feeder-porch" label="The porch feeder"><strong>The porch feeder</strong> Seen from the kitchen.
 </lf-option>
-<lf-option id="feeder-oak" label="The oak feeder">Out of the wind.</lf-option>
+<lf-option id="feeder-oak" label="The oak feeder"><strong>The oak feeder</strong> Out of the wind.</lf-option>
 </lf-options></lf-group>"""
 
 
@@ -1664,8 +1664,8 @@ def _held(page, cdp, selector, words):
 WIDGET_WORDS = (
     '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
     '<lf-group id="opts-q" label="How should the rollout start?"><lf-options id="opts"><lf-option id="o1" label="Start small"><small class="tag">small cohort'
-    "</small> Then widen.</lf-option>"
-    '<lf-option id="o2" label="Start wide">Then '
+    "</small> <strong>Start small</strong> Then widen.</lf-option>"
+    '<lf-option id="o2" label="Start wide"><strong>Start wide</strong> Then '
     '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options></lf-group>'
     '<lf-suggestion id="sug"><lf-old><p id="old">Refill every feeder each morning.'
     "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"

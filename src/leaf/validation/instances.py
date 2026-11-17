@@ -533,11 +533,12 @@ def inert_allocation_advice(document: SourceDocument, registry: dict) -> list[Fi
     return findings
 
 
-def strong_title_advice(document: SourceDocument, registry: dict) -> list[Finding]:
-    """Each widget that takes its title in `label` but leads with a <strong> instead,
-    as options and board cards were written before they took `label`. The <strong>
-    names nothing and the widget draws no title, so an option draws as a bare label
-    with bold words. Advice, since bold words may open a label's own words."""
+def unnamed_card_advice(document: SourceDocument, registry: dict) -> list[Finding]:
+    """Each widget that takes its name in `label` but has none, and leads with a
+    <strong> past any chips, as options and board cards were written before they took
+    `label`. The <strong> is a title only the page shows, so Leaf names the widget by
+    all its words, and an option draws as a bare label of bold words. Advice, since bold
+    words may open a label's own words."""
     findings = []
     for rec in document.lf_elements:
         properties = (registry.get(rec["tag"]) or {}).get("attributes", {})
@@ -552,7 +553,7 @@ def strong_title_advice(document: SourceDocument, registry: dict) -> list[Findin
             if child["tag"] == "strong":
                 findings.append(
                     Finding(
-                        "title-in-strong",
+                        "unnamed-card",
                         element_at(rec["tag"], rec["attrs"].get("id", "")),
                         {"line": rec["line"]},
                         severity="advice",
@@ -572,7 +573,7 @@ def instance_errors(document: SourceDocument, registry: dict) -> list[Finding]:
         + addressable_instance_errors(lf_elements, registry)
         + unique_errors(lf_elements, registry)
         + shown_errors(document, registry)
-        + strong_title_advice(document, registry)
+        + unnamed_card_advice(document, registry)
     )
 
 

@@ -3,9 +3,14 @@
  * and nothing here is load-bearing on the look.
  *
  * Which form a group takes is a fact about its options, decided in CSS and never here:
- * an option with a `label` argues its own case and is a card on a row of its own, which
- * draws its label as its title (`says`), and a group whose options are bare labels
- * is an obligation *about* the page, drawn as compact rows.
+ * an option with a `label` argues its own case and is a card on a row of its own, and a
+ * group whose options are bare labels is an obligation *about* the page, drawn as
+ * compact rows. A card's `label` is its name and nothing draws it: the card shows the
+ * title its author writes in it, as a group shows the heading written in it. Max chose
+ * this over drawing the label as the card's title, since a name Leaf reads is data
+ * apart from the title the page shows; it costs the name written twice, and On Me
+ * shows a card's name alone, since no rule may pick a sentence out of the author's
+ * markup.
  * The difference this module sees is only what a row adds — `for`, the id of the block
  * the row names, rendered as a reference the user can follow where the group's rows
  * name different blocks. Rows that all name one block draw none, since that block
@@ -112,7 +117,6 @@ import {
   addressableWord,
   authoredScope,
   elementById,
-  generatedElement,
   threadInput,
   inChrome,
   keeps,
@@ -122,7 +126,6 @@ import {
   markdownWords,
   offer,
   offerAction,
-  phrasing,
   placePreview,
   pressIsKeyboardActivation,
   quoted,
@@ -142,35 +145,6 @@ import {
 // option with neither is to say "Settled" rather than name an id nobody wrote.
 /** @param {Element} option */
 const label = (option) => option.getAttribute("label")?.trim() || wrote(option);
-
-// What choosing an option gives the user, which On Me shows under the option's name,
-// where the user answers away from the card: a card's sentence, its words up to the
-// first element HTML sets apart from a line of words (`phrasing`), less the side
-// comments HTML's <small> marks, such as its chips, and any SVG or MathML drawn among
-// them; or, where the card opens with a paragraph, that paragraph's words. A compact
-// option says nothing beyond its name.
-const HTML_NS = "http://www.w3.org/1999/xhtml";
-/** @param {Element} option */
-const consequence = (option) => {
-  if (!option.hasAttribute("label")) return "";
-  let words = "";
-  for (const node of option.childNodes) {
-    if (node instanceof Text) words += node.data;
-    else if (!(node instanceof Element) || node.matches(".lf-ui, [data-lf-gen]"))
-      continue;
-    else if (node.localName === "small" || node.namespaceURI !== HTML_NS) continue;
-    else if (phrasing(node)) {
-      // `wrote` trims the element's own edges, which may be the spaces between words,
-      // as where emphasis splits a sentence.
-      const text = node.textContent;
-      words += `${/^\s/.test(text) ? " " : ""}${wrote(node)}${/\s$/.test(text) ? " " : ""}`;
-    } else {
-      if (!words.trim() && node.localName === "p") words = wrote(node);
-      break;
-    }
-  }
-  return words.replace(/\s+/g, " ").trim();
-};
 
 // The option the page advises is `recommended`, and the group says so wherever the
 // option is answered away from its card.
@@ -507,7 +481,6 @@ customElements.define(
           decision: true,
           bindingBadge,
           title: label(option) || option.id,
-          description: () => consequence(option),
           recommended: recommended(option),
           when: () => this.#available("choose"),
           run: () => mark.click(),
@@ -636,18 +609,6 @@ customElements.define(
       // The mark stands where the user starts reading the label, not at the line's
       // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);
-      // A card's title follows its mark, which floats beside it as the card's state
-      // seat and must come first to stand on the title's line. The words pass puts a
-      // `says` title before chrome it finds at the start, so the title is written
-      // here, after the mark, wherever this runs first; the pass then keeps its words.
-      const title = option.getAttribute("label");
-      if (title !== null && !option.querySelector(':scope > [data-lf-said="label"]')) {
-        const said = document.createElement("span");
-        said.dataset.lfSaid = "label";
-        generatedElement(said, { says: true });
-        said.textContent = title;
-        mark.after(said);
-      }
       return mark;
     }
 

@@ -232,9 +232,9 @@ The queue recovered after reverting the timeout change.
 <dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl>
 <lf-group id="routes-q" label="What happens to the queue?"><lf-options id="routes">
-<lf-option id="route-one" label="Keep the queue"><dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
+<lf-option id="route-one" label="Keep the queue"><strong>Keep the queue</strong> <dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
-<lf-option id="route-two" label="Review the queue"><p class="facts" id="option-prose">Keep this explanation in the option's full reading
+<lf-option id="route-two" label="Review the queue"><strong>Review the queue</strong> <p class="facts" id="option-prose">Keep this explanation in the option's full reading
 width while the owner checks the oldest requests.</p></lf-option>
 </lf-options></lf-group>
 <dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
@@ -264,10 +264,7 @@ p.facts, div.facts {font-size:12px;}
         values[1].bounding_box()["x"], abs=1
     )
     docked = page.locator("#option-facts").bounding_box()
-    assert (
-        docked["x"]
-        > page.locator('#route-one > [data-lf-said="label"]').bounding_box()["x"]
-    )
+    assert docked["x"] > page.locator("#route-one > strong").bounding_box()["x"]
     prose = page.locator("#option-prose").bounding_box()
     assert prose["width"] > page.locator("#route-two").bounding_box()["width"] * 0.75
     authored = page.locator("#authored-pairs")
@@ -1886,8 +1883,8 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
         '<lf-group id="asked" label="Which copy should a session read?"><h2 id="asked-h">Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice">'
-        '<lf-option id="asked-reload" label="Reload">Ask for a reload.</lf-option>'
-        '<lf-option id="asked-leave" label="Leave">Keep the old copy.</lf-option>'
+        '<lf-option id="asked-reload" label="Reload"><strong>Reload</strong> Ask for a reload.</lf-option>'
+        '<lf-option id="asked-leave" label="Leave"><strong>Leave</strong> Keep the old copy.</lf-option>'
         "</lf-options></lf-group>"
         '<section class="panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")

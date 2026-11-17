@@ -26,10 +26,11 @@
           </p>
           <lf-options id="deck-store-choice">
             <lf-option id="deck-store-redis" label="Keep Redis"
-              >No migration this release.</lf-option
+              ><strong>Keep Redis</strong> No migration this release.</lf-option
             >
             <lf-option id="deck-store-pg" label="Move sessions to Postgres"
-              >Run the migration Thursday.</lf-option
+              ><strong>Move sessions to Postgres</strong> Run the migration
+              Thursday.</lf-option
             >
           </lf-options>
         </lf-group>
@@ -71,8 +72,12 @@
 Thanks for the report. 2.4 moves session lookups off the slow path; logins should feel faster from Friday.</pre>
           </lf-draft>
           <lf-options id="deck-support-choice">
-            <lf-option id="deck-support-send" label="Send it"></lf-option>
-            <lf-option id="deck-support-hold" label="Don't send it"></lf-option>
+            <lf-option id="deck-support-send" label="Send it"
+              ><strong>Send it</strong></lf-option
+            >
+            <lf-option id="deck-support-hold" label="Don't send it"
+              ><strong>Don't send it</strong></lf-option
+            >
           </lf-options>
         </lf-group>
         <lf-group
@@ -82,8 +87,12 @@ Thanks for the report. 2.4 moves session lookups off the slow path; logins shoul
           <h3 id="deck-publish-ask-h">Post the release notes to #eng on Friday?</h3>
           <p>Posts the notes, with the upgrade note as you leave it.</p>
           <lf-options id="deck-publish-choice">
-            <lf-option id="deck-publish-hold" label="Keep them as a draft"></lf-option>
-            <lf-option id="deck-publish-post" label="Post them on Friday"></lf-option>
+            <lf-option id="deck-publish-hold" label="Keep them as a draft"
+              ><strong>Keep them as a draft</strong></lf-option
+            >
+            <lf-option id="deck-publish-post" label="Post them on Friday"
+              ><strong>Post them on Friday</strong></lf-option
+            >
           </lf-options>
         </lf-group>
       </lf-deck>

@@ -136,7 +136,7 @@ variants:
           <lf-options id="sample-clipboard">
             <lf-option id="sample-clipboard-keep" label="Keep it as it is">Copy in a
             sample stays selectable text.</lf-option>
-            <lf-option id="sample-clipboard-allow" label="Delegate clipboard-write">Copy
+            <lf-option id="sample-clipboard-allow" label="Delegate clipboard-write"><strong>Delegate clipboard-write</strong> Copy
             works in samples, and so does any sample script's write.</lf-option>
           </lf-options>
         </lf-group>

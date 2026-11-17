@@ -170,7 +170,7 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
         assert rail["x"] > card["x"] + card["width"] / 2, "the facts rail docks right"
     assert abs(rails[0]["x"] - rails[1]["x"]) < 1, "rails align down the group"
 
-    title = page.locator('#st-sd > [data-lf-said="label"]').bounding_box()
+    title = page.locator("#st-sd > strong").bounding_box()
     chips = page.locator("#st-sd > small.tag")
     expect(chips).to_have_text(["effort: low", "risk: high"])
     # `tone` is the author's judgement about one answer, so it lands on the chip that
@@ -195,8 +195,8 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     )
     band = [chips.nth(i).bounding_box() for i in range(2)]
     for chip in band:
-        assert chip["y"] >= title["y"] + title["height"] - 1, (
-            "the chips follow the title"
+        assert chip["y"] + chip["height"] <= title["y"] + 1, (
+            "the chips read before the title"
         )
     assert abs(band[0]["x"] - title["x"]) < 1, "and start where the title does"
     assert band[0]["x"] + band[0]["width"] <= band[1]["x"], (
@@ -213,13 +213,13 @@ def test_substantial_options_stack_and_align_their_facts(browser, serve):
     # held before the pick and excludes every line rather than hanging off whichever
     # chip comes last, so wrapping metadata cannot enter the chip's corner.
     page.set_viewport_size({"width": 390, "height": 900})
-    page.locator('#st-sd > [data-lf-said="label"]').evaluate(
+    page.locator("#st-sd > strong").evaluate(
         """title => {
-            for (const text of ['phase: design', 'owner: platform', 'review']) {
+            for (const text of ['review', 'owner: platform', 'phase: design']) {
                 const chip = document.createElement('small');
                 chip.className = 'tag';
                 chip.textContent = text;
-                title.after(chip);
+                title.before(chip);
             }
         }"""
     )
@@ -461,12 +461,12 @@ def test_option_controls_hold_presentation_without_replacing_authored_nodes(
           const control = option.querySelector(':scope > lf-option-control');
           window.optionGroup = holder;
           window.authoredOption = option;
-          window.authoredTitle = option.querySelector(':scope > [data-lf-said="label"]');
+          window.authoredTitle = option.querySelector(':scope > strong');
           window.optionControl = control;
           window.optionIdentityHeld = () =>
             document.querySelector('#transport') === optionGroup &&
             optionGroup.querySelector('#opt-strict') === authoredOption &&
-            authoredOption.querySelector(':scope > [data-lf-said="label"]') ===
+            authoredOption.querySelector(':scope > strong') ===
               authoredTitle &&
             authoredOption.querySelector(':scope > lf-option-control') === optionControl;
 
@@ -671,7 +671,7 @@ def test_a_card_group_taking_a_pick_reads_as_one_control(browser, serve):
     assert option.bounding_box() == before, "the selected header state resized its card"
 
     state = mark.bounding_box()
-    title_end = option.locator(':scope > [data-lf-said="label"]').evaluate(
+    title_end = option.locator(":scope > strong").evaluate(
         """el => { const range = document.createRange();
                     range.selectNodeContents(el);
                     return Math.max(...[...range.getClientRects()].map(r => r.right)); }"""
@@ -1015,8 +1015,8 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <lf-group id="cell-decision" label="Where should a session live?"><h2 id="cell-decision-h">Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" data-width="available">
-  <lf-option id="cc-redis" label="Redis">A store we already run.</lf-option>
-  <lf-option id="cc-pg" label="Postgres">One fewer moving part.</lf-option>
+  <lf-option id="cc-redis" label="Redis"><strong>Redis</strong> A store we already run.</lf-option>
+  <lf-option id="cc-pg" label="Postgres"><strong>Postgres</strong> One fewer moving part.</lf-option>
 </lf-options></lf-group>
 <lf-group id="rows-decision" label="Which jobs are worth starting?"><h2 id="rows-decision-h">Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
@@ -1030,8 +1030,8 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <lf-group id="page-decision" label="Who owns the migration?"><h2 id="page-decision-h">Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" data-width="available">
-  <lf-option id="pc-platform" label="Platform">They run the store.</lf-option>
-  <lf-option id="pc-accounts" label="Accounts">They own the table.</lf-option>
+  <lf-option id="pc-platform" label="Platform"><strong>Platform</strong> They run the store.</lf-option>
+  <lf-option id="pc-accounts" label="Accounts"><strong>Accounts</strong> They own the table.</lf-option>
 </lf-options></lf-group></div>
 """,
     head=regions_side_by_side("layout", "2fr 1fr"),
@@ -1652,7 +1652,7 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
     arity from those cards.
     """
     options = "".join(
-        f'<lf-option id="route-{index}" label="Route {index}">'
+        f'<lf-option id="route-{index}" label="Route {index}"><strong>Route {index}</strong> '
         f"<p>Technical argument {index}.</p></lf-option>"
         for index in range(1, 11)
     )
@@ -2263,7 +2263,7 @@ def test_widget_work_in_a_declared_shadow_tree_keeps_its_button_and_leaves_with_
     work_page = TWICE_PAGE.replace(
         '<lf-diff id="patch">',
         '<lf-board id="shadow-work"><lf-column id="shadow-now" label="Now">\n'
-        '  <lf-card id="shadow-card" label="Check the shard"></lf-card>\n'
+        '  <lf-card id="shadow-card" label="Check the shard"><strong>Check the shard</strong></lf-card>\n'
         '</lf-column></lf-board>\n<lf-diff id="patch">',
     )
     url = serve(work_page)
@@ -2611,9 +2611,7 @@ def test_an_answered_cards_badges_keep_their_seats_beside_a_pin(browser, serve):
     expect(chosen).to_have_attribute("selected", "")
     grounds = chosen.evaluate(
         """o => [getComputedStyle(o).backgroundColor,
-                 getComputedStyle(
-                   o.querySelector(':scope > [data-lf-said="label"]'), '::after'
-                 ).backgroundColor]"""
+                 getComputedStyle(o, '::before').backgroundColor]"""
     )
     assert grounds[0] != grounds[1], grounds
 
@@ -2719,11 +2717,11 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
                 "option shapes",
                 '<lf-group id="shapes-q" label="How should it roll out?">'
                 '<lf-options id="shapes">'
-                '<lf-option id="sentence" label="Ship it">The cohort gets it now.'
+                '<lf-option id="sentence" label="Ship it"><strong>Ship it</strong> The cohort gets it now.'
                 "</lf-option>"
-                '<lf-option id="element" label="Stage it">The cohort gets '
+                '<lf-option id="element" label="Stage it"><strong>Stage it</strong> The cohort gets '
                 "<em>half</em> now.</lf-option>"
-                '<lf-option id="paragraph" label="Hold it">'
+                '<lf-option id="paragraph" label="Hold it"><strong>Hold it</strong> '
                 "<p>The cohort waits for the fix.</p></lf-option>"
                 "</lf-options></lf-group>",
             )
@@ -2732,7 +2730,7 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
     gaps = page.evaluate(
         """() => Object.fromEntries(['sentence', 'element', 'paragraph'].map((id) => {
           const option = document.getElementById(id);
-          const title = option.querySelector(':scope > [data-lf-said="label"]');
+          const title = option.querySelector(':scope > strong');
           const walk = document.createTreeWalker(option, NodeFilter.SHOW_TEXT);
           walk.currentNode = title.lastChild;
           let text = walk.nextNode();

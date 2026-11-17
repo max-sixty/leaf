@@ -272,9 +272,9 @@ region and a page without Leaf leaves unsaid.
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's
 `clear()` takes the error down once it no longer holds. Use it for failures only.
 
-A `data-lf-quiet` attribute gives an element words screen readers say after the title
-its `label` draws but the screen doesn't show: Leaf writes them there while the attribute
-stands, and takes them away with it. Set the whole quiet word each time. Leaf writes
+A `data-lf-quiet` attribute gives an element words screen readers say at its start,
+after any title its `label` draws, but the screen doesn't show: Leaf writes them there
+while the attribute stands, and takes them away with it. Set the whole quiet word each time. Leaf writes
 quiet words for elements it marks as rewritten, changed or reported, so declare them only
 on parts the module builds or owns, such as a code line or a suggestion's slot. A page
 without Leaf, whose theme would leave them on screen, writes none.

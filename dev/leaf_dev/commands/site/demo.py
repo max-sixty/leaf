@@ -97,7 +97,7 @@ def board_markup(board: dict[str, list[str]]) -> str:
     return "\n".join(
         f'  <lf-column id="{column}" label="{label}">\n'
         + "".join(
-            f'    <lf-card id="{card}" label="{CARDS[card]}"></lf-card>\n'
+            f'    <lf-card id="{card}" label="{CARDS[card]}"><strong>{CARDS[card]}</strong></lf-card>\n'
             for card in board[column]
         )
         + "  </lf-column>"
@@ -207,8 +207,8 @@ new version as the checks finish.</p>
 <h2 id="migration-approval-decision-h">Approve the migration plan?</h2>
 <p>The rollout sequence and acceptance criteria described above.</p>
 <lf-options id="migration-approval">
-<lf-option id="migration-hold" label="Hold the rollout"></lf-option>
-<lf-option id="migration-approve" label="Approve the plan"></lf-option>
+<lf-option id="migration-hold" label="Hold the rollout"><strong>Hold the rollout</strong></lf-option>
+<lf-option id="migration-approve" label="Approve the plan"><strong>Approve the plan</strong></lf-option>
 </lf-options>
 </lf-group>
 </main>

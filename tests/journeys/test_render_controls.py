@@ -756,8 +756,8 @@ AIM_PAGE = leaf_page(
   <lf-tab id="aim-first" label="First">
     <lf-board id="aim-board">
       <lf-column id="aim-todo" label="Todo">
-        <lf-card id="aim-card" label="Heated perch"></lf-card>
-        <lf-card id="aim-other" label="Squirrel baffle"></lf-card>
+        <lf-card id="aim-card" label="Heated perch"><strong>Heated perch</strong></lf-card>
+        <lf-card id="aim-other" label="Squirrel baffle"><strong>Squirrel baffle</strong></lf-card>
       </lf-column>
       <lf-column id="aim-done" label="Done"></lf-column>
     </lf-board>

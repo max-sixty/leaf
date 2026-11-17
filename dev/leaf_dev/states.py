@@ -1342,8 +1342,8 @@ def on_me_thread_choice(page: Page) -> None:
         "--text",
         "Open the pull request now, or hold it?\n\n"
         '<lf-options id="pr-timing">\n'
-        '<lf-option id="pr-now" label="Open it now"></lf-option>\n'
-        '<lf-option id="pr-hold" label="Hold it"></lf-option>\n'
+        '<lf-option id="pr-now" label="Open it now"><strong>Open it now</strong></lf-option>\n'
+        '<lf-option id="pr-hold" label="Hold it"><strong>Hold it</strong></lf-option>\n'
         "</lf-options>",
     )
     page.reload()

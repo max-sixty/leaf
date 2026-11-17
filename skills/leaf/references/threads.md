@@ -215,7 +215,7 @@ Which store should own sessions? I'd keep the account store, which already expir
 
 <lf-options id="session-store">
 <lf-option id="session-store-account" label="Keep the account store" recommended></lf-option>
-<lf-option id="session-store-own" label="Give sessions their own store">One more service to run.</lf-option>
+<lf-option id="session-store-own" label="Give sessions their own store"><strong>Give sessions their own store</strong> One more service to run.</lf-option>
 </lf-options>
 EOF
 ```

@@ -68,8 +68,8 @@ MOTION_SAMPLE_CONTENT = """
     <h2>Painted sample</h2>
     <lf-group id="sample-choice-ask" label="Choose a sample"><h3 id="sample-choice-ask-h">Choose a sample</h3>
       <lf-options id="sample-choice">
-        <lf-option id="sample-alpha" label="Alpha"></lf-option>
-        <lf-option id="sample-beta" label="Beta"></lf-option>
+        <lf-option id="sample-alpha" label="Alpha"><strong>Alpha</strong></lf-option>
+        <lf-option id="sample-beta" label="Beta"><strong>Beta</strong></lf-option>
       </lf-options>
     </lf-group>
     <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
@@ -94,7 +94,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         '<lf-board id="board">'
         + "".join(
             f'<lf-column id="col-{i}" label="Column {i}">'
-            f'<lf-card id="card-{i}" label="Card {i}">text</lf-card></lf-column>'
+            f'<lf-card id="card-{i}" label="Card {i}"><strong>Card {i}</strong> text</lf-card>'
+            "</lf-column>"
             for i in range(6)
         )
         + "</lf-board>"
@@ -106,8 +107,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
   <lf-group id="ask-{key}" label="What happens to {key}?"><h3 id="q-{key}">What happens to {key}?</h3>
     <lf-options id="o-{key}">
-      <lf-option id="o-{key}-fix" label="Fix">Ship the patch.</lf-option>
-      <lf-option id="o-{key}-close" label="Close">Explain and close.</lf-option>
+      <lf-option id="o-{key}-fix" label="Fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-{key}-close" label="Close"><strong>Close</strong> Explain and close.</lf-option>
     </lf-options>
   </lf-group>
 </lf-tab>"""

@@ -1487,7 +1487,7 @@ def test_check_rejects_widget_violations(page_dir):
             "<figure/>"
             "<lf-bogus></lf-bogus>"
             '<lf-column id="bad-tone" label="S" tone="medium"></lf-column>'
-            '<lf-option id="stray" label="S"></lf-option>'
+            '<lf-option id="stray" label="S"><strong>S</strong></lf-option>'
             '<lf-diagram id="Bad_ID"><pre>graph LR</pre><em>x</em></lf-diagram>'
             '<lf-diagram id="bare-body">graph LR</lf-diagram>',
         ).replace('<lf-option id="flag-first"', "<lf-option")
@@ -2237,7 +2237,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "create",
             "--text",
             'Which store?\n\n<lf-group id="t-ask" label="Store?">\n<h3 id="t-ask-h">Store?</h3>\n<lf-options id="t-store">'
-            '<lf-option id="t-sqlite" label="sqlite"></lf-option>'
+            '<lf-option id="t-sqlite" label="sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></lf-group>",
         ).output.splitlines()
     ]
@@ -3059,8 +3059,8 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
     """An obligation retains its source identity under an authored context wrapper.
     The nested widget remains the canonical answer owner."""
     opts = """<lf-options id="g1">
-      <lf-option id="o-shim" label="Shim it">Fastest to ship.</lf-option>
-      <lf-option id="o-stage" label="Migrate in stages">Table by table.</lf-option>
+      <lf-option id="o-shim" label="Shim it"><strong>Shim it</strong> Fastest to ship.</lf-option>
+      <lf-option id="o-stage" label="Migrate in stages"><strong>Migrate in stages</strong> Table by table.</lf-option>
     </lf-options>"""
     item = (
         '<section id="plan-decision"><h2>Plan</h2>'
@@ -3359,8 +3359,8 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "revision": 1,
             "text": 'Which mitigations?\n\n<lf-group id="gm-decision" label="Which mitigations?">\n<h2 id="gm-decision-h">Which mitigations?</h2>\n'
             '<lf-options id="gm" multiple>'
-            '<lf-option id="m-cap" label="Cap retries"></lf-option>'
-            '<lf-option id="m-alert" label="Alert"></lf-option>'
+            '<lf-option id="m-cap" label="Cap retries"><strong>Cap retries</strong></lf-option>'
+            '<lf-option id="m-alert" label="Alert"><strong>Alert</strong></lf-option>'
             "</lf-options></lf-group>",
         },
     )
@@ -3598,7 +3598,7 @@ def test_a_quoted_obligation_does_not_hide_a_real_request_in_the_same_goal(page_
         '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="blocked"><strong>Blocked goal</strong>'
         '<lf-sample id="sample"><lf-options id="example">'
-        '<lf-option id="example-a" label="Example only"></lf-option>'
+        '<lf-option id="example-a" label="Example only"><strong>Example only</strong></lf-option>'
         "</lf-options></lf-sample>"
         '<lf-group id="real-decision" label="What next?"><h3 id="real-decision-h">What next?</h3>'
         '<lf-options id="real"><lf-option id="real-a">A</lf-option>'

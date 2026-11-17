@@ -700,10 +700,10 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <h3>Where should the sample group meet?</h3>
               <lf-options id="bg-outcome" settled>
                 <lf-option id="bg-outcome-door" label="At the door">
-                  Wait outside the building.
+                  <strong>At the door</strong> Wait outside the building.
                 </lf-option>
                 <lf-option id="bg-outcome-desk" label="At reception" selected>
-                  Meet inside, beside the welcome desk.
+                  <strong>At reception</strong> Meet inside, beside the welcome desk.
                 </lf-option>
               </lf-options>
             </section>
@@ -737,8 +737,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   lunch.
                 </p>
                 <lf-options id="bg-picnic">
-                  <lf-option id="bg-picnic-skip" label="Leave it unbooked"></lf-option>
-                  <lf-option id="bg-picnic-book" label="Book the shelter"></lf-option>
+                  <lf-option id="bg-picnic-skip" label="Leave it unbooked"
+                    ><strong>Leave it unbooked</strong></lf-option
+                  >
+                  <lf-option id="bg-picnic-book" label="Book the shelter"
+                    ><strong>Book the shelter</strong></lf-option
+                  >
                 </lf-options>
               </lf-group>
             </section>
@@ -1089,7 +1093,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   id="bg-board-flask-card"
                   label="Second flask"
                   shows="bg-board-flask-choice"
-                ></lf-card>
+                  ><strong>Second flask</strong></lf-card
+                >
               </lf-column>
               <lf-column id="bg-board-next" label="Next" value="next"></lf-column>
               <lf-column id="bg-board-later" label="Later" value="later">
@@ -1097,7 +1102,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   id="bg-board-stove-card"
                   label="New stove"
                   shows="bg-board-stove-choice"
-                ></lf-card>
+                  ><strong>New stove</strong></lf-card
+                >
               </lf-column>
               <lf-column id="bg-board-drop" label="Drop" value="drop"></lf-column>
             </lf-board>
@@ -1842,13 +1848,14 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <lf-options id="bg-across-choice" across data-width="wide">
                 <lf-option id="bg-across-ridge" label="Ridge loop">
-                  Three hours of climbing with views the whole way.
+                  <strong>Ridge loop</strong> Three hours of climbing with views the
+                  whole way.
                 </lf-option>
                 <lf-option id="bg-across-lake" label="Lake path">
-                  An easy morning, back long before the bus.
+                  <strong>Lake path</strong> An easy morning, back long before the bus.
                 </lf-option>
                 <lf-option id="bg-across-pass" label="Pass traverse">
-                  The longest day, and a tight finish.
+                  <strong>Pass traverse</strong> The longest day, and a tight finish.
                 </lf-option>
               </lf-options>
             </lf-group>
@@ -1877,7 +1884,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </h3>
               <lf-options id="bg-pictured-choice" data-width="wide">
                 <lf-option id="bg-pictured-group" label="Group by owner">
-                  A heading over each owner's tickets.
+                  <strong>Group by owner</strong> A heading over each owner's tickets.
                   <figure id="bg-pictured-group-figure">
                     <svg
                       class="drawing"
@@ -1896,7 +1903,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   </figure>
                 </lf-option>
                 <lf-option id="bg-pictured-flat" label="Keep one list">
-                  Tickets in arrival order, as today.
+                  <strong>Keep one list</strong> Tickets in arrival order, as today.
                   <figure id="bg-pictured-flat-figure">
                     <svg
                       class="drawing"
@@ -1965,15 +1972,16 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   </p>
                   <lf-options id="bg-side-4107-outcome">
                     <lf-option id="bg-side-4107-fix" label="Fix"
-                      >Upload the new certificate.</lf-option
+                      ><strong>Fix</strong> Upload the new certificate.</lf-option
                     >
                     <lf-option id="bg-side-4107-close" label="Close"
-                      >Ask them to roll it back.</lf-option
+                      ><strong>Close</strong> Ask them to roll it back.</lf-option
                     >
                     <lf-option
                       id="bg-side-4107-escalate"
                       label="Escalate to engineering"
-                      >Send the certificate failure and logs.</lf-option
+                      ><strong>Escalate to engineering</strong> Send the certificate
+                      failure and logs.</lf-option
                     >
                   </lf-options>
                 </lf-group>
@@ -2180,14 +2188,12 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               >
                 <lf-board id="bg-margin-layer-packing">
                   <lf-column id="bg-margin-layer-ready" label="Ready">
-                    <lf-card
-                      id="bg-margin-layer-map"
-                      label="Print the workshop map"
-                    ></lf-card>
-                    <lf-card
-                      id="bg-margin-layer-signs"
-                      label="Pack the direction signs"
-                    ></lf-card>
+                    <lf-card id="bg-margin-layer-map" label="Print the workshop map"
+                      ><strong>Print the workshop map</strong></lf-card
+                    >
+                    <lf-card id="bg-margin-layer-signs" label="Pack the direction signs"
+                      ><strong>Pack the direction signs</strong></lf-card
+                    >
                   </lf-column>
                 </lf-board>
               </template>
@@ -2997,10 +3003,10 @@ gallery/
               <lf-sample id="bg-sample" label="an inert multiple-pick decision">
                 <lf-options id="bg-sample-options" multiple>
                   <lf-option id="bg-sample-paper" label="Paper signs">
-                    Nothing to charge.
+                    <strong>Paper signs</strong> Nothing to charge.
                   </lf-option>
                   <lf-option id="bg-sample-screen" label="Display signs">
-                    Easy to update.
+                    <strong>Display signs</strong> Easy to update.
                   </lf-option>
                 </lf-options>
               </lf-sample>
@@ -3318,14 +3324,16 @@ switch --readers checkout-api,orders-api</code></pre>
                     <lf-board id="bg-layout-board">
                       <lf-column id="bg-layout-ready" label="Ready">
                         <lf-card id="bg-layout-cache-card" label="Verify cache expiry"
-                          >Confirm old keys leave after the rollback window.</lf-card
+                          ><strong>Verify cache expiry</strong> Confirm old keys leave
+                          after the rollback window.</lf-card
                         >
                       </lf-column>
                       <lf-column id="bg-layout-running" label="Running">
                         <lf-card
                           id="bg-layout-receipt-card"
                           label="Sample refund receipts"
-                          >Compare three settlement currencies.</lf-card
+                          ><strong>Sample refund receipts</strong> Compare three
+                          settlement currencies.</lf-card
                         >
                       </lf-column>
                       <lf-column id="bg-layout-done" label="Done"></lf-column>
@@ -3533,8 +3541,9 @@ flag or command it touches, such as `--config`.
             <lf-board id="bg-work-board">
               <lf-column id="bg-work-ready" label="Ready">
                 <lf-card id="bg-work" label="Check the sample route">
-                  An open to-do on this card puts a Working indicator here because the
-                  card has no other margin control to carry it.
+                  <strong>Check the sample route</strong> An open to-do on this card
+                  puts a Working indicator here because the card has no other margin
+                  control to carry it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-tried" label="Tried"></lf-column>
@@ -3542,8 +3551,8 @@ flag or command it touches, such as `--config`.
               <lf-column id="bg-work-waiting" label="Waiting on a person"></lf-column>
               <lf-column id="bg-work-handed" label="Handed back">
                 <lf-card id="bg-work-handed-card" label="Redraw the sample legend">
-                  One of the cards the edge fade stands for: scroll the board across to
-                  reach it.
+                  <strong>Redraw the sample legend</strong> One of the cards the edge
+                  fade stands for: scroll the board across to reach it.
                 </lf-card>
               </lf-column>
               <lf-column id="bg-work-done" label="Done" tone="ok"></lf-column>

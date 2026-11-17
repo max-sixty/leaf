@@ -1492,7 +1492,7 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 <button>Owner handoff</button></div>
 <div id="card"><lf-group id="go-decision" label="Ship it?"><h2 id="go-decision-h">Ship it?</h2>
 <p>The release passed its checks.</p><lf-options id="go">
-<lf-option id="go-yes" label="Yes"></lf-option>
+<lf-option id="go-yes" label="Yes"><strong>Yes</strong></lf-option>
 </lf-options></lf-group></div>
 """,
         head="""<style>

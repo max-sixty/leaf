@@ -85,6 +85,7 @@
                 recommended
               >
                 <small class="tag">last week: 0 pages</small>
+                <strong>Require three failed probes in a row</strong>
                 Pages when the canary is down for 90 seconds, which no deploy restart
                 reached.
               </lf-option>
@@ -93,11 +94,13 @@
                 label="Mute for five minutes after each deploy"
               >
                 <small class="tag">last week: 3 pages</small>
+                <strong>Mute for five minutes after each deploy</strong>
                 Keeps single-probe sensitivity between trains, but depends on deploy
                 events arriving on time.
               </lf-option>
               <lf-option id="ar-canary-keep" label="Keep paging on one failed probe">
                 <small class="tag">last week: 47 pages</small>
+                <strong>Keep paging on one failed probe</strong>
                 No change to the rule.
               </lf-option>
             </lf-options>
@@ -135,6 +138,7 @@
                 recommended
               >
                 <small class="tag">last week: 1 page</small>
+                <strong>Page on the objective itself</strong>
                 1.2 seconds sustained for ten minutes; peaks that recover stop paging.
               </lf-option>
               <lf-option
@@ -142,10 +146,12 @@
                 label="Keep 800 ms, page only in working hours"
               >
                 <small class="tag">last week: 12 pages</small>
+                <strong>Keep 800 ms, page only in working hours</strong>
                 Nights and weekends open a ticket instead.
               </lf-option>
               <lf-option id="ar-latency-keep" label="Keep the current threshold">
                 <small class="tag">last week: 31 pages</small>
+                <strong>Keep the current threshold</strong>
                 No change to the rule.
               </lf-option>
             </lf-options>
@@ -183,14 +189,17 @@
                 recommended
               >
                 <small class="tag">last week: 2 pages</small>
+                <strong>Page on the oldest delivery's age</strong>
                 Ten minutes old trips it; a burst that drains does not.
               </lf-option>
               <lf-option id="ar-webhooks-depth" label="Raise the depth to 20,000">
                 <small class="tag">last week: 6 pages</small>
+                <strong>Raise the depth to 20,000</strong>
                 Fewer burst pages, and still blind to a stuck consumer on a short queue.
               </lf-option>
               <lf-option id="ar-webhooks-keep" label="Keep paging at 5,000">
                 <small class="tag">last week: 22 pages</small>
+                <strong>Keep paging at 5,000</strong>
                 No change to the rule.
               </lf-option>
             </lf-options>
@@ -260,13 +269,15 @@
                 label="Mute from 01:00 to 03:30 UTC"
                 recommended
               >
-                Lag outside the batch still pages.
+                <strong>Mute from 01:00 to 03:30 UTC</strong> Lag outside the batch
+                still pages.
               </lf-option>
               <lf-option id="ar-export-ticket" label="Open a ticket instead of paging">
-                Someone checks it before Finance's 07:00 read.
+                <strong>Open a ticket instead of paging</strong> Someone checks it
+                before Finance's 07:00 read.
               </lf-option>
               <lf-option id="ar-export-keep" label="Keep paging">
-                No change to the rule.
+                <strong>Keep paging</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-group>
@@ -298,13 +309,15 @@
             </p>
             <lf-options id="ar-disk-choice">
               <lf-option id="ar-disk-delete" label="Delete it" recommended>
-                The capacity review and the 95% alert cover the disk.
+                <strong>Delete it</strong> The capacity review and the 95% alert cover
+                the disk.
               </lf-option>
               <lf-option id="ar-disk-ninety" label="Raise it to 90%">
-                Leaves an hour's warning before the critical alert.
+                <strong>Raise it to 90%</strong> Leaves an hour's warning before the
+                critical alert.
               </lf-option>
               <lf-option id="ar-disk-keep" label="Keep paging at 80%">
-                No change to the rule.
+                <strong>Keep paging at 80%</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-group>
@@ -342,13 +355,14 @@
                 label="Page when the retry fails too"
                 recommended
               >
-                Real failures arrive five minutes later.
+                <strong>Page when the retry fails too</strong> Real failures arrive five
+                minutes later.
               </lf-option>
               <lf-option
                 id="ar-settlement-keep"
                 label="Keep paging on the first failure"
               >
-                No change to the rule.
+                <strong>Keep paging on the first failure</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-group>
@@ -407,10 +421,11 @@
                 label="Page when three or more issuers fail"
                 recommended
               >
-                A single bank's outage opens a ticket instead.
+                <strong>Page when three or more issuers fail</strong> A single bank's
+                outage opens a ticket instead.
               </lf-option>
               <lf-option id="ar-3ds-keep" label="Keep paging on the overall rate">
-                No change to the rule.
+                <strong>Keep paging on the overall rate</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-group>
@@ -448,10 +463,12 @@
                 label="Route it to Platform's queue"
                 recommended
               >
-                The team that can renew it sees it; payments stops paging.
+                <strong>Route it to Platform's queue</strong> The team that can renew it
+                sees it; payments stops paging.
               </lf-option>
               <lf-option id="ar-cert-both" label="Page both teams until it renews">
-                Payments keeps waking up for a fix it cannot make.
+                <strong>Page both teams until it renews</strong> Payments keeps waking
+                up for a fix it cannot make.
               </lf-option>
             </lf-options>
           </lf-group>
@@ -487,10 +504,11 @@
                 label="Page Data Platform during rebalances"
                 recommended
               >
-                Payments hears only when lag outlasts 15 minutes.
+                <strong>Page Data Platform during rebalances</strong> Payments hears
+                only when lag outlasts 15 minutes.
               </lf-option>
               <lf-option id="ar-kafka-keep" label="Keep paging payments">
-                No change to the rule.
+                <strong>Keep paging payments</strong> No change to the rule.
               </lf-option>
             </lf-options>
           </lf-group>

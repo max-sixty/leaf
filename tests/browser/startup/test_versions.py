@@ -376,8 +376,8 @@ KEPT_BOARD = leaf_page(
 <h1 id="title">Kept board</h1>
 <lf-board id="board">
   <lf-column id="col-todo" label="To do">
-    <lf-card id="card-x" label="Review">Old words.</lf-card>
-    <lf-card id="card-y" label="Ship">Steady words.</lf-card>
+    <lf-card id="card-x" label="Review"><strong>Review</strong> Old words.</lf-card>
+    <lf-card id="card-y" label="Ship"><strong>Ship</strong> Steady words.</lf-card>
   </lf-column>
 </lf-board>
 """,
@@ -454,7 +454,7 @@ def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serv
     half still marks it. Only the card whose move explains the new order is marked:
     the cards it passed kept their order among themselves."""
     cards = {
-        name: f'<lf-card id="card-{name}" label="{name.title()}"></lf-card>'
+        name: f'<lf-card id="card-{name}" label="{name.title()}"><strong>{name.title()}</strong></lf-card>'
         for name in ("y", "z")
     }
     v1 = JOURNEY_V1.replace(_CARD, _CARD + cards["y"] + cards["z"])

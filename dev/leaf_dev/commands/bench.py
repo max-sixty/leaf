@@ -390,7 +390,7 @@ def ask(g: int, options: int = 4) -> str:
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
         f'<lf-group id="q{g}" label="Question {g}"><h3 id="q{g}-h">Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
-            f'<lf-option id="o{g}-{i}" label="Option {i}">a short description.'
+            f'<lf-option id="o{g}-{i}" label="Option {i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
             for i in range(1, options + 1)
         )
@@ -428,7 +428,7 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
         return (
             f'<lf-column id="b{b}-{name}" label="{name.title()}">'
             + "".join(
-                f'<lf-card id="b{b}-{name}{j}" label="Card {j}">of board {b}.</lf-card>'
+                f'<lf-card id="b{b}-{name}{j}" label="Card {j}"><strong>Card {j}</strong> of board {b}.</lf-card>'
                 for j in range(1, count + 1)
             )
             + "</lf-column>"

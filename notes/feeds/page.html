@@ -142,10 +142,10 @@ Max</pre>
                 </lf-draft>
                 <lf-options id="venue-choice">
                   <lf-option id="venue-send" label="Send" recommended
-                    >Sends the draft as it reads now.</lf-option
+                    ><strong>Send</strong> Sends the draft as it reads now.</lf-option
                   >
                   <lf-option id="venue-later" label="Not now"
-                    >Brings it back tomorrow.</lf-option
+                    ><strong>Not now</strong> Brings it back tomorrow.</lf-option
                   >
                 </lf-options>
               </lf-group>
@@ -181,8 +181,12 @@ Max</pre>
 Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 </lf-draft>
                 <lf-options id="numbers-choice">
-                  <lf-option id="numbers-send" label="Send to the team"></lf-option>
-                  <lf-option id="numbers-skip" label="Skip this week"></lf-option>
+                  <lf-option id="numbers-send" label="Send to the team"
+                    ><strong>Send to the team</strong></lf-option
+                  >
+                  <lf-option id="numbers-skip" label="Skip this week"
+                    ><strong>Skip this week</strong></lf-option
+                  >
                 </lf-options>
               </lf-group>
 
@@ -200,13 +204,14 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 </p>
                 <lf-options id="ci-choice">
                   <lf-option id="ci-revert" label="Revert it"
-                    >Opens a revert PR now.</lf-option
+                    ><strong>Revert it</strong> Opens a revert PR now.</lf-option
                   >
                   <lf-option id="ci-fix" label="Draft a fix"
-                    >Investigates and comes back with a PR.</lf-option
+                    ><strong>Draft a fix</strong> Investigates and comes back with a
+                    PR.</lf-option
                   >
                   <lf-option id="ci-leave" label="Leave it"
-                    >Someone else owns it.</lf-option
+                    ><strong>Leave it</strong> Someone else owns it.</lf-option
                   >
                 </lf-options>
               </lf-group>
@@ -360,6 +365,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 id="build-today-page"
                 label='A. A "Today" page owned by one background session'
               >
+                <strong>A. A "Today" page owned by one background session</strong>
                 <small class="tag">Leaf code: almost none</small
                 ><small class="tag">proactive: yes</small>
                 A launchd job resumes one standing Claude Code session each morning. It
@@ -401,6 +407,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
               <lf-option id="build-cross-page" label="B. On Me across every page">
                 <small class="tag">Leaf code: rows, a view, persistence</small
                 ><small class="tag">proactive: no</small>
+                <strong>B. On Me across every page</strong>
                 Each page's row publishes its On Me items. All pages becomes one feed of
                 every page's items. Simple items are answered inline, and the rest open
                 their page at the item.
@@ -480,8 +487,12 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
             is over-asking, which the same research found destroys the signal.
           </p>
           <lf-options id="offers-choice">
-            <lf-option id="offers-yes" label="Yes, try it with an eval"></lf-option>
-            <lf-option id="offers-no" label="No, leave offers in prose"></lf-option>
+            <lf-option id="offers-yes" label="Yes, try it with an eval"
+              ><strong>Yes, try it with an eval</strong></lf-option
+            >
+            <lf-option id="offers-no" label="No, leave offers in prose"
+              ><strong>No, leave offers in prose</strong></lf-option
+            >
           </lf-options>
         </lf-group>
 

@@ -3635,19 +3635,19 @@ def test_a_state_only_version_change_does_not_offer_an_empty_card(browser, serve
         <h1>Board</h1>
         <lf-board id='board'>
           <lf-column id='left' label='Left'>
-            <lf-card id='card' label='Review'>Keep these words.</lf-card>
+            <lf-card id='card' label='Review'><strong>Review</strong> Keep these words.</lf-card>
           </lf-column>
           <lf-column id='right' label='Right'></lf-column>
         </lf-board>
         """,
     )
     second = first.replace(
-        "<lf-card id='card' label='Review'>Keep these words.</lf-card>\n"
+        "<lf-card id='card' label='Review'><strong>Review</strong> Keep these words.</lf-card>\n"
         "          </lf-column>\n"
         "          <lf-column id='right' label='Right'></lf-column>",
         "</lf-column>\n"
         "          <lf-column id='right' label='Right'>\n"
-        "            <lf-card id='card' label='Review'>Keep these words.</lf-card>\n"
+        "            <lf-card id='card' label='Review'><strong>Review</strong> Keep these words.</lf-card>\n"
         "          </lf-column>",
     )
     page = open_page(browser, live_url(serve(first)))

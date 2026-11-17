@@ -495,8 +495,8 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
 <h1>Contours</h1>
 <p id="said">A paragraph with room around it.</p>
 <lf-group id="pick-q" label="Where do the words go?"><lf-options id="pick">
-  <lf-option id="keep" label="Keep">the words alone.</lf-option>
-  <lf-option id="place" label="Place" selected>them in the line.</lf-option>
+  <lf-option id="keep" label="Keep"><strong>Keep</strong> the words alone.</lf-option>
+  <lf-option id="place" label="Place" selected><strong>Place</strong> them in the line.</lf-option>
 </lf-options></lf-group>
 """,
         )

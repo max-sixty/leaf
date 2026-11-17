@@ -595,10 +595,10 @@ PAGE = f"""<!doctype html>
   <lf-group id="plan-choice-decision" label="Which plan should lead?">
     <h3 id="plan-choice-question">Which plan should lead?</h3>
     {PAGE_GROUP}
-      <lf-option id="flag-first" label="Flag first"><small class="tag">effort: low</small><small class="tag">risk: med</small>
+      <lf-option id="flag-first" label="Flag first"><small class="tag">effort: low</small><small class="tag">risk: med</small> <strong>Flag first</strong>
         Ship dark.
       </lf-option>
-      <lf-option id="backfill-first" label="Backfill first"><small class="tag">effort: med</small><small class="tag">risk: low</small>
+      <lf-option id="backfill-first" label="Backfill first"><small class="tag">effort: med</small><small class="tag">risk: low</small> <strong>Backfill first</strong>
         Verify, then flip. <em>My take: do this first.</em>
       </lf-option>
     </lf-options>
@@ -1210,8 +1210,8 @@ Y = ("card-y", "", "Wire the importer")
 OPTIONS = """<lf-group id="g1-decision" label="Which migration should lead?">
   <h3 id="g1-decision-h">Which migration should lead?</h3>
   <lf-options id="g1">
-    <lf-option id="o-shim" label="Shim it"{a}>{shim}</lf-option>
-    <lf-option id="o-stage" label="Migrate in stages"{b}>{stage}</lf-option>
+    <lf-option id="o-shim" label="Shim it"{a}><strong>Shim it</strong> {shim}</lf-option>
+    <lf-option id="o-stage" label="Migrate in stages"{b}><strong>Migrate in stages</strong> {stage}</lf-option>
   </lf-options>
 </lf-group>"""
 

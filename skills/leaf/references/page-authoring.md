@@ -162,15 +162,15 @@ page of parts, whose column parts each take their own outline.
 ## Style the page
 
 A new page takes Leaf's reading theme, which styles semantic HTML (headings, prose,
-tables, code) in both colour schemes and adds the class idioms, such as `.callout`, so
-a page of ordinary content needs no CSS of its own: polish it through clearer content
-and hierarchy within that treatment. Where the task calls for a design of its own,
-such as an instrument, an arrangement, or a look the user asks for, write it in
-ordinary CSS. A page whose design is wholly its own, such as an existing site, a
+tables, code, controls) in both colour schemes and adds the class idioms, such as
+`.callout`, so a page of ordinary content needs no CSS of its own: polish it through
+clearer content and hierarchy within that treatment. Where the task calls for a design
+of its own, such as an instrument, an arrangement, or a look the user asks for, write
+it in ordinary CSS. A page whose design is wholly its own, such as an existing site, a
 mockup or a page the user brings, takes no theme instead (`leaf page init <page>
---no-theme`), so it starts from the browser's defaults, its tables and code blocks
-included, and none of the theme shows through its rules; Leaf's widgets, threads and
-panel keep their own faces either way.
+--no-theme`), so it starts from the browser's defaults, its tables, code blocks and
+controls included, and none of the theme shows through its rules; Leaf's widgets,
+threads and panel keep their own faces either way.
 `leaf theme list` names the themes a page can take (`package-themes.md`, "Personal
 themes"). Page CSS stands above every theme rule
 without `!important` or extra specificity, and an element rule of its own, such as

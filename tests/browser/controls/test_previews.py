@@ -38,6 +38,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -1048,7 +1049,7 @@ def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, se
     )
     page.mouse.move(1, 1)
     page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     band = page.locator(".lf-rows-group").filter(
         has_text="Should this wait for the vendor's release?"
     )

@@ -146,7 +146,14 @@ import { decisionFor, registry } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE, pagePresented, pageUpgraded } from "./page-paint.js";
 import { reportPageError } from "./layer-client.js";
 import { presentDocument, readPart } from "./semantic-state.js";
-import { COLLAPSE, COLLAPSE_CHARS, PHRASING, TEXT_BLOCK } from "./kernel-facts.js";
+import {
+  CLOSING,
+  COLLAPSE,
+  COLLAPSE_CHARS,
+  OPENING,
+  PHRASING,
+  TEXT_BLOCK,
+} from "./kernel-facts.js";
 import { textUnits } from "./text-alignment.js";
 import { excerptWords } from "./words.js";
 import { union } from "./rect.js";
@@ -1177,15 +1184,19 @@ const spacedFrom = (segment, previous) =>
   Boolean(segment.breakBefore) || segment.words !== previous.words;
 // Whether the words the reading shows have a space between two runs: where it reads one
 // (`spacedFrom`), and at an edge where two elements outside any text block meet, as a
-// chip meets its title or a label its value, which a page most often draws apart; an
-// edge inside a text block shows as nothing, as `set<em>up</em>` reads "setup". A quote
-// of either spelling resolves the same (`scan`), and passages.py shows the same
-// (`_write`).
+// chip meets its title or a label its value, which a page most often draws apart. No
+// space goes before a closing mark or after an opening one, so
+// `<strong>Leave it</strong>; the send` reads "Leave it; the send"
+// (`$passages.why-closing-and-opening`). An edge inside a text block shows as nothing,
+// as `set<em>up</em>` reads "setup". A quote of either spelling resolves the same
+// (`scan`), and passages.py shows the same (`_write`).
 /** @param {Segment} segment @param {Segment} previous */
 const shownApart = (segment, previous) =>
   spacedFrom(segment, previous) ||
-  (segment.textBlock ?? segment.node.parentElement) !==
-    (previous.textBlock ?? previous.node.parentElement);
+  ((segment.textBlock ?? segment.node.parentElement) !==
+    (previous.textBlock ?? previous.node.parentElement) &&
+    !CLOSING.has(segment.node.data[segment.start] ?? "") &&
+    !OPENING.has(previous.node.data[previous.end - 1] ?? ""));
 const COLLAPSIBLE = new RegExp(`^(?:${COLLAPSE.source})$`, "u");
 
 // The normalized reading and, when requested, one DOM span for each character in it.

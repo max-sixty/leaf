@@ -340,6 +340,17 @@
       "before": 0
     },
     {
+      "id": "a context reads no space before a closing mark or after an opening one",
+      "markup": "<div id=\"s\">Keep ( beta ) ; MARK. <strong>Keep</strong> (<code>beta</code>); MARK.</div>",
+      "anchor": {
+        "section": "s",
+        "quote": "MARK",
+        "prefix": "Keep (beta);",
+        "suffix": "."
+      },
+      "before": 27
+    },
+    {
       "id": "an empty inline widget's said values read apart from each other",
       "markup": "<div id=\"s\"><lf-said-pair head=\"MARK\" tail=\"one\"></lf-said-pair> <lf-said-pair head=\"MARK\" tail=\"two\"></lf-said-pair></div>",
       "registry": {

@@ -547,12 +547,15 @@ only for what every element needs. Check: `test_a_rule_s_subject_names_a_key`.
   refuses an author (`../src/leaf/validation.md`), so a page's CSS for its own names
   never reaches Leaf's elements; a page restyles Leaf on purpose through the theme's
   tokens. The kernel's rules name no class a page coins for itself either, so a page's
-  own `.button` or `.choice` keeps its author's look: a page takes a Leaf control's
-  face by writing that control's name (`lf-btn`, `lf-choice`), which a kernel idiom
-  declares and `page check` therefore lets it write. The kernel's other classes for
-  authors are the Layouts' (`layout-column`, `density-working`), and a theme's idioms,
-  such as the reading theme's `.tag`, come with the theme a page takes. A library's names on an element
-  Leaf draws for that library, such as Pierre's row attributes, stay the library's.
+  own `.button` or `.choice` keeps its author's look. A page's own controls take Leaf's
+  faces by element, where its theme turns on markup's reading face, never by writing
+  Leaf's names (`styles/components/controls.css`, "The faces of Leaf's control
+  roles"); the `lf-` classes a page may write are those a kernel idiom declares, such
+  as `lf-scroll`, which `page check` therefore lets it write. The kernel's other
+  classes for authors are the Layouts' (`layout-column`, `density-working`), and a
+  theme's idioms, such as the reading theme's `.tag`, come with the theme a page takes.
+  A library's names on an element Leaf draws for that library, such as Pierre's row
+  attributes, stay the library's.
   Checks: `test_leaf_writes_its_own_marks_under_its_prefix`,
   `test_the_kernel_styles_no_class_a_page_coins`.
 - **A face used twice is a token or a shared rule.** A lift names one of the theme's

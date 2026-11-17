@@ -101,7 +101,7 @@ from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate.scheme import collect_page_exceptions
 from leaf.served_state import context as served_context
 from leaf.validation import composition as validation_model
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, panel_tab
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -290,8 +290,10 @@ def test_an_aimed_comment_keeps_its_place_with_on_me_open(browser, serve, width)
     target.hover(position={"x": 12, "y": 12})
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
-    # Open by script so the pointer remains parked on the target while the view arrives.
-    page.locator(".lf-fp-on-user").evaluate("node => node.click()")
+    # Open by script, the leaf's menu and then its On Me tab, so the pointer remains
+    # parked on the target while the view arrives.
+    page.locator(".lf-fp-leaf").evaluate("node => node.click()")
+    panel_tab(page, "On Me").evaluate("node => node.click()")
     panel_settled(page, view="queue")
     expect(page.locator("[data-lf-aimed]")).to_have_id("lq-keep")
     aligned = page.evaluate(
@@ -3830,7 +3832,7 @@ def test_the_aim_stands_where_its_targets_own_marks_do(browser, serve, subtests)
             leaf_page(
                 "Cramped targets",
                 """<h1 id="h">Cramped targets</h1>
-<p><label for="name">Name</label> <input id="name" class="lf-field" type="text" value="Ada"></p>
+<p><label for="name">Name</label> <input id="name" type="text" value="Ada"></p>
 <lf-options id="ship" choose>
   <lf-option id="ship-monday"><strong>Ship Monday</strong> soon</lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong> later</lf-option>
@@ -3883,7 +3885,7 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
                 "Focus paint ownership",
                 "<h1>Focus paint ownership</h1><button>Unnamed control</button>"
                 '<button id="named">Named control</button><span id="component"></span>'
-                '<label class="lf-choice"><input id="pick" type="checkbox">Keep this choice</label>'
+                '<label id="pick-face"><input id="pick" type="checkbox">Keep this choice</label>'
                 '<section><lf-tabs id="views">'
                 '<lf-tab id="view-a" label="First">First panel</lf-tab>'
                 '<lf-tab id="view-b" label="Second">Second panel</lf-tab>'
@@ -3929,8 +3931,8 @@ def test_focus_projection_follows_modality_and_leaves_private_controls_their_rin
     choice = page.get_by_role("checkbox", name="Keep this choice", exact=True)
     expect(choice).to_be_focused()
     expect(choice).to_have_css("outline-style", "none")
-    expect(page.locator(".lf-choice")).to_have_css("outline-width", "2px")
-    expect(page.locator(".lf-choice")).to_have_css("outline-style", "solid")
+    expect(page.locator("#pick-face")).to_have_css("outline-width", "2px")
+    expect(page.locator("#pick-face")).to_have_css("outline-style", "solid")
     rendered(page)
     expect(page.locator(FOCUS_MARK)).to_have_count(0)
 

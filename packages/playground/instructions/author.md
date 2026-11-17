@@ -116,10 +116,10 @@ values work the same.
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
 their own labeled controls, with page-local state outside the playground's submitted
-values, and style them with Leaf's control classes (`references/page-layout.md`, "Page
-CSS and Leaf's controls"). Changing the case keeps the configuration, applying a preset
-keeps the case, and every candidate shows the same case. When editing the data is itself
-the task, the data belongs in the configuration.
+values, written as native controls, which the page's theme draws as Leaf's
+(`references/page-layout.md`, "Page CSS and Leaf's controls"). Changing the case keeps
+the configuration, applying a preset keeps the case, and every candidate shows the same
+case. When editing the data is itself the task, the data belongs in the configuration.
 
 Offer presets when combinations of several parameters make useful starting points for
 further tuning. Choose each preset's values together so they produce a consistent appearance on every

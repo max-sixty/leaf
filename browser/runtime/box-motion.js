@@ -351,8 +351,9 @@ export function boxMotion({
   // from the shape on screen, not the rectangle a simultaneous resize would draw.
   let shapeUntil = 1;
   let rtl = false;
-  // Where each scroller's content was drawn when a send began, in the window, read by
-  // one of its children: the send's stream starts from there (`stream`).
+  // Where each scroller's content stands while no ride carries it, in the window, read
+  // by one of its children: where it was drawn when a send began (`stream`), then where
+  // each reading's ride takes it. The send's stream starts from there.
   /** @type {Map<Element, StreamStart>} */
   let streamFrom = new Map();
   // Each scroller's content riding a stream, by that child, from where it was drawn to
@@ -934,15 +935,17 @@ export function boxMotion({
     };
 
     // A scroller's content in a send: carried from where it was drawn when the send
-    // began, or from where it is drawn while the stream already carries it, so its new
-    // turn comes up at the scroller's foot under the scroller's own clip. Every child
-    // rides by the one distance its first child travels, which keeps whichever child
-    // was read first. A box stuck to the scroller's edge inside it (`position:
-    // sticky`) sticks in layout where the scroll stands now, which the carry would
-    // move off that edge, so its inset travels against the carry on the same clock:
-    // layout then sticks it where it stuck with the content standing that far back,
-    // which is where a scroll that far back would stick it, and it changes over from
-    // one head to the next as the content rides past.
+    // began, from where it is drawn while the stream already carries it, or from where
+    // the last ride left it, so its new turn comes up at the scroller's foot under the
+    // scroller's own clip, and a reading after the ride, such as the server's answer
+    // arriving, starts from where the ride left the content. Every child rides by the
+    // one distance its first child travels, which keeps whichever child was read first.
+    // A box stuck to the scroller's edge inside it (`position: sticky`) sticks in
+    // layout where the scroll stands now, which the carry would move off that edge, so
+    // its inset travels against the carry on the same clock: layout then sticks it
+    // where it stuck with the content standing that far back, which is where a scroll
+    // that far back would stick it, and it changes over from one head to the next as
+    // the content rides past.
     /** @param {{element: Element}} part */
     function streamContent(part) {
       const scroller = part.element;
@@ -951,6 +954,7 @@ export function boxMotion({
       // Where layout stands the child: a part holding the scroller may already be
       // carried, which its box includes and `move` subtracts again.
       const to = then.child.getBoundingClientRect().top - carriedBy(0)(then.child)[1];
+      streamFrom.set(scroller, { child: then.child, top: to });
       const dy = then.top - to;
       if (Math.abs(dy) < 0.5) return;
       contentRides(scroller, true);

@@ -203,7 +203,7 @@ the user than typing a reply, so a choice usually serves them better than answer
 listed in words. The user answers with a press in the thread, and the group waits
 on them until they do, so the message takes no `--obligation`, which the command refuses
 beside it. The message's text asks the question and gives your reason, so the group
-needs no `lf-ask`. Title each option by what choosing it does and mark the one you
+needs no heading. Title each option by what choosing it does and mark the one you
 advise (`authoring-on-me.md`, "What a question holds").
 
 ```bash

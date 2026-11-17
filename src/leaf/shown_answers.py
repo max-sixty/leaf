@@ -30,8 +30,8 @@ it with the members holding the value it was dropped on, replacing the set; the
 widget's own completion, such as a `multiple` group's Done, still decides whether the
 obligation is answered.
 
-Rejected: an Answer record, or a value field on `lf-ask`, which would move the
-answer off the widget that owns its words, options and obligation. A `via` on the
+Rejected: an Answer record, or a value field on the question's frame, which would move
+the answer off the widget that owns its words, options and obligation. A `via` on the
 event naming the view, with the door proving the view may send that widget's
 command: a value a view sends is one the widget's own declaration admits or refuses
 alone, so the field would be bookkeeping no reader needs.

@@ -131,19 +131,24 @@ lf-playground:has(> .lf-playground-split) {
 @media screen {
   @container style(--lf-full-height: 1) {
     /* Each box passes the height on, so the panes in the split are told they have one
-       (`--lf-full-height`, layouts.css) and scroll their bodies. */
+       (`--lf-full-height`, layouts.css) and scroll their bodies. The playground keeps
+       the minimum its rows set, so where it stands in a box that scrolls, such as the
+       section of a question's group that is the workspace's body, that box scrolls
+       to its bar and keeps the panel's room after it; where it is the body itself, it
+       scrolls, and a scroller's automatic minimum is none. A minimum of zero would let
+       it shrink below its rows inside a group that scrolls, where its rows overflow its
+       box and the panel's room falls outside the scroll. */
     lf-playground {
-      min-block-size: 0;
       margin-block: 0;
       --lf-full-height: inherit;
     }
 
     /* The outer scroller must include the stage's minimum and the whole action bar,
-     * leaving its reserved panel room after both. Only scrolling bodies contribute
-     * no intrinsic size: presets and actions still set their tracks' minimum. */
+     * leaving its reserved panel room after both (layouts.css, the workspace's body).
+     * Only scrolling bodies contribute no intrinsic size: presets and actions still
+     * set their tracks' minimum. */
     lf-playground:has(> .lf-playground-split) {
       grid-template-rows: minmax(min-content, 1fr);
-      scroll-padding-block-end: var(--lf-end-room);
     }
 
     .lf-playground-preview-body,

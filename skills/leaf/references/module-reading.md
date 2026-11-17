@@ -34,7 +34,7 @@ the name Leaf's chrome gives it: its title, caption or label; failing those, a
 paragraph or list item is named by its first words, and another element by the nearest
 named element around it. A registered widget with no name gets an empty label, and
 `addressableWord(element)` gives the word for its kind instead: the fixed word its
-entry declares (`words.word`), as `lf-ask` says "question", else what its element answers
+entry declares (`words.word`), as `lf-visual-review` says "review", else what its element answers
 from an `lfWord()` method where the word depends on the element, as `lf-suggestion`
 says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
@@ -237,9 +237,11 @@ including those with the agent. Each record looks like this:
 A widget's obligation takes its answer and completion from its `state.awaits`
 ([package-data.md, "User state"](package-data.md#user-state)), so a partial answer can
 show while `status` is `open`. `answer` is `null` until there is one, and `answer.event`
-is `null` for authored state. `prompt.target` is where the user goes to answer;
-`prompt.text` is `null` for a widget with no heading and for an update. `thread`
-and `message` name the Thread and message of a widget inside a Thread. A user's answer
+is `null` for authored state. `prompt.target` is where the user goes to answer: the
+group the author declares round the widget, `role="group"` or a `<fieldset>`, or else
+the widget itself; `prompt.text` is that group's name, from its `aria-labelledby`, its
+`aria-label` or a fieldset's legend, else the widget's own name, and `null` for an
+update. `thread` and `message` name the Thread and message of a widget inside a Thread. A user's answer
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:
 

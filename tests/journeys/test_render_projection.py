@@ -1138,8 +1138,8 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
         '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
     )
     question = (
-        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options">'
-        '<lf-option id="yes">Yes</lf-option></lf-options></lf-ask>'
+        '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Decision?</h2><lf-options id="options">'
+        '<lf-option id="yes">Yes</lf-option></lf-options></section>'
     )
     second = first.replace("</main>", question + "</main>")
     url = serve(first)
@@ -1294,11 +1294,11 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
             '<h1>Route history</h1><lf-activity id="feed"></lf-activity>' + destination,
         ).replace("</head>", executable + "</head>")
 
-    route = """<lf-ask id="route-ask"><h2>Which route?</h2>
+    route = """<section id="route-ask" role="group" aria-labelledby="route-ask-h"><h2 id="route-ask-h">Which route?</h2>
       <lf-options id="route">
         <lf-option id="route-fast">Fast path</lf-option>
         <lf-option id="route-slow">Slow path</lf-option>
-      </lf-options></lf-ask>"""
+      </lf-options></section>"""
     url = live_url(serve(source(route)))
     page = open_page(browser, url)
     page.locator("#route-fast .lf-pick").click()

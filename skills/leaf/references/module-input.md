@@ -149,7 +149,7 @@ shows, as its `::before`, turning with its state; the widget's own rules place i
 ### Decisions and forwarded keys
 
 `keys` work inside the widget. `contextKeys` work there too, and Leaf also forwards them
-from the enclosing `lf-ask`'s question and from its margin controls and threads. Number
+from its margin controls and threads. Number
 a widget's choices by the choice, not by what is available: a classifier declares Pass
 as `1` and Keep as `2`, and disabling `1` must not turn `2` into something else. The
 page keeps `m` and `Shift+m` for moving through On Me.

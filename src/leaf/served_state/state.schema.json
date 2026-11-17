@@ -1176,7 +1176,7 @@
       "properties": {
         "text": { "type": ["string", "null"] },
         "target": {
-          "description": "Where the user goes to answer: the id of a widget's prompt context, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
+          "description": "Where the user goes to answer: the id of the group the author declares round a widget, or of the widget itself, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
           "type": ["string", "null"]
         }
       },

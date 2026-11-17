@@ -178,9 +178,9 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
 <details id="source-fold" open><summary>The source</summary>
 <p id="source">Read this source passage before the question.</p></details>
 <div style="height:1600px"></div>
-<lf-ask id="question"><h2>Where should we build?</h2>
+<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Where should we build?</h2>
 <lf-options id="places"><lf-option id="here">Here</lf-option>
-<lf-option id="there">There</lf-option></lf-options></lf-ask>
+<lf-option id="there">There</lf-option></lf-options></section>
 """,
             )
         ),
@@ -1084,17 +1084,17 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
             f"""
 <h1 id="h">Back from an ask</h1>
 <section id="near"><p>A question sits at the top.</p></section>
-<lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
+<section id="first-decision" role="group" aria-labelledby="first-decision-h"><h2 id="first-decision-h">Where should the feeders go?</h2>
 <lf-options id="first">
   <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
   <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <section id="above">{filler}</section>
-<lf-ask id="second-decision"><h2>Who fills them?</h2>
+<section id="second-decision" role="group" aria-labelledby="second-decision-h"><h2 id="second-decision-h">Who fills them?</h2>
 <lf-options id="second">
   <lf-option id="se-rota"><strong>A rota</strong></lf-option>
   <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
-</lf-options></lf-ask>
+</lf-options></section>
 <section id="below">{filler}</section>
 """,
         )
@@ -1180,8 +1180,8 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
 ):
     """An obligation in front of the user whose arrival region is not still moves the page,
     since the arrival puts the region's start at the top of the window, and a press
-    that moves the page records where the user was reading. A draft declares no region,
-    so its region runs up from the heading its context starts under."""
+    that moves the page records where the user was reading. A draft's region is the
+    group its question declares, which runs up from the heading that names it."""
     context = "".join(f"<p>Context paragraph {n}.</p>" for n in range(8))
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(40))
     url = serve(
@@ -1190,9 +1190,11 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
             f"""
 <h1 id="h">Back from a draft</h1>
 <section id="above">{filler}</section>
+<section id="invitation" role="group" aria-labelledby="context">
 <h2 id="context">The invitation</h2>
 {context}
 <lf-draft id="note" required><pre>The sample workshop is in the blue room.</pre></lf-draft>
+</section>
 <section id="below">{filler}</section>
 """,
         )
@@ -1209,7 +1211,7 @@ def test_back_returns_from_an_obligation_whose_context_the_arrival_brings_in(
     entries = page.evaluate("history.length")
 
     page.keyboard.press("m")
-    expect(page.locator("#note")).to_be_focused()
+    expect(page.locator("#invitation")).to_be_focused()
     scroll_settled(page)
     assert page.evaluate("document.scrollingElement.scrollTop") < reading - 100
     assert page.evaluate("history.length") == entries + 1
@@ -1274,9 +1276,9 @@ def _word_point(locator, word):
 ALIGN_CURRENT_PAGE = leaf_page(
     "Align the current item",
     '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
-    '<lf-ask id="align-ask"><h2>Which plan should we keep?</h2>'
+    '<section id="align-ask" role="group" aria-labelledby="align-ask-h"><h2 id="align-ask-h">Which plan should we keep?</h2>'
     '<lf-options id="align-options"><lf-option id="align-yes">Yes</lf-option>'
-    '<lf-option id="align-no">No</lf-option></lf-options></lf-ask>'
+    '<lf-option id="align-no">No</lf-option></lf-options></section>'
     '<h2 id="align-heading" tabindex="0">The current heading</h2>'
     '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
     '<textarea id="native" aria-label="Native editor">Editor words</textarea>'
@@ -1495,9 +1497,9 @@ def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests)
             "parent": roots[4],
             "revision": 1,
             "text": "Choose the follow-up.\n\n"
-            '<lf-ask id="reply-ask">\n<h3>Which follow-up should be ready?</h3>'
+            '<section id="reply-ask" role="group" aria-labelledby="reply-ask-h">\n<h3 id="reply-ask-h">Which follow-up should be ready?</h3>'
             '<lf-options id="reply-options"><lf-option id="reply-yes">Ready</lf-option>'
-            '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
+            '<lf-option id="reply-no">Wait</lf-option></lf-options></section>',
         },
     )
     page = open_page(browser, url)

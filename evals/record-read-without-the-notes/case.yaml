@@ -17,7 +17,7 @@ vars:
   prompt:
     "You're partway through a Leaf task. The user asked: \"review all outstanding tend\nitems, with\
     \ enough info on each that I can whizz through them, in a /leaf\". You\nsent five research subagents\
-    \ out, one per batch of items, and wrote the page from\ntheir reports: a 21-item queue, one `lf-ask` per\
+    \ out, one per batch of items, and wrote the page from\ntheir reports: a 21-item queue, one question section per\
     \ item, with header chips summarising the\ncounts and a section on the shared Codex blocker. It's\
     \ a record the user will work\nthrough over the next few days.\n\n`leaf page check ~/.local/state/leaf/pages/tend-open-items\
     \ --render` just passed:\n\n  \u2713 index.html: renders clean in Chrome, light and dark at 1200x900\

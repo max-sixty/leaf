@@ -68,7 +68,7 @@ assert:
       The output has authored HTML and a map of the original captures and the page's
       media. `captures.exact_inputs` lists which page media are byte-identical to a
       supplied capture. Open the other page media the four decisions use. Pass only
-      if every one of the four decisions shows, within the decision (its `lf-ask` or
+      if every one of the four decisions shows, within the decision (its section or
       answering widget), the item as it is today and the console under each option
       that changes it, as pictures of the same region the reader can compare by
       looking: an `lf-shot` pair, or a picture in each option. Each changed picture

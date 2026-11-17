@@ -5,7 +5,8 @@ rather than a second selector elsewhere. `lf-options` remains useful for a fixed
 that needs no playground controls or composed preview. To critique a document or
 source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
 
-Frame the question with `lf-ask` when its context lives outside the playground. Keep
+Put the playground in the named group that asks its question, with any context that
+lives outside it (`references/authoring-on-me.md`, "On the page"). Keep
 behavior that one page uses in that page's module, which can define custom elements, add
 state to the playground and derive its output. Behavior several pages reuse belongs in a
 package (`references/packages.md`, "Package reach").
@@ -58,7 +59,7 @@ for comparison.
 
 Choose the playground's space by what the user needs to see and operate together
 (`references/page-authoring.md`, "Composing a page"). For more room in a reading
-column, put `data-width="available"` on the playground, in an `lf-ask` or alone
+column, put `data-width="available"` on the playground, in its section or alone
 (`references/page-layout.md`, "Bounds and widths"). A workspace
 gives it the window. Candidates the user
 compares fit the window together, each picture sized as
@@ -171,8 +172,8 @@ one of them, the comment records its id, which tells you which one they mean.
     border-color: var(--lf-accent);
   }
 </style>
-<lf-ask id="notification-ask">
-  <h2>Which deployment notification should we build?</h2>
+<section id="notification-ask" role="group" aria-labelledby="notification-ask-h">
+  <h2 id="notification-ask-h">Which deployment notification should we build?</h2>
   <lf-playground
     id="notification-playground"
     submit-label="Create notification"
@@ -214,7 +215,7 @@ one of them, the comment records its id, which tells you which one they mean.
       before-and-after comparison and browser test.
     </lf-playground-output>
   </lf-playground>
-</lf-ask>
+</section>
 ```
 
 An `<output for="NAME">` anywhere in the playground shows field NAME's current value,

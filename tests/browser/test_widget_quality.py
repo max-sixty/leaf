@@ -192,7 +192,7 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
 
 INITIAL_DRAWING_PAGE = """
 <h1 id="title">First drawing</h1>
-<lf-playground id="drawing">
+<section id="drawing-q" role="group" aria-label="How should the field note look?"><lf-playground id="drawing">
   <aside>
     <label id="field-note-title">Title <input name="title" value="Field note"></label>
     <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
@@ -206,7 +206,7 @@ INITIAL_DRAWING_PAGE = """
   <lf-playground-output>Build <output for="title"></output> with
     <output for="radius"></output>px corners and
     <output for="tone"></output> emphasis.</lf-playground-output>
-</lf-playground>
+</lf-playground></section>
 <lf-margin-entry-gallery id="faces-one"></lf-margin-entry-gallery>
 <lf-margin-entry-gallery id="faces-two"></lf-margin-entry-gallery>
 <p id="after">Reading after the widgets stays in place.</p>

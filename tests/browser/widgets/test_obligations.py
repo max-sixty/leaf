@@ -10,7 +10,6 @@ from render_cases_interaction import (
     CURRENT_OBLIGATION,
     OBLIGATION_IN_A_CARD_PAGE,
     OBLIGATION_WITH_CONTEXT_PAGE,
-    OBLIGATIONS_IN_A_ROW_PAGE,
     OBLIGATIONS_IN_ORDER,
     OBLIGATIONS_PAGE,
     SEATED_OBLIGATION_LAYER,
@@ -51,8 +50,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 ACROSS_OBLIGATION = """
-  <lf-ask id="{id}">
-    <hgroup><p>Retention</p><h3>How long should logs be kept?</h3></hgroup>
+  <section id="{id}" role="group" aria-labelledby="{id}-h">
+    <hgroup><p>Retention</p><h3 id="{id}-h">How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
       <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
@@ -69,7 +68,7 @@ ACROSS_OBLIGATION = """
       <lf-option id="{id}-90"><strong>90 days</strong> Covers a quarter's audit.</lf-option>
     </lf-options>
     <p>Whichever you pick, the hot tier keeps a day.</p>
-  </lf-ask>
+  </section>
 """
 
 
@@ -91,8 +90,8 @@ ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
 
 
 PICTURED_OBLIGATION = """
-  <lf-ask id="{id}">
-    <h3>Should each item say where it sits in the plan?</h3>
+  <section id="{id}" role="group" aria-labelledby="{id}-h">
+    <h3 id="{id}-h">Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice"{width}>
       <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
         <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
@@ -106,7 +105,7 @@ PICTURED_OBLIGATION = """
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
     </lf-options>
-  </lf-ask>
+  </section>
 """
 
 
@@ -153,22 +152,22 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
     + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
-    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice">'
+    + '<section id="plated" role="group" aria-labelledby="plated-h"><h3 id="plated-h">Which latency?</h3><lf-options id="plated-choice">'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
-    + "</lf-options></lf-ask>"
-    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice">'
+    + "</lf-options></section>"
+    + '<section id="captured" role="group" aria-labelledby="captured-h"><h3 id="captured-h">Which panel?</h3><lf-options id="captured-choice">'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
-    + "</lf-options></lf-ask>"
-    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice">'
+    + "</lf-options></section>"
+    + '<section id="rowed" role="group" aria-labelledby="rowed-h"><h3 id="rowed-h">Which route?</h3><lf-options id="rowed-choice">'
     + ROWED_OPTION.format(side="yes", title="Along the fence")
     + ROWED_OPTION.format(side="no", title="Under the lawn")
-    + "</lf-options></lf-ask>"
-    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice">'
+    + "</lf-options></section>"
+    + '<section id="worded" role="group" aria-labelledby="worded-h"><h3 id="worded-h">Which order?</h3><lf-options id="worded-choice">'
     + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
     + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
-    + "</lf-options></lf-ask>",
+    + "</lf-options></section>",
 )
 
 
@@ -288,10 +287,10 @@ def chipped_obligation(id, cards):
         for n, (chips, title, attributes) in enumerate(cards)
     )
     return (
-        f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
+        f'<section id="{id}" role="group" aria-labelledby="{id}-h"><h3 id="{id}-h">Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
-        f'<lf-options id="{id}-choice" across>{options}</lf-options></lf-ask>'
+        f'<lf-options id="{id}-choice" across>{options}</lf-options></section>'
     )
 
 
@@ -426,12 +425,12 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
     html = leaf_page(
         "obligation after a cleared pick",
         """
-<lf-ask id="release-decision"><h1>Ship this release?</h1>
+<section id="release-decision" role="group" aria-labelledby="release-decision-h"><h1 id="release-decision-h">Ship this release?</h1>
   <lf-options id="release-options">
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
-</lf-ask>
+</section>
 """,
     )
     page = open_page(browser, serve(html))
@@ -618,10 +617,10 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
 
     Were an options group both the state owner and the navigation target, then when the
     heading, premise, and evidence stood immediately above it, `d` would centre the
-    options and make the user scroll backward before they could answer. `lf-ask` encodes
-    that broader unit while the nested state.awaits widget still owns the action: the
-    walk rings the region, aligns its opening at the window's head, and stands the user
-    on it.
+    options and make the user scroll backward before they could answer. The group the
+    author names round the question encodes that broader unit while the nested
+    state.awaits widget still owns the action: the walk rings the region, aligns its
+    opening at the window's head, and stands the user on it.
 
     On it, and not on the control that answers it. The scroll puts the region's opening
     at the top of the window and the answering control is as far down as the context
@@ -1249,18 +1248,14 @@ def walked_to(page, key, target):
 def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_there(
     browser, serve, subtests
 ):
-    """A change to a phrase has no region to declare, so the document supplies one.
+    """A change to a phrase declares no group, so the block holding it is its region.
 
-    An enclosing widget (`state.encloses`) states its own arrival region: a heading,
-    the context, then the control. A suggestion can stand mid-sentence, so it can never
-    satisfy "an obligation must name itself without context outside the obligation" and
-    no region can be written round it. Arriving on the change alone put its own top edge
-    at the window's head and took the sentence and the heading with it, leaving the user
-    on the change with nothing on screen saying what they would be accepting.
-
-    The heading, the sentence, and the change are read together: a landing on the
-    sentence alone would satisfy a heading assertion by accident on a page whose
-    heading happens to sit one line above it, and this page's does not.
+    A question's group is its arrival: its name, the context, then the control. A
+    suggestion stands mid-sentence, named by its own words, so no group holds it
+    (`words.inline`). Arriving on the change alone would put its own top edge at the
+    window's head and take the sentence with it, leaving the user on the change with
+    nothing on screen saying what they would be accepting. Leaf reads no heading for
+    it: the section's heading stays above the window.
     """
     page = open_page(browser, serve(SUGGESTION_IN_CONTEXT_PAGE))
     resized(page, 900, 500)
@@ -1290,12 +1285,12 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
           };
         }"""
     )
-    assert abs(landed["heading"] - landed["clear"]) <= 2, (
-        f"the arrival put the heading over this change at {landed['heading']:.1f}px "
+    assert abs(landed["sentence"] - landed["clear"]) <= 2, (
+        f"the arrival put the sentence holding this change at {landed['sentence']:.1f}px "
         f"rather than at the landing band's top at {landed['clear']:.1f}px"
     )
-    assert landed["clear"] < landed["sentence"] < landed["change"], (
-        "the sentence the change stands in is not on screen above it"
+    assert landed["heading"] < landed["clear"] <= landed["change"], (
+        "the arrival reached past the block holding the change to the heading over it"
     )
     assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
 
@@ -1345,15 +1340,15 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
     with subtests.test("the region an arrival takes in fits above the floating panel"):
         # The region is measured against the landing band. The floating panel's row
         # stands over the window's foot, so a region measured against the whole window
-        # put the heading at the top of the screen and the change it was chosen for
-        # under the row. The window is sized so the heading's region fits in the window
-        # but not above the panel's band: the arrival takes a narrower region, and the
-        # change stays where the user can read it.
+        # would put the sentence at the top of the screen and the change it is chosen
+        # for under the row. The window is sized so the sentence fits in the window but not
+        # above the panel's band: the arrival lands on the change alone, and the change
+        # stays where the user can read it.
         measure = """() => {
           const at = (id) => document.getElementById(id).getBoundingClientRect();
           const style = getComputedStyle(document.scrollingElement);
           return {
-            span: at('sc-sug').bottom - at('sc-api-heading').top,
+            span: at('sc-sug').bottom - at('sc-api-why').top,
             foot: at('sc-sug').bottom,
             view: document.scrollingElement.clientHeight,
             top: parseFloat(style.scrollPaddingTop),
@@ -1383,102 +1378,36 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
         )
 
 
-def test_an_arrival_does_not_reach_back_into_the_obligation_before_it(browser, serve):
-    """The heading over a change is the one it stands under, not the last one written.
-
-    Two obligations in a row is the ordinary way to write two, and the second here has no
-    heading of its own under its container. The nearest heading written before it is
-    then the first obligation's own, and arriving there would put a different question in
-    front of the user as this change's context. A candidate has to share a container
-    with the change for that reason, which also stops the search at the part of the
-    document the change is in.
-
-    The change is reached from the foot of the page rather than by stepping forward off
-    the obligation above it. Arriving at that obligation leaves this one on screen already, where the
-    press deliberately moves nothing and there is no travel to read.
-    """
-    page = open_page(browser, serve(OBLIGATIONS_IN_A_ROW_PAGE))
-    resized(page, 900, 500)
-
-    page.evaluate(
-        "() => document.scrollingElement.scrollTo(0, document.scrollingElement.scrollHeight)"
-    )
-    scroll_settled(page)
-
-    # Back to the nearest obligation above, which is the change.
-    walked_to(page, "Shift+m", "#ar-sug")
-
-    landed = page.evaluate(
-        """() => {
-          const at = (id) => document.getElementById(id).getBoundingClientRect();
-          return {
-            other: at('ar-other-heading').top,
-            otherFoot: at('ar-other-decision').bottom,
-            change: at('ar-sug').top,
-            foot: at('ar-sug').bottom,
-            view: document.scrollingElement.clientHeight,
-            clear: parseFloat(getComputedStyle(document.scrollingElement).scrollPaddingTop),
-          };
-        }"""
-    )
-    assert landed["otherFoot"] <= landed["change"], (
-        "the fixture no longer has the previous obligation standing above this one"
-    )
-    # The previous obligation's heading is close enough to reach: without the container bound
-    # it fits the screen from its own top to this change's foot, so it would be chosen
-    # and the user would start on the question they are not being asked.
-    assert landed["foot"] - landed["other"] <= landed["view"] - landed["clear"], (
-        "the fixture has moved the two obligations too far apart for the wrong heading to be "
-        "reachable, so this test can no longer tell the container bound is working"
-    )
-    assert abs(landed["other"] - landed["clear"]) > 2, (
-        "the arrival put the previous obligation's heading at the band's top, so the user "
-        "starts on the question they are not being asked"
-    )
-    assert landed["foot"] <= landed["view"], "the change itself ran off the screen"
-
-
 def test_an_obligation_inside_a_card_is_brought_into_that_card(browser, serve):
-    """The arrival places a region out on the page; the obligation may be in a box of its own.
+    """The arrival places its group out on the page; the answer may be in a box of its own.
 
-    The placement moves whichever scroller the region belongs to, and for a region on
-    the page that is never the card's. So the obligation's own box comes into view first, which
-    is the one pass that moves a nested scroller. Handing the placement the region alone
-    left the obligation unscrolled in its card, with the ring and focus on a change the user
-    could not see — and the walk's next press repeated the same non-arrival.
+    The placement moves whichever scroller the group belongs to, and for a group on the
+    page that is never the card's. So the answer's own box comes into view first, which
+    is the one pass that moves a nested scroller. Handing the placement the group alone
+    would leave the answer unscrolled in its card, with the ring on a question whose
+    control the user can't see, and the walk's next press would repeat the same
+    non-arrival.
     """
     page = open_page(browser, serve(OBLIGATION_IN_A_CARD_PAGE))
     resized(page, 900, 500)
 
-    # The card hides the obligation to begin with, or the reveal has nothing to do — and the
-    # region really is outside the card, or the region's own reveal would scroll the card
-    # whatever the arrival did, and a green result would say nothing about it.
+    # The card hides the answer to begin with, or the reveal has nothing to do.
     assert page.evaluate(
         """() => {
           const card = document.getElementById('ac-card');
-          const box = document.getElementById('ac-sug').getBoundingClientRect();
-          const head = document.getElementById('ac-heading').getBoundingClientRect();
-          const se = document.scrollingElement;
-          const clear = parseFloat(getComputedStyle(se).scrollPaddingTop) || 0;
-          const inside = card.querySelector(
-            'p,li,h1,h2,h3,h4,h5,h6,td,th,pre,blockquote,dd,dt,figcaption,summary');
+          const box = document.getElementById('ac-pick').getBoundingClientRect();
           return card.scrollHeight > card.clientHeight &&
-                 box.top > card.getBoundingClientRect().bottom &&
-                 box.bottom - head.top <= se.clientHeight - clear &&
-                 !(inside && !inside.closest('lf-suggestion'));
+                 box.top > card.getBoundingClientRect().bottom;
         }"""
-    ), (
-        "the fixture's card shows the change already, holds a block before it, or has "
-        "grown past the heading's reach — the region would then be the change itself"
-    )
+    ), "the fixture's card shows the answer already"
 
     page.keyboard.press("m")
-    expect(page.locator("#ac-sug")).to_be_focused()
+    expect(page.locator("#ac-section")).to_be_focused()
     scroll_settled(page)
 
     seen = page.evaluate(
         """() => {
-          const box = document.getElementById('ac-sug').getBoundingClientRect();
+          const box = document.getElementById('ac-pick').getBoundingClientRect();
           const card = document.getElementById('ac-card').getBoundingClientRect();
           const view = document.scrollingElement.clientHeight;
           return {
@@ -1488,12 +1417,9 @@ def test_an_obligation_inside_a_card_is_brought_into_that_card(browser, serve):
         }"""
     )
     assert seen["insideCard"], (
-        "the change is still outside its card's own band, so the card was never scrolled"
+        "the answer is still outside its card's own band, so the card was never scrolled"
     )
-    # Where the card's own top ends up is not promised: the region can be a block inside
-    # the card, and placing that at the band's top takes the card's top edge above it. What
-    # is promised is the change, in the window and in its card's band at once.
-    assert seen["onScreen"], "the change is in its card's band but off the window"
+    assert seen["onScreen"], "the answer is in its card's band but off the window"
 
 
 def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
@@ -1770,10 +1696,10 @@ def test_a_seat_thread_leaves_the_pick_it_is_about_live(browser, serve):
     url = serve(
         leaf_page(
             "seated eligibility",
-            '<h1 id="heading">Choose</h1><lf-ask id="pick-decision">'
-            "<h2>Cap the retries?</h2>"
+            '<h1 id="heading">Choose</h1><section id="pick-decision" role="group" aria-labelledby="pick-decision-h">'
+            '<h2 id="pick-decision-h">Cap the retries?</h2>'
             '<lf-verdict id="pick" asks>Three attempts, then stop.</lf-verdict>'
-            "</lf-ask>",
+            "</section>",
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,

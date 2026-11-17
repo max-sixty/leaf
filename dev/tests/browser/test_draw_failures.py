@@ -14,7 +14,8 @@ PAGE = """<!doctype html>
 <head><meta charset="utf-8"><title>Control</title></head>
 <body>
 <main>
-<h1>Control page</h1>
+<section id="control" role="group" aria-labelledby="control-h">
+<h1 id="control-h">Control page</h1>
 <lf-playground id="pg">
   <aside><label id="radius">Corner radius <input type="range" name="radius" min="0" max="24" value="12"></label></aside>
   <lf-playground-preset id="preset-wide" label="Wide">
@@ -23,6 +24,7 @@ PAGE = """<!doctype html>
   <p>Preview</p>
   <lf-playground-output>Radius {radius}</lf-playground-output>
 </lf-playground>
+</section>
 </main>
 </body>
 </html>

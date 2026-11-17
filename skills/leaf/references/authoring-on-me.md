@@ -86,12 +86,34 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 ## On the page
 
-Make each question answerable where On Me takes the user: pressing `m` brings its
-heading to the top of the window, leaving earlier content out of view. Inside the
-answering widget or an enclosing `lf-ask`, build the question around the material the
-user judges: a heading that asks it, why it arises, the current state and its evidence.
-Shared evidence and its limits come before the answering control; optional detail
-follows it.
+Make each question answerable where On Me takes the user: pressing `m` selects the
+whole question and brings its start to the top of the window, leaving earlier content
+out of view. Write each question as a group you name: the `<section>` holding the
+question and its case, with an id, `role="group"` and `aria-labelledby` naming the id
+of its opening heading, which asks the question on its own, without leaning on the
+prose around it, with any eyebrow beside the heading in an `<hgroup>`. The words the
+group is named by are the question's words on On Me and in the answer you receive; Leaf
+reads the region and its name from that markup, so `page check` refuses a widget that
+asks with no named group round it.
+
+The group is the region `m` selects, so it holds everything the user judges: why the
+question arises, the current state and its evidence, such as a capture of today or a
+measured table. Shared evidence and its limits come before the answering control;
+optional detail follows it. Where a section shows a finding and then asks about it,
+that section is the group and its heading asks; a smaller group round only the heading
+and options, after the evidence, leaves the evidence outside what `m` selects. Each
+widget in the group that asks is its own question with its own answer.
+
+```html
+<section id="material-q" role="group" aria-labelledby="material-h">
+  <h2 id="material-h">Which material for the housing?</h2>
+  <p>Aluminium costs three times as much and halves the weight.</p>
+  <table id="material-weights">
+    …
+  </table>
+  <lf-options id="material">…</lf-options>
+</section>
+```
 
 On a quick-answer page, open with the question and put optional detail in a disclosure after
 it; the first screen shows the goal, the current state and what the user can do next. On
@@ -101,15 +123,15 @@ the claim and its evidence. Only a question about the whole record comes last.
 
 Where evidence, option pictures or option cards set across need more than the prose's
 width, set `data-width` on the block that holds them, such as the `lf-options`, figure
-or playground. An `lf-ask` takes no width of its own, so the question's words keep the
-column's edge beside it (`page-layout.md`, "Bounds and widths"). Size an option's picture
+or playground, so the block takes the room while the question's words keep the
+column's edge (`page-layout.md`, "Bounds and widths"). Size an option's picture
 by the difference the user weighs between the options rather than by the capture: crop
 it to the region that differs, and scale it down as far as that difference still reads,
 so all the options fit the window together. A difference of size or extent, such as how
 much of a thread a panel shows, reads at a scale where the words inside it don't, and a
 picture that links its original keeps the detail a click away.
 
-The `lf-ask`, `lf-options` and `lf-option` instructions give their markup and
+The `lf-options` and `lf-option` instructions give their markup and
 presentation, including when to set option cards side by side with `across`.
 
 ## One answer in its section and on a board
@@ -121,11 +143,15 @@ answer in both views. Read the `lf-board` instructions for composing those views
 
 When the user must permit an action, ask for it as a question whose options keep
 things as they are and take the action, so declining is an answer too. Put the exact
-action and the evidence the user needs in the `lf-ask` heading and prose:
+action and the evidence the user needs in the question's heading and prose:
 
 ```html
-<lf-ask id="publish-report-question">
-  <h2>Publish this report to the team workspace?</h2>
+<section
+  id="publish-report-question"
+  role="group"
+  aria-labelledby="publish-report-heading"
+>
+  <h2 id="publish-report-heading">Publish this report to the team workspace?</h2>
   <p>The report shown above, including the revised cost estimate.</p>
   <lf-options id="publish-report">
     <lf-option id="publish-report-keep"><strong>Keep it private</strong></lf-option>
@@ -133,7 +159,7 @@ action and the evidence the user needs in the `lf-ask` heading and prose:
       ><strong>Publish it to the team workspace</strong></lf-option
     >
   </lf-options>
-</lf-ask>
+</section>
 ```
 
 Other unanswered questions do not block it. When permission depends on an earlier

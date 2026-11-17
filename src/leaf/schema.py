@@ -458,7 +458,6 @@ FACT_GROUPS = {
         "verbs": STATE_SCHEMA,
         "awaits": AWAITS_SCHEMA,
         "retired-when": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "encloses": {"const": True},
         "exhibit": {
             "oneOf": [
                 {"type": "boolean"},

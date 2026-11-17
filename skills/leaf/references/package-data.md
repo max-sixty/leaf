@@ -127,9 +127,9 @@ Leaf's On Me navigation can reveal each record.
 
 `state.awaits.retired` names the attribute an author sets to close an obligation but
 keep its widget on the page, such as a decided question collapsed with its options;
-`when` must require it to be absent. `state.encloses`, which `lf-ask` declares, makes a
-wrapper give the obligations inside it its heading and where the user lands; it asks
-nothing itself.
+`when` must require it to be absent. The group the author names round a widget is its
+obligation's question, its region and its words (`authoring-on-me.md`, "On the page"),
+so a widget needs no prompt of its own.
 
 The module reads and records this state through `widgetController(owner)`
 ([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),

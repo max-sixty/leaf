@@ -33,7 +33,10 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
                 "Comment dictation",
                 '<h1 id="title">Weekend service</h1>'
                 '<p id="passage">The shuttle runs every hour on Sunday.</p>'
-                '<lf-verdict id="proposal" asks>Should the shuttle run earlier?</lf-verdict>',
+                '<section id="proposal-q" role="group"'
+                ' aria-label="Should the shuttle run earlier?">'
+                '<lf-verdict id="proposal" asks>Should the shuttle run earlier?'
+                "</lf-verdict></section>",
             ),
             layer_registry=SEATED_OBLIGATION_LAYER,
             layer_widgets=SEATED_OBLIGATION_WIDGETS,

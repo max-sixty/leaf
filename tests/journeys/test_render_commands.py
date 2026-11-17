@@ -101,7 +101,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
     bottom at the desktop viewport and on a phone, and one screen at each width where
     the page's own arrangement is at its tightest before it changes. A sidebar page with
     four tiles in its body changes twice there: its tiles wrap before its track stacks.
-    Each open obligation, a suggestion as much as an lf-ask, gets the window `m` brings it
+    Each open obligation, a suggestion as much as a question, gets the window `m` brings it
     into, as the user working the page meets it, including those `m` reaches past a
     page widget move handed back to the user, which is a stop of its own and no obligation."""
     tiles = "".join(
@@ -111,17 +111,17 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         leaf_page(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
-            "<div id='body'><lf-ask id='ship-ask'><h2>Ship now?</h2>"
+            "<div id='body'><section id='ship-ask' role='group' aria-labelledby='ship-ask-h'><h2 id='ship-ask-h'>Ship now?</h2>"
             "<lf-options id='ship'><lf-option id='ship-now'>Now</lf-option>"
-            "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask>"
+            "<lf-option id='ship-later'>Later</lf-option></lf-options></section>"
             f"<div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
             + "".join(
                 f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
             )
             + "".join(
-                f"<lf-ask id='ask-{i}'><h2>Ship part {i}?</h2>"
+                f"<section id='ask-{i}' role='group' aria-labelledby='ask-{i}-h'><h2 id='ask-{i}-h'>Ship part {i}?</h2>"
                 f"<lf-options id='o-{i}'><lf-option id='o-{i}-y'>Yes</lf-option>"
-                f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></lf-ask>"
+                f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></section>"
                 for i in range(2)
             )
             + "<p id='note'>Keep this line.<lf-suggestion id='sug'><lf-old>"

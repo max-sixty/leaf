@@ -40,8 +40,9 @@ test("shared context keeps placement and containment specific to each obligation
 });
 
 test("the innermost obligation holding a node is where the user stands", () => {
-  // A question inside a proposal's new text: the proposal's source holds the question's
-  // enclosing widget, where arrival puts the user on the question.
+  // A question inside a proposal's new text: the proposal's source holds the section
+  // framing the question, where arrival puts the user on the question. Nothing frames
+  // the proposal, so it stands at its own source.
   document.body.innerHTML =
     '<div id="change"><p id="text">Walk outside.</p><section id="ask"><h4>Which route?</h4><div id="route"><button>Garden</button></div></section></div>';
   const item = (source, target) => ({
@@ -63,6 +64,7 @@ test("the innermost obligation holding a node is where the user stands", () => {
       assert.equal(obligationHolding(items, at("ask").firstElementChild), route);
       assert.equal(obligationHolding(items, at("route").firstElementChild), route);
       assert.equal(obligationHolding(items, at("text")), change);
+      assert.equal(obligationPlace(change, items).node, at("change"));
     }
   } finally {
     document.body.replaceChildren();

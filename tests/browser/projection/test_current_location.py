@@ -562,45 +562,6 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     )
 
 
-def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve):
-    """A choosing lf-options that is the decision itself, with no lf-ask round it,
-    gives its location ring up to the row as one inside an ask does. If the decision
-    kept its ring, a Tab in would draw the decision's ring at the region's gap and the
-    row's inside the frame, two accent lines a few pixels apart for one fact."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Bare choice",
-                """<h1 id="h">Bare choice</h1>
-<lf-options id="ship">
-  <lf-option id="ship-monday"><strong>Ship Monday</strong></lf-option>
-  <lf-option id="ship-thursday"><strong>Ship Thursday</strong></lf-option>
-</lf-options>""",
-            )
-        ),
-    )
-    choice = page.locator("#ship")
-    page.keyboard.press("m")
-    expect(choice).to_have_attribute("data-lf-obligation", "1")
-    assert choice.evaluate(LOCATION_RING)[0] == "solid"
-    # An arrival rings the decision at the region's gap, outside its frame.
-    arrived = choice.evaluate(
-        "el => [getComputedStyle(el).outlineOffset, getComputedStyle("
-        "document.documentElement).getPropertyValue('--lf-focus-region-gap').trim()]"
-    )
-    assert arrived[0] == arrived[1], arrived
-
-    page.keyboard.press("Tab")
-    expect(page.locator("#ship-monday .lf-pick")).to_be_focused()
-    # The ring is painted in the frame the focus move asks for (repaint.js).
-    rendered(page)
-    assert choice.evaluate(LOCATION_RING)[0] == "none", (
-        "the decision kept its ring round the row"
-    )
-    assert page.locator("#ship-monday").evaluate(RING)[0] == "solid"
-
-
 def test_the_ring_says_where_the_user_is_located(browser, serve):
     """One ring, meaning one thing: this is where the user is located. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
@@ -731,12 +692,12 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
 STORE_ASK_PAGE = leaf_page(
     "Session store",
     '<h1 id="h">Where sessions live</h1>'
-    '<lf-ask id="store-ask"><h3>Which store should hold sessions?</h3>'
+    '<section id="store-ask" role="group" aria-labelledby="store-ask-h"><h3 id="store-ask-h">Which store should hold sessions?</h3>'
     '<lf-options id="store">'
     '<lf-option id="store-redis">Redis</lf-option>'
     '<lf-option id="store-cookie">Signed cookie</lf-option>'
     '<lf-option id="store-db">The main database</lf-option>'
-    "</lf-options></lf-ask>",
+    "</lf-options></section>",
 )
 
 

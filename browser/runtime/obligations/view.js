@@ -7,9 +7,9 @@
    answered in words navigate through their thread owner instead.
 
    An obligation keeps its source identity. Its prompt.target names where the user arrives:
-   the enclosing widget (an lf-ask or another declaring `state.encloses`), otherwise
-   the widget itself. The source owns the answer and the explicit context bindings.
-   Adding an enclosing widget changes neither the obligation nor its answer.
+   the group the author declares round it (obligations/place.js), otherwise the widget
+   itself. The source owns the answer and the explicit context bindings. The group
+   changes neither the obligation nor its answer.
 
    Focus, through current-target.js, determines which obligation wears the location
    ring. The m/M work walk visits the user's current queue; an answered obligation can
@@ -21,8 +21,8 @@
 
    Every widget arrival shares the same retained-intent travel. Frozen thread sources
    are materialized at their exact owning message through the thread owner. A page
-   source arrives at the window's head, at its declared context region or the nearest
-   fitting heading/text block supplied by its document. A destination already readable
+   source arrives at the window's head, at the group holding it, or, for a change set
+   among words, at the block holding it, where either fits. A destination already readable
    on every clipped edge keeps its scroll position. DOM measurements and renderer
    nodes never enter the obligation record.
 
@@ -35,7 +35,7 @@ import { landingRoom } from "../landing-scroll.js";
 import { landingBand, shownBox, shownParts } from "../geometry.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../page-controls.js";
 import { decisionControls, nativePress } from "../keyboard/bindings.js";
-import { closestAcross, elementById, inChrome, showsWords } from "../passages.js";
+import { closestAcross, elementById, inChrome } from "../passages.js";
 import { TEXT_BLOCK } from "../kernel-facts.js";
 import { scrollerFor } from "../reading-regions.js";
 import { scrollGoal } from "../scrolling.js";
@@ -60,10 +60,9 @@ import { PRESENTATION } from "../presentation.js";
 import { retainUserIntent } from "../user-intent.js";
 import { bindQueuedWork } from "../queued-work.js";
 import { applicationPresenter, PRESENTATION_DOM } from "../semantic-state.js";
-import { hostIn, renderedOrder, under, upFrom } from "../shadow.js";
+import { hostIn, under, upFrom } from "../shadow.js";
 import { showHeld } from "../thread/held-news.js";
 import { obligationPlace } from "./place.js";
-import { partOver } from "../thread/placement.js";
 import { revealAddressed } from "../anchor-resolution.js";
 
 // The obligation view owns contextual action routes and navigation; the keyboard presenter owns their hints.
@@ -440,49 +439,33 @@ export function createObligationView({
     if (target) focusForNavigation(target, "return");
   }
 
-  // Where the user arrives at a page obligation: the region whose start has to be in
-  // front of them for the obligation to make sense. A widget declaring
-  // `state.encloses` is its own frame — one heading, then the context and evidence,
-  // then the control — and this walk is handed that region rather than the widget
-  // inside it, so its arrival is simply its start.
+  // Where the user arrives at a page obligation: the region whose start has to be in front
+  // of them for the obligation to make sense. The group the author declares round a
+  // question is that region (`prompt.target`): its name, then the context and evidence,
+  // then the control. Where the obligation stands at the group alone, the group is also
+  // its place, so its arrival is simply its start, however tall the group is. A group
+  // several obligations share, or a record unit's, is the region only where it fits
+  // above the source.
   //
-  // The kind that most needs a region is the kind that cannot declare one. A suggestion is
-  // an edit to a phrase, and what explains it is the sentence it stands in and the heading
-  // over that — so it can never satisfy "a question must name itself without context outside
-  // the question", and no enclosing widget can be written round it. Landing on the
-  // change alone would put its own top edge under the window's head and take that
-  // sentence with it: the user would arrive at ✓ Accept with nothing on screen saying
-  // what they are accepting. So where the author has not declared a region, the
-  // document supplies one in the shape a declared region has.
-  //
-  // Candidates widest first — the heading titling this part of the document, then the
-  // block the change stands in, or, for a change that is its own block, the block before
-  // it. The first whose start still leaves the obligation's own foot on screen wins, so a
-  // region never grows past what the user takes in at once and an obligation with nothing
-  // that fits keeps the landing this walk always gave it. That bound is what lets the
-  // widest candidate go first: a heading a long way up fails to fit, rather than needing a
-  // rule about how far up is too far.
-  /** @param {Element} item @param {Element | null} context @param {Element} currentLocation */
-  function arrivalRegion(item, context, currentLocation) {
-    // A unique declared context names the region even when taller than the screen:
-    // the reader arrives at its opening and reads down to the answering controls.
-    // Shared context must fit above this source; otherwise use its nearby words.
-    // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.state?.encloses;
-    if (declared && context === currentLocation) return context;
-    // A region has to be somewhere the user can be taken. An element generating no box
-    // measures (0,0) at the document's origin, which is not a degenerate answer but a
-    // wrong one naming the top of the page (geometry.js says so at shownBox): a hidden
-    // paragraph before the change fits every time, and the press then scrolls the page up
-    // by the head room's clearance instead of travelling to the obligation.
-    // A region also has to begin at or above the change: it is the run-up to it, and one
-    // starting below would be a region the change is not in. Document order alone does
-    // not promise that — a preceding block can be painted lower — and the span such a
-    // region measures is negative, which fits every screen there is.
-    // The screen the user can use is the room a landing at the region's start leaves
-    // for the run down to the obligation's foot (landing-scroll.js, `landingRoom`): clear
-    // of the window's head over its top and the floating panel's room over its bottom,
-    // so an obligation's foot that fits is one the user can read rather than one under the panel.
+  // A suggestion declares no group: it is an edit to a phrase, and what explains it is
+  // the sentence it stands in. Landing on the change alone would put its own top edge
+  // under the window's head and take that sentence with it, leaving the user at
+  // ✓ Accept with nothing on screen saying what they are accepting. So the block
+  // holding it is its region where that fits. Leaf reads no heading or neighbouring
+  // block for a region, since the author declares the region of anything else that
+  // asks: the heading over the change, or the block before it, would be a region Leaf
+  // inferred, and a block before a change can be another question's.
+  /** @param {Element} item @param {Element | null} frame @param {Element} currentLocation */
+  function arrivalRegion(item, frame, currentLocation) {
+    if (frame && frame === currentLocation) return frame;
+    // A region has to be somewhere the user can be taken, beginning at or above the
+    // obligation: an element generating no box measures (0,0) at the document's origin,
+    // which is not a degenerate answer but a wrong one naming the top of the page
+    // (geometry.js says so at shownBox). The screen the user can use is the room a
+    // landing at the region's start leaves for the run down to the obligation's foot
+    // (landing-scroll.js, `landingRoom`): clear of the window's head over its top and the
+    // floating panel's room over its bottom, so an obligation's foot that fits is one the
+    // user can read rather than one under the panel.
     /** @param {Element | null | undefined} region */
     const fits = (region) => {
       if (!region) return false;
@@ -494,45 +477,7 @@ export function createObligationView({
         target.bottom - start.top <= landingRoom(region, item).height
       );
     };
-    // The heading is what names the obligation's part of the page (thread/placement.js,
-    // `partOver`), bounded by the container both stand under, as below.
-    //
-    // The blocks before this one that are about the same part of the document: the two
-    // stand under one container, as a heading and what it heads do. Without that bound
-    // the block before can be the previous obligation's own, and the user arrives
-    // reading the wrong obligation as the context for this one.
-    //
-    // An ancestor both contains and precedes, so the block holding an inline change is
-    // asked for by name and excluded here — or the walk backwards would stop at the
-    // sentence the change is already inside and call it the one before.
-    // The document's own blocks, in document order, which is what picking the nearest
-    // block rests on. `pageQueryAll` would reach a widget's
-    // declared shadow tree as well, and it concatenates each root's answer rather than
-    // composing one order, so the last heading it reported could be from another tree
-    // entirely — a worse answer than the one this misses. The heading is read off the
-    // page's outline, which composes that order (`partOver`). The crossing worth having is
-    // on the two questions asked of each block: `under` for the container, and
-    // `renderedOrder` for the order, which together let an obligation staged inside a
-    // shadow tree take the heading standing over its host.
-    //
-    // `showsWords` goes with `inChrome`: a block behind a shut disclosure keeps its
-    // boxes, so it would otherwise measure like one the user can see.
-    const before = [...document.querySelectorAll(TEXT_BLOCK)].filter(
-      (block) =>
-        !inChrome(block) &&
-        showsWords(block) &&
-        !under(item, block) &&
-        block.parentElement &&
-        under(item, block.parentElement) &&
-        renderedOrder(block, item) < 0,
-    );
-    return (
-      [
-        declared ? context : null,
-        partOver(item),
-        closestAcross(item, TEXT_BLOCK) ?? before.at(-1),
-      ].find(fits) ?? item
-    );
+    return [frame, closestAcross(item, TEXT_BLOCK)].find(fits) ?? item;
   }
 
   // The arrival the user already has. The press then moves the ring and the focus and
@@ -542,17 +487,20 @@ export function createObligationView({
   // Whether the obligation itself is readable is travel's question (`readable`), asked of
   // every edge through whatever clips it or stands over it — an obligation half cut off by a
   // board's own scroller, or reaching under the floating panel, is not in front of the
-  // user for having a box inside the window. This adds the one thing that reading
+  // user for having a box inside the window. Its place and its source are both asked, since
+  // a group can stand in the window while a card in it scrolls its answer out of sight.
+  // This adds the one thing that reading
   // cannot know: the arrival is the region's start, so the start has to be standing
   // clear of the window's head too, read like the obligation where the motion of its box
   // will leave it (`scrollGoal`).
   /** @param {Obligation} record @param {Element} region @param {Element} item
-   * @param {Element} box @param {(node: Element) => boolean} readable */
-  function framed(record, region, item, box, readable) {
+   * @param {Element} source @param {Element} box @param {(node: Element) => boolean} readable */
+  function framed(record, region, item, source, box, readable) {
     const band = landingBand(box);
     return (
       !!band &&
       readable(item) &&
+      readable(source) &&
       shownBox(region).top - (scrollGoal(box) - box.scrollTop) >= band.top &&
       actionsOf(record).every(({ control }) => readable(presentedControl(control)))
     );
@@ -595,8 +543,8 @@ export function createObligationView({
     const { target } = reachObligation(next);
     if (!mayArrive() || !target) return false;
     // A page obligation starts at the window's head so its context comes before its control, and
-    // what counts as its context is arrivalRegion's answer: the region an author declared,
-    // or the one the document supplies for a change that cannot declare one. Whether this
+    // what counts as its context is arrivalRegion's answer: the group holding it, or the
+    // block holding a change set among words. Whether this
     // press moves the page is `framed`'s answer, and travel's departure owns what follows
     // from it: clearing a surface that hides the obligation, and whether the press is a departure. It runs before the
     // focus lands, since focus sent behind a covering surface is sent back into it.
@@ -605,46 +553,58 @@ export function createObligationView({
     // in the panel's own list, whose arrival stays centred in that region and is no
     // navigation step. Which box either travel moves is the travel's own question (scrollerFor)
     // rather than a second one asked here.
+    // A context other than the widget itself is the group the author declared round it.
+    const inFrame = next.source.id !== next.prompt.target;
     const destination = () => {
       const { node: target, source, context } = obligationPlace(next);
       // A widget is arrived at once its source is drawn.
       if (!target || !source) return null;
       const box = inChrome(target) ? null : scrollerFor(target);
       return box
-        ? { target, box, region: arrivalRegion(source, context, target) }
-        : { target, box: null, region: null };
+        ? {
+            target,
+            source,
+            box,
+            region: arrivalRegion(source, inFrame ? context : null, target),
+          }
+        : { target, source, box: null, region: null };
     };
     const initial = destination();
     if (!initial) return false;
     const departure = prepareNavigationStep();
-    const { box: initialBox, region: initialRegion } = initial;
+    const { box: initialBox, region: initialRegion, source: initialSource } = initial;
     const moving = Boolean(
       initialBox &&
       departure.plan(initial.target, {
         there: (readable) =>
-          framed(next, initialRegion, initial.target, initialBox, readable),
+          framed(
+            next,
+            initialRegion,
+            initial.target,
+            initialSource,
+            initialBox,
+            readable,
+          ),
       }),
     );
     const arrived = await arriveAtRecord(
       () => {
         const here = destination();
         if (!here) return null;
-        const { target, box, region } = here;
+        const { target, source, box, region } = here;
         return {
           where: target,
-          reveal:
-            next.source.id !== next.prompt.target
-              ? [sourceNode(next)].filter((node) => node !== null)
-              : [],
+          reveal: inFrame ? [sourceNode(next)].filter((node) => node !== null) : [],
           focus: arrivalFocus(next, !unansweredIds().has(next.id)),
-          // Reveal the obligation through its own inner scrollports before aligning its
-          // context, which may stand outside them. A framed obligation requests no motion.
+          // Reveal the obligation's source through its own inner scrollports before
+          // aligning its region, which may stand outside them, as a group round a card
+          // that scrolls its answer does. A framed obligation requests no motion.
           scroll: !box
             ? [{ at: target, behavior: scrollBehavior(), block: "center" }]
             : moving
               ? [
                   {
-                    at: target,
+                    at: source,
                     align: region,
                     behavior: scrollBehavior(),
                     block: "start",

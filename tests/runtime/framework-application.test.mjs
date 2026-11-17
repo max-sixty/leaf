@@ -1475,9 +1475,9 @@ test("the publisher carries the server's obligation reading, page obligations be
   }
 
   const read = state(2);
-  const page = wireObligation("question", "lf-ask", "choice", "lf-choice");
+  const page = wireObligation("question", "section", "choice", "lf-choice");
   const frozen = {
-    ...wireObligation("frozen-ask", "lf-ask", "frozen-choice", "lf-choice", "root-1"),
+    ...wireObligation("frozen-ask", "section", "frozen-choice", "lf-choice", "root-1"),
     status: "withdrawn",
     next_actor: null,
   };

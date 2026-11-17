@@ -1,11 +1,17 @@
 /* Mechanical placement of an obligation in the current document, and the one rule for which
    obligations a region of the page holds.
 
-   A widget's source owns its answer; the context supplies its prompt. A unique context
-   is also its current node. When several obligations share that context each stands at
-   its own source, so focus, rings, markers and arrival all name the same request.
-   A record unit stands at its projected datum, even when it is the widget's only
-   obligation; the owning widget still supplies its commands and answer formatter.
+   A widget's source owns its answer; the context supplies its prompt. The context is
+   the part of the page the author assigned to the question: the innermost group the
+   author declares round the widget, `role="group"` or a `<fieldset>`, which its name
+   words (`prompt.target`, `obligations.framed_widgets` in Python), or else the widget
+   itself. A unique context is also its current node, so `m` lands on the whole
+   question, its premise and evidence included, and focus anywhere in it is being at the
+   question, where digits answer it.
+   When several obligations share that context each stands at its own source, so focus,
+   rings, markers and arrival all name the same request. A record unit stands at its
+   projected datum, even when it is the widget's only obligation; the owning widget
+   still supplies its commands and answer formatter.
    Frozen thread sources may have no node until the thread owner materializes them.
    A question answered in words and an update stand nowhere on the page; their thread
    or widget owner draws them. Nor does anything whose subject is the page as a whole:

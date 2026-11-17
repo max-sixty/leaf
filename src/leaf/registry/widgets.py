@@ -275,11 +275,6 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     # strings must be values the attribute's schema admits, or the widget silently
     # disappears from every consumer.
     awaits = declared_fact(entry, "state.awaits", {})
-    if declared_fact(entry, "state.encloses"):
-        if "id" not in entry["attributes"].get("required", []):
-            raise registry_error("enclosing-id", path, tag)
-        if declared_fact(entry, "content") != "markup":
-            raise registry_error("enclosing-prose", path, tag)
     conditions = [
         ("state.awaits", awaits.get("when", {})),
         *(

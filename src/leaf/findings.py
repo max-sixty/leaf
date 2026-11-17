@@ -394,25 +394,6 @@ def _reference_contract(at: str, v: dict) -> str:
     )
 
 
-def _question_group(at: str, v: dict) -> str:
-    """What a group holding a question lacks, each part with how to give it: a
-    fieldset is named by its legend, any other group by the heading its
-    `aria-labelledby` names."""
-    needs = {
-        "id": "an id, the place the question stands",
-        "name": "a name: "
-        + (
-            "a <legend> that asks the question"
-            if v["tag"] == "fieldset"
-            else "aria-labelledby naming the id of the heading that asks the question"
-        ),
-    }
-    return (
-        f"{_line(at, v)}: the group holding {' and '.join(v['widgets'])} needs "
-        + ", and ".join(needs[need] for need in v["lacks"])
-    )
-
-
 def _unservable_layer(v: dict, why: str, action: str) -> str:
     """Why this Leaf can neither serve a page nor write its log (`layer`)."""
     return (
@@ -1032,11 +1013,11 @@ _TEXT = {
         f"{_line(at, v)}: a matching {v['role']} instance requires an id"
     ),
     "ungrouped-question": lambda at, v: (
-        f"{_line(at, v)}: asks the user, but no group holds its question; write the"
-        ' question, its heading, premise and this widget as <section id="…"'
-        ' role="group" aria-labelledby="…">, naming the heading that asks it by its id'
+        f"{_line(at, v)}: asks the user, but no group holds its question; write its"
+        " premise and this widget in "
+        + " or ".join(f'<{tag} id="…" label="…">' for tag in v["groups"])
+        + ", its label asking the question"
     ),
-    "question-group": _question_group,
     "repeated-key": lambda at, v: (
         f'{_line(at, v)}: {v["key"]}="{v["value"]}" repeats the {at} at line'
         f" {v['first_line']} in the same <{v['scope']}>"

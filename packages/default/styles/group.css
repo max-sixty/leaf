@@ -1,0 +1,21 @@
+/* A group's title is its label, which the runtime writes as text at the group's start
+   (`says`). It reads as the heading a section opens with, at a third-level heading's
+   size and air, since a group usually stands in a section of the page. Until the
+   runtime writes it, and on a page no script runs, the theme paints the same words from
+   the attribute. The group draws no box: its blocks stand in the page's flow (`flow`). */
+lf-group {
+  display: block;
+}
+lf-group > [data-lf-said="label"],
+lf-group[label]:not(:has(> [data-lf-said="label"]))::before {
+  display: block;
+  max-inline-size: var(--lf-measure);
+  margin: var(--lf-h3-start) 0 8px;
+  font-size: var(--lf-t-3);
+  font-weight: bold;
+  line-height: 1.3;
+  text-wrap: balance;
+}
+lf-group[label]:not(:has(> [data-lf-said="label"]))::before {
+  content: attr(label);
+}

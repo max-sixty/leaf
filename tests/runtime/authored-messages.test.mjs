@@ -216,7 +216,7 @@ test("a drawing that doesn't hold a message's widgets keeps a group that asks no
   );
   const drawn = document.createElement("div");
   drawn.innerHTML = prepared.body.heldElsewhere;
-  assert.equal(drawn.querySelector("h3")?.textContent, "Evidence");
+  assert.deepEqual([...drawn.querySelectorAll("h3")].map((h) => h.textContent), ["Evidence"]);
   assert.equal(drawn.querySelector("p:last-child")?.textContent, "Two runs agree.");
   assert.equal(drawn.querySelector("lf-group, [id]"), null);
   assert.equal(prepared.body.text, "Intro. Evidence Two runs agree.");

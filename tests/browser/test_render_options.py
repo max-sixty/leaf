@@ -742,7 +742,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             heading = page.locator(f"#{item} > :is(h1, h2, h3, h4, h5, h6)")
             expect(heading).to_have_count(1)
             expect(heading).to_have_text(question)
-            expect(page.locator(f"#{group} > [data-lf-said='label']")).to_have_count(0)
+            expect(page.locator(f"#{item} > [data-lf-said='label']")).to_have_count(0)
             assert heading.evaluate(
                 "el => el.getBoundingClientRect().bottom"
             ) < page.locator(f"#{group}").evaluate(

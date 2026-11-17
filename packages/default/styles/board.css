@@ -245,16 +245,23 @@ lf-card {
     clear: right;
   }
 }
-/* The prose after the title starts on its next line in whatever shape the author wrote
-   it. Otherwise a title margin is trimmed only where no element follows it (the
-   frame's trim reads a plain sentence's title as the card's last block), and a
-   paragraph's margin sets its prose lower than a sentence's. */
-lf-card > strong {
+/* A card's title is its label, which the runtime writes as text (`words.says`) and the
+   theme paints from the attribute until it does. The prose after it starts on its next
+   line in whatever shape the author wrote it, and a paragraph's margin would set its
+   prose lower than a sentence's. */
+lf-card[label]::before,
+lf-card > [data-lf-said="label"] {
   display: block;
   font: var(--lf-font-title);
   margin: 0;
 }
-lf-card > strong + p {
+lf-card[label]::before {
+  content: attr(label);
+}
+lf-card:has(> [data-lf-said="label"])::before {
+  content: none;
+}
+lf-card > [data-lf-said="label"] + p {
   margin-block-start: 0;
 }
 /* Enter grabs the grip and arrows move the card. It is a symbol, the drag handle's

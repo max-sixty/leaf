@@ -301,14 +301,6 @@ into the DOM. A page widget's state is bounded by
 the document version; a widget frozen into a thread message is bounded by its
 thread's window.
 
-A renderer repaints only when something it read through a selector has changed,
-or when whoever changes an input outside the state, such as a draft, calls its
-`present()`. Code that changes what the page shows publishes, then awaits
-`whenDocumentPresented()`; it doesn't call renderers or decide their order.
-Where one renderer depends on DOM another writes, it declares that dependency
-through `PRESENTATION_DOM`. DOM completion is separate from asynchronous
-preparation, gesture holds and semantic presentation proof.
-
 A gesture's own result shows in the task that sends it, before the server
 answers ("Responsiveness"); a disabled control, spinner or delivery status is
 not that result. The browser adds only what a gesture decides by itself: a

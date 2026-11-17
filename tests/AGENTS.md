@@ -133,7 +133,7 @@ job or `wt merge`'s pre-merge. A failure there that the change causes is the gat
 its job; fix it and push. A failure the change doesn't cause, such as one main's
 latest finished run also shows (confirm by running it on main by node id), blocks
 nothing and calls for no rerun: name it in the pull request as inherited, check that
-someone is fixing it (below), and land. For now, by the user's choice, `test` is not a
+someone is fixing it (below), and land. For now, by the maintainer's choice, `test` is not a
 required check on `main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
@@ -141,7 +141,7 @@ Tend repairs what CI (`ci.yaml`) fails on main: the `test` job on Ubuntu, and
 `test-macos`, which runs every tier on macOS in the daily scheduled run and a dispatch.
 A failed run opens or updates a `tend-ci-failure` report issue, and triage files a
 `tend-ci-cause` issue for each cause and fixes it there.
-The user accepted that a pull request can land green and break a test it never ran, so
+The maintainer accepted that a pull request can land green and break a test it never ran, so
 a red main is no reason to widen a change or its tests. A newer push cancels main's
 waiting run, as intended, so to learn what main fails, read the latest run that
 finished and reproduce a failure by node id.

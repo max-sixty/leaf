@@ -145,8 +145,8 @@ Options:
 Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
 
   Answer a delivered update by its `answer.ref` alone, or post into the thread
-  PAGE MESSAGE names, which is refused while that thread owes an answer. The
-  text is Markdown, and HTML in it draws, checked here.
+  PAGE MESSAGE names, which answers nothing that thread owes. The text is
+  Markdown, and HTML in it draws, checked here.
 
   An answer declares what it leaves with --done, --todo or --obligation, or
   carries a widget in its text that asks, as an `lf-options` choice asks a
@@ -182,7 +182,7 @@ Usage: leaf thread edit [OPTIONS] PAGE MESSAGE
   with --title rename the thread MESSAGE is in, whoever opened it. --title alone
   leaves the text as it is.
 
-  A message holding HTML is not editable, and an edit adds none. Keep a title
+  The replacement may hold HTML, checked as a new message's is. Keep a title
   stable unless the thread's subject changes.
 
 Options:
@@ -225,11 +225,11 @@ Usage: leaf page report [OPTIONS] PAGE WIDGET VERB [NAME=VALUE]...
 
   Report a state change onto a page widget, as a worker.
 
-  VERB is one of the widget's agent-written verbs (state.verbs), and each
-  NAME=VALUE one of its fields: `leaf page report <page> t-parser status
-  value=review text="Ready for review"` moves a task. The page shows the report
-  at once, marked provisional, until a stamped version writes it into the markup
-  or overrules it.
+  VERB is one of the widget's agent-written `verbs`, and each NAME=VALUE one of
+  its fields: `leaf page report <page> t-parser status value=review text="Ready
+  for review"` moves a task. The page shows the report at once, marked
+  provisional, until a stamped version writes it into the markup or overrules
+  it.
 
 Options:
   --help  Show this message and exit.

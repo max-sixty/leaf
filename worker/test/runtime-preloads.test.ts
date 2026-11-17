@@ -22,10 +22,10 @@ it("an arriving widget scope requires its own upgrade while template contents st
       "lf-arrival": { content: "empty" },
       "lf-unused": { content: "empty" },
       table: {
-        author: { example: "<table></table>" },
+        example: "<table></table>",
       },
       "lf-arrival.selected": {
-        author: { example: '<lf-arrival class="selected"></lf-arrival>' },
+        example: '<lf-arrival class="selected"></lf-arrival>',
       },
     } as unknown as import("../../browser/runtime/widget-imports.js").Registry;
     expect(registeredTags(scope, registry)).toEqual(["lf-arrival"]);

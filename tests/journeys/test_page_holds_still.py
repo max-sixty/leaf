@@ -291,9 +291,9 @@ DECISIONS_PAGE = leaf_page(
     + "</section>"
     + "".join(
         f'<section id="ask-{n}"><h2>Part {n}</h2>{paragraphs(n * 3, 2)}'
-        f'<lf-ask id="decide-{n}"><h3>Ask {n}: which way should part {n} go?</h3>'
+        f'<section id="decide-{n}" role="group" aria-labelledby="decide-{n}-h"><h3 id="decide-{n}-h">Ask {n}: which way should part {n} go?</h3>'
         f'<lf-options id="ways-{n}"><lf-option id="north-{n}">North</lf-option>'
-        f'<lf-option id="south-{n}">South</lf-option></lf-options></lf-ask></section>'
+        f'<lf-option id="south-{n}">South</lf-option></lf-options></section></section>'
         for n in range(1, ASKS + 1)
     ),
 )

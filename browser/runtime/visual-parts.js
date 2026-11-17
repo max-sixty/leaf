@@ -22,7 +22,7 @@ import { layoutChanged } from "./widget-upgrade.js";
 
 /** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
  * @typedef
- * {NonNullable<import("../types/contract.js").WidgetDeclaration["words"]>["visual"]}
+ * {import("../types/contract.js").WidgetDeclaration["visual"]}
  * VisualDeclaration
  * @typedef {{read: () => Iterable<VisualPart>, reveal: ((id: string) => void) | null,
  * label: ((id: string) => string | null | undefined) | null}} Registration */

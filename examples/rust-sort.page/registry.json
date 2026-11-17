@@ -10,13 +10,9 @@
       "additionalProperties": false
     },
     "content": "empty",
-    "words": {
-      "visual": {
-        "prefixes": ["v:", "lane:", "stack:", "check:", "moment:"]
-      }
+    "visual": {
+      "prefixes": ["v:", "lane:", "stack:", "check:", "moment:"]
     },
-    "paint": {
-      "space": "wide"
-    }
+    "space": "wide"
   }
 }

@@ -87,28 +87,26 @@
         ></lf-text-document>
       </section>
 
-      <section id="mode">
-        <lf-ask id="mode-decision">
-          <h2>Which cutover mode should we use?</h2>
-          <p id="mode-premise">
-            All three modes finish inside the window; they differ in what a failure
-            costs. I recommend big bang, the simplest to run.
-          </p>
-          <lf-options id="cutover-mode">
-            <lf-option id="mode-big-bang"
-              ><small class="tag ok">recommended</small><strong>Big bang</strong> Stop
-              writes, copy everything, switch once.</lf-option
-            >
-            <lf-option id="mode-shard"
-              ><strong>Shard by shard</strong> Move and switch one shard at a
-              time.</lf-option
-            >
-            <lf-option id="mode-dual"
-              ><strong>Dual write</strong> Write to both clusters, then switch
-              reads.</lf-option
-            >
-          </lf-options>
-        </lf-ask>
+      <section id="mode" role="group" aria-labelledby="mode-h">
+        <h2 id="mode-h">Which cutover mode should we use?</h2>
+        <p id="mode-premise">
+          All three modes finish inside the window; they differ in what a failure costs.
+          I recommend big bang, the simplest to run.
+        </p>
+        <lf-options id="cutover-mode">
+          <lf-option id="mode-big-bang"
+            ><small class="tag ok">recommended</small><strong>Big bang</strong> Stop
+            writes, copy everything, switch once.</lf-option
+          >
+          <lf-option id="mode-shard"
+            ><strong>Shard by shard</strong> Move and switch one shard at a
+            time.</lf-option
+          >
+          <lf-option id="mode-dual"
+            ><strong>Dual write</strong> Write to both clusters, then switch
+            reads.</lf-option
+          >
+        </lf-options>
       </section>
     </main>
   </body>

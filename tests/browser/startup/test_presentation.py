@@ -22,7 +22,6 @@ from render_harness import (
 from browser.startup import _hold_startup
 from leaf import data as data_model
 from leaf import user_views as user_views_model
-from leaf.registry.contract import declared_fact
 from leaf.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -248,14 +247,12 @@ def test_reduced_motion_reaches_declared_shadow_stages(
             **entry,
             **(
                 {
-                    "words": {
-                        "shadow": True,
-                    },
+                    "shadow": True,
                 }
                 if tree == "shadow"
                 else {}
             ),
-            "author": {"example": f'<{tag} id="{tree}-example"></{tag}>'},
+            "example": f'<{tag} id="{tree}-example"></{tag}>',
         }
         for tree, tag in (("light", "lf-motion-light"), ("shadow", "lf-motion-shadow"))
     }
@@ -282,7 +279,7 @@ lf-motion-light button.chosen, :host(lf-motion-shadow) button.chosen {
     for tag, declaration in registry.items():
         stage = (
             "shadowStage(this, nodes)"
-            if declared_fact(declaration, "words.shadow")
+            if declaration.get("shadow")
             else "this.replaceChildren(...nodes)"
         )
         modules[f"{tag}.js"] = f"""
@@ -375,12 +372,12 @@ def test_settled_and_shadow_links_get_the_pages_link_treatment(browser, serve):
     }
     settled = {
         **entry,
-        "author": {"example": '<lf-settled-link id="settled"></lf-settled-link>'},
+        "example": '<lf-settled-link id="settled"></lf-settled-link>',
     }
     shadow = {
         **entry,
-        "words": {"shadow": True},
-        "author": {"example": '<lf-shadow-link id="shadow"></lf-shadow-link>'},
+        "shadow": True,
+        "example": '<lf-shadow-link id="shadow"></lf-shadow-link>',
     }
     authored = leaf_page(
         "late links",

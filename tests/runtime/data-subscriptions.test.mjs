@@ -12,9 +12,7 @@ let fixtureSequence = 0;
 async function scene() {
   adoptRegistry({
     "lf-feed": {
-      data: {
-        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
-      },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -52,9 +50,7 @@ async function feed(
   const tag = `lf-feed-${++feeds}`;
   adoptRegistry({
     [tag]: {
-      data: {
-        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
-      },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -335,25 +331,19 @@ function outputScene(draw) {
   const consumerTag = `lf-consumer-${suffix}`;
   adoptRegistry({
     [producerTag]: {
-      data: {
-        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
-        outputs: { rows: { contract: "rows" } },
-      },
+      inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      outputs: { rows: { contract: "rows" } },
     },
     [consumerTag]: {
-      data: {
-        inputs: {
-          rows: {
-            reference: "for",
-            output: "rows",
-            contract: "rows",
-            property: "value",
-          },
+      inputs: {
+        rows: {
+          reference: "for",
+          output: "rows",
+          contract: "rows",
+          property: "value",
         },
       },
-      markup: {
-        refers: { for: {} },
-      },
+      refers: { for: {} },
     },
   });
   customElements.define(

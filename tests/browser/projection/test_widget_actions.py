@@ -80,30 +80,26 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
             "additionalProperties": False,
         },
         "content": "markup",
-        "state": {
-            "verbs": {
-                "phase": {
-                    "unit": "widget",
-                    "record": {"kind": "value", "attr": "phase"},
-                },
-                "answer": {
-                    "detail": {
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": False,
-                    },
-                    "unit": "widget",
-                },
+        "verbs": {
+            "phase": {
+                "unit": "widget",
+                "record": {"kind": "value", "attr": "phase"},
             },
-            "awaits": {
-                "when": {"phase": ["open"]},
-                "value": "answer",
-                "answered": {"answer": {}},
+            "answer": {
+                "detail": {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": False,
+                },
+                "unit": "widget",
             },
         },
-        "author": {
-            "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
+        "awaits": {
+            "when": {"phase": ["open"]},
+            "value": "answer",
+            "answered": {"answer": {}},
         },
+        "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
 import { keeps, LeafElement } from "/runtime/widget-api.js";
@@ -173,7 +169,7 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    declarations["lf-tally"].setdefault("author", {})["example"] = (
+    declarations["lf-tally"]["example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
     declarations["lf-tally"]["attributes"]["properties"]["restated"] = {
@@ -187,7 +183,7 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
         "pattern": "^[0-9]+$",
     }
     record = {"kind": "value", "attr": "count"}
-    declarations["lf-tally"].setdefault("state", {})["verbs"] = {
+    declarations["lf-tally"]["verbs"] = {
         "set": {
             "unit": "widget",
             "record": record,
@@ -300,40 +296,34 @@ def test_lit_parent_moves_before_controller_members_render_selection(
     declarations["lf-owner"].update(
         {
             "content": "members",
-            "state": {
-                "verbs": {
-                    "move": {
-                        "unit": "unit",
-                        "record": {"kind": "position", "within": "lf-zone"},
-                    }
-                },
+            "verbs": {
+                "move": {
+                    "unit": "unit",
+                    "record": {"kind": "position", "within": "lf-zone"},
+                }
             },
-            "author": {
-                "example": markup,
-            },
+            "example": markup,
         }
     )
     zone = declarations["lf-zone"]
     zone.update(
         {
             "content": "members",
-            "markup": {
-                "owners": ["lf-owner"],
-            },
+            "owners": ["lf-owner"],
         }
     )
     zone["attributes"]["properties"]["restated"] = {"type": "boolean"}
-    zone.setdefault("state", {})["verbs"] = {
+    zone["verbs"] = {
         "choose": {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "selected"},
         }
     }
     piece = declarations["lf-piece"]
-    piece.setdefault("markup", {})["owners"] = ["lf-zone"]
+    piece["owners"] = ["lf-zone"]
     piece["attributes"]["properties"]["selected"] = {"type": "boolean"}
     for declaration in (zone, piece):
-        declaration["author"].pop("example", None)
+        declaration.pop("example", None)
     path.write_text(json.dumps(declarations))
     (package / "widgets/lf-owner.js").write_text(
         'await customElements.whenDefined("lf-zone");\n' + LEAF_OWNER
@@ -385,7 +375,7 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     declarations = json.loads(registry_path.read_text())
     owner = declarations["lf-owner"]
     owner["content"] = "members"
-    owner.setdefault("state", {})["verbs"] = {
+    owner["verbs"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -394,29 +384,29 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
             },
         }
     }
-    owner.setdefault("author", {})["example"] = (
+    owner["example"] = (
         '<lf-owner id="sample-owner"><lf-zone id="sample-zone">'
         '<lf-piece id="sample-piece" pinned="no">Piece</lf-piece>'
         "</lf-zone></lf-owner>"
     )
     zone = declarations["lf-zone"]
-    zone.setdefault("markup", {})["owners"] = ["lf-owner"]
+    zone["owners"] = ["lf-owner"]
     zone["content"] = "members"
-    zone["author"].pop("example", None)
+    zone.pop("example", None)
     piece = declarations["lf-piece"]
-    piece.setdefault("markup", {})["owners"] = ["lf-zone"]
+    piece["owners"] = ["lf-zone"]
     piece["attributes"]["properties"] |= {
         "pinned": {"type": "string"},
         "restated": {"type": "boolean"},
     }
     piece["attributes"].setdefault("required", []).append("pinned")
-    piece.setdefault("state", {})["verbs"] = {
+    piece["verbs"] = {
         "move": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "pinned"},
         }
     }
-    piece["author"].pop("example", None)
+    piece.pop("example", None)
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(LEAF_OWNER)
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(LEAF_PIECE)
@@ -781,7 +771,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     """The test above takes its decisions in front of the user, on a page that has
     been up long enough for everything to have arrived. Here the log holds it before
     the page opens, which is what puts the anchor pass's skip list on the clock: the
-    registry names the slot a decision retires (state.retired-when), and the registry
+    registry names the slot a decision retires (`retired-when`), and the registry
     arrives over the network, after the module that reads it has evaluated. Replay
     settles the suggestion on the first poll, so the pass that runs with it has to be
     skipping lf-old already — or the page opens with a live mark on words the user
@@ -884,12 +874,12 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
     first = leaf_page(
         "Carried decision",
         """<h1>Plan</h1>
-<lf-ask id="cz-ask"><h2>Which comes first?</h2>
+<section id="cz-ask" role="group" aria-labelledby="cz-ask-h"><h2 id="cz-ask-h">Which comes first?</h2>
   <lf-options id="cz-options">
     <lf-option id="cz-flag">Flag</lf-option>
     <lf-option id="cz-backfill">Backfill</lf-option>
   </lf-options>
-</lf-ask>""",
+</section>""",
     )
     page = open_page(browser, live_url(serve(first)))
     page.locator("#cz-flag .lf-pick").click()

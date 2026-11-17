@@ -52,13 +52,13 @@ export function addressableWord(addressable) {
   return HTML_WORDS[tag] ?? tag;
 }
 
-// A widget's word for its kind: its declaration's fixed word (`words.word`), else what
+// A widget's word for its kind: its declaration's fixed word (`word`), else what
 // its module answers from `lfWord()` where `element` is drawn and has the method, else
 // its tag without the prefix.
 /** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
   return (
-    registry[tag]?.words?.word ||
+    registry[tag]?.word ||
     element?.lfWord?.() ||
     (tag.startsWith("lf-") ? tag.slice(3) : "")
   );

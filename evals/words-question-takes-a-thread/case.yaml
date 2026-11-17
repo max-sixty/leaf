@@ -7,7 +7,7 @@ description: words-question-takes-a-thread
 metadata:
   purpose:
     "Asks: a question the user answers in words reaches On Me as a thread message with
-    --obligation, not as an lf-ask holding no widget."
+    --obligation, not as a section holding no widget."
   tags:
     - asks
 vars:
@@ -32,7 +32,7 @@ assert:
       Find how the reply asks who should be paged. Pass only if that question reaches
       the user's On Me list through a leaf thread command carrying `--obligation`
       (such as `leaf thread create ... --obligation`), or through a widget whose
-      recorded answer is the text the user types. Fail if it is asked as an `lf-ask`
+      recorded answer is the text the user types. Fail if it is asked as a section
       that holds no answering widget, whether on the page or in a message's markup,
       and fail if it is only prose or a chat question with no obligation.
   - type: llm-rubric

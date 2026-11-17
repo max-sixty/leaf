@@ -84,7 +84,7 @@ export function closestAcross(node, selector) {
 
 // Which document an element is in is not a question about looks at all, so the class
 // `.lf-ui` doesn't answer it. The runtime's layer is one container, so a
-// widget inside a reply — markup frozen in the log, carried by no version — is exactly
+// widget inside a reply — markup the log carries, and no version — is exactly
 // what that container holds, and the reading position is a place in the page rather than
 // in the panel over it. `.lf-ui` reaches those elements and a widget's own controls out
 // on the page besides, which would make the look stand in for the place.
@@ -244,7 +244,7 @@ export function alongClimb(parentOf) {
 // Is `node` inside `root`, or `root` itself? `Element.contains` stops at a shadow
 // boundary and these readings walk through one, so the climb is the same one
 // `closestAcross` makes. The boundary decides whether a quote is found at all: a section
-// holding a words.shadow widget does not `contains` the words that widget renders, so
+// holding a `shadow` widget does not `contains` the words that widget renders, so
 // narrowing a search to that section threw away every candidate inside it and the
 // passage resolved to nothing — the anchor captured, the mark never painted.
 export const under = alongClimb(composedParentNode).under;

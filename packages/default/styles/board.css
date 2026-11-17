@@ -139,7 +139,7 @@ lf-column {
     }
   }
 }
-/* The heading is written by lf-board.js rather than by the words.says pass, because
+/* The heading is written by lf-board.js rather than by the `says` pass, because
    it is the list's accessible name as well as its visible words and the pass
    knows nothing about names. Where the upgrade ran, the column carries those
    words as its name and the span is aria-hidden, so they reach the tree once;

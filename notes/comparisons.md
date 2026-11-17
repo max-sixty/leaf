@@ -490,7 +490,7 @@ comment reattachment or how a prior decision constrains a later version.
 A Leaf integration would need to expose visible text, anchors and actions
 through its existing declarations; otherwise foreign content is opaque to its
 checks and log. A registry-to-catalog mapping also needs state verbs, fold
-units, settlement and `state.awaits`, not just component props. Authoring and
+units, settlement and `awaits`, not just component props. Authoring and
 revision tasks can test that cost before selecting a format.
 
 The August search for “Open-JSON-UI” found no implementable specification; the

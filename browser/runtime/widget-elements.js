@@ -45,7 +45,7 @@ export {
    makes. The theme's one pressable rule reads that value.
 
    `worksInside` decides whether a container gesture may take a click. It treats
-   platform interactive elements as their own controls and uses `markup.owners` to
+   platform interactive elements as their own controls and uses `owners` to
    distinguish a container's declared member widgets from nested widgets that own their
    own interaction. What it cannot know is which of the controls it finds the
    container's own module put there — an option's pick mark, a gloss's own mark — so the
@@ -173,7 +173,7 @@ export const dragging = (el, on) => {
 //
 // Two vocabularies, because a container holds two kinds of thing. A widget it merely
 // contains is its own world, and that is every lf-* tag bar the parts the registry says
-// this container is made of (markup.owners) — declared rather than listed, so the
+// this container is made of (`owners`) — declared rather than listed, so the
 // twelfth widget is covered by its entry and a widget whose gesture lands on its own
 // words rather than on chrome (a press on lf-draft's own box) is covered with the rest.
 // Inert ones go in with them: a diagram is evidence the user studies with the pointer
@@ -193,7 +193,7 @@ export function worksInside(node, container) {
   for (let grew = true; grew;) {
     grew = false;
     for (const tag of tagsDeclaring((entry) =>
-      (entry.markup?.owners ?? []).some((owner) => parts.has(owner)),
+      (entry.owners ?? []).some((owner) => parts.has(owner)),
     ))
       if (!parts.has(tag)) {
         parts.add(tag);
@@ -219,18 +219,20 @@ export function worksInside(node, container) {
 /** What else the user could aim at, at `node`, at any point on the page, marked words
  * or not: the nearest element around it, as the page renders it (`renderedParent`, so
  * through the slot that draws it), that takes the pointer itself, or null where nothing
- * does. One takes it where it is - a control, native or ARIA (`CONTROLS`), or an
- * element with a title the browser shows, as a link, a titled button or an option's
- * mark; - an element that declares its own preview (`lfPreview`), as a card that says
- * what it holds, or a gloss; - a registered widget that draws its content itself
- * (`content` `data` or `empty`), as code, a diff or a draft does, with all it draws. A
- * plain tab stop or scrolling box takes nothing, and neither does what a widget holds
- * of the author's markup, as a pane's words, an option's beside its mark, a
- * suggestion's old and new words or a playground's preview: the verbs a widget declares
- * (`state.verbs`) say what it records, not that a press on its content acts. A
- * thread's words preview the thread only where nothing does, on every route that reads
- * a point (preview.js, `readingAt`); presses don't ask, so a press on a thread's words
- * acts as it always has.
+ * does. One takes it where it is:
+ * - a control, native or ARIA (`CONTROLS`), or an element with a title the browser
+ *   shows, as a link, a titled button or an option's mark;
+ * - an element that declares its own preview (`lfPreview`), as a card that says what
+ *   it holds, or a gloss;
+ * - a registered widget that draws its content itself (`content` `data` or `empty`),
+ *   as code, a diff or a draft does, with all it draws.
+ * A plain tab stop or scrolling box takes nothing, and neither does what a widget
+ * holds of the author's markup, as a pane's words, an option's beside its mark, a
+ * suggestion's old and new words or a playground's preview: the verbs a widget
+ * declares (`verbs`) say what it records, not that a press on its content acts.
+ * A thread's words preview the thread only where nothing does, on every route that
+ * reads a point (preview.js, `readingAt`); presses don't ask, so a press on a
+ * thread's words acts as it always has.
  * @param {Node | null} node @returns {Element | null} */
 export function aimableAt(node) {
   for (

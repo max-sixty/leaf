@@ -177,7 +177,7 @@ def initial_sample_events(
                 raise _refused(
                     "fixture-id-repeated", reference, event=seq, id=event["id"]
                 )
-            if event["id"] in child.ids | thread_structure(events).ids:
+            if event["id"] in child.ids | thread_structure(events).holders.keys():
                 raise _refused("fixture-id-taken", reference, event=seq, id=event["id"])
             if event.get("anchor"):
                 event["anchor"] = _fixture_anchor(
@@ -211,7 +211,10 @@ def initial_sample_events(
                     contracts,
                     event["id"]
                     if kind == "comment"
-                    else thread_names(events).get(event.get("parent")),
+                    else thread_names(events).get(
+                        event.get("parent", event.get("message"))
+                    ),
+                    replacing=event.get("message"),
                 ):
                     raise _refused(
                         "fixture-markup",

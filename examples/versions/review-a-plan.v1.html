@@ -180,8 +180,8 @@
       </section>
 
       <section id="plan-final">
-        <lf-ask id="plan-rollout">
-          <h2>Include self-hosted runners in this rollout?</h2>
+        <section id="plan-rollout" role="group" aria-labelledby="plan-rollout-h">
+          <h2 id="plan-rollout-h">Include self-hosted runners in this rollout?</h2>
           <p id="plan-rollout-premise">
             I’ll add the Linux namespace prerequisite check before launching the
             sandbox. On disposable GitHub-hosted VMs, the launcher can temporarily
@@ -203,7 +203,7 @@
               execution for now and add it after a separate validation pass.</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </section>
         <p id="plan-close">
           After we settle setup, shutdown, and the rollout, I’ll implement the steps in
           order, update the runner requirements in the docs, and regenerate the action

@@ -26,7 +26,7 @@ const moduleOwnsBox = (el) => {
     if (content === "markup") return false;
     return (
       content !== "members" ||
-      !(declarationFor(child)?.markup?.owners || []).includes(parent.localName)
+      !(declarationFor(child)?.owners || []).includes(parent.localName)
     );
   }
   return false;
@@ -57,7 +57,7 @@ const moduleOwnsBox = (el) => {
 // container collapses no margin anywhere, so a margin on an item at its edge is a
 // placement rather than room that could not get out — the switch under a screenshot
 // pair carries 3px of exactly that, the UA's own on a checkbox. And an edge whose box
-// is a generated one (a pseudo-element, a `words.says` word, an injected control) is
+// is a generated one (a pseudo-element, a `says` word, an injected control) is
 // the layer's own paint, stated in the same rule as the frame: what the trim looks for
 // is the first and last block the page itself put there, so this looks for the same,
 // and a card's absolutely-positioned pick mark is not the thing under its last

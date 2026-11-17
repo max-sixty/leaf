@@ -41,13 +41,13 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
     browser, serve, subtests
 ):
-    """A message's text is Markdown, rendered here by the page's own vendored layer —
-    the wire carries the log's words and nothing else. Every raw tag renders as the
-    characters it was written in, a block of tags as much as prose saying Vec<T>, and
-    swallowing it into an element would lose the words in front of the user with nothing saying so. What the
-    panel adds is the page's own dress: the theme's element rules are at document level
-    and reach in, a fenced block colors from the tokenizer a version's <pre><code>
-    uses, and a bare URL arrives as the link the user will want to follow.
+    """An agent's message is Markdown with HTML, rendered here by the page's own
+    vendored layer — the wire carries the log's words and nothing else. A block of
+    tags draws as the elements it names, and a tag in a code span stays the characters
+    it was written in. What the panel adds is the page's own dress: the theme's element
+    rules are at document level and reach in, a fenced block colors from the tokenizer
+    a version's <pre><code> uses, and a bare URL arrives as the link the user will want
+    to follow.
 
     A suggestion's words are bound for the page verbatim, so the panel shows them
     as typed. Rendering them would promise the user an italic where the next
@@ -93,10 +93,8 @@ def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
         expect(body.locator("strong")).to_have_text("behind")
         expect(body.locator("blockquote")).to_have_text("which one wins?")
         expect(body.locator("pre code [data-lf-syn]").first).to_have_text("def")
-        # Tags are text in this dialect, a block of them as much as one in a sentence, so
-        # markup shown without a fence keeps the lines it was written in.
-        markup = body.locator("p", has_text="<lf-callout>")
-        assert markup.inner_text() == "<lf-callout>\n<div>a tile</div>\n</lf-callout>"
+        # An agent's block of tags draws as its elements.
+        expect(body.locator("lf-callout > div")).to_have_text("a tile")
         link = body.locator('a[href="https://example.com/notes"]')
         expect(link).to_have_attribute("target", "_blank")
         expect(link).to_have_attribute("rel", re.compile(r"(?:^| )noopener(?: |$)"))
@@ -112,8 +110,8 @@ def test_a_reply_renders_its_markdown_and_a_suggestion_shows_its_characters(
             "and custom handler."
         )
         # The paragraph's asterisks are gone from the words, not merely hidden, and the
-        # raw tag's characters are still among them: what the user can select is what
-        # the message says.
+        # code span's tag characters are still among them: what the user can select is
+        # what the message says.
         text = body.inner_text()
         assert "**" not in text and "Vec<T>" in text
     with subtests.test("suggestion"):
@@ -144,20 +142,14 @@ def test_thread_body_initial_state_comes_from_source_before_upgrade(
                         "additionalProperties": False,
                     },
                     "content": "data",
-                    "words": {
-                        "verbatim": True,
+                    "verbatim": True,
+                    "verbs": {
+                        "edit": {
+                            "unit": "widget",
+                            "record": {"kind": "body"},
+                        }
                     },
-                    "state": {
-                        "verbs": {
-                            "edit": {
-                                "unit": "widget",
-                                "record": {"kind": "body"},
-                            }
-                        },
-                    },
-                    "author": {
-                        "example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
-                    },
+                    "example": '<lf-delayed-body id="example"><pre>Text</pre></lf-delayed-body>',
                 },
             },
             "layer_widgets": {
@@ -193,7 +185,7 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "author": "agent",
             "revision": 1,
             "parent": "body-question",
-            "text": f'Edit these words.\n\n<{tag} id="reply-body"><pre>\n    First line.\n    Second line.\n</pre></{tag}>',
+            "text": f'Edit these words.\n\n<{tag} id="reply-body">\n<pre>\n    First line.\n    Second line.\n</pre></{tag}>',
         },
     )
     page = open_page(browser, live_url(url))
@@ -236,12 +228,12 @@ def test_crossed_responses_wait_for_the_same_frozen_widget_module(browser, serve
     host = REPLY_HOST_PAGE.replace(
         "</main>",
         """
-<lf-ask id="delivery"><h2>Which delivery?</h2>
+<section id="delivery" role="group" aria-labelledby="delivery-h"><h2 id="delivery-h">Which delivery?</h2>
   <lf-options id="delivery-choice">
     <lf-option id="delivery-now">Now</lf-option>
     <lf-option id="delivery-later">Later</lf-option>
   </lf-options>
-</lf-ask></main>""",
+</section></main>""",
     )
     url = serve(host)
     page = open_page(browser, live_url(url))

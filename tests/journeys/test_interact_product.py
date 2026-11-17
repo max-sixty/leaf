@@ -42,10 +42,13 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
         keyword="required",
     )
 
-    group = '<lf-ask id="pick-decision"><h2>Which one?</h2><lf-options id="pick"{}>'
+    group = (
+        '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h">'
+        '<h2 id="pick-decision-h">Which one?</h2><lf-options id="pick"{}>'
+    )
     group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
     group += (
-        '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-ask>'
+        '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></section>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</main>", group.format("", "") + "</main>")
@@ -204,10 +207,10 @@ def test_reply_validates_widget_markup(page_dir):
             ],
         )
 
-    bad = reply('<lf-diagram id="f"><pre>graph LR</pre><b>x</b></lf-diagram>')
+    bad = reply('<lf-diagram id="f">\n<pre>graph LR</pre><b>x</b></lf-diagram>')
     assert bad.exit_code != 0
     assert "its body is one <pre> holding the text" in bad.output
-    good = reply('<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
+    good = reply('<lf-diagram id="f">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>')
     assert good.exit_code == 0, good.output
     event = events_model.read_events(page_dir)[-1]
     assert event["kind"] == "reply"
@@ -266,7 +269,7 @@ def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_d
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            'See:\n\n<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>\n'
+            'See:\n\n<lf-diagram id="f">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>\n'
             '<script type="module">throw new Error("inert-message-script")</script>',
         ],
     )
@@ -296,7 +299,7 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            'Fixed in `poll()`.\n\n<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
+            'Fixed in `poll()`.\n\n<lf-diagram id="fix">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],
     )
     assert result.exit_code == 0, result.output

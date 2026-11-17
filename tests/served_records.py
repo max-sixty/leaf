@@ -230,7 +230,7 @@ def build() -> dict:
                         "parent": "e1",
                         "responds": "e1",
                         "text": "Here is the board. Which card goes first?\n\n"
-                        + model_layer()["lf-board"]["author"]["example"],
+                        + model_layer()["lf-board"]["example"],
                         "obligation": True,
                     },
                     {
@@ -440,12 +440,12 @@ QUIET = "2026-09-19T11:30:00+00:00"
 
 OBLIGATION_PAGE = leaf_page(
     "Served queues",
-    '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick">'
+    '<section id="pick-ask" role="group" aria-labelledby="pick-ask-h"><h2 id="pick-ask-h">Which one?</h2><lf-options id="pick">'
     '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
-    "</lf-options></lf-ask>"
-    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship">'
+    "</lf-options></section>"
+    '<section id="ship-ask" role="group" aria-labelledby="ship-ask-h"><h2 id="ship-ask-h">Ship it?</h2><lf-options id="ship">'
     '<lf-option id="ship-now">Now</lf-option><lf-option id="ship-later">Later</lf-option>'
-    "</lf-options></lf-ask>",
+    "</lf-options></section>",
 )
 
 
@@ -484,9 +484,7 @@ def obligation_value_cases():
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
         registry = {
             "lf-value": {
-                "state": {
-                    "verbs": {"set": spec},
-                },
+                "verbs": {"set": spec},
             }
         }
         source = SourceReading(SourceDocument(markup), registry)
@@ -699,12 +697,12 @@ def gesture_sequence() -> dict:
 TAIL_PAGE = leaf_page(
     "Served tails",
     '<p id="p">Two questions.</p>'
-    '<lf-ask id="kinds-ask"><h2>Which kinds?</h2><lf-options id="kinds" multiple>'
+    '<section id="kinds-ask" role="group" aria-labelledby="kinds-ask-h"><h2 id="kinds-ask-h">Which kinds?</h2><lf-options id="kinds" multiple>'
     '<lf-option id="red">Red</lf-option><lf-option id="blue">Blue</lf-option>'
-    "</lf-options></lf-ask>"
-    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship">'
+    "</lf-options></section>"
+    '<section id="ship-ask" role="group" aria-labelledby="ship-ask-h"><h2 id="ship-ask-h">Ship it?</h2><lf-options id="ship">'
     '<lf-option id="now">Now</lf-option><lf-option id="later">Later</lf-option>'
-    "</lf-options></lf-ask>",
+    "</lf-options></section>",
 )
 # Picks, a comment and its answer, an undo of an older pick, which withdraws a held
 # projection entry and drops it from the undo list, and a pickup, which marks held
@@ -825,18 +823,16 @@ def tail_cases() -> list[dict]:
                 "additionalProperties": False,
             },
             "content": "none",
-            "state": {
-                "awaits": {
-                    "when": {"active": [True]},
-                    "value": "set",
-                    "answered": {"set": {}},
-                },
-                "verbs": {
-                    "set": {
-                        "unit": "widget",
-                        "record": {"kind": "value", "attr": "value"},
-                    }
-                },
+            "awaits": {
+                "when": {"active": [True]},
+                "value": "set",
+                "answered": {"set": {}},
+            },
+            "verbs": {
+                "set": {
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "value"},
+                }
             },
         },
     }

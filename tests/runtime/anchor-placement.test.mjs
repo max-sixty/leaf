@@ -208,3 +208,48 @@ test("placement stands where a fresh resolution does, after every change", async
   }
   document.body.replaceChildren();
 });
+
+test("placement keeps a range over a passage's words, a thread's and the draft's", () => {
+  // The anchor paint marks a passage from its `ranges`, a thread's and the draft's
+  // alike. A reading that moves nothing keeps the ranges it had, so the paint keeps
+  // the highlights and the index it built of them. A browser also moves a live range
+  // with words written ahead of it, which this document doesn't
+  // (test_render_anchors.py holds that for a thread's mark).
+  document.body.innerHTML =
+    '<main><p id="a">The nightly export keeps one file per tenant.</p>' +
+    '<p id="b">Both exports run side by side each morning.</p></main>';
+  setAnchoringReady(true);
+  const placement = createAnchorPlacement();
+  const thread = {
+    id: "t",
+    key: "t",
+    anchor: { section: "a", quote: "one file per tenant" },
+    msgs: [],
+    resolved: false,
+    root: {},
+  };
+  const read = () =>
+    placement.read({
+      threads: [thread],
+      draft: {
+        open: true,
+        anchor: { section: "b", quote: "side by side" },
+        about: null,
+        drawing: null,
+      },
+      actionAnchor: null,
+    });
+  read();
+  const [placed] = placement.placedAt("t").ranges;
+  const [drafted] = placement.pendingAt().ranges;
+  assert.equal(String(placed), "one file per tenant");
+  assert.equal(String(drafted), "side by side");
+  read();
+  assert.equal(placement.placedAt("t").ranges[0], placed);
+  assert.equal(placement.pendingAt().ranges[0], drafted);
+  // Words taken out of the passage itself leave nothing to place.
+  const words = /** @type {Text} */ (document.getElementById("b")?.firstChild);
+  words.data = "Both exports run.";
+  assert.equal(placement.pendingAt(), null);
+  document.body.replaceChildren();
+});

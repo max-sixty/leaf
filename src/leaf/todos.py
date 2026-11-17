@@ -44,9 +44,8 @@ reads only the document and the log, sees it there. A start on a page declared
 
 Any agent session can end any open to-do, whoever opened or last started it: a
 start shows who is at work, and gives no right over the to-do's end. The user
-chose this on 2026-11-16, removing the rule that only the session that wrote a
-to-do's latest start could end it, which made another session start the to-do
-first and so added a step without protecting anything.
+decided this. Letting only the session that last started a to-do end it would
+make another session start the to-do first, a step that protects nothing.
 
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
 live widget that declares `state.work` or holds an unsettled action

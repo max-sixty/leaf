@@ -1,6 +1,6 @@
-# Added after the obligations API audit to check settling questions the user answered
-# in chat without erasing a separate pending decision. Since the agent ends such a
-# question by resolving its thread, the rubric asks for that.
+# Checks settling questions the user answered in chat without erasing a separate
+# pending decision. Since the agent ends such a question by resolving its thread,
+# the rubric asks for that.
 description: settle-conversational-obligations
 metadata:
   purpose: "End questions answered elsewhere or withdrawn, preserving questions still owed."

@@ -184,14 +184,16 @@ function statusWords({
   // the agent keeps the sentence current, reminded by its hooks when it goes unrenewed
   // (`hook_transport.status_reminders`), and a sentence the server stops believing
   // becomes a stall, which dates itself. The disclosure says how long ago it was
-  // written. A row dated by the sentence's age, rejected on 27 October 2026, read
-  // "3m ago" for most of every turn, while the session was visibly moving.
+  // written. Rejected: a row dated by the sentence's age, which can read
+  // "3m ago" for most of a turn while the session is visibly moving.
   //
-  // Until the agent writes that sentence the row says nothing, and the leaf's tone says
-  // it works: the words beside the leaf are the agent's to choose (the user's choice,
-  // 28 October 2026). Rejected: Leaf's guess at them ("Got your comment", "Working on
-  // it"), which put Leaf's words in the agent's mouth; the update's own label already
-  // says it was Delivered. The step the harness observed stays in the disclosure.
+  // Until the agent writes that sentence the row says Working, Leaf's reading of the
+  // harness, in Leaf's voice, and the agent's sentence takes its place: the words in
+  // the agent's voice are the agent's to choose. The user asked for the row not to go
+  // blank until then, and rejected Leaf's guess at the agent's words ("Got your
+  // comment", "Working on it"), which puts Leaf's words in the agent's mouth. The row
+  // keeps the one word while the step the harness observed changes, as Codex's does
+  // every few seconds, and the disclosure names that step.
   if (kind === "working") {
     const sentence = detail ? [agentLine(detail, detailSource)] : [];
     // A wait the user answers in the terminal leads, ahead of the sentence it
@@ -200,12 +202,14 @@ function statusWords({
       const said = [work, ...(detail ? [" — ", ...sentence] : [])];
       return [said, said, ""];
     }
-    return detail ? [sentence, sentence, ""] : ["", work, work];
+    if (detail) return [sentence, sentence, ""];
+    const working = WORK_WORDS.working;
+    return [working, work, work.text === working ? "" : work];
   }
   // The stock words say where a comment starts; they report and ask nothing. An
   // update still on its way says so on its own label and in the explanation's count,
-  // so the line keeps the invitation (the user's choice, 26 October 2026, over a
-  // separate "listening" while one was).
+  // so the line keeps the invitation (the user's choice, over a
+  // separate "listening" while one is).
   if (kind === "listening") return [invite, invite, ""];
   if (kind === "stalled")
     return [
@@ -487,8 +491,8 @@ export function leafRow(entry) {
   // The user opens this panel to find which page needs them, so a row says what the
   // agent last said, in its own words (`recording the demo`): three pages waiting
   // rendered as three identical rows said least about the one row they are here to
-  // act on. A working page whose agent has said nothing yet shows its tone alone, as
-  // the status does.
+  // act on. A working page whose agent has said nothing yet says Working, as the
+  // status does (`statusWords`).
   const own = detail ? [agentSays(detail)] : [];
   /** @param {Said} said */
   const stated = (said) => [said, ...(detail ? [leafSays(" — "), ...own] : [])];
@@ -505,7 +509,9 @@ export function leafRow(entry) {
     kind === "working"
       ? entry.activity.awaiting
         ? stated(facts.work)
-        : own
+        : detail
+          ? own
+          : [leafSays(WORK_WORDS.working)]
       : kind === "listening"
         ? [leafSays("Ready")]
         : kind === "stalled"

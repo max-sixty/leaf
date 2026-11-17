@@ -58,9 +58,9 @@ ACROSS_OBLIGATION = """
       <tbody><tr><td>Hot</td><td class="num">40</td></tr>
         <tr><td>Warm</td><td class="num">120</td></tr></tbody>
     </table></figure>
-    <lf-options id="{id}-choice" choose{across}{width}>
+    <lf-options id="{id}-choice"{across}{width}>
       <lf-option id="{id}-7"><strong>7 days</strong> The cheapest.
-        <lf-options id="{id}-nested" choose>
+        <lf-options id="{id}-nested">
           <lf-option id="{id}-hot"><strong>Hot only</strong> Drop warm at once.</lf-option>
           <lf-option id="{id}-both"><strong>Both tiers</strong> Keep warm a week.</lf-option>
         </lf-options>
@@ -93,7 +93,7 @@ ACROSS_WIDE_OPTIONS_PAGE = leaf_page(
 PICTURED_OBLIGATION = """
   <lf-ask id="{id}">
     <h3>Should each item say where it sits in the plan?</h3>
-    <lf-options id="{id}-choice" choose{width}>
+    <lf-options id="{id}-choice"{width}>
       <lf-option id="{id}-yes"><strong>Show the goal and step</strong> A line over each item.
         <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
@@ -113,12 +113,16 @@ PICTURED_OBLIGATION = """
 PLATE_PACKAGE = {
     "lf-plate": {
         "description": "A project package's picture, under a name the theme never sees.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-visual": "whole",
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "words": {
+            "visual": "whole",
+        },
     }
 }
 
@@ -149,19 +153,19 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
     + PICTURED_OBLIGATION.format(id="pictured", width="")
     + PICTURED_OBLIGATION.format(id="widened", width=' data-width="wide"')
     + PICTURED_OBLIGATION.format(id="across", width=' data-width="wide" across')
-    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice" choose>'
+    + '<lf-ask id="plated"><h3>Which latency?</h3><lf-options id="plated-choice">'
     + PLATED_OPTION.format(side="yes", title="Backend")
     + PLATED_OPTION.format(side="no", title="Frontend")
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice" choose>'
+    + '<lf-ask id="captured"><h3>Which panel?</h3><lf-options id="captured-choice">'
     + CAPTURED_OPTION.format(side="yes", title="Both lines", src=SHOT_SRC["before"])
     + CAPTURED_OPTION.format(side="no", title="One line", src=SHOT_SRC["after"])
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice" choose>'
+    + '<lf-ask id="rowed"><h3>Which route?</h3><lf-options id="rowed-choice">'
     + ROWED_OPTION.format(side="yes", title="Along the fence")
     + ROWED_OPTION.format(side="no", title="Under the lawn")
     + "</lf-options></lf-ask>"
-    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice" choose>'
+    + '<lf-ask id="worded"><h3>Which order?</h3><lf-options id="worded-choice">'
     + '<lf-option id="worded-yes"><strong>By owner</strong> Grouped.</lf-option>'
     + '<lf-option id="worded-no"><strong>By age</strong> As today.</lf-option>'
     + "</lf-options></lf-ask>",
@@ -169,13 +173,13 @@ PICTURED_OBLIGATION_PAGE = leaf_page(
 
 
 def test_options_holding_pictures_stand_apart(browser, serve):
-    """Joined into one control, a hairline was the only boundary between one option's
+    """Joined into one control, a hairline would be the only boundary between one option's
     picture and the next option's title, so a live group whose options hold a picture
     draws them as standalone cards a gap apart, each framed, bare rows and the add field
     as well as titled cards, while a group of words stays one control with hairlines
     between its cells. A
     picture is a drawing, a capture or a widget whose entry declares it draws one
-    (`x-visual`), wrapped in the link that opens it or not.
+    (`words.visual`), wrapped in the link that opens it or not.
 
     The cards read down unless the author asks for `across`, so each picture stands at
     the size its author gave it, in the reading column or a group given `data-width`;
@@ -224,7 +228,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
     # a cell, so it reads among pictures as plainly as among words.
     for id in ("pictured", "worded"):
         page.locator(f"#{id}-yes > strong").click()
-        expect(page.locator(f"#{id}-yes")).to_have_attribute("chosen", "")
+        expect(page.locator(f"#{id}-yes")).to_have_attribute("selected", "")
     page.mouse.move(0, 0)
     face = """el => { const s = getComputedStyle(el);
                       return [s.backgroundColor, s.boxShadow]; }"""
@@ -287,7 +291,7 @@ def chipped_obligation(id, cards):
         f'<lf-ask id="{id}"><h3>Which fix first?</h3>'
         '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
-        f'<lf-options id="{id}-choice" choose across>{options}</lf-options></lf-ask>'
+        f'<lf-options id="{id}-choice" across>{options}</lf-options></lf-ask>'
     )
 
 
@@ -299,7 +303,7 @@ CHIPPED_CARDS_PAGE = leaf_page(
         [
             (["recommended"], "Seal the hatch", ""),
             ([], "Glaze the bay", ""),
-            (["risky"], "Insulate the floor", " chosen"),
+            (["risky"], "Insulate the floor", " selected"),
         ],
     )
     + chipped_obligation(
@@ -382,10 +386,10 @@ def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     first.focus()
     page.keyboard.press("1")
     round_trip(page)
-    expect(page.locator("#idea-shared-filters")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-shared-filters")).to_have_attribute("selected", "")
     choices.get_by_text("Export the filtered table", exact=True).tap()
     round_trip(page)
-    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-csv-export")).to_have_attribute("selected", "")
 
     done = choices.get_by_role(
         "button", name="Done: these picks are complete", exact=True
@@ -398,8 +402,8 @@ def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     wait_for_revision(
         page, stamp_page(serve.page_dir, revised, "Clarify export scope")["revision"]
     )
-    expect(page.locator("#idea-shared-filters")).to_have_attribute("chosen", "")
-    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-shared-filters")).to_have_attribute("selected", "")
+    expect(page.locator("#idea-csv-export")).to_have_attribute("selected", "")
 
     choices.get_by_role(
         "button", name="Take back Done: reopen these options", exact=True
@@ -408,10 +412,10 @@ def test_ideas_shortlist_survives_revision_and_can_reopen(browser, serve):
     expect_obligations_answered(page, "0/1")
     choices.get_by_text("Export the filtered table", exact=True).tap()
     round_trip(page)
-    expect(page.locator("#idea-csv-export")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#idea-csv-export")).not_to_have_attribute("selected", "")
     undo(page)
     round_trip(page)
-    expect(page.locator("#idea-csv-export")).to_have_attribute("chosen", "")
+    expect(page.locator("#idea-csv-export")).to_have_attribute("selected", "")
     done.tap()
     round_trip(page)
     expect_obligations_answered(page, "1/1")
@@ -423,7 +427,7 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
         "obligation after a cleared pick",
         """
 <lf-ask id="release-decision"><h1>Ship this release?</h1>
-  <lf-options id="release-options" choose>
+  <lf-options id="release-options">
     <lf-option id="release-ship">Ship it</lf-option>
     <lf-option id="release-hold">Hold it</lf-option>
   </lf-options>
@@ -443,7 +447,7 @@ def test_clearing_an_answer_reopens_its_obligation(browser, serve):
     holding(page, held, 1, "the cleared selection")
     # The pick clears under the user at once; whether that leaves the obligation unanswered
     # is the log's reading.
-    expect(page.locator("#release-ship")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#release-ship")).not_to_have_attribute("selected", "")
 
     held[0].continue_()
     page.unroute("**/api/event")
@@ -456,15 +460,15 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
 ):
     """Two semantic readings, collected from declarations rather than from any tag.
 
-    The count used to be a query for `lf-suggestion:not([data-lf-state])`: perfect for
+    A count that queried `lf-suggestion:not([data-lf-state])` would be perfect for
     suggestions, and silently nothing for every other thing a page waits on. What
-    makes an instance an obligation is now the entry's own attribute condition, and the entry
+    makes an instance an obligation is the entry's own attribute condition, and the entry
     explicitly names which state verbs answer it — so this page's five active obligations are
     one authored answer, a live question, a change nobody has decided, and two explicit
     questions nested in tasks.
 
-    The rest of the page is every way of not being one, and each was a way of getting
-    it wrong: a group whose pick the version already carries (`chosen`, with nothing in
+    The rest of the page is every way of not being one, and each is a way of getting
+    it wrong: a group whose pick the version already carries (`selected`, with nothing in
     the log — a fold-only reading counts it as open on every shipped example), one the
     author has settled, one that takes no picks at all, an exhibited decision inside a
     lf-sample, and a milestone at `blocked`, which is the same word on a widget whose
@@ -500,10 +504,10 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     on from the first.
 
     The landing is marked on the obligation and stands the user on it, which is the same
-    element the scroll has just brought to the top of the window — a walk that landed the
-    control instead put them on whatever the decision's context and evidence had pushed
-    off the bottom of the screen. Its contributed actions are directly addressable there;
-    the controls themselves remain the next Tab stops."""
+    element the scroll has just brought to the top of the window — a walk that landed
+    the control instead would put them on whatever the decision's context and evidence
+    had pushed off the bottom of the screen. Its contributed actions are directly
+    addressable there; the controls themselves remain the next Tab stops."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
     expect_obligations_answered(page, "1/5")
 
@@ -512,9 +516,9 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
         # installed binary, blurs the obligation the user is located on but leaves it the
         # document's focused area, and the browser puts them back on it when the window
         # returns. The tab stop the walk lent the obligation is held through that blur.
-        # Taking it back made the obligation unfocusable while focused, the browser
-        # dropped the user to the body, and the window returned without preserving their
-        # current location.
+        # Taking it back would make the obligation unfocusable while focused, the browser
+        # would drop the user to the body, and the window would return without preserving
+        # their current location.
         #
         # Headless Playwright cannot take system focus from its window, so the test
         # delivers the platform's blur at the obligation while it stays the focused area,
@@ -566,8 +570,8 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
         expect_obligations_answered(page, "1/5")
 
     # Every request has an answering control, so the walk never has to leave a borrowed
-    # tab stop on an obligation it has left. A generated custom element may now be the public
-    # role-bearing control itself, so a dash in its tag no longer means authored widget
+    # tab stop on an obligation it has left. A generated custom element may be the public
+    # role-bearing control itself, so a dash in its tag doesn't mean authored widget
     # paint. Obligation ids are the exact ownership boundary this assertion is about; the
     # current obligation alone may retain the stop that focus is using.
     expect(page.locator(CURRENT_OBLIGATION)).to_have_count(1)
@@ -612,20 +616,18 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
 def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, serve):
     """The decision is the question's whole reading region, not only its answer control.
 
-    An options group used to be both the state owner and the navigation target. When
-    the heading, premise, and evidence stood immediately above it, `d` centred the
-    options and made the user scroll backward before they could answer. `lf-ask`
-    encodes that broader unit while the nested x-awaits widget still owns the action:
-    the walk rings the region, aligns its opening at the window's head, and stands the
-    user on it.
+    Were an options group both the state owner and the navigation target, then when the
+    heading, premise, and evidence stood immediately above it, `d` would centre the
+    options and make the user scroll backward before they could answer. `lf-ask` encodes
+    that broader unit while the nested state.awaits widget still owns the action: the
+    walk rings the region, aligns its opening at the window's head, and stands the user
+    on it.
 
-    On it, and not on the control that answers it, which was where the walk landed until
-    the scroll and the focus were measured against each other. The scroll puts the
-    region's opening at the top of the window and the answering control is as far down as
-    the context and evidence are long: on the shipped corpus at 1200x900 the heading stood
-    at 54px and the focused pick ran from 847 to 1107 in a 900px window, so the user was
-    told to look at one thing while located on another they could not see, and their next
-    Space would have worked it. The picks are the next Tab stops instead, which is what a
+    On it, and not on the control that answers it. The scroll puts the region's opening
+    at the top of the window and the answering control is as far down as the context
+    and evidence are long, so a walk landing on the control would tell the user to look
+    at one thing while located on another they could not see, and their next Space
+    would work it. The picks are the next Tab stops instead, which is what a
     stop at `tabindex: -1` on the region buys: it keeps its place in document order and
     everything inside the decision comes after it.
     """
@@ -662,7 +664,8 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     )
     scroll_settled(page)
     # Where the user was left is on the screen the walk has just arranged, and the pick
-    # the walk used to stand them on is the measurement that says the two cannot both be.
+    # the walk could stand them on instead is the measurement that says the two cannot
+    # both be.
     position = page.evaluate(
         """() => {
           const box = document.activeElement.getBoundingClientRect();
@@ -742,7 +745,7 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     ).to_have_text(["1", "2"])
 
     page.keyboard.press("2")
-    expect(page.locator("#lq-token")).to_have_attribute("chosen", "")
+    expect(page.locator("#lq-token")).to_have_attribute("selected", "")
     round_trip(page)
     expect_obligations_answered(page, "2/5")
 
@@ -1248,12 +1251,12 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
 ):
     """A change to a phrase has no region to declare, so the document supplies one.
 
-    An enclosing widget (`x-encloses`) states its own arrival region: a heading, the
-    context, then the control. A suggestion can stand mid-sentence, so it can never satisfy "an obligation must
-    name itself without context outside the obligation" and no region can be written round it.
-    Arriving on the change alone put its own top edge at the window's head and took the
-    sentence and the heading with it, leaving the user on the change with nothing on
-    screen saying what they would be accepting.
+    An enclosing widget (`state.encloses`) states its own arrival region: a heading,
+    the context, then the control. A suggestion can stand mid-sentence, so it can never
+    satisfy "an obligation must name itself without context outside the obligation" and
+    no region can be written round it. Arriving on the change alone put its own top edge
+    at the window's head and took the sentence and the heading with it, leaving the user
+    on the change with nothing on screen saying what they would be accepting.
 
     The heading, the sentence, and the change are read together: a landing on the
     sentence alone would satisfy a heading assertion by accident on a page whose
@@ -1495,16 +1498,16 @@ def test_an_obligation_inside_a_card_is_brought_into_that_card(browser, serve):
 
 def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     """The walk measures from the user, the way Space page travel measures from the scroll position
-    and t/T from the focused thread. It kept an id of its own instead, so every walk
-    the user had not made with this key started at the top of the page: scroll
-    halfway down and press `d` and you were taken back past everything you had read,
-    and so was anyone who had just selected a paragraph to comment on.
+    and t/T from the focused thread. A walk that kept an id of its own would start every
+    walk the user had not made with this key at the top of the page: scroll halfway
+    down and press `d` and you would be taken back past everything you had read, and so
+    would anyone who had just selected a paragraph to comment on.
 
     Reading an obligation is being at it without being on it, so the walk arrives
     there. The panel's On Me mark is no place: pressing it opens On Me and leaves the
     focus in the panel, which holds the user's place on the page, so the walk after it
     steps on from the obligation they stood on rather than restarting. A selected
-    passage now enters its comment field immediately; while that field stands, letters
+    passage enters its comment field immediately; while that field stands, letters
     are text rather than page-navigation keys."""
     page = open_page(browser, serve(OBLIGATIONS_PAGE))
 
@@ -1519,7 +1522,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On Me and takes the focus into the panel, which holds the
+    # On Me's tab opens it and takes the focus into the panel, which holds the
     # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
@@ -1531,13 +1534,14 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
 def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     """A suggestion is one decision, so it wears one ring, whatever its slots are made of.
 
-    The wrapper generated no box once — the same "take the form your content takes" with
-    the box left out — and an element with none measures (0,0) at the document's origin,
-    which is not a degenerate answer but a wrong one. Everything that asked the wrapper
-    where it was believed it, so the travel centred the top of the document and a page
-    whose open decisions were all suggestions answered `d` by appearing to do nothing at all.
+    A wrapper that generated no box — the same "take the form your content takes" with
+    the box left out — would measure (0,0) at the document's origin, as an element with
+    none does, which is not a degenerate answer but a wrong one. Everything that asked
+    the wrapper where it was would believe it, so the travel would centre the top of the
+    document and a page whose open decisions were all suggestions would answer `d` by
+    appearing to do nothing at all.
 
-    Hanging the ring on the pieces instead covered that and said the wrong thing about
+    Hanging the ring on the pieces instead covers that and says the wrong thing about
     the change: two outlines meeting down the middle of a sentence, or stacked across
     two block slots, read as two boxes touching rather than as the one decision the user is
     located in. So what is asserted here is that the user is taken to the change, and
@@ -1565,10 +1569,10 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     # bug takes them to the document's origin, so a scroll that ends *below* where they
     # started is the whole of what says they were carried to the change instead.
     #
-    # Said that way rather than as "the change was off screen before the press": that was
-    # true by a few dozen pixels, which made it a fact about how tall the blocks above the
-    # change happened to be. Giving the question above it a label set one more line and
-    # the precondition stopped holding, with nothing wrong anywhere.
+    # Said that way rather than as "the change was off screen before the press": that
+    # would be true by only a few dozen pixels, a fact about how tall the blocks above the
+    # change happen to be, so one more line above it would stop the precondition holding,
+    # with nothing wrong anywhere.
     scroll_settled(page)
     was = page.evaluate("() => document.scrollingElement.scrollTop")
     assert was > 0, "the user must have somewhere to have come from"
@@ -1704,17 +1708,17 @@ def test_a_commented_obligation_does_not_wear_its_ring_on_the_runtime_s_own_note
     The paint pass writes one hidden line per block holding a comment, saying how many
     it holds, and for an element anchor that line lands inside the element the anchor
     names. It is clipped to a pixel, so it has a box — and a wrapper that draws none of
-    its own then had two children with area, its slot and the runtime's word about the
-    page. Area alone kept the wrong ones out only by luck: the family's control line
+    its own then has two children with area, its slot and the runtime's word about the
+    page. Area alone keeps the wrong ones out only by luck: the family's control line
     happens to be zero-wide, and this one is not.
 
-    The order is why nothing caught it. The note is written after the marks are placed,
+    The order hides it. The note is written after the marks are placed,
     so the first paint of a page sees no note and the ring is right; it moves onto the
     pixel on the next pass — which the On Me walk always is, the user having pressed a
     key. So the fault needs a comment on the page *and* a repaint, and shows as a 1px
     ring beside the change instead of on it.
 
-    The shipped wrapper draws a box of its own now, so the page supplies the boxless
+    The shipped wrapper draws a box of its own, so the page supplies the boxless
     one here — the line of CSS any page can write is what keeps this reachable."""
     url = serve(
         OBLIGATIONS_PAGE.replace(

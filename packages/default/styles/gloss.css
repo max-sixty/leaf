@@ -13,7 +13,7 @@ lf-gloss {
      (base.css, "Where it stands"). */
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
-/* The no-script rendering of x-says. Once the runtime writes the selectable span, that
+/* The no-script rendering of words.says. Once the runtime writes the selectable span, that
  * span takes over. */
 lf-gloss[tip]::after {
   content: " (" attr(tip) ")";

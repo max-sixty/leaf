@@ -367,12 +367,15 @@ def test_a_row_an_arriving_image_grew_keeps_its_size_through_a_swap(browser):
 
 def test_a_row_a_transition_grew_keeps_its_size_through_a_swap(browser):
     """Each frame of a transition is read, so the swap after it is judged against the
-    height it ended at."""
+    height it ended at.
+
+    The occupant's words stand at its top, so its growth moves no words. A button's
+    label, centred as the button grew, moved under the shift watch on a starved host."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"
         + quote(
-            STILL_ROW.format(first='<button id="first">First</button>').replace(
+            STILL_ROW.format(first='<div id="first">First</div>').replace(
                 "<body",
                 "<style>#first{height:24px;transition:height .2s linear}"
                 "#first.tall{height:40px}</style><body",

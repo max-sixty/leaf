@@ -389,7 +389,7 @@ declares the words in `lfPreview` and writes no `title`. Off Leaf nothing reads
 
 A thread's words preview the thread to a pointer or a finger only where nothing else
 there takes the pointer: a control, native or ARIA, an element with a `title` or an
-`lfPreview`, or a widget that draws its content itself (`x-content` `data` or
+`lfPreview`, or a widget that draws its content itself (`content` `data` or
 `empty`). There the element's own preview shows, or none, and the thread is reached
 by its margin entry. Words a widget holds of the author's markup, outside any control
 in it, preview their thread.

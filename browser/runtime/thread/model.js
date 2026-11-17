@@ -149,7 +149,7 @@ const hasUnread = (thread) => thread.unread.length > 0;
 /**
  * Whether a thread is news: still open and holding words the user hasn't read. A
  * resolved thread's unread words aren't, so the news the panel counts never outnumbers
- * the open threads; a reply reopens its thread, and the user chose on 21 October to
+ * the open threads; a reply reopens its thread, and the user chose to
  * leave what reaches a closed one unannounced.
  * @param {Pick<Thread, "resolved"> & Unread} thread */
 export const isNews = (thread) => !thread.resolved && hasUnread(thread);
@@ -545,7 +545,7 @@ export function threadRecordReader() {
     /** @param {Message} message @param {boolean} unread @param {string} thread */
     const readMessage = (message, unread, thread) => {
       const {
-        markup,
+        html,
         plainText,
         attention,
         session,
@@ -557,12 +557,12 @@ export function threadRecordReader() {
       } = message;
       const units = unitsByMessage.get(message.id) ?? [];
       const authored = document.messageBodies?.get(message.id);
-      if (markup && !authored)
+      if (html && !authored)
         throw new Error(`Authored message ${message.id} has no captured body`);
       /** @type {({kind: "authored", units: typeof units} & CapturedBody)
        * | {kind: "reaction" | "suggestion" | "prose", text: string}} */
       const body =
-        markup && authored
+        html && authored
           ? { kind: "authored", ...authored, units }
           : {
               kind: message.token

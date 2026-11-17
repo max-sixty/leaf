@@ -1056,9 +1056,8 @@ def test_the_payload_is_text():
 def test_every_skill_file_reads_in_one_command():
     """An agent reads a skill file with `cat` as often as with Read, and Claude Code
     hands a Bash output over 30,000 characters back as a 2 KB preview with the rest
-    saved to a file the agent rarely opens. page-authoring.md at 48 KB reached
-    authoring sessions that way until it was split, so each skill's files stay
-    under that cap."""
+    saved to a file the agent rarely opens, so each skill's files stay under that
+    cap."""
     oversized = {
         path.relative_to(ROOT).as_posix(): size
         for root in (ROOT / "skills", ROOT / ".claude" / "skills")
@@ -1424,9 +1423,9 @@ def test_leaf_writes_its_own_marks_under_its_prefix():
     """A class or data attribute Leaf writes on an element is `lf-` or `data-lf-`, the
     names `page check` refuses an author, so a page's CSS for its own names never
     reaches Leaf's elements (browser/AGENTS.md, "Leaf's elements wear only Leaf's
-    names"). Before #5050, a page rule for `.hi` turned lf-code's highlighted line blue,
-    and one for `.away` the panel's away leaf red; a rule for `.choice` once outlined a
-    playground's own choices the same way.
+    names"). Unprefixed, a page rule for `.hi` would turn lf-code's highlighted line
+    blue, and one for `.away` the panel's away leaf red; a rule for `.choice` would
+    outline a playground's own choices the same way.
 
     The names Leaf writes without its prefix are a library's, on an element Leaf draws
     for that library to read or style: Pierre's row attributes on lf-diff's own rows,
@@ -1547,13 +1546,13 @@ def test_kernel_selectors_name_no_package_tag():
 def test_the_kernel_styles_no_class_a_page_coins():
     """The kernel reaches a page's element by a class only where that class is one of
     Leaf's own names (browser/AGENTS.md, "Leaf's elements wear only Leaf's names"): an
-    `lf-` class, which a page writes only where a kernel idiom lets it, as `lf-btn`
-    does, or a Layout's. Before this check it styled a page's own `.button`, `.field`,
-    `.choice` and `.scroll`, so a plain page's `<label class="choice">` took Leaf's aim
-    floor and grew its form (tests/fixtures/plain/form.html). A kernel sheet's selectors and `@scope` preludes, and the
-    selectors the runtime hands a DOM query, name no other class but a library's on the
-    elements Leaf draws for it: PhotoSwipe's in the chrome's lightbox, and CodeMirror's
-    in a text field's closed tree."""
+    `lf-` class, which a page writes only where a kernel idiom lets it, as `lf-scroll`
+    does, or a Layout's. A kernel that styles a page's own `.button`, `.field`,
+    `.choice` and `.scroll` gives a plain page's `<label class="choice">` Leaf's aim
+    floor and grows its form (tests/fixtures/plain/form.html). A kernel sheet's
+    selectors and `@scope` preludes, and the selectors the runtime hands a DOM query,
+    name no other class but a library's on the elements Leaf draws for it: PhotoSwipe's
+    in the chrome's lightbox, and CodeMirror's in a text field's closed tree."""
     authored = ("lf-", "layout-", "density-")
     libraries = ("pswp", "cm-")
 
@@ -1826,27 +1825,22 @@ def test_a_has_leads_only_to_a_subject_naming_an_element():
     `.a:has(> b) > *` and `.a:has(> b) :first-child` do, makes every write to an
     attribute another `:has()` reads restyle everything under the element whose `:has()`
     the write may change, whether or not the rule matched anything there: a pointer's
-    hover and a margin row's selection are such states, and focus marks were until no
+    hover and a margin row's selection are such states, as focus marks would be if a
     `:has()` read them (`test_no_has_reads_where_focus_is`). A pseudo-element
     Chromium draws in the element's own shadow tree, such as `::details-content`,
     `::placeholder` or `::file-selector-button`, names no element either; `::before`,
-    `::after` and `::marker` stand for their element. Measured on 11 November 2026 by
-    toggling `data-lf-focus-within` on a paragraph of `pr-walkthrough`, with each probe
-    rule added alone to the two rules that read that mark: 16–20 ms a toggle with such
-    a rule, 0.3–1.4 ms with `> .q`, `> p` or `> :where(p, li)`, and four shipped rules
-    (base.css's pane end room, layouts.css's workspace end room, reading.css's sticky
-    row names, disclosure.css's instant keyboard closing) restyled the page's 7,276
-    elements on every focus move. The same holds for a `:has()` alone in its
-    compound: toc.css's `@scope (:has(> lf-toc))`, under a container query that a page
-    without a sidebar never meets, made each of the 16 style recalcs in a Tab on a page
-    of 64 questions restyle the whole page (938 ms against 26 ms).
+    `::after` and `::marker` stand for their element. A subject such as `> .q`, `> p`
+    or `> :where(p, li)` names one. The same holds for a `:has()` alone in its
+    compound: `@scope (:has(> lf-toc))`, even under a container query that a page
+    without a sidebar never meets, can make each style recalc in a Tab restyle the whole
+    page.
 
     A scope's root names its element by a class, id or attribute, not by a type alone.
     Chromium tests the root's `:has()` on every element of that type, and adding or
-    removing a node inside any of them restyled the page: with `@scope (div:has(>
-    lf-toc))`, a heading's link moving into the chrome restyled 20,255 of the 28,335
-    elements of the 512-section asks page of `leaf-dev bench`, against 58 with
-    toc.css's rule for the block after the map, which asks no `:has()` at all."""
+    removing a node inside any of them can restyle the page: with
+    `@scope (div:has(> lf-toc))`, a heading's link moving into the chrome can restyle
+    most of the asks page of `leaf-dev bench`, where toc.css's rule for the block after
+    the map, which asks no `:has()` at all, restyles far fewer."""
     found = []
 
     def keyed(compound):
@@ -1913,13 +1907,12 @@ def test_no_has_reads_where_focus_is():
     """No `:has()` in Leaf's sheets reads where focus is: a focus mark, a box's
     `data-lf-control-focus` marks, or a focus pseudo-class. A box that shows the focus of
     a control inside it is named by the control (`--lf-focus-box`, base.css), and
-    focus.js marks the box. In Chromium, a `:has()` reading a focus mark made each focus
-    move restyle what lay under every element whose `:has()` the move might change, and
-    the whole page wherever any rule, an author's included, put a `:has()` before a
-    subject naming no element. Measured on 12 November 2026 on `pr-walkthrough`, moving
-    focus between two links in main: with the 25 such rules Leaf had, a move restyled
-    1,419 elements (5.5 ms), and 7,345 (22 ms) with an authored `.zz:has(> .yy) > *`
-    added; without them it restyled 18, with that rule or without it."""
+    focus.js marks the box. In Chromium, a `:has()` reading a focus mark makes each focus
+    move restyle what lies under every element whose `:has()` the move might change, and
+    the whole page wherever any rule, an author's included, puts a `:has()` before a
+    subject naming no element, as an authored `.zz:has(> .yy) > *` does. Without such
+    reads, a focus move between two links in `pr-walkthrough`'s main restyles a few
+    elements, with that rule or without it."""
     reads_focus = re.compile(r"data-lf-[\w-]*focus|:focus")
     found = []
     for root in (schema_model.ASSETS, schema_model.BUNDLED_PACKAGES):
@@ -1959,12 +1952,11 @@ def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
     each element it asks such a `:has()` of, and on each write to an attribute some
     `:has()` reads walks back from a flagged element through every earlier sibling and
     restyles each one some `:has()` names as its subject.
-    Asked of every child of `main`, by `:where(main > *):has(~ [data-lf-views="parts"])`
-    in layouts.css, it made each focus move restyle every block before the focused one:
-    1,131 elements a move near the end of a page of 1,024 sections in a plain `main`,
-    and 108 once `main` answered with a style query instead (Chromium 158, a trace's
-    restyled-element count, 11 November 2026). `.layout-sidebar > aside:has(~ …)` asked
-    it of every `aside` in the page's content."""
+    Asked of every child of `main`, as by
+    `:where(main > *):has(~ [data-lf-views="parts"])`, it makes each focus move restyle
+    every block before the focused one, and far fewer where `main` answers with a style
+    query instead (Chromium 158). `.layout-sidebar > aside:has(~ …)` asks it of every
+    `aside` in the page's content."""
 
     def rare(compound):
         return any(
@@ -2006,6 +1998,122 @@ def test_a_has_reads_no_sibling_of_an_element_most_selectors_reach():
     assert not found, (
         "name the element this `:has(~ …)` is asked of by a class, id or attribute:\n"
         + "\n".join(found)
+    )
+
+
+def _strip_arguments(selector):
+    """The selector with what stands inside parentheses, brackets and strings left
+    out, so only its own combinators remain."""
+    out, depth, quote = [], 0, None
+    for char in selector.strip():
+        if quote:
+            quote = None if char == quote else quote
+        elif char in "\"'":
+            quote = char
+        elif char in "([":
+            depth += 1
+            out.append("_" if depth == 1 else "")
+        elif char in ")]":
+            depth -= 1
+        elif not depth:
+            out.append(char)
+    return "".join(out)
+
+
+def test_a_rule_s_subject_names_a_key():
+    """No subject in the sheets a page composes is keyed only through a list, as
+    `:is(.a, .b)`, `:where(p, li)` or a nested `&` under two selectors are, unless a
+    compound before it names a key (browser/AGENTS.md, "A rule costs only the
+    elements it could style"). Chromium 158 matches each such rule against every
+    element it restyles, so a hundred of them can multiply the cost of styling a long
+    page's rows, where Firefox, which files a list under each member, pays nothing
+    for them. A subject that can name no key, as `*` and a frame's edge trims, has no
+    list to split, so the test leaves it alone.
+
+    Chromium's selector stats, not this test, measure what a rule costs: its ancestor
+    filter is a Bloom filter, so an ancestor's key passes over a rule only where its
+    hash misses the bits the element's ancestors set. A key can match those bits on
+    every row of a Leaf page and leave its rule matched in full, as
+    `[data-lf-turn="user"]` alone can, where naming `.lf-margin-face` beside it lets
+    the filter reject the rule (Chromium 158)."""
+
+    def keys(compound):
+        """The parts of the compound that name a key: a type, class, id or attribute,
+        a shadow host (`:host()`), or an `:is()` or `:where()` of one selector whose
+        subject names one."""
+        return [
+            part
+            for part in _simple_selectors(compound.split("::")[0])
+            if part[0].isalpha()
+            or part[0] in ".#["
+            or part.startswith(":host")
+            or (
+                part.startswith((":is(", ":where("))
+                and len(arguments := _arguments(part)) == 1
+                and key(arguments[0][-1])
+            )
+        ]
+
+    def key(compound):
+        return bool(keys(compound))
+
+    def listed(compound):
+        """Whether the compound is keyed only through a list whose every member names
+        a key, which separate selectors would each file under it, written in the
+        compound or in an `:is()` or `:where()` of one selector."""
+        return not key(compound) and any(
+            part.startswith((":is(", ":where("))
+            and (
+                (
+                    len(arguments := _arguments(part)) > 1
+                    and all(key(each[-1]) for each in arguments)
+                )
+                or (len(arguments) == 1 and listed(arguments[0][-1]))
+            )
+            for part in _simple_selectors(compound.split("::")[0])
+        )
+
+    def ancestors(selector):
+        """The compounds a descendant or child combinator leads to: those the
+        ancestor filter reads, which a sibling's are not."""
+        compounds = _split_top(selector, " >+~")
+        joins = re.findall(r"\s*([>+~])\s*|\s+", _strip_arguments(selector))
+        return [
+            compound
+            for compound, join in zip(compounds[:-1], joins, strict=True)
+            if join not in ("+", "~")
+        ]
+
+    def filtered(compound):
+        """Whether the ancestor filter can reject on the compound: it names a key
+        other than a type every page's elements stand in."""
+        return any(part not in ("html", "body", "main") for part in keys(compound))
+
+    # Each file a page composes, its imports included, read once, so a finding names
+    # the file it stands in and a file two sheets import is read once.
+    files = {}
+    for sheet in [
+        *_PAGE_SIDE_SHEETS,
+        schema_model.ASSETS / "layouts.css",
+        schema_model.ASSETS / "state.css",
+    ]:
+        root = (
+            schema_model.ASSETS
+            if sheet.is_relative_to(schema_model.ASSETS)
+            else sheet.parent
+        )
+        for each in (sheet, *layer_model.imported_sheets(sheet, root)):
+            files.setdefault(each.resolve(), None)
+    found = []
+    for sheet in files:
+        where = sheet.relative_to(ROOT)
+        for _conditions, _enclosing, selector, _declarations in _style_rules(sheet):
+            subject = _split_top(selector, " >+~")[-1]
+            if listed(subject) and not any(map(filtered, ancestors(selector))):
+                found.append(f"{where}: {selector}")
+    assert not found, (
+        "write each member of the list as a selector of its own, or name the key at "
+        "no weight first, as `:where(.a):is(.a, .b[x])`:\n" + "\n".join(found)
     )
 
 
@@ -2086,9 +2194,8 @@ def test_every_press_is_built_by_role():
     control wears its role's face"). `js_facts.mjs presses` reads the presses and says
     what they are and how a role dresses them.
 
-    Before this check only a role's classes were watched, so a press drawn with a face
-    of its own passed: the floating panel's symbols and a message's Edit and Add
-    reaction each drew a 26px face beside the thread's 28px symbols. Drawing a press's
+    Watching only a role's classes passes a press drawn with a face of its own, such as
+    a 26px face beside the thread's 28px symbols. Drawing a press's
     symbol from its action gives it no face, so a press that does only that still needs
     a role."""
     reached, unbuilt = set(), []
@@ -2312,10 +2419,9 @@ def test_a_press_wears_its_role_s_face_alone():
     is; so is a press a selector names by a tag other than `button` or a custom
     element, such as the margin's `span.lf-margin-marker`.
 
-    Before this check a sheet could restyle a press it placed: Send and Dictate drew
-    a disc of their own in response.css, a margin entry's face lived in base.css, the
-    floating panel and a package each inked a row or a word their own way. A runtime
-    census of computed looks, grouped by face, grew with every state it sampled; keyed
+    Without this check a sheet can restyle a press it placed, as by drawing Send and
+    Dictate a disc of their own or inking a row or a word its own way. A runtime
+    census of computed looks, grouped by face, grows with every state it samples; keyed
     by role, the question has one answer per role and needs no browser."""
     faces, placed = _role_classes()
     assert {"lf-icon-action", "lf-btn", "lf-row"} <= faces, faces
@@ -2525,10 +2631,9 @@ def test_no_face_is_stated_for_one_selector_in_both_layer_sheets():
     other says — and nothing catches it, because no test and no browser gate can read a
     rule that never applied.
 
-    The chip and the thread mark's note were written that way on purpose, restated in
-    base.css for the shadow roots the adopted sheet cannot reach, and the two copies
-    had drifted: base.css's chip cleared the platform's button face and chrome.css's
-    did not, so in the light DOM that reset had never once run.
+    A selector restated in base.css on purpose, for the shadow roots the adopted sheet
+    cannot reach, still drifts: a reset base.css's copy states and chrome.css's does not
+    never runs in the light DOM.
 
     Only chrome.css's top level is asked here. A rule inside its `@layer` loses to any
     unlayered choice whatever its specificity, and a rule inside its `@scope` wins
@@ -2597,26 +2702,21 @@ def test_the_injected_control_face_is_one_default_in_both_trees():
     assert faces, "no face was read from the layer's sheets — the reading is broken"
     # One sheet gives both delivery trees the default.
     face_sheet = schema_model.ASSETS / "styles/control-face.css"
-    control_face = (
-        ":where( :is(:root, :host) .lf-ui-face, :is(:root, :host) .lf-btn, "
-        ":is(:root, :host) .lf-field, "
-        ":root body :is(button, input, select, textarea):not(.lf-chrome *), "
-        ":host :is(button, input, select, textarea) )"
-    )
-    control_ink = ":where(.lf-ui-face, .lf-field)"
-    default = [(face_sheet, control_face), (face_sheet, control_ink)]
-    assert faces[:2] == default, faces[:2]
+    controls = ("button", "input", "select", "textarea")
+    control_face = [
+        ":where(:is(:root, :host) .lf-ui-face)",
+        ":where(:is(:root, :host) .lf-btn)",
+        *(f":where(:root body {tag}:not(.lf-chrome *))" for tag in controls),
+        *(f":where(:host {tag})" for tag in controls),
+    ]
+    control_ink = [":where(.lf-ui-face)"]
+    default = [(face_sheet, each) for each in (*control_face, *control_ink)]
+    assert faces[: len(default)] == default, faces[: len(default)]
     defaults = [
         face
         for face in faces
         if face[1]
-        in {
-            ".lf-ui-face",
-            ":where(.lf-ui-face)",
-            ":where(:root) .lf-ui-face",
-            control_face,
-            control_ink,
-        }
+        in {".lf-ui-face", ":where(:root) .lf-ui-face", *control_face, *control_ink}
     ]
     assert defaults == default, defaults
 
@@ -3319,24 +3419,30 @@ def test_init_merges_registry_layers_by_complete_entry(tmp_path, monkeypatch):
     project_layer.mkdir(parents=True)
     user_entry = {
         "description": "user shape",
-        "type": "object",
-        "properties": {"user-only": {"type": "string"}},
-        "additionalProperties": False,
-        "x-content": "empty",
+        "attributes": {
+            "type": "object",
+            "properties": {"user-only": {"type": "string"}},
+            "additionalProperties": False,
+        },
+        "content": "empty",
     }
     project_entry = {
         "description": "project shape",
-        "type": "object",
-        "properties": {"project-only": {"type": "string"}},
-        "additionalProperties": False,
-        "x-content": "empty",
+        "attributes": {
+            "type": "object",
+            "properties": {"project-only": {"type": "string"}},
+            "additionalProperties": False,
+        },
+        "content": "empty",
     }
     project_only = {
         "description": "project-only shape",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": False,
-        "x-content": "empty",
+        "attributes": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+        "content": "empty",
     }
     (user / "registry.json").write_text(json.dumps({"lf-local": user_entry}))
     (project_layer / "registry.json").write_text(
@@ -3375,11 +3481,15 @@ def test_init_merges_idioms_by_complete_entry_and_facts_by_member(
     layer.mkdir(parents=True)
     hazard = {
         "description": "A tinted aside for operational hazards.",
-        "x-example": '<aside class="hazard">Deploys freeze Friday.</aside>',
+        "author": {
+            "example": '<aside class="hazard">Deploys freeze Friday.</aside>',
+        },
     }
     sidenote = {
         "description": "project sidenote",
-        "x-example": '<aside class="sidenote">…</aside>',
+        "author": {
+            "example": '<aside class="sidenote">…</aside>',
+        },
     }
     (layer / "registry.json").write_text(
         json.dumps(
@@ -3756,7 +3866,7 @@ def test_init_refuses_invalid_ids_in_a_registry_example(
     add_test_widget(tmp_path / ".leaf", "lf-toned-note")
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
-    registry["lf-toned-note"]["x-example"] = example
+    registry["lf-toned-note"].setdefault("author", {})["example"] = example
     registry_path.write_text(json.dumps(registry))
 
     [refused] = command_findings(
@@ -4064,7 +4174,7 @@ def test_package_check_requires_a_non_empty_widget_description(tmp_path, monkeyp
     assert (report["status"], report["browser"]) == (1, None)
     [refusal] = report["findings"]
     assert (refusal["code"], refusal["at"], refusal["severity"]) == (
-        "no-description",
+        "invalid-declaration",
         "<lf-toned-note>",
         "error",
     )
@@ -4082,8 +4192,8 @@ def test_package_check_refuses_a_registry_example_that_violates_its_schema(
     registry_path = tmp_path / ".leaf" / "registry.json"
     registry = json.loads(registry_path.read_text())
     entry = registry["lf-toned-note"]
-    entry["properties"]["tone"] = {"enum": ["quiet", "loud"]}
-    entry["required"].append("tone")
+    entry["attributes"]["properties"]["tone"] = {"enum": ["quiet", "loud"]}
+    entry["attributes"]["required"].append("tone")
     registry_path.write_text(json.dumps(registry))
 
     status, [refused] = package_findings(".leaf")
@@ -4320,7 +4430,9 @@ def test_package_init_widget_checks_its_candidate_before_writing(tmp_path, monke
     monkeypatch.chdir(tmp_path)
     package = tmp_path / "package"
     declaration = element_declaration("lf-risk-note", upgrade=True)
-    declaration["x-example"] = "<lf-risk-note>Missing the required id.</lf-risk-note>"
+    declaration.setdefault("author", {})["example"] = (
+        "<lf-risk-note>Missing the required id.</lf-risk-note>"
+    )
     monkeypatch.setattr(
         packages_model, "starter_element_declaration", lambda tag: declaration
     )
@@ -4618,7 +4730,7 @@ def test_page_owned_pr_brief_composes_its_data_contract(tmp_path, monkeypatch):
     registry = registry_storage.load_registry(page)
     widget = registry["lf-pr-brief"]
     assert registry["$layer"]["packages"] == ["./packages/pr-walkthrough.page"]
-    assert widget["x-data"] == {
+    assert widget["data"]["inputs"] == {
         "request": {
             "contract": "pull-request",
             "source": "source",
@@ -4701,14 +4813,14 @@ def test_visual_review_package_composes_its_run_contract(tmp_path, monkeypatch):
     registry = registry_storage.load_registry(page)
     widget = registry["lf-visual-review"]
     assert registry["$layer"]["packages"] == ["visual-review"]
-    assert widget["x-data"] == {
+    assert widget["data"]["inputs"] == {
         "run": {
             "contract": "visual-run",
             "source": "source",
             "property": "value",
         }
     }
-    assert widget["x-state"]["review"]["unit"] == "case"
+    assert widget["state"]["verbs"]["review"]["unit"] == "case"
     assert "visual-run" in registry["$data"]["contracts"]
     assert "/widgets/lf-visual-review.js" in layer_files(page)
     assert "author.md" in layer_instructions(page)
@@ -4991,6 +5103,53 @@ def test_a_host_that_names_nothing_is_asked_for_its_path_only_after_chrome(
     assert "CODEX_SANDBOX=seatbelt" in hint and "outside the sandbox" in hint
 
 
+def test_a_firefox_reader_s_check_launches_the_installed_firefox_or_chrome(
+    monkeypatch,
+):
+    """For a page a Firefox last showed, the check launches the installed Firefox through
+    Playwright's WebDriver BiDi channel, and where the host has none, the Chrome it
+    launches for every other reader."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    for variable in browser_model.VARIABLES:
+        monkeypatch.delenv(variable, raising=False)
+    calls = []
+
+    class Engine:
+        def __init__(self, name, answers):
+            self.name, self.answers = name, answers
+
+        def launch(self, **kwargs):
+            calls.append((self.name, kwargs))
+            if not self.answers:
+                raise PlaywrightError(f"BrowserType.launch: no {self.name}")
+            return f"a {self.name}"
+
+    class Playwright:
+        def __init__(self, firefox):
+            self.firefox = Engine("firefox", firefox)
+            self.chromium = Engine("chromium", True)
+
+    assert browser_model.launch_browser(Playwright(True), "firefox") == (
+        "a firefox",
+        "Firefox",
+    )
+    assert calls == [("firefox", {"channel": "moz-firefox"})]
+    calls.clear()
+    assert browser_model.launch_browser(Playwright(False), "firefox") == (
+        "a chromium",
+        "Chrome, since the reader's Firefox didn't launch: BrowserType.launch: no"
+        " firefox",
+    )
+    assert calls == [
+        ("firefox", {"channel": "moz-firefox"}),
+        ("chromium", {"channel": "chrome"}),
+    ]
+    calls.clear()
+    assert browser_model.launch_browser(Playwright(True)) == ("a chromium", "Chrome")
+    assert calls == [("chromium", {"channel": "chrome"})]
+
+
 def test_producer_instructions_names_a_package_script_the_run_door_reaches(tmp_path):
     """A reader of `leaf page instructions` with no skill loaded, such as a worker the
     author assigns, gets a pipeline it can run as printed: the producer names a
@@ -5152,51 +5311,72 @@ def instruction_page(tmp_path: Path, monkeypatch):
     owner = element_declaration("lf-instruction-owner")
     owner.update(
         {
-            "x-content": "markup",
-            "x-instructions": "Choose the owner's inputs before composing it.",
-            "x-example": '<lf-instruction-owner id="owner"><p class="instruction-caption">Inputs</p><lf-instruction-member id="input" kind="first"></lf-instruction-member><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
-            "x-data": {
-                "records": {"contract": "instruction-records", "source": "source"}
+            "content": "markup",
+            "data": {
+                "inputs": {
+                    "records": {"contract": "instruction-records", "source": "source"}
+                },
+            },
+            "author": {
+                "instructions": "Choose the owner's inputs before composing it.",
+                "example": '<lf-instruction-owner id="owner"><p class="instruction-caption">Inputs</p><lf-instruction-member id="input" kind="first"></lf-instruction-member><lf-instruction-example id="example"></lf-instruction-example></lf-instruction-owner>',
             },
         }
     )
-    owner["properties"]["source"] = {"type": "string"}
+    owner["attributes"]["properties"]["source"] = {"type": "string"}
     registry["lf-instruction-owner"] = owner
     registry[".instruction-summary"] = {
         "description": "A summary of the selected inputs.",
-        "x-instructions": "Keep the summary beside its inputs.",
-        "x-example": '<tr class="instruction-summary"><td class="instruction-number"><lf-instruction-owner id="owner"></lf-instruction-owner></td></tr>',
+        "author": {
+            "instructions": "Keep the summary beside its inputs.",
+            "example": '<tr class="instruction-summary"><td class="instruction-number"><lf-instruction-owner id="owner"></lf-instruction-owner></td></tr>',
+        },
     }
     registry[".instruction-number"] = {
         "description": "A numeric table cell.",
-        "x-instructions": "Align numeric inputs in their table cell.",
-        "x-example": '<td class="instruction-number">12</td>',
+        "author": {
+            "instructions": "Align numeric inputs in their table cell.",
+            "example": '<td class="instruction-number">12</td>',
+        },
     }
     registry[".instruction-caption"] = {
         "description": "A caption for the inputs.",
-        "x-instructions": "Name what the inputs collect.",
-        "x-example": '<p class="instruction-caption">Inputs</p>',
+        "author": {
+            "instructions": "Name what the inputs collect.",
+            "example": '<p class="instruction-caption">Inputs</p>',
+        },
     }
     registry[".instruction-unused"] = {
         "description": "An unrelated note.",
-        "x-instructions": "Unused idiom instructions.",
-        "x-example": '<p class="instruction-unused">A different note.</p>',
+        "author": {
+            "instructions": "Unused idiom instructions.",
+            "example": '<p class="instruction-unused">A different note.</p>',
+        },
     }
     registry["body"] = {
         "description": "The document body.",
-        "x-instructions": "Unused body instructions.",
-        "x-example": "<body><p>A complete document.</p></body>",
+        "author": {
+            "instructions": "Unused body instructions.",
+            "example": "<body><p>A complete document.</p></body>",
+        },
     }
     member = element_declaration("lf-instruction-member")
     member.update(
         {
-            "x-owners": ["lf-instruction-owner"],
-            "x-instructions": "Declare each member's kind.",
+            "markup": {
+                "owners": ["lf-instruction-owner"],
+            },
+            "author": {
+                "instructions": "Declare each member's kind.",
+            },
         }
     )
-    member["properties"]["kind"] = {"type": "string", "enum": ["first", "second"]}
-    member["required"].append("kind")
-    member["x-example"] = (
+    member["attributes"]["properties"]["kind"] = {
+        "type": "string",
+        "enum": ["first", "second"],
+    }
+    member["attributes"]["required"].append("kind")
+    member.setdefault("author", {})["example"] = (
         '<lf-instruction-owner id="owner"><lf-instruction-member id="member"'
         ' kind="first">One</lf-instruction-member></lf-instruction-owner>'
     )
@@ -5206,9 +5386,9 @@ def instruction_page(tmp_path: Path, monkeypatch):
         ("lf-instruction-unused", "This optional alternative is unused."),
     ):
         entry = element_declaration(tag)
-        entry["x-instructions"] = text
-        entry["x-owners"] = ["lf-instruction-owner"]
-        entry["x-example"] = (
+        entry.setdefault("author", {})["instructions"] = text
+        entry.setdefault("markup", {})["owners"] = ["lf-instruction-owner"]
+        entry.setdefault("author", {})["example"] = (
             f'<lf-instruction-owner id="owner"><{tag} id="member">One</{tag}>'
             "</lf-instruction-owner>"
         )
@@ -5271,18 +5451,20 @@ def test_selected_instructions_cover_dependencies_without_loading_unused_vocabul
 
 
 def test_a_declared_attribute_lists_its_words_in_the_composed_schema(page_dir):
-    """An attribute that names a layer-wide word, such as a column's tone or a code
-    block's language, takes the layer's list as its `enum` in the vocabulary a page
+    """An attribute that names a layer-wide word, such as a column's tone, takes the
+    layer's list as its `enum` in the vocabulary a page
     composes, so its schema says what it accepts to validation and to an author
     reading the entry, and the selected entry's instructions list the words."""
     registry = registry_storage.read_page_registry(page_dir).registry
     checked = set()
     for attr, fact in DECLARED_WORDS:
         for name, entry in registry.items():
-            if not name.startswith("lf-") or attr not in entry.get("properties", {}):
+            if not name.startswith("lf-") or attr not in entry["attributes"].get(
+                "properties", {}
+            ):
                 continue
             names = registry[fact]["names"]
-            assert entry["properties"][attr]["enum"] == names
+            assert entry["attributes"]["properties"][attr]["enum"] == names
             author = page_instructions(page_dir, entries=(name,))["author"]
             listed = ", ".join(f"`{word}`" for word in names)
             assert f"`{attr}` takes one of: {listed}." in author
@@ -5342,9 +5524,9 @@ def test_cli_selection_returns_the_composed_audience_map(instruction_page):
 def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
     entry = element_declaration("lf-instruction-test")
     for key, value in (
-        ("x-instructions", ""),
-        ("x-instructions", " \n\t"),
-        ("x-instructions", {"author": "Use this."}),
+        ("author", {**entry["author"], "instructions": ""}),
+        ("author", {**entry["author"], "instructions": " \n\t"}),
+        ("author", {**entry["author"], "instructions": {"author": "Use this."}}),
         ("x-guidance", {"author": "Use this."}),
     ):
         malformed = {**entry, key: value}
@@ -5354,11 +5536,16 @@ def test_widget_instructions_are_nonempty_text_and_reject_the_old_shape():
             )
         )
         assert (refused.code, refused.at) == (
-            "invalid-extensions",
+            "invalid-declaration",
             "<lf-instruction-test>",
         )
     registry_widgets.validate_widget_schemas(
-        {"lf-instruction-test": {**entry, "x-instructions": "Use this."}},
+        {
+            "lf-instruction-test": {
+                **entry,
+                "author": {**entry["author"], "instructions": "Use this."},
+            }
+        },
         "registry.json",
     )
 
@@ -5377,7 +5564,11 @@ def test_instruction_reading_uses_the_candidate_vocabulary_before_html_changes(
     declare_on_page(
         instruction_page,
         lambda registry: registry["lf-instruction-owner"].update(
-            {"x-instructions": "Use the new candidate contract."}
+            {
+                "author": {
+                    "instructions": "Use the new candidate contract.",
+                },
+            }
         ),
     )
     instructions = page_instructions(

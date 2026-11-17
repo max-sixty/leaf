@@ -12,12 +12,12 @@ from .schema import RENDER_CHECKS_DIR
 # (`render_gate.command.desktop_viewport`).
 RENDER_VIEWPORT = {"width": 1280, "height": 720}
 
-# The bound on one probe or request, sized for an oversubscribed host rather than an idle
-# one: it separates a wedged preview, which it turns into a useful failure rather than
-# an unbounded evaluate, from a machine that has not got there yet. At Playwright's own
-# 30s, browser tests on a host stacked with other sessions' suites timed out in a
-# different place each run and passed alone, and each red run was re-run whole, adding
-# the load that failed it. A longer bound costs only a slower failure for a real hang.
+# The bound on one probe or request, sized for an oversubscribed host rather than an
+# idle one: it separates a wedged preview, which it turns into a useful failure rather
+# than an unbounded evaluate, from a machine that has not got there yet. At Playwright's
+# own 30s, browser tests on a host stacked with other sessions' suites can time out in a
+# different place each run and pass alone, and re-running a red run whole adds the load
+# that failed it. A longer bound costs only a slower failure for a real hang.
 SERVED_TIMEOUT_MS = 120_000
 # How long a whole page handover may take before the page counts as wedged: the wait,
 # from navigation, for the page to state every readiness fact (`wait_until_ready`).
@@ -340,6 +340,14 @@ class PageNotReady(TimeoutError):
         self.stage = stage
 
 
+def asked_again(url: str) -> str:
+    """`url` as the document startup recovery asks the server for once more
+    (`_leaf-recovered`, bootstrap.js). A page opened there that cannot start waits for
+    another server rather than reloading itself from this one, so a reader that judges
+    the document it opened, such as a check against a fixed server, opens it here."""
+    return f"{url}{'&' if '?' in url else '?'}_leaf-recovered"
+
+
 def wait_until_ready(
     page,
     state: dict | None = None,
@@ -364,7 +372,9 @@ def wait_until_ready(
     A caller whose server nothing replaces while it waits, such as a check reading a
     preview of one candidate, passes `fixed_server`: a page that declares it cannot
     start is then refused at once, as stage `refused` with the page's own reason,
-    rather than at the deadline, since the reload it waits for never comes.
+    rather than at the deadline, since the reload it waits for never comes. Such a
+    caller opens the page at `asked_again`, or the page's one reload from the same
+    server replaces the document the caller is still reading.
     """
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 

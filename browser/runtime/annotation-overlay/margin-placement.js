@@ -26,19 +26,10 @@ import { clamp, overlaps, overlapsAcross, shifted, union } from "../rect.js";
 // scrolls its target (the document, or a bounded block in its flow; never a pane), and
 // its block does not reach into the rail. A block grown past the rail's inner edge by
 // more than half a marker would stand under a rail marker, so its row stands on it as a
-// pin instead: the figure keeps its shape and the comment lands on what it is about. A
-// note hanging in the right margin level with the row holds the rail's strip there, so
-// that row pins too (`noted`).
-/** @param {{railStands: boolean, besideRail: boolean, blockRight: number, railInner: number, half: number, noted: boolean}} reading */
-export function rowPlacement({
-  railStands,
-  besideRail,
-  blockRight,
-  railInner,
-  half,
-  noted,
-}) {
-  if (!railStands || !besideRail || noted) return "pin";
+// pin instead: the figure keeps its shape and the comment lands on what it is about.
+/** @param {{railStands: boolean, besideRail: boolean, blockRight: number, railInner: number, half: number}} reading */
+export function rowPlacement({ railStands, besideRail, blockRight, railInner, half }) {
+  if (!railStands || !besideRail) return "pin";
   return blockRight - half > railInner ? "pin" : "rail";
 }
 

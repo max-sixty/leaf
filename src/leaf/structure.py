@@ -10,6 +10,7 @@ from html import escape
 import turbohtml
 
 from .findings import Finding
+from .registry.contract import declared_fact
 from .registry.kernel import kernel_authored
 from .resource_urls import ReferenceError, resource_reference
 from .schema import ASSETS, EVENT_ID, MEDIA_DIR
@@ -78,8 +79,7 @@ SECTIONING_TAGS = {"section", "article", "main", "body"}
 # carries onto its child's body (`$authored` in the kernel registry).
 PAGE_ALLOCATIONS = kernel_authored()["allocations"]
 # The `lf-` classes an author writes: those the kernel's selector idioms name, such as
-# `lf-btn` on a button that wears Leaf's face (browser/registry.json). A page's own
-# names never take one of Leaf's faces, so where it wants one it writes Leaf's name.
+# `lf-scroll` on a box the page scrolls (browser/registry.json).
 AUTHORED_CLASSES = frozenset(
     name
     for key in json.loads((ASSETS / "registry.json").read_text(encoding="utf-8"))
@@ -87,8 +87,8 @@ AUTHORED_CLASSES = frozenset(
 )
 # The allocations a page occurrence may state, each attribute with the values it takes:
 # a block's width in the page's flow, whether it bounds its own height, the height in
-# CSS pixels of a widget that draws into a box of a stated height (x-height), and the
-# page-wide ones. Delivery honours a width, bound or height only where it means
+# CSS pixels of a widget that draws into a box of a stated height (paint.height), and
+# the page-wide ones. Delivery honours a width, bound or height only where it means
 # something (`authored_on` in the kernel registry's `$marks`), and paints it for the
 # runtime to read.
 AUTHORED_ALLOCATIONS = {
@@ -304,7 +304,7 @@ def splice(source, edits):
 
     The ranges must not overlap. Edits at one offset land in the order their texts
     sort. Joining the pieces once keeps the splice linear in the source's size, where
-    splicing each of a large page's thousands of marks into a fresh copy was not."""
+    splicing each of a large page's thousands of marks into a fresh copy is not."""
     pieces = []
     at = 0
     for start, end, text in sorted(edits):
@@ -315,8 +315,11 @@ def splice(source, edits):
 
 
 def pre_body(element) -> str | None:
-    """The text of `element`'s first `<pre>` child: the body a Markdown-bodied element
-    renders and a `body` state record reads, or None where it has none."""
+    """The text of `element`'s first `<pre>` child, as the browser reads a data body
+    (widget-upgrade.js, `dataBody`): its `textContent`, so a `<code>` naming its
+    language is read through. The body a Markdown-bodied element renders, a written
+    Markdown file first paints and a `body` state record reads, or None where it has
+    none."""
     pre = next(
         (
             child
@@ -325,10 +328,19 @@ def pre_body(element) -> str | None:
         ),
         None,
     )
-    if pre is None:
-        return None
+    return None if pre is None else _text_content(pre)
+
+
+def _text_content(node) -> str:
+    """`node`'s text as the DOM's `textContent` reads it: every text node under it,
+    comments left out, and a `<template>`'s contents too, since the browser holds them
+    in a fragment of their own rather than among the template's children, where the
+    parser here keeps them."""
     return "".join(
-        child.data for child in pre.children if isinstance(child, turbohtml.Text)
+        child.data if isinstance(child, turbohtml.Text) else _text_content(child)
+        for child in node.children
+        if isinstance(child, turbohtml.Text)
+        or (isinstance(child, turbohtml.Element) and child.tag != "template")
     )
 
 
@@ -627,6 +639,9 @@ class Authoring:
         # but the kernel's idioms (`AUTHORED_CLASSES`). The prefix reserves names the
         # runtime may coin later, without another list.
         self.reserved_markers = []
+        # (tag, line, name) per `language-…` class, the name a block of code gives its
+        # language (syntax-tokens.js, `codeLanguage`).
+        self.code_languages = []
         # The same parse retains ordinary HTML, exact text, and construction locations
         # for inspection. Widget validation keeps its specialized index; content is one
         # tree, with no reconstructed HTML or parent objects.
@@ -770,9 +785,10 @@ class Authoring:
                         "line": line,
                         "attr": attr,
                         "value": attrs[attr],
+                        "attrs": attrs,
                         # Where delivery reads it: it skips a template and what it
                         # holds, which is inert until cloned, and only a block in the
-                        # page's flow takes room (`registry.kernel.authored_inert`).
+                        # page's flow takes room (`registry.contract.authored_inert`).
                         "in_template": "template" in (tag, *ancestors),
                         "content": tag not in {"html", "body", "main"}
                         and "body" in ancestors,
@@ -786,6 +802,11 @@ class Authoring:
         )
         if markers:
             self.reserved_markers.append((tag, line, markers))
+        self.code_languages += [
+            (tag, line, name.removeprefix("language-"))
+            for name in (attrs.get("class") or "").split()
+            if name.startswith("language-") and name != "language-"
+        ]
         references = [
             (name, value[start:end])
             for name, value in attrs.items()
@@ -964,7 +985,7 @@ def page_layout(document: SourceDocument, registry: Mapping):
     Layout's carry (`layout-column` is `column`), space-separated, or None.
 
     A page Layout's class is on `main`, on a shown child of a `main` that carries none,
-    or on the child of each part of such a `main`'s parts (`x-views.parts`,
+    or on the child of each part of such a `main`'s parts (`paint.views.parts`,
     layouts.css, `--lf-layout-box`). The parser reaches those after it has begun
     painting the body, so delivery repeats them on the root for the Layout's own body
     rules to read before the first paint. Which part opens is the browser's, so every
@@ -994,7 +1015,9 @@ def page_layout(document: SourceDocument, registry: Mapping):
         boxes += [
             child
             for holder in shown(main)
-            if registry.get(holder.tag, {}).get("x-views", {}).get("parts")
+            if declared_fact(registry.get(holder.tag, {}), "paint.views", {}).get(
+                "parts"
+            )
             for part in shown(holder)
             for child in shown(part)
         ]

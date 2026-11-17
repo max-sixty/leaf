@@ -1,7 +1,7 @@
 """Initial histories for disposable samples, read from their captured parent.
 
 A template's holder is the markup it is written in: its parent page's document, or
-the frozen markup of a message in that page's log. A template imports live parent
+the markup of a message holding HTML in that page's log. A template imports live parent
 thread closures with `data-sample-threads`, or names an inert JSON script in its
 holder with `data-sample-events`. The latter is an array of ordinary event
 commands, admitted against the child's initial document and vocabulary before
@@ -21,6 +21,7 @@ from .event_log import EventRefused
 from .event_meaning import AdmissionReadings
 from .findings import Finding, Rejected
 from .page_view import InitialPageView
+from .passages import message_markup
 from .projection import generated_children, logged_words
 from .registry.kernel import kernel_event_kinds
 from .registry.schema import aware_instant
@@ -179,7 +180,9 @@ def initial_sample_events(
                     event["anchor"], AdmissionReadings(view, events, registry)
                 )
             if "text" in event and (
-                errors := text_media_errors(event["text"], page_dir)
+                errors := text_media_errors(
+                    event["text"], page_dir, html=bool(event.get("html"))
+                )
             ):
                 raise _refused(
                     "fixture-media",
@@ -187,8 +190,8 @@ def initial_sample_events(
                     event=seq,
                     findings=[found.json(text=False) for found in errors],
                 )
-            if "markup" in event:
-                fragment = SourceDocument(event["markup"])
+            if event.get("html"):
+                fragment = SourceDocument(message_markup(event["text"]))
                 readings = initial_data_document_readings(child, events, registry)
                 readings.append(
                     (fragment.lf_elements, f"incoming {kind} markup", registry)

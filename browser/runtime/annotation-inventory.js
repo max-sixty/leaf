@@ -135,6 +135,10 @@ export function createAnnotationInventory({
       .replace(/[-_]+/g, " ")
       .trim();
 
+  // A target is named from the nearest element with an id, itself or one around it, and
+  // below that by each element's place among its authored siblings. A name reads only
+  // the siblings between the target and that element, so naming every target costs the
+  // page once rather than its square, and a name survives content added above the id.
   /** @param {Element} target @returns {string} */
   function targetPath(target) {
     const host = shadowHost(target.getRootNode());
@@ -153,6 +157,10 @@ export function createAnnotationInventory({
       const projection = node.getAttribute("data-lf-projection");
       if (projection && node.hasAttribute("data-lf-datum")) {
         from = `datum:${projection}/${node.getAttribute("data-lf-datum")}:`;
+        break;
+      }
+      if (node.id) {
+        from = `id:${node.id}/`;
         break;
       }
       const parent =
@@ -297,8 +305,8 @@ export function createAnnotationInventory({
   // target again only where its words changed or a passage in it is new. Every change to
   // the page starts a collection, a closed tab's document drawing included, and a change
   // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
-  // collection, one comment on a 4 MB text document read that document again each time
-  // another of 30 drew, 200 ms each in Chromium.
+  // collection, one comment on a large text document would read that document again
+  // each time another document drew.
   /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
    * @returns {string[]} */
   function passageRows(target, quoted) {
@@ -484,8 +492,8 @@ export function createAnnotationInventory({
   }
 
   // Each collection builds every group on the page again from every record, and sorts
-  // them all, though a gesture changes few of them: about 10 ms a collection on the
-  // 1,024-section page `leaf-dev bench` generates, and sending a comment runs two. Not
+  // them all, though a gesture changes few of them, a cost that grows with the page
+  // (`leaf-dev bench` measures it), and sending a comment runs two. Not
   // yet built: keep each group between collections while its records are the same
   // objects and the page's reading stands (`pageReadingVersion`, passages.js), build
   // again only the groups that changed, and sort again only when that reading moves,
@@ -528,7 +536,7 @@ export function createAnnotationInventory({
             ...(threadDrafts.get(thread.id) ?? []),
             draftItem(draft),
           ]);
-      } else if (draft.part !== "page") placedDrafts.push(draft);
+      } else placedDrafts.push(draft);
     }
     // A draft's place is resolved once for each reading of the page, since a quote's is
     // a search of the page's words, which a collection made on every reading would

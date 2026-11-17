@@ -258,7 +258,7 @@ function advance(entry, signal, admitted = null) {
  *   registry: Record<
  *     string,
  *     {
- *       "x-state"?: Record<string, ActionSpec>;
+ *       state?: { verbs?: Record<string, ActionSpec>; awaits?: { value?: string } };
  *       [name: string]: unknown;
  *     }
  *   > & {
@@ -269,7 +269,11 @@ function advance(entry, signal, admitted = null) {
  *   descriptors: ReadonlyMap<string, WidgetDescriptor>;
  *   messageBodies?: ReadonlyMap<
  *     string,
- *     { text: string; markup: string; document?: { thread: string; message: string } }
+ *     {
+ *       text: string;
+ *       heldElsewhere?: string;
+ *       document?: { thread: string; message: string };
+ *     }
  *   >;
  * }} SemanticDocument
  */
@@ -393,9 +397,7 @@ function normalizedObligations(
       const sourceId = item.source.id;
       const sourceUnit = item.source.unit;
       const widget = widgets.get(sourceId);
-      const declaration = /** @type {{ value?: string } | undefined} */ (
-        descriptors.get(item.source.id)?.declaration["x-awaits"]
-      );
+      const declaration = descriptors.get(item.source.id)?.declaration.state?.awaits;
       const verb = declaration?.value;
       if (!verb || !widget) return item;
       const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
@@ -832,7 +834,7 @@ function widgetReading(inputs, descriptor) {
   const classified = inputs.entries.classified.toSorted(
     (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
   );
-  const actionSpecs = descriptor.declaration["x-state"] ?? {};
+  const actionSpecs = descriptor.declaration.state?.verbs ?? {};
   const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
   const durableUndo = inputs.entries.undo;
@@ -1678,7 +1680,7 @@ export function createSemanticApplication({ presentation } = {}) {
           : null;
       const spec =
         event.kind === "action" && widget
-          ? declaration?.["x-state"]?.[event.action]
+          ? declaration?.state?.verbs?.[event.action]
           : null;
       const unit =
         event.kind === "action" && spec

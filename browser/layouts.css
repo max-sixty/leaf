@@ -68,19 +68,19 @@
     syntax: "*";
     inherits: false;
   }
-  :is(main, main > *, main > [data-lf-views="parts"] > * > *):is(
-    .layout-column,
-    .layout-sidebar,
-    .layout-workspace
-  ) {
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-column,
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-sidebar,
+  :is(main, main > *, main > [data-lf-views="parts"] > * > *).layout-workspace {
     --lf-layout-box: 1;
     --lf-block-frame: trim;
     container-name: lf-content-frame;
   }
-  :is(
-    main:not(.layout-column, .layout-sidebar, .layout-workspace),
-    main > [data-lf-views="parts"] > *
-  ):has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
+  main:not(.layout-column, .layout-sidebar, .layout-workspace):has(
+      > :is(.layout-column, .layout-sidebar, .layout-workspace)
+    ),
+  main
+    > [data-lf-views="parts"]
+    > :has(> :is(.layout-column, .layout-sidebar, .layout-workspace)) {
     container-type: inline-size;
     --lf-layout-shell: 1;
   }
@@ -304,18 +304,13 @@
     min-width: 0;
     margin: 0;
   }
-  @property --lf-views-flow {
-    syntax: "*";
-    inherits: false;
-    initial-value: box;
-  }
   /* The column is ordinary block flow: a box `--lf-col` wide around the prose, centred by
    * auto margins, so its blocks' margins collapse and floats, auto margins and the edge
    * trim behave as on any page. A page's own CSS sizes it as any box, and its text keeps
    * the measure from the box's start edge (base.css). Ordinary boxes contain their
    * children, so a list item, custom grid or frame needs no geometry policing.
    *
-   * Rejected (15 November 2026): the column as a grid of named lines (`prose`, `wide`,
+   * Rejected: the column as a grid of named lines (`prose`, `wide`,
    * `full`), each flow in it a subgrid, which placed every breakout where this does
    * without the room's arithmetic below. A grid item's margins don't collapse, so a
    * section's box took in its heading's top margin: the ring Leaf draws round a section
@@ -341,9 +336,8 @@
    * a page's `--lf-col` or `--lf-col-pad` stated in `ch` or `em`, in the column's font.
    * `--lf-room-length` is the column's slot for that length: the shell less the
    * column's gutters for a centred column, and the room the row leaves a body beside a
-   * sidebar (below), of which `--lf-room-before` stands before the prose.
-   * `--lf-room-note` is the note's share of it where a note column stands beside the
-   * prose. The column states each side's room from them in `--lf-free-*`,
+   * sidebar (below), of which `--lf-room-before` stands before the prose. The column
+   * states each side's room from them in `--lf-free-*`,
    * registered `*`, as an expression of lengths and a percentage that each reader
    * resolves against its own containing block. Registered `<length-percentage>`, a
    * room mixing a length with a percentage counted as changed on every restyle of the
@@ -362,11 +356,6 @@
     initial-value: 0px;
   }
   @property --lf-room-before {
-    syntax: "<length>";
-    inherits: false;
-    initial-value: 0px;
-  }
-  @property --lf-room-note {
     syntax: "<length>";
     inherits: false;
     initial-value: 0px;
@@ -419,49 +408,45 @@
   ).layout-column {
     --lf-shell-width: 100cqi;
     --lf-room-length: calc(var(--lf-shell-width) - 2 * var(--lf-col-pad));
-    --lf-free-start: max(0px, (var(--lf-room-length) - var(--lf-room-note) - 100%) / 2);
+    --lf-free-start: max(0px, (var(--lf-room-length) - 100%) / 2);
     --lf-free-end: var(--lf-free-start);
-    /* An authored note column centers the prose and note together when both fit.
-     * Narrower columns keep centered prose and wrap the note. The author chooses
-     * this axis on its owner; notes inside another column never choose it. */
-    &.layout-notes {
-      margin-inline: max(
-          0px,
-          (
-              100% - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note) *
-                clamp(
-                  0,
-                  sign(
-                      100cqi - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note)
-                    ) +
-                    1,
-                  1
-                )
-            ) /
-            2
-        )
-        auto;
-      --lf-room-note: calc(
-        var(--lf-note) *
-          clamp(
-            0,
-            sign(100cqi - 2 * var(--lf-col-pad) - var(--lf-col) - var(--lf-note)) + 1,
-            1
-          )
-      );
-      --lf-free-end: max(0px, var(--lf-room-length) - 100% - var(--lf-free-start));
-    }
   }
-  .layout-flow {
-    --lf-views-flow: page;
+  /* A flow is a box whose blocks stand in the flow around it, so they share its room:
+   * a section, an article or a disclosure (`details`), as HTML writes a document's
+   * parts, and a widget that draws no box of its own around its blocks
+   * (`paint.flow`). One carrying a Layout of its own, a `layout-` class, arranges what
+   * it holds, and one carrying a width of its own (`data-width`) is a block that takes
+   * the room itself, so its children use the room inside it; neither is a flow. A flow shares the room of
+   * the column's flow it stands in, at any depth; one in any other box has none to
+   * share. Only a block standing directly in a column or flow reads the room, so every
+   * other box sets it back to zero, and a flow inside a plain wrapper, such as a `div`,
+   * stays within the wrapper rather than breaking out as one standing in the column
+   * does. A section that draws a frame is a flow all the same: its box grows round a
+   * wide block in it (the reach, below), which runs over the frame's border and
+   * padding, as the render check reports (`outside-frame`).
+   *
+   * A rule whose subject is a flow names each kind as a selector of its own, the
+   * exceptions in a `:where()` that weighs nothing, and a rule nested under them names
+   * its kind again at no weight, as `&:where(section)`, so each is filed under its tag
+   * (browser/AGENTS.md, "A rule costs only the elements it could style"). Inside
+   * `:not()`, as in the reset below, the flows weigh their heaviest kind, a class's
+   * weight, as the column does, so the reset doesn't outweigh the room the column
+   * states for itself (`:is(main, …).layout-column`, above). A flow says it is one
+   * (`--lf-flow`), which the render check reads rather than the selector
+   * (`containedSpace`). */
+  @property --lf-flow {
+    syntax: "<integer>";
+    inherits: false;
+    initial-value: 0;
   }
-  /* A flow shares the room of the column's flow it stands in, at any depth; one in
-   * any other box has none to share. A widget that draws no box of its own around its
-   * blocks declares itself one (`x-flow`), so its blocks need no class of the author's.
-   * Only a block standing directly in a column or flow reads the room, so every other
-   * box sets it back to zero, and a flow inside a plain wrapper stays within the
-   * wrapper rather than breaking out as one standing in the column does. */
-  :not(.layout-column, .layout-flow, [data-lf-flow]) > * {
+  :not(
+      .layout-column,
+      :is(section, article, details):where(
+        :not([class^="layout-"], [class*=" layout-"], [data-lf-space])
+      ),
+      [data-lf-flow]
+    )
+    > * {
     --lf-free-start: 0px;
     --lf-free-end: 0px;
     --lf-free-left: 0px;
@@ -479,27 +464,46 @@
     --lf-free-left: var(--lf-free-end);
     --lf-free-right: var(--lf-free-start);
   }
-  :is(.layout-flow, [data-lf-flow]):dir(ltr) {
-    --lf-free-start: var(--lf-free-left);
-    --lf-free-end: var(--lf-free-right);
-  }
-  :is(.layout-flow, [data-lf-flow]):dir(rtl) {
-    --lf-free-start: var(--lf-free-right);
-    --lf-free-end: var(--lf-free-left);
-  }
-  :is(.layout-column, .layout-flow, [data-lf-flow])
-    > :is(.layout-flow, [data-lf-flow]) {
-    --lf-prose-measure: inherit;
-  }
-  /* A flow's box holds the blocks standing in it, so a flow that otherwise keeps the
-   * measure, as a question does, gives it up once one of them asks for more room, in a
-   * column or in a sidebar page's wider body. */
-  :is(.layout-flow, [data-lf-flow]):has(
-    > :is([data-lf-space], .layout-note, .layout-sidebar),
-    :is(.layout-flow, [data-lf-flow])
-      > :is([data-lf-space], .layout-note, .layout-sidebar)
-  ) {
-    max-inline-size: none;
+  section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+  article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+  details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+  [data-lf-flow] {
+    --lf-flow: 1;
+    &:where(section):dir(ltr),
+    &:where(article):dir(ltr),
+    &:where(details):dir(ltr),
+    &:where([data-lf-flow]):dir(ltr) {
+      --lf-free-start: var(--lf-free-left);
+      --lf-free-end: var(--lf-free-right);
+    }
+    &:where(section):dir(rtl),
+    &:where(article):dir(rtl),
+    &:where(details):dir(rtl),
+    &:where([data-lf-flow]):dir(rtl) {
+      --lf-free-start: var(--lf-free-right);
+      --lf-free-end: var(--lf-free-left);
+    }
+    /* A flow's box holds the blocks standing in it, so a flow that otherwise keeps the
+     * measure, as a question does, gives it up once one of them, or one in a flow in
+     * it, asks for more room, in a column or in a sidebar page's wider body. */
+    &:where(section):has(
+        > :is([data-lf-space], .layout-sidebar),
+        & > :is([data-lf-space], .layout-sidebar)
+      ),
+    &:where(article):has(
+        > :is([data-lf-space], .layout-sidebar),
+        & > :is([data-lf-space], .layout-sidebar)
+      ),
+    &:where(details):has(
+        > :is([data-lf-space], .layout-sidebar),
+        & > :is([data-lf-space], .layout-sidebar)
+      ),
+    &:where([data-lf-flow]):has(
+        > :is([data-lf-space], .layout-sidebar),
+        & > :is([data-lf-space], .layout-sidebar)
+      ) {
+      max-inline-size: none;
+    }
   }
   @property --lf-breakout {
     syntax: "<integer>";
@@ -530,51 +534,70 @@
    * block then spills past the window, which the render check reports. A box wider
    * than its holder stands at the holder's start edge whatever its own direction, so
    * the margin is on the holder's start side. A sheet has no window margin to borrow,
-   * so on paper every block keeps the prose's measure. */
-  /* Only a Layout that states a measure hands out room: in a workspace every block
-   * fills its region, a flow's included. */
-  @container style(--lf-measure) {
-    /* A table with a breakout is only as wide as its columns need, up to its room, where
-   * a breakout's width would spread two short columns across the whole room. */
-    :is(.layout-column, .layout-flow, [data-lf-flow]) > table[data-lf-space] {
-      contain: none;
-      inline-size: max-content;
+   * so on paper every block keeps the prose's measure.
+   *
+   * Each rule below is about a block standing in the column or in a flow. */
+  :is(
+    .layout-column,
+    :is(
+      :is(section, article, details):where(
+        :not([class^="layout-"], [class*=" layout-"], [data-lf-space])
+      ),
+      [data-lf-flow]
+    )
+  ) {
+    > section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+    > article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+    > details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+    > [data-lf-flow] {
+      --lf-prose-measure: inherit;
     }
-    /* The reading face's table is a block that scrolls its columns (reading.css), and a
-   * breakout sizes that block. A page without the face keeps the browser's table,
-   * whose columns this minimum would spread. */
-    @container style(--lf-reading-face: 1) {
-      :is(.layout-column, .layout-flow, [data-lf-flow]) > table[data-lf-space] {
-        min-inline-size: min(100%, var(--lf-col));
+    /* Only a Layout that states a measure hands out room: in a workspace every block
+     * fills its region, a flow's included. */
+    @container style(--lf-measure) {
+      /* A table with a breakout is only as wide as its columns need, up to its room,
+       * where a breakout's width would spread two short columns across the whole room. */
+      > table[data-lf-space] {
+        contain: none;
+        inline-size: max-content;
       }
-    }
-    @media screen {
-      :is(.layout-column, .layout-flow, [data-lf-flow]) {
+      /* The reading face's table is a block that scrolls its columns (reading.css), and
+       * a breakout sizes that block. A page without the face keeps the browser's table,
+       * whose columns this minimum would spread. */
+      @container style(--lf-reading-face: 1) {
+        > table[data-lf-space] {
+          min-inline-size: min(100%, var(--lf-col));
+        }
+      }
+      @media screen {
         > [data-lf-space="wide"] {
           inline-size: min(var(--lf-wide), 100% + var(--lf-free-end));
           max-inline-size: none;
           --lf-breakout: 1;
         }
-        > :is([data-lf-space="available"], .layout-sidebar) {
+        > [data-lf-space="available"],
+        > .layout-sidebar {
           position: relative;
           inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
           max-inline-size: none;
           --lf-breakout: 1;
         }
-        &:dir(ltr) > :is([data-lf-space="available"], .layout-sidebar) {
+        &:dir(ltr) > [data-lf-space="available"],
+        &:dir(ltr) > .layout-sidebar {
           margin-left: calc(-1 * var(--lf-free-start));
         }
-        &:dir(rtl) > :is([data-lf-space="available"], .layout-sidebar) {
+        &:dir(rtl) > [data-lf-space="available"],
+        &:dir(rtl) > .layout-sidebar {
           margin-right: calc(-1 * var(--lf-free-start));
         }
         > table[data-lf-space] {
           max-inline-size: min(var(--lf-wide), 100% + var(--lf-free-end));
         }
         /* An available table is as wide as its content and stands on the room's axis:
-       * from the room's start, where its margin puts it, its start is moved to the axis
-       * and back by half its own width, so its box in flow stays inside the room.
-       * Firefox lacks `justify-self` on a block, which would centre it
-       * (notes/browser-support.md). */
+         * from the room's start, where its margin puts it, its start is moved to the
+         * axis and back by half its own width, so its box in flow stays inside the room.
+         * Firefox lacks `justify-self` on a block, which would centre it
+         * (notes/browser-support.md). */
         > table[data-lf-space="available"] {
           max-inline-size: calc(100% + var(--lf-free-start) + var(--lf-free-end));
         }
@@ -586,55 +609,74 @@
           right: calc(50% + (var(--lf-free-start) + var(--lf-free-end)) / 2);
           translate: 50%;
         }
-      }
-      /* A flow's box grows into the room on each side as far as the blocks in it break
-     * out, so its focus ring and every mark drawn round it enclose them. Padding grows
-     * the box and an equal negative margin keeps the content box at the prose, so the
-     * blocks in it resolve their room as before. A note row and a wide block each
-     * reach a width from the prose's start edge, and the flow takes the larger, within
-     * the room. A table's reach is its whole room, since its columns set its width. A
-     * block breaks out only where it stands directly in a flow, so a flow counts its
-     * own children and those of the flows in it, and not a block a plain wrapper keeps
-     * in the column. */
-      :is(.layout-column, .layout-flow, [data-lf-flow])
-        > :is(.layout-flow, [data-lf-flow]) {
-        --lf-note-reach: 0px;
-        --lf-wide-reach: 0px;
-        --lf-reach-start: 0px;
-        --lf-reach-end: min(
-          max(var(--lf-note-reach), var(--lf-wide-reach)) - 100%,
-          var(--lf-free-end)
-        );
-        &:has(> .layout-note, :is(.layout-flow, [data-lf-flow]) > .layout-note) {
-          --lf-note-reach: calc(var(--lf-col) + var(--lf-note));
-        }
-        &:has(
-          > [data-lf-space="wide"],
-          :is(.layout-flow, [data-lf-flow]) > [data-lf-space="wide"]
-        ) {
-          --lf-wide-reach: var(--lf-wide);
-        }
-        &:has(
-          > :is([data-lf-space="available"], .layout-sidebar),
-          :is(.layout-flow, [data-lf-flow])
-            > :is([data-lf-space="available"], .layout-sidebar)
-        ) {
-          --lf-reach-start: var(--lf-free-start);
-          --lf-reach-end: var(--lf-free-end);
-        }
-        &:has(
-          > :is([data-lf-space], .layout-note, .layout-sidebar),
-          :is(.layout-flow, [data-lf-flow])
-            > :is([data-lf-space], .layout-note, .layout-sidebar)
-        ) {
-          margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
-            calc(-1 * max(0px, var(--lf-reach-end)));
-          padding-inline: max(0px, var(--lf-reach-start)) max(0px, var(--lf-reach-end));
+        /* A flow's box grows into the room on each side as far as the blocks in it
+         * break out, so its focus ring and every mark drawn round it enclose them.
+         * Padding grows the box and an equal negative margin keeps the content box at
+         * the prose, so the blocks in it resolve their room as before. A wide block
+         * reaches a width from the prose's start edge, within the room. A table's reach
+         * is its whole room, since its columns set its width. A block breaks out only
+         * where it stands directly in a flow, so a flow counts its own children and
+         * those of the flows standing in it, and not a block a plain wrapper keeps in
+         * the column. */
+        > section:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+        > article:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+        > details:where(:not([class^="layout-"], [class*=" layout-"], [data-lf-space])),
+        > [data-lf-flow] {
+          --lf-wide-reach: 0px;
+          --lf-reach-start: 0px;
+          --lf-reach-end: min(var(--lf-wide-reach) - 100%, var(--lf-free-end));
+          &:where(section):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
+          &:where(article):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
+          &:where(details):has(> [data-lf-space="wide"], & > [data-lf-space="wide"]),
+          &:where([data-lf-flow]):has(
+              > [data-lf-space="wide"],
+              & > [data-lf-space="wide"]
+            ) {
+            --lf-wide-reach: var(--lf-wide);
+          }
+          &:where(section):has(
+              > :is([data-lf-space="available"], .layout-sidebar),
+              & > :is([data-lf-space="available"], .layout-sidebar)
+            ),
+          &:where(article):has(
+              > :is([data-lf-space="available"], .layout-sidebar),
+              & > :is([data-lf-space="available"], .layout-sidebar)
+            ),
+          &:where(details):has(
+              > :is([data-lf-space="available"], .layout-sidebar),
+              & > :is([data-lf-space="available"], .layout-sidebar)
+            ),
+          &:where([data-lf-flow]):has(
+              > :is([data-lf-space="available"], .layout-sidebar),
+              & > :is([data-lf-space="available"], .layout-sidebar)
+            ) {
+            --lf-reach-start: var(--lf-free-start);
+            --lf-reach-end: var(--lf-free-end);
+          }
+          &:where(section):has(
+              > :is([data-lf-space], .layout-sidebar),
+              & > :is([data-lf-space], .layout-sidebar)
+            ),
+          &:where(article):has(
+              > :is([data-lf-space], .layout-sidebar),
+              & > :is([data-lf-space], .layout-sidebar)
+            ),
+          &:where(details):has(
+              > :is([data-lf-space], .layout-sidebar),
+              & > :is([data-lf-space], .layout-sidebar)
+            ),
+          &:where([data-lf-flow]):has(
+              > :is([data-lf-space], .layout-sidebar),
+              & > :is([data-lf-space], .layout-sidebar)
+            ) {
+            margin-inline: calc(-1 * max(0px, var(--lf-reach-start)))
+              calc(-1 * max(0px, var(--lf-reach-end)));
+            padding-inline: max(0px, var(--lf-reach-start))
+              max(0px, var(--lf-reach-end));
+          }
         }
       }
     }
-  }
-  :is(.layout-column, .layout-flow, [data-lf-flow]) {
     /* A failed upgrade draws prose in place of its exhibit, and a page whose runtime
      * could not start shows each undrawn widget's source. Either is prose, so its host
      * keeps the prose's measure, without the margin a breakout reaches the room by,
@@ -648,33 +690,6 @@
       translate: none;
       --lf-breakout: 0;
     }
-    /* A note and the passage it accompanies form one row, as wide as the room after
-     * the prose allows. */
-    > .layout-note {
-      inline-size: min(var(--lf-col) + var(--lf-note), 100% + var(--lf-free-end));
-    }
-  }
-  /* Native wrapping puts the note after its passage when there is no room; the next
-   * exhibit follows both. */
-  .layout-note {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: start;
-    gap: var(--lf-sp-2) var(--lf-sp-4);
-    max-inline-size: calc(var(--lf-col) + var(--lf-note));
-    margin-block-end: var(--lf-sp-4);
-  }
-  .layout-note > * {
-    margin-block: 0;
-    max-inline-size: var(--lf-col);
-  }
-  .layout-note > :not(aside) {
-    flex: 1000000 1 var(--lf-col);
-    min-inline-size: min(100%, var(--lf-col));
-  }
-  .layout-note > aside {
-    flex: 1 1 calc(var(--lf-note) - var(--lf-sp-4));
-    min-inline-size: 0;
   }
   /* A sidebar and its body are authored siblings. Their inner track is authored
    * too, so startup, revisions and exports use the browser's same containing block
@@ -748,20 +763,21 @@
     --lf-aside: calc(var(--lf-sidebar) - var(--lf-sp-4));
   }
   /* A document's sidebar whose track holds only an element that rests as a spine
-   * (`x-spine`, painted `data-lf-spine`), as the contents map does, narrows to that spine
-   * on a screen where a fine pointer can reach into it, so the room a column would take
-   * goes to the body, whose prose stands as a column page's does (below). The aside comes
-   * before the body, so what the element reveals spreads from the spine toward the inline
-   * end, into the room before the prose and, on a narrower window, over the body. The
-   * narrowed track carries `--lf-track-spine: 1`, and only there does the element take
-   * its resting form (toc.css). The track doesn't clip, the aside paints over the body,
-   * and the body is one stacking context, so nothing it holds paints over what the
-   * element reveals, whatever its z-index. Every other sidebar keeps a column's room: a
-   * track holding anything else, an aside after the body, every track under touch,
-   * where nothing reaches in by pointing, and paper, where nothing reaches in at all.
-   * Rejected (9 November 2026): narrowing every document sidebar. It broke a
+   * (`paint.spine`, painted `data-lf-spine`), as the contents map does, narrows to that
+   * spine on a screen where a fine pointer can reach into it, so the room a column
+   * would take goes to the body, whose prose stands as a column page's does (below).
+   * The aside comes before the body, so what the element reveals spreads from the spine
+   * toward the inline end, into the room before the prose and, on a narrower window,
+   * over the body. The narrowed track carries `--lf-track-spine: 1`, and only there
+   * does the element take its resting form (toc.css). The track doesn't clip, the aside
+   * paints over the body, and the body is one stacking context, so nothing it holds
+   * paints over what the element reveals, whatever its z-index. Every other sidebar
+   * keeps a column's room: a track holding anything else, an aside after the body,
+   * every track under touch, where nothing reaches in by pointing, and paper, where
+   * nothing reaches in at all.
+   * Rejected: narrowing every document sidebar. It broke a
    * paragraph in one into a few letters a line, and the render check passed it.
-   * TODO: `x-spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
+   * TODO: `paint.spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
    * `--lf-track-spine`) widen the public interface for one widget's look. Narrowing
    * automatically needs some declaration, since the aside is a size container and takes
    * no width from its content. Without one, the page would narrow its sidebar with
@@ -792,10 +808,10 @@
    * whole flex item rather than a centred box, so its room is a length. The body's width
    * is what the flex row leaves it: the sidebar's, less the aside and the gap while the
    * aside stands beside it (the Layout's `--lf-aside` is a length here), and the whole of
-   * it once the aside wraps. Until 14 November 2026 the prose stood at the body's start edge, as from #4724. Beside an outline column that
-   * read as a route and its document, but once the contents map rested as a 56px spine
-   * (#5772) it left the prose against the window's edge, half the window empty past it
-   * and the panel centred off it. */
+   * it once the aside wraps. Rejected: the prose at the body's start edge. Beside an
+   * outline column that reads as a route and its document, but with the contents map
+   * resting as a 56px spine it leaves the prose against the window's edge, half the
+   * window empty past it and the panel centred off it. */
   .layout-sidebar > .layout-column {
     flex: 1000000 1 var(--lf-col);
     min-inline-size: min(100%, var(--lf-col));
@@ -855,7 +871,8 @@
       --lf-top-outer: var(--lf-top);
     }
     @container not style(--lf-track-scroll-behavior: flow) {
-      :is(.layout-track, [data-lf-track]) {
+      .layout-track,
+      [data-lf-track] {
         position: sticky;
         top: calc(var(--lf-top-outer) + var(--lf-sp-4));
         --lf-top: 0px;
@@ -920,7 +937,7 @@
    * page scrolls. A workspace is a screen for pages that act like a dashboard or a TUI,
    * and a pane that runs past its region is trimmed or split by its author
    * (page-layout.md, "A workspace"); a long read beside a panel is a sidebar page.
-   * Rejected (2026-10): the main region flowing with the root while the other regions
+   * Rejected: the main region flowing with the root while the other regions
    * stick, which kept native page scrolling at the cost of reworking full-height
    * widgets, footers, margin lanes and phone stacking.
    *

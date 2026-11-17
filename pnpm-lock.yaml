@@ -216,6 +216,9 @@ importers:
       sortablejs:
         specifier: 1.15.7
         version: 1.15.7
+      temml:
+        specifier: 0.14.0
+        version: 0.14.0
       typescript:
         specifier: 7.0.2
         version: 7.0.2
@@ -4666,6 +4669,10 @@ packages:
   tapable@2.3.3:
     resolution: {integrity: sha512-uxc/zpqFg6x7C8vOE7lh6Lbda8eEL9zmVm/PLeTPBRhh1xCgdWaQ+J1CUieGpIfm2HdtsUpRv+HshiasBMcc6A==}
     engines: {node: '>=6'}
+
+  temml@0.14.0:
+    resolution: {integrity: sha512-tz1LW/5IZpThK8c7ZpdTSH/n56eAj+ThirLieErtKxYC3EKCIiB4sKdRUehAgH+fQmvIKqMfP3gqTLBdLpy9zw==}
+    engines: {node: '>=18.13.0'}
 
   text-extensions@3.1.0:
     resolution: {integrity: sha512-anOjtXr8OT5w4vc/2mP4AYTCE0GWc/21icGmaHtBHnI7pN7o01a/oqG9m06/rGzoAsDm/WNzggBpqptuCmRlZQ==}
@@ -9784,6 +9791,8 @@ snapshots:
     optional: true
 
   tapable@2.3.3: {}
+
+  temml@0.14.0: {}
 
   text-extensions@3.1.0: {}
 

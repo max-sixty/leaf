@@ -2,12 +2,14 @@
 their required readers, and the fallback when a surface fails."""
 
 import json
+import re
 
 import pytest
 from interact_support import append_carried_log_record, wait_for
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
+    CHROME_ROOT,
     PANEL,
     ROOT,
     close_panel_menu,
@@ -80,22 +82,28 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     """
     entry = {
         "description": "A project-supplied thread surface.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "rows": {
-                "contract": "text-document",
-                "source": "source",
-                "property": "value",
-            }
+        "content": "empty",
+        "data": {
+            "inputs": {
+                "rows": {
+                    "contract": "text-document",
+                    "source": "source",
+                    "property": "value",
+                }
+            },
         },
-        "x-example": '<lf-test-surface id="surface-example"></lf-test-surface>',
+        "author": {
+            "example": '<lf-test-surface id="surface-example"></lf-test-surface>',
+        },
     }
     module = """
 import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
@@ -359,10 +367,14 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
     shows, and the instance beside it, which has an id, opens its box."""
     entry = {
         "description": "A card that seats the threads about it.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "additionalProperties": False,
-        "x-example": '<lf-test-card id="card-example">A card.</lf-test-card>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "additionalProperties": False,
+        },
+        "author": {
+            "example": '<lf-test-card id="card-example">A card.</lf-test-card>',
+        },
     }
     module = """
 import {nothing} from '/vendor/lit.js';
@@ -435,7 +447,7 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
             """
       <h1 id="title">Review</h1>
       <lf-ask id="choice-question"><h2>Which route?</h2>
-        <lf-options id="routes" choose><lf-option id="route-a">Route A</lf-option>
+        <lf-options id="routes"><lf-option id="route-a">Route A</lf-option>
         <lf-option id="route-b">Route B</lf-option></lf-options>
       </lf-ask>
       <p id="subject">The export keeps one file per tenant.</p>
@@ -490,14 +502,14 @@ def test_page_annotation_view_seats_obligations_and_contributed_controls(
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#route-a .lf-pick").click()
-    expect(page.locator("#route-a")).to_have_attribute("chosen", "")
+    expect(page.locator("#route-a")).to_have_attribute("selected", "")
     expect(question).to_be_visible()
     holding(page, held, 1, "the optimistic choice")
     held[0].continue_()
     page.unroute("**/api/event")
     expect(question).to_have_count(0)
     undo(page)
-    expect(page.locator("#route-a")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#route-a")).not_to_have_attribute("selected", "")
     expect(question).to_be_visible()
 
 
@@ -655,7 +667,9 @@ def test_a_page_presentation_draws_a_thread_once_a_route_asks_for_it(browser, se
     # leaf's menu stands disabled.
     page.locator("#title").click()
     page.keyboard.press("o")
-    expect(page.locator("html")).not_to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
+        "data-lf-annotations-hidden", re.compile(".*")
+    )
     expect(
         panel_control(page, "command:annotations.toggle", at="annotate")
     ).to_be_disabled()
@@ -834,7 +848,7 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
                 """
       <h1 id="title">Review</h1>
       <p id="subject" style="text-align: end">The nightly export keeps one file per tenant.</p>
-      <lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" choose>
+      <lf-ask id="route"><h2>Which route?</h2><lf-options id="routes">
         <lf-option id="route-a">Route A</lf-option><lf-option id="route-b">Route B</lf-option>
       </lf-options></lf-ask>
       <div id="notes" style="block-size: 6rem; overflow: auto">
@@ -1030,7 +1044,9 @@ def test_the_gallery_s_page_margin_draws_a_page_s_annotations_itself(browser, se
     # come back with their controls working.
     page.locator("#title").click()
     page.keyboard.press("o")
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     expect(margin.locator(".xm-mark")).to_have_count(0)
     assert page.evaluate(tinted) == []
     assert (
@@ -1083,23 +1099,29 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
 ):
     entry = {
         "description": "An exact source seat.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "style": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "style": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "rows": {
-                "contract": "text-document",
-                "source": "source",
-                "property": "value",
-            }
+        "content": "empty",
+        "data": {
+            "inputs": {
+                "rows": {
+                    "contract": "text-document",
+                    "source": "source",
+                    "property": "value",
+                }
+            },
         },
-        "x-example": '<lf-test-seat id="sample"></lf-test-seat>',
+        "author": {
+            "example": '<lf-test-seat id="sample"></lf-test-seat>',
+        },
     }
     module = """
 import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
@@ -1239,22 +1261,28 @@ customElements.define('lf-test-seat', class extends LeafElement {
 def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, serve):
     entry = {
         "description": "An exact datum seat.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "rows": {
-                "contract": "text-document",
-                "source": "source",
-                "property": "value",
-            }
+        "content": "empty",
+        "data": {
+            "inputs": {
+                "rows": {
+                    "contract": "text-document",
+                    "source": "source",
+                    "property": "value",
+                }
+            },
         },
-        "x-example": '<lf-test-seat id="seat"></lf-test-seat>',
+        "author": {
+            "example": '<lf-test-seat id="seat"></lf-test-seat>',
+        },
     }
     module = """
 import {LeafElement,setChildren} from '/runtime/widget-api.js';

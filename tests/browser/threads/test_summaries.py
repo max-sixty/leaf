@@ -55,12 +55,13 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Choose the first job.",
+        "Choose the first job.\n\n"
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
-        '<lf-options id="first-job" choose>'
+        '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
+        html=True,
     )
     for i in range(8):
         append_carried_log_record(
@@ -99,12 +100,13 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
     reply = thread_model.post_reply(
         serve.page_dir,
         {"responds": root},
-        "Choose the first job.",
+        "Choose the first job.\n\n"
         '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
-        '<lf-options id="first-job" choose>'
+        '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
+        html=True,
     )
     page = open_page(browser, url)
     seated = page.locator(f'#jobs .lf-msg[data-lf-event="{reply["id"]}"]')
@@ -125,8 +127,8 @@ def test_the_browser_s_search_and_leaf_s_travel_open_a_closed_fold(
     reaches their words and opens the whole fold, which its toggle closes again; Leaf's
     travel to an element inside one opens it the same way. A link to a passage of text
     drives the browser's search here: it reveals a match by the same algorithm as
-    find-in-page, which a test cannot press. Before, folded messages were plain
-    `hidden`, which the browser's search skips.
+    find-in-page, which a test cannot press. Folded messages that were plain `hidden`
+    would be skipped by the browser's search.
 
     A reply's markup, which stands in one drawing at a time, stays in a drawing that
     shows it rather than one that folds the reply away: here the panel, which outranks
@@ -546,9 +548,9 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     """A summary arriving over messages the user is reading, closed and opened again,
     then retracted, leaves them where they stand: a frame in one keeps the document it
     loaded, and words the user selected in another stay selected. Moving a message
-    reloaded its frame in WebKit, which lacks `moveBefore`, and lost the selection in
-    every engine. The checkpoint groups its messages for assistive technology by
-    `aria-owns`, since it no longer contains them. Its toggle takes a press while those
+    would reload its frame in WebKit, which lacks `moveBefore`, and lose the selection
+    in every engine. The checkpoint groups its messages for assistive technology by
+    `aria-owns`, since it doesn't contain them. Its toggle takes a press while those
     words stay selected. Standing on that toggle, the user is in the thread, so the
     edit that retracts the summary draws at once."""
     url = serve(SEATED_OBLIGATION_PAGE)
@@ -608,11 +610,11 @@ def test_a_summary_folds_its_messages_where_they_stand(request, serve, engine):
     owned = checkpoint.evaluate("node => node.getAttribute('aria-owns').split(' ')")
     assert owned == [message.evaluate("node => node.id") for message in covered]
 
-    # A press, with those words still selected, folds and unfolds them: the guard that
-    # takes a drag ending on a control for the selection's mouseup once asked the whole
-    # card, so a selection anywhere in it deadened the toggle. Show and Hide leave their
-    # toggle under the user's aim: the thread landing it brought the thread's head back
-    # into view and lifted the toggle 20px.
+    # A press, with those words still selected, folds and unfolds them: were the guard
+    # that takes a drag ending on a control for the selection's mouseup to ask the whole
+    # card, a selection anywhere in it would deaden the toggle. Show and Hide leave their
+    # toggle under the user's aim: a thread landing that brought the thread's head back
+    # into view would lift the toggle.
     toggle.scroll_into_view_if_needed()
     stood = toggle.evaluate("node => node.getBoundingClientRect().top")
     toggle.click()

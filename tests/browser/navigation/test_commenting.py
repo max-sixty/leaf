@@ -295,11 +295,12 @@ def test_touch_return_keeps_newlines_until_the_user_taps_submit(browser, serve):
 
 
 def test_c_comments_on_what_the_user_is_located_in(browser, serve):
-    """Focus supplies an element anchor. `c` once read the 💬 alone, so a user
-    working from the keys had two destinations where explicit pointer targeting had
+    """Focus supplies an element anchor. A `c` that read the 💬 alone would give a user
+    working from the keys two destinations where explicit pointer targeting has
     three: an item, a quote, or the whole page. A
-    focused link put them on an option and the box that opened still said "Comment on the
-    page" — the ⌥ aim's "the item under the pointer" with no twin for the cursor.
+    focused link would put them on an option and the box that opened would still say
+    "Comment on the page" — the ⌥ aim's "the item under the pointer" with no twin for
+    the cursor.
 
     Where they are located is the unanswered decision first, because that is what the page
     has already told them: markHere rings the whole obligation when m/M lands on its control.
@@ -308,7 +309,7 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
 
     One box either way: `commentOnTarget` writes `{section: item.id}`, which is the anchor a
     widget's own thread seat collects, so a remark made here lands in that seat's
-    thread rather than beside it. Reaching for the seat directly instead was five
+    thread rather than beside it. Reaching for the seat directly instead would be five
     questions — escaping an author's id, whether the box can take focus, which box when
     the seat holds several, what design mode files, where the user already stood — for
     a focus landing.
@@ -369,9 +370,10 @@ def test_c_comments_on_what_the_user_is_located_in(browser, serve):
     # A link inside a question, open and settled: the same markup, and the same answer.
     # Located in a decision is not working one — a user who focused a link has named
     # something more particular than the question around it, and answering the question
-    # there both overrode what they named and made the reply turn on whether that question
-    # happened to be open. The settled one is the contrast that shows it was the openness
-    # doing it: it always said "option", and the open one used to say "options".
+    # there would both override what they named and make the reply turn on whether that
+    # question happened to be open. The settled one is the contrast that shows the
+    # openness doing it: it says "option", where an open one answered as the question
+    # would say "options".
     for expected_id in ("sh-steel", "st-keep"):
         drop()
         rendered(page)
@@ -403,7 +405,7 @@ ROOM_IN_THE_MARGIN = (1440, 900)
 AN_ASK_THEN_READING = leaf_page(
     "An ask, then reading",
     '<h1>An ask, then reading</h1><lf-ask id="route"><h2>Which route?</h2>'
-    '<lf-options id="routes" choose>'
+    '<lf-options id="routes">'
     '<lf-option id="left">Take the left route</lf-option>'
     '<lf-option id="right">Take the right route</lf-option>'
     '</lf-options></lf-ask><div style="height:4000px">Reading on</div>',
@@ -486,7 +488,7 @@ def test_a_live_sample_holding_the_keys_raises_no_box_around_it(browser, serve):
                 "A sample",
                 '<h1>A sample</h1><lf-sample id="practice" label="Practice" window>'
                 '<template id="practice-page" data-sample><h1>Practice</h1>'
-                '<lf-ask id="route"><h2>Which route?</h2><lf-options id="routes" choose>'
+                '<lf-ask id="route"><h2>Which route?</h2><lf-options id="routes">'
                 '<lf-option id="left">Take the left route</lf-option>'
                 '<lf-option id="right">Take the right route</lf-option>'
                 "</lf-options></lf-ask></template></lf-sample>",
@@ -550,12 +552,12 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     On Me because the next word there is the agent's — but the user
     is located in it all the same, and it is still the question they are working.
 
-    Read off the user's list, both the ring and `c` went with the count: the moment the
-    remark was sent the ring left from under the user, and `c` fell through from the
-    thread they had started to whichever item their focus happened to rest in. That
-    starts a second thread rather than continuing the first, so the next line of a
-    remark landed somewhere the first line was not. The agent's reply moved both back.
-    Nothing the user did moved either, which is the whole of the complaint; the reply
+    Read off the user's list, both the ring and `c` would go with the count: the moment
+    the remark was sent the ring would leave from under the user, and `c` would fall
+    through from the thread they had started to whichever item their focus happened to
+    rest in. That starts a second thread rather than continuing the first, so the next
+    line of a remark would land somewhere the first line was not. The agent's reply
+    would move both back, though nothing the user did had moved either; the reply
     phase here is what says the ring has stopped tracking the count rather than merely
     tracking it late. `c` names the user's own thread throughout, because its target,
     the widget, lies within the obligation the user holds (`commentDestination`), and the
@@ -575,8 +577,8 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 <lf-ask id="shape-decision"><h2>Galvanised steel for the frame?</h2>
 <lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-ask>
 <lf-ask id="picked-decision"><h2>Should we keep it?</h2>
-<lf-options id="picked" choose>
-  <lf-option id="pk-keep" chosen><strong>Keep it</strong> Settled by a pick.</lf-option>
+<lf-options id="picked">
+  <lf-option id="pk-keep" selected><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-ask>
 <p id="p2">A passage carrying
@@ -810,7 +812,7 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
             """
 <h1 id="t">Seated</h1>
 <lf-ask id="shape-decision"><h2>Which material?</h2>
-<lf-options id="shape" choose>
+<lf-options id="shape">
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, drop-in.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-ask>
@@ -865,10 +867,10 @@ def test_c_in_a_seated_thread_reaches_the_thread_it_is_in(browser, serve):
     expect(second.locator("> .lf-thread-reply leaf-text")).to_be_focused()
 
     # And Esc hands back the press that got them there, which is the keyboard-is-a-stack
-    # rule read on the page rather than in the panel. The box asked for `.lf-thread` and
-    # the panel alone, so out here the rung fell through to the page's own "let go": one
-    # press in from the thread, one press out to body, with the thread they had been
-    # located in two feet away and no key back to it. Both ends read one climb now, so
+    # rule read on the page rather than in the panel. A box asking for `.lf-thread` and
+    # the panel alone would let the rung out here fall through to the page's own "let
+    # go": one press in from the thread, one press out to body, with the thread they had
+    # been located in two feet away and no key back to it. Both ends read one climb, so
     # the word going in ("comment on the thread") and the word coming out are about the
     # same element.
     page.keyboard.press("Escape")
@@ -1147,7 +1149,7 @@ DECK_SLIDES = {
 @pytest.mark.parametrize("shown", ["results", "chart"])
 def test_a_page_comment_records_the_sections_on_screen(browser, serve, shown):
     """A comment on the whole page has no passage, so on a deck that shows one slide at
-    a time, "drop this one" reached the agent without saying which slide (#5026). The
+    a time, "drop this one" would reach the agent without saying which slide. The
     panel's send records the sections whose words or pictures are on screen: the
     header's, read off the page, and the shown slide's, read in the workspace region
     that scrolls the slides, but none of the slides the page hides. A slide that is
@@ -1182,7 +1184,7 @@ def test_the_panels_own_c_answers_a_page_whose_log_has_not_arrived(browser, serv
     on: `c` opens the page comment, and the panel says only that a comment will not
     send yet. What it has not got is a thread list, so narrowing by what awaits the
     user is dead. Find remains available as the panel's empty search, and the panel's
-    scope used to take `c` down with the missing list, so `c` is pressed from the empty
+    scope could take `c` down with the missing list, so `c` is pressed from the empty
     list too.
 
     Offline rather than mid-load, because it is the state that stays: a loading page

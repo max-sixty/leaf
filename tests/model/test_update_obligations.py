@@ -5,6 +5,7 @@ by its next actor."""
 import model_folds as model
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     append_carried_log_record,
     append_command,
     declare_on_page,
@@ -84,7 +85,7 @@ def test_two_messages_in_a_row_publish_one_record_both_workflows_name(page_dir):
 
 
 OPTIONS = (
-    '<lf-options id="choice" choose><lf-option id="a">A</lf-option>'
+    '<lf-options id="choice"><lf-option id="a">A</lf-option>'
     '<lf-option id="b">B</lf-option></lf-options>'
 )
 
@@ -148,8 +149,8 @@ def test_a_widget_the_user_discusses_is_listed_once_through_the_comment():
         "author": "agent",
         "parent": "t",
         "responds": "t",
-        "text": "Which route?",
-        "markup": OPTIONS.replace('id="', 'id="t-'),
+        "html": True,
+        "text": "Which route?\n\n" + OPTIONS.replace('id="', 'id="t-'),
     }
     later = {"kind": "reply", "id": "r", "author": "user", "parent": "t", "text": "C?"}
     frozen = model.leaf_page("Questions", "<p>Nothing to answer here.</p>")
@@ -169,7 +170,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
         claimed, lambda registry: registry.update(queue_board_registry(registry))
     )
     (claimed / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>').replace(
+        PAGE.replace(PAGE_GROUP, '<lf-options id="choice">').replace(
             "</section>",
             '<lf-draft id="note"><pre>Blue room.</pre></lf-draft></section>',
         )
@@ -197,8 +198,8 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "Sort these follow-ups.",
-            "markup": '<lf-board id="triage">'
+            "html": True,
+            "text": "Sort these follow-ups.\n\n" + '<lf-board id="triage">'
             '<lf-column id="queue" label="Queued">'
             '<lf-card id="card-a"><strong>Rolling expiry</strong></lf-card>'
             '<lf-card id="card-b"><strong>Retry budget</strong></lf-card>'

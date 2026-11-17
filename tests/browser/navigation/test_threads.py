@@ -95,8 +95,8 @@ def test_a_thread_trip_takes_over_an_outgoing_trip_before_its_first_frame(
 
 def test_the_thread_panel_and_a_page_thread_carry_names(browser, serve):
     """Threads opens in the panel, the region named Leaf, under its title, and a thread
-    card on the page is where a send or a walk can stand the user. Both were once
-    unnamed, so a screen reader arriving on either heard only "dialog" or "group"."""
+    card on the page is where a send or a walk can stand the user. Were either unnamed,
+    a screen reader arriving on it would hear only "dialog" or "group"."""
     page = open_page(browser, serve(READING_REGIONS_PAGE))
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -347,7 +347,7 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
             "The linked destination begins here.</lf-shadow-reading>"
         )
         declaration = element_declaration("lf-shadow-reading", upgrade=True)
-        declaration["x-shadow"] = True
+        declaration.setdefault("words", {})["shadow"] = True
         layer_registry = {"lf-shadow-reading": declaration}
         layer_widgets = {
             "lf-shadow-reading.js": """
@@ -707,8 +707,8 @@ def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     """A walk shows the thread it lands on and no other, so `c` and the walk's position
     have one thread to mean. From a thread open in the panel, `t` to a thread about a
     passage opens its card and puts the panel's view away; from that card, `t` to a
-    thread about the whole page opens it in the panel and closes the card. Both once
-    stayed open, and the panel said "Thread 2 of 2" under the thread the user had
+    thread about the whole page opens it in the panel and closes the card. Were both to
+    stay open, the panel would say "Thread 2 of 2" under the thread the user had
     left."""
     url = serve(INLINE_PAGE)
     first = panel_comment(
@@ -1075,8 +1075,8 @@ def test_r_resolves_the_focused_thread_while_x_is_unbound(browser, serve):
 def test_r_resolves_a_thread_from_wherever_the_user_stands_in_it(browser, serve):
     """r settles the thread holding focus, not only a focused card.
 
-    A click on a thread's words focuses the message, so a card-only reach left the
-    user's most common way in pressing a letter that did nothing. The Resolve button,
+    A click on a thread's words focuses the message, so a card-only reach would leave
+    the user's most common way in pressing a letter that did nothing. The Resolve button,
     a link in a reply, and the message each reach it; the reply box keeps the letter."""
     url = serve(NOTED_PAGE)
     d = serve.page_dir

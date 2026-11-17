@@ -1,12 +1,13 @@
 """Shared structural and authored-markup validation rules."""
 
+import json
 from collections import Counter
 from pathlib import Path
 from urllib.parse import urlsplit
 
 from leaf.findings import Finding, element_at
 from leaf.passages import markdown_dialect
-from leaf.schema import MEDIA_DIR, SERVED_PATH
+from leaf.schema import ASSETS, MEDIA_DIR, SERVED_PATH
 from leaf.structure import (
     AUTHORED_ALLOCATIONS,
     SECTION_TAGS,
@@ -35,6 +36,46 @@ def reserved_marker_errors(parser) -> list[Finding]:
     return [
         Finding("reserved-markers", element_at(tag), {"line": line, "markers": markers})
         for tag, line, markers in parser.authoring.reserved_markers
+    ]
+
+
+# Each name a `language-…` class may give a language Leaf colours, mapped to its
+# grammar: each grammar's name and Shiki's aliases for it, which build/vendor.mjs writes
+# into the runtime's table as one line of JSON (`syntaxLanguageNames`), and
+# syntax-tokens.js reads a class by.
+_NAMES_LINE = "export const syntaxLanguageNames = "
+COLOURED_LANGUAGES: dict[str, str] = next(
+    json.loads(line.removeprefix(_NAMES_LINE).removesuffix(";"))
+    for line in (ASSETS / "runtime" / "syntax-languages.js")
+    .read_text(encoding="utf-8")
+    .splitlines()
+    if line.startswith(_NAMES_LINE)
+)
+# The language a formula's LaTeX is written in, as GitHub's and remark-math's Markdown
+# name it: the browser typesets a `<code>` naming it rather than colouring it
+# (runtime/formulas.js), and leaves a widget naming it uncoloured.
+FORMULA_LANGUAGE = "math"
+
+
+def language_advice(parser) -> list[Finding]:
+    """Each `language-…` class, on any element, naming a language Leaf neither colours
+    nor typesets, so its code stays the colour of its ink. Advice, not a gate: the name
+    may be a misspelling, which nothing else on the page says, or a language Leaf has
+    no grammar for, which the class still names truly to any other reader."""
+    return [
+        Finding(
+            "uncoloured-language",
+            element_at(tag),
+            {
+                "line": line,
+                "language": name,
+                "names": sorted(set(COLOURED_LANGUAGES.values())),
+            },
+            severity="advice",
+        )
+        for tag, line, name in parser.authoring.code_languages
+        if name not in COLOURED_LANGUAGES
+        and (name != FORMULA_LANGUAGE or tag != "code")
     ]
 
 
@@ -206,8 +247,8 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     page of its own: the runtime parses an agent's reply markup into a template and
     moves those nodes into the message body, where a <style> among them becomes a
     document stylesheet like any other. `<style>main h1 { color: red !important
-    }</style>` in a reply was accepted here and repainted the version's own heading,
-    past every gate the same rule in a version answers to.
+    }</style>` in a reply would repaint the version's own heading, past every gate
+    the same rule in a version answers to.
 
     Nothing is lost by refusing them. The layer already dresses a widget an agent
     sends — that is what an element declaration and its theme rules are for — and a rule
@@ -221,21 +262,24 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     return errors + authored_allocation_errors(parser)
 
 
-def text_media_errors(text: str, page_dir: Path) -> list[Finding]:
+def text_media_errors(
+    text: str, page_dir: Path, *, html: bool = False
+) -> list[Finding]:
     """The same reference in a message's Markdown, which is the other way one arrives.
 
     Markup names a picture in an attribute or a stylesheet, where the parsed reading
     finds it (`revision_artifact.uncaptured_errors`); a message names one as a
-    Markdown destination, which that reading cannot see — so an agent sending a
-    screenshot came through the one door that never asked. `check_markup` runs only when `--markup` is
-    given, and text on its own reached the log unread.
+    Markdown destination, which that reading cannot see — so a screenshot an agent
+    sends that way would come through the one door that never asks. `check_markup`
+    runs only on a message holding HTML, and text without it would reach the log
+    unread.
 
     A reference is a rendered link or image destination, never a scan of the words.
     Parsing the Markdown resolves referenced definitions and leaves fenced examples
     and unused definitions as text, so neither asks for a file the page will not load."""
     refs = {
         url
-        for token in markdown_dialect(True).parse(text)
+        for token in markdown_dialect(True, html=html).parse(text)
         for child in token.children or ()
         if child.type in {"link_open", "image"}
         if (url := child.attrGet("href" if child.type == "link_open" else "src"))

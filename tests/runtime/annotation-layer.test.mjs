@@ -9,6 +9,7 @@ import {
   restoreAnnotations,
   watchAnnotationLayer,
 } from "/runtime/annotation-layer.js";
+import { chromeRoot } from "/runtime/chrome.js";
 import { commandAvailable, commandRun } from "/runtime/keyboard/bindings.js";
 import { pageScopes } from "/runtime/keyboard/register.js";
 import { mountRepaint } from "/runtime/repaint.js";
@@ -44,7 +45,7 @@ test("a layer's watchers decide when hiding it takes a press, and hear it hidden
   press();
   assert.deepEqual(heard, [true]);
   assert.equal(annotationsHidden(), true);
-  assert.equal(document.documentElement.getAttribute("data-lf-annotations"), "hidden");
+  assert.equal(chromeRoot.hasAttribute("data-lf-annotations-hidden"), true);
 
   // One joining a hidden layer hears so at once, as a widget upgrading after the tab's
   // state was restored does.
@@ -62,7 +63,7 @@ test("a layer's watchers decide when hiding it takes a press, and hear it hidden
   assert.equal(commandAvailable(toggle), true, "a hidden layer can still be shown");
   press();
   assert.equal(annotationsHidden(), false);
-  assert.equal(document.documentElement.hasAttribute("data-lf-annotations"), false);
+  assert.equal(chromeRoot.hasAttribute("data-lf-annotations-hidden"), false);
   assert.deepEqual(heard, [true], "a watcher that left hears nothing more");
   assert.equal(commandAvailable(toggle), false);
 });

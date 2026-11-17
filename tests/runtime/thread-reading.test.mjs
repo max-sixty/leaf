@@ -667,15 +667,13 @@ test("news answers only a user turn that still stands", async () => {
   assert.equal(threadChange(before, reading([root], "More work")).answers, null);
 });
 
-test("Copy retains the original authored HTML after the public thread reading", async () => {
+test("Copy gives an authored message's Markdown, its HTML included, after the public thread reading", async () => {
   const { adoptRegistry } = await import("/runtime/registry.js");
+  const { loadMarkdown } = await import("/runtime/markdown.js");
   adoptRegistry({ $layer: { generation: "authored-copy" } });
-  const markup = "<p>A <strong>captured</strong> answer.</p>";
-  const source = agent("authored-copy", {
-    kind: "comment",
-    text: "Agent words",
-    markup,
-  });
+  assert.equal(await loadMarkdown(), true);
+  const text = "Agent **words**\n\n<p>A <strong>captured</strong> answer.</p>";
+  const source = agent("authored-copy", { kind: "comment", text, html: true });
   const prepared = await prepareAuthoredMessage(source, source.id);
   const [thread] = readThreadRecords(
     [servedThread([source])],
@@ -684,5 +682,5 @@ test("Copy retains the original authored HTML after the public thread reading", 
     [],
   );
   const message = messageReading(thread.root, { workflows: [] });
-  assert.equal(message.markdown, `Agent words\n\n${markup}`);
+  assert.equal(message.markdown, text);
 });

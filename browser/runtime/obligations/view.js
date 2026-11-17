@@ -7,7 +7,7 @@
    answered in words navigate through their thread owner instead.
 
    An obligation keeps its source identity. Its prompt.target names where the user arrives:
-   the enclosing widget (an lf-ask or another declaring `x-encloses`), otherwise
+   the enclosing widget (an lf-ask or another declaring `state.encloses`), otherwise
    the widget itself. The source owns the answer and the explicit context bindings.
    Adding an enclosing widget changes neither the obligation nor its answer.
 
@@ -26,7 +26,7 @@
    on every clipped edge keeps its scroll position. DOM measurements and renderer
    nodes never enter the obligation record.
 
-   Blanket actions come from x-awaits.all and invoke each source's declared decision
+   Blanket actions come from state.awaits.all and invoke each source's declared decision
    method. They preserve one admitted action per widget rather than recording a second
    page-wide answer. */
 
@@ -191,7 +191,7 @@ export function createObligationView({
     },
   });
 
-  // One blanket answer per outcome a widget declares one for (x-awaits.all), each
+  // One blanket answer per outcome a widget declares one for (state.awaits.all), each
   // deciding its obligations one at a time so the log records what was consented to rather than
   // one blanket yes — accepting the rest after rejecting one stays honest. The widget's
   // module exposes a method named for its deciding verb that takes the outcome; the
@@ -203,8 +203,8 @@ export function createObligationView({
   // message declares it under its own publication. Which outcomes exist is what the
   // obligations' own declarations answer, so core names none.
   function buildBulkAnswers() {
-    for (const tag of tagsDeclaring((entry) => entry["x-awaits"]?.all)) {
-      const outcome = registry[tag]["x-awaits"].all;
+    for (const tag of tagsDeclaring((entry) => entry.state?.awaits?.all)) {
+      const outcome = registry[tag].state?.awaits.all;
       if (bulkAnswers.has(outcome)) continue;
       const label = capitalized(outcome);
       bulkAnswers.set(outcome, label);
@@ -248,10 +248,11 @@ export function createObligationView({
   // The unanswered obligations rather than the user's list, because being in an obligation is
   // about where the user is working and not about what they owe. The two part on a widget
   // whose own seat holds a thread waiting on the agent: it leaves the list while its pick
-  // stays unmade and its controls stay live, and reading the list took the ring off that
-  // widget and moved `c` from the seat the user was writing in down to whichever option
-  // their focus rested on — a second thread on the child rather than the next line of their
-  // own. The agent's reply put both back. Nothing the user did moved either. An
+  // stays unmade and its controls stay live, and reading the list would take the ring off
+  // that widget and move `c` from the seat the user is writing in down to whichever option
+  // their focus rests on — a second thread on the child rather than the next line of their
+  // own — and the agent's reply would put both back, though nothing the user did moved
+  // either. An
   // answered obligation leaves both worklists but stays in the active inventory: the
   // On Me's Done rows can return the user to it, and being there restores
   // the same numeric action route so they can revise the recorded answer.
@@ -348,11 +349,11 @@ export function createObligationView({
     };
   }
   // The ring that says so, painted from the focus rather than written where the user was
-  // put. The walk used to write it, and it then said where the walk had left them rather
-  // than where they were: click away, work in the panel, come back tomorrow, and an obligation
-  // nobody was in went on wearing "you are here". Every other way into an obligation —
-  // Tab, a click on one of its controls — left the ring somewhere else entirely, so the
-  // same place was marked or not by how the user had reached it.
+  // put. Rejected: the walk writing it, which then says where the walk left them rather
+  // than where they are: click away, work in the panel, come back tomorrow, and an obligation
+  // nobody is in goes on wearing "you are here". Every other way into an obligation —
+  // Tab, a click on one of its controls — leaves the ring somewhere else entirely, so the
+  // same place is marked or not by how the user reached it.
   //
   // Pointer and keyboard arrivals share this location reading, as they share the
   // focused control's ring. An On Me row's press lands the focus by script
@@ -413,10 +414,10 @@ export function createObligationView({
   // handed back. Which control inside it they held is not something this can answer: the
   // controls are the widget's, most carry no id of their own, and the first
   // answering control is the walk's landing rule rather than a restore. Handing that back
-  // is the failure version.js's header names — a user holding the second option was
-  // given the first, and their next press chose it. The obligation's own opening is the one
-  // place that cannot misfire, because it holds a lent tab stop rather than a decision:
-  // the widget's context routes are live there and Space decides nothing.
+  // is the failure version.js's header names — a user holding the second option would be
+  // given the first, and their next press would choose it. The obligation's own opening
+  // is the one place that cannot misfire, because it holds a lent tab stop rather than
+  // a decision: the widget's context routes are live there and Space decides nothing.
   //
   // Chrome is excluded because it has nothing to restore: an On Me row and a
   // margin entry for the same obligation are keyed by that id already, so a patch hands each of
@@ -439,19 +440,20 @@ export function createObligationView({
     if (target) focusForNavigation(target, "return");
   }
 
-  // Where the user arrives at a page obligation: the region whose start has to be in front
-  // of them for the obligation to make sense. A widget declaring `x-encloses` is its own frame —
-  // one heading, then the context and evidence, then the control — and this walk is handed
-  // that region rather than the widget inside it, so its arrival is simply its start.
+  // Where the user arrives at a page obligation: the region whose start has to be in
+  // front of them for the obligation to make sense. A widget declaring
+  // `state.encloses` is its own frame — one heading, then the context and evidence,
+  // then the control — and this walk is handed that region rather than the widget
+  // inside it, so its arrival is simply its start.
   //
   // The kind that most needs a region is the kind that cannot declare one. A suggestion is
   // an edit to a phrase, and what explains it is the sentence it stands in and the heading
   // over that — so it can never satisfy "a question must name itself without context outside
-  // the question", and no enclosing widget can be written round it. Landing on the change alone put
-  // its own top edge under the window's head and took that sentence with it: the user arrived
-  // at ✓ Accept with nothing on screen saying what they were accepting. So where the
-  // author has not declared a region, the document supplies one in the shape a declared
-  // region has.
+  // the question", and no enclosing widget can be written round it. Landing on the
+  // change alone would put its own top edge under the window's head and take that
+  // sentence with it: the user would arrive at ✓ Accept with nothing on screen saying
+  // what they are accepting. So where the author has not declared a region, the
+  // document supplies one in the shape a declared region has.
   //
   // Candidates widest first — the heading titling this part of the document, then the
   // block the change stands in, or, for a change that is its own block, the block before
@@ -466,7 +468,7 @@ export function createObligationView({
     // the reader arrives at its opening and reads down to the answering controls.
     // Shared context must fit above this source; otherwise use its nearby words.
     // With only the default source target, infer the words preceding it instead.
-    const declared = context && registry[context.localName]?.["x-encloses"];
+    const declared = context && registry[context.localName]?.state?.encloses;
     if (declared && context === currentLocation) return context;
     // A region has to be somewhere the user can be taken. An element generating no box
     // measures (0,0) at the document's origin, which is not a degenerate answer but a

@@ -133,8 +133,9 @@ def test_clicking_a_shadow_widget_input_keeps_its_focus_and_thread_reading(
             "author": "agent",
             "parent": root["id"],
             "revision": 1,
-            "text": "Filter the files in this patch.",
-            "markup": """<lf-diff id="reply-patch" data-height="151"><pre>
+            "text": """Filter the files in this patch.
+
+<lf-diff id="reply-patch" data-height="151"><pre>
 diff --git a/reading.py b/reading.py
 --- a/reading.py
 +++ b/reading.py
@@ -149,6 +150,7 @@ diff --git a/notes.md b/notes.md
 -before
 +after
 </pre></lf-diff>""",
+            "html": True,
         },
     )
     # Turns after the patch, so the thread's view scrolls.
@@ -347,7 +349,7 @@ def opened_by_a_click(browser, serve, threads):
 def test_the_caret_an_opening_places_begins_no_reply(browser, serve, threads):
     """The caret a click's opening leaves in an empty box is no reply being written, so
     an agent's Resolve does what it does to a reader's card: at a passage of three the
-    card moves on to the next thread, and at a solo passage it closes. It used to stand
+    card moves on to the next thread, and at a solo passage it closes. It doesn't stand
     on the resolved thread over its empty box (replies.js)."""
     page, card, _box, roots = opened_by_a_click(browser, serve, threads)
     events_model.append_event(

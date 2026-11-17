@@ -8,7 +8,7 @@ import json
 import os
 import subprocess
 
-from interact_support import PAGE
+from interact_support import PAGE, PAGE_GROUP
 from playwright.sync_api import expect
 
 from leaf_dev import ROOT
@@ -71,20 +71,18 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         "playground",
         page_dir,
     )
-    source = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-options" choose>'
-    ).replace(
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="plan-options">').replace(
         "<h2>Plan</h2>",
         '<h2>Plan</h2><lf-risk-note id="risk">Custom package works.</lf-risk-note>',
     )
     source = source.replace(
         "</main>",
         '<lf-playground id="prepared-playground">'
-        '<lf-playground-control id="label" name="label" label="Label" kind="text" '
-        'value="Prepared"></lf-playground-control>'
-        "<lf-playground-preview><p>Native initial drawing works.</p>"
-        "</lf-playground-preview><lf-playground-output>Use "
-        '<lf-playground-value for="label"></lf-playground-value>.'
+        '<aside><label id="label">Label <input name="label" '
+        'value="Prepared"></label></aside>'
+        "<p>Native initial drawing works.</p>"
+        "<lf-playground-output>Use "
+        '<output for="label"></output>.'
         "</lf-playground-output></lf-playground></main>",
     )
     (page_dir / "index.html").write_text(source)
@@ -117,7 +115,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         expect(tab.locator("lf-risk-note")).to_have_text("Custom package works.")
         assert tab.evaluate("customElements.get('lf-risk-note') !== undefined")
         playground = tab.locator("#prepared-playground")
-        expect(playground.locator("input[type=text]")).to_have_value("Prepared")
+        expect(playground.locator("input[name=label]")).to_have_value("Prepared")
         expect(playground.locator("lf-playground-output")).to_contain_text(
             "Use Prepared."
         )

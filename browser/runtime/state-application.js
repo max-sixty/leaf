@@ -124,18 +124,20 @@ export function createStateApplication({
     if (!activeView)
       throw new Error(`State has no view for active revision ${state.active.revision}`);
     const threads = activeView.thread.threads;
+    // An agent's message holding HTML renders once, from the loaded renderer.
+    const markdown = threads.length ? loadMessageMarkdown() : null;
     const messages = threads.flatMap((thread) =>
       thread.msgs.map((message) => ({
         message,
         preparation:
-          "markup" in message && message.markup
-            ? prepareAuthoredMessage(message, thread.id)
+          "html" in message && message.html
+            ? markdown?.then(() => prepareAuthoredMessage(message, thread.id))
             : null,
       })),
     );
     const [activation, , frozenDocuments] = await Promise.all([
       prepareActivation(state),
-      threads.length ? loadMessageMarkdown() : null,
+      markdown,
       Promise.all(
         messages.map(async ({ message, preparation }) => ({
           message,
@@ -146,12 +148,7 @@ export function createStateApplication({
     const bodies = new Map(
       frozenDocuments.map(({ message, frozen }) => [
         message.id,
-        frozen
-          ? {
-              ...frozen.body,
-              text: [messageText(message), frozen.body.text].filter(Boolean).join("\n"),
-            }
-          : { text: messageText(message) },
+        frozen ? frozen.body : { text: messageText(message) },
       ]),
     );
 
@@ -244,7 +241,7 @@ export function createStateApplication({
         } else presentedNews = { reading: newsReading, observed: reading.observed };
         // The agent's new words are heard, not shown: the On Me mark's dot and each
         // margin marker's already show unread news, so the seat keeps the agent's status.
-        // The user chose this on 25 October over a line counting the messages.
+        // The user chose this over a line counting the messages.
         if (reading.news.length) announce(semanticNewsNotice(reading.news));
         // The leaf answers news as it arrives, with the badge and dots, rather than when
         // a notice held behind the user's own command shows it.

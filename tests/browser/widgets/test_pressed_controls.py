@@ -4,9 +4,9 @@ The rule is `browser/AGENTS.md`'s: a gesture draws its own result in the task th
 handles it, and a disabled control, spinner or delivery status is not that result. A
 widget that keeps its own record of a send in flight breaks it twice: the control under
 the pointer flickers to a busy cursor or a disabled face for one round trip, and a
-second press in that window is swallowed. Four bundled widgets once did both, each
-found by hand, so this presses every control in every bundled package's worked
-examples (`widget_quality.served_examples`) with the server's answer held."""
+second press in that window is swallowed. So this presses every control in every
+bundled package's worked examples (`widget_quality.served_examples`) with the server's
+answer held."""
 
 from render_harness import Traffic, round_trip
 
@@ -108,7 +108,7 @@ UNRESOLVED = """async () => {
   const api = await import(new URL('runtime/check-api.js', boot));
   const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
   const unsent = (event) => event.kind === 'action' &&
-    declarationFor(document.getElementById(event.widget), 'x-state')?.[event.action]
+    declarationFor(document.getElementById(event.widget))?.state?.verbs?.[event.action]
       ?.unsent === true;
   return api.readApplication().unresolved.map(({ event }) =>
     [event.attempt, event.kind, unsent(event)]);
@@ -116,7 +116,7 @@ UNRESOLVED = """async () => {
 
 # Controls no worked example shows, by package directory: a `multiple` group's Done.
 STATES = {
-    "default": """<lf-options id="pressed-many" choose multiple>
+    "default": """<lf-options id="pressed-many" multiple>
   <lf-option id="pressed-first"><strong>Cache the parsed config</strong></lf-option>
   <lf-option id="pressed-second"><strong>Parse it lazily</strong></lf-option>
 </lf-options>""",
@@ -126,7 +126,7 @@ STATES = {
 # directory, so a sweep that finds none anywhere else has lost its controls.
 UNPRESSABLE = {"diagram", "file-tree", "motion", "visual-review"}
 
-# The widgets whose presses once flickered, which the sweep must reach sending.
+# The widgets whose presses could flicker, which the sweep must reach sending.
 REACHED = {"lf-playground", "lf-options", "lf-suggestion"}
 
 

@@ -11,7 +11,6 @@ from interact_support import PAGE, package_path, page_packages
 from leaf import revisioning as revisioning_model
 from leaf.exporting import AssetInliner, ReadableAssets
 from leaf.files import revision_path
-from leaf.http import scope_page_urls
 from leaf.revision_artifact import (
     ArtifactError,
     Resource,
@@ -41,7 +40,17 @@ ADDRESS = DeliveryAddress(PAGE_ROOT, ROOT)
 
 def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retained():
     source = '<lf-editable id="note"><pre>**Keep** `--dry-run`.\n\n- One\n- Two</pre></lf-editable>'
-    marked = mark_declared(source, {"lf-editable": {"x-text-format": "markdown"}}, {})
+    marked = mark_declared(
+        source,
+        {
+            "lf-editable": {
+                "words": {
+                    "text-format": "markdown",
+                },
+            }
+        },
+        {},
+    )
     document = SourceDocument(marked)
     [host] = document.tree.find_all("lf-editable")
     select_one_result = host.select_one("pre")
@@ -63,11 +72,17 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
 
 
 def test_a_written_markdown_file_is_delivered_rendered_as_a_file():
-    """A written <pre> whose notation an attribute names (`x-prepaint`) first paints
+    """A written <pre> whose notation an attribute names (`paint.prepaint`) first paints
     as the Markdown its module will draw: a file's soft breaks are spaces, not the
     hard breaks Leaf's own words keep. Another notation, or no written text, paints
     nothing."""
-    registry = {"lf-doc": {"x-prepaint": "preview"}}
+    registry = {
+        "lf-doc": {
+            "paint": {
+                "prepaint": "preview",
+            },
+        }
+    }
     written = "**Fixed** a crash\nwhen `--config` is missing."
     source = (
         f'<lf-doc id="md" preview="markdown"><pre>{written}</pre></lf-doc>'
@@ -88,7 +103,15 @@ def test_a_written_markdown_file_is_delivered_rendered_as_a_file():
 def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads():
     source = '<lf-editable id="note"><pre>[unsafe link](javascript:alert(1)) ![unsafe image](data:text/html,boom) [safe link](https://example.com)</pre></lf-editable>'
     delivered = mark_declared(
-        source, {"lf-editable": {"x-text-format": "markdown"}}, {}
+        source,
+        {
+            "lf-editable": {
+                "words": {
+                    "text-format": "markdown",
+                },
+            }
+        },
+        {},
     )
     body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
     assert body is not None
@@ -504,8 +527,8 @@ def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     """Media is the page's and shared across revisions, so every host serves it at the
     page root, and the runtime resolves a message's or a widget's media there too. A
     captured document addresses it there in every form capture reads: a resource
-    attribute, any attribute naming it whole, a stylesheet, a declarative shadow root,
-    and frozen message markup in a state reading. Prose naming it stays as written."""
+    attribute, any attribute naming it whole, a stylesheet and a declarative shadow
+    root. Prose naming it stays as written."""
     media = "/media/0123456789abcdef.png"
     (tmp_path / "media").mkdir()
     (tmp_path / "media" / "0123456789abcdef.png").write_bytes(b"\x89PNG")
@@ -525,10 +548,6 @@ def test_media_has_one_address_wherever_a_page_names_it(tmp_path):
     delivered = rebase_document(source, ADDRESS)
     assert delivered.replace(PAGE_ROOT + media, "").count(media) == 1  # the prose
     assert delivered.count(PAGE_ROOT + media) == 7
-    markup = scope_page_urls(
-        {"markup": f'<p><img src="{media}" alt="Shot"></p>'}, PAGE_ROOT
-    )
-    assert markup["markup"] == f'<p><img src="{PAGE_ROOT}{media}" alt="Shot"></p>'
 
 
 def test_captured_document_entries_resolve_at_every_public_address(tmp_path):
@@ -732,12 +751,37 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         )
 
     registry = {
-        "lf-zone": {"x-reading-role": "pane"},
-        "lf-board": {"x-space": "wide"},
-        "lf-label": {"x-inline": True},
-        "lf-feed": {"x-bound": "end"},
-        "lf-plot": {"x-height": 400},
-        "table": {"description": "A table.", "x-example": "<table></table>"},
+        "lf-zone": {
+            "markup": {
+                "reading-role": "pane",
+            },
+        },
+        "lf-board": {
+            "paint": {
+                "space": "wide",
+            },
+        },
+        "lf-label": {
+            "words": {
+                "inline": True,
+            },
+        },
+        "lf-feed": {
+            "paint": {
+                "bound": "end",
+            },
+        },
+        "lf-plot": {
+            "paint": {
+                "height": 400,
+            },
+        },
+        "table": {
+            "description": "A table.",
+            "author": {
+                "example": "<table></table>",
+            },
+        },
     }
     source = (
         "<!doctype html><html><head><title>T</title></head><body>"
@@ -821,7 +865,13 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
     source = "- [x] Done\n- [ ] Todo\n\nhttps://example.com\n\n<div>\n**bold**\n</div>"
     delivered = mark_declared(
         f"<lf-editable><pre>{escape(source)}</pre></lf-editable>",
-        {"lf-editable": {"x-text-format": "markdown"}},
+        {
+            "lf-editable": {
+                "words": {
+                    "text-format": "markdown",
+                },
+            }
+        },
         {},
     )
     body = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
@@ -838,12 +888,53 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
     assert not body.find_all("div")
 
 
+@pytest.mark.parametrize(
+    ("body", "painted"),
+    [
+        # The `<code>` naming the text's language, as on any code block.
+        ('<code class="language-markdown">**Fixed** a crash</code>', "Fixed a crash"),
+        # A template's contents, which the browser keeps out of `textContent`.
+        ("**Fixed**<template>**inert**</template> a crash", "Fixed a crash"),
+    ],
+)
+def test_a_written_markdown_file_first_paints_the_text_its_module_reads(body, painted):
+    """The first paint of a written Markdown file reads its `<pre>` as the module
+    will, the browser's `textContent`, so the page doesn't change words or size as the
+    module draws over it."""
+    delivered = mark_declared(
+        '<lf-text-document id="notes" label="NOTES.md" preview="markdown">'
+        f"<pre>{body}</pre></lf-text-document>",
+        {
+            "lf-text-document": {
+                "paint": {
+                    "prepaint": "preview",
+                },
+            }
+        },
+        {},
+    )
+    rendering = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
+    assert rendering is not None
+    assert rendering.text.strip() == painted
+    assert [strong.text for strong in rendering.find_all("strong")] == ["Fixed"]
+
+
 def test_source_fallback_marks_derive_from_open_registry_content_declarations():
     """A new data widget gets the same pre-upgrade reading primitive without a tag list."""
     source = '<lf-new-source id="source"><pre>raw source</pre></lf-new-source><lf-literal id="literal">literal source</lf-literal>'
     registry = {
-        "lf-new-source": {"x-content": "data", "x-awaits": {"value": "choose"}},
-        "lf-literal": {"x-content": "data", "x-verbatim": True},
+        "lf-new-source": {
+            "content": "data",
+            "state": {
+                "awaits": {"value": "choose"},
+            },
+        },
+        "lf-literal": {
+            "content": "data",
+            "words": {
+                "verbatim": True,
+            },
+        },
     }
     delivered = mark_declared(source, registry, {})
     soup = SourceDocument(delivered).tree
@@ -880,7 +971,17 @@ def test_an_authored_override_holds_only_where_it_means_something():
         '<table id="table" data-height="80" data-width="wide"><tr><td>A</td></tr>'
         '</table><ul id="feed" data-bound="end"><li>A</li></ul></main></body>'
     )
-    delivered = mark_declared(source, {"lf-chart": {"x-height": 400}}, {})
+    delivered = mark_declared(
+        source,
+        {
+            "lf-chart": {
+                "paint": {
+                    "height": 400,
+                },
+            }
+        },
+        {},
+    )
     soup = SourceDocument(delivered).tree
     find_result_15 = soup.find(id="chart")
     assert find_result_15 is not None
@@ -901,7 +1002,13 @@ def test_an_authored_override_holds_only_where_it_means_something():
 
 
 def test_exhibit_paint_follows_the_occurrence_condition():
-    registry = {"lf-sample": {"x-exhibit": {"when": {"interactive": [False]}}}}
+    registry = {
+        "lf-sample": {
+            "state": {
+                "exhibit": {"when": {"interactive": [False]}},
+            },
+        }
+    }
     source = '<lf-sample id="quote"></lf-sample><lf-sample id="working" interactive></lf-sample>'
     tree = SourceDocument(mark_declared(source, registry, {})).tree
     find_result_19 = tree.find(id="quote")

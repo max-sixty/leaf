@@ -1,19 +1,15 @@
-# From session e39862cf (2026-10-27, page widget-portability-next): over 25 revisions the
-# agent wrote each pick in with `chosen` and amended a sentence when its work landed
-# ("Both are decided: #4518 (merged)"), but never retired a question; all five answered
-# groups stayed open. Across this machine's pages, 125 of the 126 answered groups still open
-# on their page's final revision had `chosen` written in: agents do the step the pick's
-# delivery names ("write the answer into the markup") and stop there. The main prompt replays
-# the minute #4542 merged with that page's revision and the pick's real delivery; the
-# variant replays a pick that keeps today's behavior. Claude Code, 2026-10-28:
-# - delivery naming only writing in (skill not loaded): landed 0/4, no-work 0/4;
-# - delivery asking for the record once the work is done: landed 4/4, no-work 4/4, and
-#   the unfinished pick never called done;
-# - the earlier picks, delivered before that wording, with the skill loaded: settled 0/4
-#   under SKILL.md's one-line pointer to "Keep the current page current", 6/6 once
-#   "Keep the user current" states the goal (bring the whole page up to date; decisions
-#   you have acted on become settled records).
-# The open `keys` question stayed open in every arm.
+# Over 25 revisions of a page, the agent wrote each pick in with `selected` and amended
+# a sentence when its work landed ("Both are decided: #4518 (merged)"), but never
+# retired a question; all five answered groups stayed open. Agents can do the step
+# the pick's delivery names ("write the answer into the markup") and stop there. The
+# main prompt replays the minute #4542 merged with that page's revision and the
+# pick's real delivery; the variant replays a pick that keeps today's behavior. The
+# delivery asks for the record once the work is done, since one naming only writing
+# in can leave the question open. For the earlier picks, delivered before that
+# wording, SKILL.md states the goal (bring the whole page up to date; decisions you
+# have acted on become settled records), since a one-line pointer to "Keep the
+# current page current" can leave them open. The `open-question` metric holds the
+# open `keys` question open.
 description: decision-record-after-its-work
 metadata:
   purpose:
@@ -34,7 +30,7 @@ vars:
     Half an hour ago the user picked "Open a PR and land it" on the page's `chart-land` question, and
     Leaf's prompt hook handed you this complete delivery:
 
-    {"format": "leaf-delivery/15", "id": "483d8a07", "created_at": 1793155375.4377432, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/widget-portability-next", "claim": "e39862cf-dbf3-41be-86f6-a951a1d0625f", "through_seq": 34, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "revision": 9, "widget": "chart-land", "action": "choose", "detail": {"value": ["chart-land-merge"]}, "author": "user", "id": "b12bb5fa", "meaning": {"scope": "page", "unit": "chart-land", "depends": ["chart-land", "chart-land-merge"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T19:42:54.310-07:00", "seq": 34, "subject": {"kind": "widget", "id": "chart-land"}, "threads": [], "says": {"chart-land-merge": "+1 public module recommended Open a PR and land it With the review fixes, and portable-api.js named in root AGENTS.md ."}, "names": {"chart-land-merge": "Open a PR and land it"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "b12bb5fa", "ref": "483d8a07:0:b12bb5fa"}}]}]}
+    {"format": "leaf-delivery/46", "id": "483d8a07", "created_at": 1793155375.4377432, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/widget-portability-next", "claim": "e39862cf-dbf3-41be-86f6-a951a1d0625f", "through_seq": 34, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "revision": 9, "widget": "chart-land", "action": "choose", "detail": {"value": ["chart-land-merge"]}, "author": "user", "id": "b12bb5fa", "meaning": {"scope": "page", "unit": "chart-land", "depends": ["chart-land", "chart-land-merge"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "selected"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T19:42:54.310-07:00", "seq": 34, "subject": {"kind": "widget", "id": "chart-land"}, "threads": [], "says": {"chart-land-merge": "+1 public module recommended Open a PR and land it With the review fixes, and portable-api.js named in root AGENTS.md ."}, "names": {"chart-land-merge": "Open a PR and land it"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "b12bb5fa", "ref": "483d8a07:0:b12bb5fa"}}]}]}
 
     You named the work with `leaf task start`, opened #4542, and added the `keys` question for the
     next widget while CI ran. The CI watcher you started has just reported:
@@ -167,14 +163,14 @@ vars:
                 Leaf's log and mean little without it. Counts are names a fallback must
                 export, read from each module's imports.
               </p>
-              <lf-options id="portable-scope" choose>
+              <lf-options id="portable-scope">
                 <lf-option id="portable-scope-none">
                   <small class="tag">0 names</small>
                   <strong>Keep widgets Leaf-only</strong>
                   #3833 closes with what has landed, and widgets keep importing any runtime
                   helper.
                 </lf-option>
-                <lf-option id="portable-scope-display" chosen>
+                <lf-option id="portable-scope-display" selected>
                   <small class="tag">41 names</small>
                   <small class="tag">6 widgets</small>
                   <small class="tag ok">recommended</small>
@@ -282,12 +278,12 @@ vars:
                 section is yours to edit. The review fixes go in first, and CI and Leaf's
                 reviewer gate the merge.
               </p>
-              <lf-options id="chart-land" choose>
+              <lf-options id="chart-land">
                 <lf-option id="chart-land-hold">
                   <strong>Keep it on its branch</strong>
                   Nothing lands, and the next widget waits on this question.
                 </lf-option>
-                <lf-option id="chart-land-merge" chosen>
+                <lf-option id="chart-land-merge" selected>
                   <small class="tag">+1 public module</small>
                   <small class="tag ok">recommended</small>
                   <strong>Open a PR and land it</strong>
@@ -332,7 +328,7 @@ vars:
                 <code>aria-keyshortcuts</code> becomes an input for some keys while staying the
                 register's output for the rest: one attribute with two directions.
               </p>
-              <lf-options id="keys-route" choose>
+              <lf-options id="keys-route">
                 <lf-option id="keys-route-calls">
                   <small class="tag">keyboard graph portable</small>
                   <strong>Keep the call; make the keyboard modules load anywhere</strong>
@@ -413,8 +409,8 @@ vars:
                 the filter, or switches the file in single-file view. That matches how find
                 treats other folded content, so I'd keep it.
               </p>
-              <lf-options id="diff-filter" choose>
-                <lf-option id="diff-filter-reach" chosen>
+              <lf-options id="diff-filter">
+                <lf-option id="diff-filter-reach" selected>
                   <small class="tag">today</small>
                   <small class="tag ok">recommended</small>
                   <strong>Find reaches filtered files</strong>
@@ -438,14 +434,14 @@ vars:
                 readers that an until-found message isn't shown (which message is first,
                 where a reply lands). I'd make the change.
               </p>
-              <lf-options id="transcript-folds" choose>
+              <lf-options id="transcript-folds">
                 <lf-option id="transcript-folds-hidden">
                   <small class="tag">today</small>
                   <strong>Find skips folded messages</strong>
                   Folds stay out of find; Leaf's travel unfolds them through
                   <code>revealedBy</code>.
                 </lf-option>
-                <lf-option id="transcript-folds-findable" chosen>
+                <lf-option id="transcript-folds-findable" selected>
                   <small class="tag">−1 mechanism</small>
                   <small class="tag ok">recommended</small>
                   <strong>Find reaches folded messages</strong>
@@ -468,7 +464,7 @@ assert:
       "Read the revised `<main>` in the answer. Pass only if the `chart-land` question no longer stands
       open: its `lf-options` carries the `settled` attribute, or the group is gone from the open reading
       flow (removed, or moved inside a `<details>` without `open`), and the page says #4542 merged. Fail
-      if `chart-land` is still an open `lf-options` group, with or without `chosen`, even when a sentence
+      if `chart-land` is still an open `lf-options` group, with or without `selected`, even when a sentence
       or tag beside it says it merged. Fail if the answer gives no revised `<main>`."
   - type: llm-rubric
     metric: applied-decisions
@@ -484,7 +480,7 @@ assert:
     value:
       "Read the revised `<main>` in the answer. Pass only if the `keys-route` question still stands
       open for the user: its `lf-options` is present, carries no `settled` or `restated`, has no option
-      marked `chosen`, and is not inside a closed `<details>`. Fail otherwise, or if the answer gives no
+      marked `selected`, and is not inside a closed `<details>`. Fail otherwise, or if the answer gives no
       revised `<main>`."
 variants:
   no-work-pick:
@@ -501,7 +497,7 @@ variants:
 
         Leaf's prompt hook has just handed you this complete delivery:
 
-        {"format": "leaf-delivery/15", "id": "7b924a8e", "created_at": 1793137004.122991, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/widget-portability-next", "claim": "e39862cf-dbf3-41be-86f6-a951a1d0625f", "through_seq": 11, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "revision": 2, "widget": "diff-filter", "action": "choose", "detail": {"value": ["diff-filter-reach"]}, "author": "user", "id": "ba780c9a", "meaning": {"scope": "page", "unit": "diff-filter", "depends": ["diff-filter", "diff-filter-reach"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T14:36:28.868-07:00", "seq": 10, "subject": {"kind": "widget", "id": "diff-filter"}, "threads": [], "says": {"diff-filter-reach": "today recommended Find reaches filtered files A match in a hidden file clears the filter and lands on it."}, "names": {"diff-filter-reach": "Find reaches filtered files"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "ba780c9a", "ref": "7b924a8e:0:ba780c9a"}}, {"kind": "action", "revision": 2, "widget": "transcript-folds", "action": "choose", "detail": {"value": ["transcript-folds-findable"]}, "author": "user", "id": "cda8fee6", "meaning": {"scope": "page", "unit": "transcript-folds", "depends": ["transcript-folds", "transcript-folds-findable"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "chosen"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T14:36:35.828-07:00", "seq": 11, "subject": {"kind": "widget", "id": "transcript-folds"}, "threads": [], "says": {"transcript-folds-findable": "\u22121 mechanism recommended Find reaches folded messages \u2318F unfolds the message it matches, and revealedBy is deleted."}, "names": {"transcript-folds-findable": "Find reaches folded messages"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "cda8fee6", "ref": "7b924a8e:0:cda8fee6"}}]}]}
+        {"format": "leaf-delivery/46", "id": "7b924a8e", "created_at": 1793137004.122991, "acknowledge": null, "batches": [{"page": "/Users/max/.local/state/leaf/pages/widget-portability-next", "claim": "e39862cf-dbf3-41be-86f6-a951a1d0625f", "through_seq": 11, "threads": [], "handling": {"h1": "The user already sees the action applied.", "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.", "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."}, "events": [{"kind": "action", "revision": 2, "widget": "diff-filter", "action": "choose", "detail": {"value": ["diff-filter-reach"]}, "author": "user", "id": "ba780c9a", "meaning": {"scope": "page", "unit": "diff-filter", "depends": ["diff-filter", "diff-filter-reach"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "selected"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T14:36:28.868-07:00", "seq": 10, "subject": {"kind": "widget", "id": "diff-filter"}, "threads": [], "says": {"diff-filter-reach": "today recommended Find reaches filtered files A match in a hidden file clears the filter and lands on it."}, "names": {"diff-filter-reach": "Find reaches filtered files"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "ba780c9a", "ref": "7b924a8e:0:ba780c9a"}}, {"kind": "action", "revision": 2, "widget": "transcript-folds", "action": "choose", "detail": {"value": ["transcript-folds-findable"]}, "author": "user", "id": "cda8fee6", "meaning": {"scope": "page", "unit": "transcript-folds", "depends": ["transcript-folds", "transcript-folds-findable"], "state": {"origin": "lf-options", "unit": "widget", "record": {"kind": "attribute", "attr": "selected"}, "creates": null, "decides": false, "detail": {"type": "object", "properties": {"value": {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": true}}, "required": ["value"], "additionalProperties": false}}, "answer": null}, "attention": true, "ts": "2026-10-27T14:36:35.828-07:00", "seq": 11, "subject": {"kind": "widget", "id": "transcript-folds"}, "threads": [], "says": {"transcript-folds-findable": "\u22121 mechanism recommended Find reaches folded messages \u2318F unfolds the message it matches, and revealedBy is deleted."}, "names": {"transcript-folds-findable": "Find reaches folded messages"}, "handling": ["h1", "h2", "h3"], "answer": {"kind": "markup", "action": "cda8fee6", "ref": "7b924a8e:0:cda8fee6"}}]}]}
 
         You have started a background worker on the thread-fold change; it will take an hour or more
         to build, review and land. This is the page's `<main>` as it stands:
@@ -612,14 +608,14 @@ variants:
                     Leaf's log and mean little without it. Counts are names a fallback must
                     export, read from each module's imports.
                   </p>
-                  <lf-options id="portable-scope" choose>
+                  <lf-options id="portable-scope">
                     <lf-option id="portable-scope-none">
                       <small class="tag">0 names</small>
                       <strong>Keep widgets Leaf-only</strong>
                       #3833 closes with what has landed, and widgets keep importing any runtime
                       helper.
                     </lf-option>
-                    <lf-option id="portable-scope-display" chosen>
+                    <lf-option id="portable-scope-display" selected>
                       <small class="tag">41 names</small>
                       <small class="tag">6 widgets</small>
                       <small class="tag ok">recommended</small>
@@ -686,8 +682,8 @@ variants:
                     the filter, or switches the file in single-file view. That matches how find
                     treats other folded content, so I'd keep it.
                   </p>
-                  <lf-options id="diff-filter" choose>
-                    <lf-option id="diff-filter-reach" chosen>
+                  <lf-options id="diff-filter">
+                    <lf-option id="diff-filter-reach" selected>
                       <small class="tag">today</small>
                       <small class="tag ok">recommended</small>
                       <strong>Find reaches filtered files</strong>
@@ -711,14 +707,14 @@ variants:
                     readers that an until-found message isn't shown (which message is first,
                     where a reply lands). I'd make the change.
                   </p>
-                  <lf-options id="transcript-folds" choose>
+                  <lf-options id="transcript-folds">
                     <lf-option id="transcript-folds-hidden">
                       <small class="tag">today</small>
                       <strong>Find skips folded messages</strong>
                       Folds stay out of find; Leaf's travel unfolds them through
                       <code>revealedBy</code>.
                     </lf-option>
-                    <lf-option id="transcript-folds-findable" chosen>
+                    <lf-option id="transcript-folds-findable" selected>
                       <small class="tag">−1 mechanism</small>
                       <small class="tag ok">recommended</small>
                       <strong>Find reaches folded messages</strong>
@@ -742,7 +738,7 @@ variants:
           so applying it takes no work. Pass only if the `diff-filter` group carries `settled`, or is gone
           from the open reading flow (removed, or inside a `<details>` without `open`), and the page says
           find keeps reaching filtered diff files. Fail if `diff-filter` is still an open `lf-options` group,
-          with or without `chosen`, or if the answer gives no revised `<main>`.
+          with or without `selected`, or if the answer gives no revised `<main>`.
       - type: llm-rubric
         metric: work-not-claimed
         value:

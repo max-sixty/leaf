@@ -38,9 +38,9 @@
    from the window's foot, its passage quoted at its head and Show on page taking the
    user to the passage itself. A card open as a narrowing window loses the rail goes
    there too (`yieldPreview`), and a widening one gives the thread back to a card
-   (destination.js, `returnToPage`). The user chose this on 31 October 2026 over a card
-   placed for a narrow window, which stood under or over its words in from the window's
-   edge, over a strip of cut-off words and often over the passage itself, and needed
+   (destination.js, `returnToPage`). The user chose this over a card
+   placed for a narrow window, which stands under or over its words in from the window's
+   edge, over a strip of cut-off words and often over the passage itself, and needs
    placement rules of its own. Its cost is that the panel covers most of a phone's
    window, so the passage shows there only in the quote, until Show on page.
 
@@ -155,6 +155,7 @@ import { releaseReplies } from "../thread/replies.js";
 import { createMarginClusterViews } from "./margin-cluster-view.js";
 
 import { seenRect, shownWindow, watchRoom } from "../geometry.js";
+import { alreadyShown } from "../landing-scroll.js";
 
 import { renderedOrder, renderedUnder, under } from "../shadow.js";
 import { agentName } from "../semantic-state.js";
@@ -480,11 +481,10 @@ export function createMarginProjection({
   // A marker's name says what it holds and its subject, and, only while it holds focus,
   // where it stands (`place`, `spokenPlace`). Where it stands changes for every marker
   // whenever a marker joins or leaves or the page's height changes, so naming every
-  // marker with it read every target's box on each such change: about 9 ms of a
-  // comment's send on the 1,024-section page `leaf-dev bench` generates, growing with
-  // the page. A listener hears the place as they land on a marker, by any route; one
-  // reading the markers without moving focus hears each one's subject alone (the user's
-  // choice, 2026-11-15).
+  // marker with it would read every target's box on each such change, a cost in every
+  // comment's send that grows with the page. A listener hears the place as they land on
+  // a marker, by any route; one reading the markers without moving focus hears each
+  // one's subject alone (the user's choice).
   /** @typedef {{index: number, of: number, position: number | null}} Place */
   /** @param {Entry} entry @param {Place | null} place */
   function markerName(entry, place) {
@@ -546,13 +546,21 @@ export function createMarginProjection({
     { root: document, rootMargin: "100% 0px" },
   );
 
-  // Of `rows`, those in front of the user (`seenRect`): one under the floating panel, or
-  // scrolled out of a pane, is no row the walk or the rail's way in may land on.
+  // Of `rows`, those shown whole in front of the user, the rows the walk and the rail's
+  // way in may land on: none under the floating panel or scrolled out of a pane
+  // (`seenRect`), and none half past an edge, which a landing would move
+  // (landing-scroll.js, `alreadyShown`, measured out to the ring's room the row wears
+  // once focused). The walk lands without moving the page, so on a cut row it left the
+  // ring off screen; and Tab onto one moved the page, since the browser reveals a
+  // focused box it counts out of view by centring it, 400 px in a 900 px window.
   /** @param {Iterable<HTMLElement>} rows */
   function seenRows(rows) {
     const clips = new Map();
     return [...rows].filter(
-      (row) => available(row) && seenRect(row, clips, markerBox(row)),
+      (row) =>
+        available(row) &&
+        seenRect(row, clips, markerBox(row)) &&
+        alreadyShown(row, { ringed: true }),
     );
   }
   // The rows in view, in the margin's order.
@@ -794,8 +802,8 @@ export function createMarginProjection({
       holdTabStop(rovedRow);
       return;
     }
-    // The stop is the highest row in view, or with none in view the row nearest the
-    // window, whatever held it before, so the way in follows from the page as it
+    // The stop is the highest row shown whole (`seenRows`), or with none the row nearest
+    // the window, whatever held it before, so the way in follows from the page as it
     // stands rather than from the widths and scrolls it passed through. A stop kept
     // where it stood while in view moved for good once a narrower width had shown
     // another row first. Only a row near the window can be in view, so while one is, a
@@ -924,6 +932,12 @@ export function createMarginProjection({
     if (!node) return;
     for (const host of hosts.values())
       if (host.contains(node)) return arriveAtCluster(host, node, cause, left);
+  });
+  // Leaving the rail reads its stop again at once. While focus stood on a row the stop
+  // stayed there (`syncRoving`), and a scroll may have carried that row half past an
+  // edge since, where a Shift+Tab straight back would land on it.
+  onCurrentLocation((node, cause, left) => {
+    if (left && under(left, nav) && !(node && under(node, nav))) syncRoving();
   });
   // Leaving a cluster folds what it unfolded, unless the user went into a surface that
   // keeps its context (`inRetainedContext`). A node hidden under the user leaves it too,
@@ -1655,10 +1669,10 @@ export function createMarginProjection({
   // it accompanies: the press takes it down and leaves the user beside its target. Tab
   // goes on from there, so into a target's own controls, such as an ask's options,
   // with the card coming back beside them, and a walk resumes from that thread.
-  // One press is on trial from 2026-10-29, while the user tries it in use. It replaced
+  // One press is on trial, while the user tries it in use. Rejected:
   // a middle step out onto the target with the card still up, which only the focus
-  // ring told apart from the card: after a click its first press left the card up and
-  // only drew a ring on the target. What that step reached is a Tab away, and the keys
+  // ring tells apart from the card: after a click its first press leaves the card up and
+  // only draws a ring on the target. What that step reached is a Tab away, and the keys
   // a target forwards, such as an option's number, answer from inside the card. If
   // the trial fails, `git log -S '"back to element"'` finds the step to restore.
   // A cluster the user unfolded themselves and opened the card from is a level of
@@ -1754,8 +1768,8 @@ export function createMarginProjection({
   }
   pageRung("margin options", optionsRung);
 
-  // The card's way out stands ahead of the reaction and navigation modes, as the
-  // surface's old local listener did, without another keydown listener of its own.
+  // The card's way out stands ahead of the reaction and navigation modes, without
+  // another keydown listener of its own.
   const pageMapRung = (atFocus = true) => keyboardRung({ atFocus }) ?? null;
   pageScope("page map", {
     title: "In the margin",

@@ -151,9 +151,9 @@ def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
 def test_a_board_says_which_column_each_card_is_in(browser, serve):
     """Which column a card sits in is the one fact about it that isn't in its own
     text, and columns are three boxes side by side — geometry, which the
-    accessibility tree doesn't carry. Flat, this board was six text runs and two
-    Move buttons in a row: no boundary between the columns, and no button saying
-    where its card was.
+    accessibility tree doesn't carry. Flat, this board would be its text runs and its
+    Move buttons in a row: no boundary between the columns, and no button saying where
+    its card was.
 
     Both halves are asserted from the tree itself rather than from the attributes
     behind it, because that is where they can be wrong: the column heading is CSS
@@ -313,11 +313,11 @@ def test_a_sideways_board_keeps_a_card_s_words_whole(browser, serve, subtests):
         # A board lays its columns into whatever width it is given and scrolls once they
         # are as narrow as they go, which is the right order, but the floor has to know
         # what a column costs before it can say where narrow enough stops. Stated as the
-        # column's own box (10rem), 70 of those 160 pixels were the column's inset and
+        # column's own box, the floor would spend much of it on the column's inset and
         # border, the card's inset and border, and the column the drag grip hangs in,
-        # and the card's prose got 90: `documented` is 92px of the page's own serif, so
-        # the shipped board broke ordinary words across lines the moment the thread strip
-        # took its margin.
+        # leaving the card's prose narrower than an ordinary word of the page's own
+        # serif, so the board would break ordinary words across lines the moment the
+        # thread strip took its margin.
         #
         # The reading is the visible failure and not the number behind it. A word set
         # across two lines with no hyphen is what the user sees, and it is what the
@@ -632,8 +632,8 @@ def test_a_card_s_title_clears_its_grip_and_its_prose_starts_under_it(
 
     with subtests.test("only the title clears the grip"):
         # The grip stands at the card's top corner and the lines beside it, the title's,
-        # stop short of it; the prose below runs the card's whole width, where it used to
-        # be set in a column that kept clear of the grip down the card's full height. No
+        # stop short of it; the prose below runs the card's whole width, rather than in a
+        # column that keeps clear of the grip down the card's full height. No
         # line stands under the grip's box, so a press there is always the grip's.
         measured = page.locator("#card-a").evaluate(
             """(card) => {
@@ -704,9 +704,9 @@ def test_a_grip_taller_than_its_title_leaves_the_blocks_under_it_their_width(
     browser, serve
 ):
     """The grip, a symbol's face tall, reaches past a one-line title. A block after the
-    title that lays itself out on its own (a pre) was set beside the grip's room for its
-    whole height, narrower than the card; a block after the title now clears the grip
-    and takes the card's width, and nothing stands under the grip's box."""
+    title that lays itself out on its own (a pre), set beside the grip's room for its
+    whole height, would be narrower than the card; a block after the title clears the
+    grip and takes the card's width, and nothing stands under the grip's box."""
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -805,9 +805,9 @@ ANSWERS_BOARD_PAGE = leaf_page(
 <h1 id="t">Proposals</h1>
 <section id="rail-section">
   <h2>Keep the rail beside the text</h2>
-  <lf-options id="rail" choose>
+  <lf-options id="rail">
     <lf-option id="rail-next" value="next">Next</lf-option>
-    <lf-option id="rail-later" value="later" chosen>Later</lf-option>
+    <lf-option id="rail-later" value="later" selected>Later</lf-option>
   </lf-options>
 </section>
 <lf-board id="plan">
@@ -830,7 +830,7 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
     def stands(column, option):
         expect(page.locator(f"#{column} > #card-rail")).to_have_count(1)
-        chosen = page.locator("#rail > lf-option[chosen]")
+        chosen = page.locator("#rail > lf-option[selected]")
         if option:
             expect(chosen).to_have_attribute("id", option)
         else:
@@ -865,7 +865,8 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
     (serve.page_dir / "index.html").write_text(
         ANSWERS_BOARD_PAGE.replace(
-            '<lf-options id="rail" choose>', '<lf-options id="rail" choose restated>'
+            '<lf-options id="rail">',
+            '<lf-options id="rail" restated>',
         )
     )
     assert stamp(serve.page_dir, "Ask again").exit_code == 0

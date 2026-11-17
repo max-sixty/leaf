@@ -89,7 +89,7 @@ QUICK_KEYS_PAGE = leaf_page(
 <h1 id="title">Field day</h1>
 <lf-ask id="map-ask">
   <h3>Which map should the sample team carry?</h3>
-  <lf-options id="map" choose>
+  <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
@@ -118,10 +118,11 @@ commandsChanged(document.querySelector("#local-shortcuts"));
 
 def test_a_let_go_keeps_the_user_in_the_pane_they_read(browser, serve):
     """A let-go lands on what the user is reading in the page region they last acted
-    in. Opening Threads over a pane once replaced that region with the panel's list, so
-    closing it landed on the workspace header; and a pane showing no words where it
-    stood (a figure, a spacer) had no block to land on, so the user was dropped on the
-    body and the pane forgotten. Either way `d` and `u` stopped moving the pane.
+    in. It guards two failures: opening Threads over a pane replacing that region with
+    the panel's list, so closing it lands on the workspace header; and a pane showing
+    no words where it stands (a figure, a spacer) having no block to land on, so the
+    user is dropped on the body and the pane forgotten. Either way `d` and `u` stop
+    moving the pane.
 
     A pane that flows inside a scrolling workspace body keeps answering after it scrolls
     out of the window, which a test of the pane's own visibility must not mistake for a
@@ -188,16 +189,16 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     first = seeded.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
     expect_obligations_answered(page, "2/2")
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("selected", "")
     page.close()
 
     newest = serve(example, seed_log=False)
     first = newest.replace("/versions/v2.html", "/versions/v1.html")
     page = open_page(browser, first)
     expect_obligations_answered(page, "0/2")
-    expect(page.locator("#review-cache-auto")).not_to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).not_to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).not_to_have_attribute("selected", "")
     expect(page.locator("#review-cache")).to_contain_text(
         "A failed copy leaves the old keys authoritative"
     )
@@ -214,7 +215,7 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     expect(page.locator("#review-cache-decision")).to_be_focused()
     with sending(page, "the cache rollback decision"):
         page.keyboard.press("1")
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
 
     page.keyboard.press("m")
     expect(page.locator("#review-billing-decision")).to_be_focused()
@@ -226,8 +227,8 @@ def test_review_queue_decisions_replay_and_reach_the_next_revision_from_the_keyb
     page.goto(live_url(newest))
     rendered(page)
     expect_showing(page, 2)
-    expect(page.locator("#review-cache-auto")).to_have_attribute("chosen", "")
-    expect(page.locator("#review-billing-legacy")).to_have_attribute("chosen", "")
+    expect(page.locator("#review-cache-auto")).to_have_attribute("selected", "")
+    expect(page.locator("#review-billing-legacy")).to_have_attribute("selected", "")
     expect(page.locator("#review-cache")).to_contain_text(
         "returns readers to the old keys automatically"
     )
@@ -601,12 +602,12 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     )
     page.keyboard.press("1")
     rendered(page)
-    expect(street).not_to_have_attribute("chosen", "")
+    expect(street).not_to_have_attribute("selected", "")
     street.locator(".lf-pick").focus()
     page.keyboard.press("ArrowDown")
     expect(trail.locator(".lf-pick")).to_be_focused()
     page.keyboard.press("Space")
-    expect(trail).to_have_attribute("chosen", "")
+    expect(trail).to_have_attribute("selected", "")
     button.focus()
     button.press("Enter")
     expect(note).to_be_focused()
@@ -629,7 +630,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
         "aria-keyshortcuts", re.compile(r"(?:^| )1(?: |$)")
     )
     page.keyboard.press("1")
-    expect(street).to_have_attribute("chosen", "")
+    expect(street).to_have_attribute("selected", "")
     sample.focus()
     expect(button).to_have_attribute("aria-keyshortcuts", "1")
     page.keyboard.press("1")
@@ -1283,9 +1284,9 @@ def test_pr_walkthrough_navigation_starts_the_review_at_every_width(
 ):
     """Contents must be available before the reader works through this long review.
 
-    The former sidebar placed the outline after the complete PR facts and history;
-    when the tracks stacked, it also came after the entire article. The authored
-    reading order now puts navigation first and supporting evidence in the article.
+    The authored reading order puts navigation first and supporting evidence in the
+    article. An outline placed after the complete PR facts and history would, when the
+    tracks stack, also come after the entire article.
     """
     source = named_source("pr-walkthrough")
     url = serve(source)
@@ -1822,8 +1823,9 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
 
     # A press a widget built joins the same namespace, declared by the constructor that
     # made it rather than by an entry here. A pick spends no page letter of its own — the
-    # register holds capabilities, and a control is a route to one — so before this the
-    # only keyboard way to it was Tab. The arrival is the press, so the option is chosen.
+    # register holds capabilities, and a control is a route to one — so without that
+    # declaration the only keyboard way to it would be Tab. The arrival is the press, so
+    # the option is chosen.
     page.evaluate(
         """() => document.scrollingElement.scrollTo(
              0, document.getElementById('opts-decision').offsetTop - 80)"""
@@ -1846,7 +1848,7 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     )
     assert pick_code, "the pick mark the widget built got no Go-to hint"
     page.keyboard.type(pick_code)
-    expect(page.locator("#opt-a")).to_have_attribute("chosen", "")
+    expect(page.locator("#opt-a")).to_have_attribute("selected", "")
 
     # The two completions that take no digit: an edge of the page is one place, so the
     # second key completes the route — G glides to the bottom, g to the top.

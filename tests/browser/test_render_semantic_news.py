@@ -59,7 +59,7 @@ def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
     said(page).not_to_have_attribute("data-lf-says", "notice")
 
     thread_model.cmd_comment(
-        serve.page_dir, None, None, None, "A new page-wide agent note.", None
+        serve.page_dir, None, None, None, "A new page-wide agent note."
     )
     told(page)
     expect(page.locator(".lf-live")).to_have_text(
@@ -133,7 +133,7 @@ def test_an_edited_agent_message_is_heard_as_an_edit(browser, serve):
     page.keyboard.press("g")
 
     original = thread_model.cmd_comment(
-        serve.page_dir, None, None, None, "Initial note.", None
+        serve.page_dir, None, None, None, "Initial note."
     )
     told(page)
     thread_model.cmd_edit(serve.page_dir, original["id"], "Current note.")

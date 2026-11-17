@@ -1,11 +1,7 @@
 # The widget keyboard API playground used bare <pre><code> and packed several
 # command fields onto each line. This case exercises a revision of that code display.
-# On d1a357e06, with page-authoring.md read, the baseline passed 0 of 3 and the
-# guidance on language and illustrative-code formatting passed 3 of 3. The plain
-# diagnostic output is the guardrail against treating every preformatted block as code.
-# Without the prompt's pointer to page-authoring.md, 4 of 4 Claude Code runs of the
-# primary context at 0e538e29d read it themselves and passed, as 4 of 4 pointed runs
-# did; the two variants lost the same pointer and haven't run since.
+# The plain diagnostic output is the guardrail against treating every preformatted
+# block as code.
 description: source-code-readable
 metadata:
   purpose:
@@ -44,20 +40,16 @@ assert:
     metric: readable-source
     value: |
       The JavaScript source is displayed in a syntax-highlighted Leaf code block:
-      either a native pre/code with class="language-javascript" or a lf-code with
-      language="javascript". Object fields and closing braces are broken onto
+      a pre/code with class="language-javascript", natively or inside an lf-code.
+      Object fields and closing braces are broken onto
       consistently indented lines so each action's fields can be read individually.
       All the original command fields and behavior remain in the snippet. Fail if
       source stays uncolored or keeps several distinct object fields crammed onto
       each line. The diagnostic output remains uncolored and preserves its lines
       and exact values; it must not be mistaken for source code or rewritten.
 
-# Text-edit reconstruction: source chat 01a122c3-94c8-71a3-84df-9bf04006bc08,
-# report revision r8. Original guidance passed 1/2; clarifying its existing diff
-# paragraph in place passed 2/2. Require the binding that supplies line controls.
+# Text-edit reconstruction: require the binding that supplies line controls.
 variants:
-  # Work-update suggestion (2026-10-10): one Codex run per arm passed this case
-  # and text-edit. Head used wt step diff; base assembled a temporary index.
   current-work:
     metadata:
       purpose: A current-work update offers refreshable patch evidence without transcribing it.
@@ -125,14 +117,11 @@ variants:
           accompanies the evidence. Fail if it only displays two full paragraphs, invents a different
           edit, or adds an approval request not in the task.
 
-  # Markdown excerpt reconstruction: session dad43231-b8ff-4849-9702-a6a9cb360a93,
-  # page principles-survey, whose "Two rules before and after" section showed each
-  # rule's Markdown in <pre><code>. The user asked why it wasn't rendered Markdown.
-  # At 945fce2f8 every arm rendered the rules (reads-rendered 3/3), so showing source
-  # needs the session's own context; base converted them to HTML by hand and
-  # page-renders-markdown passed 0/3, then 3/3 once page-authoring.md asked for the
-  # preview. A variant giving the rules as Read-tool output scored the same (0/3, 3/3).
-  # Once lf-text-document took its text in its <pre>, 3/3 wrote the rules there.
+  # Markdown excerpt reconstruction: a session's page principles-survey, whose "Two
+  # rules before and after" section showed each rule's Markdown in <pre><code>. The
+  # user asked why it wasn't rendered Markdown. Cold, authors can render the rules,
+  # so the failure may need the session's own context; it converts them to HTML by
+  # hand, and page-authoring.md asks for the preview.
   markdown-excerpt:
     metadata:
       purpose:
@@ -191,7 +180,7 @@ variants:
           Fail if any version is HTML the author converted from the Markdown, such as a
           blockquote holding strong and code elements, or is shown as source.
   # Guardrail for markdown-excerpt: where Markdown syntax is the subject, the reader
-  # sees the characters typed. From the composer-markdown-exploration page.
+  # sees the characters typed.
   markdown-syntax:
     metadata:
       purpose: Markdown whose syntax is the subject stays visible as the characters typed.

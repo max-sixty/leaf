@@ -7,12 +7,15 @@
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
    - Every message and run's face says when it was said (presence.js, `saidAt`),
-     since each reply says what was true when it was sent ("I'm building it now"). The
-     user asked for that on 15 November 2026, over an age said only where it changed
-     from the message above (26 October 2026), which rounded replies hours apart into
-     one "1d ago" a day later and left the replies under it bare. That had replaced an
-     age after every author name, which repeated one age down a thread written at once
-     ("72d ago" four times); times differ where ages repeat.
+     since each reply says what was true when it was sent ("I'm building it now"):
+     how long ago within the hour ("just now", "12m ago") and its time of day after
+     that, as the user asked. Rejected: a time of day from the first minute, which
+     makes a reply seconds old read like any other ("15:24"); a fixed 24-hour clock,
+     which a reader whose own clock reads "3:24 PM" doesn't use (presence.js,
+     `timeOfDay`); an age said only where it changes from the message above, which
+     rounds replies hours apart into one "1d ago" a day later and leaves the replies
+     under it bare; and an age after every author name, which repeats one age down a
+     thread written at once ("72d ago" four times).
    - A summary the agent wrote folds the turns it covers behind its checkpoint.
      Completed progress disappears when its answer shows, including a streaming answer.
      Each pending progress run stands behind a dim line showing its latest step
@@ -33,11 +36,10 @@
      `aria-owns`, and draws the frame around the open fold from its own head to its
      last message's foot by anchors (`--lf-fold-head`, `--lf-fold-foot`, surfaces.css),
      since no box contains them. Rejected: moving the covered messages into a container
-     inside the checkpoint, which unloaded a frame among them in an engine without
-     `moveBefore` (WebKit reloaded it once as the summary arrived and twice as it was
-     retracted) and lost a selection inside them in every engine; and, before that,
+     inside the checkpoint, which unloads a frame among them in an engine without
+     `moveBefore` and loses a selection inside them in every engine; and
      nesting such a container in a `repeat` inside the transcript's `repeat`, which
-     rebuilt a gathered message's row.
+     rebuilds a gathered message's row.
    - An explicit summary that arrives over a message the user is on or reads stays
      open. Completed progress disappears even if the reader had opened it.
    - A message that leaves the thread while drawn, as a reply the log refuses does,

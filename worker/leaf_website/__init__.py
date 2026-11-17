@@ -167,9 +167,9 @@ FAILURE_RECEIPTS = {
     "rate_limited": (
         "This public demo is busy right now. Wait a minute, then send it again."
     ),
-    # This one says only what the container observed: a turn may well have run — the
-    # incident it was written for had one running still — so a sentence about the
-    # message never arriving would be wrong exactly where it matters most.
+    # This one says only what the container observed: a turn may well have run, so a
+    # sentence about the message never arriving would be wrong exactly where it matters
+    # most.
     "turn_failed": (
         "The agent's turn ended without an answer. Send it again to retry."
     ),
@@ -389,16 +389,16 @@ def next_unaccepted_agent_event(
 ) -> str | None:
     """Return the next obligation not already assigned to a provider delivery.
 
-    This asks the log what the page still owes, and nothing more. It used to activate
-    the source first and refuse a page whose `index.html` no longer opens, which put a
-    start-door condition in front of a reading that does not need one: obligations and
-    workflows come out of the log either way. The refusing belongs at the door, and
-    the door already holds it — `attach` reaches `pending_agent_inputs`, which raises on
-    such a page — so a start there throws to a caller that receipts the move. Held here
-    instead, the refusal came before any move was named, which is the one shape that
-    answers none of them: a turn whose own work left the page unopenable faults while
-    closing, and the ending that has to tell its user so cannot get as far as asking
-    who to tell.
+    This asks the log what the page still owes, and nothing more. Activating the source
+    first and refusing a page whose `index.html` no longer opens would put a start-door
+    condition in front of a reading that does not need one: obligations and workflows
+    come out of the log either way. The refusing belongs at the door, and the door
+    already holds it — `attach` reaches `pending_agent_inputs`, which raises on such a
+    page — so a start there throws to a caller that receipts the move. Held here
+    instead, the refusal would come before any move was named, which is the one shape
+    that answers none of them: a turn whose own work left the page unopenable faults
+    while closing, and the ending that has to tell its user so cannot get as far as
+    asking who to tell.
     """
     with PageTransaction(page_dir) as page:
         obligations = read_page(page_dir, page.events).work.obligations
@@ -1624,7 +1624,7 @@ def initial_state(
     return scope_page_urls(state, page_root)
 
 
-def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
+def close_on_signal(httpd: LeafHTTPServer, agent_harness: WebsiteCodexHarness) -> None:
     """Close the App Server on the path a stop signal takes out of this process.
 
     uvicorn handles the signal while the serving loop runs: it stops the loop, puts
@@ -1637,13 +1637,23 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     that started it and keep its memory.
 
     The handler runs at the re-raise, once serving has ended, and then dies of the
-    signal it was sent rather than turning it into an ordinary return.
+    signal it was sent rather than turning it into an ordinary return. First it saves
+    the drafts the page store lacks (`storage.save_drafts`), since a stop is how a
+    sleeping or replaced container ends, and the next restores only what was saved. It
+    closes the listening socket before that, so a request arriving meanwhile is
+    refused at once, as after the process ends, rather than waiting on a listener
+    nothing serves.
     """
+    from leaf_website.storage import save_drafts
 
     def stop(signum, _frame):
-        agent_harness.close()
-        signal.signal(signum, signal.SIG_DFL)
-        signal.raise_signal(signum)
+        httpd.server_close()
+        try:
+            save_drafts()
+        finally:
+            agent_harness.close()
+            signal.signal(signum, signal.SIG_DFL)
+            signal.raise_signal(signum)
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
@@ -1667,7 +1677,7 @@ def main(port: int) -> None:
     agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])
-    close_on_signal(agent_harness)
+    close_on_signal(httpd, agent_harness)
     agent_harness.prewarm()
     try:
         httpd.serve_forever()

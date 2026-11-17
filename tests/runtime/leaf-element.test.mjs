@@ -329,7 +329,9 @@ test("an element gates its draws on the delivered bound value", async () => {
   const tag = `lf-probe-data-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      data: {
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -505,8 +507,7 @@ test("a failed preparation stands beside the render root, which the next draw st
 
 // A tab set draws only its strip and leaves the page's panels beside it, so a draw
 // reads again the keys of the strip it drew and of the set around it, and never walks
-// a panel: on #4781's page, walking every panel's document held each tab switch for
-// over a second.
+// a panel: walking every panel's document holds each tab switch.
 test("a draw reads again the keys of what it drew and around it, not of the page's content beside it", async () => {
   const tag = `lf-probe-strip-${++tags}`;
   const reads = { set: 0, strip: 0, panel: 0 };
@@ -626,7 +627,9 @@ test("bound data draws only as it is delivered", async () => {
   const tag = `lf-probe-delivered-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      data: {
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -671,8 +674,10 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   const tag = `lf-probe-written-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-content": "data",
-      "x-data": { text: { source: "source", contract: "text", property: "value" } },
+      content: "data",
+      data: {
+        inputs: { text: { source: "source", contract: "text", property: "value" } },
+      },
     },
   });
   const drawn = [];
@@ -877,7 +882,9 @@ test("accepted data claims the element's region until its delivery draws", async
   const tag = `lf-probe-claim-${++tags}`;
   adoptRegistry({
     [tag]: {
-      "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+      data: {
+        inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+      },
     },
     $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
   });
@@ -923,7 +930,9 @@ test(
     const tag = `lf-probe-unused-data-${++tags}`;
     adoptRegistry({
       [tag]: {
-        "x-data": { rows: { source: "source", contract: "rows", property: "value" } },
+        data: {
+          inputs: { rows: { source: "source", contract: "rows", property: "value" } },
+        },
       },
       $data: { contracts: { rows: { records: { items: "", key: "key" } } } },
     });

@@ -94,9 +94,7 @@ def test_the_reply_door_refuses_a_picture_the_page_directory_has_not_got(page_di
             str(page_dir),
             json.loads(opened.output)["id"],
             "--text",
-            "here:",
-            "--markup",
-            shot,
+            f"here:\n\n{shot}",
         ],
     )
     assert posted.exit_code == 1, (
@@ -126,9 +124,7 @@ def test_the_reply_door_reads_a_message_stylesheet_as_the_capture_does(
     opened = comment(
         page_dir,
         "--text",
-        "Look:",
-        "--markup",
-        f'<p style="background-image: url({ref})">Shown</p>',
+        f'Look:\n\n<p style="background-image: url({ref})">Shown</p>',
     )
     assert opened.exit_code == 1, opened.output
     assert code in opened.output, opened.output
@@ -138,10 +134,10 @@ def test_the_reply_door_reads_a_message_stylesheet_as_the_capture_does(
 def test_the_text_door_refuses_a_picture_the_page_directory_has_not_got(page_dir):
     """A message names its picture in Markdown, where the markup reading cannot see it.
 
-    `check_markup` runs only when `--markup` is given, and the reference it asks about
+    `check_markup` runs only on a message holding HTML, and the reference it asks about
     lives in an attribute. An agent sending a screenshot writes it in the words instead,
-    so the shape `media_errors` was written for — here is what it looks like now — came
-    through the one door that never asked, and the log is append-only: a picture the
+    so the shape `media_errors` was written for would come through a door that never
+    asked, and the log is append-only: a picture the
     directory hasn't got is broken for as long as the page exists.
 
     The reading is the link or image destination the runtime resolves rather than a scan

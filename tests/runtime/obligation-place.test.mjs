@@ -4,6 +4,7 @@ import {
   obligationsByRegion,
   obligationsIn,
   obligationPlace,
+  regionsAwaiting,
   subjectPlace,
 } from "/runtime/obligations/place.js";
 import { obligationAt, obligationHolding } from "/runtime/current-target.js";
@@ -213,4 +214,68 @@ test("a subject stands at the element it names, or nowhere", () => {
   } finally {
     document.body.replaceChildren();
   }
+});
+
+test("which regions ask the user is read from the captured widgets, not the regions' elements", () => {
+  // A side list keeps room on a panel's row for the answer to what its markup asks,
+  // from before the first reading lists the obligation, in the page or in a message's
+  // markup. A panel can hold a text document of 100,000 rows, so the answer comes from
+  // the captured widgets, each climbing once, and no region is searched: rows cost
+  // nothing, and a widget that asks nothing marks no region.
+  /** @param {string} id @param {"page" | "thread"} kind @param {boolean} awaits */
+  const descriptor = (id, kind, awaits) => [
+    id,
+    {
+      id,
+      tag: "lf-probe",
+      document: kind === "page" ? { kind, revision: 1 } : { kind, thread: "t" },
+      declaration: awaits
+        ? {
+            state: {
+              awaits: { value: "choose" },
+            },
+          }
+        : {},
+      parent: null,
+      ancestors: [],
+      quoted: false,
+    },
+  ];
+  applicationState.identify(1);
+  const captured = {
+    ...applicationState.read().document,
+    registry: { $states: {} },
+    authored: new Map(),
+    descriptors: new Map([
+      descriptor("ask", "page", true),
+      descriptor("note", "page", false),
+      descriptor("frozen", "thread", true),
+    ]),
+  };
+  assert.ok(applicationState.adopt(servedState(), captured));
+  const rows = Array.from({ length: 5000 }, (_, k) => `<div>Row ${k}</div>`).join("");
+  document.body.innerHTML =
+    '<main id="page"><section id="asks"><div><div id="ask"></div></div></section>' +
+    `<section id="notes"><div id="note"></div>${rows}</section>` +
+    '<section id="message"><div id="frozen"></div></section></main>';
+  const regions = ["page", "asks", "notes", "message"].map((id) =>
+    document.getElementById(id),
+  );
+  const search = Element.prototype.querySelectorAll;
+  let searched = 0;
+  Element.prototype.querySelectorAll = function (...selector) {
+    searched++;
+    return search.apply(this, selector);
+  };
+  try {
+    assert.deepEqual([...regionsAwaiting(regions)].map((region) => region.id).sort(), [
+      "asks",
+      "message",
+      "page",
+    ]);
+  } finally {
+    Element.prototype.querySelectorAll = search;
+    document.body.replaceChildren();
+  }
+  assert.equal(searched, 0);
 });

@@ -23,7 +23,7 @@ into the log. A fold is only worth what its premise is worth, and a premise
 assembled beside the door can be one the product would never have accepted: an
 action naming a widget the page has not got, a `holds` on a widget that does
 not take one, a coordinate written by hand rather than derived. Each of those
-now raises `EventRefused` instead of folding.
+raises `EventRefused` instead of folding.
 
 Every value the server would read from a file is a literal in this module, so a
 reading it returns is caused by the markup and the log the test wrote and by

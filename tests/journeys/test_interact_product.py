@@ -29,8 +29,8 @@ from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
 
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):
-    """A settled group needs an id for its disclosure state, but the whole
-    unreferenced group may leave a later revision."""
+    """A settled group needs an id for its disclosure state, as every group does,
+    but the whole unreferenced group may leave a later revision."""
     registry = registry_storage.load_registry(page_dir)
     assert found(
         fragment_errors(
@@ -38,12 +38,10 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
             registry,
         ),
         "attribute-schema",
-        keyword="dependentRequired",
+        keyword="required",
     )
 
-    group = (
-        '<lf-ask id="pick-decision"><h2>Which one?</h2><lf-options id="pick" choose{}>'
-    )
+    group = '<lf-ask id="pick-decision"><h2>Which one?</h2><lf-options id="pick"{}>'
     group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
     group += (
         '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-ask>'
@@ -53,7 +51,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
     )
     publish(page_dir)
     (page_dir / "index.html").write_text(
-        PAGE.replace("</main>", group.format(" settled", " chosen") + "</main>")
+        PAGE.replace("</main>", group.format(" settled", " selected") + "</main>")
     )
     assert checking_command.cmd_check(page_dir)["status"] == 0
 
@@ -127,14 +125,14 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
     assert seeded, "no example ships a log; this gate is reading nothing"
     read = 0
     for example in seeded:
-        # Only messages carrying markup or obligations exercise this door. Plain
+        # Only messages carrying HTML or obligations exercise this door. Plain
         # threads are covered by the complete fixture check.
         # Use the log writer's separator: splitlines() also splits message U+2028.
         fragments = [
             event
             for line in example.with_suffix(".jsonl").read_text().split("\n")
             if line.strip()
-            and ((event := json.loads(line)).get("markup") or event.get("obligation"))
+            and ((event := json.loads(line)).get("html") or event.get("obligation"))
         ]
         if not fragments:
             continue
@@ -159,7 +157,6 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                     root,
                     "--text",
                     event["text"],
-                    *(["--markup", event["markup"]] if event.get("markup") else []),
                     *(["--obligation"] if event.get("obligation") else []),
                 ],
             )
@@ -168,7 +165,7 @@ def test_every_seeded_fragment_passes_the_door_it_never_came_through(
                 f"{posted.output}"
             )
     assert read, (
-        "no seeded event carries markup or an obligation, so this read nothing — see "
+        "no seeded event carries HTML or an obligation, so this read nothing — see "
         "examples/AGENTS.md on what a log is for"
     )
 
@@ -202,9 +199,7 @@ def test_reply_validates_widget_markup(page_dir):
                 "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
-                "See:",
-                "--markup",
-                markup,
+                f"See:\n\n{markup}",
             ],
         )
 
@@ -216,8 +211,8 @@ def test_reply_validates_widget_markup(page_dir):
     event = events_model.read_events(page_dir)[-1]
     assert event["kind"] == "reply"
     assert event["author"] == "agent"
-    assert event["text"] == "See:"
-    assert event["markup"].startswith("<lf-diagram")
+    assert event["html"] is True
+    assert event["text"].startswith("See:\n\n<lf-diagram")
 
 
 def test_a_seed_no_writer_could_send_stops_the_page_it_seeds(tmp_path, monkeypatch):
@@ -271,16 +266,12 @@ def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_d
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "See:",
-            "--markup",
-            (
-                '<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>'
-                '<script type="module">throw new Error("inert-message-script")</script>'
-            ),
+            'See:\n\n<lf-diagram id="f"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>\n'
+            '<script type="module">throw new Error("inert-message-script")</script>',
         ],
     )
     assert posted.exit_code == 0, posted.output
-    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["markup"]
+    assert "inert-message-script" in events_model.read_events(page_dir)[-1]["text"]
 
 
 def test_the_wire_ships_a_message_as_logged(page_dir):
@@ -305,13 +296,12 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
             "--done",
             response_reference(page_dir, "c1"),
             "--text",
-            "Fixed in `poll()`.",
-            "--markup",
-            '<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
+            'Fixed in `poll()`.\n\n<lf-diagram id="fix"><pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],
     )
     assert result.exit_code == 0, result.output
     wire = {e["kind"]: e for e in page_state(page_dir)["events"]}
     assert wire["comment"]["text"] == "two things:\n\n- one\n- **two**"
-    assert "html" not in wire["comment"] and "html" not in wire["reply"]
-    assert wire["reply"]["markup"].startswith("<lf-diagram")
+    assert "html" not in wire["comment"]
+    assert wire["reply"]["html"] is True
+    assert wire["reply"]["text"].startswith("Fixed in `poll()`.\n\n<lf-diagram")

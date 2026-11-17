@@ -54,6 +54,7 @@ import {
   inChrome,
   quotesChanged,
   rangeOf,
+  segmentBounds,
   trackQuotes,
 } from "./passages.js";
 import { under } from "./shadow-tree.js";
@@ -127,12 +128,13 @@ function liveRanges(was, segments) {
     ranges?.length === segments.length &&
     ranges.every((range, at) => {
       const segment = segments[at];
+      if (segment === undefined) return false;
+      const [startNode, startOffset, endNode, endOffset] = segmentBounds(segment);
       return (
-        segment !== undefined &&
-        range.startContainer === segment.node &&
-        range.startOffset === segment.start &&
-        range.endContainer === segment.node &&
-        range.endOffset === segment.end
+        range.startContainer === startNode &&
+        range.startOffset === startOffset &&
+        range.endContainer === endNode &&
+        range.endOffset === endOffset
       );
     });
   return stand && ranges ? ranges : segments.map((segment) => rangeOf([segment]));

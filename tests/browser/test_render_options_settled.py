@@ -19,7 +19,7 @@ from render_harness import (
     command_reference_rows,
     compare_with,
     open_page,
-    page_registry,
+    page_declarations,
     reported_browser_errors,
     round_trip,
     select,
@@ -198,7 +198,9 @@ def test_settled_options_collapse_without_going_out_of_reach(browser, serve):
     # closed, and nothing it does opens one.
     assert row.get_attribute("aria-expanded") == "true"
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", page_declarations(page)
+        )
         == []
     ), "opening the group left an attribute on a widget its entry never declared"
 
@@ -345,18 +347,19 @@ def test_a_settled_obligation_keeps_its_heading_above_the_answer(browser, serve)
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": "And settled in here.",
-            "markup": '<lf-ask id="th-done-decision"><h3>Where, again?</h3>'
-            '<lf-options id="th-done" choose settled>'
-            '<lf-option id="th-redis" chosen><strong>Redis</strong></lf-option>'
+            "text": "And settled in here.\n\n"
+            '<lf-ask id="th-done-decision"><h3>Where, again?</h3>'
+            '<lf-options id="th-done" settled>'
+            '<lf-option id="th-redis" selected><strong>Redis</strong></lf-option>'
             '<lf-option id="th-pg"><strong>Postgres</strong></lf-option>'
             "</lf-options></lf-ask>",
+            "html": True,
         },
     )
     [root] = [
         e["id"]
         for e in events_model.read_events(serve.page_dir)
-        if e["kind"] == "comment" and e["text"] == "And settled in here."
+        if e["kind"] == "comment" and e["text"].startswith("And settled in here.")
     ]
     page = open_page(browser, live_url(url))
     open_panel_thread(page, root)

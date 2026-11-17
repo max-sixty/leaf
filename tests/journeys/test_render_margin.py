@@ -89,7 +89,7 @@ SUGGESTION_PINS = """(ids) => ids.map((id) => {
 OBLIGATION_IN_LONG_PAGE = LONG_PAGE.replace(
     "<p id='p20'>",
     """<lf-ask id="route-ask"><h2>Which route should the walk follow?</h2>
-<lf-options id="route" choose>
+<lf-options id="route">
   <lf-option id="route-garden">Through the garden</lf-option>
   <lf-option id="route-river">Along the river</lf-option>
 </lf-options></lf-ask>
@@ -393,7 +393,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     card down past the reply box."""
     page = open_page(browser, serve(OBLIGATION_PAGE, events=[COMMENT_ON_OBLIGATION]))
     resized(page, 1920, 900)
-    marker = page.locator('.lf-margin-marker[data-lf-kinds="comment"]')
+    marker = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 160)")
     marker.click()
     preview = page.locator(".lf-margin-preview")
@@ -427,7 +427,7 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     editor = preview.locator("leaf-text")
     # The answer's arrival uncovers the card's foot over 300ms, and until it has, the
     # reply box's clipped part takes no press: the click lands on the thread, and
-    # Playwright's retry scrolls the box into view (#5942).
+    # Playwright's retry scrolls the box into view.
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
     preview.get_by_role("textbox", name="Reply", exact=True).click()
     expect(editor).to_be_focused()

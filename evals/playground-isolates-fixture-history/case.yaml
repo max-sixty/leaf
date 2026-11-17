@@ -1,20 +1,8 @@
-# From Codex chat 01a0fb4e-e32b-7eb2-9099-0fd0b49ecc8f: a thread-panel
-# playground copied demonstration history into the review page and duplicated
-# fixture anchors there. Measures independent authored sample histories against
-# that tempting parent-log import; static sketch cases remain guardrails.
-# Baseline passed 0/3 and head 3/3; both static sketch guardrails passed
-# before and after. An earlier path-confused run
-# could not read the package guidance in either arm and measured nothing.
-# View selection was added from Codex chat 01a0fb64-3cdf-75c3-8166-64cc3b60273a:
-# outer case controls automated private thread chrome. Native Promptfoo runs on
-# Claude Code and Codex each passed 0/1 on c9b8dd33c and 1/1 on the head.
-# All four runs preserved fixture isolation; the view-selection assertion alone
-# separated them. The earlier CC-only run hit
-# the old harness's turn limit on both baseline samples and measured no baseline.
-# As an authoring case naming nothing to read, at 0e538e29d, 2 of 2 Claude Code authors
-# read the playground's instructions through `leaf page instructions` and passed. Now a
-# probe given a page with its packages, it passed Claude Code 2 of 2, Codex 2 of 2 at
-# b90df8d3a2.
+# A Codex chat's thread-panel playground copied demonstration history into the
+# review page and duplicated fixture anchors there. Measures independent authored
+# sample histories against that tempting parent-log import; static sketch cases
+# remain guardrails. View selection covers another Codex chat, whose outer case
+# controls automated private thread chrome.
 description: playground-isolates-fixture-history
 metadata:
   purpose:
@@ -43,7 +31,7 @@ assert:
     metric: authored-isolation
     value: |
       Pass only if the HTML uses two lf-sample window elements with data-sample
-      templates inside an lf-playground-preview, and each template names the same
+      templates in the playground's preview, and each template names the same
       inline application/json script through data-sample-events. The script holds
       a comment command and a reply command linked to it by explicit id and parent,
       with kind and text fields, and the comment's anchor names content inside each

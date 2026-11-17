@@ -18,6 +18,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     owed_answers,
     page_state,
@@ -859,11 +860,10 @@ def test_a_refused_answer_carries_what_the_server_said_about_it():
 def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     """A hosted turn's pace is the model's, so the wait reads the page's own account.
 
-    `publish-site` failed three deployments in one morning with `agent published but
-    did not reply` — a turn that had edited the page and was still working when the
-    gate's fixed five minutes ran out. The gate now extends its wait only while the
-    page still names an outstanding obligation and a turn on it, so a slow turn is
-    given the time and a settled one ends the wait whatever the clock says.
+    A fixed wait can run out on a turn that has edited the page and is still working.
+    The gate extends its wait only while the page still names an outstanding obligation
+    and a turn on it, so a slow turn is given the time and a settled one ends the wait
+    whatever the clock says.
     """
     comment = append_event(
         page_dir,
@@ -1337,17 +1337,14 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
 
-    `publish-site` deployed release `4ef93dd9…` and then failed on the reload after a
-    healthy turn: `never presented, reaching no startup milestone`. The pages the
-    release pass walks come from the edge and present in about a second, which is what
-    the default bound is for. The reloaded one is answered by a container that has just
-    run a hosted model turn, whose first `/api/state` read costs seconds rather than
-    milliseconds — measured against the live deployment, 123 ms before a turn and
-    2252-3918 ms after one, on the same session and page.
+    The pages the release pass walks come from the edge and can present in about a
+    second, which is what the default bound is for. The reloaded one is answered by a
+    container that has just run a hosted model turn, whose first `/api/state` read can
+    cost seconds rather than milliseconds.
 
     The gate gives the reload that bound both to present and, after presentation, to
-    follow the revision its first read brings back. The second wait is required now that
-    presentation no longer implies the read has answered.
+    follow the revision its first read brings back. The second wait is required because
+    presentation does not imply the read has answered.
     """
     release = "4ef93dd9" + "0" * 56
     recorded = f"Deployment {release[:8]} verified"
@@ -1634,7 +1631,7 @@ def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(
 ):
     """Run the exact container fixture through its real admission API."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="heat-first" choose>').replace(
+        PAGE.replace(PAGE_GROUP, '<lf-options id="heat-first">').replace(
             'id="backfill-first"', 'id="heat-opt-window"'
         )
     )

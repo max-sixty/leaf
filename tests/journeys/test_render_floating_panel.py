@@ -23,6 +23,8 @@ from render_harness import (
     EDITOR_ROOTS,
     LONG_PAGE,
     PREVIEW,
+    expect_panel_offers,
+    latest_press,
     open_page,
     panel_menu,
     panel_settled,
@@ -448,43 +450,47 @@ def test_versions_opens_at_the_version_the_page_shows(browser, serve, route):
 def test_an_older_version_says_so_in_the_row_and_one_press_opens_the_latest(
     browser, serve
 ):
-    """While the page shows a version older than the latest, the row says which beside
-    the On Me mark, which keeps its seat, since the field gives up the room; its one
-    press, which the keyboard reaches in the row's order, opens the latest, and the
-    notice goes with it: in place on a tab the agent has since revised, and from a
-    version the user travelled back to."""
+    """While the page shows a version older than the latest, the field's words say which
+    before the status, and its end offers Open latest in Comment's place, so nothing in
+    the row moves and the On Me mark keeps its seat; the press opens the latest, and the
+    words and the press go with it: in place on a tab the agent has since revised, and
+    from a version the user travelled back to, where the leaf's menu offers the keyboard
+    the same press."""
     url = serve(LONG_PAGE)
     page = floating(browser, url)
-    notice = page.locator(".lf-fp-row-notice")
+    latest = latest_press(page)
     marks = page.locator(".lf-fp-quick")
     settled(page)
     seats = marks.bounding_box()
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
 
     # The agent revises the page under the open tab, which keeps what it shows.
     stamp_page(
         serve.page_dir, LONG_PAGE.replace("Paragraph 0.", "Paragraph zero."), "two"
     )
     told(page)
-    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^v1 of 2 · "))
+    expect(latest).to_be_visible()
     settled(page)
     assert marks.bounding_box() == seats
-    notice.locator("button").click()
+    latest.click()
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
+    expect(field(page)).not_to_have_attribute("placeholder", re.compile(r"of 2"))
 
     panel_menu(page, "versions").locator(
         ".lf-fp-version:not([data-lf-current]) .lf-fp-label"
     ).click()
     expect(page).to_have_url(re.compile(r"/versions/v1\b"))
-    expect(notice).to_have_text(re.compile(r"^\s*v1 of 2\s*·\s*Latest\s*$"))
-    page.locator(".lf-fp-on-user").focus()
-    page.keyboard.press("Shift+Tab")
-    expect(notice.locator("button")).to_be_focused()
+    expect(field(page)).to_have_attribute("placeholder", re.compile(r"^v1 of 2 · "))
+    expect(latest).to_be_visible()
+    expect_panel_offers(page, "latest")
+    row = panel_menu(page).locator('.lf-fp-item[data-lf-row="latest"]')
+    row.focus()
     page.keyboard.press("Enter")
     expect(page).not_to_have_url(re.compile(r"/versions/"))
     expect(page.locator("main")).to_contain_text("Paragraph zero.")
-    expect(notice).to_be_hidden()
+    expect(latest).to_have_count(0)
 
 
 def test_all_pages_in_the_menu_counts_the_pages_it_lists(
@@ -572,8 +578,8 @@ def test_a_long_reply_takes_its_room_from_the_thread_s_top(browser, serve):
     """Once the panel reaches the window's top, each line a reply gains takes its room
     from the open thread's view, which gives way at its top and keeps the message the
     user is answering beside the field; taking the lines away gives the room back the
-    same way. The view once kept its scroll and gave way at its foot, so a long reply
-    covered the agent's last line."""
+    same way. A view that kept its scroll and gave way at its foot would let a long
+    reply cover the agent's last line."""
     url = serve(LONG_PAGE)
     root = panel_comment(serve.page_dir, "Which job comes first?")
     thread_model.post_reply(
@@ -767,8 +773,7 @@ def test_lines_removed_below_the_field_s_cap_leave_the_rest_in_place(browser, se
     """A draft past the field's cap scrolls inside it; deleting its last lines until
     the rest fits stops that scroll, and the lines still shown stay where they stood
     on the tween's first frame, then travel down as the lines scrolled away come into
-    view, carrying on from where they are drawn when another line goes midway. They
-    used to jump down by the scroll the field gave up."""
+    view, carrying on from where they are drawn when another line goes midway."""
     page = open_page(browser, serve(LONG_PAGE), init_script=EDITOR_ROOTS)
     page.emulate_media(reduced_motion="no-preference")
     field(page).click()

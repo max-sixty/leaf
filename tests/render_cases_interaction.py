@@ -1241,7 +1241,7 @@ TWO_HOLDER_SPARE_PAGE = TWO_HOLDER_PAGE.replace(
 MARKDOWN_REPLY = """Two things, then the fix — details in https://example.com/notes.
 
 - the poll drops a response **behind** the one already rendered
-- `lastEventSeq` is what it compares, a Vec<T> of them
+- `lastEventSeq` is what it compares, a `Vec<T>` of them
 
 ```python
 def resolve(a, b):

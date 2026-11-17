@@ -9,7 +9,12 @@ from leaf import user_views
 from leaf.findings import Finding
 from leaf.render_gate import readings as render_gate_readings
 from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.command import PIN_VARIABLE, BrowserCheck, desktop_viewport
+from leaf.render_gate.command import (
+    PIN_VARIABLE,
+    BrowserCheck,
+    desktop_viewport,
+    user_engine,
+)
 from model.test_user_views import report
 
 
@@ -67,6 +72,17 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
             ],
             "covered": [],
             "labels": {"threshold_px": 10, "drawings": drawings},
+            "broken": [
+                {
+                    "code": "broken-name",
+                    "at": "<table id=n>",
+                    "place": {"id": "n", "steps": []},
+                    "count": 1,
+                    "names": ["x-awaits"],
+                }
+            ]
+            if width >= 1200
+            else [],
             "squeezed": [
                 {
                     "code": "squeezed-table",
@@ -103,9 +119,10 @@ def test_swept_faults_are_reported_by_element_and_by_unbroken_run():
         '; to give it more room, mark it data-width="wide" or "available" rather than sizing it past the column, or scroll it sideways in a box of its own with overflow-x: auto and class="lf-scroll"'
     )
     squeezed = render_gate_readings.squeezed_advice(readings)
-    assert [(f.at, f.widths, f.values["scrolls"], f.severity) for f in squeezed] == [
-        ("<table id=u>", (520, 560), 520, "advice"),
-        ("<table id=t>", (360, 400), 360, "advice"),
+    assert [(f.code, f.at, f.widths, f.severity) for f in squeezed] == [
+        ("broken-name", "<table id=n>", (1200, 1920), "advice"),
+        ("squeezed-table", "<table id=u>", (520, 560), "advice"),
+        ("squeezed-table", "<table id=t>", (360, 400), "advice"),
     ]
     advice = render_gate_readings.shrunk_label_advice(readings)
     assert [
@@ -197,6 +214,38 @@ def test_the_render_check_reads_the_desktop_in_the_last_reported_window(
     monkeypatch.setenv(PIN_VARIABLE, "1728x999")
     with pytest.raises(ValueError, match="takes only 'fixed'"):
         read()
+
+
+def test_the_render_check_draws_in_the_engine_of_the_last_reported_browser(
+    tmp_path, monkeypatch
+):
+    """`page check` draws in Firefox where the browser that reported last is a Firefox,
+    so a break only Firefox draws reaches the author, and in Chromium for any other
+    reader, before any report, and when the caller pins the check. Firefox on iOS is a
+    WebKit and names itself otherwise."""
+    monkeypatch.delenv(PIN_VARIABLE)
+    now = datetime(2026, 11, 16, tzinfo=UTC)
+    monkeypatch.setattr(user_views, "_now", lambda: now)
+    assert user_engine(tmp_path) == "chromium"
+
+    agents = {
+        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:160.0) Gecko/20100101"
+        " Firefox/160.0": "firefox",
+        "Mozilla/5.0 (Android 14; Mobile; rv:160.0) Gecko/160.0 Firefox/160.0": "firefox",
+        "Mozilla/5.0 (iPhone; CPU iPhone OS 18_7 like Mac OS X) AppleWebKit/605.1.15"
+        " (KHTML, like Gecko) FxiOS/146.0 Mobile/15E148 Safari/605.1.15": "chromium",
+        report()["identity"]["browser"]["user_agent"]: "chromium",
+    }
+    for sequence, (agent, engine) in enumerate(agents.items(), start=1):
+        view = report(sequence=sequence)
+        view["identity"]["browser"]["user_agent"] = agent
+        user_views.observe_user_view(tmp_path, view)
+        assert user_engine(tmp_path) == engine, agent
+    view = report(sequence=len(agents) + 1)
+    view["identity"]["browser"]["user_agent"] = next(iter(agents))
+    user_views.observe_user_view(tmp_path, view)
+    monkeypatch.setenv(PIN_VARIABLE, "fixed")
+    assert user_engine(tmp_path) == "chromium"
 
 
 def test_a_resize_notice_is_pardoned_only_by_a_complete_clean_confirmation(monkeypatch):

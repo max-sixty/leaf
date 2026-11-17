@@ -47,6 +47,7 @@ export function geometryReading(open) {
     labels: shrunkLabelReading(drawn),
     clipped: clippedControls(),
     covered: coveredWords(),
+    broken: brokenNames(),
     squeezed: squeezedBoxes(),
   };
 }
@@ -949,6 +950,62 @@ export function squeezedBoxes() {
       place: place(table),
       scrolls: table.scrollWidth - table.clientWidth,
       columns: columns.map(({ heading, width, wraps }) => ({ heading, width, wraps })),
+    });
+  }
+  return found;
+}
+
+// `brokenNames` reads each table that fits its box and draws a short name in `<code>`
+// on more than one line. A table's automatic layout sets every column the same fraction
+// of the way from its least width to its most, and the theme lets code break at any
+// character (reading.css), so a column of names beside a column of prose can be left
+// narrower than its names: `x-awaits` stood as `x-`, `await` and `s` in a 67px column
+// beside 560px of prose in Firefox, which every reading in Chrome passed (#6096). How
+// far each column gets differs by engine, which is why the check draws in the reader's
+// (`render_gate/browser.py`).
+//
+// A name is a `<code>` whose words hold no space, so a command or a sentence's code
+// wrapping at its spaces is not one. Short is a third of the table's width, the room
+// the theme keeps whole for a name a row heading holds: a longer identifier breaks
+// because the theme lets it, rather than holding its column open. A name's lines are
+// its text's line boxes, read with a range, whose tops differ by more than a pixel
+// from line to line; its whole width is their widths summed. A table that scrolls is
+// `squeezedBoxes`'s to report, since every column there stands at its least width
+// already. The finding names the table, how many names break and the first few, and
+// leaves the remedy to the author: a row heading, or the page's own `white-space:
+// nowrap` on the column.
+export function brokenNames() {
+  const page = pageDocument();
+  if (!page) return [];
+  const found = [];
+  const range = document.createRange();
+  for (const table of page.querySelectorAll("table")) {
+    if (!inPage(table) || !table.checkVisibility()) continue;
+    if (table.scrollWidth - table.clientWidth > 1) continue;
+    const third = table.getBoundingClientRect().width / 3;
+    /** @type {string[]} */
+    const names = [];
+    for (const code of table.querySelectorAll("code")) {
+      if (code.closest("table") !== table) continue;
+      const name = code.textContent?.trim() ?? "";
+      if (!name || /\s/.test(name) || !code.checkVisibility()) continue;
+      range.selectNodeContents(code);
+      const drawn = [...range.getClientRects()].filter((rect) => rect.width > 1);
+      const tops = drawn.map((rect) => rect.top).sort((a, b) => a - b);
+      const lines = tops.filter(
+        (top, i) => i === 0 || top - (tops[i - 1] ?? top) > 1,
+      ).length;
+      const whole = drawn.reduce((sum, rect) => sum + rect.width, 0);
+      if (lines > 1 && whole <= third) names.push(name);
+    }
+    if (!names.length) continue;
+    const unique = [...new Set(names)];
+    found.push({
+      code: "broken-name",
+      at: at(table),
+      place: place(table),
+      count: unique.length,
+      names: unique.slice(0, 3),
     });
   }
   return found;

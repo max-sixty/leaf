@@ -9,11 +9,21 @@ from leaf import user_views
 from leaf.files import read_json
 from leaf.state import write_json
 
+# A Chrome's user agent, as `runtime/page-identity.js` reports it.
+CHROME = (
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36"
+    " (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36"
+)
+IDENTITY = {
+    "delivery": {"runtime": "captured-runtime"},
+    "browser": {"user_agent": CHROME},
+}
+
 
 def report(session="a" * 32, sequence=1, revision=1):
     viewport = {"width": 900, "height": 700}
     return {
-        "identity": {"delivery": {"runtime": "captured-runtime"}},
+        "identity": deepcopy(IDENTITY),
         "session": session,
         "sequence": sequence,
         "visible": True,
@@ -33,7 +43,7 @@ def report(session="a" * 32, sequence=1, revision=1):
         "scroll": {"x": 0, "y": 250},
         "visible_regions": ["heading", "comparison"],
         "checks": {
-            "identity": {"delivery": {"runtime": "captured-runtime"}},
+            "identity": deepcopy(IDENTITY),
             "sequence": sequence,
             "revision": revision,
             "through_seq": 3,
@@ -93,7 +103,7 @@ def test_check_receipt_and_basis_do_not_follow_fresh_context(tmp_path, monkeypat
         "sequence": 2,
         "viewport": {"width": 420, "height": 800},
     }
-    resized["identity"] = {"delivery": {"runtime": "new-runtime"}}
+    resized["identity"] = {**IDENTITY, "delivery": {"runtime": "new-runtime"}}
     user_views.observe_user_view(tmp_path, resized)
     value = user_views.read_user_views(tmp_path, 1)["sessions"][0]
     assert value["received_at"] != checked_at

@@ -30,6 +30,15 @@ where its programs are before it guesses. Three readings, in order:
 
 The variables carry a path and nothing else: the launch takes no other argument
 from the host.
+
+All of that finds a Chromium. Where the browser that last showed the page is
+Firefox (`command.user_engine`), the check reads the page in Firefox instead, as
+installed: Playwright drives a stock Firefox over WebDriver BiDi through its
+`moz-firefox` channel, which looks at the platform's install path. A layout break
+only Firefox draws, such as a name broken inside itself beside a column of prose
+(#6096), passes every reading in Chrome. A host without Firefox reads the page in
+its Chromium, as above. Safari can't be driven this way: Playwright's WebKit is a
+build of its own, not the installed Safari.
 """
 
 import os
@@ -71,12 +80,13 @@ def discovered_executable() -> str | None:
     return None
 
 
-def launch_browser(p, **options):
+def launch_browser(p, engine: str = "chromium", **options):
     """The host's browser, and what to call it in a message that reports
-    success: whichever executable a browser variable names, else the installed
-    Chrome release channel, else the first browser on PATH, launched with
-    Playwright's launch `options`. Raises PlaywrightError, which the gate reports
-    in its own words.
+    success: the installed Firefox where `engine` is `firefox` and the host has one,
+    else whichever executable a browser variable names, else the installed Chrome
+    release channel, else the first browser on PATH, launched with Playwright's
+    launch `options`. Raises PlaywrightError, which the gate reports in its own
+    words.
 
     A host that named an executable, or whose channel missed, never ran Chrome,
     so naming Chrome there would be the same false claim the failure messages
@@ -86,6 +96,11 @@ def launch_browser(p, **options):
     # command spends importing, and most commands never open a browser.
     from playwright.sync_api import Error as PlaywrightError
 
+    if engine == "firefox":
+        try:
+            return p.firefox.launch(channel="moz-firefox", **options), "Firefox"
+        except PlaywrightError:
+            pass  # no Firefox where the channel looks, so the page reads in Chromium
     if named := named_executable():
         _, executable = named
         return p.chromium.launch(executable_path=executable, **options), executable

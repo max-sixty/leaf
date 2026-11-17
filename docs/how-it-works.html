@@ -3412,8 +3412,8 @@ EOF</code></pre>
               keeps the message back until the agent answers, it reads
               <a href="#stages-working">On it</a>. A message that follows quickly in the
               same thread, such as “and also…”, joins it, and a new line fork reads them
-              both. Leaf keeps a message back only while the background process Leaf's
-              hooks module runs for the session is up to list it; otherwise the message
+              both. Leaf keeps a message back only while a background process of Leaf's
+              hooks module is running for the session to list it; otherwise the message
               goes to the main thread as any input does.
             </p>
             <figure id="states-figure" class="diagram-figure">
@@ -3548,9 +3548,9 @@ sequenceDiagram
               session. A turn takes messages in with a <dfn>pickup</dfn> in the page's
               log, and shows it is at work with a <dfn>start</dfn>. Both name the turn,
               and stop counting when it ends. A line turn's pickup holds the thread
-              without taking its messages in, so they read as sent to the session until
-              a fork or the main thread picks them up. A turn holds a thread from the
-              moment it takes it, by a pickup or an answer, until another turn does:
+              without taking its messages in, so delivery counts them as taken in only
+              once a fork or the main thread picks them up. A turn holds a thread from
+              the moment it takes it, by a pickup or an answer, until another turn does:
             </p>
             <ul id="holding-cases">
               <li id="holding-waiting">
@@ -3645,8 +3645,8 @@ sequenceDiagram
             </table>
             <p id="acting-beside">
               A command that names no turn goes through as the main thread's even on a
-              thread a fork holds, whoever ran it: the main thread, a subagent, or a
-              fork that left its turn out. Beside its result it says which fork holds
+              thread a fork holds, whoever ran it: the main thread, another subagent, or
+              a fork that left its turn out. Beside its result it says which fork holds
               the thread, and for an answer, that the answer took the thread and how to
               stop the fork.
             </p>
@@ -3759,9 +3759,9 @@ sequenceDiagram
           <section id="follow-ups">
             <h2>Further messages in a thread</h2>
             <p id="follow-ups-one-fork">
-              A thread has at most one fork at a time, so a flurry of messages in one
-              thread goes to the fork that took it. Messages in different threads start
-              a fork each, side by side.
+              A thread has at most one fork at a time, so once a fork has taken a
+              thread, a flurry of messages in it goes to that fork. Messages in
+              different threads start a fork each, side by side.
             </p>
             <figure id="follow-ups-figure" class="diagram-figure">
               <lf-diagram id="follow-up-flow" data-height="719" parts="all">

@@ -285,7 +285,7 @@ def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
 
     def ask(name):
         return (
-            f'<lf-ask id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o" choose>'
+            f'<lf-ask id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o">'
             f'<lf-option id="{name}-a">Yes</lf-option>'
             f'<lf-option id="{name}-b">No</lf-option></lf-options></lf-ask>'
         )
@@ -360,7 +360,7 @@ def test_the_page_hands_a_step_it_cannot_take_to_its_largest_pane_and_takes_it_b
 
     def ask(name):
         return (
-            f'<lf-ask id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o" choose>'
+            f'<lf-ask id="{name}"><h3>Decide {name}</h3><lf-options id="{name}-o">'
             f'<lf-option id="{name}-a">Yes</lf-option>'
             f'<lf-option id="{name}-b">No</lf-option></lf-options></lf-ask>'
         )
@@ -1210,12 +1210,12 @@ def test_revision_restoration_yields_to_input_while_a_diagram_loads(
         )
         .replace(
             '<main class="layout-workspace">',
-            '<main class="layout-column"><lf-tabs id="reading-tabs" class="layout-flow">'
-            '<lf-tab id="first-tab" label="First" class="layout-flow">',
+            '<main class="layout-column"><lf-tabs id="reading-tabs" flow="page">'
+            '<lf-tab id="first-tab" label="First">',
         )
         .replace(
             "</main>",
-            '</lf-tab><lf-tab id="second-tab" label="Second" class="layout-flow">'
+            '</lf-tab><lf-tab id="second-tab" label="Second">'
             '<lf-pane id="other-reading" label="Other reading">'
             '<div><p id="other-start">Another reading with enough words to preserve its landmark.</p>'
             '<div style="height: 1000px"></div></div></lf-pane></lf-tab></lf-tabs></main>',
@@ -1583,7 +1583,7 @@ def test_the_obligation_walk_lands_an_obligation_in_a_bounded_log_at_the_log_top
                 "bounded ask",
                 f'<h1 id="t">Deploy</h1>{BOUNDED_LOG_FILLER}<div id="log" '
                 f'data-bound="end">{early}<lf-ask id="q"><h3>Which shard next?</h3>'
-                '<lf-options id="o" choose><lf-option id="o1">The first</lf-option>'
+                '<lf-options id="o"><lf-option id="o1">The first</lf-option>'
                 '<lf-option id="o2">The second</lf-option></lf-options></lf-ask>'
                 f"{entries}</div>{BOUNDED_LOG_FILLER}",
             )
@@ -1637,7 +1637,7 @@ def test_current_and_proposed_results_share_one_review_and_flow_in_order(
     ]
     assert boxes[0]["right"] <= boxes[1]["x"] + 1, boxes
     assert page.locator("lf-ask").count() == 1
-    assert page.locator("lf-options[choose]").count() == 1
+    assert page.locator("lf-options").count() == 1
 
     resized(page, 420, 900)
     pane_scroll_behavior(page, current, "flow")
@@ -1704,14 +1704,14 @@ def test_a_choice_inside_a_proposal_survives_its_undo(browser, serve):
         "data-lf-state", "accept"
     )
     expect(page.locator("#nested-change > lf-old")).to_be_visible()
-    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
+    expect(page.locator("#route lf-option[selected]")).to_have_attribute(
         "id", "route-river"
     )
     page.close()
 
     page = open_page(browser, url)
     expect(page.locator("#nested-change > lf-old")).to_be_visible()
-    expect(page.locator("#route lf-option[chosen]")).to_have_attribute(
+    expect(page.locator("#route lf-option[selected]")).to_have_attribute(
         "id", "route-river"
     )
 

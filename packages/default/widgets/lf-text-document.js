@@ -6,7 +6,7 @@
  * viewport, which keeps its scroll place independent, and switching keeps the page
  * still. Where the text can arrive after first paint, the viewport is `--lf-bound`
  * tall. A Markdown preview of written text instead takes its rendered height, which
- * its first paint already holds (`x-prepaint`), and its Source tab takes the same
+ * its first paint already holds (`paint.prepaint`), and its Source tab takes the same
  * height (`holdSource`), drawn on it or switched to it. Where that height cuts the
  * source, a press shows every line (`cut`), as a thread's Full quote shows a whole
  * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
@@ -844,8 +844,8 @@ class TextDocument extends LeafElement {
   // the document. A closed tab skips its contents' layout (`hidden="until-found"`), so
   // the height is read while the preview shows, after each of its resizes. A document
   // drawn on Source, as after a reload, never showed its preview; it keeps the box the
-  // page first painted (`firstBox`), which holds the preview's rendering (`x-prepaint`).
-  // Either reaches the Source tab before the frame paints.
+  // page first painted (`firstBox`), which holds the preview's rendering
+  // (`paint.prepaint`). Either reaches the Source tab before the frame paints.
   /** @param {number | null} [firstBox] */
   holdSource(firstBox = null) {
     const preview = this.view?.preview;
@@ -948,7 +948,7 @@ class TextDocument extends LeafElement {
   }
 
   // The text, set by whoever hosts the widget: Leaf from the bound source or output
-  // (the registry's `x-data.document.property`), or from the written `<pre>`; null
+  // (the registry's `data.inputs.document.property`), or from the written `<pre>`; null
   // while a bound source has none.
   static properties = { value: { attribute: false } };
 

@@ -40,8 +40,7 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
     assert sample is not None
     sample = sample[0]
     if placement != "nested":
-        sample = sample.replace("<lf-tabs ", '<lf-tabs class="layout-flow" ', 1)
-        sample = sample.replace("<lf-tab ", '<lf-tab class="layout-flow" ')
+        sample = sample.replace("<lf-tabs ", '<lf-tabs flow="page" ', 1)
     heading = "<header><h1>Project views</h1></header>"
     body = {
         "alone": heading + sample,
@@ -79,16 +78,15 @@ def test_the_gallery_tab_set_uses_the_boundary_of_its_composition(
         stamp_page(
             serve.page_dir,
             original.replace(
-                '<lf-tabs class="layout-flow" id="bg-tabs">',
+                '<lf-tabs flow="page" id="bg-tabs">',
                 '<lf-tabs id="earlier-tabs"><lf-tab id="earlier-tab" label="Earlier">'
                 "<p>Earlier views.</p></lf-tab></lf-tabs>"
-                '<lf-tabs class="layout-flow" id="bg-tabs">',
+                '<lf-tabs flow="page" id="bg-tabs">',
             ),
             "Add an earlier tab set",
         )
         wait_for_revision(page, 2)
         expect(tabs).to_have_css("border-left-width", "0px")
-        expect(tabs).to_have_css("--lf-views-flow", "page")
         assert page.evaluate(
             "window.__retainedTabs === document.querySelector('#bg-tabs')"
         )

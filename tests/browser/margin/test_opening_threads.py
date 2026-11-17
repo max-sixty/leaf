@@ -21,6 +21,7 @@ from render_harness import (
     PREVIEW,
     RELEASE_FOCUS,
     comment_note,
+    expect_design_mode,
     leaf_page,
     margins_laid_out,
     open_page,
@@ -758,7 +759,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
 
     preview.get_by_role("button", name="Dismiss thread view").focus()
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     expect(preview).to_be_hidden()
     page.mouse.move(4, 200)
     page.evaluate(RELEASE_FOCUS)
@@ -769,7 +770,7 @@ def test_design_mode_retires_and_suppresses_the_top_layer_margin_preview(
     expect(preview).to_be_hidden()
     page.keyboard.press("Enter")
     expect(preview).to_be_hidden()
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
 
 
 def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser, serve):

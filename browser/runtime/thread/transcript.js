@@ -7,12 +7,15 @@
      reports its exposure to read tracking (read.js), so a reply counts as read the same
      way in every reader.
    - Every message and run's face says when it was said (presence.js, `saidAt`),
-     since each reply says what was true when it was sent ("I'm building it now"). The
-     user asked for that over an age said only where it changes
-     from the message above, which rounds replies hours apart into
-     one "1d ago" a day later and leaves the replies under it bare. Rejected too: an
-     age after every author name, which repeats one age down a thread written at once
-     ("72d ago" four times); times differ where ages repeat.
+     since each reply says what was true when it was sent ("I'm building it now"):
+     how long ago within the hour ("just now", "12m ago") and its time of day after
+     that, as the user asked. Rejected: a time of day from the first minute, which
+     makes a reply seconds old read like any other ("15:24"); a fixed 24-hour clock,
+     which a reader whose own clock reads "3:24 PM" doesn't use (presence.js,
+     `timeOfDay`); an age said only where it changes from the message above, which
+     rounds replies hours apart into one "1d ago" a day later and leaves the replies
+     under it bare; and an age after every author name, which repeats one age down a
+     thread written at once ("72d ago" four times).
    - A summary the agent wrote folds the turns it covers behind its checkpoint.
      Completed progress disappears when its answer shows, including a streaming answer.
      Each pending progress run stands behind a dim line showing its latest step

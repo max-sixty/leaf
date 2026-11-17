@@ -1,12 +1,12 @@
 """A worker's report: a declared state change an agent writes onto a page widget.
 
-`leaf page report` appends one `report` event against the active revision, the page
-the user is looking at, through the append door, which admits it as it admits a
-user's action: the widget must be on that revision and the verb one of its
-agent-written `x-state` verbs, with the fields that verb declares. The runtime paints
-the report live, marked provisional, until a stamped revision absorbs or overrules it
-by id (`publishing`), and the page's watcher wakes to fold it in. A report belongs to
-no thread.
+`leaf page report` appends one `report` event against the active revision, the page the
+user is looking at, through the append door, which admits it as it admits a user's
+action: the widget must be on that revision and the verb one of its agent-written
+verbs (`state.verbs`), with the fields that verb declares. The runtime paints the report
+live, marked provisional, until a stamped revision absorbs or overrules it by id
+(`publishing`), and the page's watcher wakes to fold it in. A report belongs to no
+thread.
 """
 
 from pathlib import Path

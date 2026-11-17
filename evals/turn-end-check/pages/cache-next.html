@@ -1,0 +1,81 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>A result cache for the search API</title>
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1 id="cache-title">The search API now caches its results by LRU</h1>
+      <p class="lede" id="cache-lede">
+        You picked LRU over TTL, since memory is the constraint on the search hosts. The
+        cache evicts at 50,000 entries, merged in #812, and staging and production both
+        serve it behind the search.cache flag.
+      </p>
+      <section id="cache-findings">
+        <h2>What the simulation found</h2>
+        <p id="cache-findings-body">
+          LRU hits 81% of queries and stays under 1.9 GB, but a result can be 41 minutes
+          old at p95. TTL hits 74% and keeps every result under five minutes old, at up
+          to 2.6 GB.
+        </p>
+      </section>
+      <section id="cache-change">
+        <h2>The change</h2>
+        <p id="cache-change-body">
+          <code>search/cache.py</code> wraps the result lookup in an LRU cache where the
+          <code>search.cache</code> flag is <code>lru</code>.
+        </p>
+      </section>
+      <section id="slow">
+        <h2>The three slowest queries</h2>
+        <table id="slow-table">
+          <thead>
+            <tr>
+              <th>Query</th>
+              <th>p95</th>
+              <th>Calls a day</th>
+              <th>Why</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>shoes size:*</td>
+              <td>2.8 s</td>
+              <td>41,000</td>
+              <td>the wildcard facet expands to 312 terms</td>
+            </tr>
+            <tr>
+              <td>an empty query</td>
+              <td>1.9 s</td>
+              <td>12,000</td>
+              <td>scans every shard</td>
+            </tr>
+            <tr>
+              <td>brand:nike sort:price</td>
+              <td>1.2 s</td>
+              <td>88,000</td>
+              <td>sorts by a field with no index</td>
+            </tr>
+          </tbody>
+        </table>
+      </section>
+      <section id="slow-next">
+        <h2>Which should I fix first?</h2>
+        <lf-options id="slow-first">
+          <lf-option id="slow-first-sort"
+            ><strong>Index the price field</strong> The most called of the three; one
+            index build, about an hour.</lf-option
+          >
+          <lf-option id="slow-first-facet"
+            ><strong>Cap the wildcard facet</strong> The slowest; a facet over 100 terms
+            falls back to a prefix match.</lf-option
+          >
+          <lf-option id="slow-first-empty"
+            ><strong>Answer an empty query from the cache</strong> The rarest; one line
+            in the handler.</lf-option
+          >
+        </lf-options>
+      </section>
+    </main>
+  </body>
+</html>

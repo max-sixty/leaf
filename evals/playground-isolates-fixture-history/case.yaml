@@ -31,7 +31,7 @@ assert:
     metric: authored-isolation
     value: |
       Pass only if the HTML uses two lf-sample window elements with data-sample
-      templates inside an lf-playground-preview, and each template names the same
+      templates in the playground's preview, and each template names the same
       inline application/json script through data-sample-events. The script holds
       a comment command and a reply command linked to it by explicit id and parent,
       with kind and text fields, and the comment's anchor names content inside each

@@ -15,7 +15,8 @@
 leaf-composition-field {
   display: contents;
 }
-:is(.lf-fab-bar, .lf-margin-preview),
+.lf-fab-bar,
+.lf-margin-preview,
 .lf-compose-field {
   --lf-compose-send-end: calc(
     var(--lf-icon-action-hit) + 2 * var(--lf-compose-action-inset)
@@ -29,7 +30,8 @@ leaf-composition-field {
   --lf-icon-action-hit: max(var(--lf-icon-action-face), var(--lf-aim-floor));
 }
 :root,
-:is(.lf-fab-bar, .lf-margin-preview),
+.lf-fab-bar,
+.lf-margin-preview,
 .lf-compose-field {
   --lf-compose-h: calc(var(--lf-icon-action-face) + 2 * var(--lf-compose-action-inset));
 }
@@ -317,7 +319,8 @@ leaf-composition-field {
 /* Send stands in the field's end corner, and Dictate in its place while it shows. They,
    Other responses beside them, and a thread's Resolve and Reopen are symbols whose
    state shows on a disc (controls.css, `data-lf-disc`). */
-:is(.lf-compose-submit, .lf-compose-dictate) {
+.lf-compose-submit,
+.lf-compose-dictate {
   position: absolute;
   z-index: 1;
   inset-inline-end: var(--lf-compose-action-inset);
@@ -367,7 +370,8 @@ leaf-composition-field {
    the paper sets the ground and ring its pictures meet it with. */
 /* How far a picture's corner marks stand out past it, in a draft's shelf and on a
    rewrite's pictures alike. */
-:is(.lf-composer-media, .lf-msg-media) {
+.lf-composer-media,
+.lf-msg-media {
   --lf-media-mark-overhang: 6px;
 }
 .lf-composer-media {
@@ -624,8 +628,10 @@ leaf-composition-field {
 /* While a rewrite is open its thread offers no Resolve or Reopen: the row is the
    rewrite's, and saving reopens a resolved thread anyway. The control leaves the row, so
    the controls after it shift over (the user's choice). */
-:is(.lf-page-thread, .lf-fp-opened):has(.lf-msg-editor) {
-  & :is(.lf-resolve, .lf-reopen) {
+.lf-page-thread:has(.lf-msg-editor),
+.lf-fp-opened:has(.lf-msg-editor) {
+  & .lf-resolve,
+  & .lf-reopen {
     display: none;
   }
   /* Here the thread's controls beside its first message's head hold only that control
@@ -645,7 +651,8 @@ leaf-composition-field {
   }
 }
 
-:is(.lf-fab-bar, .lf-margin-preview) {
+.lf-fab-bar,
+.lf-margin-preview {
   --lf-response-height: var(--lf-line);
 }
 /* The comment box, card and card reply share one text column, so Send moves no
@@ -653,7 +660,8 @@ leaf-composition-field {
    its edge: past Send, which stands centred in one response line, or under a mouse,
    where Send takes only a free corner (above), at the thread text inset, as at the
    start. The field spends one pixel of each inset on its frame. */
-:is(.lf-fab-bar, .lf-margin-preview) {
+.lf-fab-bar,
+.lf-margin-preview {
   --lf-thread-text-pad-block: calc((var(--lf-response-height) - 1lh) / 2);
   --lf-compose-action-inset: calc(
     (var(--lf-response-height) - var(--lf-icon-action-face)) / 2
@@ -661,7 +669,8 @@ leaf-composition-field {
   --lf-comment-text-end: calc(var(--lf-compose-send-end) + 1px);
 }
 @media (hover: hover) and (pointer: fine) {
-  :is(.lf-fab-bar, .lf-margin-preview) {
+  .lf-fab-bar,
+  .lf-margin-preview {
     --lf-comment-text-end: var(--lf-thread-text-inset);
   }
   leaf-text.lf-fab-input {

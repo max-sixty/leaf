@@ -13,7 +13,10 @@
  * presses where that stands taller. Closed files stand one row on the next with no
  * room between for a reach, so a row with presses is at least the aim floor, and the
  * bar stands in its middle. */
-:where(lf-call-diff, lf-diff, lf-worktree, lf-worktree-diffs) {
+:where(lf-call-diff),
+:where(lf-diff),
+:where(lf-worktree),
+:where(lf-worktree-diffs) {
   --lf-diff-gap: 8px;
   --lf-diff-action-h: 26px;
   --lf-diff-action-top: max(6px, (var(--lf-aim-floor) - var(--lf-diff-action-h)) / 2);

@@ -10,16 +10,17 @@
  * policy a page is delivered under admits, and it runs with the page's own authority:
  * the body is the author's code, as a page module is.
  *
- * What the host adds is what a drawing needs from the page it sits in. It is drawn for the
- * room it has and drawn again when that room changes, since a drawing scaled into a new
- * box takes its labels below legibility with it: the width is the host's, and the body
- * reads it to fit its ticks to the room. The height is the box's too: on a Leaf page it
- * is stated (x-height, or the occurrence's data-height), and the theme holds the box at
- * it before the drawing arrives, so the drawing and any legend Plot sets beside it are
- * drawn to fill it and move nothing below it. Its type and ink are the theme's, and so
- * are its series colours, because Plot takes `var(--lf-series-N)` wherever it takes a colour. A user
- * who cannot see it hears Plot's `ariaLabel` in its place. It is one comment target,
- * through `x-visual: whole`. And a chart that cannot draw says why over its own source.
+ * What the host adds is what a drawing needs from the page it sits in. It is drawn for
+ * the room it has and drawn again when that room changes, since a drawing scaled into a
+ * new box takes its labels below legibility with it: the width is the host's, and the
+ * body reads it to fit its ticks to the room. The height is the box's too: on a Leaf
+ * page it is stated (paint.height, or the occurrence's data-height), and the theme
+ * holds the box at it before the drawing arrives, so the drawing and any legend Plot
+ * sets beside it are drawn to fill it and move nothing below it. Its type and ink are
+ * the theme's, and so are its series colours, because Plot takes `var(--lf-series-N)`
+ * wherever it takes a colour. A user who cannot see it hears Plot's `ariaLabel` in its
+ * place. It is one comment target, through `words.visual: whole`. And a chart that
+ * cannot draw says why over its own source.
  *
  * A chart says the value under the reader's aim (chart-points.js says which marks and
  * how): the point nearest a resting pointer or a held finger, by Plot's pointer's rule,
@@ -334,7 +335,7 @@ customElements.define(
         // watches. Everything else the chart writes waits for Leaf's next rendering
         // pass, since a box that moves above one the browser just delivered is a
         // ResizeObserver loop error. The first drawing lets go of the box the theme
-        // held (x-height), which a row may stretch, and the page presents itself as
+        // held (paint.height), which a row may stretch, and the page presents itself as
         // the drawing settles, so the room's first delivery is heard in that pass, as
         // the legend's measurement is (`paint`) and a refusal is written there. The
         // drawing follows there, or once Plot has loaded if that comes later. A width

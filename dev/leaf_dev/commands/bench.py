@@ -388,7 +388,7 @@ def ask(g: int, options: int = 4) -> str:
     """Section `g`: a heading, a paragraph and an `lf-ask` of `options` options."""
     return (
         f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about section {g}.</p>'
-        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" choose multiple>'
+        f'<lf-ask id="q{g}"><h3>Question {g}</h3><lf-options id="o{g}" multiple>'
         + "".join(
             f'<lf-option id="o{g}-{i}"><strong>Option {i}</strong> a short description.'
             "</lf-option>"
@@ -451,7 +451,7 @@ def prose_sections(n: int) -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
     the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )
@@ -478,7 +478,7 @@ def document_lines(n: int) -> str:
     """One ask and a text document of `n` × 64 lines of Python, written in its `<pre>`:
     the document's text grows, and the widgets don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )
@@ -544,7 +544,7 @@ def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
     question = (
-        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" choose multiple>'
+        '<lf-ask id="q0"><h3>Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
         "</lf-options></lf-ask>"
     )
@@ -1083,6 +1083,14 @@ def hover_step(tab: Tab) -> None:
     tab.page.mouse.move(tab.target["x"], tab.target["y"] + LINE * lines)
 
 
+def hold_alt(tab: Tab) -> None:
+    """Hold ⌥ down, which arms the page under the pointer, or let it up."""
+    if tab.sample % 2:
+        tab.page.keyboard.up("Alt")
+    else:
+        tab.page.keyboard.down("Alt")
+
+
 def design_key(tab: Tab) -> None:
     """Enter Design mode, or leave it."""
     tab.page.keyboard.press("l")
@@ -1109,6 +1117,37 @@ def inspect_step(tab: Tab) -> None:
     """Move the pointer onto the other of the two tab controls, each a part Design mode
     names inside the tabs widget, as #4781's reader moved between its side tabs."""
     tab.page.mouse.move(*tab.target["centres"][(tab.sample + 1) % 2])
+
+
+def open_picker(tab: Tab) -> Goals:
+    """Enter Design mode as `enter_design` does, open the target picker (`s`), and stand
+    its walk on the last hint in view: on `side_documents`' pages, the last tab the side
+    list shows, a part Design mode names inside the tabs widget."""
+    enter_design(tab)
+    tab.page.keyboard.press("s")
+    tab.page.keyboard.press("Shift+Tab")
+    tab.quiet(600)
+    return {}
+
+
+def pick_step(tab: Tab) -> None:
+    """Walk the picker's hints up from the last and back (`WAYS`), each step announcing
+    the hint it reaches, as #4781's reader heard the side tabs."""
+    way = WAYS[tab.sample % len(WAYS)]
+    tab.page.keyboard.press("Shift+Tab" if way > 0 else "Tab")
+
+
+def leave_picker(tab: Tab) -> None:
+    """Close the target picker, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    design_key(tab)
+
+
+def leave_composer(tab: Tab) -> None:
+    """Close the comment a press in Design mode opened, which holds no words and so
+    leaves no draft, then leave Design mode."""
+    tab.page.keyboard.press("Escape")
+    tab.page.keyboard.press("Escape")
 
 
 def open_annotations(tab: Tab) -> Goals:
@@ -1462,6 +1501,7 @@ INPUTS: dict[str, Input] = {
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
     "hover": Input(hover_step, 32, halfway, each=False, after=50),
+    "aim": Input(hold_alt, 8, halfway, each=False, after=100),
     "design": Input(design_key, 2, halfway, each=False, after=400),
     "inspect": Input(
         inspect_step,
@@ -1471,6 +1511,18 @@ INPUTS: dict[str, Input] = {
         each=False,
         after=50,
         needs="[role=tab]",
+    ),
+    "pick": Input(
+        pick_step,
+        16,
+        open_picker,
+        leave=leave_picker,
+        each=False,
+        after=100,
+        needs="[role=tab]",
+    ),
+    "part": Input(
+        press, 4, enter_design, leave=leave_composer, after=400, needs="[role=tab]"
     ),
     "draw": Input(draw_key, 2, halfway, each=False, after=400),
     "capture": Input(capture_toggle, 2, open_annotations, each=False, after=400),

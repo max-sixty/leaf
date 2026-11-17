@@ -9,6 +9,7 @@ from click.testing import CliRunner
 from interact_support import (
     COMMAND_SUBJECTS,
     PAGE,
+    PAGE_GROUP,
     PICKS_PAGE,
     ROOT,
     SKILL_ROOT,
@@ -298,9 +299,7 @@ def test_delivery_distinguishes_thread_obligations_from_closing_answered_work(pa
 def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_hand(
     page_dir,
 ):
-    source = PAGE.replace(
-        "<lf-options>", '<lf-options id="choice" choose multiple>'
-    ).replace(
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>').replace(
         "</section>", '<lf-draft id="draft"><pre>Blue room.</pre></lf-draft></section>'
     )
     (page_dir / "index.html").write_text(source)
@@ -380,7 +379,7 @@ def test_recordless_requests_wake_without_user_obligations(
         "unit": "widget",
         "detail": {"type": "object", "properties": {}, "additionalProperties": False},
     }
-    declaration["x-state"] = {
+    declaration.setdefault("state", {})["verbs"] = {
         "archive": {**verb, "attention": True},
         "edit": verb,
     }
@@ -478,7 +477,7 @@ def test_recordless_requests_wake_without_user_obligations(
 def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_dir):
     source = PAGE.replace(
         "</section>",
-        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-options id="permit"><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options></section>',
     )
     source = source.replace(
@@ -684,7 +683,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "author": "agent",
             "revision": 1,
             "html": True,
-            "text": "And which region first?\n\n" + '<lf-options id="rg" choose>'
+            "text": "And which region first?\n\n" + '<lf-options id="rg">'
             '<lf-option id="r-eu"><strong>EU</strong></lf-option>'
             "</lf-options>",
         },
@@ -697,7 +696,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "revision": 1,
             "html": True,
             "text": "Which mitigations should I carry into the patch?\n\n"
-            + '<lf-options id="gm" choose>'
+            + '<lf-options id="gm">'
             '<lf-option id="m-cap"><small class="tag">recommended</small>'
             "<strong>Cap retries</strong> Bound retry load.</lf-option>"
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
@@ -772,9 +771,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
     change what they chose. Done on a group whose pick another verb records
     says that pick, as the choice worded it, not every word of the group,
     and an undo says what it takes back."""
-    asked = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-    )
+    asked = PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     (page_dir / "index.html").write_text(asked)
     publish(page_dir)
     (page_dir / "index.html").write_text(
@@ -845,7 +842,7 @@ def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
     """Done with nothing picked completes the answer with no option, so it quotes
     none of the group's words."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     serving(page_dir, 1)
@@ -979,7 +976,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             message["html"] = True
             message["revision"] = 1
             message["text"] += (
-                '\n\n<lf-options id="thread-commands" choose>'
+                '\n\n<lf-options id="thread-commands">'
                 '<lf-option id="restart"><strong>Restart</strong></lf-option>'
                 '<lf-option id="park"><strong>Park</strong></lf-option>'
                 "</lf-options>"
@@ -1116,7 +1113,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "author": "agent",
             "parent": root["id"],
             "html": True,
-            "text": "Which mitigations?\n\n" + '<lf-options id="gm" choose multiple>'
+            "text": "Which mitigations?\n\n" + '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             "</lf-options>",
         },
@@ -1291,7 +1288,7 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
     source = PAGE.replace(
         "</section>",
         '</section><section id="ship-ask"><h2>Ship on Friday?</h2>'
-        '<lf-options id="permit" choose><lf-option id="publish">Publish</lf-option>'
+        '<lf-options id="permit"><lf-option id="publish">Publish</lf-option>'
         '<lf-option id="hold">Keep it private</lf-option></lf-options></section>'
         '<p id="aside">An aside.</p>',
     )
@@ -1360,10 +1357,9 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     def playground(ident, card):
         return (
             f'<lf-playground id="{ident}">'
-            f'<lf-playground-control id="{ident}-radius" name="radius" label="Radius" kind="range" '
-            'value="8" max="20"></lf-playground-control>'
-            f'<lf-playground-preview><p id="{card}">Deployed.</p>'
-            "</lf-playground-preview>"
+            f'<aside><label id="{ident}-radius">Radius <input type="range" name="radius" '
+            'value="8" max="20" /></label></aside>'
+            f'<p id="{card}">Deployed.</p>'
             "<lf-playground-output>Build it.</lf-playground-output></lf-playground>"
         )
 
@@ -1466,7 +1462,9 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
     # redeclaring the verb leaves what the earlier messages were about.
     declare_on_page(
         page_dir,
-        lambda registry: registry["lf-playground"]["x-state"]["tune"].pop("unsent"),
+        lambda registry: registry["lf-playground"]["state"]["verbs"]["tune"].pop(
+            "unsent"
+        ),
     )
     publish(page_dir)
     assert shown([opened, reply, edit, aside]) == on_page

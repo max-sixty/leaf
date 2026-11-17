@@ -56,7 +56,6 @@ from render_cases_layout import (
     SCROLLED_CONTAINER,
     SHOT_SRC,
     SHOTS,
-    SIDENOTE_IN_A_WIDGET,
     SPILLING_PAGE,
     UNMARKABLE_PAGE,
     apply_restore_case,
@@ -845,10 +844,6 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     viewport still belongs to page flow, and offered controls still lose presses
     when clipped, beside a clean control the viewport shows completely.
 
-    A note in an option wraps inside its native row rather than being pulled
-    into the page's margin. It remains readable inside the group's clip and must not
-    be reported alongside the genuinely lost boxes.
-
     A box's own content has no box to lose, so the box answers for it, down as well as
     across: a log capped by a max-height, a short box of paragraphs and a label that
     does not wrap each cut off what they hold. A bounded log scrolls, a closed
@@ -856,9 +851,7 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     box overhangs by less than a line, and words clipped to a pixel for whoever is
     listening show nothing to cut from, so none of those is named."""
     url = serve(
-        OVER_ITS_CONTAINER.replace(
-            "</main>", _added(SIDENOTE_IN_A_WIDGET) + CUT_CONTENT + "</main>"
-        ),
+        OVER_ITS_CONTAINER.replace("</main>", CUT_CONTENT + "</main>"),
         layer_registry=DRAWING_CONTROL_LAYER,
         layer_widgets=DRAWING_CONTROL_WIDGETS,
     )
@@ -866,28 +859,13 @@ def test_the_render_gate_reports_a_box_its_container_clips_away(browser, serve):
     expect(page.locator("lf-test-drawing-control [data-lf-offer]")).to_have_count(2)
     expect(page.locator("#clipped-drawing-control")).to_have_text("Inspect")
     expect(page.locator("#clean-drawing-control")).to_have_text("Inspect")
-    # Scroll the group rather than its note, so scrolling cannot conceal a clipped
-    # child by moving its overflow-hidden container's contents.
-    page.locator("#where").scroll_into_view_if_needed()
-    seen = page.evaluate("""() => {
-        const n = document.getElementById('boxed-note');
-        const b = n.getBoundingClientRect();
-        const mid = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2);
-        return {painted: !!mid && (n === mid || n.contains(mid)),
-                at: mid && mid.tagName};
-    }""")
     page.close()
-    assert seen["painted"], f"the option clipped its wrapped note: {seen}"
     failures = render_gate_model.render_version(browser, url).failures
     clipped = {
         (f.at, f.values["container"]) for f in failures if f.code == "clipped-out"
     }
     controls = {f.values["id"] for f in failures if f.code == "clipped-control"}
 
-    assert (
-        "<aside id=boxed-note>",
-        "<lf-options id=where>",
-    ) not in clipped, f"the visible wrapped note was reported as clipped: {failures}"
     assert (
         "<div id=eaten>",
         "<div id=clipping>",
@@ -955,9 +933,8 @@ def test_the_render_gate_reads_one_light_page_at_the_desktop_window(browser, ser
     source = leaf_page(
         "native layout in the gate",
         '<aside><div class="layout-track"><nav aria-label="Route"><a href="#move">Move</a></nav></div></aside>'
-        '<div class="layout-column layout-notes"><h1>Migration plan</h1><h2 id="move">Move</h2>'
-        '<div class="layout-note"><p>Shift one cohort at a time while keeping the old readers available.</p>'
-        '<aside class="note" id="frequency">Support runs this twice a month.</aside></div></div>',
+        '<div class="layout-column"><h1>Migration plan</h1><h2 id="move">Move</h2>'
+        "<p>Shift one cohort at a time while keeping the old readers available.</p></div>",
         layout="sidebar",
     )
     seen = []
@@ -1042,22 +1019,26 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         add_test_widget(package, tag, upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-anon"]["properties"]["mode"] = {
+    declarations["lf-anon"]["attributes"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["replace"],
     }
-    declarations["lf-anon"]["required"] = []
-    declarations["lf-shell"]["properties"]["mode"] = {
+    declarations["lf-anon"]["attributes"]["required"] = []
+    declarations["lf-shell"]["attributes"]["properties"]["mode"] = {
         "type": "string",
         "enum": ["prose", "order"],
     }
     declarations["lf-piece"] = {
         "description": "An anonymous nested upgraded piece.",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-example": "<lf-piece>Example</lf-piece>",
+        "attributes": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "author": {
+            "example": "<lf-piece>Example</lf-piece>",
+        },
     }
     registry_path.write_text(json.dumps(declarations, indent=2))
     modules = {
@@ -1148,7 +1129,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         "r-paint": '<lf-paint id="sent"></lf-paint>',
         "r-list": (
             '<lf-ask id="an-set-decision"><h3>What should I carry into the patch?</h3>'
-            '<lf-options id="an-set" choose multiple>'
+            '<lf-options id="an-set" multiple>'
             '<lf-option id="an-chase">Chase them monthly</lf-option>'
             '<lf-option id="an-clear">Clear the stall ourselves</lf-option>'
             '<lf-option id="an-say">Say what the spinner is</lf-option>'
@@ -1513,7 +1494,7 @@ def test_the_render_gate_fails_a_page_that_scrolls_sideways_only_between_viewpor
 <div id="strip"><button>Summary</button><button>Release scope</button>
 <button>Owner handoff</button></div>
 <div id="card"><lf-ask id="go-decision"><h2>Ship it?</h2>
-<p>The release passed its checks.</p><lf-options id="go" choose>
+<p>The release passed its checks.</p><lf-options id="go">
 <lf-option id="go-yes"><strong>Yes</strong></lf-option>
 </lf-options></lf-ask></div>
 """,
@@ -1733,14 +1714,16 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
         "lf-callout"
     ]
-    callout["properties"]["parts"] = {"type": "string", "minLength": 1}
-    callout["x-visual"] = {"parts": "parts"}
+    callout["attributes"]["properties"]["parts"] = {"type": "string", "minLength": 1}
+    callout.setdefault("words", {})["visual"] = {"parts": "parts"}
     prefixed = prefixed_visual_layer("out", "inn")["lf-test-visual"]
     layer = {
         **GENERIC_VISUAL_LAYER,
         "lf-test-visual-prefixed": {
             **prefixed,
-            "x-example": '<lf-test-visual-prefixed id="example"></lf-test-visual-prefixed>',
+            "author": {
+                "example": '<lf-test-visual-prefixed id="example"></lf-test-visual-prefixed>'
+            },
         },
         "lf-callout": callout,
     }
@@ -1780,7 +1763,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     """Bug-backs for the module contracts the gate enforces, one project widget each,
     on one page, beside the DevTools issues the page owns.
 
-    `lf-callout` declares x-verbatim while its module renders other words in the
+    `lf-callout` declares words.verbatim while its module renders other words in the
     body's stead (quotes would strand on words the screen no longer shows).
     `author-card` is the clean control beside it: a page script's own custom element
     with a shadow root it attached itself, which the gate accepts, since the passage
@@ -1791,7 +1774,7 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     The word pass stops at a shadow boundary on purpose — which widgets the page holds
     is the document's question — so an element a module stages into its own tree keeps
     its declarations and gets no pass, and the failure is silence: no error, no missing
-    box. It stages a declared lf-reading whose declaration names an x-says word, and
+    box. It stages a declared lf-reading whose declaration names a words.says word, and
     the gate is asked for it. A staged element rather than a module that wipes its own
     body after the pass has run, which is the same failure by a route that races the
     module's own render, and a bug-back that has to win a race is a bug-back that
@@ -1813,11 +1796,11 @@ def test_the_render_gate_holds_project_widgets_to_their_declarations(
     declarations = json.loads(registry_path.read_text())
     for tag in ("lf-stager", "lf-veil"):
         # Each module shows a tree of its own rather than the body, and declares it.
-        declarations[tag].pop("x-verbatim")
-        declarations[tag]["x-shadow"] = True
+        declarations[tag]["words"].pop("verbatim")
+        declarations[tag].setdefault("words", {})["shadow"] = True
     veil = declarations["lf-veil"]
-    veil["properties"]["label"] = {"type": "string"}
-    veil["x-says"] = {"label": "before"}
+    veil["attributes"]["properties"]["label"] = {"type": "string"}
+    veil.setdefault("words", {})["says"] = {"label": "before"}
     registry_path.write_text(json.dumps(declarations, indent=2))
     modules = {
         "lf-stager": (

@@ -7,9 +7,10 @@
 #
 # Turn-end labels: `expect` items the answer must name, and `absent` items it must
 # leave out, each by `kind` and the `words` (any of them) it rests on; a guardrail
-# shares its words with its positive case. A stale label's `edit` is the words its
-# fix must remove, or null where the turn-end check's prompt asks for no edit
-# (skills/leaf/references/turn-end-check.md). A reply case judges the working line
+# shares its words with its positive case. A question label's `choice` says whether
+# the ask is a widget in its text, such as a choice (true), or in words (false). A
+# stale label's `edit` is the words its fix must remove, or null where the turn-end
+# check's prompt asks for no edit (skills/leaf/references/turn-end-check.md). A reply case judges the working line
 # the fork posted as it handed the message to the session, and its label `work`
 # says who should do the work: `take` where a fork of the session could do it
 # beside the session without touching or awaiting what the session is doing.
@@ -35,14 +36,19 @@ rubrics:
       subject and its text asks what the conversation leaves to the user, correctly,
       in a way the user can answer from the card alone, with each point in a short
       paragraph or item of its own and the question on its own line rather than one
-      unbroken block; for a step the user takes,
+      unbroken block. An ask whose text holds an `lf-options` group is a choice the
+      user presses: its words and options ask it together, each option titled by what
+      choosing it does, and an option marked recommended only where the agent
+      advised it. For a step the user takes,
       it says what to do, and asks for a reply only for what the user alone can report or the agent's next step waits
       on, not for an effect the agent could check itself and nothing waits on. A finding's summary says correctly what the conversation
       shows. Each change makes the page say what the conversation shows now, in the
       page's own register. Each item not labelled is one the question asks for and
       the conversation clearly shows: an ask the agent left to the user that no On Me
-      item holds and the user hasn't answered since; a page passage the work or the
-      conversation has since contradicted; an On Me item settled elsewhere; work
+      item holds and the user hasn't answered since; anything a page holds that no
+      longer fits the work as it now stands, such as words the work or the
+      conversation has since changed, or finished or dropped work the page still
+      presents as current; an On Me item settled elsewhere; work
       the agent promised or set running that no page shows; or an open thread whose
       agent messages the user would misread, since the work overtook its latest one
       or a later reply corrects an earlier one. An unlabelled item fails
@@ -101,6 +107,13 @@ words:
       skips the first 10 000 queries,
       first five minutes of misses,
       rerunning both simulations,
+    ]
+  stale-lead:
+    &stale-lead [
+      now caches its results by lru,
+      merged in 812,
+      slowest queries,
+      fix first,
     ]
   production-flag:
     &production-flag [
@@ -265,6 +278,21 @@ conversations:
         59	        # Fill the cache with the 10,000 most frequent queries from yesterday's log.
         60	        for query in await top_queries(10_000):
         61	            self._store[query.key] = await self._search(query)
+  # A later request on the cache page, once the cache has merged: the work moves to a
+  # new question.
+  slow:
+    - user: >-
+        #812 merged, and I've turned the flag on in production too. Next, look at the
+        three slowest queries in yesterday's log and tell me what we should change.
+        Keep the page at {page} current.
+    - tool: Bash
+      input:
+        command: python bench/slow_queries.py --day 2026-11-02 --top 3
+        description: List yesterday's three slowest queries and their causes
+      result: |-
+        1  shoes size:*            p95=2.8s  calls=41k  cause=wildcard facet expands to 312 terms
+        2  (empty query)           p95=1.9s  calls=12k  cause=scans every shard
+        3  brand:nike sort:price   p95=1.2s  calls=88k  cause=sort on field price, no index
   # The claude-code journey's start (`leaf-dev journey run claude-code`): the session
   # serves the user's page and handles their comments on it by revising its source.
   board:
@@ -290,6 +318,14 @@ replies:
       five minutes old, at up to 2.6 GB. Do you want the LRU cache, for its hit rate and
       bounded memory, or the TTL cache, for fresher results? I'll wire up whichever
       you pick.
+  slow: &slow-reply
+    assistant: >-
+      Each of the three slowest queries has its own cause. `shoes size:*` takes 2.8 s
+      at p95 because its wildcard facet expands to 312 terms; an empty query takes 1.9
+      s because it scans every shard; and `brand:nike sort:price`, the most called at
+      88,000 a day, takes 1.2 s because it sorts by a field with no index. I'd index the
+      price field first: it's one index build and the most calls. Which to fix first
+      is on the page.
   flaky: &flaky-reply
     assistant: >-
       Found it. `start()` launches the warmup with `asyncio.create_task` and returns
@@ -311,6 +347,35 @@ cases:
       expect:
         - kind: question
           words: *cache-question
+          choice: true
+    assert:
+      - *items
+  ask-choice:
+    fork: turn-end
+    page: turn-end-check/pages/reindex-staged.html
+    conversation:
+      - from: reindex
+      - user: Good. Is production ready for the rebuild?
+      - tool: Bash
+        input:
+          command: ./ops/reindex preflight --env prod
+          description: Check both production regions can take the rebuild
+        result: |-
+          eu-west: ready (disk 61% free)
+          us-east: ready (disk 58% free)
+      - assistant: >-
+          Production is ready: both regions pass the preflight with about 60% of disk
+          free. When should I run the rebuild? Tonight at 22:00, when traffic is a
+          fifth of daytime, it takes about 40 minutes a region and needs nobody
+          awake. Now, in daytime traffic, it puts p95 search latency up by about 30%
+          while it runs. Saturday morning the on-call team is around, but that's two
+          days away. I'd go tonight.
+    labels:
+      expect:
+        - kind: question
+          words: [tonight, saturday, production rebuild, rebuild production]
+          thread: null
+          choice: true
     assert:
       - *items
   ask-on-me:
@@ -392,6 +457,7 @@ cases:
         - kind: question
           words: *flag-step
           thread: null
+          choice: false
     assert:
       - *items
   ask-follow-up:
@@ -471,6 +537,7 @@ cases:
         - kind: question
           words: *flag-step
           thread: q1
+          choice: false
     assert:
       - *items
   ask-step-done:
@@ -559,8 +626,9 @@ cases:
           kind: stale
           page: "{page}"
           summary: >-
-            The lede still says the reindex is running with 2 of 5 shards rebuilt, but
-            all five shards rebuilt and staging now serves search-v7.
+            The lede still says the reindex is running with 2 of 5 shards rebuilt, and
+            the plan still lists the staging rebuild as work to do, but all five shards
+            rebuilt and staging now serves search-v7.
           quote: all 5 shards rebuilt; alias search -> search-v7
           edit: null
       - assistant: |-
@@ -571,6 +639,85 @@ cases:
       absent:
         - kind: stale
           words: *reindex-stale
+    assert:
+      - *items
+  stale-lead:
+    fork: turn-end
+    page: turn-end-check/pages/cache-next.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - from: flag-asked
+      - from: flag-on
+      - from: slow
+      - tool: Edit
+        input:
+          file_path: "{page}/index.html"
+          old_string: |-
+            </section>
+                </main>
+          new_string: |-
+            </section>
+                  <section id="slow">
+                    <h2>The three slowest queries</h2>
+                    <table id="slow-table">
+                      <thead>
+                        <tr><th>Query</th><th>p95</th><th>Calls a day</th><th>Why</th></tr>
+                      </thead>
+                      <tbody>
+                        <tr><td>shoes size:*</td><td>2.8 s</td><td>41,000</td><td>the wildcard facet expands to 312 terms</td></tr>
+                        <tr><td>an empty query</td><td>1.9 s</td><td>12,000</td><td>scans every shard</td></tr>
+                        <tr><td>brand:nike sort:price</td><td>1.2 s</td><td>88,000</td><td>sorts by a field with no index</td></tr>
+                      </tbody>
+                    </table>
+                  </section>
+                  <section id="slow-next">
+                    <h2>Which should I fix first?</h2>
+                    <lf-options id="slow-first">
+                      <lf-option id="slow-first-sort"><strong>Index the price field</strong> The most called of the three; one index build, about an hour.</lf-option>
+                      <lf-option id="slow-first-facet"><strong>Cap the wildcard facet</strong> The slowest; a facet over 100 terms falls back to a prefix match.</lf-option>
+                      <lf-option id="slow-first-empty"><strong>Answer an empty query from the cache</strong> The rarest; one line in the handler.</lf-option>
+                    </lf-options>
+                  </section>
+                </main>
+        result: The file {page}/index.html has been updated successfully.
+      - *slow-reply
+    labels:
+      expect:
+        - kind: stale
+          words: *stale-lead
+          edit: null
+    assert:
+      - *items
+  stale-lead-current:
+    fork: turn-end
+    page: turn-end-check/pages/cache-next-current.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - from: flag-asked
+      - from: flag-on
+      - from: slow
+      - tool: Edit
+        input:
+          file_path: "{page}/index.html"
+          old_string: |-
+            <h1 id="cache-title">The search API now caches its results by LRU</h1>
+          new_string: |-
+            <h1 id="slow-title">The search API's three slowest queries, and which to fix first</h1>
+        result: The file {page}/index.html has been updated successfully.
+      - tool: Bash
+        input:
+          command: python3 .tmp/page-rewrite.py {page}/index.html
+          description: Lead the page with the slow queries and fold the cache work into a record
+        result: rewrote the lede, added the slow-query sections, folded the cache sections into a closed details
+      - *slow-reply
+    labels:
+      absent:
+        - kind: stale
+          words: *stale-lead
     assert:
       - *items
   settled:

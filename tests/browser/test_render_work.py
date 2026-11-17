@@ -78,22 +78,28 @@ def test_public_work_roles_preserve_scope_remit_and_reports(browser, serve):
 def test_a_page_owned_goal_joins_the_public_projection(browser, serve):
     schema = {
         "description": "A local milestone.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "phase": {"enum": ["blocked", "done"]},
-            "overruled": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "phase": {"enum": ["blocked", "done"]},
+                "overruled": {"type": "boolean"},
+            },
+            "required": ["id", "phase"],
+            "additionalProperties": False,
         },
-        "required": ["id", "phase"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-owners": ["lf-test-plan"],
-        "x-state": {
-            "phase": {
-                "writer": "agent",
-                "unit": "widget",
-                "record": {"kind": "value", "attr": "phase"},
-            }
+        "content": "markup",
+        "markup": {
+            "owners": ["lf-test-plan"],
+        },
+        "state": {
+            "verbs": {
+                "phase": {
+                    "writer": "agent",
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "phase"},
+                }
+            },
         },
     }
     declarations = {

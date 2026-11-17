@@ -87,14 +87,14 @@ def test_registered_control_keys_activate_once(browser, serve):
     mark = page.locator("#opts .lf-pick").first
     mark.focus()
     page.keyboard.press(" ")
-    expect(page.locator("#opts > lf-option[chosen]")).to_have_count(1)
-    chosen = page.locator("#opts > lf-option[chosen]").get_attribute("id")
+    expect(page.locator("#opts > lf-option[selected]")).to_have_count(1)
+    chosen = page.locator("#opts > lf-option[selected]").get_attribute("id")
     mark.evaluate("""el => {
         for (let i = 0; i < 5; i++)
             el.dispatchEvent(new KeyboardEvent('keydown',
                 {key: ' ', repeat: true, bubbles: true, cancelable: true}));
     }""")
-    expect(page.locator(f"#{chosen}[chosen]")).to_have_count(1)
+    expect(page.locator(f"#{chosen}[selected]")).to_have_count(1)
     # The mark paints its own press before the post answers, so the DOM leads the log:
     # read the file straight after and the first press's event may not be in it yet,
     # which reads exactly like a press that sent nothing. A press that sent nothing

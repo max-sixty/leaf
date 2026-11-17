@@ -305,7 +305,7 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     cards it holds."""
     body = (
         '<lf-ask id="a"><h2>Close #1176 as won\'t-fix?</h2>'
-        f'<lf-options id="o" choose>{options}</lf-options></lf-ask>'
+        f'<lf-options id="o">{options}</lf-options></lf-ask>'
     )
     page = open_page(
         browser, serve(leaf_page("a choice", f"<div>{body}</div>", layout="sidebar"))
@@ -337,7 +337,7 @@ def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
         "</lf-option>"
         for n in range(1, 5)
     )
-    body = f'<lf-ask id="q"><h2>Which way?</h2><lf-options id="c" choose>{options}</lf-options></lf-ask>'
+    body = f'<lf-ask id="q"><h2>Which way?</h2><lf-options id="c">{options}</lf-options></lf-ask>'
     comments = [_comment_on(f"c-{n}") for n in range(1, 5)]
     page = open_page(
         browser,
@@ -634,7 +634,7 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
         <div style="height: 1200px"></div>
         <lf-ask id="body-ask">
           <h3>Which follow-up comes first?</h3>
-          <lf-options id="body-choice" choose>
+          <lf-options id="body-choice">
             <lf-option id="body-bench">Benchmark selected-row demand</lf-option>
             <lf-option id="body-dryrun">Close the dry-run gap</lf-option>
           </lf-options>
@@ -644,7 +644,7 @@ FOOTER_OBLIGATION_PAGE = leaf_page(
       <footer>
         <lf-ask id="foot-ask">
           <h3>Merge this revision?</h3>
-          <lf-options id="foot-choice" choose>
+          <lf-options id="foot-choice">
             <lf-option id="foot-approve">Approve and merge</lf-option>
             <lf-option id="foot-hold">Hold for the benchmark</lf-option>
           </lf-options>
@@ -712,7 +712,7 @@ def test_a_pin_keeps_clear_of_controls_slotted_into_its_reading_region(browser, 
         "<h3>Which channel?</h3>"
         '<button id="ask-help" style="position:absolute; top:0; right:0; '
         'width:120px; height:44px">Explain channels</button>'
-        '<lf-options id="channel" choose><lf-option id="email">Email</lf-option>'
+        '<lf-options id="channel"><lf-option id="email">Email</lf-option>'
         '<lf-option id="chat">Chat</lf-option></lf-options></lf-ask></div></div>',
         head="<style>#slotted-ask { position:relative; height:180px; margin:0; }</style>",
         layout="sidebar",
@@ -763,7 +763,7 @@ def test_a_pin_by_a_card_full_of_controls_stands_on_it_clear_of_them(browser, se
         f'<section id="card{i}" style="border:1px solid var(--lf-rule);'
         'background:var(--lf-card);margin:0;height:44px">'
         '<div style="background:var(--lf-chip);height:44px">'
-        f'<button id="action{i}" class="lf-btn" style="float:right" '
+        f'<button id="action{i}" style="float:right" '
         "onclick=\"this.textContent='Opened'\">Action</button></div></section>"
         for i in range(12)
     )
@@ -965,7 +965,7 @@ def test_a_pass_for_a_change_to_the_rows_seats_them_as_a_whole_pass_would(
         "</button></div></div>"
         '<section><h2 id="heading">A question</h2><p id="words">Some words about it.</p>'
         '<lf-ask id="q"><h3 id="question">Which one?</h3>'
-        f'<lf-options id="o" choose multiple>{options}</lf-options></lf-ask></section>'
+        f'<lf-options id="o" multiple>{options}</lf-options></lf-ask></section>'
         + "".join(
             f'<section><h2>Section {n}</h2><p id="far-{n}">Words about section {n},'
             " enough for a line of reading.</p></section>"

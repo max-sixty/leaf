@@ -146,22 +146,28 @@ def test_a_comment_on_an_identified_datum_follows_the_subject_across_replacement
     )
     feed = {
         "description": "A live deployment feed.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
         },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "rows": {
-                "contract": "deployment-rows",
-                "source": "source",
-                "property": "value",
-            }
+        "content": "empty",
+        "data": {
+            "inputs": {
+                "rows": {
+                    "contract": "deployment-rows",
+                    "source": "source",
+                    "property": "value",
+                }
+            },
         },
-        "x-example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
+        "author": {
+            "example": '<lf-feed id="example-feed" source="deployments"></lf-feed>',
+        },
     }
     contract = {
         "description": "Deployment records with durable ids.",
@@ -440,22 +446,28 @@ def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(
     )
     entry = {
         "description": "A project-supplied derived feed.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
-            "rows": {
-                "contract": "derived-rows",
-                "source": "source",
-                "property": "value",
-            }
+        "content": "empty",
+        "data": {
+            "inputs": {
+                "rows": {
+                    "contract": "derived-rows",
+                    "source": "source",
+                    "property": "value",
+                }
+            },
         },
-        "x-example": '<lf-derived id="derived-example"></lf-derived>',
+        "author": {
+            "example": '<lf-derived id="derived-example"></lf-derived>',
+        },
     }
     contract = {"description": "Readiness rows.", "schema": {"type": "array"}}
     module = """
@@ -945,18 +957,28 @@ def test_data_consumers_clear_and_recover_across_contract_only_rebindings(
     def entry(tag, contract):
         return {
             "description": "An instrumented data reader.",
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "source": {"type": "string"},
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "source": {"type": "string"},
+                },
+                "required": ["id", "source"],
+                "additionalProperties": False,
             },
-            "required": ["id", "source"],
-            "additionalProperties": False,
-            "x-content": "empty",
-            "x-data": {
-                "data": {"contract": contract, "source": "source", "property": "value"}
+            "content": "empty",
+            "data": {
+                "inputs": {
+                    "data": {
+                        "contract": contract,
+                        "source": "source",
+                        "property": "value",
+                    }
+                },
             },
-            "x-example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
+            "author": {
+                "example": f'<{tag} id="example-{contract}" source="shared"></{tag}>',
+            },
         }
 
     def module(tag):
@@ -1010,8 +1032,9 @@ customElements.define(TAG, class extends LeafElement {
     thread_model.post_reply(
         serve.page_dir,
         {"responds": "question"},
-        "Frozen feed.",
+        "Frozen feed.\n\n"
         '<lf-object-feed id="thread-feed" source="shared"></lf-object-feed>',
+        html=True,
     )
     data_model.cmd_data_set(serve.page_dir, "shared", ["same bytes"])
     page = open_page(browser, url)

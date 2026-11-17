@@ -189,20 +189,20 @@ finished work.
 
 ### Ask for a pick
 
-When a message asks the user to choose among answers you can list, such as which of
-two ways to proceed or whether to take an action, send the answers as an `lf-options`
-group in the message rather than listing them in words. The user answers with a press
-in the thread, and the group waits on them until they do, so the message takes no
-`--obligation`, which the command refuses beside it. The message's text asks the
-question and gives your reason, so the group needs no `lf-ask`. Title each option by
-what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
-question holds"):
+When a message asks the user to choose among answers you can list, such as which of two
+ways to proceed or whether to take an action, send the answers in the message as an
+`<lf-options id="…">` group holding an `<lf-option id="…">` for each, rather than
+listing them in words. The user answers with a press in the thread, and the group waits
+on them until they do, so the message takes no `--obligation`, which the command refuses
+beside it. The message's text asks the question and gives your reason, so the group
+needs no `lf-ask`. Title each option by what choosing it does and mark the one you
+advise (`authoring-on-me.md`, "What a question holds").
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'
 Which store should own sessions? I'd keep the account store, which already expires them.
 
-<lf-options id="session-store" choose>
+<lf-options id="session-store">
 <lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option>
 <lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option>
 </lf-options>
@@ -212,7 +212,7 @@ EOF
 If the user answers in words instead, the delivery of their reply lists the question
 in `waiting`; once you have answered, resolve the thread if nothing else in it waits on
 them, which takes the question off On Me. Another widget that asks works the same way, such
-as an `lf-draft` marked `needed` for wording the user edits. A decision the page
+as an `lf-draft` marked `required` for wording the user edits. A decision the page
 records, or one whose evidence needs the column, goes on the page beside its subject
 (`authoring-on-me.md`), linked from the reply.
 

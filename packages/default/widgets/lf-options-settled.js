@@ -81,7 +81,7 @@ export class SettledOptions {
       keeps(el, "hidden", this.#isOpen ? null : "until-found");
 
     const names = options
-      .filter((option) => option.hasAttribute("chosen"))
+      .filter((option) => option.hasAttribute("selected"))
       .map(this.#label)
       .filter(Boolean);
     const changes = comparisonChanges(this.#host).length;

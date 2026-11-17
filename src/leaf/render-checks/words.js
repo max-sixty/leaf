@@ -51,7 +51,7 @@ const compositionalWords = (owner, modules) => {
  * @param {readonly string[]} modules the tags a module upgrades */
 export const shownVerbatim = (declarations, modules) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-verbatim"])
+    .filter(([, entry]) => entry.words?.verbatim)
     .flatMap(([tag]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
         tag,
@@ -523,7 +523,7 @@ export function uncolouredCode() {
 // Words a declaration promised and the page never got. Every other reading here works
 // from what the browser drew, and that is exactly what cannot see this one: a word that
 // never arrived looks the same as an attribute with nothing to say. The registry is what
-// knows the difference — x-says names the attributes whose values are words at the
+// knows the difference — words.says names the attributes whose values are words at the
 // element's edge — so the declaration is what this asks against.
 //
 // The pass runs once at the upgrade, before an async widget's own render lands, so a
@@ -551,7 +551,7 @@ export function silentWords(declarations) {
   const every = (/** @type {string} */ tag) =>
     all.flatMap((r) => [...r.querySelectorAll(tag)]);
   for (const [tag, entry] of Object.entries(declarations))
-    for (const attr of Object.keys(entry["x-says"] ?? {}))
+    for (const attr of Object.keys(entry.words?.says ?? {}))
       for (const el of every(tag)) {
         const value = el.getAttribute(attr);
         if (value !== null && !says(el.shadowRoot ?? el).includes(value))

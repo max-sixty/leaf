@@ -30,7 +30,7 @@ export function sealedAxes(style) {
 // It is the failure with no witness. Nothing overflows the page, so the sideways-scroll
 // check is quiet; nothing is past the column, so that gate is quiet; the words are in a
 // text node and technically selectable, so the unreachable-words gate is quiet. What the
-// user gets is a question with no visible way to answer it — as when a `choose` group
+// user gets is a question with no visible way to answer it — as when an option group
 // in its row form states `width: 100%` on options that a live-page rule gives a 30px
 // keyboard-address rail: under the default box-sizing those are the row's width *plus*
 // its padding, so every row runs 28px wider than the group whose `overflow: hidden`
@@ -114,13 +114,13 @@ export function clippedControls() {
 }
 
 // A widget that upgraded into no room to be read in. The floor is two numbers, and
-// which of them a widget is held to is the widget's to declare (x-inline), because the
-// two kinds are laid out by different rules: one reserves a region and the other is set
-// among the words around it, where the box is the words and there is no width it was
-// supposed to reach. Held to the region's floor, an inline widget fails for being short
-// — a chip reading a price is 31px wide and correct, and the gate would report the
-// author's own words as a collapse. The height floor is both kinds': a line of words is
-// a line tall wherever it is laid out, which leaves a flattened chip caught.
+// which of them a widget is held to is the widget's to declare (words.inline), because
+// the two kinds are laid out by different rules: one reserves a region and the other is
+// set among the words around it, where the box is the words and there is no width it
+// was supposed to reach. Held to the region's floor, an inline widget fails for being
+// short — a chip reading a price is 31px wide and correct, and the gate would report
+// the author's own words as a collapse. The height floor is both kinds': a line of
+// words is a line tall wherever it is laid out, which leaves a flattened chip caught.
 //
 // Declared, not read off the computed display, because a custom element with no rule
 // left computes as inline: a theme that lost the chip block would silence the
@@ -135,7 +135,7 @@ export function tinyBoxes(declarations) {
   const declared = new Set(Object.keys(declarations));
   const inline = new Set(
     Object.entries(declarations)
-      .filter(([tag, entry]) => entry["x-inline"])
+      .filter(([tag, entry]) => entry.words?.inline)
       .map(([tag]) => tag),
   );
   return [...document.querySelectorAll("*")]

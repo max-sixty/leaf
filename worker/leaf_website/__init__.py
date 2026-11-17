@@ -1624,7 +1624,7 @@ def initial_state(
     return scope_page_urls(state, page_root)
 
 
-def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
+def close_on_signal(httpd: LeafHTTPServer, agent_harness: WebsiteCodexHarness) -> None:
     """Close the App Server on the path a stop signal takes out of this process.
 
     uvicorn handles the signal while the serving loop runs: it stops the loop, puts
@@ -1637,13 +1637,23 @@ def close_on_signal(agent_harness: WebsiteCodexHarness) -> None:
     that started it and keep its memory.
 
     The handler runs at the re-raise, once serving has ended, and then dies of the
-    signal it was sent rather than turning it into an ordinary return.
+    signal it was sent rather than turning it into an ordinary return. First it saves
+    the drafts the page store lacks (`storage.save_drafts`), since a stop is how a
+    sleeping or replaced container ends, and the next restores only what was saved. It
+    closes the listening socket before that, so a request arriving meanwhile is
+    refused at once, as after the process ends, rather than waiting on a listener
+    nothing serves.
     """
+    from leaf_website.storage import save_drafts
 
     def stop(signum, _frame):
-        agent_harness.close()
-        signal.signal(signum, signal.SIG_DFL)
-        signal.raise_signal(signum)
+        httpd.server_close()
+        try:
+            save_drafts()
+        finally:
+            agent_harness.close()
+            signal.signal(signum, signal.SIG_DFL)
+            signal.raise_signal(signum)
 
     signal.signal(signal.SIGTERM, stop)
     signal.signal(signal.SIGINT, stop)
@@ -1667,7 +1677,7 @@ def main(port: int) -> None:
     agent_harness = WebsiteCodexHarness()
     httpd = LeafHTTPServer(("0.0.0.0", port), site_endpoint(site_root, agent_harness))
     log_agent("container_http_ready", port=httpd.server_address[1])
-    close_on_signal(agent_harness)
+    close_on_signal(httpd, agent_harness)
     agent_harness.prewarm()
     try:
         httpd.serve_forever()

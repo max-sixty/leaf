@@ -19,6 +19,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _codex_delivery,
     _delivery_item,
@@ -2136,7 +2137,7 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
     end a second time.
     """
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     action = append_command(
@@ -2921,9 +2922,7 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
         prepared = _codex_delivery(page_dir)
     else:
         (page_dir / "index.html").write_text(
-            PAGE.replace(
-                "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
-            )
+            PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
         )
         publish(page_dir)
         append_command(
@@ -3145,7 +3144,7 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
     """An action delivery has no reply reservation that could prevent a duplicate
     start."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     append_command(

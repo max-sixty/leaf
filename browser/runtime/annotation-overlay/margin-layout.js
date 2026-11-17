@@ -157,7 +157,6 @@ import {
  * carrier: Anchor | null, cuts: HeaderLevel[], cutKey: string,
  * carrierStand: {box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
  * carrierPaint: {node: Element, box: DOMRect, reading: ReturnType<typeof anchorReading>} | null,
- * level: number, noted: boolean,
  * home?: Element, container?: Element, axes?: "xy" | "y"}} TargetRead
  * @typedef {TargetRead & {shown: true, extent: Box, top: number}} ShownRead
  * @typedef {{row: HTMLElement, options: RowOptions, lane: HTMLElement, shown: false,
@@ -1940,13 +1939,6 @@ function layoutMountedRows(layer) {
     );
     return (railEntry ??= nativeEntry?.offsetWidth || restingRail(layer).entry);
   };
-  // The notes hanging in the margin the rail stands in (layouts.css, layout-note): a
-  // marker level with one would be drawn over it.
-  const notes = [...main.querySelectorAll(".layout-note > aside")]
-    .filter((note) => !skipped(note))
-    .map((note) => note.getBoundingClientRect())
-    .filter((note) => note.width && note.left >= columnRect.right - 1);
-
   // Every read before any write: a write between two reads forces a layout per row.
   /** @type {import("../geometry.js").ClipCache} */
   const bands = new Map();
@@ -1981,22 +1973,8 @@ function layoutMountedRows(layer) {
   /** @type {Map<Anchor, ReturnType<typeof anchorReading>>} */
   const carrierNames = new Map();
   const cutClips = new Map();
-  // Whether a marker `size` tall at `level` would stand level with a note.
-  /** @param {number} level @param {number} size */
-  const notedAt = (level, size) =>
-    notes.some((note) => note.top < level + size && note.bottom > level);
   for (const [row, options] of rows) {
-    let seating = keptSeating(row);
-    // A note now level with a kept row where its record read none, or the other way
-    // about, changes its posture, so the row is read again.
-    if (seating && notes.length && stands) {
-      const { read, frame, moved } = seating;
-      const level = read.level + frame.y - windowY + moved.y;
-      if (notedAt(level, railEntrySize()) !== read.noted) {
-        seatings.delete(row);
-        seating = undefined;
-      }
-    }
+    const seating = keptSeating(row);
     if (seating) {
       const { read } = seating;
       read.options = options;
@@ -2068,17 +2046,14 @@ function layoutMountedRows(layer) {
     const line = point?.getBoundingClientRect() ?? words[0];
     const top =
       extent && line ? clamp(line.top, extent.top, extent.bottom) : extent?.top;
-    const level = line ? top : box.top;
     const besideRail = railBeside(scroller);
     const size = stands && besideRail ? railEntrySize() : 0;
-    const noted = notedAt(Number(level), size);
     const place = rowPlacement({
       railStands: stands,
       besideRail,
       blockRight: reach(anchor, box, main, reaches),
       railInner,
       half: size / 2,
-      noted,
     });
     const view = targetView(target, bands);
     const shown = shownWithin(view, extent, place === "pin" ? null : { top });
@@ -2097,8 +2072,6 @@ function layoutMountedRows(layer) {
       lane: rootLane ? layer.root : null,
       shown,
       place,
-      level: Number(level),
-      noted,
       box,
       subject: line ?? box,
       extent,

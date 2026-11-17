@@ -4,11 +4,11 @@
    The widget itself reads ordinary properties and reports drawn marks; this owner
    associates those drawings with the snapshots Leaf supplied, independently of Lit.
 
-   Bound values. A module reads each x-data input through the plain property its
+   Bound values. A module reads each input (`data.inputs`) through the plain property its
    declaration names (`property`): before each update that the input's delivery
    moves, this element sets `this[property]` to the delivered value, or null while the
    source has none, so the widget reads `this.value` as it would anywhere else a host
-   sets it. A widget whose body is data (`x-content: data`) declares at most one input,
+   sets it. A widget whose body is data (`content: data`) declares at most one input,
    and where the markup binds it to nothing, to a source or to another widget's output,
    the widget reads the text the page wrote in its `<pre>` the same way: this element
    sets the input's property to that string once, at setup, since the widget's drawing
@@ -55,7 +55,7 @@ export class ElementData {
     this.#element = element;
     this.#stage = stage;
     const declaration = registry[element.localName];
-    this.#inputs = Object.entries(declaration?.["x-data"] ?? {}).flatMap(
+    this.#inputs = Object.entries(declaration?.data?.inputs ?? {}).flatMap(
       ([input, declaration]) =>
         declaration.property
           ? [
@@ -81,9 +81,9 @@ export class ElementData {
     // Only an authored, unbound data body supplies an initial property. A host
     // creating an element without a pre owns its value itself.
     if (
-      declaration?.["x-content"] === "data" &&
+      declaration?.content === "data" &&
       element.querySelector(":scope > pre") &&
-      !Object.values(declaration["x-data"] ?? {}).some((input) =>
+      !Object.values(declaration.data?.inputs ?? {}).some((input) =>
         bindsInput(element, input),
       )
     )
@@ -97,7 +97,7 @@ export class ElementData {
 
   /** @param {string} region */
   connect(region) {
-    return registry[this.#element.localName]?.["x-data"]
+    return registry[this.#element.localName]?.data?.inputs
       ? joinDataDelivery(region)
       : null;
   }

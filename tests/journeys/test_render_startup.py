@@ -182,7 +182,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     source = leaf_page(
         "Slow decision",
         '<h1>Slow decision</h1><lf-ask id="decision"><h2>Proceed?</h2>'
-        '<lf-options id="pick" choose><lf-option id="yes">Proceed</lf-option>'
+        '<lf-options id="pick"><lf-option id="yes">Proceed</lf-option>'
         '<lf-option id="no">Wait</lf-option></lf-options></lf-ask>',
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -230,8 +230,8 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
     second.dispatch_event("click")
     page.keyboard.press("1")
     expect(page.locator(".lf-held-keys kbd")).to_have_text("1")
-    expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
-    expect(page.locator("#no")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#yes")).not_to_have_attribute("selected", "")
+    expect(page.locator("#no")).not_to_have_attribute("selected", "")
     assert posts == []
     page.unroute("**/api/state*")
     if answer == "offline":
@@ -247,8 +247,8 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         page.keyboard.press("1")
         page.keyboard.press("Space")
         second.dispatch_event("click")
-        expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
-        expect(page.locator("#no")).not_to_have_attribute("chosen", "")
+        expect(page.locator("#yes")).not_to_have_attribute("selected", "")
+        expect(page.locator("#no")).not_to_have_attribute("selected", "")
         assert posts == []
         page.unroute("**/api/state*")
         wait_until_ready(page)
@@ -258,7 +258,7 @@ def test_slow_history_keeps_decisions_safe_and_status_honest(browser, serve, ans
         for route in held:
             route.continue_()
         wait_until_ready(page)
-    expect(page.locator("#yes")).to_have_attribute("chosen", "")
+    expect(page.locator("#yes")).to_have_attribute("selected", "")
     round_trip(page)
     assert len(posts) == 1, "the held or fresh digit should send exactly once"
     first.focus()
@@ -568,13 +568,19 @@ def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, 
 def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
     entry = {
         "description": "Late shadow words.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-shadow": True,
-        "x-example": '<lf-probe id="probe"></lf-probe>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
+        "words": {
+            "shadow": True,
+        },
+        "author": {
+            "example": '<lf-probe id="probe"></lf-probe>',
+        },
     }
     widget = """import {once, shadowStage} from '/runtime/widget-api.js';
 customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""

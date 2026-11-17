@@ -74,8 +74,10 @@ checkpoints, such as an approved plan or a settled stage of work. At those later
 checkpoints, reply before reviewing. Use `leaf page check <page> --render` and
 `references/page-checkpoints.md`, "Pre-handover review". They find problems markup
 checks can't, such as unreadable tables and broken phone layouts, but take minutes.
-Give that time to pages the user relies on longer, pages with more content, and
-pages with more custom layout. Weigh that against how urgently the user is waiting.
+The review is worth those minutes in proportion to how much the user will read the
+page as it stands: how long they rely on it, within this conversation as much as
+after it, how much it holds and how much of its layout is your own. Weigh that
+against how urgently the user is waiting.
 A quick page the user reacts to once and then revises or drops needs no browser
 review.
 

@@ -320,9 +320,10 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
 
 
 def test_every_message_says_when_it_was_said(browser, serve):
-    """Every message in a thread says when it was said, naming its day unless that is
-    today (presence.js, `saidAt`): replies hours apart three days ago each read their
-    own time, where an age would read "3d ago" over all of them."""
+    """Every message in a thread says when it was said (presence.js, `saidAt`): replies
+    hours apart three days ago each read their own time of day and day, as the reader's
+    locale writes them, where an age would read "3d ago" over all of them, and a reply
+    written now reads "just now", where its time of day would read like any other."""
     url = serve(PANEL_PAGE)
     # Local wall times, each with its own offset, so a change of daylight saving
     # between them moves no clock reading.
@@ -342,7 +343,6 @@ def test_every_message_says_when_it_was_said(browser, serve):
     for text, at in [
         ("Yes, three tries; I'm parking it now.", then + timedelta(minutes=6)),
         ("Parked after the third.", then + timedelta(hours=2, minutes=23)),
-        ("And the backoff doubles.", now.replace(hour=9, minute=10).astimezone()),
     ]:
         append_carried_log_record(
             serve.page_dir,
@@ -356,18 +356,20 @@ def test_every_message_says_when_it_was_said(browser, serve):
                 "ts": at.isoformat(),
             },
         )
-    page = open_page(browser, url)
+    append_agent_reply(serve.page_dir, root, "And the backoff doubles.")
+    context = browser.new_context(locale="en-US")
+    page = open_page(browser, url, context=context)
     page.locator(".lf-margin-marker").first.click()
     card = page.locator(".lf-margin-preview .lf-page-thread")
     expect(card).to_be_visible()
     times = card.locator(".lf-msg-head > .lf-msg-meta > time")
     expect(times).to_have_count(4)
-    day = f"{then.day} {then:%b}" + ("" if then.year == now.year else f" {then.year}")
-    assert times.all_text_contents() == [
-        f"{day} 15:29",
-        f"{day} 15:35",
-        f"{day} 17:52",
-        "09:10",
+    day = f"{then:%b} {then.day}" + ("" if then.year == now.year else f", {then.year}")
+    assert [" ".join(time.split()) for time in times.all_text_contents()] == [
+        f"{day} 3:29 PM",
+        f"{day} 3:35 PM",
+        f"{day} 5:52 PM",
+        "just now",
     ]
 
 
@@ -613,11 +615,13 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             {
                 "lf-theme-box": {
                     "description": "A widget beside a page-wide theme.",
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                    "additionalProperties": False,
-                    "x-content": "markup",
+                    "attributes": {
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                        "additionalProperties": False,
+                    },
+                    "content": "markup",
                 }
             }
         )

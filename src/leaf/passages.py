@@ -28,28 +28,25 @@ if TYPE_CHECKING:
 # where that is declared rather than guessed at per widget. Three keywords carry what
 # can be declared, and a fence carries the rest:
 #
-#   x-says      attribute values the user sees. renderSaid puts them in the DOM, so
-#               they go in here too, at the edge the registry names.
-#   x-verbatim  an upgraded element that preserves its own words around nested upgraded
-#               widget boundaries. The source and document-order occurrence identify
-#               every owner, including one with no authored id. Those descendants keep
-#               their own declarations; without this key the whole upgraded element is
-#               opaque, as a diagram's notation is once its module has drawn a picture.
-#   x-retired-when  the outcome under which this element leaves the page: a decided
-#               suggestion's losing slot. The browser builds its anchor pass's skip
-#               list from this key too (`quotable` in passages.js), so a reading given
-#               the log's outcomes drops here exactly what drops there — and a widget
-#               whose decision leaves nothing showing goes with its slots (settledAway
-#               there, `gone` here). Its values are also the vocabulary's decision
-#               verbs, which is where `obligations` reads them from.
-#   x-owners with x-content markup  direct prose members remain readable inside a
-#               data widget; its other body content is source notation, withheld.
-#   x-state, record kind "body"  the verb whose detail text becomes this element's
-#               body once the user sends one (lf-draft's `edit`): replay writes
-#               the newest surviving one into the DOM verbatim (a widget's render is
-#               absolute), so a reading given the fold's word (rewritten_bodies)
-#               holds their words in the authored body's place. It asks nothing of
-#               the browser, whose page already shows the text this substitutes.
+# words.says      attribute values the user sees. renderSaid puts them in the DOM, so
+# they go in here too, at the edge the registry names. words.verbatim  an upgraded
+# element that preserves its own words around nested upgraded widget boundaries. The
+# source and document-order occurrence identify every owner, including one with no
+# authored id. Those descendants keep their own declarations; without this key the whole
+# upgraded element is opaque, as a diagram's notation is once its module has drawn a
+# picture. state.retired-when  the outcome under which this element leaves the page: a
+# decided suggestion's losing slot. The browser builds its anchor pass's skip list from
+# this key too (`quotable` in passages.js), so a reading given the log's outcomes drops
+# here exactly what drops there — and a widget whose decision leaves nothing showing
+# goes with its slots (settledAway there, `gone` here). Its values are also the
+# vocabulary's decision verbs, which is where `obligations` reads them from.
+# markup.owners with content markup  direct prose members remain readable inside a data
+# widget; its other body content is source notation, withheld. state.verbs, record kind
+# "body"  the verb whose detail text becomes this element's body once the user sends one
+# (lf-draft's `edit`): replay writes the newest surviving one into the DOM verbatim (a
+# widget's render is absolute), so a reading given the fold's word (rewritten_bodies)
+# holds their words in the authored body's place. It asks nothing of the browser, whose
+# page already shows the text this substitutes.
 #
 # A module writes between the children of the element it upgrades — a column's heading, a
 # milestone's chips, a diff's gutters — so an opaque element and each of its children is
@@ -254,7 +251,7 @@ def markdown_dialect(message: bool, html: bool = False):
 
 
 def markdown_markup(source: str) -> str:
-    """A Markdown body (`x-text-format: markdown`) as the browser paints it, read as
+    """A Markdown body (`words.text-format: markdown`) as the browser paints it, read as
     a file (markdown.js, `paintMarkdown`), as inert markup for passage reading and a
     revision's prepaint."""
     return markdown_dialect(False).render(source)
@@ -289,10 +286,10 @@ def created_words(words: str) -> str:
 
 def shown_words(words: str, entry: dict, *, added: bool) -> str:
     """The words an element's text shows: an `added` child's (one a user created,
-    `data-lf-added`) as `created_words`, else its entry's `x-text-format` applied."""
+    `data-lf-added`) as `created_words`, else its entry's `words.text-format` applied."""
     if added:
         return created_words(words)
-    if entry.get("x-text-format") == "markdown":
+    if entry.get("words", {}).get("text-format") == "markdown":
         return _rendered_words(markdown_markup(words))
     return words
 
@@ -342,17 +339,22 @@ class _OwnedWords:
 
 
 # The elements a line of words runs through (`$passages.phrasing`), as the runtime's
-# `enter` reads it. Every other element, a text block among them, and a widget unless
-# it is declared `x-inline`, reads its words apart from those around it: one space goes
+# `enter` reads it. Every other element, a text block among them, and a widget unless it
+# is declared `words.inline`, reads its words apart from those around it: one space goes
 # between two runs of words read in different elements. Between two runs read in one
 # goes an edge (`edges`), a place a word may end, since only the page's CSS says whether
 # `<strong>Status</strong><span>Ready</span>` shows one word or two.
 JOINS_WORDS_TAGS = frozenset(kernel_passages()["phrasing"])
 # The tags whose words are prose: inside one, an edge between two runs of words shows as
 # nothing, as `set<em>up</em>` reads "setup"; outside any, where two elements meet it
-# shows as a space, as a chip beside its title does (`_write`, the runtime's
+# shows as a space, as a chip beside its title does, unless a closing mark follows it or
+# an opening one precedes it (`CLOSING`, `OPENING`; `_write`, the runtime's
 # `shownApart`). A quote of either spelling resolves the same.
 TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
+# The marks no shown space stands before (`CLOSING`) or after (`OPENING`) at an edge
+# (`$passages.why-closing-and-opening`).
+CLOSING = frozenset(kernel_passages()["closing"])
+OPENING = frozenset(kernel_passages()["opening"])
 # Text no anchor can reach: executable/style content and native field defaults.
 # head is outside the browser's tree altogether, which starts at document.body —
 # without it a page's <title> would be quotable and land nowhere.
@@ -364,19 +366,18 @@ class _PassageParser:
     the way a captured quote is; `owner[i]` is the ids enclosing text[i], outermost
     first, so a match can name the section it fell in and be re-read within it.
 
-    `decided` is the outcome each suggestion stands under (`retirement_outcomes`).
-    A decision retires a slot — the registry's `x-retired-when` names which outcome —
+    `decided` is the outcome each suggestion stands under (`retirement_outcomes`). A
+    decision retires a slot — the registry's `state.retired-when` names which outcome —
     and the browser's anchor pass reads the same key (`quotable` in passages.js), so
-    this reading drops it the same way. A decision that leaves its
-    widget with nothing — a deletion accepted, an insertion refused — empties the
-    wrapper too (`gone`), because an element showing nothing is one nobody can point
-    at, however present its markup. `rewrites` is the user's
-    current text per element whose element declaration records a verb as the body
-    (`rewritten_bodies`): their words stand in the authored body's place, because
-    replay writes exactly that into the DOM. Without either, the reading is the
-    version as authored — every slot pending, every body Claude's. `additions`
-    supplies the generated children in force from the same projection. They pass
-    through the ordinary element reading at the end of their declared owner,
+    this reading drops it the same way. A decision that leaves its widget with nothing —
+    a deletion accepted, an insertion refused — empties the wrapper too (`gone`),
+    because an element showing nothing is one nobody can point at, however present its
+    markup. `rewrites` is the user's current text per element whose element declaration
+    records a verb as the body (`rewritten_bodies`): their words stand in the authored
+    body's place, because replay writes exactly that into the DOM. Without either, the
+    reading is the version as authored — every slot pending, every body Claude's.
+    `additions` supplies the generated children in force from the same projection. They
+    pass through the ordinary element reading at the end of their declared owner,
     including retirement, ancestry, and the fences around opaque widgets."""
 
     def __init__(
@@ -438,8 +439,9 @@ class _PassageParser:
         """Text into the collapsed run, one space per whitespace run and none leading,
         and an edge where it runs on from the last text in its block with none. The edge
         shows as a space, a soft one, where `holder`, the key of the element or said
-        value's span holding the text, is not the one that held the last text and neither
-        stands in prose (a text block): the runtime's `shownApart`."""
+        value's span holding the text, is not the one that held the last text, neither
+        stands in prose (a text block), and no closing mark follows the edge or opening
+        one precedes it: the runtime's `shownApart`."""
         if data.strip():
             self.bearing.update(ids)
         edge = bool(self.chars) and block == self._block
@@ -458,7 +460,14 @@ class _PassageParser:
                 self.chars.append(" ")
                 self.owner.append(ids)
                 self._space = self._break = False
-            elif edge and not prose and holder is not None and holder != self._holder:
+            elif (
+                edge
+                and not prose
+                and holder is not None
+                and holder != self._holder
+                and ch not in CLOSING
+                and self.chars[-1] not in OPENING
+            ):
                 self.soft.add(len(self.chars))
                 self.chars.append(" ")
                 self.owner.append(ids)
@@ -539,7 +548,9 @@ class _PassageParser:
         if tag in VOID_TAGS:
             return
         entry = self.registry.get(tag) or {}
-        joins = tag in JOINS_WORDS_TAGS or bool(entry.get("x-inline"))
+        # Read once per element: a long page opens tens of thousands.
+        words = entry.get("words", {})
+        joins = tag in JOINS_WORDS_TAGS or bool(words.get("inline"))
         block = parent["block"] if parent and joins else self._fresh()
         upgrade = upgraded(self.registry, tag)
         if upgrade:
@@ -550,12 +561,12 @@ class _PassageParser:
                 if ancestor["upgrade"]:
                     break
         provenance: tuple[str, str | None, int] | None = None
-        if entry.get("x-verbatim"):
+        if words.get("verbatim"):
             provenance = (*self.verbatim_source, self.verbatim_owners)
             self.verbatim_owners += 1
         # An upgrade is opaque unless it preserves its own words and ordered nested
         # upgraded boundaries. Descendants keep their own contracts.
-        opaque = upgrade and not entry.get("x-verbatim")
+        opaque = upgrade and not words.get("verbatim")
         editable = bool(parent and parent["editable"])
         if "contenteditable" in attrs_d:
             value = (attrs_d["contenteditable"] or "").lower()
@@ -570,8 +581,8 @@ class _PassageParser:
         retired_by = (parent["retired_by"] if parent else None) or (
             parent["id"]
             if parent
-            and entry.get("x-retired-when")
-            and self.decided.get(parent["id"]) == entry["x-retired-when"]
+            and (retiring := entry.get("state", {}).get("retired-when"))
+            and self.decided.get(parent["id"]) == retiring
             else None
         )
         # A wall this element raises itself: its words are off the user's page, whatever
@@ -600,12 +611,12 @@ class _PassageParser:
         # reopens that reading; nesting a member tag in source does not.
         prose_member = bool(
             parent
-            and parent["tag"] in entry.get("x-owners", [])
-            and entry.get("x-content") == "markup"
+            and parent["tag"] in entry.get("markup", {}).get("owners", ())
+            and entry.get("content") == "markup"
         )
         withheld = bool(
             (parent and parent["withheld"] and not prose_member)
-            or (opaque and entry.get("x-content") == "data")
+            or (opaque and entry.get("content") == "data")
         )
         # A surviving child keeps its parent on the page even where it holds no text —
         # a kept slot whose only content is an image. The text case marks every
@@ -613,7 +624,7 @@ class _PassageParser:
         if parent and not silenced:
             self.bearing.add(parent["id"])
         # A body the user rewrote. `rewritten_bodies` already resolved the verb
-        # through this element's x-state, so an id in the dict is the whole test:
+        # through this element's state.verbs, so an id in the dict is the whole test:
         # the fold decides, this pass only applies.
         sub = self.rewrites.get(attrs_d.get("id")) if not silenced else None
         frame = {
@@ -648,10 +659,11 @@ class _PassageParser:
         }
         if frame["verbatim"]:
             self.verbatim[frame["verbatim"]] = _OwnedWords(frame["verbatim"])
-        # Each x-says value at the edge of the element's own words, in registry order,
-        # which is where renderSaid puts it and where a pseudo-element stood before it.
+        # Each words.says value at the edge of the element's own words, in registry
+        # order, which is where renderSaid puts it and where a pseudo-element stood
+        # before it.
         head = []
-        for attr, edge in (entry.get("x-says") or {}).items():
+        for attr, edge in words.get("says", {}).items():
             value = attrs_d.get(attr)
             if value is None:
                 continue
@@ -667,7 +679,7 @@ class _PassageParser:
             # The body's own write path, so a quote across the element's edge sees
             # the same adjacency the screen shows — no fence, nothing withheld.
             _verb, their_text = sub
-            if entry.get("x-text-format") == "markdown":
+            if words.get("text-format") == "markdown":
                 frame["skip"] = False
                 feed_markdown(self, their_text)
                 frame["skip"] = True
@@ -732,7 +744,10 @@ def _walk(parser: "_PassageParser", node) -> None:
             for name, value in node.attrs.items()
         ],
     )
-    if parser.registry.get(node.tag, {}).get("x-text-format") == "markdown":
+    if (
+        parser.registry.get(node.tag, {}).get("words", {}).get("text-format")
+        == "markdown"
+    ):
         body = pre_body(node)
         assert body is not None
         feed_markdown(parser, body)
@@ -853,7 +868,7 @@ class SourceReading:
         """id → Spoken, for every element the version carries.
 
         This is the version's own reading of itself, so it is `page_passages`
-        sliced by id rather than a second walk: chrome skipped, x-says attributes
+        sliced by id rather than a second walk: chrome skipped, words.says attributes
         counted (a picked option's `effort` is a word on the page now, so changing
         it changes what the user decided about), whitespace collapsed the way a
         captured quote is. Asking whether two versions still say the same thing has

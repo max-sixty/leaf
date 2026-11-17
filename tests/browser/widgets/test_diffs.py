@@ -28,7 +28,7 @@ from render_harness import (
     leaf_page,
     long_press,
     open_page,
-    page_registry,
+    page_declarations,
     resized,
     said,
     scroll_settled,
@@ -446,9 +446,9 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         serve(
             leaf_page(
                 "Panel and option",
-                '<lf-tabs id="tabs" class="layout-flow"><lf-tab id="tab" label="Diff">'
+                '<lf-tabs id="tabs" flow="page"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
-                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
+                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts">'
                 f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
                 '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
                 "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
@@ -457,7 +457,8 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
         ),
     )
     resized(page, 1280, 900)
-    expect(page.locator("lf-tabs")).to_have_css("--lf-views-flow", "page")
+    # The page's own face: a set in its flow draws no frame.
+    expect(page.locator("lf-tabs")).to_have_css("border-left-width", "0px")
     page.wait_for_function(
         "() => document.querySelectorAll('lf-diff.lf-rendered').length === 2"
     )
@@ -1089,7 +1090,7 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
         serve.page_dir,
         root,
         "Which should it be?",
-        '<lf-options id="mount" choose><lf-option id="mount-steel">'
+        '<lf-options id="mount"><lf-option id="mount-steel">'
         '<small class="tag ok">recommended</small> <strong>Keep steel</strong>'
         '</lf-option><lf-option id="mount-plastic"><strong>Go back to plastic'
         "</strong> Lighter.</lf-option></lf-options>",
@@ -1100,7 +1101,9 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
     expect(group).to_have_css("display", "grid")
     expect(group.locator("lf-option").first).to_have_css("display", "flow-root")
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", page_declarations(page)
+        )
         == []
     )
 

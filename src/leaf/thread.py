@@ -24,14 +24,15 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected, note
 from leaf.harness import message_identity
 from leaf.leases import contract_writer
-from leaf.obligations import local_obligation_entry, shown_in
+from leaf.obligations import local_obligation_entry, questions_in_words, shown_in
 from leaf.passages import SourceReading, holds_html, message_markup
 from leaf.projection import page_reading
 from leaf.registry.contract import matches_when
 from leaf.registry.kernel import kinds_declaring, title_limit
 from leaf.revision_artifact import active_enclosing, read_revision
 from leaf.service import PageTransaction, delivery_reply_attempt, same_claim
-from leaf.thread_context import thread_message, thread_names
+from leaf.structure import SourceDocument
+from leaf.thread_context import logged_fragment, thread_message, thread_names
 from leaf.validation.admission import (
     check_markup,
     checked_text,
@@ -45,9 +46,10 @@ from leaf.validation.source import SourceCheck, moved_threads, source_advice
 def drawn_markup(text: str, html: bool) -> str:
     """The markup an agent's message draws from `text`, where its writer reads the
     text with HTML (`html`) and it holds some (`passages.holds_html`); else none,
-    and the message is Markdown alone. Only the agent's `leaf thread` commands read
-    HTML: text a harness or Leaf posts for it, such as a turn's final message, keeps
-    any tag in it as words."""
+    and the message is Markdown alone. Only the agent's `leaf thread` commands, and
+    the questions Leaf's turn-end check asks as the agent's (`clerk._ask`), read
+    HTML: text a harness or Leaf otherwise posts for it, such as a turn's final
+    message, keeps any tag in it as words."""
     return message_markup(text) if html and holds_html(text) else ""
 
 
@@ -60,14 +62,16 @@ def _messages(events: list) -> dict[str, dict]:
 
 
 def asking_widget(fragment, registry: dict) -> dict | None:
-    """The first widget in a message's markup that waits on the user (`x-awaits`),
+    """The first widget in a message's markup that waits on the user (`state.awaits`),
     which makes it the message's request for an answer."""
     return next(
         (
             rec
             for rec in fragment.lf_elements
             if local_obligation_entry(registry.get(rec["tag"]) or {})
-            and matches_when(rec["attrs"], registry[rec["tag"]]["x-awaits"].get("when"))
+            and matches_when(
+                rec["attrs"], registry[rec["tag"]]["state"]["awaits"].get("when")
+            )
             and not shown_in(rec, registry)
         ),
         None,
@@ -82,7 +86,7 @@ def unasked_widget(fragment, registry: dict) -> dict:
         entry = registry.get(rec["tag"]) or {}
         if not local_obligation_entry(entry) or shown_in(rec, registry):
             continue
-        when = entry["x-awaits"].get("when") or {}
+        when = entry["state"]["awaits"].get("when") or {}
         needs = [
             _attribute_written(attr, values)
             for attr, values in when.items()
@@ -371,30 +375,48 @@ def open_thread(
     return append_admitted(page, event)[0]
 
 
-def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -> dict:
-    """The agent's message asking `question`, a question an agent message asked in
-    words (`message:<id>`, or the bare id), again in its thread in `page`, an open
-    transaction, as `leaf thread reply <page> <message> --obligation <question>`
-    posts it: the question stands open on this message under its own id, and like
-    any spoken reply it reopens the thread if it was resolved. Refused where the
-    thread owes the user a reply, or `question` names no question asked there."""
+def ask_again(
+    page: PageTransaction, question: str, body: str, identity: dict, html: bool = False
+) -> dict | None:
+    """The agent's message asking `question` (`message:<id>`, or the bare id) again in
+    its thread in `page`, an open transaction, from a `body` already checked and read
+    with HTML where `html` says (`drawn_markup`); like any spoken reply it reopens
+    the thread if it was resolved. Where its HTML holds a widget that asks, such as a
+    choice, the message asks with it. Otherwise it asks in words: a question first
+    asked in words stands open on it under its own id, as `leaf thread reply <page>
+    <message> --obligation <question>` posts it, and one a widget asked is asked
+    anew, as `--obligation` alone posts it. None where the thread can't take it: it
+    owes the user a reply, or `question` names no question asked there
+    (`thread_questions`). Refused, as an agent's reply is, where its HTML doesn't
+    validate (`check_markup`)."""
+    from leaf.registry.storage import require_registry
+
     message = question.removeprefix("message:")
-    addressed = _resolve_obligation(
-        page, {"parent": message}, REFUSE, identity["session"], False, None
-    )
+    name = f"message:{message}"
+    try:
+        addressed = _resolve_obligation(
+            page, {"parent": message}, REFUSE, identity["session"], False, None
+        )
+    except Rejected:
+        return None
     assert addressed is not None
+    registry = require_registry(page.page_dir)
+    asked = thread_questions(page.events, addressed.thread, registry)
+    if name not in asked:
+        return None
+    widget = markup_asks(drawn_markup(body, html), registry)
     return _compose_and_append(
         page,
         addressed,
         identity,
         body,
-        html=False,
+        html=html,
         attempt=None,
         failure=None,
         validate_source=False,
         todo=None,
         asks_back=False,
-        explicit_obligation=[f"message:{message}"],
+        explicit_obligation=False if widget else ([name] if asked[name] else True),
         ephemeral=False,
         quote="",
         section="",
@@ -402,6 +424,38 @@ def ask_again(page: PageTransaction, question: str, body: str, identity: dict) -
         detach=False,
         title=None,
     )[0]
+
+
+def markup_asks(markup: str, registry: dict) -> bool:
+    """Whether the markup a message draws (`drawn_markup`) holds a widget that asks
+    (`asking_widget`), which asks in place of an obligation."""
+    return bool(markup) and bool(asking_widget(SourceDocument(markup), registry))
+
+
+def widget_asks(event: dict, registry: dict) -> bool:
+    """Whether a logged message's HTML holds a widget that asks (`asking_widget`), a
+    question `widget_question` names."""
+    return bool(event.get("html")) and bool(
+        asking_widget(logged_fragment(event), registry)
+    )
+
+
+def widget_question(message: str) -> str:
+    """The id that names the question a widget in message `message` asks, which
+    `ask_again` takes."""
+    return f"message:{message}"
+
+
+def thread_questions(events: list, thread: str, registry: dict) -> dict[str, bool]:
+    """The questions `thread`'s messages ask, each by the id that names it, and
+    whether it was asked in words (`obligations.questions_in_words`) rather than by a
+    widget (`widget_asks`)."""
+    names = thread_names(events)
+    asked = dict.fromkeys(questions_in_words(events, names, thread), True)
+    for event in events:
+        if names.get(event["id"]) == thread and widget_asks(event, registry):
+            asked[widget_question(event["id"])] = False
+    return asked
 
 
 def successful_replies(events: list[dict], responds: str) -> list[dict]:

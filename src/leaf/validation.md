@@ -33,9 +33,9 @@ them:
   them at the start of `<head>`, so source may not author them. Message markup may not
   author the last three either, since it renders in every revision.
 - The runtime's `lf-` and `data-lf-` namespaces are reserved, for names it uses now
-  and later, but for the classes the kernel's idioms name (`lf-btn`, `lf-choice` and
-  the others `structure.AUTHORED_CLASSES` reads), which a page writes to take Leaf's
-  face. No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
+  and later, but for the classes the kernel's idioms name
+  (`structure.AUTHORED_CLASSES`), which a page writes to take what the idiom offers.
+  No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
   command's ID names a widget or a message in one address space.
 - Historical references never veto a revision: wording, placement, subjects and
   vocabulary may all change. The check reports the threads that move (events.md,
@@ -154,21 +154,21 @@ written for.
 
 The browser resolves an anchor and records it in the log, so `leaf thread create` reads
 the active revision's file the way the anchor pass reads the DOM. `passages.py`'s
-header comment owns that reading: what the registry's `x-says`, `x-verbatim` and
-`x-retired-when` contribute, and where a fence stops a quote. Both runtimes take
+header comment owns that reading: what the registry's `words.says`, `words.verbatim` and
+`state.retired-when` contribute, and where a fence stops a quote. Both runtimes take
 whitespace collapse from the kernel's `$passages`.
 
 A quote never spans a fence, so a passage the file cannot read is refused when the
 comment is written rather than detaching later in the user's browser; anchor on the
 widget's element (`--section`) instead. A file-side quote must also be unique in its
 declared section, and widget source, retired text and repeated passages are refused.
-Direct members declared by `x-owners` with `x-content: markup` retain their own prose
+Direct members declared by `markup.owners` with `content: markup` retain their own prose
 reading inside a data widget; the rest of its source body remains withheld. A widget
 preserves those authored member nodes independently of its source rendering.
 Runtime anchors were resolved against rendered words, so admission does not recapture
 them.
 
-The render gate holds each `x-verbatim` owner to the file reading
+The render gate holds each `words.verbatim` owner to the file reading
 (`readings._verbatim_findings`). It pairs each owner with its source by document-order
 occurrence, so no authored id is needed, and compares the rendered words with the
 passage a user can point at: user body rewrites in force replace authored words,

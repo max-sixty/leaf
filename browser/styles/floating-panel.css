@@ -750,17 +750,40 @@
     display: flex;
   }
   /* Both are symbols (controls.css), a line tall, so the way out stands a symbol's
-     width, the leaf's. The On Me mark stands wider, its symbol and its count's room
-     centred in it, so a count arriving moves no symbol. */
+     width, the leaf's. The On Me mark stands wider: its symbol, then its count's room
+     with the count at its end, then, where keys are shown, the room of the key it wears
+     while it presses Next On Me (floating-panel.js, `nextOnMeKey`). Each room holds
+     whether or not it is filled, so neither a count arriving or gaining a digit nor the
+     key coming and going moves anything, the field's end included. The key reads in
+     the face a key wears at the field's end (response.css). */
   .lf-fp-quick > .lf-fp-on-user {
-    width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + 14px));
+    --lf-fp-on-key: 0px;
+    width: max(var(--lf-fp-aim), calc(16px + 4px + 2ch + var(--lf-fp-on-key) + 14px));
     grid-auto-flow: column;
+    justify-content: start;
     gap: 4px;
+    padding-inline-start: 7px;
     font-variant-numeric: tabular-nums;
   }
   .lf-fp-on-user > .lf-fp-num {
     min-width: 2ch;
-    text-align: start;
+    text-align: end;
+  }
+  .lf-fp-on-user > .lf-fp-on-key {
+    display: none;
+  }
+  @media not (pointer: coarse) {
+    .lf-fp-quick > .lf-fp-on-user {
+      --lf-fp-on-key: calc(4px + var(--lf-key-badge-size));
+    }
+    .lf-fp-on-user > .lf-fp-on-key {
+      display: inline-flex;
+      min-width: var(--lf-key-badge-size);
+    }
+  }
+  .lf-fp-on-user .lf-key-badge {
+    background: transparent;
+    color: var(--lf-quiet);
   }
   /* A view's Close at the end of its head line or its tabs (floating-panel.js,
      `viewClose`) is a symbol a press tall, as the presses before it are. */
@@ -1038,6 +1061,7 @@
      where the others share the tabs'. */
   .lf-fp-controls {
     flex-wrap: wrap-reverse;
+    container-type: inline-size;
   }
   /* The tabs' line stands as tall with the presses as without them. It breaks only
      where the tabs at their narrowest don't fit beside the room kept for the presses,
@@ -1063,7 +1087,12 @@
      beside them do. The strip scrolls, which would clip a reach beyond its box, so it
      keeps the reach's room, or its tabs' focus ring's where that is wider, inside its
      box and takes none in the row. Each tab is a word whose `aria-pressed` the theme
-     draws as selected (controls.css), a tab's line tall (`--lf-line`). */
+     draws as selected (controls.css), a tab's line tall (`--lf-line`). The strip is
+     at most the controls' line wide, which `.lf-fp-controls` gives as its container's
+     width: the crumb keeps the strip's narrowest form (`min-content`), so a tab too
+     long for the line, such as On <agent> naming a long agent, would otherwise widen
+     the strip past the panel, which clips it, and leave the tabs after it out of
+     reach. */
   .lf-fp-filters {
     --lf-fp-tab: 26px;
     --lf-line: var(--lf-fp-tab);
@@ -1076,6 +1105,7 @@
     grid-auto-columns: minmax(min-content, max-content);
     justify-content: start;
     min-width: 0;
+    max-width: calc(100cqi + 2 * var(--lf-focus-ring-room));
     overflow-x: auto;
     padding: var(--lf-fp-filter-reach) var(--lf-focus-ring-room);
     margin: calc(-1 * var(--lf-fp-filter-reach)) calc(-1 * var(--lf-focus-ring-room));

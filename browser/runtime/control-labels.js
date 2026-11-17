@@ -49,7 +49,7 @@ export function nameAction(control, action, { label, className } = {}) {
 
 // A control's label, and which kind of word it is. Most are things to do — "Save",
 // "choose", a grip — and go with the rest of the UI on paper, out of reach of a
-// quote. Some are the page speaking: a pick mark reading "chosen" is the only place
+// quote. Some are the page speaking: a pick mark reading "selected" is the only place
 // the page says which option it carries, and a tab's name is the panel's only name
 // once the strip exists. One element wears both over its life, so the kind is
 // restated on every write rather than settled at birth.

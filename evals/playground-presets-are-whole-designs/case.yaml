@@ -71,10 +71,9 @@ assert:
   - type: llm-rubric
     metric: page-wide-controls-in-the-rail
     value: |
-      Pass only if every `lf-playground-control` that sets how the diff is marked is
-      written as a direct child of `lf-playground`, so it stands in the rail, since
-      each such control changes how every line of the diff is marked. A choice control
-      whose choices hold the candidate previews themselves belongs inside
-      `lf-playground-preview`, as the playground's instructions require, and does not
-      fail this check. Fail if any other `lf-playground-control` is written inside
-      `lf-playground-preview`, such as beside one diff line or inside one candidate.
+      Pass only if every playground field that sets how the diff is marked is
+      written in the playground's `<aside>`, so it stands in the rail, since each such
+      field changes how every line of the diff is marked. Radios held by the
+      candidate previews themselves belong in the preview, as the playground's
+      instructions require, and do not fail this check. Fail if any other field is
+      written in the preview, such as beside one diff line or inside one candidate.

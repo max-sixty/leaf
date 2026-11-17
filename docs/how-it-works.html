@@ -151,8 +151,8 @@
           or Pi.
         </p>
       </header>
-      <lf-tabs id="how" class="layout-flow"
-        ><lf-tab id="overview" label="Overview" class="layout-flow"
+      <lf-tabs id="how" flow="page"
+        ><lf-tab id="overview" label="Overview"
           ><details class="topic-outline" id="overview-outline">
             <summary>In this topic</summary>
             <nav aria-label="Overview sections">
@@ -164,7 +164,7 @@
               </ul>
             </nav>
           </details>
-          <section id="architecture" class="layout-flow">
+          <section id="architecture">
             <h2>Pages, core, and packages</h2>
             <p id="architecture-lede">
               A <strong>page</strong> is the document the user reads and acts on. Its
@@ -202,7 +202,7 @@ flowchart TD
               widget modules implement their behavior and presentation.
             </p>
           </section>
-          <section id="architecture-parts" class="layout-flow">
+          <section id="architecture-parts">
             <h2>Responsibilities and state</h2>
             <table id="responsibility-map">
               <thead>
@@ -265,7 +265,7 @@ flowchart TD
               Leaf supplies the code that draws them.
             </p>
           </section>
-          <section id="exchange" class="layout-flow">
+          <section id="exchange">
             <h2>The exchange</h2>
             <p id="exchange-lede">
               An agent proposes queue policies for an importer. A choice or comment the
@@ -317,7 +317,7 @@ flowchart TD
               <a href="#versions">Revisions</a> explains their continuity.
             </p>
           </section>
-          <section id="specification-map" class="layout-flow">
+          <section id="specification-map">
             <h2>Find the right guide</h2>
             <table id="topic-map">
               <thead>
@@ -365,7 +365,7 @@ flowchart TD
               </tbody>
             </table>
           </section></lf-tab
-        ><lf-tab id="workflow" label="Workflow" class="layout-flow"
+        ><lf-tab id="workflow" label="Workflow"
           ><details class="topic-outline" id="workflow-outline">
             <summary>In this topic</summary>
             <nav aria-label="Workflow sections">
@@ -377,7 +377,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="communication-map" class="layout-flow">
+          <section id="communication-map">
             <h2>Author, hand over, and respond</h2>
 
             <p id="agent-host">
@@ -387,7 +387,7 @@ flowchart TD
               available operations; <a href="#delivery">Harness connections</a> explains
               delivery and receipt.
             </p>
-            <section id="loop-shell" class="layout-flow">
+            <section id="loop-shell">
               <h3>Publish a page</h3>
               <p id="instructions-skill">
                 The agent reads Leaf’s skill and the reference for each step: page
@@ -444,7 +444,7 @@ leaf server start ./review</code></pre>
                 </p>
               </details>
             </section>
-            <section id="you" class="layout-flow">
+            <section id="you">
               <h3>Answer updates</h3>
 
               <p id="you-send">
@@ -473,7 +473,7 @@ leaf server start ./review</code></pre>
                 </p>
                 <lf-ask id="queue-question">
                   <h3>When the queue fills, what should happen?</h3>
-                  <lf-options id="queue-policy" choose>
+                  <lf-options id="queue-policy">
                     <lf-option id="block-producer"
                       ><strong>Pause the producer</strong> Keep every queued record;
                       wait for space before accepting more.</lf-option
@@ -507,7 +507,7 @@ leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updat
 leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
-                registry entry declares <code>x-awaits</code>, creates an
+                registry entry declares <code>state.awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
                 answer, and lifecycle; an optional <code>lf-ask</code> supplies its
                 heading as the prompt. The widget owns the value, and the agent records
@@ -518,15 +518,15 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                 <summary>Example: answer a page choice</summary>
                 <p id="decision-example-reading">
                   The page asks which queue policy to use with
-                  <code>lf-options id="queue-policy" choose</code>. When the user
-                  chooses Drop the oldest record, Leaf delivers that choice to the
-                  agent. The agent starts the choice event, reads the current choice,
-                  and revises the HTML to show the selected option:
+                  <code>lf-options id="queue-policy"</code>. When the user chooses Drop
+                  the oldest record, Leaf delivers that choice to the agent. The agent
+                  starts the choice event, reads the current choice, and revises the
+                  HTML to show the selected option:
                 </p>
                 <pre
                   id="decision-markup"
-                ><code class="language-html">&lt;lf-options id="queue-policy" choose&gt;
-  &lt;lf-option id="drop-oldest" chosen&gt;Drop the oldest record&lt;/lf-option&gt;
+                ><code class="language-html">&lt;lf-options id="queue-policy"&gt;
+  &lt;lf-option id="drop-oldest" selected&gt;Drop the oldest record&lt;/lf-option&gt;
   &lt;lf-option id="block-producer"&gt;Pause the producer&lt;/lf-option&gt;
 &lt;/lf-options&gt;</code></pre>
                 <p id="decision-stamp-reading">
@@ -538,7 +538,7 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                   id="decision-commands"
                 ><code class="language-bash">leaf task start ./review &lt;event-id&gt; --text "Recording the chosen queue policy"
 leaf page state ./review
-# Add chosen to the picked option in ./review/index.html; check and review.
+# Add selected to the picked option in ./review/index.html; check and review.
 leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></pre>
               </details>
               <details id="delivery-example">
@@ -660,7 +660,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                 </p>
               </details>
             </section>
-            <section id="agent" class="layout-flow">
+            <section id="agent">
               <h3>Change the live page</h3>
               <p id="agent-changes-reading">
                 The agent can save HTML, replace a widget’s data source, or report a
@@ -702,7 +702,7 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
                 </p>
               </details>
             </section>
-            <section id="page-ending-flow" class="layout-flow">
+            <section id="page-ending-flow">
               <h3>Wait for updates or finish</h3>
               <p id="waiting-flow">
                 <code>leaf page open ./review</code> leaves the page available for
@@ -809,7 +809,7 @@ flowchart TD
               </details>
             </section>
           </section>
-          <section id="agent-guidance" class="layout-flow">
+          <section id="agent-guidance">
             <h2>Agent instructions and notices</h2>
             <p id="guidance-placement">
               The workflow, including what the agent records for the user, lives in the
@@ -851,7 +851,8 @@ flowchart TD
                     When the agent runs <code>leaf page instructions</code>, which
                     prints each package's <code>instructions/</code> files by audience.
                     Each <code>--use</code> adds that entry's
-                    <code>x-instructions</code> and its data contracts' instructions.
+                    <code>author.instructions</code> and its data contracts'
+                    instructions.
                   </td>
                 </tr>
                 <tr>
@@ -892,8 +893,11 @@ flowchart TD
                     the words it rests on.
                   </td>
                   <td>
-                    In Claude Code, at the next prompt or tool call after a turn ends
-                    (<a href="#turn-end-fork">Turn-end check in Claude Code</a>).
+                    In Claude Code, at the next prompt or tool call after a turn ends; a
+                    finding Leaf changed nothing for wakes an idle session (<a
+                      href="#turn-end-fork"
+                      >Turn-end check in Claude Code</a
+                    >).
                   </td>
                 </tr>
                 <tr>
@@ -920,7 +924,7 @@ flowchart TD
               and the new instructions.
             </p>
           </section>
-          <section id="communication-commands" class="layout-flow">
+          <section id="communication-commands">
             <h2>Agent command inventory</h2>
             <p id="command-syntax">
               The table groups Leaf's commands by what the agent uses them for, with
@@ -1063,7 +1067,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="delivery" class="layout-flow">
+          <section id="delivery">
             <h2>Harness connections and receipt</h2>
             <p id="wait-trick">
               Claude Code’s background Stop hook watches between turns and wakes the
@@ -1207,7 +1211,7 @@ flowchart TD
               <p id="fork-purpose">
                 Late in a long session, the page can drift from the conversation: the
                 agent leaves something to the user only in its chat reply, so On Me
-                misses it, or a page goes on saying what the work has since changed. In
+                misses it, or a page goes on holding what no longer fits the work. In
                 Claude Code, when the agent finishes a reply in a session holding a
                 page, Leaf's hooks module forks the conversation. The fork is a copy of
                 the conversation that answers one question without calling tools, and
@@ -1228,8 +1232,9 @@ flowchart TD
                   trying a build
                 </li>
                 <li>
-                  what a page still says that the work or the conversation has since
-                  changed, such as a result or a section the user dropped in chat
+                  anything on a page that no longer fits the work as it now stands, such
+                  as a result the work has since changed, finished work told as news, or
+                  a section the user dropped in chat
                 </li>
                 <li>
                   an On Me item the user answered elsewhere, or the work made moot
@@ -1280,7 +1285,9 @@ flowchart TD
                 original message even after a compaction. At its next prompt or tool
                 call, the agent reads these and each record and change Leaf made, and
                 withdraws a question it disagrees with by resolving its thread, as it
-                would its own.
+                would its own. A finding Leaf changed nothing for is work the agent owes
+                before the user reads the page again, so when the session has gone idle
+                Leaf wakes it for one rather than waiting for the user's next message.
               </p>
               <p id="fork-off-path">
                 The fork starts after the turn has ended, so neither the turn nor the
@@ -1362,7 +1369,7 @@ flowchart TD
               </p>
             </details>
           </section></lf-tab
-        ><lf-tab id="state" label="State" class="layout-flow"
+        ><lf-tab id="state" label="State"
           ><details class="topic-outline" id="state-outline">
             <summary>In this topic</summary>
             <nav aria-label="State sections">
@@ -1735,7 +1742,7 @@ flowchart TD
               remains a draft; pending widget actions have no durable browser queue.
             </p>
           </section></lf-tab
-        ><lf-tab id="event-log" label="Event log" class="layout-flow"
+        ><lf-tab id="event-log" label="Event log"
           ><details class="topic-outline" id="event-log-outline">
             <summary>In this topic</summary>
             <nav aria-label="Event log sections">
@@ -1752,7 +1759,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="data-fold" class="layout-flow">
+          <section id="data-fold">
             <h2>Current state</h2>
             <p id="data-fold-lede">
               Leaf appends comments, widget actions, agent replies, reports and version
@@ -1780,7 +1787,7 @@ flowchart TD
               choice and its undo through this computation.
             </p>
           </section>
-          <section id="layers" class="layout-flow">
+          <section id="layers">
             <h2>Event validation and widget state</h2>
             <p id="layers-lede">
               A widget submits an action. Leaf validates it against the package's
@@ -1831,7 +1838,7 @@ flowchart TD
                   <td>Verb</td>
                   <td>
                     A fold <code>unit</code> and a recorded effect or custom payload
-                    schema, declared under <code>x-state</code>
+                    schema, declared under <code>state.verbs</code>
                   </td>
                   <td>Package, in <code>registry.json</code></td>
                 </tr>
@@ -1845,7 +1852,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="try" class="layout-flow">
+          <section id="try">
             <h2>Try actions and undo</h2>
             <p id="try-walkthrough">
               The inline sample uses this page’s event log and Undo. Its activity feed
@@ -1863,7 +1870,7 @@ flowchart TD
             <lf-sample id="try-sample" label="release question" interactive>
               <lf-ask id="ship-ask">
                 <h2>When should this ship?</h2>
-                <lf-options id="ship" choose>
+                <lf-options id="ship">
                   <lf-option id="ship-now"
                     ><strong>Now</strong> Today, behind the flag.</lf-option
                   >
@@ -1875,7 +1882,7 @@ flowchart TD
               <lf-activity id="sample-feed"></lf-activity>
             </lf-sample>
           </section>
-          <section id="verbs" class="layout-flow">
+          <section id="verbs">
             <h2>Verb declarations</h2>
             <p id="verbs-lede">
               This is everything <code>lf-options</code> tells Leaf about its three
@@ -1883,61 +1890,63 @@ flowchart TD
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
-"x-state": {
-  "choose": {
-    "unit": "widget",
-    "record": {"kind": "attribute", "attr": "chosen"}
+"state": {
+  "verbs": {
+    "choose": {
+      "unit": "widget",
+      "record": {"kind": "attribute", "attr": "selected"}
+    },
+    "add": {
+      "detail": {"type": "object",
+                 "properties": {"option": {"type": "string"},
+                                "text": {"type": "string", "minLength": 1}},
+                 "required": ["option", "text"], "additionalProperties": false},
+      "unit": "option",
+      "creates": {"child": "lf-option", "words": "text"}
+    },
+    "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
   },
-  "add": {
-    "detail": {"type": "object",
-               "properties": {"option": {"type": "string"},
-                              "text": {"type": "string", "minLength": 1}},
-               "required": ["option", "text"], "additionalProperties": false},
-    "unit": "option",
-    "creates": {"child": "lf-option", "words": "text"}
-  },
-  "answer": {"detail": {"type": "object", "additionalProperties": false}, "unit": "widget"}
-},
-"x-awaits": {
-  "value": "choose",
-  "answered": {
-    "choose": {"when": {"multiple": [false]}},
-    "answer": {"when": {"multiple": [true]}}
+  "awaits": {
+    "value": "choose",
+    "answered": {
+      "choose": {"when": {"multiple": [false]}},
+      "answer": {"when": {"multiple": [true]}}
+    }
   }
 }
 </code></pre>
-              <lf-note at="2"
+              <lf-note at="3"
                 >The verb's name, which the widget sends as the event's
                 <code>action</code>.</lf-note
               >
-              <lf-note at="3"
+              <lf-note at="4"
                 >One unit for the whole group, so every pick uses the same coordinate
                 and a later pick replaces an earlier one.</lf-note
               >
-              <lf-note at="4"
-                >How the current selection appears in markup: <code>chosen</code> on
+              <lf-note at="5"
+                >How the current selection appears in markup: <code>selected</code> on
                 each picked option. This effect also determines the payload:
                 <code>detail.value</code>
                 must be an array of owned option ids. The agent writes the pick into the
                 next version.</lf-note
               >
-              <lf-note at="11"
+              <lf-note at="12"
                 >The unit is the value of <code>detail.option</code>, so each added
                 option has a coordinate of its own.</lf-note
               >
-              <lf-note at="12"
+              <lf-note at="13"
                 >The action adds an <code>lf-option</code> to the group, with
                 <code>detail.text</code> as its text.</lf-note
               >
-              <lf-note at="14"
+              <lf-note at="15"
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> group.</lf-note
               >
-              <lf-note at="17"
+              <lf-note at="18"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
               >
-              <lf-note at="18"
+              <lf-note at="19"
                 >A single-choice group is answered when an option is selected. A
                 multiple-choice group is answered when the user presses Done. Undo can
                 make the obligation unanswered again.</lf-note
@@ -1967,7 +1976,7 @@ flowchart TD
               </table>
             </details>
           </section>
-          <section id="fold" class="layout-flow">
+          <section id="fold">
             <h2>Widget state after each action</h2>
             <p id="fold-lede">
               The table shows the options group after each action and undo in the
@@ -2059,7 +2068,7 @@ flowchart TD
    "state": {"origin": "lf-options",
      "decides": false,
      "unit": "widget",
-     "record": {"kind": "attribute", "attr": "chosen"},
+     "record": {"kind": "attribute", "attr": "selected"},
      "creates": null,
      "detail": {"type": "object",
        "properties": {"value": {"type": "array",
@@ -2079,7 +2088,7 @@ flowchart TD
    "state": {"origin": "lf-options",
      "decides": false,
      "unit": "widget",
-     "record": {"kind": "attribute", "attr": "chosen"},
+     "record": {"kind": "attribute", "attr": "selected"},
      "creates": null,
      "detail": {"type": "object",
        "properties": {"value": {"type": "array",
@@ -2129,7 +2138,7 @@ flowchart TD
               >
             </lf-code>
           </section>
-          <section id="taking-back" class="layout-flow">
+          <section id="taking-back">
             <h2>Replacing and withdrawing actions</h2>
             <ul id="taking-back-ways">
               <li>
@@ -2155,7 +2164,7 @@ flowchart TD
               shows.
             </p>
           </section>
-          <section id="reports" class="layout-flow">
+          <section id="reports">
             <h2>Agent-reported state</h2>
             <p id="reports-writer">
               A verb declared with <code>"writer": "agent"</code> accepts reports from
@@ -2169,7 +2178,7 @@ flowchart TD
               gives the complete rules.
             </p>
           </section>
-          <section id="follow" class="layout-flow">
+          <section id="follow">
             <h2>Following new events</h2>
             <p id="follow-feed">
               <code>leaf page events PAGE --follow</code> prints every stored record,
@@ -2186,7 +2195,7 @@ flowchart TD
               gives the feed's whole contract.
             </p>
           </section>
-          <section id="sources" class="layout-flow">
+          <section id="sources">
             <h2>Where each rule is written</h2>
             <ul id="sources-list">
               <li>
@@ -2203,13 +2212,14 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares <code>x-state</code> verbs,
-                <code>x-awaits.answered</code>, <code>creates</code>, and agent-written
-                verbs.
+                >: how a package declares verbs (<code>state.verbs</code>),
+                <code>state.awaits.answered</code>, <code>creates</code>, and
+                agent-written verbs.
               </li>
               <li>
-                <a href="/extending/#x-state">Registry keys</a>: the exact definition of
-                <code>x-state</code>, <code>x-awaits</code>, and the keys beside them.
+                <a href="/extending/#state.verbs">Registry keys</a>: the exact
+                definition of <code>state.verbs</code>, <code>state.awaits</code>, and
+                the keys beside them.
               </li>
               <li>
                 <a
@@ -2219,7 +2229,7 @@ flowchart TD
               </li>
             </ul>
           </section></lf-tab
-        ><lf-tab id="revisions" label="Revisions" class="layout-flow"
+        ><lf-tab id="revisions" label="Revisions"
           ><details class="topic-outline" id="revisions-outline">
             <summary>In this topic</summary>
             <nav aria-label="Revisions sections">
@@ -2230,7 +2240,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="versions" class="layout-flow">
+          <section id="versions">
             <h2>Revisions</h2>
             <p id="agent-versions">
               When Leaf reads changed, valid page source or dependencies, it captures an
@@ -2280,7 +2290,7 @@ flowchart TD
               <lf-ask id="sample-publish-report-decision">
                 <h2>Publish the sample report?</h2>
                 <p>The park survey would go to the sample team's shared workspace.</p>
-                <lf-options id="sample-publish-report" choose>
+                <lf-options id="sample-publish-report">
                   <lf-option id="sample-publish-report-keep"
                     ><strong>Keep it private</strong></lf-option
                   >
@@ -2292,7 +2302,7 @@ flowchart TD
               <lf-activity id="sample-permission-history"></lf-activity>
             </lf-sample>
           </section>
-          <section id="gate" class="layout-flow">
+          <section id="gate">
             <h2>Checks before a revision goes live</h2>
             <p>
               Before making a revision live or stamping a version, Leaf validates the
@@ -2303,7 +2313,7 @@ flowchart TD
               invisible widgets, and horizontal overflow.
             </p>
           </section>
-          <section id="edits" class="layout-flow">
+          <section id="edits">
             <h2>Decisions across revisions</h2>
             <div class="revision-pair" id="revision-example">
               <figure id="revision-before">
@@ -2387,7 +2397,7 @@ flowchart TD
               an event naming its target, so the recomputed result survives reloads.
             </p>
           </section></lf-tab
-        ><lf-tab id="progress" label="Progress" class="layout-flow"
+        ><lf-tab id="progress" label="Progress"
           ><details class="topic-outline" id="progress-outline">
             <summary>In this topic</summary>
             <nav aria-label="Progress sections">
@@ -2406,7 +2416,7 @@ flowchart TD
               </ul>
             </nav>
           </details>
-          <section id="progress-seats" class="layout-flow">
+          <section id="progress-seats">
             <h2>Progress on an update and the page</h2>
             <p id="progress-lede">
               Leaf distinguishes <strong>progress on one update</strong> from
@@ -2431,8 +2441,8 @@ flowchart TD
                 <time>1s</time> <small>observation</small>
                 <strong>Delivered</strong> The hook puts the comment into the agent’s
                 turn, and Claude Code's transcript then confirms it reached the agent.
-                Until the agent names its work, the panel shows its leaf in the working
-                tone and no words.
+                Until the agent names its work, the panel says <em>Working</em> beside
+                its leaf.
               </li>
               <li id="progress-reply">
                 <time>5s</time> <small>intervention</small> <strong>On it</strong> The
@@ -2453,7 +2463,7 @@ flowchart TD
               </li>
             </ol>
           </section>
-          <section id="stages" class="layout-flow">
+          <section id="stages">
             <h2>Stages of an update</h2>
             <p id="stages-lede">
               A label beside each comment or widget update records its delivery and
@@ -2574,7 +2584,7 @@ flowchart TD
               submits it.
             </p>
           </section>
-          <section id="updates-silence" class="layout-flow">
+          <section id="updates-silence">
             <h2>Status readings</h2>
             <p id="updates-silence-lede">
               The server combines the agent’s latest start or status with observed
@@ -2649,7 +2659,7 @@ flowchart TD
               </thead>
               <tbody>
                 <tr id="updates-reading-held">
-                  <td>The leaf alone, in the working tone</td>
+                  <td>Working</td>
                   <td>
                     The agent is working, or the user's update was delivered into its
                     running turn, and the agent has not yet said what it is doing. The
@@ -2718,7 +2728,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="progress-on-lists" class="layout-flow">
+          <section id="progress-on-lists">
             <h2>The On lists</h2>
             <p id="progress-lists-meaning">
               The panel's On view gathers outstanding work across the page, using the
@@ -2764,7 +2774,7 @@ flowchart TD
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
               obligation is answered by the actions its
-              <code>x-awaits</code> declaration names, such as a pick, or the Done a
+              <code>state.awaits</code> declaration names, such as a pick, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there or a settling reaction, such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and records the
@@ -2781,7 +2791,7 @@ flowchart TD
               returns to On Me when it needs the user again.
             </p>
           </section>
-          <section id="progress-map" class="layout-flow">
+          <section id="progress-map">
             <h2>Where the agent's messages appear</h2>
             <p id="progress-map-lede">
               The agent writes progress messages, statuses, replies, and version notes.
@@ -2874,7 +2884,7 @@ flowchart TD
               worker's progress.
             </p>
           </section>
-          <section id="progress-when" class="layout-flow">
+          <section id="progress-when">
             <h2>When the agent says what it is doing</h2>
             <ul id="progress-moments">
               <li id="progress-on-input">
@@ -2909,7 +2919,7 @@ flowchart TD
               is the agent's copy of these rules.
             </p>
           </section>
-          <section id="progress-plan" class="layout-flow">
+          <section id="progress-plan">
             <h2>The work plan</h2>
             <p id="progress-plan-reading">
               For work with several steps, the agent can publish an outline, which the
@@ -2942,7 +2952,7 @@ EOF</code></pre>
               </p>
             </details>
           </section></lf-tab
-        ><lf-tab id="threads" label="Threads" class="layout-flow"
+        ><lf-tab id="threads" label="Threads"
           ><details class="topic-outline" id="threads-outline">
             <summary>In this topic</summary>
             <nav aria-label="Threads sections">
@@ -2957,7 +2967,7 @@ EOF</code></pre>
               </ul>
             </nav>
           </details>
-          <section id="anchors" class="layout-flow">
+          <section id="anchors">
             <h2>Anchors</h2>
             <p id="anchors-lede">
               A thread's anchor is the place on the page it is about. The first comment
@@ -3028,7 +3038,7 @@ EOF</code></pre>
               <code>--section</code>, <code>--part</code>, or none of them.
             </p>
           </section>
-          <section id="passages" class="layout-flow">
+          <section id="passages">
             <h2>Finding a passage</h2>
             <p id="passage-segments">
               In the browser, a passage is an ordered list of segments, each
@@ -3073,7 +3083,7 @@ EOF</code></pre>
               therefore one the user's page can find.
             </p>
           </section>
-          <section id="anchors-revisions" class="layout-flow">
+          <section id="anchors-revisions">
             <h2>Anchors across revisions</h2>
             <p id="revisions-lede">
               Before publishing a new revision, Leaf checks each open thread's quoted
@@ -3250,7 +3260,7 @@ EOF</code></pre>
               <strong>No longer here</strong>.
             </p>
           </section>
-          <section id="drawings" class="layout-flow">
+          <section id="drawings">
             <h2>Drawings</h2>
             <p id="drawings-anchor">
               In Draw mode, which <kbd>w</kbd> turns on and off, the user draws freehand
@@ -3269,7 +3279,7 @@ EOF</code></pre>
               window with the ink over it.
             </p>
           </section>
-          <section id="message-widgets" class="layout-flow">
+          <section id="message-widgets">
             <h2>Widgets in messages</h2>
             <p id="message-widgets-markup">
               An agent's reply can carry a small widget, typically a question with
@@ -3288,7 +3298,7 @@ EOF</code></pre>
               its question hands the thread back to the agent.
             </p>
           </section>
-          <section id="titles" class="layout-flow">
+          <section id="titles">
             <h2>Titles</h2>
             <p id="titles-agent">
               A title names a thread in Threads, in a few words of plain text. The agent
@@ -3309,7 +3319,7 @@ EOF</code></pre>
               shows its opening words.
             </p>
           </section>
-          <section id="summaries" class="layout-flow">
+          <section id="summaries">
             <h2>Summaries</h2>
             <p id="summaries-fold">
               <code>leaf thread summarize</code> folds a run of consecutive messages in
@@ -3329,7 +3339,7 @@ EOF</code></pre>
               one, and disappear once its next ordinary reply arrives.
             </p>
           </section></lf-tab
-        ><lf-tab id="keys" label="Keys" class="layout-flow"
+        ><lf-tab id="keys" label="Keys"
           ><details class="topic-outline" id="keys-outline">
             <summary>In this topic</summary>
             <nav aria-label="Keys sections">
@@ -3356,7 +3366,7 @@ EOF</code></pre>
             This tab holds the exact rules behind the keys and touch routes that
             <a href="/using/#keys">Keys and touch</a> in Using lists.
           </p>
-          <section id="navigation-destinations" class="layout-flow">
+          <section id="navigation-destinations">
             <h2>Named destinations and visible hints</h2>
             <details id="navigation-go-to">
               <summary>The complete Go-to map</summary>
@@ -3464,7 +3474,7 @@ EOF</code></pre>
               </p>
             </details>
           </section>
-          <section id="navigation-reading" class="layout-flow">
+          <section id="navigation-reading">
             <h2>Reading and text search</h2>
             <details id="navigation-reading-cases">
               <summary>Scrolling keys follow the focused reading region</summary>
@@ -3495,7 +3505,7 @@ EOF</code></pre>
               </p>
             </details>
           </section>
-          <section id="navigation-thread-origin" class="layout-flow">
+          <section id="navigation-thread-origin">
             <h2>Threads and work waiting on the user</h2>
             <p id="navigation-thread-rule">
               <kbd>t</kbd> / <kbd>Shift</kbd> + <kbd>t</kbd> walk open threads in page
@@ -3607,7 +3617,7 @@ EOF</code></pre>
               </p>
             </details>
           </section>
-          <section id="navigation-resolution" class="layout-flow">
+          <section id="navigation-resolution">
             <h2>Resolving and replying</h2>
             <p id="navigation-resolve-rule">
               <kbd>r</kbd> resolves the focused open thread. A thread opened from
@@ -3669,7 +3679,7 @@ EOF</code></pre>
               </table>
             </details>
           </section>
-          <section id="navigation-other-contexts" class="layout-flow">
+          <section id="navigation-other-contexts">
             <h2>Panels and Escape</h2>
             <details id="navigation-escape-cases">
               <summary>Escape's next step depends on focus</summary>
@@ -3695,7 +3705,7 @@ EOF</code></pre>
               </p>
             </details>
           </section>
-          <section id="navigation-history" class="layout-flow">
+          <section id="navigation-history">
             <h2>Back and Forward</h2>
             <p id="navigation-history-rule">
               A successful navigation step to a destination that is not fully readable
@@ -3765,7 +3775,7 @@ EOF</code></pre>
               </p>
             </details>
           </section>
-          <section id="phone-gaps" class="layout-flow">
+          <section id="phone-gaps">
             <h2>Touch coverage and testing</h2>
             <p id="phone-gaps-lede">
               On a phone or touch screen, Leaf's commands have gestures or visible
@@ -3800,7 +3810,7 @@ EOF</code></pre>
               </li>
             </ul>
           </section></lf-tab
-        ><lf-tab id="runtime" label="Runtime" class="layout-flow"
+        ><lf-tab id="runtime" label="Runtime"
           ><details class="topic-outline" id="runtime-outline">
             <summary>In this topic</summary>
             <nav aria-label="Runtime sections">
@@ -3822,7 +3832,7 @@ EOF</code></pre>
               </ul>
             </nav>
           </details>
-          <section id="browser-state" class="layout-flow">
+          <section id="browser-state">
             <h2>Browser runtime</h2>
             <p id="browser-lede">
               The browser runtime upgrades Leaf elements, draws threads and shared
@@ -3854,7 +3864,7 @@ flowchart TD
               gestures decide by themselves.
             </p>
           </section>
-          <section id="browser-startup" class="layout-flow">
+          <section id="browser-startup">
             <h2>Loading the runtime</h2>
             <p id="browser-startup-lede">
               Startup prepares a stable page before enabling its controls.
@@ -3888,8 +3898,8 @@ flowchart TD
               </figcaption>
             </figure>
           </section>
-          <section id="loading" class="layout-flow">
-            <section id="loading-stages" class="layout-flow">
+          <section id="loading">
+            <section id="loading-stages">
               <h2>Page loading</h2>
               <p id="loading-lede">
                 These stages describe the document, interface and saved state.
@@ -3944,7 +3954,7 @@ flowchart TD
               </p>
             </section>
           </section>
-          <section id="browser-updates" class="layout-flow">
+          <section id="browser-updates">
             <h2>Pending browser updates</h2>
             <p id="browser-updates-drawn">
               A pick, drag or comment enters an ordered pending list. Its result appears
@@ -4016,7 +4026,7 @@ flowchart TD
               </p>
             </details>
           </section>
-          <section id="browser-freshness" class="layout-flow">
+          <section id="browser-freshness">
             <h2>Freshness checks and state reads</h2>
             <figure id="runtime-freshness-flow" class="diagram-figure">
               <lf-diagram
@@ -4079,7 +4089,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="browser-drawing" class="layout-flow">
+          <section id="browser-drawing">
             <h2>Drawing current state</h2>
             <p id="browser-drawing-proof">
               Computing state and drawing it are separate. Widgets, threads, the
@@ -4145,7 +4155,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="browser-local" class="layout-flow">
+          <section id="browser-local">
             <h2>Browser-owned state</h2>
             <p id="browser-local-owned">
               Focus, scroll, selection, open disclosures, unsent text and active drags
@@ -4180,7 +4190,7 @@ flowchart TD
               </tbody>
             </table>
           </section>
-          <section id="browser-revisions" class="layout-flow">
+          <section id="browser-revisions">
             <h2>Live revisions</h2>
             <div id="browser-revisions-install">
               <p>
@@ -4229,7 +4239,7 @@ flowchart LR
               newer page, installs the waiting revision immediately.
             </p>
           </section>
-          <section id="lifetime" class="layout-flow">
+          <section id="lifetime">
             <h2>Server lifetime</h2>
             <p id="wait-stateless">
               The HTTP server exposes the <a href="#data-home">page directory</a> to
@@ -4245,7 +4255,7 @@ flowchart LR
               >).
             </p>
           </section>
-          <section id="local" class="layout-flow">
+          <section id="local">
             <h2>Page addresses</h2>
             <p id="local-address">
               A page's server binds the address its session arrived through: the SSH
@@ -4269,7 +4279,7 @@ flowchart LR
               without restarting the server.
             </p>
           </section>
-          <section id="access" class="layout-flow">
+          <section id="access">
             <h2>Who can open a page</h2>
             <p id="access-key">
               A page's URL carries an access key, which the browser keeps in a cookie.
@@ -4284,7 +4294,7 @@ flowchart LR
               browser (<a href="/website/">The leaf.page website</a>).
             </p>
           </section>
-          <section id="runtime-export" class="layout-flow">
+          <section id="runtime-export">
             <h2>Offline exports</h2>
             <p id="runtime-export-record">
               <code>leaf page export PAGE -o FILE</code> captures a stamped version as

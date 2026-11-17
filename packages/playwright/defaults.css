@@ -323,7 +323,9 @@ lf-trace[hidden="until-found"] {
   inset-block: 2px;
   background: var(--lf-trace-mark);
 }
-:is(.lf-trace-call-bar, .lf-trace-input-label, .lf-trace-moment-pin):hover {
+.lf-trace-call-bar:hover,
+.lf-trace-input-label:hover,
+.lf-trace-moment-pin:hover {
   z-index: 1;
   filter: brightness(0.94);
 }
@@ -496,7 +498,11 @@ lf-trace[hidden="until-found"] {
 }
 /* The scroller and the rows it holds stand their rings inside their edges, which the
    scroller clips (base.css, "Where it stands"). */
-:is(.lf-trace-metadata, .lf-trace-metadata > details > summary) {
+:where(.lf-trace-metadata):is(
+  .lf-trace-metadata,
+  .lf-trace-metadata > details > summary
+),
+.lf-trace-metadata > details > summary {
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
 .lf-trace-readout {

@@ -53,7 +53,7 @@ from render_harness import (
     nudge,
     open_page,
     page_comment,
-    page_registry,
+    page_declarations,
     panel_control,
     panel_field,
     panel_view,
@@ -78,6 +78,7 @@ from leaf import render_checks as render_checks_model
 from leaf import structure as structure_model
 from leaf.page_snapshot import capture_page_snapshot
 from leaf.registry import storage as registry_storage
+from leaf.registry.contract import declared_fact
 from leaf.registry.storage import layer_record
 from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import scheme as scheme_model
@@ -412,7 +413,7 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     # A version that honors either decision, or says nothing of one, is the weaker
     # case of the same rule.
     contradicted = REPLAYED_PAGE.replace(
-        'id="opt-stage"', 'id="opt-stage" chosen'
+        'id="opt-stage"', 'id="opt-stage" selected'
     ).replace(IMPORTER_CARD, "")
     contradicted = contradicted.replace(
         "</lf-card></lf-column>", f"</lf-card>{IMPORTER_CARD}</lf-column>"
@@ -425,8 +426,8 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
         assert render_gate_model.render_version(browser, at).failures == []
     stamp_page(d, contradicted, "t")
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    expect(page.locator("#opt-shim")).to_have_attribute("chosen", "")
-    expect(page.locator("#opt-stage")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#opt-shim")).to_have_attribute("selected", "")
+    expect(page.locator("#opt-stage")).not_to_have_attribute("selected", "")
 
 
 def test_the_render_gate_applies_every_action_in_force_a_second_time(
@@ -457,19 +458,21 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
     add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-tally"]["properties"]["count"] = {
+    declarations["lf-tally"]["attributes"]["properties"]["count"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    declarations["lf-tally"].setdefault("required", []).append("count")
-    declarations["lf-tally"]["x-content"] = "data"
-    declarations["lf-tally"]["x-example"] = (
+    declarations["lf-tally"]["attributes"].setdefault("required", []).append("count")
+    declarations["lf-tally"]["content"] = "data"
+    declarations["lf-tally"].setdefault("author", {})["example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
     # The registry holds a widget-unit verb to the attribute a version retracts a
     # decision with, so a state channel arrives with its way out of one.
-    declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
-    declarations["lf-tally"]["x-state"] = {
+    declarations["lf-tally"]["attributes"]["properties"]["restated"] = {
+        "type": "boolean"
+    }
+    declarations["lf-tally"].setdefault("state", {})["verbs"] = {
         "step": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "count"},
@@ -546,7 +549,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         (tag, verb)
         for tag, entry in registry.items()
         if tag.startswith("lf-")
-        for verb in entry.get("x-state", {})
+        for verb in declared_fact(entry, "state.verbs", {})
     }
     assert {(tag, verb) for _id, tag, _key, verb in in_force} == declared, (
         "the gate applies the state in force, so a declared verb missing from it is a "
@@ -972,9 +975,10 @@ def test_a_followed_link_arrives_as_a_fresh_load_of_it_does(browser, serve):
 def test_a_thread_obligation_waits_until_answered(browser, serve):
     """A question in a thread is one of the page's obligations — an obligation for the user
         wherever it stands — and `m` reaches it. A single-answer group
-    is answered by its pick, as on the page; a `multiple` group's toggles each
-    reach the agent live, so only its Done press closes it, as an `answer` action
-    x-awaits.answered names for a `multiple` group. The thread's own reply box is the words'
+    is answered by its pick, as on the page; a `multiple` group's toggles each reach the
+    agent live, so only its Done press closes it, as an `answer` action
+    state.awaits.answered names for a `multiple` group. The thread's own reply box is
+    the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
     Threads, while `t` reaches a particular thread and `c` reaches its reply box.
 
@@ -999,7 +1003,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     page.keyboard.press("Enter")
     expect(reply).to_be_focused()
     expect(reply).to_have_attribute("name", "reply")
-    expect(page.locator("#tq-one > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#tq-one > lf-option[selected]")).to_have_count(0)
     # The box hands the user back to the thread it belongs to, which is the
     # container it is part of rather than the pick they pressed Enter from.
     page.keyboard.press("Escape")
@@ -1044,7 +1048,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     )
 
     page.locator("#tq-logs").click()
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect_obligations_answered(page, "1/2")
     with sending(page, "the answer"):
         page.locator("#tq-set .lf-done").click()
@@ -1057,7 +1061,9 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # consumer but shallowSigs, which reads what no version can assert as state one
     # authored.
     assert (
-        render_checks_model.evaluate_probe(page, "undeclaredAttrs", page_registry(page))
+        render_checks_model.evaluate_probe(
+            page, "undeclaredAttrs", page_declarations(page)
+        )
         == []
     ), "the Done press left an attribute on a widget its entry never declared"
     actions = [
@@ -1077,7 +1083,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect(other.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "true")
     assert (
         render_checks_model.evaluate_probe(
-            other, "undeclaredAttrs", page_registry(other)
+            other, "undeclaredAttrs", page_declarations(other)
         )
         == []
     ), "replaying the answer left an attribute the entry never declared"
@@ -1088,13 +1094,13 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # another verb, so it survives that rebuild. Whether the decision is open again is
     # the log's reading, so the count moves when the withdrawal reaches it and not while
     # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a `multiple` set, whose x-awaits.answered condition is an `answer` in force.
+    # a `multiple` set, whose state.awaits.answered condition is an `answer` in force.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.keyboard.press("z")
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
-    expect(page.locator("#tq-logs")).to_have_attribute("chosen", "")
+    expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
     expect_obligations_answered(page, "2/2")
     holding(page, held, 1, "the thread answer's withdrawal")
@@ -1132,7 +1138,7 @@ def test_a_live_revision_preserves_a_reply_after_native_tab(browser, serve):
         '<h1 id="h">Review</h1><p id="subject">Work under discussion.</p>',
     )
     question = (
-        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options" choose>'
+        '<lf-ask id="question"><h2>Decision?</h2><lf-options id="options">'
         '<lf-option id="yes">Yes</lf-option></lf-options></lf-ask>'
     )
     second = first.replace("</main>", question + "</main>")
@@ -1289,7 +1295,7 @@ def test_activity_held_targets_follow_the_current_document(browser, serve, fresh
         ).replace("</head>", executable + "</head>")
 
     route = """<lf-ask id="route-ask"><h2>Which route?</h2>
-      <lf-options id="route" choose>
+      <lf-options id="route">
         <lf-option id="route-fast">Fast path</lf-option>
         <lf-option id="route-slow">Slow path</lf-option>
       </lf-options></lf-ask>"""

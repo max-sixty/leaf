@@ -4,7 +4,7 @@
     <title>Alert settings page, as first proposed</title>
     <meta
       name="description"
-      content="A design record quoting the alert settings playground whose controls stood beside each alert, so its preview reads as authored without them."
+      content="A design record quoting the alert settings playground whose controls stood beside each alert, its fields showing the quoted settings and taking no input."
     />
     <style>
       /* Each alert's evidence, and beside it a box holding that alert's controls:
@@ -64,114 +64,88 @@
       </p>
       <lf-sample id="quoted-alerts-sample" label="alert settings playground">
         <lf-playground id="quoted-alerts" submit-label="Apply these settings">
-          <lf-playground-control
-            id="budget"
-            name="budget"
-            label="On-call page budget, per 30 days"
-            kind="range"
-            value="10"
-            min="0"
-            max="30"
-          ></lf-playground-control>
-          <lf-playground-preview id="quoted-alerts-preview">
-            <div class="quoted-alert" id="quoted-rate">
-              <article class="quoted-alert-evidence" id="quoted-rate-evidence">
-                <h3><code>payments-5xx-rate</code></h3>
-                <p>
-                  Over 1% of requests failing for 5 minutes: 12 pages in 30 days, 3 of
-                  them real.
-                </p>
-              </article>
-              <section
-                class="quoted-alert-settings"
-                id="quoted-rate-settings"
-                aria-label="payments-5xx-rate settings"
-              >
-                Pages payments on-call.
-                <lf-playground-control
-                  id="quoted-rate-threshold"
-                  name="rate-threshold"
-                  label="Threshold"
-                  kind="choice"
-                  value="1%"
+          <aside>
+            <label id="budget"
+              >On-call page budget, per 30 days
+              <input type="range" name="budget" min="0" max="30" value="10"
+            /></label>
+          </aside>
+          <div class="quoted-alert" id="quoted-rate">
+            <article class="quoted-alert-evidence" id="quoted-rate-evidence">
+              <h3><code>payments-5xx-rate</code></h3>
+              <p>
+                Over 1% of requests failing for 5 minutes: 12 pages in 30 days, 3 of
+                them real.
+              </p>
+            </article>
+            <section
+              class="quoted-alert-settings"
+              id="quoted-rate-settings"
+              aria-label="payments-5xx-rate settings"
+            >
+              Pages payments on-call.
+              <fieldset id="quoted-rate-threshold">
+                <legend>Threshold</legend>
+                <label id="quoted-rate-threshold-1"
+                  ><input type="radio" name="rate-threshold" value="1%" checked /> over
+                  1%</label
+                ><label id="quoted-rate-threshold-2"
+                  ><input type="radio" name="rate-threshold" value="2%" /> over
+                  2%</label
                 >
-                  <lf-playground-choice
-                    id="quoted-rate-threshold-1"
-                    value="1%"
-                    label="over 1%"
-                  ></lf-playground-choice>
-                  <lf-playground-choice
-                    id="quoted-rate-threshold-2"
-                    value="2%"
-                    label="over 2%"
-                  ></lf-playground-choice>
-                </lf-playground-control>
-              </section>
-            </div>
-            <div class="quoted-alert" id="quoted-latency">
-              <article class="quoted-alert-evidence" id="quoted-latency-evidence">
-                <h3><code>payments-p99-latency</code></h3>
-                <p>
-                  p99 latency over 800 ms for 10 minutes: 19 pages in 30 days, 2 of them
-                  real.
-                </p>
-              </article>
-              <section
-                class="quoted-alert-settings"
-                id="quoted-latency-settings"
-                aria-label="payments-p99-latency settings"
-              >
-                <div class="quoted-field">
-                  <lf-playground-control
-                    id="quoted-latency-threshold"
-                    name="latency-threshold"
-                    label="Threshold"
-                    kind="choice"
-                    value="800ms"
-                  >
-                    <lf-playground-choice
-                      id="quoted-latency-threshold-800ms"
+              </fieldset>
+            </section>
+          </div>
+          <div class="quoted-alert" id="quoted-latency">
+            <article class="quoted-alert-evidence" id="quoted-latency-evidence">
+              <h3><code>payments-p99-latency</code></h3>
+              <p>
+                p99 latency over 800 ms for 10 minutes: 19 pages in 30 days, 2 of them
+                real.
+              </p>
+            </article>
+            <section
+              class="quoted-alert-settings"
+              id="quoted-latency-settings"
+              aria-label="payments-p99-latency settings"
+            >
+              <div class="quoted-field">
+                <fieldset id="quoted-latency-threshold">
+                  <legend>Threshold</legend>
+                  <label id="quoted-latency-threshold-800ms"
+                    ><input
+                      type="radio"
+                      name="latency-threshold"
                       value="800ms"
-                      label="over 800 ms"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="quoted-latency-threshold-1200ms"
-                      value="1200ms"
-                      label="over 1,200 ms"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                </div>
-                <div class="quoted-field">
-                  <lf-playground-control
-                    id="quoted-latency-route"
-                    name="latency-route"
-                    label="Route"
-                    kind="choice"
-                    value="page"
+                      checked
+                    />
+                    over 800 ms</label
+                  ><label id="quoted-latency-threshold-1200ms"
+                    ><input type="radio" name="latency-threshold" value="1200ms" /> over
+                    1,200 ms</label
                   >
-                    <lf-playground-choice
-                      id="quoted-latency-route-page"
-                      value="page"
-                      label="Page"
-                    ></lf-playground-choice>
-                    <lf-playground-choice
-                      id="quoted-latency-route-ticket"
-                      value="ticket"
-                      label="Ticket"
-                    ></lf-playground-choice>
-                  </lf-playground-control>
-                </div>
-              </section>
-            </div>
-          </lf-playground-preview>
+                </fieldset>
+              </div>
+              <div class="quoted-field">
+                <fieldset id="quoted-latency-route">
+                  <legend>Route</legend>
+                  <label id="quoted-latency-route-page"
+                    ><input type="radio" name="latency-route" value="page" checked />
+                    Page</label
+                  ><label id="quoted-latency-route-ticket"
+                    ><input type="radio" name="latency-route" value="ticket" />
+                    Ticket</label
+                  >
+                </fieldset>
+              </div>
+            </section>
+          </div>
           <lf-playground-output id="quoted-alerts-instruction">
             Set payments-5xx-rate to page over
-            <lf-playground-value for="rate-threshold"></lf-playground-value>, set
-            payments-p99-latency to
-            <lf-playground-value for="latency-route"></lf-playground-value> over
-            <lf-playground-value for="latency-threshold"></lf-playground-value>, and
-            keep payments on-call within
-            <lf-playground-value for="budget"></lf-playground-value> pages a month.
+            <output for="rate-threshold"></output>, set payments-p99-latency to
+            <output for="latency-route"></output> over
+            <output for="latency-threshold"></output>, and keep payments on-call within
+            <output for="budget"></output> pages a month.
           </lf-playground-output>
         </lf-playground>
       </lf-sample>

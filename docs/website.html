@@ -33,7 +33,7 @@
         </p>
       </header>
 
-      <section id="edge" class="layout-flow">
+      <section id="edge">
         <h2>Published pages at the edge</h2>
         <p id="edge-build">
           The site build publishes every page under <code>docs/</code> and every worked
@@ -79,7 +79,7 @@ sequenceDiagram
         </lf-diagram>
       </section>
 
-      <section id="sessions" class="layout-flow">
+      <section id="sessions">
         <h2>Private sessions</h2>
         <p id="sessions-activation">
           The first request that needs private, mutable state, such as posting a comment
@@ -126,7 +126,7 @@ sequenceDiagram
         </p>
       </section>
 
-      <section id="agent" class="layout-flow">
+      <section id="agent">
         <h2>The hosted agent</h2>
         <p id="agent-dispatch">
           When the container accepts an event that needs an answer, such as a comment,
@@ -162,7 +162,7 @@ sequenceDiagram
         </p>
       </section>
 
-      <section id="releases" class="layout-flow">
+      <section id="releases">
         <h2>Releases and deploys</h2>
         <p id="releases-identity">
           Every build has one release identity. A local build hashes every file it
@@ -200,7 +200,7 @@ sequenceDiagram
         </p>
       </section>
 
-      <section id="state" class="layout-flow">
+      <section id="state">
         <h2>Private state and its lifetime</h2>
         <p id="state-private">
           A visitor's comments, choices, agent replies, and revisions are saved in their
@@ -225,8 +225,9 @@ sequenceDiagram
         <p id="state-restart">
           A replacement container restores saved content before accepting the next
           mutation. Container replacement does not force an open page to reload. Unsent
-          drafts are saved with the page content each time the visitor sends something;
-          a tab still holding words typed since then gives them back to the new
+          drafts are saved with the page content each time the visitor sends something,
+          and when a container stops. If a container is lost without stopping, a tab
+          still holding words typed since the last save gives them back to the new
           container. Running agent turns belong to the container process, so saving page
           content does not preserve a running turn.
         </p>

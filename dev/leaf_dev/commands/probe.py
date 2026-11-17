@@ -259,8 +259,8 @@ def probe(
 
     --browser ios runs in an iOS simulator's Safari (`leaf_dev.ios_safari`), for a
     difference only iPhones show. The iPhone sets the viewport, touch and motion, and
-    Playwright's --record doesn't reach it. Its WebDriver taps reached a page as a
-    pointerdown and touchstart with no pointerup or click (iOS 26.1, 2026-10-27), so a
+    Playwright's --record doesn't reach it. Its WebDriver taps reach a page as a
+    pointerdown and touchstart with no pointerup or click (iOS 26.1), so a
     --do step, a --journey or a state's input fails each arm before its page is
     built: --js can call a control's click(). WebDriver reads no console, so an arm
     reports instead the errors the runtime logged to the page.

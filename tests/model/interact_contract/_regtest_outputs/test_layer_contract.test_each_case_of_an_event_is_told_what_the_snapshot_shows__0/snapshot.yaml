@@ -130,8 +130,7 @@
 #              `--obligation`, as `<lf-options id="…">` holding an `<lf-option
 #              id="…">` for each answer, so the user answers with a press
 #              (`references/threads.md`, "Ask for a pick"). Reply explicitly too for
-#              other HTML, which your final message shows as text, work promised
-#              beyond this turn (`--todo`), a title or moving the thread
+#              work promised beyond this turn (`--todo`), a title or moving the thread
 #              (`references/threads.md`); an explicit reply posts at once, and your
 #              final message is then not posted.
 #      clause 10, applies:
@@ -380,10 +379,9 @@ comment over App Server:
         to proceed or whether to take an action, put them in a `leaf thread reply`
         in place of `--obligation`, as `<lf-options id="…">` holding an `<lf-option
         id="…">` for each answer, so the user answers with a press (`references/threads.md`,
-        "Ask for a pick"). Reply explicitly too for other HTML, which your final
-        message shows as text, work promised beyond this turn (`--todo`), a title
-        or moving the thread (`references/threads.md`); an explicit reply posts
-        at once, and your final message is then not posted.
+        "Ask for a pick"). Reply explicitly too for work promised beyond this turn
+        (`--todo`), a title or moving the thread (`references/threads.md`); an explicit
+        reply posts at once, and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show
@@ -1392,10 +1390,9 @@ pick inside a thread over App Server:
         to proceed or whether to take an action, put them in a `leaf thread reply`
         in place of `--obligation`, as `<lf-options id="…">` holding an `<lf-option
         id="…">` for each answer, so the user answers with a press (`references/threads.md`,
-        "Ask for a pick"). Reply explicitly too for other HTML, which your final
-        message shows as text, work promised beyond this turn (`--todo`), a title
-        or moving the thread (`references/threads.md`); an explicit reply posts
-        at once, and your final message is then not posted.
+        "Ask for a pick"). Reply explicitly too for work promised beyond this turn
+        (`--todo`), a title or moving the thread (`references/threads.md`); an explicit
+        reply posts at once, and your final message is then not posted.
     - text: >-
         Your reply renders as Markdown in a narrow card or panel. The thread already
         reaches the passage or section it is on, as a card beside it or by Show

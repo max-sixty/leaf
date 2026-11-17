@@ -2126,7 +2126,7 @@ _TEXT = {
     ),
     "ephemeral-content": lambda at, v: (
         "--ephemeral is for progress text; it cannot ask the user, open a to-do, hold"
-        " HTML, report failure, or move the thread"
+        " a widget, report failure, or move the thread"
     ),
     "detach-with-target": lambda at, v: (
         "--detach cannot be combined with --quote, --section, or --part"

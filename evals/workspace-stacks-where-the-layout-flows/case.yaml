@@ -1,7 +1,6 @@
-# Added with the stacked-panes rule. Base at 01665ed97, whose workspace snippet stacked
-# its panes below 900px, 1 of 3; the change 3 of 3.
-# Those scores enforced a width threshold. The current rubric judges usable regions
-# and their actual height constraints, including flowing and short-window layouts.
+# Scores the stacked-panes rule. The rubric judges usable regions and their actual
+# height constraints, including flowing and short-window layouts, not a width
+# threshold such as a workspace snippet stacking its panes below 900px.
 description: workspace-stacks-where-the-layout-flows
 metadata:
   purpose: "Writing a workspace of panes: the questions, checks and diff remain usable beside the reader's editor."

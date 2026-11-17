@@ -124,8 +124,8 @@ publishing an in-progress draft. Rerunning an
 answer with the same `ref`, text and flags adds nothing.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
-"Replies"). Use `leaf thread reply` instead when the answer needs HTML, which your
-final text shows as words, a question back, a to-do, a title, or a moved anchor. To
+"Replies"). Use `leaf thread reply` instead when the answer needs a question back,
+a to-do, a title, or a moved anchor. To
 have a command hub worker answer, forward it the `answer.ref` as that package's
 coordinator instructions say.
 

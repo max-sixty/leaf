@@ -1,5 +1,5 @@
-# Added with pins as overlays (#1333). Base at bc04aa55f padded the heading's end
-# 26-52px to clear the pin (0 of 3); the change left the CSS empty (3 of 3).
+# Pins are overlays. The failure is padding the heading's end to clear the pin; the
+# page needs no CSS for it.
 description: pin-takes-no-page-room
 metadata:
   purpose:

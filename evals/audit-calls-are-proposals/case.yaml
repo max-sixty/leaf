@@ -1,24 +1,16 @@
-# From Claude Code session c4c95e75-3af7-4bf9-88ee-5ab5a8aeb39f (leaf
-# diagnose-ui-whack-a-mole). An audit subagent returned removal candidates as
-# records (title, where, why_cut, cost, one capture of today), and the author turned
-# all 25 into asks with one script: "Remove the <title>?", today's capture, the
-# record's fields as labelled prose, and identical "Keep it" / "Remove it" options.
-# Revising after "need more descriptive choices than these two; make it so I can
-# whizz through them" moved the prose into the options and kept the titles. Only
-# after "these need to be actual proposals / descriptions, good titles, so I can
-# quickly assess them. They often will be lf-shots" did a briefed subagent build each
-# item as a question with its context, two titled proposals and a before/after
-# capture of each, with a recommendation; the user called that set "100x better ...
-# the context is _in_ the question, there are clear images, it's very engagable".
+# An audit subagent returned removal candidates as records (title, where, why_cut,
+# cost, one capture of today), and the author turned all 25 into asks with one
+# script: "Remove the <title>?", today's capture, the record's fields as labelled
+# prose, and identical "Keep it" / "Remove it" options. The user wants "actual
+# proposals / descriptions, good titles, so I can quickly assess them", often
+# lf-shots: each item a question with its context, two titled proposals and a
+# before/after capture of each, with a recommendation.
 # This case hands the author the same kind of records about a small static app it
-# can render, so the after state is within its reach. Composed fresh from them,
-# every draft asked questions with context, named options by result and held a
-# capture of each result: 3/3 at 3b9cdcaf3 (the guidance the source had read) and
-# 9/9 at f9b8a7158 and with the brief paragraph (one picture per option in every
-# decision), and 2/2 on every metric at ae78efbc1, the first commit whose picture
-# judge ran on this host's Codex CLI. The source
-# failed hours into its session, assembling records by script; the cause this
-# case's variants reproduce is upstream, in the brief.
+# can render, so the after state is within its reach. Composed fresh from them, a
+# draft can already ask questions with context, name options by result and hold a
+# capture of each result. The source failed hours into its session, assembling
+# records by script; the cause this case's variants reproduce is upstream, in the
+# brief.
 description: audit-calls-are-proposals
 metadata:
   purpose:
@@ -87,13 +79,12 @@ assert:
       only, or whose "after" picture looks the same as today.
 variants:
   # The source's decisions took the shape of the audit worker's records, which its
-  # brief set: a later brief asking for proposals with a capture of each result gave
-  # the praised set, though the parent assembled both rounds with a script. This
-  # context asks for the brief, where the decision material's shape is set. At
-  # f9b8a7158 base briefs asked for records with today-only captures (1/10 under a
-  # looser title criterion, 0/6 under this one); a "Long-running work" paragraph
-  # asking for each decision's material, options titled per finding and each result
-  # shown, passed 5/6 (the miss prescribed "Keep as today" for every candidate).
+  # brief set; a brief asking for proposals with a capture of each result gives the
+  # set the user wants, even when the parent assembles it with a script. This
+  # context asks for the brief, where the decision material's shape is set. A brief
+  # can ask for records with today-only captures, or prescribe "Keep as today" for
+  # every candidate; the "Long-running work" paragraph asks for each decision's
+  # material, options titled per finding and each result shown.
   brief:
     metadata:
       purpose:
@@ -133,10 +124,9 @@ variants:
           titles that would read the same for any item (Keep it, Remove it, Keep it
           as is, Cut, Move, Keep).
   # The same brief for findings with no picture: a removal survey of a codebase,
-  # as in the Leaf session that made `simplification-survey`, whose first draft gave
-  # each mechanism "Remove it" / "Keep it" and the user asked "more details?".
-  # Base 0/6, the same paragraph 6/6, after it named a refused request beside the
-  # capture as a result shown the way the user meets it.
+  # whose first draft gave each mechanism "Remove it" / "Keep it" and the user asked
+  # "more details?". The "Long-running work" paragraph names a refused request
+  # beside the capture as a result shown the way the user meets it.
   brief-code:
     metadata:
       purpose:

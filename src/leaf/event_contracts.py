@@ -26,6 +26,7 @@ from leaf.harness import message_identity
 from leaf.layer import incompatible_layer
 from leaf.obligations import questions_in_words, quoted_in
 from leaf.page_view import CandidatePageView, PageView
+from leaf.passages import holds_html
 from leaf.plans import plan_error
 from leaf.projection import (
     AuthoredOrders,
@@ -54,7 +55,7 @@ from leaf.registry.reactions import reaction_tokens
 from leaf.registry.schema import schema_complaint
 from leaf.registry.storage import IncompatibleLayer, layer_record
 from leaf.shown_answers import shown_widget
-from leaf.thread_context import thread_names
+from leaf.thread_context import logged_fragment, thread_names
 from leaf.todos import todo_error
 from leaf.validation.instances import attribute_slot_errors
 from leaf.work import widget_seat_error
@@ -350,8 +351,8 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     document = view.document(revision)
     # One reading of the panel's document for the whole door: the id universe the
     # declaration is looked up in and the projection a record is judged against
-    # are the same frozen fragments, and parsing them twice was two readings that
-    # could only ever agree.
+    # are the same frozen fragments, and parsing them twice would be two readings
+    # that could only ever agree.
     thread = readings.thread
     thread_by_id = thread.by_id
     if error := declared_action_error(event, document.by_id, thread_by_id, registry):
@@ -650,6 +651,12 @@ def _edit_error(event: dict, events: list) -> Finding | None:
         return Finding("foreign-message", values={**message, "author": event["author"]})
     if "text" not in target:
         return Finding("wordless-message", values=message)
+    # An agent's message drawing HTML stays as it was sent, since the user may have
+    # acted on what it drew, and an edit gives none HTML to draw.
+    if logged_fragment(target):
+        return Finding("edit-holds-html", values=message)
+    if target["author"] == "agent" and holds_html(event["text"]):
+        return Finding("edit-adds-html")
     withdrawn = taken_back(events)
     if name in withdrawn:
         return Finding("withdrawn-message", values=message)

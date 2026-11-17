@@ -16,7 +16,7 @@ from leaf.events import (
     summary_range,
     taken_back,
 )
-from leaf.passages import enclosing_ids, message_markup
+from leaf.passages import enclosing_ids, holds_html, message_markup
 from leaf.registry.kernel import kinds_declaring
 from leaf.structure import SourceDocument
 
@@ -181,9 +181,10 @@ class ThreadStructure(NamedTuple):
     fragments: dict
 
 
-def logged_fragment(event: dict) -> SourceDocument:
-    """The parse of the markup one logged message holding HTML draws
-    (`passages.message_markup`), shared read-only.
+def logged_fragment(event: dict) -> SourceDocument | None:
+    """The parse of the markup a logged agent message draws where its Markdown holds
+    HTML (`passages.holds_html`, `passages.message_markup`), shared read-only; None
+    for any other event.
 
     The log is append-only and such a message is never edited (`thread.cmd_edit`),
     so its markup is one immutable fragment for the page's lifetime, and every
@@ -191,20 +192,21 @@ def logged_fragment(event: dict) -> SourceDocument:
     text alone, so it is held by that text, which names it exactly whichever page and
     log it came from. Text a writer hands in has not been admitted yet and is another
     fact: its gate parses it afresh (`validation.admission.check_markup`)."""
-    return _fragment(event["text"])
+    if event["kind"] in ("comment", "reply") and event.get("author") == "agent":
+        return _fragment(event["text"]) if "text" in event else None
+    return None
 
 
-@lru_cache(maxsize=4096)
-def _fragment(text: str) -> SourceDocument:
-    return SourceDocument(message_markup(text))
+@lru_cache(maxsize=16384)
+def _fragment(text: str) -> SourceDocument | None:
+    return SourceDocument(message_markup(text)) if holds_html(text) else None
 
 
 def thread_structure(events: list) -> ThreadStructure:
     """Each logged message's markup (`logged_fragment`) as the panel's id universe."""
     ids, by_id, fragments = set(), {}, {}
     for e in events:
-        if e.get("html"):
-            fragment = logged_fragment(e)
+        if fragment := logged_fragment(e):
             fragments[e["id"]] = fragment
             ids.update(fragment.ids)
             by_id.update(fragment.by_id)

@@ -47,12 +47,12 @@ from leaf import state as cleanup_model
 from leaf import thread as thread_model
 from leaf import todos as todos_model
 from leaf.refusals import Refused
+from leaf.thread_context import logged_fragment
 
 
 class ResponseOptions(TypedDict, total=False):
     ephemeral: bool
     failure: str
-    html: bool
 
 
 QUESTION = (
@@ -239,15 +239,13 @@ def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, e
             with pytest.raises(Refused) as refused:
                 thread_model.post_response(
                     reference,
-                    "Checking.\n\n<p>Checking.</p>",
+                    'Checking.\n\n<lf-options id="check" choose>'
+                    '<lf-option id="check-now">Now</lf-option></lf-options>',
                     ephemeral=True,
-                    html=True,
                 )
             assert refused_on(refused.value).code == "ephemeral-content"
         options: ResponseOptions = (
-            {"ephemeral": True}
-            if earlier == "progress"
-            else {"failure": "unavailable", "html": True}
+            {"ephemeral": True} if earlier == "progress" else {"failure": "unavailable"}
         )
         thread_model.post_response(
             reference,
@@ -408,7 +406,6 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     assert posted.exit_code == 0, posted.output
     records = [json.loads(line) for line in posted.output.splitlines()]
     assert [event["kind"] for event in records] == ["reply"]
-    assert records[0]["html"] is True
     assert markup in records[0]["text"]
     assert records[0]["anchor"]["section"] == "plan"
     assert records[0]["title"] == "Options"
@@ -442,7 +439,6 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     record = json.loads(questioned.output)
     assert record["parent"] == asked["id"]
     assert record["responds"] == selected["id"]
-    assert record["html"] is True
     assert QUESTION in record["text"]
     assert record["anchor"] is None
 
@@ -711,6 +707,29 @@ def _reserved_author_response(page_dir):
     return comment, target, prepared.payload["id"], stream
 
 
+def test_progress_draws_formatting_and_holds_no_widget(page_dir):
+    """A progress line reads as any agent message does, so the HTML formatting its
+    words carry draws, but the answer replaces the line, so it holds no widget."""
+    publish(page_dir)
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Can you check this?"}
+    )
+    reference = response_reference(page_dir, asked)
+    with pytest.raises(Refused) as refused:
+        thread_model.post_response(
+            reference,
+            'Checking.\n\n<lf-options id="check" choose>'
+            '<lf-option id="check-now">Now</lf-option></lf-options>',
+            ephemeral=True,
+        )
+    assert refused_on(refused.value).code == "ephemeral-content"
+    line = thread_model.post_response(
+        reference, "Checking <em>this</em> now.", ephemeral=True
+    )
+    assert line is not None and line["ephemeral"] is True
+    assert logged_fragment(line) is not None
+
+
 def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
     """A provider turn's opening is the agent's progress line, as any harness's first
     line is: once complete it posts once, taking the update in hand, so a message the
@@ -832,7 +851,6 @@ def test_provider_response_commits_full_content_before_reconnect(
         f"Choose the store.\n\n{shown}",
         "Storage choice",
     )
-    assert reply["html"] is True
     assert reply["anchor"]["section"] == "plan"
     assert (reply["session"], reply["agent"]) == (author, "Worker")
     retried = CliRunner().invoke(
@@ -864,7 +882,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     comment, target, delivery_id, _stream = _reserved_author_response(page_dir)
     identity = {"session": "worker-1", "agent": "Indexer"}
     thread_model.post_response(
-        target["ref"], f"Worker question?\n\n{QUESTION}", html=True, identity=identity
+        target["ref"], f"Worker question?\n\n{QUESTION}", identity=identity
     )
     payload = delivery_model.read_delivery(delivery_id)
     before = cleanup_model.session_record("codex-thread")
@@ -912,17 +930,15 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     [answer] = thread_model.successful_replies(
         events_model.read_events(page_dir), comment["id"]
     )
-    assert (answer["text"], answer["session"], answer["agent"], answer["html"]) == (
+    assert (answer["text"], answer["session"], answer["agent"]) == (
         f"Worker question?\n\n{QUESTION}",
         "worker-1",
         "Indexer",
-        True,
     ), errors
     assert (
         thread_model.post_response(
             target["ref"],
             f"Worker question?\n\n{QUESTION}",
-            html=True,
             identity=identity,
         )
         == answer
@@ -937,7 +953,6 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
     answer = thread_model.post_response(
         target["ref"],
         f"My question?\n\n{QUESTION}",
-        html=True,
         identity={"session": "codex-thread", "agent": "Codex"},
     )
     assert stream.finish(ending) is None
@@ -951,7 +966,6 @@ def test_explicit_answer_survives_a_provider_ending_without_final_text(
         thread_model.post_response(
             target["ref"],
             f"My question?\n\n{QUESTION}",
-            html=True,
             identity={"session": "codex-thread", "agent": "Codex"},
         )
         == answer
@@ -1055,7 +1069,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
     comment, target, _delivery_id, old = _reserved_author_response(page_dir)
     identity = {"session": "codex-thread", "agent": "Codex"}
     thread_model.post_response(
-        target["ref"], f"Older question?\n\n{QUESTION}", html=True, identity=identity
+        target["ref"], f"Older question?\n\n{QUESTION}", identity=identity
     )
     newer = append_command(
         page_dir,
@@ -1078,10 +1092,9 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (reply["responds"], reply["text"], reply["html"]) == (
+    assert (reply["responds"], reply["text"]) == (
         comment["id"],
         f"Older question?\n\n{QUESTION}",
-        True,
     )
     stream = read_record(page_dir / "stream.json")
     assert stream["reply"]["text"] == "Newer opening"
@@ -1124,7 +1137,6 @@ def test_a_message_by_id_beside_a_reserved_answer_names_the_addressed_reply(page
     )
     assert corrected.exit_code == 0, corrected.output
     answer = json.loads(corrected.output)
-    assert answer["html"] is True
     assert markup in answer["text"]
     assert stream.finish("completed", "Provider final") is None
     assert thread_model.successful_replies(
@@ -1155,7 +1167,6 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
             'Invalid\n\n<lf-unknown id="bad"></lf-unknown>'
             if invalid == "html"
             else "Invalid",
-            html=invalid == "html",
             identity=identity,
             **options,
         )
@@ -1165,7 +1176,6 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
     answer = thread_model.post_response(
         target["ref"],
         f"Corrected question?\n\n{QUESTION}",
-        html=True,
         identity=identity,
     )
     assert stream.finish("completed", "Provider final") is None
@@ -1173,7 +1183,6 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
         events_model.read_events(page_dir), comment["id"]
     ) == [answer]
     assert answer is not None
-    assert answer["html"] is True
     assert QUESTION in answer["text"]
 
 
@@ -1339,7 +1348,6 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
     thread_model.post_response(
         new_target["ref"],
         f"New owner's question?\n\n{QUESTION}",
-        html=True,
         identity=identity,
     )
     if settled:
@@ -1364,8 +1372,7 @@ def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, s
         for event in events_model.read_events(page_dir)
         if event["kind"] == "reply"
     ]
-    assert (answer["responds"], answer["text"], answer["html"]) == (
+    assert (answer["responds"], answer["text"]) == (
         comment["id"],
         f"New owner's question?\n\n{QUESTION}",
-        True,
     )

@@ -11,7 +11,7 @@ import { createPlayground } from "./playground-view.js";
  * popover's head holds Leaf's copy control (`copyControl`). Rejected: unfolding
  * the instruction in the pane, which had to grow below the bar in a flowing page and
  * above it at the foot of a held workspace, and still moved the bar wherever a stage
- * at its floor, a resize or a short window left it no room (2026-10-25).
+ * at its floor, a resize or a short window left it no room.
  *
  * The playground owns the complete working configuration. Contributors declare a
  * named default and its editor root, and get an immutable slice handle; set replaces
@@ -40,10 +40,10 @@ import { createPlayground } from "./playground-view.js";
  * never changes them, so undoing a choice leaves the controls as the user set them,
  * ready to adjust and resubmit; Reset records the authored defaults. Rejected: tab-local
  * storage, which lost the settings with the tab and kept them from the agent, who
- * answered comments on the preview without knowing what it showed (2026-10-30).
+ * answered comments on the preview without knowing what it showed.
  * Each tune records the whole configuration, so a preset or Reset is one gesture Undo
  * takes back whole; when two tabs' records cross in flight, the later one sets every
- * field. Rejected: a tune per field, which would split those gestures (2026-10-31).
+ * field. Rejected: a tune per field, which would split those gestures.
  * The submit control withdraws the current choice while its values and instruction
  * match the working configuration; editing either makes it submit a replacement. Its
  * face derives from that comparison, never from delivery timing or a separate saved
@@ -61,8 +61,7 @@ import { createPlayground } from "./playground-view.js";
  * does any submission of a form inside the playground, which would leave the page.
  * Rejected: methods the page calls from its own handlers with a decision state to label
  * from, which would leave every page to restate when the press withdraws the choice;
- * an attribute and a script call that handed over buttons the markup could name
- * (2026-11-16). */
+ * an attribute and a script call that handed over buttons the markup could name. */
 import { render } from "/vendor/lit.js";
 import {
   compoundReadingRegionId,
@@ -662,15 +661,21 @@ customElements.define(
       }
     }
 
+    // A choice records the controls' values. It still matches when a reload restored
+    // one of its values before that contributor registered, and ignores a name the
+    // settings hold that neither the choice nor any control does, such as a field an
+    // earlier revision had.
     #chosen() {
       const choice = this.state?.choose;
-      return Boolean(
-        choice &&
-        "action" in choice &&
-        choice.action &&
+      if (!choice || !("action" in choice) || !choice.action) return false;
+      const recorded = /** @type {Configuration} */ (choice.detail.values);
+      const waiting = Object.entries(this.#pendingValues).filter(([name]) =>
+        Object.hasOwn(recorded, name),
+      );
+      return (
         choice.detail.instruction === this.#instruction() &&
-        configurationJSON(choice.detail.values) ===
-          configurationJSON({ ...this.#pendingValues, ...this.values }),
+        configurationJSON(recorded) ===
+          configurationJSON({ ...Object.fromEntries(waiting), ...this.#values })
       );
     }
 

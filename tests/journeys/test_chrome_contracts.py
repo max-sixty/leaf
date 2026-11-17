@@ -275,8 +275,7 @@ def test_shift_enter_and_tab_keep_a_draft_in_the_containers_the_message_will_hol
         # Tab in a list item nests it under the item above, where the message will draw
         # it as a nested item, in the platform's nested bullet; Shift+Tab takes it out a
         # level, and one undo takes back one Tab. The first item, with no item to nest
-        # under, stays and keeps the caret. Elsewhere Tab and Shift+Tab leave the field,
-        # as they used to from a list too.
+        # under, stays and keeps the caret. Elsewhere Tab and Shift+Tab leave the field.
         field = page_comment(page)
         left = type_drafts(page, field, NESTING)
         assert left == {name: draft for name, (_, draft) in NESTING.items()}

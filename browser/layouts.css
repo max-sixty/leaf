@@ -996,6 +996,9 @@
       > footer {
       padding-block-end: var(--lf-foot-room);
     }
+    /* The body keeps the panel's room after what it holds, and a scroll that brings a
+     * control into view stops that far short of its end, as a pane's body does
+     * (base.css), whether the control is the body's own or a widget's in it. */
     html[data-lf-live][data-lf-layout~="workspace"]
       body
       > main.layout-workspace
@@ -1003,6 +1006,7 @@
         :has(> [data-lf-reading-role="pane"])
       ) {
       padding-block-end: var(--lf-end-room);
+      scroll-padding-block-end: var(--lf-end-room);
     }
   }
   /* Where the workspace flows no pane body scrolls, so a box of panes ends the page
@@ -1183,9 +1187,9 @@
        * own regions there, such as a playground, fills the window below a premise,
        * straight under the heading, or alone in a group the workspace's header names.
        * The context keeps its own height, and the answer keeps at least its own: a
-       * list of options takes its content's height
-       * below a long premise, and the section scrolls, where a playground, which fits
-       * its parts to any height it is given, says it may shrink (playground/defaults.css).
+       * list of options takes its content's height below a long premise, and a
+       * playground the minimum of its stage and bar (playground/defaults.css), and the
+       * section scrolls.
        * Every child hears the height the section is told, the context's included, so
        * the context is held at its own height: a playground followed by a note is
        * context, and would otherwise shrink to make room for the note and draw its

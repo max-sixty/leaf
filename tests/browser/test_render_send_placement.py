@@ -1308,7 +1308,7 @@ def test_a_card_grows_past_a_region_that_does_not_scroll_its_subject(
         # The shot at the window's head keeps the grown card clear of the window's foot.
         # There, an answer that grows a card beside its subject moves it into the
         # window's plane, reply box included, a jump the shift watch rightly reports and
-        # a longer answer shows on main too. Move the shot back once that is fixed.
+        # a longer answer shows on main too. Move the shot back once #6278 is fixed.
         shot.evaluate("node => node.scrollIntoView({block: 'start'})")
         if subject == "shot-actual":
             shot.get_by_role("button", name="Image options").click()

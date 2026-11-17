@@ -124,7 +124,11 @@ def test_playground_contributor_needs_no_field(browser, serve):
     assert output.inner_text() == instruction
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     playground.get_by_role("button", name="Copy instruction").click()
-    expect(page.get_by_text("Instruction copied", exact=True)).to_be_visible()
+    expect(
+        page.get_by_role("region", name="Leaf").get_by_text(
+            "Instruction copied", exact=True
+        )
+    ).to_be_visible()
     assert page.evaluate("navigator.clipboard.readText()") == instruction
     page.keyboard.press("Escape")
     with sending(page, "the contributor-only configuration"):
@@ -408,7 +412,11 @@ def test_authored_playground_copies_and_sends_its_instruction_blocks(browser, se
     )
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     playground.get_by_role("button", name="Copy instruction").click()
-    expect(page.get_by_text("Instruction copied", exact=True)).to_be_visible()
+    expect(
+        page.get_by_role("region", name="Leaf").get_by_text(
+            "Instruction copied", exact=True
+        )
+    ).to_be_visible()
     assert page.evaluate("navigator.clipboard.readText()") == instruction
     page.keyboard.press("Escape")
     with sending(page, "the authored configuration"):

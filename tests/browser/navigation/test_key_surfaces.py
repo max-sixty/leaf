@@ -259,7 +259,9 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
               dispatchEvent(new Event('resize'));
             }"""
     )
-    expect(panel_field(page)).to_have_attribute("placeholder", "Saved")
+    # The field's end still names its press, Next On Me while On Me lists anything,
+    # but not the key that makes it.
+    expect(panel_field(page)).to_have_attribute("placeholder", "Saved · Next On Me")
 
     # And the page is still whole underneath. Everything that asks how far down the
     # page reaches asks it of the chrome's box, and one with no box answers 0 — the top

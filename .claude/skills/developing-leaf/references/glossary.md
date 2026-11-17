@@ -69,7 +69,8 @@ where the user stands (“3 of 11”, a time).
 Neither they nor Leaf's italic words narrate the agent from outside (“Claude is
 working”, “Waiting for Claude”), which puts a third party between the user and the
 agent; Leaf names the agent only where the agent isn't the one acting, as in “Queued
-for Claude”.
+for Claude”, and in the panel's resting line, “Claude awaits”, which the user chose on
+16 November 2026 over “Ready” alone.
 
 The agent's lines take no first person, so *me* and *my* always mean the user: **Me**
 as an author, **Waiting on me** and **On Me**, **my change**, and commands such as

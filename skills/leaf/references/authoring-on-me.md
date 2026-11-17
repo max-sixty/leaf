@@ -88,21 +88,27 @@ answer it. To retire one yourself, say what changed to make it unnecessary.
 
 Make each question answerable where On Me takes the user: pressing `m` selects the
 whole question and brings its start to the top of the window, leaving earlier content
-out of view. Write each question as a group you name: a `<section>` with an id,
-`role="group"` and `aria-labelledby` naming the id of a heading that asks the question
-on its own, without leaning on the prose around it, with any eyebrow beside the heading
-in an `<hgroup>`. The group is the region `m` selects, and the words it
-is named by are the question's words on On Me and in the answer you receive; Leaf reads
-both from that markup, so `page check` refuses a widget that asks with no named group
-round it. Inside the group, build the question around the material the user judges:
-why it arises, the current state and its evidence. Shared evidence and its limits come
-before the answering control; optional detail follows it. Each widget in the group that
-asks is its own question with its own answer.
+out of view. Write each question as a group you name: the `<section>` holding the
+question and its case, with an id, `role="group"` and `aria-labelledby` naming the id
+of its opening heading, which asks the question on its own, without leaning on the
+prose around it, with any eyebrow beside the heading in an `<hgroup>`. The words the
+group is named by are the question's words on On Me and in the answer you receive; Leaf
+reads the region and its name from that markup, so `page check` refuses a widget that
+asks with no named group round it.
+
+The group is the region `m` selects, so it holds everything the user judges: why the
+question arises, the current state and its evidence, such as a capture of today or a
+measured table. Shared evidence and its limits come before the answering control;
+optional detail follows it. Where a section shows a finding and then asks about it,
+that section is the group and its heading asks; a smaller group round only the heading
+and options, after the evidence, leaves the evidence outside what `m` selects. Each
+widget in the group that asks is its own question with its own answer.
 
 ```html
 <section id="material-q" role="group" aria-labelledby="material-h">
   <h2 id="material-h">Which material for the housing?</h2>
   <p>Aluminium costs three times as much and halves the weight.</p>
+  <table id="material-weights">…</table>
   <lf-options id="material">…</lf-options>
 </section>
 ```

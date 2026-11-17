@@ -83,6 +83,7 @@ import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
 import {
   addressableLabel,
   afterScript,
+  authoredTitle,
   setScroll,
   actionTemplate,
   agentName,
@@ -627,11 +628,13 @@ export class TabSet extends LeafElement {
     this.#pageFlow = this.#parts ? this.#root : this.getAttribute("flow") === "page";
     // The strip is named as the chrome names the set (`addressableLabel`): its author's
     // `aria-label`, else the nearest element holding it that has a name, such as its
-    // section. The page's navigation stands in no section, and the page's title names it.
+    // section. The page's navigation stands in no section, and the page's `<title>`
+    // names it: `main` has no name of its own, so its label would be its words run
+    // together.
     keeps(
       this.#strip,
       "aria-label",
-      addressableLabel(this) || (this.#root ? addressableLabel(main) : "") || null,
+      addressableLabel(this) || (this.#root ? authoredTitle() : "") || null,
     );
     this.#declareHeader();
     // A set that changed flow drew its open panel at another width.

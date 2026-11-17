@@ -239,7 +239,7 @@ def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
     url = serve(REPLY_TRAVEL_PAGE)
     seed_reply(
         serve.page_dir,
-        '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<lf-ask id="tv-decision-region">\n<h3>Which store should I write up?</h3>'
         '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-ask>",
@@ -320,7 +320,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     )
     seed_reply(
         serve.page_dir,
-        '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
+        '<lf-ask id="tv-decision-region">\n<h3>Which store should I write up?</h3>'
         '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-ask>",

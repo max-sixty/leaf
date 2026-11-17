@@ -20,8 +20,8 @@
   {
     "source": "<lf-options id=\"pick\"><lf-option id=\"pick-a\">**A**</lf-option></lf-options>",
     "html": true,
-    "elements": ["lf-options#pick", "lf-option#pick-a"],
-    "words": "**A**"
+    "elements": ["p", "lf-options#pick", "lf-option#pick-a", "strong"],
+    "words": "A"
   },
   {
     "source": "<details><summary>Log</summary>\n\nLine **one**\n</details>",
@@ -62,24 +62,16 @@
     "words": "Quoted K First span"
   },
   {
-    "source": "Here:\n\n<lf-code id=\"c\">\n<pre>def a():\n    return 1\n\ndef b():\n    return 2\n</pre>\n</lf-code>\n\nAfter **bold**",
+    "source": "Here:\n\n<lf-code id=\"c\">\n\n<pre>def a():\n    return 1\n\ndef b():\n    return 2\n</pre>\n\n</lf-code>\n\nAfter **bold**",
     "html": true,
     "elements": ["p", "lf-code#c", "pre", "p", "strong"],
     "words": "Here: def a(): return 1 def b(): return 2 After bold"
   },
   {
-    "source": "Which?\n<lf-ask id=\"ask\"><h3>Store</h3><lf-options id=\"store\"><lf-option id=\"store-a\">A</lf-option></lf-options></lf-ask>\nMore *words*",
+    "source": "Which?\n<lf-options id=\"store\"><lf-option id=\"store-a\">A</lf-option></lf-options>\nMore *words*",
     "html": true,
-    "elements": [
-      "p",
-      "lf-ask#ask",
-      "h3",
-      "lf-options#store",
-      "lf-option#store-a",
-      "p",
-      "em"
-    ],
-    "words": "Which? StoreA More words"
+    "elements": ["p", "br", "lf-options#store", "lf-option#store-a", "br", "em"],
+    "words": "Which? A More words"
   },
   {
     "source": "Pick <lf-options id=\"inline\"><lf-option id=\"inline-a\">A</lf-option></lf-options> now",
@@ -94,7 +86,7 @@
     "words": "words"
   },
   {
-    "source": "Sets <code class=\"language-math\">\\{a, b\\} \\, x*y*z</code> are **fine**",
+    "source": "Sets <code class=\"language-math\">\\\\{a, b\\\\} \\\\, x\\*y\\*z</code> are **fine**",
     "html": true,
     "elements": ["p", "code.language-math", "strong"],
     "words": "Sets \\{a, b\\} \\, x*y*z are fine"
@@ -106,9 +98,9 @@
     "words": "Example read this x"
   },
   {
-    "source": "İ <code>x</code>**bold**",
-    "html": true,
-    "elements": ["p", "code", "strong"],
-    "words": "İ xbold"
+    "source": "    # Indented words\n    - stay a paragraph",
+    "html": false,
+    "elements": ["p", "br"],
+    "words": "# Indented words - stay a paragraph"
   }
 ]

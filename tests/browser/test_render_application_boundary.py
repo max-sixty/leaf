@@ -2002,7 +2002,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
             "author": "agent",
             "revision": 1,
             "text": "Which channel?\n\n"
-            '<lf-ask id="channel-ask"><h3>Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
+            '<lf-ask id="channel-ask">\n<h3>Channel</h3><lf-options id="channel-options"><lf-option id="email">Email</lf-option><lf-option id="chat">Chat</lf-option></lf-options></lf-ask>',
         },
     )
     page = open_page(browser, url)

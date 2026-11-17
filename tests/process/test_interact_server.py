@@ -570,7 +570,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
             "author": "agent",
             "parent": "aabb0011",
             "revision": 1,
-            "text": 'Seeded reply\n\n<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
+            "text": 'Seeded reply\n\n<lf-code id="seed-code">\n<pre><code class="language-python">print("seed")</code></pre></lf-code>',
         },
     )
     before = event_model.read_events(page_dir)
@@ -584,7 +584,7 @@ def test_samples_seed_only_the_declared_threads_and_reset_by_recreation(
         assert status == 200, raw
         assert [event["text"] for event in json.loads(raw)["events"]] == [
             "Selected thread",
-            'Seeded reply\n\n<lf-code id="seed-code"><pre><code class="language-python">print("seed")</code></pre></lf-code>',
+            'Seeded reply\n\n<lf-code id="seed-code">\n<pre><code class="language-python">print("seed")</code></pre></lf-code>',
         ]
     assert children[0] != children[1]
     assert event_model.read_events(page_dir) == before
@@ -2700,7 +2700,7 @@ def test_server_resolves_actions_from_agent_thread_widgets(server, page_dir):
             "--text",
             (
                 "Pick one:\n\n"
-                '<lf-ask id="thread-pick-decision"><h3>Which option?</h3>'
+                '<lf-ask id="thread-pick-decision">\n<h3>Which option?</h3>'
                 '<lf-options id="thread-pick">'
                 '<lf-option id="thread-a"><strong>A</strong></lf-option>'
                 "</lf-options></lf-ask>"
@@ -5070,7 +5070,7 @@ def test_sample_fixtures_share_captured_history_but_isolate_child_gestures(
             "kind": "reply",
             "parent": "aabb0011",
             "author": "agent",
-            "text": 'A sample answer\n\n<lf-code id="answer-code"><pre><code class="language-python">1</code></pre></lf-code>',
+            "text": 'A sample answer\n\n<lf-code id="answer-code">\n<pre><code class="language-python">1</code></pre></lf-code>',
         },
         {
             "kind": "action",

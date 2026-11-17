@@ -285,7 +285,10 @@ CHANGE_HEAD = "<h1 id='dc-h'>Session store</h1>"
 CHANGE_PAGE = leaf_page("doc-change", CHANGE_HEAD + PAGE_CHANGE)
 
 
-REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-")
+# A reply's widget starts a line of its own, so Markdown keeps it one block.
+REPLY_CHANGE = PAGE_CHANGE.replace("tv-doc-", "tv-msg-").replace(
+    "<lf-old>", "\n<lf-old>", 1
+)
 
 
 def seed_reply(d, markup, anchor_id, chatter=0, after=0):

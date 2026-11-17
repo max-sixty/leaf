@@ -115,7 +115,7 @@ def test_an_undeclared_answer_names_what_lets_its_widget_ask(page_dir):
     asked = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Which wording?"}
     )
-    shown = '<lf-draft id="wording"><pre>\nShip on Monday.</pre></lf-draft>'
+    shown = '<lf-draft id="wording">\n<pre>\nShip on Monday.</pre></lf-draft>'
     refused = CliRunner().invoke(
         cli_model.cli,
         ["thread", "reply", response_reference(page_dir, asked)]
@@ -230,7 +230,7 @@ def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, e
             with pytest.raises(Refused) as refused:
                 thread_model.post_response(
                     reference,
-                    'Checking.\n\n<lf-options id="check" choose>'
+                    'Checking.\n\n<lf-options id="check">'
                     '<lf-option id="check-now">Now</lf-option></lf-options>',
                     ephemeral=True,
                 )
@@ -660,7 +660,7 @@ def test_progress_draws_formatting_and_holds_no_widget(page_dir):
     with pytest.raises(Refused) as refused:
         thread_model.post_response(
             reference,
-            'Checking.\n\n<lf-options id="check" choose>'
+            'Checking.\n\n<lf-options id="check">'
             '<lf-option id="check-now">Now</lf-option></lf-options>',
             ephemeral=True,
         )

@@ -1931,7 +1931,7 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         serve.page_dir,
         {"responds": root},
         "The **room** photo.\n\n"
-        '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
+        '<lf-ask id="crop">\n<h3>Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick"><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
     )
@@ -4871,7 +4871,7 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice">'
+        '<lf-ask id="week">\n<h3>Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
     )
@@ -4916,7 +4916,7 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Which week suits?\n\n"
-        '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice">'
+        '<lf-ask id="week">\n<h3>Which week?</h3><lf-options id="week-choice">'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
     )
@@ -4998,7 +4998,7 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         serve.page_dir,
         {"responds": root},
         "Choose the first job.\n\n"
-        '<lf-ask id="first-job-decision"><h3>Which job first?</h3>'
+        '<lf-ask id="first-job-decision">\n<h3>Which job first?</h3>'
         '<lf-options id="first-job">'
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'

@@ -288,7 +288,7 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         serve.page_dir,
         {"responds": root},
         "The complete answer.\n\n"
-        '<lf-ask id="stream-reply-ask"><h3>Use this answer?</h3>'
+        '<lf-ask id="stream-reply-ask">\n<h3>Use this answer?</h3>'
         '<lf-options id="stream-reply-choice">'
         '<lf-option id="stream-reply-now">Use it now</lf-option>'
         "</lf-options></lf-ask>",

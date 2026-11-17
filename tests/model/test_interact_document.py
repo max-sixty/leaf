@@ -2245,7 +2245,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "thread",
             "create",
             "--text",
-            'Which store?\n\n<lf-ask id="t-ask"><h3>Store?</h3><lf-options id="t-store">'
+            'Which store?\n\n<lf-ask id="t-ask">\n<h3>Store?</h3><lf-options id="t-store">'
             '<lf-option id="t-sqlite"><strong>sqlite</strong></lf-option>'
             "</lf-options></lf-ask>",
         ).output.splitlines()
@@ -3370,7 +3370,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Which mitigations?\n\n<lf-ask id="gm-decision"><h2>Which mitigations?</h2>'
+            "text": 'Which mitigations?\n\n<lf-ask id="gm-decision">\n<h2>Which mitigations?</h2>'
             '<lf-options id="gm" multiple>'
             '<lf-option id="m-cap"><strong>Cap retries</strong></lf-option>'
             '<lf-option id="m-alert"><strong>Alert</strong></lf-option>'
@@ -4320,7 +4320,7 @@ def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_lo
     }
     with_modules(registry, "lf-draft")
     page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
-    frozen = '<lf-draft id="frozen-draft"><pre>Frozen authored.</pre></lf-draft>'
+    frozen = '<lf-draft id="frozen-draft">\n<pre>Frozen authored.</pre></lf-draft>'
 
     def action(identity, text, seq):
         return {
@@ -4486,9 +4486,13 @@ def test_message_html_lands_where_the_browser_draws_it(case):
     whose HTML changes what it draws holds HTML."""
     import turbohtml
 
+    # A <br> parts the words around it, as Leaf reads them (markdown.js,
+    # `renderedWords`), whatever formatting text each parser writes after it.
     def words(node):
         if isinstance(node, turbohtml.Text):
             return node.data
+        if getattr(node, "tag", None) == "br":
+            return "\n"
         return "".join(map(words, getattr(node, "children", ())))
 
     def elements(node):

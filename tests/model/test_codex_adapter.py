@@ -23,6 +23,7 @@ from conftest import CLAUDE_IDENTITY, HOOKED_SESSIONS, LEAF_COMMAND
 from interact_support import (
     EVERY_TURN_DEPENDENCIES,
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _observer,
     _watched,
@@ -315,9 +316,7 @@ def test_embedded_codex_delivery_keeps_the_pages_complete_batch_in_log_order(pag
     action ahead of a comment, input a reply already settled, and an event that owes no
     answer."""
     (page_dir / "index.html").write_text(
-        PAGE.replace(
-            "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
-        )
+        PAGE.replace(PAGE_GROUP, '<lf-options id="plan-choice" multiple>', 1)
     )
     publish(page_dir)
     action = append_command(

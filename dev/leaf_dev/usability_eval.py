@@ -293,8 +293,8 @@ def build_resume(run: Run, page: Path) -> None:
     # inside the options that makes the save invalid, so the live page stays at v2.
     candidate = v2.replace(inputs["original_date"], inputs["unsaved_date"])
     candidate = candidate.replace(
-        '<lf-options id="rollout" required>',
-        '<lf-options id="rollout" required>\n' + inputs["invalid_child"],
+        '<lf-options id="rollout">',
+        '<lf-options id="rollout">\n' + inputs["invalid_child"],
     )
     assert candidate.count("3 November") == 1 and "approach-deadline" in candidate
     (page / "index.html").write_text(candidate)

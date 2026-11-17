@@ -399,7 +399,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
     muted ring on paper at full opacity, so that a field with nothing in it reads as
     quiet rather than as broken. Pinning the number would pin whichever of the two
     happened to be on this page. The badges are
-    read outside a `required` group on purpose: a card group makes the whole option the
+    read outside an option group on purpose: a card group makes the whole option the
     press, so a chip inside one inherits the hand from the control it is sitting in and
     would be answering this question about its parent. The wash is the aim, read as a
     change against each control's own resting shadow rather than against a constant: a

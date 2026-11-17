@@ -75,7 +75,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
     """Each effect admits its fixed fields and refuses aliases, extras and wrong types."""
     registry = vocabulary(page_dir)
     source = (
-        '<lf-options id="picks" required><lf-option id="first">First</lf-option></lf-options>'
+        '<lf-options id="picks"><lf-option id="first">First</lf-option></lf-options>'
         '<lf-draft id="draft"><pre>Initial words</pre></lf-draft>'
         '<lf-board id="board"><lf-column id="todo" label="Todo">'
         '<lf-card id="card">Card</lf-card></lf-column>'
@@ -161,10 +161,10 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
         options["server"]["state"]["choose"]["writer"] = "agent"
     registry_validation.validate_registry(registry, "test registry")
     page = ModelPage(
-        '<lf-options id="owned" required multiple>'
+        '<lf-options id="owned" multiple>'
         '<lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options>'
-        '<lf-options id="elsewhere" required>'
+        '<lf-options id="elsewhere">'
         '<lf-option id="foreign">Foreign</lf-option></lf-options>',
         registry=registry,
     )

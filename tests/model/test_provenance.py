@@ -217,7 +217,7 @@ def test_a_version_is_read_under_its_own_document():
     registry["lf-options"]["attributes"]["properties"]["resolves"] = {"type": "string"}
     first = leaf_page(
         "Options",
-        '<lf-options id="picks" required resolves="e2">'
+        '<lf-options id="picks" resolves="e2">'
         '<lf-option id="option-a">A</lf-option><lf-option id="option-b">B</lf-option>'
         '</lf-options><lf-options id="other"><lf-option id="option-c">C</lf-option>'
         "</lf-options>",
@@ -354,7 +354,7 @@ def owned_page(owners):
     return leaf_page(
         "Owned",
         "".join(
-            f'<lf-options id="g{group}" required{" multiple" * (group == 2)} resolves="e2">'
+            f'<lf-options id="g{group}"{" multiple" * (group == 2)} resolves="e2">'
             + "".join(
                 f'<lf-option id="o{option}">Option {option}</lf-option>'
                 for option, home in enumerate(owners)

@@ -31,7 +31,7 @@ export function sealedAxes(style) {
 // check is quiet; nothing is past the column, so that gate is quiet; the words are in a
 // text node and technically selectable, so the unreachable-words gate is quiet. What the
 // user gets is a question with no visible way to answer it — which is exactly what
-// shipped: a `required` group in its row form states `width: 100%` on options that a
+// shipped: an option group in its row form states `width: 100%` on options that a
 // live-page rule gives a 30px keyboard-address rail, and under the default box-sizing
 // those are the row's width *plus* its padding, so every row ran 28px wider than the
 // group whose `overflow: hidden` keeps its cells' hairlines square. The last cell is the

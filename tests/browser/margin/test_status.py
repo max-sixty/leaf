@@ -1002,7 +1002,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     group that waits for Done hands the agent nothing, so it has no receipt.
     """
     single = OBLIGATION_PAGE.replace(
-        '<lf-options id="jobs" required multiple>', '<lf-options id="jobs" required>'
+        '<lf-options id="jobs" multiple>', '<lf-options id="jobs">'
     )
     page = open_page(browser, live_url(serve(single)))
     page_dir = serve.page_dir

@@ -60,7 +60,7 @@ def caches(group: str = "cache") -> str:
     advised, as `threads.md` ("Ask for a pick") writes one, under ids new to the
     page."""
     return (
-        f'<lf-options id="{group}" required>\n'
+        f'<lf-options id="{group}">\n'
         f'<lf-option id="{group}-lru"><small class="tag ok">recommended</small> '
         "<strong>Use the LRU cache</strong> 81% hits</lf-option>\n"
         f'<lf-option id="{group}-ttl"><strong>Use the TTL cache</strong></lf-option>\n'
@@ -279,12 +279,12 @@ def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, caps
     assert (
         f'Leaf asked the user "LRU or TTL" On Me, in a new thread on {page} as a '
         f"whole, opened by your message {record['id']}:\n> LRU or TTL: which would "
-        'you like?\n> \n> <lf-options id="cache" required>\n'
+        'you like?\n> \n> <lf-options id="cache">\n'
     ) in context
     assert "the user's answer in its widget reaches you as any answer does" in context
     assert (
         '\n- decision in the agent\'s message in "LRU or TTL": LRU or TTL: which '
-        'would you like? <lf-options id="cache" required>' in asked()["prompt"]
+        'would you like? <lf-options id="cache">' in asked()["prompt"]
     )
     assert (
         clerk_model.take_answer("s1", reply(page, "LRU or TTL"), basis)["wrote"] == []
@@ -319,7 +319,7 @@ def test_a_choice_leaf_refuses_is_asked_in_words(claimed, capsys):
         True,
         False,
     )
-    assert '<lf-options id="cache" required>' in record["text"]
+    assert '<lf-options id="cache">' in record["text"]
     context = hook(capsys, "PostToolBatch")
     assert "Leaf refused the HTML in it, so the message shows it as words" in context
     assert "cache" in context.split("Leaf refused the HTML in it")[1]
@@ -515,7 +515,7 @@ def test_a_widget_in_a_message_reads_as_its_own_question(claimed, capsys):
             "title": "Next steps",
             "text": "The benchmark is complete. Please answer below.\n\n"
             '<lf-ask id="ask-cache">\n<h3>Which cache should we use?</h3>\n'
-            '<lf-options id="cache" required><lf-option id="lru">LRU</lf-option>'
+            '<lf-options id="cache"><lf-option id="lru">LRU</lf-option>'
             '<lf-option id="ttl">TTL</lf-option></lf-options>\n</lf-ask>',
             "html": True,
         },

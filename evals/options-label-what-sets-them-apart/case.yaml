@@ -44,7 +44,7 @@ vars:
           return f'''  <lf-ask id="{i}-ask">
           <h3>{E(q)}</h3>
           {ctx}
-          <lf-options id="{i}" required>
+          <lf-options id="{i}">
       {o}    </lf-options>
         </lf-ask>
       '''

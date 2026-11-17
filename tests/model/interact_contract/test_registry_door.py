@@ -178,7 +178,7 @@ def test_the_registry_door_demands_restated_of_a_whole_fold_widget(page_dir):
     ("key", "value"),
     [
         ("server.awaits", []),
-        ("server.awaits", {"when": {"required": True}}),
+        ("server.awaits", {"when": {"settled": True}}),
         ("content", "words"),
         ("markup.owners", []),
         # Each of these names attributes, so an empty one declares nothing while
@@ -656,9 +656,9 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
         (
             "lf-options",
             "server.awaits",
-            {"when": {"required": ["yes"]}},
+            {"when": {"settled": ["yes"]}},
             "predicate-schema",
-            {"key": "server.awaits", "attr": "required", "value": "yes"},
+            {"key": "server.awaits", "attr": "settled", "value": "yes"},
         ),
         (
             "lf-options",
@@ -705,7 +705,7 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
         (
             "lf-options",
             "server.awaits",
-            {"when": {"required": [True]}, "retired": "settled"},
+            {"when": {"multiple": [True]}, "retired": "settled"},
             "awaits-retired",
             {"flag": "settled"},
         ),

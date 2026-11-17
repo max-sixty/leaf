@@ -805,7 +805,7 @@
   // `summary`, a widget's own native control — and replacing it everywhere would be a
   // change to how the product looks rather than a thing this test is owed.
   //
-  // The layer's focus ring is the second, on the stop, a child, or an ancestor: a `required` group
+  // The layer's focus ring is the second, on the stop, a child, or an ancestor: an option group
   // takes the ring for the pick mark inside it, whose own rule states `outline: none`
   // exactly so the two do not both draw, and the user sees the group.
   //

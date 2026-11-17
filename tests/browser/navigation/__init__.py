@@ -45,7 +45,7 @@ def color_cue_markup():
         + "".join(
             f'<lf-tab id="{name}" label="{name}">'
             f'<lf-ask id="ask-{name}"><h2>Choose {name}?</h2>'
-            f'<lf-options id="choice-{name}" required>'
+            f'<lf-options id="choice-{name}">'
             f'<lf-option id="yes-{name}">Yes</lf-option>'
             f'<lf-option id="no-{name}">No</lf-option></lf-options>'
             "</lf-ask></lf-tab>"

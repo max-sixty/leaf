@@ -55,7 +55,7 @@ test("capture keeps authored values and parentage when rendering moves members",
 
 test("an attribute record counts only Leaf elements among its members", () => {
   document.body.innerHTML =
-    '<main><lf-options id="size" required><lf-option id="small" selected>Small <select id="unit"><option id="unit-m" selected>m</option></select></lf-option><lf-option id="large">Large</lf-option></lf-options></main>';
+    '<main><lf-options id="size"><lf-option id="small" selected>Small <select id="unit"><option id="unit-m" selected>m</option></select></lf-option><lf-option id="large">Large</lf-option></lf-options></main>';
   adoptRegistry({
     $layer: { generation: "native-selected" },
     "lf-options": {

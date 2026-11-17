@@ -17,6 +17,7 @@ import pytest
 from click.testing import CliRunner
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
     acknowledged_through,
@@ -1534,7 +1535,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     opens hands the move over. That turn ends without answering it, so the watch
     wakes another, whose prompt names the answer it owes."""
     page = claimed
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice">')
     (page / "index.html").write_text(source)
     publish(page)
     session_model.cmd_waiting(page)

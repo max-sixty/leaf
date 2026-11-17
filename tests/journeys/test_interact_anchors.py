@@ -540,7 +540,7 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "Ship dark",
             "--text",
             "Pick:\n\n"
-            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1" required>'
+            '<lf-ask id="q1-decision"><h3>Pick one</h3><lf-options id="q1">'
             '<lf-option id="q1-a"><strong>A</strong>'
             '<span id="thread-label">Label</span></lf-option></lf-options></lf-ask>',
         ).exit_code

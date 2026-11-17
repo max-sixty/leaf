@@ -3317,7 +3317,7 @@ FRAMED_TABLES_PAGE = leaf_page(
 <lf-ask id="figure-asked">
 <h2>Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
-<lf-options id="figure-asked-choice" required>
+<lf-options id="figure-asked-choice">
 <lf-option id="figure-asked-early"><strong>Early</strong> End it at 16:00.</lf-option>
 <lf-option id="figure-asked-late"><strong>Late</strong> End it at 18:00.</lf-option>
 </lf-options>
@@ -3326,7 +3326,7 @@ FRAMED_TABLES_PAGE = leaf_page(
 <lf-ask id="asked">
 <h2>Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
-<lf-options id="asked-choice" required>
+<lf-options id="asked-choice">
 <lf-option id="asked-early"><strong>Early</strong> Move it to 8:00.</lf-option>
 <lf-option id="asked-late"><strong>Late</strong> Move it to 10:00.</lf-option>
 </lf-options>
@@ -3776,7 +3776,7 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
           <figcaption>Caption.</figcaption></figure>
         <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>
         <lf-ask id="asked" data-width="available"><h2>Ship it?</h2><p>Words.</p>
-          <lf-options id="choice" required><lf-option id="yes">Yes</lf-option></lf-options>
+          <lf-options id="choice"><lf-option id="yes">Yes</lf-option></lf-options>
         </lf-ask>""",
     )
     page = open_page(browser, serve(source))
@@ -3856,7 +3856,7 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     sideways scroll, so it is not clipped out."""
     item = """<lf-ask id="{id}"><h2>Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
-  <lf-options id="{id}-o" required><lf-option id="{id}-a">This one</lf-option></lf-options>
+  <lf-options id="{id}-o"><lf-option id="{id}-a">This one</lf-option></lf-options>
 </lf-ask>"""
     source = leaf_page(
         "Reaching past the column",

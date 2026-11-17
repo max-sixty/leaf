@@ -339,7 +339,7 @@ def test_revendoring_can_change_frozen_thread_widget_vocabulary(
     )
     markup = (
         '<lf-ask id="thread-choice-decision"><h3>Which option?</h3>'
-        '<lf-options id="thread-choice" required>'
+        '<lf-options id="thread-choice">'
         '<lf-option id="thread-a">A</lf-option>'
         "</lf-options></lf-ask>"
     )

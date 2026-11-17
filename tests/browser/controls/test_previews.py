@@ -209,7 +209,7 @@ def test_a_control_whose_words_stand_beside_it_previews_nothing(browser, serve):
 
 # Option cards whose picks Done completes.
 FEEDERS = """<lf-ask id="ask"><h2>Which feeders should we refill?</h2>
-<lf-options id="feeders" required multiple>
+<lf-options id="feeders" multiple>
 <lf-option id="feeder-porch"><strong>The porch feeder</strong> Seen from the kitchen.
 </lf-option>
 <lf-option id="feeder-oak"><strong>The oak feeder</strong> Out of the wind.</lf-option>
@@ -795,12 +795,12 @@ has <a id="to-support" href="#support">its own heading</a>.</p>
 <p id="stall-detail">One reconnect in about 40 stalls until the app is backgrounded.</p>
 </section>
 <lf-ask id="decision"><h3>Patch decision</h3>
-<lf-options id="decision-options" required>
+<lf-options id="decision-options">
   <lf-option id="decision-ship" selected>Ship with the resend.</lf-option>
   <lf-option id="decision-hold">Hold the patch.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="meeting"><h3>Where should the group meet?</h3>
-<lf-options id="meeting-options" required settled>
+<lf-options id="meeting-options" settled>
   <lf-option id="meeting-door">At the door</lf-option>
   <lf-option id="meeting-desk" selected>At reception</lf-option>
 </lf-options></lf-ask>
@@ -1740,7 +1740,7 @@ def _held(page, cdp, selector, words):
 # a suggestion's old words and a playground's preview.
 WIDGET_WORDS = (
     '<lf-code id="code"><pre><code class="language-python">marked_code = 1</code></pre></lf-code>'
-    '<lf-options id="opts" required><lf-option id="o1"><small class="tag">small cohort'
+    '<lf-options id="opts"><lf-option id="o1"><small class="tag">small cohort'
     "</small> <strong>Start small</strong> Then widen.</lf-option>"
     '<lf-option id="o2"><strong>Start wide</strong> Then '
     '<a id="o2-link" href="#destination">trim the list</a>.</lf-option></lf-options>'

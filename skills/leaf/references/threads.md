@@ -191,7 +191,7 @@ finished work.
 
 When a message asks the user to choose among answers you can list, such as which of two
 ways to proceed or whether to take an action, send the answers in the message as an
-`<lf-options id="…" required>` group holding an `<lf-option id="…">` for each, rather than
+`<lf-options id="…">` group holding an `<lf-option id="…">` for each, rather than
 listing them in words. The user answers with a press in the thread, and the group waits
 on them until they do, so the message takes no `--obligation`, which the command refuses
 beside it. The message's text asks the question and gives your reason, so the group
@@ -202,7 +202,7 @@ advise (`authoring-on-me.md`, "What a question holds").
 leaf thread reply <answer.ref> <<'EOF'
 Which store should own sessions? I'd keep the account store, which already expires them.
 
-<lf-options id="session-store" required>
+<lf-options id="session-store">
 <lf-option id="session-store-account"><small class="tag ok">recommended</small> <strong>Keep the account store</strong></lf-option>
 <lf-option id="session-store-own"><strong>Give sessions their own store</strong> One more service to run.</lf-option>
 </lf-options>

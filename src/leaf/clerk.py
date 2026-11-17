@@ -116,7 +116,7 @@ the same way; neither does yet.
 The fork can't author the page, so each ask is the agent's message in a thread,
 written as the agent's guidance has it write one (`threads.md`), and Leaf posts its
 text as the agent's `leaf thread` command does, drawing the HTML in it. Where the
-agent offered answers the user picks among, the message holds an `lf-options required`
+agent offered answers the user picks among, the message holds an `lf-options`
 group, as "Ask for a pick" has the agent write it, so the pick shows as the group's
 state, `1`–`9` answer it, and a reply in words leaves it open, passing it to the
 agent until the agent answers. Any other ask, a step the user takes included, is the

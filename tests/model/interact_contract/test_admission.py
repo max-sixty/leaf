@@ -9,6 +9,7 @@ import model_folds as model
 import pytest
 from interact_support import (
     PAGE,
+    PAGE_GROUP,
     STATED_TIMEOUT,
     ModelPage,
     append_carried_log_record,
@@ -51,14 +52,14 @@ STATED_KIT = """<!doctype html>
 <body>
 <main>
 <lf-sample id="last-year" label="the kit we took last year">
-  <lf-options id="quoted-pick" required>
+  <lf-options id="quoted-pick">
     <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
     <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
   </lf-options>
 </lf-sample>
 <lf-ask id="kit-decision">
   <h2>Which navigation kit this year?</h2>
-  <lf-options id="live-pick" required>
+  <lf-options id="live-pick">
     <lf-option id="live-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
     <lf-option id="live-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
   </lf-options>
@@ -444,7 +445,7 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
     question = model.leaf_page(
         "Route",
         f"""<h1>Route</h1>
-<lf-options id="route" required>
+<lf-options id="route">
   <lf-option id="fast">{option_title} ships on Friday.</lf-option>
   <lf-option id="slow">Slow path</lf-option>
 </lf-options>
@@ -481,7 +482,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     question = model.leaf_page(
         "Route",
         """<h1>Route</h1>
-<lf-options id="route" required>
+<lf-options id="route">
   <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",
@@ -922,7 +923,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     """Recorded identities become dependencies and keep their admitted fold and effect."""
     from leaf.files import latest_revision
 
-    source = PAGE.replace("<lf-options>", '<lf-options id="picks" required>')
+    source = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">')
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
     revision = latest_revision(page_dir)
@@ -958,16 +959,14 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
 
 
 def test_created_ids_cannot_collide_across_page_and_frozen_content():
-    markup = (
-        '<p id="reserved">Page</p><lf-options id="page-options" required></lf-options>'
-    )
+    markup = '<p id="reserved">Page</p><lf-options id="page-options"></lf-options>'
     commands: list[dict] = [
         {"kind": "comment", "text": "Pick a seed."},
         {
             "kind": "reply",
             "author": "agent",
             "parent": "e1",
-            "text": 'Seeds\n\n<lf-options id="thread-options" required></lf-options>',
+            "text": 'Seeds\n\n<lf-options id="thread-options"></lf-options>',
             "html": True,
             "revision": 1,
         },

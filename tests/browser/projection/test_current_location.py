@@ -574,7 +574,7 @@ def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve
             leaf_page(
                 "Bare choice",
                 """<h1 id="h">Bare choice</h1>
-<lf-options id="ship" required>
+<lf-options id="ship">
   <lf-option id="ship-monday"><strong>Ship Monday</strong></lf-option>
   <lf-option id="ship-thursday"><strong>Ship Thursday</strong></lf-option>
 </lf-options>""",
@@ -733,7 +733,7 @@ STORE_ASK_PAGE = leaf_page(
     "Session store",
     '<h1 id="h">Where sessions live</h1>'
     '<lf-ask id="store-ask"><h3>Which store should hold sessions?</h3>'
-    '<lf-options id="store" required>'
+    '<lf-options id="store">'
     '<lf-option id="store-redis">Redis</lf-option>'
     '<lf-option id="store-cookie">Signed cookie</lf-option>'
     '<lf-option id="store-db">The main database</lf-option>'

@@ -179,7 +179,7 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
 <p id="source">Read this source passage before the question.</p></details>
 <div style="height:1600px"></div>
 <lf-ask id="question"><h2>Where should we build?</h2>
-<lf-options id="places" required><lf-option id="here">Here</lf-option>
+<lf-options id="places"><lf-option id="here">Here</lf-option>
 <lf-option id="there">There</lf-option></lf-options></lf-ask>
 """,
             )
@@ -1085,13 +1085,13 @@ def test_back_returns_from_an_obligation_the_walk_travelled_to(browser, serve):
 <h1 id="h">Back from an ask</h1>
 <section id="near"><p>A question sits at the top.</p></section>
 <lf-ask id="first-decision"><h2>Where should the feeders go?</h2>
-<lf-options id="first" required>
+<lf-options id="first">
   <lf-option id="fi-hedge"><strong>Along the hedge</strong></lf-option>
   <lf-option id="fi-lawn"><strong>Out on the lawn</strong></lf-option>
 </lf-options></lf-ask>
 <section id="above">{filler}</section>
 <lf-ask id="second-decision"><h2>Who fills them?</h2>
-<lf-options id="second" required>
+<lf-options id="second">
   <lf-option id="se-rota"><strong>A rota</strong></lf-option>
   <lf-option id="se-camera"><strong>Whoever the camera calls</strong></lf-option>
 </lf-options></lf-ask>
@@ -1275,7 +1275,7 @@ ALIGN_CURRENT_PAGE = leaf_page(
     "Align the current item",
     '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
     '<lf-ask id="align-ask"><h2>Which plan should we keep?</h2>'
-    '<lf-options id="align-options" required><lf-option id="align-yes">Yes</lf-option>'
+    '<lf-options id="align-options"><lf-option id="align-yes">Yes</lf-option>'
     '<lf-option id="align-no">No</lf-option></lf-options></lf-ask>'
     '<h2 id="align-heading" tabindex="0">The current heading</h2>'
     '<p id="remembered">The amber passage keeps <strong>its own identity</strong>.</p>'
@@ -1496,7 +1496,7 @@ def test_align_in_the_panel_stays_there_without_travel(browser, serve, subtests)
             "revision": 1,
             "text": "Choose the follow-up.\n\n"
             '<lf-ask id="reply-ask"><h3>Which follow-up should be ready?</h3>'
-            '<lf-options id="reply-options" required><lf-option id="reply-yes">Ready</lf-option>'
+            '<lf-options id="reply-options"><lf-option id="reply-yes">Ready</lf-option>'
             '<lf-option id="reply-no">Wait</lf-option></lf-options></lf-ask>',
             "html": True,
         },

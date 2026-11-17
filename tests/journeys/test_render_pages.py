@@ -895,8 +895,8 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
     cells = "<td>p95 latency</td>" * 12
     table = '<table id="{id}-t" data-width="wide"><tr>' + cells + "</tr></table>"
     item = (
-        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o" '
-        'required><lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
+        '<lf-ask id="{id}"{width}><h3>Ship it?</h3>{table}<lf-options id="{id}-o">'
+        '<lf-option id="{id}-yes">Yes</lf-option></lf-options></lf-ask>'
     )
     body = (
         '<p id="prose">Prose.</p>'
@@ -910,7 +910,7 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         + '<aside class="callout" id="contained-c">'
         + table.format(id="contained-c")
         + "</aside>"
-        + '<lf-options id="list" required><lf-option id="list-a">Leave it</lf-option>'
+        + '<lf-options id="list"><lf-option id="list-a">Leave it</lf-option>'
         + f'<lf-option id="list-b">Raise it {table.format(id="list")}</lf-option>'
         + "</lf-options>"
     )

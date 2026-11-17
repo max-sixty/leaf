@@ -299,7 +299,7 @@ def test_a_section_rewritten_whole_is_one_change(browser, serve):
     [
         '<details><summary>Gamma</summary><p id="c">Gamma reads one way.</p></details>',
         # A widget's own disclosure: the settled group's row controls its options.
-        '<lf-ask id="ask"><h2 id="q">Gamma?</h2><lf-options id="pick" required settled>'
+        '<lf-ask id="ask"><h2 id="q">Gamma?</h2><lf-options id="pick" settled>'
         '<lf-option id="keep" selected>Keep it.</lf-option>'
         '<lf-option id="c">Gamma reads one way.</lf-option></lf-options></lf-ask>',
     ],
@@ -615,7 +615,7 @@ def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
     version was saved after: that is the comparison's reading, not the card's."""
     options = PAGE.replace(
         '<p id="d">',
-        '<lf-options id="g" required><lf-option id="g-a">Ship now</lf-option>'
+        '<lf-options id="g"><lf-option id="g-a">Ship now</lf-option>'
         '<lf-option id="g-b">Ship later</lf-option></lf-options>\n<p id="d">',
     )
     url = live_url(serve(options))

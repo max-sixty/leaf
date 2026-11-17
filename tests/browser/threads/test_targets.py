@@ -240,7 +240,7 @@ def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
     seed_reply(
         serve.page_dir,
         '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
-        '<lf-options id="tv-decision" required>'
+        '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-ask>",
         "tv-decision",
@@ -321,7 +321,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     seed_reply(
         serve.page_dir,
         '<lf-ask id="tv-decision-region"><h3>Which store should I write up?</h3>'
-        '<lf-options id="tv-decision" required>'
+        '<lf-options id="tv-decision">'
         '<lf-option id="tv-redis">Redis</lf-option>'
         "</lf-options></lf-ask>",
         "tv-decision-region",
@@ -557,7 +557,7 @@ def test_a_boxless_widget_in_a_reply_still_shows_the_parts_it_paints(browser, se
         "<style>.lf-chrome lf-options { display: contents }</style>\n</head>",
     )
     url = serve(page_source, packages=EXAMPLE_PACKAGES)
-    # The page's unlayered style puts a reporting group's wrapper in `contents`; the
+    # The page's unlayered style puts a group's wrapper in `contents`; the
     # subject is the boxless wrapper fallback, not package-theme precedence.
     seed_reply(
         serve.page_dir,

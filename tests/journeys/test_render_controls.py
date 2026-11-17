@@ -180,7 +180,7 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <lf-new>Keep one causal case per control archetype.</lf-new>
 </lf-suggestion>
 <lf-ask id="stable-options-decision"><h2>Which control should stay?</h2>
-<lf-options id="stable-options" required>
+<lf-options id="stable-options">
   <lf-option id="stable-choice-a" for="control-target">Keep A</lf-option>
   <lf-option id="stable-choice-b" for="stable-tabs">Keep B</lf-option>
 </lf-options></lf-ask>
@@ -763,7 +763,7 @@ AIM_PAGE = leaf_page(
       <lf-column id="aim-done" label="Done"></lf-column>
     </lf-board>
     <lf-ask id="aim-ask"><h2>Which jobs?</h2>
-      <lf-options id="aim-jobs" required multiple>
+      <lf-options id="aim-jobs" multiple>
         <lf-option id="aim-mounts">Replace the mounts</lf-option>
         <lf-option id="aim-bath">Heat the bird bath</lf-option>
       </lf-options>

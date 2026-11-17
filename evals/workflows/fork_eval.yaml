@@ -674,7 +674,7 @@ cases:
                   </section>
                   <section id="slow-next" class="layout-flow">
                     <h2>Which should I fix first?</h2>
-                    <lf-options id="slow-first" required>
+                    <lf-options id="slow-first">
                       <lf-option id="slow-first-sort"><strong>Index the price field</strong> The most called of the three; one index build, about an hour.</lf-option>
                       <lf-option id="slow-first-facet"><strong>Cap the wildcard facet</strong> The slowest; a facet over 100 terms falls back to a prefix match.</lf-option>
                       <lf-option id="slow-first-empty"><strong>Answer an empty query from the cache</strong> The rarest; one line in the handler.</lf-option>

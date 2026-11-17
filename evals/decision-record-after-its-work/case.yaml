@@ -167,7 +167,7 @@ vars:
                 Leaf's log and mean little without it. Counts are names a fallback must
                 export, read from each module's imports.
               </p>
-              <lf-options id="portable-scope" required>
+              <lf-options id="portable-scope">
                 <lf-option id="portable-scope-none">
                   <small class="tag">0 names</small>
                   <strong>Keep widgets Leaf-only</strong>
@@ -282,7 +282,7 @@ vars:
                 section is yours to edit. The review fixes go in first, and CI and Leaf's
                 reviewer gate the merge.
               </p>
-              <lf-options id="chart-land" required>
+              <lf-options id="chart-land">
                 <lf-option id="chart-land-hold">
                   <strong>Keep it on its branch</strong>
                   Nothing lands, and the next widget waits on this question.
@@ -332,7 +332,7 @@ vars:
                 <code>aria-keyshortcuts</code> becomes an input for some keys while staying the
                 register's output for the rest: one attribute with two directions.
               </p>
-              <lf-options id="keys-route" required>
+              <lf-options id="keys-route">
                 <lf-option id="keys-route-calls">
                   <small class="tag">keyboard graph portable</small>
                   <strong>Keep the call; make the keyboard modules load anywhere</strong>
@@ -413,7 +413,7 @@ vars:
                 the filter, or switches the file in single-file view. That matches how find
                 treats other folded content, so I'd keep it.
               </p>
-              <lf-options id="diff-filter" required>
+              <lf-options id="diff-filter">
                 <lf-option id="diff-filter-reach" selected>
                   <small class="tag">today</small>
                   <small class="tag ok">recommended</small>
@@ -438,7 +438,7 @@ vars:
                 readers that an until-found message isn't shown (which message is first,
                 where a reply lands). I'd make the change.
               </p>
-              <lf-options id="transcript-folds" required>
+              <lf-options id="transcript-folds">
                 <lf-option id="transcript-folds-hidden">
                   <small class="tag">today</small>
                   <strong>Find skips folded messages</strong>
@@ -612,7 +612,7 @@ variants:
                     Leaf's log and mean little without it. Counts are names a fallback must
                     export, read from each module's imports.
                   </p>
-                  <lf-options id="portable-scope" required>
+                  <lf-options id="portable-scope">
                     <lf-option id="portable-scope-none">
                       <small class="tag">0 names</small>
                       <strong>Keep widgets Leaf-only</strong>
@@ -686,7 +686,7 @@ variants:
                     the filter, or switches the file in single-file view. That matches how find
                     treats other folded content, so I'd keep it.
                   </p>
-                  <lf-options id="diff-filter" required>
+                  <lf-options id="diff-filter">
                     <lf-option id="diff-filter-reach" selected>
                       <small class="tag">today</small>
                       <small class="tag ok">recommended</small>
@@ -711,7 +711,7 @@ variants:
                     readers that an until-found message isn't shown (which message is first,
                     where a reply lands). I'd make the change.
                   </p>
-                  <lf-options id="transcript-folds" required>
+                  <lf-options id="transcript-folds">
                     <lf-option id="transcript-folds-hidden">
                       <small class="tag">today</small>
                       <strong>Find skips folded messages</strong>

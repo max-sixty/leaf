@@ -26,6 +26,7 @@ from leaf.registry import storage as registry_storage
 from leaf.registry.contract import element_declarations
 from leaf.render_checks import rendered
 from leaf.render_gate import scheme as render_gate_model
+from leaf_dev.browser import open_on_me
 
 CUSTOM_WIDGET_PAGE = leaf_page(
     "custom widget",
@@ -584,9 +585,12 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open the panel's On Me view from its mark, or close it from the same seat, where
-    its ✕ stands while the view does, and wait for it to stand or go."""
-    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
+    """Open the panel's On Me view by its tab beside the leaf's menu, or close it by
+    its ✕, and wait for it to stand or go."""
+    if open:
+        open_on_me(page)
+    else:
+        page.locator(".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 

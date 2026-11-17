@@ -263,7 +263,7 @@ def test_playground_joins_initial_widget_settlement(browser, serve):
     page.wait_for_function("() => document.body.dataset.lfUpgraded === '1'")
     assert held, "the positive control did not hold the first state response"
     playground = page.locator("#notification-playground")
-    expect(playground.locator(".lf-playground-controls")).to_be_visible()
+    expect(playground.locator(".lf-playground-controls-region > aside")).to_be_visible()
     expect(playground.locator(".lf-playground-presets")).to_be_visible()
     expect(playground.locator(".lf-playground-actions")).to_be_visible()
     submit = playground.get_by_role("button", name="Create notification")

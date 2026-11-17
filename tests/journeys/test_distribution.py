@@ -80,11 +80,11 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     source = source.replace(
         "</main>",
         '<lf-playground id="prepared-playground">'
-        '<lf-playground-control id="label" name="label" label="Label" kind="text" '
-        'value="Prepared"></lf-playground-control>'
-        "<lf-playground-preview><p>Native initial drawing works.</p>"
-        "</lf-playground-preview><lf-playground-output>Use "
-        '<lf-playground-value for="label"></lf-playground-value>.'
+        '<aside><label id="label">Label <input name="label" '
+        'value="Prepared"></label></aside>'
+        "<p>Native initial drawing works.</p>"
+        "<lf-playground-output>Use "
+        '<output for="label"></output>.'
         "</lf-playground-output></lf-playground></main>",
     )
     (page_dir / "index.html").write_text(source)
@@ -117,7 +117,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
         expect(tab.locator("lf-risk-note")).to_have_text("Custom package works.")
         assert tab.evaluate("customElements.get('lf-risk-note') !== undefined")
         playground = tab.locator("#prepared-playground")
-        expect(playground.locator("input[type=text]")).to_have_value("Prepared")
+        expect(playground.locator("input[name=label]")).to_have_value("Prepared")
         expect(playground.locator("lf-playground-output")).to_contain_text(
             "Use Prepared."
         )

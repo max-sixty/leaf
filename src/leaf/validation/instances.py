@@ -108,28 +108,11 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
                 spec.get("reference")
             ):
                 errors.append(found_at("ambiguous-data-binding", rec, input=input_name))
-        # A member stands directly in an owner; one declaring x-within may also stand
-        # at any depth inside one of the regions it names. It belongs to its nearest
-        # owner, so going outward it must meet such a region before any owner.
+        # A member stands directly in an owner.
         want_owners = entry.get("x-owners", [])
-        within = entry.get("x-within", [])
-        nearest = next(
-            (
-                node["tag"]
-                for node in member_holders(rec, registry)
-                if node["tag"] in within or node["tag"] in want_owners
-            ),
-            None,
-        )
-        if want_owners and rec["parent"] not in want_owners and nearest not in within:
+        if want_owners and rec["parent"] not in want_owners:
             errors.append(
-                found_at(
-                    "not-member",
-                    rec,
-                    owners=want_owners,
-                    parent=rec["parent"],
-                    within=within,
-                )
+                found_at("not-member", rec, owners=want_owners, parent=rec["parent"])
             )
         # Tags that name this declaration in x-owners are its admissible members under
         # any content model. "data" takes one <pre>, or none where the markup binds an
@@ -361,7 +344,7 @@ def enclosing(rec: dict, tag: str, registry: dict) -> dict | None:
 
 
 def keyed_members(lf_elements: list, registry: dict) -> dict:
-    """Every member a keyed reference may name, as `(id(owner), tag, key, value)` mapped
+    """Every member an x-unique attribute keys, as `(id(owner), tag, key, value)` mapped
     to the members holding it, in document order; the owner is the member's nearest
     enclosing element of the tag its x-unique declaration names for that key. A member
     standing in no such owner is left out: x-owners reports where it stands."""
@@ -377,9 +360,9 @@ def keyed_members(lf_elements: list, registry: dict) -> dict:
 
 def unique_errors(lf_elements: list, registry: dict) -> list[Finding]:
     """Each member whose x-unique attribute repeats an earlier member's value within
-    their shared owner: two playground controls with one name, or two choices of one
-    control with one value. Asked of one document, since an owner and its members
-    always stand in the same one."""
+    their shared owner, such as two options of one set with one value, or two settings
+    of one playground preset for one field. Asked of one document, since an owner and
+    its members always stand in the same one."""
     return [
         found_at(
             "repeated-key",
@@ -410,17 +393,11 @@ def reference_errors(
     contract's predicate selects is named by exactly one referrer, as each readings
     seat is filled by one command.
 
-    A keyed reference names a member rather than an id: the `tag` member, inside the
-    referrer's own nearest owner of the tag its `key` is unique within (x-unique),
-    whose `key` attribute holds the value, as a playground preset's setting names a
-    control of the same playground.
-
     The reserved `resolves` attribute names a thread in the document's history,
     rather than a markup id, on any widget that declares the capability."""
     errors = []
     own = {rec["attrs"].get("id") for rec in lf_elements}
     owners = {}
-    keyed = None
     for rec in lf_elements:
         entry = registry.get(rec["tag"], {})
         resolves = rec["attrs"].get("resolves")
@@ -439,24 +416,7 @@ def reference_errors(
             if not target:
                 continue
             reference_to = {"attr": attr, "target": target}
-            if member := reference.get("tag"):
-                if keyed is None:
-                    keyed = keyed_members(lf_elements, registry)
-                key = reference["key"]
-                scope_tag = registry[member]["x-unique"][key]
-                scope = enclosing(rec, scope_tag, registry)
-                if (id(scope), member, key, target) not in keyed:
-                    errors.append(
-                        found_at(
-                            "unmatched-member",
-                            rec,
-                            **reference_to,
-                            member=member,
-                            key=key,
-                            scope=scope_tag,
-                        )
-                    )
-            elif target not in ids:
+            if target not in ids:
                 errors.append(found_at("unknown-reference", rec, **reference_to))
             elif mismatch := relation_mismatch(reference, by_id.get(target), registry):
                 errors.append(

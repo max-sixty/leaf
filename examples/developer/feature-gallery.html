@@ -430,7 +430,7 @@
                 record: <code>answer.value</code> contains option ids, and
                 <code>prompt.target</code> names the surrounding context.
               </p>
-              <button id="bg-read-question" class="lf-btn" type="button">
+              <button id="bg-read-question" type="button">
                 Read current obligation
               </button>
               <pre id="bg-question-reading" hidden></pre>
@@ -443,12 +443,12 @@
                 normally. Leave the sample: <kbd>1</kbd> no longer focuses the note.
               </p>
               <div id="bg-local-shortcuts" tabindex="0">
-                <button id="bg-shortcut-focus-note" class="lf-btn" type="button">
+                <button id="bg-shortcut-focus-note" type="button">
                   Write sample note
                 </button>
                 <label>
                   Sample note
-                  <input id="bg-shortcut-note" class="lf-field" type="text" />
+                  <input id="bg-shortcut-note" type="text" />
                 </label>
               </div>
             </section>
@@ -1104,39 +1104,17 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               seeded discussion after trying a reply or changing a thread.
             </p>
             <div id="bg-panel-presets" role="group" aria-label="Threads in the panel">
-              <button
-                type="button"
-                class="lf-btn"
-                data-view="overview"
-                aria-pressed="false"
-              >
+              <button type="button" data-view="overview" aria-pressed="false">
                 Open threads
               </button>
-              <button type="button" class="lf-btn" data-view="you" aria-pressed="false">
-                On Me
-              </button>
-              <button
-                type="button"
-                class="lf-btn"
-                data-view="resolved"
-                aria-pressed="false"
-              >
+              <button type="button" data-view="you" aria-pressed="false">On Me</button>
+              <button type="button" data-view="resolved" aria-pressed="false">
                 Resolved
               </button>
-              <button
-                type="button"
-                class="lf-btn"
-                data-view="summary"
-                aria-pressed="false"
-              >
+              <button type="button" data-view="summary" aria-pressed="false">
                 Long discussion
               </button>
-              <button
-                type="button"
-                class="lf-btn"
-                data-view="progress"
-                aria-pressed="false"
-              >
+              <button type="button" data-view="progress" aria-pressed="false">
                 Progress messages
               </button>
               <span id="bg-panel-width-label">Sample width</span>
@@ -1145,7 +1123,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 role="radiogroup"
                 aria-labelledby="bg-panel-width-label"
               >
-                <label class="lf-choice"
+                <label
                   ><input
                     type="radio"
                     name="panel-width"
@@ -1153,7 +1131,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                     checked
                   />Wide</label
                 >
-                <label class="lf-choice"
+                <label
                   ><input type="radio" name="panel-width" value="20rem" />Narrow</label
                 >
               </div>
@@ -1540,7 +1518,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   lettering. Reset starts a fresh untitled thread. Reduced motion shows
                   solid muted text.
                 </p>
-                <button id="bg-title-sheen-show" class="lf-btn" type="button">
+                <button id="bg-title-sheen-show" type="button">
                   Open sample thread
                 </button>
                 <lf-sample
@@ -3040,7 +3018,7 @@ gallery/
                   origin cannot frame it.
                 </p>
                 <div id="bg-durable-frame-host">
-                  <button id="bg-durable-frame-open" class="lf-btn" type="button">
+                  <button id="bg-durable-frame-open" type="button">
                     Open the earlier map decision
                   </button>
                   <iframe
@@ -3358,7 +3336,7 @@ switch --readers checkout-api,orders-api</code></pre>
               status and text once connected. Each read consumes one request from its
               allowance; the result is not saved.
             </p>
-            <button id="bg-http-read" class="lf-btn" type="button">Read</button>
+            <button id="bg-http-read" type="button">Read</button>
             <p id="bg-http-result" role="status">No HTTP read requested.</p>
             <p>
               The <a href="/examples/github-discoveries/">GitHub discoveries page</a>
@@ -3375,7 +3353,7 @@ switch --readers checkout-api,orders-api</code></pre>
               a claim is required. Each press can incur model usage; the result is not
               saved.
             </p>
-            <button id="bg-llm-generate" class="lf-btn" type="button">Generate</button>
+            <button id="bg-llm-generate" type="button">Generate</button>
             <p id="bg-llm-result" role="status">No generation requested.</p>
           </section>
           <section id="bg-external-data">

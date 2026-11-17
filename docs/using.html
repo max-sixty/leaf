@@ -107,10 +107,12 @@
               leaf, coloured by the agent's state; the comment field, which shows the
               agent's status while it is empty; and the On Me mark, counting what waits
               on the user, with a dot while a thread holds a reply they haven't read.
-              The leaf opens a small menu of the page's other controls. Pressing the On
-              Me mark opens its view above the row. A ✕ replaces the mark while the view
-              is open and closes it when pressed. A folded panel shows only the leaf in
-              the window's corner.
+              The leaf opens the On view above the row: a menu of the page's other
+              controls, with On Me and Threads as its tabs. Pressing the On Me mark goes
+              to the next item waiting on the user, as <kbd>m</kbd> does, and the mark
+              shows <kbd>m</kbd> beside its count. A ✕ replaces the mark while a view is
+              open and closes it when pressed. A folded panel shows only the leaf in the
+              window's corner.
             </p>
             <p id="chrome-lists">
               The On view shows one list at a time, under a tab named for its actor,
@@ -399,10 +401,10 @@
             <p id="on-me-what">
               The On Me mark at the end of the panel's row counts what waits on the
               user: each choice a widget asks them to make, each question the agent asks
-              them in a thread, and each update of theirs that failed to send. Pressing
-              the mark opens the list;
-              <kbd>m</kbd> walks the items in the order the list shows them, landing on
-              each where it is answered.
+              them in a thread, and each update of theirs that failed to send.
+              <kbd>m</kbd>, or a press on the mark, walks the items in the order the
+              list shows them, landing on each where it is answered. The list itself is
+              the On Me tab of the view the leaf opens.
             </p>
             <p id="on-me-answer">
               The user answers an item where it asks: with the widget's own pick, or

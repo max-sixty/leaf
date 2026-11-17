@@ -67,8 +67,14 @@ export {
 } from "./focus.js";
 export { TEXT_FIELD } from "./control-selectors.js";
 export { answeredInWords, readObligations } from "./obligations/model.js";
-// The obligations a region of the page holds, by the rule every count and walk of them reads.
-export { obligationsByRegion, obligationsIn } from "./obligations/place.js";
+// The obligations a region of the page holds, by the rule every count and walk of them
+// reads, and which regions hold a widget that asks the user something, including one
+// whose obligation the inventory hasn't listed yet or lists as withdrawn.
+export {
+  obligationsByRegion,
+  obligationsIn,
+  regionsAwaiting,
+} from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
 // A view's reading and writing of another widget's answer (x-shows).

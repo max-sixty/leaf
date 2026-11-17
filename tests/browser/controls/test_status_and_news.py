@@ -183,11 +183,11 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
     d = serve.page_dir
     page = open_page(browser, url, pin=True)
     on_me = "document.querySelector('.lf-fp-on-user').getAttribute('aria-label')"
-    # What the mark counts, less the news its name goes on to say.
-    owing = f"{on_me}.split(', ')[0]"
+    # What the mark counts, apart from the news its name goes on to say.
+    owing = "document.querySelector('.lf-fp-on-user .lf-fp-num').textContent"
     expect_open_threads(page, 9)
     page_at_rest(page)
-    owed = int(page.evaluate(f"() => {on_me}").removeprefix("On Me: "))
+    owed = int(page.evaluate(f"() => {owing}"))
 
     def publish_v2():
         stamp_page(d, html, "two")
@@ -232,12 +232,12 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
         (
             "another tab decides two of the three pending suggestions",
             lambda: decide("sug-refill", "sug-thistle"),
-            f"() => {owing} === 'On Me: {owed - 2}'",
+            f"() => {owing} === '{owed - 2}'",
         ),
         (
             "another tab decides the last one",
             lambda: decide("sug-in-card"),
-            f"() => {owing} === '{'On Me: ' + str(owed - 3) if owed > 3 else 'On Me'}'",
+            f"() => {owing} === '{owed - 3 or ''}'",
         ),
     ]:
         page.evaluate(DEFINE_BOXES)

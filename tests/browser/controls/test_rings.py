@@ -385,8 +385,8 @@ def test_choice_rings_fit_clipped_edges_and_follow_native_visibility(browser, se
                 """
 <h1>Choices</h1>
 <div style="overflow:clip;display:flex;gap:16px">
-<label class="lf-choice"><input id="check" type="checkbox">Outline changes</label>
-<label class="lf-choice"><input id="radio" type="radio" name="view">Full frame</label>
+<label><input id="check" type="checkbox">Outline changes</label>
+<label><input id="radio" type="radio" name="view">Full frame</label>
 </div>
 <p><button>Next</button></p>
 """,

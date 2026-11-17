@@ -3301,11 +3301,22 @@ def test_the_write_gate_rejects_unchanged_authored_style_writes(
     assert failures[0].values["node"][0].startswith("body"), failures
 
 
+# The type of a word press Leaf builds by role, as a widget builds one
+# (`offerAction`), which the page's own controls are held to.
+LEAF_PRESS_TYPE = """async () => {
+  const {offerAction} = await window.__lfWidgetApi();
+  const press = document.querySelector('main').appendChild(
+    offerAction('word', '', 'Leaf'));
+  const s = getComputedStyle(press);
+  return [s.fontFamily, s.fontSize];
+}"""
+
+
 def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     browser, serve
 ):
     """A bare button or field an author writes into the page reads in Leaf's type, as
-    `.lf-btn` and `.lf-field` do; left to the browser it drew 13.33px Arial beside the
+    Leaf's own controls do; left to the browser it drew 13.33px Arial beside the
     page's own type (#2559). The default weighs nothing, so a page rule of element
     selectors alone still sets its type."""
     page = open_page(
@@ -3314,8 +3325,7 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
             leaf_page(
                 "Authored controls",
                 """<h1>Authored controls</h1>
-<p><button id="classed" class="lf-btn" type="button">Classed</button>
-<button id="bare" type="button">Bare</button>
+<p><button id="bare" type="button">Bare</button>
 <input id="bare-field" type="text" aria-label="Bare field">
 </p>
 <section><button id="dressed" type="button">Dressed</button></section>""",
@@ -3326,7 +3336,7 @@ def test_a_control_the_page_writes_takes_leaf_type_and_yields_to_page_css(
     face = (
         "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
     )
-    leaf = page.locator("#classed").evaluate(face)
+    leaf = page.evaluate(LEAF_PRESS_TYPE)
     assert page.locator("#bare").evaluate(face) == leaf
     assert page.locator("#bare-field").evaluate(face) == leaf
     assert page.locator("#dressed").evaluate(face) == ["Georgia", "20px"]
@@ -3347,7 +3357,6 @@ def test_a_control_a_widget_draws_in_its_shadow_tree_yields_to_the_widget_s_rule
             leaf_page(
                 "Widget controls",
                 """<h1>Widget controls</h1>
-<p><button id="classed" class="lf-btn" type="button">Classed</button></p>
 <lf-own-controls id="own"></lf-own-controls>""",
             ),
             layer_registry={"lf-own-controls": declaration},
@@ -3380,7 +3389,7 @@ customElements.define('lf-own-controls', class extends HTMLElement {
     face = (
         "el => { const s = getComputedStyle(el); return [s.fontFamily, s.fontSize]; }"
     )
-    leaf = page.locator("#classed").evaluate(face)
+    leaf = page.evaluate(LEAF_PRESS_TYPE)
     own = page.locator("#own")
     assert own.locator("button.bare").evaluate(face) == leaf
     assert own.locator("button.own").evaluate(face) == ["Georgia", "20px"]

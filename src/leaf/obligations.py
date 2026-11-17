@@ -69,7 +69,7 @@ from leaf.events import (
     taken_back,
     unanswered_agent_turn,
 )
-from leaf.gesture_words import element_name
+from leaf.gesture_words import element_name, group_name
 from leaf.page_memory import Slot
 from leaf.projection import (
     AuthoredOrders,
@@ -109,7 +109,7 @@ def _is_group(node: dict) -> bool:
 def widget_groups(content: list, registry: dict):
     """Each widget in `content` that can ask, as its authoring node and its question:
     the innermost element round it that the author declares a group (`_is_group`), or
-    None. The group's name (`gesture_words.element_name`) is the widget's prompt, and the
+    None. The group's name (`gesture_words.group_name`) is the widget's prompt, and the
     group is where the obligation stands and going to it starts while it holds no
     other (`obligations/place.js` in the browser), so the group needs an id to be a
     place, as `page check` requires. Python reads only the authored source, so a group
@@ -704,13 +704,17 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
     ]
     prompts = {}
     for document in documents:
-        nodes = document.authoring.by_id
+        nodes = {
+            node["attrs"]["id"]: node
+            for node in document.authoring.nodes
+            if node["attrs"].get("id")
+        }
         for node, group in widget_groups(document.authoring.content, registry):
             if not (identity := node["attrs"].get("id")):
                 continue
-            text = element_name(group, registry, nodes) if group else ""
+            text = group_name(group, nodes) if group else ""
             prompts[identity] = {
-                "text": text or element_name(node, registry, nodes),
+                "text": text or element_name(node, registry),
                 "target": (group["attrs"].get("id") if group else None) or identity,
             }
     return ObligationSources(

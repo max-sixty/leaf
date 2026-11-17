@@ -656,13 +656,6 @@ class Authoring:
                 self._visit(child, self.content)
         del self._document, self._first_body_position, self._bare_wholes
 
-    @cached_property
-    def by_id(self) -> dict[str, dict]:
-        """The content nodes that carry an id, by it, as `aria-labelledby` names them."""
-        return {
-            node["attrs"]["id"]: node for node in self.nodes if node["attrs"].get("id")
-        }
-
     def node_of(self, record: dict) -> dict | None:
         """The content node of one of the document's lf-* records, or None for one
         inside SVG, which keeps its exact source rather than a tree."""

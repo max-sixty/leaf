@@ -20,11 +20,10 @@ created it carries its words, and both readings take them from the latest such
 action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
-`name` is what the authoring contract calls it away from itself (`element_name`): the
-name its author declares, a widget's in its `label` attribute (the registry's
-`$attributes`) and plain markup's as ARIA reads it (`aria_name`), else plain markup's
-caption (`caption_node`). It is the rule the browser's `addressableName` reads off the
-live page, read here off the document the gesture was made in.
+`name` is what the authoring contract calls it away from itself (`element_name`): a
+widget's `label` attribute (the registry's `$attributes`), else plain markup's caption
+(`caption_node`). It is the rule the browser's `addressableName` reads off the live
+page, read here off the document the gesture was made in.
 """
 
 from collections.abc import Callable
@@ -91,29 +90,24 @@ def _blank(node) -> bool:
     return isinstance(node, str) and not node.strip()
 
 
-def element_name(node: dict, registry: dict, nodes: dict[str, dict]) -> str:
+def element_name(node: dict, registry: dict) -> str:
     """What the authoring contract calls an element away from itself, in the words the
-    author wrote: the name its author declares, a widget's in its `label` attribute
-    (`contract.NAME_ATTRIBUTE`) and plain markup's as ARIA reads it (`aria_name`, from
-    `nodes`, its document's elements by id), else plain markup's caption. A widget takes
-    no name from its markup. The browser's `addressableName` reads the same rule off the
-    live page; `tests/name_cases.json` holds both to the same cases."""
+    author wrote: a widget's `label` attribute (`contract.NAME_ATTRIBUTE`), else plain
+    markup's caption. A widget takes no name from its markup. The browser's
+    `addressableName` reads the same rule off the live page; `tests/name_cases.json`
+    holds both to the same cases."""
     if _registered(node, registry):
         return (node["attrs"].get(NAME_ATTRIBUTE) or "").strip()
-    if declared := aria_name(node, nodes):
-        return declared
     caption = caption_node(node)
     return collapse(_text(caption)) if caption else ""
 
 
-def aria_name(node: dict, nodes: dict[str, dict]) -> str:
-    """The name ARIA gives an element whose author names it, as a browser's
-    accessibility tree computes it: the words of the elements its `aria-labelledby`
-    names, read from `nodes`, its document's elements by id; else its `aria-label`; else
-    a fieldset's legend, its first `<legend>` child; empty where the author named
-    nothing. `page check` requires one of a question's group, so a screen reader names
-    the question as Leaf does."""
-    attrs = node["attrs"]
+def group_name(group: dict, nodes: dict[str, dict]) -> str:
+    """The name the author gives a group, as ARIA reads it: the words of the elements
+    its `aria-labelledby` names, read from `nodes`, its document's elements by id; else
+    its `aria-label`; else a fieldset's legend, its first `<legend>` child; empty where
+    the author named nothing."""
+    attrs = group["attrs"]
     named = [
         nodes[i] for i in (attrs.get("aria-labelledby") or "").split() if i in nodes
     ]
@@ -121,11 +115,11 @@ def aria_name(node: dict, nodes: dict[str, dict]) -> str:
         return words
     if words := collapse(attrs.get("aria-label") or ""):
         return words
-    if node["tag"] == "fieldset":
+    if group["tag"] == "fieldset":
         legend = next(
             (
                 child
-                for child in node["content"]
+                for child in group["content"]
                 if not isinstance(child, str) and child["tag"] == "legend"
             ),
             None,
@@ -167,7 +161,7 @@ class _Document:
         }
 
     def name(self, node: dict) -> str:
-        return element_name(node, self.registry, self.nodes)
+        return element_name(node, self.registry)
 
     @cached_property
     def marks(self) -> dict:

@@ -153,10 +153,11 @@ export function partOver(node) {
     if (!namesWhatItHolds(container, scope)) continue;
     const naming = ownNaming(container);
     if (!naming) continue;
-    if ("by" in naming && naming.by === node) continue;
     // A heading that titles its container heads what the container holds, and any other
     // name makes the container the part.
-    return titlingHeading(container) ?? container;
+    if (!("by" in naming)) return container;
+    if (naming.by === node) continue;
+    return naming.by.matches(HEADING) ? naming.by : container;
   }
   return null;
 }

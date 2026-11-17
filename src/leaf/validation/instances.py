@@ -3,7 +3,7 @@
 import re
 
 from leaf.findings import Finding, element_at
-from leaf.gesture_words import aria_name
+from leaf.gesture_words import group_name
 from leaf.obligations import shown_in, widget_groups
 from leaf.projection import enclosing_widgets, recorded_owner
 from leaf.registry.contract import (
@@ -240,6 +240,11 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
     and one asking about each record of its data (`awaits.records`) by each
     record's label. A message's widget needs none either, since the message names what
     it asks, so only a page's documents are checked."""
+    nodes = {
+        node["attrs"]["id"]: node
+        for node in document.authoring.nodes
+        if node["attrs"].get("id")
+    }
     # A widget inside SVG keeps its exact source rather than a node, and so is no
     # widget the walk reads.
     groups = {
@@ -272,7 +277,7 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
             need
             for need, missing in (
                 ("id", not group["attrs"].get("id")),
-                ("name", not aria_name(group, document.authoring.by_id)),
+                ("name", not group_name(group, nodes)),
             )
             if missing
         ]

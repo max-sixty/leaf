@@ -485,55 +485,6 @@ test("a heading counts the conversations about what it titles, as about its own 
   }
 });
 
-test("a section named by a later heading leaves the page's order to say which heading heads what", () => {
-  // Its aria-labelledby names its second heading, which titles nothing by position, so
-  // the words after that heading are its part, as the page reads, and neither heading's
-  // part reaches the other's.
-  applicationState.identify(1);
-  document.body.innerHTML = `<main><h1>Plan</h1>
-    <section id="it" aria-labelledby="question"><h2 id="intro">Introduction</h2>
-      <h2 id="question">Question</h2><p id="words">Contents.</p></section>
-    <section id="bold" aria-labelledby="bold-name"><strong id="bold-name">Declared</strong>
-      <p id="bold-words">Contents.</p></section></main>`;
-  const thread = servedThread(
-    [
-      {
-        id: "c1",
-        seq: 1,
-        ts: "2026-11-14T12:00:00+00:00",
-        author: "user",
-        revision: 1,
-        kind: "comment",
-        text: "Why?",
-        attention: true,
-        content_version: "c1",
-      },
-    ],
-    { anchor: { section: "words" } },
-  );
-  try {
-    applicationState.adopt(
-      servedState({ browser: { views: { 1: { thread: { threads: [thread] } } } } }),
-    );
-    assert.equal(partOver(document.getElementById("words"))?.id, "question");
-    // A <strong> its author names the section by is a name, not a widget's title.
-    assert.equal(partOver(document.getElementById("bold-words"))?.id, "bold");
-    assert.deepEqual(
-      [...document.querySelectorAll("h1, h2")].map((heading) => [
-        heading.textContent,
-        conversationsAbout(heading)?.threads ?? 0,
-      ]),
-      [
-        ["Plan", 1],
-        ["Introduction", 0],
-        ["Question", 1],
-      ],
-    );
-  } finally {
-    applicationState.adopt(servedState());
-  }
-});
-
 test("a slotted section reads its slot's run once, and only as far as its preview shows", () => {
   Object.assign(registry, {
     "lf-staged": {

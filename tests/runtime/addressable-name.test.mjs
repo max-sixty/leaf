@@ -96,19 +96,6 @@ test("the chrome names an element by its name before its words", () => {
   );
 });
 
-test("the chrome names a widget by its aria-label where it has no label", () => {
-  // Its name by the contract is its `label` alone, so the aria-label is the chrome's
-  // fallback, as an On Me row or a feed row reads it, ahead of the section holding it.
-  declare({ "lf-timeline": {} });
-  document.body.innerHTML = `<main><section><h2>Rollout</h2>
-    <lf-timeline id="it" aria-label="Deploy order"><p>Steps.</p></lf-timeline>
-  </section></main>`;
-  const timeline = /** @type {Element} */ (document.getElementById("it"));
-  assert.equal(addressableName(timeline), "");
-  assert.equal(addressableLabel(timeline), "Deploy order");
-  declare();
-});
-
 test("an element whose words are its own is named by them, cut short", () => {
   assert.equal(
     labelled('<p id="it">Some <em>plain</em> words.</p>'),
@@ -185,26 +172,6 @@ test("a heading titles the section or article it opens, and otherwise itself", (
   // Chrome in an hgroup titles nothing, and leaves the authored heading its section.
   assert.equal(titled("authored"), "chrome");
   declare();
-});
-
-test("a declared name withdraws a heading's title but never gives one", () => {
-  document.body.innerHTML = `<main>
-    <section id="ask" role="group" aria-labelledby="ask-heading">
-      <h3 id="ask-heading">Which region first?</h3><p>Premise.</p></section>
-    <section id="later" aria-labelledby="question"><h2 id="intro">Introduction</h2>
-      <h2 id="question">Question</h2><p>Words.</p></section>
-    <section id="labelled" aria-label="Deploy plan"><h2 id="plan">Plan</h2></section>
-  </main>`;
-  const titled = (/** @type {string} */ id) =>
-    titledElement(/** @type {Element} */ (document.getElementById(id))).id;
-  // A group whose aria-labelledby names the heading it opens with is that heading's.
-  assert.equal(titled("ask-heading"), "ask");
-  // One naming a later heading is no heading's: the order the page reads in decides
-  // which heading heads which part.
-  assert.equal(titled("intro"), "intro");
-  assert.equal(titled("question"), "question");
-  // A section its aria-label names is no heading's, though it opens with one.
-  assert.equal(titled("plan"), "plan");
 });
 
 test("a heading inside a widget titles only itself", () => {

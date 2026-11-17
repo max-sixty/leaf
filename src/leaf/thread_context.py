@@ -1,4 +1,4 @@
-"""Thread identity, frozen message markup, and bounded delivery context."""
+"""Thread identity, message markup, and bounded delivery context."""
 
 from collections.abc import Callable
 from functools import lru_cache
@@ -179,21 +179,30 @@ class ThreadStructure(NamedTuple):
     ids: set
     by_id: dict
     fragments: dict
+    # Every id any wording of an agent's message held → that message.
+    holders: dict
+    # Each agent message → the logged events that worded it, in force and in log
+    # order: the message, then each edit of it.
+    wordings: dict
 
 
 def logged_fragment(event: dict) -> SourceDocument | None:
-    """The parse of the markup a logged agent message draws where its Markdown holds
-    HTML (`passages.holds_html`, `passages.message_markup`), shared read-only; None
-    for any other event.
+    """The parse of the markup a logged agent message, or an agent's edit of one, draws
+    where its Markdown holds HTML (`passages.holds_html`, `passages.message_markup`),
+    shared read-only; None for any other event.
 
-    The log is append-only and such a message is never edited (`thread.cmd_edit`),
-    so its markup is one immutable fragment for the page's lifetime, and every
-    reader of the log takes this one parse of it. The parse is a function of the
-    text alone, so it is held by that text, which names it exactly whichever page and
-    log it came from. Text a writer hands in has not been admitted yet and is another
-    fact: its gate parses it afresh (`validation.admission.check_markup`)."""
-    if event["kind"] in ("comment", "reply") and event.get("author") == "agent":
-        return _fragment(event["text"]) if "text" in event else None
+    The log is append-only, so each wording is one immutable fragment for the page's
+    lifetime, and every reader of the log takes this one parse of it. The parse is a
+    function of the text alone, so it is held by that text, which names it exactly
+    whichever page and log it came from. Text a writer hands in has not been admitted
+    yet and is another fact: its gate parses it afresh
+    (`validation.admission.check_markup`)."""
+    if (
+        event["kind"] in ("comment", "reply", "edit")
+        and event.get("author") == "agent"
+        and "text" in event
+    ):
+        return _fragment(event["text"])
     return None
 
 
@@ -203,18 +212,59 @@ def _fragment(text: str) -> SourceDocument | None:
 
 
 def thread_structure(events: list) -> ThreadStructure:
-    """Each logged message's markup (`logged_fragment`) as the panel's id universe."""
-    ids, by_id, fragments = set(), {}, {}
+    """Each agent message's markup as it now reads, as the panel's id universe: its
+    latest edit still in force, else the words it was sent with, the words
+    `build_threads` shows. `fragments` is ordered by when each message's current
+    wording was written, and `wordings` keeps the ones before it, which a reading of
+    an earlier moment takes (`message_wording`).
+
+    `holders` keeps every id any of a message's wordings held, a withdrawn edit's
+    included, so no other message or revision takes it (`check_markup`,
+    `validation.source`): a gesture the user made on that id would otherwise land on
+    another element. The message itself may take it back in a later edit, which is
+    how an answered widget keeps its answer."""
+    withdrawn = taken_back(events)
+    wordings, holders, latest = {}, {}, {}
     for e in events:
-        if fragment := logged_fragment(e):
-            fragments[e["id"]] = fragment
+        if e["kind"] == "edit":
+            message = e["message"]
+            if message not in wordings:
+                continue
+        elif (
+            e["kind"] in ("comment", "reply")
+            and e.get("author") == "agent"
+            and "text" in e
+        ):
+            message = e["id"]
+            wordings[message] = []
+        else:
+            continue
+        fragment = logged_fragment(e)
+        if fragment:
+            for identity in fragment.ids:
+                holders.setdefault(identity, message)
+        if e["kind"] != "edit" or e["id"] not in withdrawn:
+            wordings[message].append(e)
+            latest.pop(message, None)
+            latest[message] = fragment
+    ids, by_id, fragments = set(), {}, {}
+    for message, fragment in latest.items():
+        if fragment:
+            fragments[message] = fragment
             ids.update(fragment.ids)
             by_id.update(fragment.by_id)
-    return ThreadStructure(ids, by_id, fragments)
+    return ThreadStructure(ids, by_id, fragments, holders, wordings)
+
+
+def message_wording(structure: ThreadStructure, message: str, seq: int) -> dict:
+    """The event whose words `message` said when the log stood at `seq`: the one a
+    gesture made then was made on, so what it chose is read in the words the user saw
+    (`gesture_words`)."""
+    return [e for e in structure.wordings[message] if e["seq"] <= seq][-1]
 
 
 def widget_messages(structure: ThreadStructure) -> dict:
-    """Widget id → the message whose immutable markup declares it."""
+    """Widget id → the message whose current markup declares it."""
     return {
         widget: message
         for message, fragment in structure.fragments.items()
@@ -223,7 +273,7 @@ def widget_messages(structure: ThreadStructure) -> dict:
 
 
 def thread_widgets(structure: ThreadStructure, names: dict) -> dict:
-    """Widget id → the thread whose frozen markup holds it.
+    """Widget id → the thread whose message markup holds it.
 
     The relation on its own, apart from `frozen_thread_reading`, which carries it
     alongside the records and words a vocabulary supplies. A caller needing only
@@ -449,9 +499,9 @@ def batch_threads(events: list, batch: list, within: dict) -> list:
     told it was answered, and neither side can see the disagreement.
 
     The actions are unfolded because folding wants the declarations that say
-    what a verb's unit is, and they need no window: thread markup is
-    frozen, so no version bounds it and no retraction floor reaches it, and undo
-    is the whole of what unseats one."""
+    what a verb's unit is, and they need no window: no version bounds thread
+    markup and no retraction floor reaches it, and undo is the whole of what
+    unseats one."""
     names = thread_names(events)
     structure = thread_structure(events)
     widgets = thread_widgets(structure, names)

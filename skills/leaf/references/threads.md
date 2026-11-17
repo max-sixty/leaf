@@ -247,8 +247,9 @@ Correct a message you or an earlier agent wrote, without adding a turn:
 leaf thread edit <page> <message> --text "Corrected wording."
 ```
 
-The page labels it `edited`, and the log keeps every wording. A message holding HTML
-stays as it was sent, and an edit adds none.
+The page labels it `edited`, and the log keeps every wording. An edit may change the
+message's HTML too. An answer the user gave a widget in it stays with the widget's
+ids, and shows on whatever the edit leaves under them.
 
 While your reply is still the thread's latest message and the user hasn't answered
 it, a correction to it, or a later finding of yours that changes its answer, goes

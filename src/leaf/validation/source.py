@@ -129,7 +129,7 @@ def _instance_errors(
         )
     )
     errors.extend(suggestion_errors(parser.lf_elements, registry))
-    taken = sorted(parser.ids & thread_structure(events).ids)
+    taken = sorted(parser.ids & thread_structure(events).holders.keys())
     if taken:
         errors.append(Finding("ids-taken-by-messages", values={"ids": taken}))
     return errors

@@ -20,7 +20,7 @@ from .registry.schema import (
 from .revision_artifact import read_revision, revision_history
 from .schema import DATA_SOURCE_NAME, DIR_FILES, MEDIA_DIR
 from .structure import SourceDocument
-from .thread_context import logged_fragment
+from .thread_context import thread_structure
 
 
 class DataError(Refused):
@@ -188,9 +188,10 @@ def page_data_document_readings(
 ) -> list[tuple[list, str, dict]]:
     """Read each historical data consumer with its captured registry.
 
-    A message's markup uses its admitted revision's registry; a seeded message on a
-    page without revisions uses the initial registry. These readings permit historical
-    producers and inventories without restricting later documents' bindings.
+    A message's markup, as it now reads (`thread_structure`), uses the registry of
+    the revision its wording was admitted with; a seeded message on a page without
+    revisions uses the newest. These readings permit historical producers and
+    inventories without restricting later documents' bindings.
     """
     documents = [
         [
@@ -201,21 +202,17 @@ def page_data_document_readings(
     ]
     active_document = documents.pop() if documents else None
     newest = latest_revision(page_dir)
-    for event in events:
-        if fragment := logged_fragment(event):
-            revision = event.get("revision") or newest
-            selected_registry = (
-                registry
-                if revision is None
-                else read_revision(page_dir, revision).registry
+    structure = thread_structure(events)
+    for message, fragment in structure.fragments.items():
+        revision = structure.wordings[message][-1].get("revision") or newest
+        selected_registry = (
+            registry if revision is None else read_revision(page_dir, revision).registry
+        )
+        documents.append(
+            data_document_readings(
+                fragment, f"event {message!r} markup", selected_registry
             )
-            documents.append(
-                data_document_readings(
-                    fragment,
-                    f"event {event['id']!r} markup",
-                    selected_registry,
-                )
-            )
+        )
     # The active document owns current bindings ahead of older messages' markup.
     if active_document is not None:
         documents.append(active_document)
@@ -236,13 +233,10 @@ def initial_data_document_readings(
 ) -> list:
     """A fresh page's source and seeded messages share its initial registry."""
     documents = data_document_readings(authored, "index.html", registry)
-    for event in events:
-        if fragment := logged_fragment(event):
-            documents.extend(
-                data_document_readings(
-                    fragment, f"event {event['id']!r} markup", registry
-                )
-            )
+    for message, fragment in thread_structure(events).fragments.items():
+        documents.extend(
+            data_document_readings(fragment, f"event {message!r} markup", registry)
+        )
     return documents
 
 

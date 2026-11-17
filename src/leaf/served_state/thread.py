@@ -82,8 +82,9 @@ def browser_thread(
 
     A provisional reply joins its thread once it has words. Before then the input's
     workflow says the agent is replying, and an empty message would only reserve a
-    bubble with nothing in it. An agent's message whose Markdown holds HTML carries
-    `html` (`thread_context.logged_fragment`), which the browser draws as markup."""
+    bubble with nothing in it. An agent's message whose current Markdown holds HTML
+    carries `html` (`thread_context.thread_structure`), which the browser draws as
+    markup."""
     events, threads = work.events, work.threads
     reading, thread_obligations = work.thread, work.thread_obligations
     fragments = reading.structure.fragments

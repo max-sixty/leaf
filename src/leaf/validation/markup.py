@@ -253,7 +253,7 @@ def fragment_style_errors(parser: SourceDocument) -> list[Finding]:
     Nothing is lost by refusing them. The layer already dresses a widget an agent
     sends — that is what an element declaration and its theme rules are for — and a rule
     of a message's own has nowhere honest to sit, because the message is not the
-    page and its markup is frozen in the log where no version can revise it."""
+    page and its markup stands in the log, where no version can revise it."""
     errors = []
     if any(sheet["css"].strip() for sheet in parser.authoring.style_blocks):
         errors.append(Finding("message-style", "<style>"))

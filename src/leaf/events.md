@@ -346,11 +346,15 @@ to-do is made from an obligation.
 ### Messages
 
 - `edit` revises only the `text` of a comment or reply its own writer wrote: the
-  user's, or an agent's, including a predecessor session's. Markup is frozen, since a
-  user action may rest on a widget in it, and a reaction or a bare drawing has no text
-  to revise. Readings show the latest text on the original message, labelled edited,
-  and the message's `edited` names that edit and the text it replaced (`was`). Text the
-  message already says is refused. A browser's edit names its `base`, the id of the
+  user's, or an agent's, including a predecessor session's; a reaction or a bare
+  drawing has no text to revise. An agent's edit may rewrite the message's HTML too,
+  and every reading of its elements takes the latest wording
+  (`thread_context.thread_structure`). A user's action on a widget in it stays keyed
+  to the widget's id, so it applies to whatever markup the edit leaves under that id,
+  and to nothing once the id is gone; no other message or revision may take an id
+  any wording of the message held. Readings show the latest text on the original
+  message, labelled edited, and the message's `edited` names that edit and the text
+  it replaced (`was`). Text the message already says is refused. A browser's edit names its `base`, the id of the
   message or of its latest edit still in force, and lands only while that is still the
   latest, so a tab cannot silently replace words another tab has since rewritten. A
   withdrawn edit no longer stands: the message says what its latest edit still in force

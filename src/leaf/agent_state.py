@@ -58,8 +58,8 @@ def state_entry(coordinate, e: dict, facts: dict, thread: str | None = None) -> 
     with the facts its delivery carried about it (`event_facts`).
 
     `revision` is the exact document the action was taken on, which for a widget an agent
-    sent is a fact about the gesture and none about the widget: thread markup is
-    frozen in the log, so no page version bounds one of these.
+    sent is a fact about the gesture and none about the widget: no page version
+    bounds thread markup.
     """
     widget, unit, _verb = coordinate
     return {

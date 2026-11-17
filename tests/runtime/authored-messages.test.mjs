@@ -1,12 +1,16 @@
-/* An agent's message holding HTML prepares once, from its rendered Markdown, before
-   joining any thread surface, and keeps that preparation when its original nodes
-   move out of the inert fragment. */
+/* An agent's message holding HTML prepares once for each wording, from its rendered
+   Markdown, before joining any thread surface, and keeps that preparation when its
+   original nodes move out of the inert fragment. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { registerHooks } from "node:module";
 import { loadMarkdown } from "/runtime/markdown.js";
 import { adoptRegistry } from "/runtime/registry.js";
-import { prepareAuthoredMessage } from "/runtime/thread/messages.js";
+import {
+  islandChange,
+  messageHolding,
+  prepareAuthoredMessage,
+} from "/runtime/thread/messages.js";
 
 // Keep the browser loader's real import boundary without putting fixture modules in
 // the shipped widget tree. Every test removes its resolver after the import settles.
@@ -61,10 +65,57 @@ test("overlapping message reads share preparation and retain it through surface 
   assert.equal(prepared.body.text.trim(), "Original words");
   assert.throws(
     () => prepareAuthoredMessage(message, "another-thread"),
-    /changed its frozen document identity/,
+    /changed its document identity/,
   );
   original.remove();
   delete globalThis.messagePreparation;
+});
+
+// An agent's edit gives the message new words, each wording an island of its own. The
+// reading the page adopts decides which island its widgets answer for: the ids the
+// adopted island held and the new one doesn't leave, and an edit leaving no HTML
+// takes them all.
+test("adopting an edit's island retires the widgets the wording before it held", async () => {
+  adoptRegistry({
+    $layer: { generation: "edited-message" },
+    "lf-options": {},
+    "lf-option": {},
+  });
+  assert.equal(await loadMarkdown(), true);
+  const choice = (id, label) =>
+    `<lf-options id="${id}" choose><lf-option id="${id}-a">${label}</lf-option></lf-options>`;
+  const message = { id: "edited-message" };
+  const sentText = `Pick:\n\n${choice("edited-first", "First")}`;
+  const sent = await prepareAuthoredMessage(
+    { ...message, text: sentText },
+    "edited-thread",
+  );
+  islandChange([{ message, frozen: sent }]).commit();
+  assert.equal(messageHolding("edited-first-a")?.message, "edited-message");
+
+  const rewritten = await prepareAuthoredMessage(
+    { ...message, text: `Pick again:\n\n${choice("edited-second", "Second")}` },
+    "edited-thread",
+  );
+  assert.notEqual(rewritten, sent);
+  assert.equal(rewritten.body.text, "Pick again: Second");
+  // The wording a held drawing still shows keeps its own island.
+  assert.equal(
+    await prepareAuthoredMessage({ ...message, text: sentText }, "edited-thread"),
+    sent,
+  );
+  const edit = islandChange([{ message, frozen: rewritten }]);
+  assert.deepEqual(edit.retired, ["edited-first", "edited-first-a"]);
+  assert.equal(messageHolding("edited-first-a")?.message, "edited-message");
+  edit.commit();
+  assert.equal(messageHolding("edited-first-a"), null);
+  assert.equal(messageHolding("edited-second-a")?.message, "edited-message");
+  assert.deepEqual(islandChange([{ message, frozen: rewritten }]).retired, []);
+
+  const withdrawn = islandChange([{ message, frozen: null }]);
+  assert.deepEqual(withdrawn.retired, ["edited-second", "edited-second-a"]);
+  withdrawn.commit();
+  assert.equal(messageHolding("edited-second-a"), null);
 });
 
 // A thread named by its opening message, and On Me's row for a reply, read these words

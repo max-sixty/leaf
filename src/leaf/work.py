@@ -49,7 +49,7 @@ def page_element(page_dir: Path, name: str) -> dict | None:
 def page_subject(page_dir: Path, events: list, name: str) -> dict | None:
     """What `name` names (`thread_context.id_subject`), against the page the user is
     looking at: the newest revision's widgets, and the widgets its threads' messages
-    froze. Every command that takes an id reads it here, so each resolves it alike."""
+    hold. Every command that takes an id reads it here, so each resolves it alike."""
     revision = latest_revision(page_dir)
     if revision is None:
         return id_subject(events, set(), {}, {}, name)

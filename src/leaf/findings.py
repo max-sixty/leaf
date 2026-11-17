@@ -1094,10 +1094,10 @@ _TEXT = {
         f" at {_seat(v['first'])} and contract {v['then']['contract']!r} at"
         f" {_seat(v['then'])}; use a new source id for the new meaning"
     ),
-    # Message markup, which the log freezes.
+    # Message markup, which no version settles.
     "frozen-settlement": lambda at, v: (
-        f"{at} is a settlement holder, but thread markup is frozen in the log and no"
-        " version could ever settle it; put the change in the next version instead"
+        f"{at} is a settlement holder, but a version settles only the page's markup,"
+        " never a message's; put the change in the next version instead"
     ),
     "message-style": lambda at, v: (
         "<style> in message markup becomes a stylesheet of the whole document it is"
@@ -2153,13 +2153,14 @@ _TEXT = {
         " of its own"
     ),
     "detail-field": lambda at, v: f"detail fields are name=value, got {v['field']!r}",
-    "edit-holds-html": lambda at, v: (
-        f"message {v['message']!r} holds HTML, which stays as it was sent, since the"
-        " user may have acted on what it drew; post a new message instead"
-    ),
-    "edit-adds-html": lambda at, v: (
-        "an edit changes a message's words and adds no HTML; post a new message to"
-        " send HTML"
+    "edit-answered-widget": lambda at, v: (
+        f"the user has acted on {at} in message {v['message']!r}; their answer stays"
+        " recorded against its ids"
+        + (
+            ", so it shows on the markup this edit leaves there"
+            if v["kept"]
+            else ", and this edit removes it, so the thread no longer shows that answer"
+        )
     ),
 }
 

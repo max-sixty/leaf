@@ -127,7 +127,7 @@ export const invalidVisualProviders = (declarations) =>
 // which is the layer's and a widget's alike.
 //
 // lf-options had two of the other kind, and both were quiet. `answered` recorded a verb
-// only a thread can post, and a thread's markup is frozen in the log, so no version
+// only a thread can post, and no version carries a thread's markup, so none
 // could ever have honored a record of it; `open` recorded which way this tab last left
 // a disclosure, which no version carries at all. Neither reached a consumer, and the
 // one reader that did see them read them wrong: shallowSigs excludes exactly the

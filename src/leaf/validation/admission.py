@@ -148,6 +148,7 @@ def check_markup(
     *,
     publication: SourceReading,
     thread: str | None = None,
+    replacing: str | None = None,
 ) -> SourceDocument:
     """The markup an agent's message holding HTML draws (`passages.message_markup`),
     validated against the registry it is published with — the discussion-side `page
@@ -155,8 +156,9 @@ def check_markup(
     user's words, which draw no HTML, so none reaches the log unvalidated. Text
     without HTML needs no vocabulary gate, since it can't claim a widget, but its
     Markdown can still point at a file, which `checked_text` asks about wherever a
-    body arrives. `thread` is the thread a reply joins; a
-    comment opens one whose id is not yet assigned. Refuses with what's wrong.
+    body arrives. `thread` is the thread a reply or an edit joins; a
+    comment opens one whose id is not yet assigned. `replacing` names the message an
+    edit rewrites, whose own ids the markup may keep. Refuses with what's wrong.
 
     `publication` is the document and registry the message is stored with, which
     its writer decides before the check: the revision it names
@@ -179,6 +181,7 @@ def check_markup(
         extra_errors,
         read_contracts(page_dir),
         thread,
+        replacing=replacing,
     ):
         raise Rejected(errors, f"the HTML in the {kind} doesn't validate")
     return frag
@@ -194,15 +197,19 @@ def message_markup_errors(
     extra_errors: list[Finding],
     contracts: dict,
     thread_id: str | None,
+    *,
+    replacing: str | None = None,
 ) -> list[Finding]:
     """The shared message-fragment gate for a stored or newly constructed page.
 
     Callers supply their lifetime's binding checks. The
     fragment's structure, vocabulary, presentation, media, ids, references and
     live sample children have one gate regardless of whether its page has been
-    allocated yet. `thread_id` is the thread the message joins, where known. Each
-    stage reads only a fragment the stages before it accept, so it gives the first
-    stage's findings, or none.
+    allocated yet. `thread_id` is the thread the message joins, where known, and
+    `replacing` the message an edit rewrites: its markup leaves the page as this
+    takes its place, and an id any of its wordings held is its own to keep
+    (`thread_context.thread_structure`). Each stage reads only a fragment the stages
+    before it accept, so it gives the first stage's findings, or none.
     """
     # A block widget a Markdown paragraph holds follows words on its line, and the
     # HTML parser may close that paragraph inside it (`passages._html_block`).
@@ -225,13 +232,22 @@ def message_markup_errors(
     if names := id_errors(frag):
         return names
     thread = thread_structure(events)
-    if clash := sorted(frag.ids & (prior_ids | page.ids | thread.ids)):
+    held = {
+        identity for identity, message in thread.holders.items() if message != replacing
+    }
+    if clash := sorted(frag.ids & (prior_ids | page.ids | held)):
         return [Finding("ids-taken", values={"ids": clash})]
+    replaced = thread.fragments.get(replacing)
+    standing = thread.ids - replaced.ids if replaced else thread.ids
     if reference_errs := reference_errors(
         frag.lf_elements,
         registry,
-        page.ids | thread.ids | frag.ids,
-        {**page.by_id, **thread.by_id, **frag.by_id},
+        page.ids | standing | frag.ids,
+        {
+            **page.by_id,
+            **{i: r for i, r in thread.by_id.items() if i in standing},
+            **frag.by_id,
+        },
         thread_ids=thread_ids(events),
     ):
         return reference_errs

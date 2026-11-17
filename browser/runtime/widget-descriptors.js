@@ -8,8 +8,8 @@
    same revision-bound descriptor.
 
    The binding also answers the other way, id to element, for the layer's own paint:
-   a message's frozen markup is bound when it is prepared, before the thread mounts
-   it, so what the projection paints on it arrives with the node. */
+   a message's markup is bound when each wording is prepared, before the thread
+   mounts it, so what the projection paints on it arrives with the node. */
 import { runtime } from "./context.js";
 import { declaredElements, exhibits } from "./registry.js";
 import { isElementName } from "./registry-contract.js";
@@ -97,12 +97,13 @@ export function stageWidgetDescriptors(
   });
 }
 
-/** @param {Pick<ReturnType<typeof stageWidgetDescriptors>, "bindings">} stage @param {Set<string>} [retired] */
-export function commitWidgetDescriptors(stage, retired = new Set()) {
-  // A revision that rewrites a widget's authored markup retires the descriptor taken
-  // from the markup it replaced. The id survives the revision and the element does not,
-  // so the id-keyed readings are the ones that would otherwise answer for a document
-  // nobody is reading; the element-keyed ones leave with their elements.
+/** @param {Pick<ReturnType<typeof stageWidgetDescriptors>, "bindings">} stage @param {Iterable<string>} [retired] */
+export function commitWidgetDescriptors(stage, retired = []) {
+  // A revision or an edit of a message that rewrites a widget's authored markup
+  // retires the descriptor taken from the markup it replaced. The id survives the
+  // rewrite and the element does not, so the id-keyed readings are the ones that would
+  // otherwise answer for a document nobody is reading; the element-keyed ones leave
+  // with their elements.
   for (const id of retired) {
     byId.delete(id);
     elements.delete(id);

@@ -84,7 +84,7 @@ export function closestAcross(node, selector) {
 
 // A different question the class also used to answer, and not a question about looks at
 // all: which document is this element in? The runtime's layer is one container, so a
-// widget inside a reply — markup frozen in the log, carried by no version — is exactly
+// widget inside a reply — markup the log carries, and no version — is exactly
 // what that container holds, and the reading position is a place in the page rather than
 // in the panel over it. `.lf-ui` reached those elements and a widget's own controls out
 // on the page besides, which is the look standing in for the place.

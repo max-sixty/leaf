@@ -194,8 +194,8 @@ CONTROL_STABILITY_PAGE = leaf_page(
   <aside>
     <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
     <fieldset id="tone"><legend>Tone</legend>
-      <label class="lf-choice" id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
-      <label class="lf-choice" id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
     </fieldset>
   </aside>
   <div id="stable-playground-preview">
@@ -320,17 +320,14 @@ RING_CASES = (
             # picture, rings the picture (details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # The rail's working density, where a choice's gap is narrowest beside the
-            # next face; a candidate card is the choice, so the card wears its radio's
-            # ring (playground/defaults.css).
-            "notification-playground": (
+            # next face, and a candidate's radio in its card: each is the page's own
+            # label, which wears the plain choice face's ring (page-controls.css).
+            "notification-playground": tuple(
                 (
-                    "#tone input[type=radio]",
-                    ".lf-choice[data-lf-control-focus-visible]",
-                ),
-                (
-                    "#format input[type=radio]",
-                    "> lf-playground-choice[data-lf-control-focus-visible]",
-                ),
+                    f"#{field} input[type=radio]",
+                    ":not([data-lf-offer]))[data-lf-control-focus-visible]",
+                )
+                for field in ("tone", "format")
             ),
             "pr-walkthrough": (
                 ("#pr-path-tree > summary", "[data-lf-mark]"),
@@ -455,8 +452,8 @@ RING_CASES = (
         (),
         {"ship-review": ((".lf-react-palette:popover-open .lf-react", FLOOR_RING),)},
     ),
-    # On Me opens on its view; the walk's first step lands on a card.
-    ("On Me", ("ArrowDown",), {"ship-review": ((None, FLOOR_RING),)}),
+    # On Me, which `g M` opens standing on its first card.
+    ("On Me", ("g", "Shift+m"), {"ship-review": ((None, FLOOR_RING),)}),
     ("All pages", ("g", "Shift+l", "ArrowDown"), {RING_CHROME: ((None, FLOOR_RING),)}),
     # The leaf's menu, opened by its press into its search; ↓ lands on a row.
     ("the leaf's menu", ("ArrowDown",), {RING_CHROME: ((None, FLOOR_RING),)}),
@@ -560,7 +557,6 @@ RING_SCOPE_SURFACE = {
 
 RING_SCOPE_OPENER = {
     "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "On Me": ".lf-fp-on-user",
     "the leaf's menu": ".lf-fp-leaf",
     "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
     "a reaction palette": f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",

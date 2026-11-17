@@ -38,6 +38,7 @@ from render_harness import (
 
 from browser.threads import open_panel_thread, thread_row
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -185,7 +186,7 @@ def test_a_range_and_a_select_preview_their_names_and_a_thread_card_none(
 PLAYGROUND_SETTINGS = (
     '<lf-playground id="pg"><aside><label id="budget">Page budget'
     ' <input type="range" name="budget" min="0" max="30" value="10"></label>'
-    '<label class="lf-choice" id="finance"><input type="checkbox" name="finance"'
+    '<label id="finance"><input type="checkbox" name="finance"'
     ' role="switch"> Count finance pages</label></aside><p>The budget.</p>'
     "<lf-playground-output>Budget"
     ' <output for="budget"></output></lf-playground-output>'
@@ -1047,7 +1048,7 @@ def test_a_thread_on_a_whole_section_stands_where_the_section_stands(browser, se
     )
     page.mouse.move(1, 1)
     page.evaluate("() => window.lfStorage.userStore.set('lf-on-me-grouping', 'place')")
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     band = page.locator(".lf-rows-group").filter(
         has_text="Should this wait for the vendor's release?"
     )
@@ -1744,8 +1745,8 @@ WIDGET_WORDS = (
     "</p></lf-old><lf-new><p>Refill a feeder when its camera shows it half-empty.</p>"
     "</lf-new></lf-suggestion>"
     '<lf-playground id="pg"><aside><fieldset id="tone"><legend>Tone</legend>'
-    '<label class="lf-choice" id="tone-quiet"><input type="radio" name="tone"'
-    ' value="quiet" checked> Quiet</label><label class="lf-choice" id="tone-bold">'
+    '<label id="tone-quiet"><input type="radio" name="tone"'
+    ' value="quiet" checked> Quiet</label><label id="tone-bold">'
     '<input type="radio" name="tone" value="bold"> Bold</label></fieldset></aside>'
     '<p id="pg-words">The candidate banner reads well.</p>'
     "<lf-playground-output>Use"

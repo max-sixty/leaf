@@ -94,7 +94,7 @@
         font-weight: 600;
       }
 
-      .alert-settings .lf-choice {
+      .alert-settings fieldset > label {
         justify-self: stretch;
         margin-inline-start: calc(-1 * var(--lf-choice-pad));
       }
@@ -405,7 +405,7 @@
               >On-call page budget, per 30 days
               <input type="range" name="budget" min="0" max="30" value="10"
             /></label>
-            <label class="lf-choice" id="finance-counts"
+            <label id="finance-counts"
               ><input type="checkbox" name="finance-counts" role="switch" /> Count
               finance-ops pages in the budget</label
             >
@@ -492,29 +492,29 @@
               >
                 <fieldset id="rate-threshold">
                   <legend>Threshold</legend>
-                  <label class="lf-choice" id="rate-threshold-0-5"
+                  <label id="rate-threshold-0-5"
                     ><input type="radio" name="rate-threshold" value="0.5%" /> over
                     0.5%</label
-                  ><label class="lf-choice" id="alert-rate-today"
+                  ><label id="alert-rate-today"
                     ><input type="radio" name="rate-threshold" value="1%" checked />
                     over 1%</label
-                  ><label class="lf-choice" id="rate-threshold-2"
+                  ><label id="rate-threshold-2"
                     ><input type="radio" name="rate-threshold" value="2%" /> over
                     2%</label
-                  ><label class="lf-choice" id="rate-threshold-5"
+                  ><label id="rate-threshold-5"
                     ><input type="radio" name="rate-threshold" value="5%" /> over
                     5%</label
                   >
                 </fieldset>
                 <fieldset id="rate-route">
                   <legend>Route</legend>
-                  <label class="lf-choice" id="rate-route-page"
+                  <label id="rate-route-page"
                     ><input type="radio" name="rate-route" value="page" checked />
                     Page</label
-                  ><label class="lf-choice" id="rate-route-ticket"
+                  ><label id="rate-route-ticket"
                     ><input type="radio" name="rate-route" value="ticket" />
                     Ticket</label
-                  ><label class="lf-choice" id="rate-route-off"
+                  ><label id="rate-route-off"
                     ><input type="radio" name="rate-route" value="off" /> Off</label
                   >
                 </fieldset>
@@ -569,10 +569,10 @@
               >
                 <fieldset id="latency-threshold">
                   <legend>Threshold</legend>
-                  <label class="lf-choice" id="latency-threshold-600ms"
+                  <label id="latency-threshold-600ms"
                     ><input type="radio" name="latency-threshold" value="600ms" /> over
                     600 ms</label
-                  ><label class="lf-choice" id="latency-threshold-800ms"
+                  ><label id="latency-threshold-800ms"
                     ><input
                       type="radio"
                       name="latency-threshold"
@@ -580,23 +580,23 @@
                       checked
                     />
                     over 800 ms</label
-                  ><label class="lf-choice" id="latency-threshold-1200ms"
+                  ><label id="latency-threshold-1200ms"
                     ><input type="radio" name="latency-threshold" value="1200ms" /> over
                     1,200 ms</label
-                  ><label class="lf-choice" id="latency-threshold-2000ms"
+                  ><label id="latency-threshold-2000ms"
                     ><input type="radio" name="latency-threshold" value="2000ms" /> over
                     2,000 ms</label
                   >
                 </fieldset>
                 <fieldset id="latency-route">
                   <legend>Route</legend>
-                  <label class="lf-choice" id="latency-route-page"
+                  <label id="latency-route-page"
                     ><input type="radio" name="latency-route" value="page" checked />
                     Page</label
-                  ><label class="lf-choice" id="latency-route-ticket"
+                  ><label id="latency-route-ticket"
                     ><input type="radio" name="latency-route" value="ticket" />
                     Ticket</label
-                  ><label class="lf-choice" id="latency-route-off"
+                  ><label id="latency-route-off"
                     ><input type="radio" name="latency-route" value="off" /> Off</label
                   >
                 </fieldset>
@@ -649,26 +649,26 @@
               >
                 <fieldset id="declines-threshold">
                   <legend>Threshold</legend>
-                  <label class="lf-choice" id="declines-threshold-1-5x"
+                  <label id="declines-threshold-1-5x"
                     ><input type="radio" name="declines-threshold" value="1.5x" /> over
                     1.5×</label
-                  ><label class="lf-choice" id="declines-threshold-2x"
+                  ><label id="declines-threshold-2x"
                     ><input type="radio" name="declines-threshold" value="2x" checked />
                     over 2×</label
-                  ><label class="lf-choice" id="declines-threshold-3x"
+                  ><label id="declines-threshold-3x"
                     ><input type="radio" name="declines-threshold" value="3x" /> over
                     3×</label
                   >
                 </fieldset>
                 <fieldset id="declines-route">
                   <legend>Route</legend>
-                  <label class="lf-choice" id="declines-route-page"
+                  <label id="declines-route-page"
                     ><input type="radio" name="declines-route" value="page" />
                     Page</label
-                  ><label class="lf-choice" id="declines-route-ticket"
+                  ><label id="declines-route-ticket"
                     ><input type="radio" name="declines-route" value="ticket" checked />
                     Ticket</label
-                  ><label class="lf-choice" id="declines-route-off"
+                  ><label id="declines-route-off"
                     ><input type="radio" name="declines-route" value="off" /> Off</label
                   >
                 </fieldset>
@@ -718,10 +718,10 @@
               >
                 <fieldset id="webhooks-threshold">
                   <legend>Threshold</legend>
-                  <label class="lf-choice" id="webhooks-threshold-1000"
+                  <label id="webhooks-threshold-1000"
                     ><input type="radio" name="webhooks-threshold" value="1000" /> over
                     1,000</label
-                  ><label class="lf-choice" id="webhooks-threshold-5000"
+                  ><label id="webhooks-threshold-5000"
                     ><input
                       type="radio"
                       name="webhooks-threshold"
@@ -729,20 +729,20 @@
                       checked
                     />
                     over 5,000</label
-                  ><label class="lf-choice" id="webhooks-threshold-20000"
+                  ><label id="webhooks-threshold-20000"
                     ><input type="radio" name="webhooks-threshold" value="20000" /> over
                     20,000</label
                   >
                 </fieldset>
                 <fieldset id="webhooks-route">
                   <legend>Route</legend>
-                  <label class="lf-choice" id="webhooks-route-page"
+                  <label id="webhooks-route-page"
                     ><input type="radio" name="webhooks-route" value="page" checked />
                     Page</label
-                  ><label class="lf-choice" id="webhooks-route-ticket"
+                  ><label id="webhooks-route-ticket"
                     ><input type="radio" name="webhooks-route" value="ticket" />
                     Ticket</label
-                  ><label class="lf-choice" id="webhooks-route-off"
+                  ><label id="webhooks-route-off"
                     ><input type="radio" name="webhooks-route" value="off" /> Off</label
                   >
                 </fieldset>
@@ -799,10 +799,10 @@
               >
                 <fieldset id="ledger-threshold">
                   <legend>Threshold</legend>
-                  <label class="lf-choice" id="ledger-threshold-60min"
+                  <label id="ledger-threshold-60min"
                     ><input type="radio" name="ledger-threshold" value="60min" /> over
                     60 min</label
-                  ><label class="lf-choice" id="ledger-threshold-90min"
+                  ><label id="ledger-threshold-90min"
                     ><input
                       type="radio"
                       name="ledger-threshold"
@@ -810,19 +810,19 @@
                       checked
                     />
                     over 90 min</label
-                  ><label class="lf-choice" id="ledger-threshold-180min"
+                  ><label id="ledger-threshold-180min"
                     ><input type="radio" name="ledger-threshold" value="180min" /> over
                     180 min</label
                   >
                 </fieldset>
                 <fieldset id="ledger-route">
                   <legend>Route</legend>
-                  <label class="lf-choice" id="ledger-route-page"
+                  <label id="ledger-route-page"
                     ><input type="radio" name="ledger-route" value="page" /> Page</label
-                  ><label class="lf-choice" id="ledger-route-ticket"
+                  ><label id="ledger-route-ticket"
                     ><input type="radio" name="ledger-route" value="ticket" />
                     Ticket</label
-                  ><label class="lf-choice" id="ledger-route-off"
+                  ><label id="ledger-route-off"
                     ><input type="radio" name="ledger-route" value="off" checked />
                     Off</label
                   >
@@ -883,25 +883,25 @@
               >
                 <fieldset id="cert-threshold">
                   <legend>Threshold</legend>
-                  <label class="lf-choice" id="cert-threshold-30d"
+                  <label id="cert-threshold-30d"
                     ><input type="radio" name="cert-threshold" value="30d" /> under 30
                     days</label
-                  ><label class="lf-choice" id="cert-threshold-14d"
+                  ><label id="cert-threshold-14d"
                     ><input type="radio" name="cert-threshold" value="14d" checked />
                     under 14 days</label
-                  ><label class="lf-choice" id="cert-threshold-7d"
+                  ><label id="cert-threshold-7d"
                     ><input type="radio" name="cert-threshold" value="7d" /> under 7
                     days</label
                   >
                 </fieldset>
                 <fieldset id="cert-route">
                   <legend>Route</legend>
-                  <label class="lf-choice" id="cert-route-page"
+                  <label id="cert-route-page"
                     ><input type="radio" name="cert-route" value="page" /> Page</label
-                  ><label class="lf-choice" id="cert-route-ticket"
+                  ><label id="cert-route-ticket"
                     ><input type="radio" name="cert-route" value="ticket" checked />
                     Ticket</label
-                  ><label class="lf-choice" id="cert-route-off"
+                  ><label id="cert-route-off"
                     ><input type="radio" name="cert-route" value="off" /> Off</label
                   >
                 </fieldset>

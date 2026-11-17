@@ -113,12 +113,11 @@ in the playground is one field of the configuration, and radios that share a nam
 one field. A range or number input submits a number, a checkbox true or false, and any
 other field its value as a string; a radio group with none checked submits null. Field
 names use lowercase letters, digits and hyphens. A control without a `name`, or one
-that belongs to a `<form>` of its own, is no field. Give each control Leaf's face with
-its classes (`references/page-layout.md`, "Page CSS and Leaf's controls"): a
-`<label class="lf-choice">` around a radio or checkbox, and `class="lf-field"` on a
-text input or select. In the aside, Leaf stacks what you write, sets a field's words
-above it and stands a fieldset's radios one per line; in the preview, lay them out
-yourself.
+that belongs to a `<form>` of its own, is no field. On a themed page these plain
+controls wear Leaf's faces, a radio or checkbox inside its `<label>` among them
+(`references/page-layout.md`, "Page CSS and Leaf's controls"). In the aside, Leaf
+stacks what you write, sets a field's words above it and stands a fieldset's radios
+one per line; in the preview, lay them out yourself.
 
 Radios keep every option's label visible. A `select` saves space when scanning current
 settings across many items, at the cost of opening a menu to read the other labels.
@@ -127,8 +126,8 @@ Reset and the submitted values work the same.
 
 Keep the configuration the user is choosing apart from the cases used to inspect it.
 Controls and presets describe what to build. Give preview cases and inspection settings
-their own labeled controls in a `<form method="dialog">` of their own, so their
-page-local state stays outside the playground's submitted values. Changing the case
+their own labeled native controls in a `<form method="dialog">` of their own, so
+their page-local state stays outside the playground's submitted values. Changing the case
 keeps the configuration, applying a preset keeps the case, and every candidate shows
 the same case. When editing the data is itself the task, the data belongs in the
 configuration.
@@ -184,7 +183,7 @@ one of them, the comment records its id, which tells you which one they mean.
         >Corner radius, px
         <input type="range" name="radius" min="0" max="24" value="10" />
       </label>
-      <label class="lf-choice" id="compact"
+      <label id="compact"
         ><input type="checkbox" name="compact" /> Compact spacing</label
       >
     </aside>
@@ -195,14 +194,14 @@ one of them, the comment records its id, which tells you which one they mean.
     <fieldset id="format" class="notification-candidates">
       <legend>Notification</legend>
       <article id="format-banner" class="notification-candidate">
-        <label class="lf-choice"
+        <label
           ><input type="radio" name="format" value="banner" checked /> Banner</label
         >
         <h3>Checkout deployed</h3>
         <p>Review the deployment run.</p>
       </article>
       <article id="format-status-strip" class="notification-candidate">
-        <label class="lf-choice"
+        <label
           ><input type="radio" name="format" value="status strip" /> Status strip</label
         >
         <p>Checkout · deployed · 18 checks passed</p>

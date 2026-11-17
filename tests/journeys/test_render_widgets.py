@@ -1792,8 +1792,8 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
   <h2>Which tone?</h2>
   <lf-playground id="tone-playground">
     <aside><fieldset id="tone"><legend>Tone</legend>
-      <label class="lf-choice" id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
-      <label class="lf-choice" id="tone-loud"><input type="radio" name="tone" value="loud"> Loud</label>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-loud"><input type="radio" name="tone" value="loud"> Loud</label>
     </fieldset></aside>
       <lf-sample id="tone-sample" label="tone sample">
         <template id="tone-page" data-sample>
@@ -1896,12 +1896,12 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
     </lf-playground-preset>
     <aside>
       <fieldset id="ring"><legend>Ring</legend>
-        <label class="lf-choice" id="ring-thin"><input type="radio" name="ring" value="thin" checked> Thin</label>
-        <label class="lf-choice" id="ring-thick"><input type="radio" name="ring" value="thick"> Thick</label>
+        <label id="ring-thin"><input type="radio" name="ring" value="thin" checked> Thin</label>
+        <label id="ring-thick"><input type="radio" name="ring" value="thick"> Thick</label>
       </fieldset>
       <label id="width">Width <input type="range" name="width" min="1" max="4" value="2"></label>
-      <label class="lf-choice" id="dim"><input type="checkbox" name="dim" role="switch"> Dim</label>
-      <label id="note">Note <input class="lf-field" name="note" value="hi"></label>
+      <label id="dim"><input type="checkbox" name="dim" role="switch"> Dim</label>
+      <label id="note">Note <input name="note" value="hi"></label>
     </aside>
       <button id="preview-button" type="button">A candidate button</button>
       <lf-sample id="ring-sample" label="ring sample">

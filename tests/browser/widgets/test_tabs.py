@@ -817,6 +817,38 @@ def test_a_scrolling_tab_panel_keeps_nested_headers_on_its_edge(browser, serve, 
     assert geometry["header"] == pytest.approx(geometry["edge"], abs=0.5), geometry
 
 
+def test_a_queue_entry_shows_the_face_its_item_opens_with(browser, serve):
+    """An item that opens with a <template> shows that markup in its list entry, in
+    place of its label and summary, while `label` stays its accessible name and the open
+    item doesn't show the template. A revision that rewrites the face reaches the list."""
+
+    def queue(added):
+        return leaf_page(
+            "Faces",
+            '<h1 id="title">Review</h1><lf-tabs id="queue" list="side">'
+            '<lf-tab id="plain" label="Overview" summary="What changed">'
+            '<p id="p-plain">Overview.</p></lf-tab>'
+            '<lf-tab id="file" label="README.md" summary="+120 −45 lines">'
+            f'<template><code>README.md</code> <span class="added">+{added}</span>'
+            "</template>"
+            '<p id="p-file">The install section.</p></lf-tab></lf-tabs>',
+        )
+
+    page = open_page(browser, live_url(serve(queue(120))))
+    tabs = page.locator("#queue").get_by_role("tab")
+    expect(tabs.nth(1)).to_have_accessible_name("README.md")
+    expect(tabs.nth(1).locator("code")).to_have_text("README.md")
+    expect(tabs.nth(1).locator(".added")).to_have_text("+120")
+    expect(tabs.nth(1).locator(".lf-tab-summary")).to_have_count(0)
+    expect(tabs.nth(0).locator(".lf-tab-summary")).to_have_text("What changed")
+    tabs.nth(1).click()
+    expect(page.locator("#p-file")).to_be_visible()
+    expect(page.locator("#file")).not_to_contain_text("+120")
+
+    wait_for_revision(page, stamp_page(serve.page_dir, queue(130), "Rerun")["revision"])
+    expect(tabs.nth(1).locator(".added")).to_have_text("+130")
+
+
 def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve):
     """A row's mark, and the words beside it, say its obligations are open until every
     one is answered, and withdrawal retires a request without claiming the user
@@ -853,6 +885,37 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
     expect(marks.nth(0)).not_to_have_attribute("data-lf-obligations", re.compile(".*"))
     expect(marks.nth(1)).to_have_attribute("data-lf-obligations", "answered")
     expect(marks.nth(1)).to_have_text("Keep")
+
+
+def test_a_revision_that_adds_a_question_marks_its_side_tab_open(browser, serve):
+    """A side list whose panels ask nothing gives its rows no answer line. A revision that
+    adds the first question to a panel edits inside that panel and leaves the list in
+    place, and the panel's row turns open with it, with no other change to redraw the
+    list."""
+    source = leaf_page(
+        "Questions arrive",
+        '<lf-tabs id="queue" list="side">'
+        '<lf-tab id="first" label="First"><p>Nothing to decide.</p></lf-tab>'
+        '<lf-tab id="last" label="Last"><p id="last-words">Nothing yet.</p></lf-tab>'
+        "</lf-tabs>",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    rows = page.locator("#queue .lf-tab-btn")
+    expect(rows).to_have_count(2)
+    expect(page.locator("#queue .lf-tab-answer")).to_have_count(0)
+    stamp_page(
+        serve.page_dir,
+        source.replace(
+            '<p id="last-words">Nothing yet.</p>',
+            '<lf-options id="pick" choose><lf-option id="pick-a">Go</lf-option></lf-options>',
+        ),
+        "Ask the first question",
+    )
+    wait_for_revision(page, 2)
+    expect(rows.nth(1).locator(".lf-tab-answer")).to_have_attribute(
+        "data-lf-obligations", "open"
+    )
+    expect(rows.nth(0).locator(".lf-tab-answer")).to_have_count(0)
 
 
 def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, serve):

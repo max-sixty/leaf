@@ -165,7 +165,7 @@ handoff and save it.
           <fieldset id="route-choice">
             <legend>Route into the panel</legend>
             <div id="format-baseline" class="route">
-              <label class="lf-choice"
+              <label
                 ><input type="radio" name="format" value="baseline" /> A. Keep Threads
                 as the only way in</label
               >
@@ -196,7 +196,7 @@ handoff and save it.
               </div>
             </div>
             <div id="format-a" class="route">
-              <label class="lf-choice"
+              <label
                 ><input type="radio" name="format" value="a" /> B. Add Open in panel to
                 the card</label
               >
@@ -228,7 +228,7 @@ handoff and save it.
               </div>
             </div>
             <div id="format-b" class="route">
-              <label class="lf-choice"
+              <label
                 ><input type="radio" name="format" value="b" checked /> C. Add Open in
                 panel, opening at reading size</label
               >

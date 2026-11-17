@@ -88,7 +88,7 @@
         box-shadow: inset 0 0 0 1px var(--lf-accent);
       }
 
-      .treatment > .lf-choice {
+      .treatment > label {
         justify-self: stretch;
         padding: var(--lf-sp-3) var(--lf-sp-3) 0;
         font: var(--lf-font-title);
@@ -336,7 +336,7 @@
                 <fieldset id="code-treatment">
                   <legend>Treatment</legend>
                   <div id="treatment-a" class="treatment">
-                    <label class="lf-choice"
+                    <label
                       ><input type="radio" name="chosen" value="A" checked /> A</label
                     >
                     <section
@@ -363,9 +363,7 @@ export function releaseLabels(releases) {
                     </section>
                   </div>
                   <div id="treatment-b" class="treatment">
-                    <label class="lf-choice"
-                      ><input type="radio" name="chosen" value="B" /> B</label
-                    >
+                    <label><input type="radio" name="chosen" value="B" /> B</label>
                     <section
                       class="code-candidate"
                       data-candidate="B"

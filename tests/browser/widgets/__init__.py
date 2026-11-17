@@ -71,16 +71,16 @@ PLAYGROUND_PAGE = leaf_page(
     <aside>
       <label id="radius">Corner radius <input type="range" name="radius"
         min="0" max="28" value="12"></label>
-      <label class="lf-choice" id="compact"><input type="checkbox" name="compact"
+      <label id="compact"><input type="checkbox" name="compact"
         role="switch"> Compact spacing</label>
       <fieldset id="tone"><legend>Tone</legend>
-        <label class="lf-choice" id="tone-quiet"><input type="radio" name="tone"
+        <label id="tone-quiet"><input type="radio" name="tone"
           value="quiet" checked> Quiet</label>
-        <label class="lf-choice" id="tone-bold"><input type="radio" name="tone"
+        <label id="tone-bold"><input type="radio" name="tone"
           value="bold"> Bold</label>
       </fieldset>
       <label id="accent">Accent <input type="color" name="accent" value="#4f766f"></label>
-      <label id="title">Title <input class="lf-field" name="title" value="Field note"
+      <label id="title">Title <input name="title" value="Field note"
         placeholder="Card title"></label>
     </aside>
     <lf-playground-preset id="preset-dense" label="Dense">

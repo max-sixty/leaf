@@ -57,7 +57,7 @@
                 <td>
                   <label id="embeddings"
                     >Embeddings accelerator
-                    <select class="lf-field" name="embeddings">
+                    <select name="embeddings">
                       <option id="embeddings-cpu" value="cpu" selected>CPU</option>
                       <option id="embeddings-a10" value="a10">A10</option>
                       <option id="embeddings-a100" value="a100">A100</option>
@@ -71,7 +71,7 @@
                 <td>
                   <label id="ranking"
                     >Ranking accelerator
-                    <select class="lf-field" name="ranking">
+                    <select name="ranking">
                       <option id="ranking-cpu" value="cpu" selected>CPU</option>
                       <option id="ranking-a10" value="a10">A10</option>
                       <option id="ranking-a100" value="a100">A100</option>
@@ -84,10 +84,10 @@
           </table>
           <fieldset id="priority">
             <legend>Scheduling priority</legend>
-            <label class="lf-choice" id="priority-normal"
+            <label id="priority-normal"
               ><input type="radio" name="priority" value="normal" checked />
               Normal</label
-            ><label class="lf-choice" id="priority-high"
+            ><label id="priority-high"
               ><input type="radio" name="priority" value="high" /> High</label
             >
           </fieldset>

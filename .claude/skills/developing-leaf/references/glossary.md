@@ -56,9 +56,10 @@ to v4”), what is new (“2 unread”, “New On Me”), a thread's state (“R
 state (“Lost the connection — reconnecting”) or an error. Leaf's words are a state or
 a past participle, never an elided “I” (“Got it”, “Couldn't answer”, “Need your
 approval”). Where the agent hasn't said what it is doing, Leaf doesn't guess its words:
-a working page shows its leaf in the working tone and no words until the agent writes
-a line. Rejected, on 28 and 30 October 2026: Leaf's inferences set in the agent's voice
-(“Got your comment”, “Working on it”, “Got it”), which put Leaf's words in its mouth.
+a working page says “Working”, in Leaf's voice, until the agent writes a line. Rejected,
+on 28 and 30 October 2026: Leaf's inferences set in the agent's voice (“Got your
+comment”, “Working on it”, “Got it”), which put Leaf's words in its mouth; and, until 16
+November 2026, no words at all, which left the panel's field blank.
 
 An empty box's words are Leaf's too, since the agent didn't write them, and each ends
 in an ellipsis: a comment box's (“Reply…”, “Comment…”) and a search's prompt (“Find
@@ -163,7 +164,7 @@ behavior. A compound widget may own reading regions without being a pane.
 | Term | Identity criterion |
 |---|---|
 | **Chrome** | Interface the runtime draws outside authored content, rooted at the one `.lf-chrome` container after `body` |
-| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On Me mark**, with its count and a dot when a thread has an unread reply. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
+| **Leaf panel** | Leaf's chrome (`floating-panel.js`): one box floating at the bottom of the window. Its **row** contains the leaf, the comment field, and one **seat** at the end. That seat shows the **On Me mark**, with its count and a dot when a thread has an unread reply; while the count stands, a press on it is Next On Me, whose `m` it shows beside the count. While a view or stance is active, the seat instead shows the ✕ that closes it. A **folded** panel shows only the leaf in the window's corner |
 | **Leaf** | The mark at the row's start, coloured by the agent's state; a press opens the On view on the leaf's menu, or unfolds a folded panel |
 | **Leaf's menu** | The On view's first tab, **Menu**: the full status over the page's other controls (`page-controls.js`), one line each with its shortcut. A row ending in a chevron opens its list over the menu: Navigate, Annotations, Versions. While it stands, the comment field is its search |
 | **Comment field** | The panel's one box for writing: a page comment, or a reply while a thread is open. Search uses the same space with a persistent **Search page**, **Search menu** or **Search threads** label and keeps the comment draft and caret. Outside search, the empty field shows the agent's status, after where the user stands, such as Draw mode or an older version (**v1 of 2**, with **Open latest** at its end), a temporary notice or a walk's position in place of a placeholder; in an open thread it shows whose turn it is and a walk's position beside the leaf, and Reply with its key at its end. A press it offers, Reply or words selected on the page, reads in ink with its key; everything else reads dim |

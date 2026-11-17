@@ -219,8 +219,8 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // onto those same two elements. Most arrive after this module, but the server's prepaint
 // bootstrap deliberately runs before the module graph and has already written sample
 // presentation facts. Authored markup cannot use the `data-lf-` or `lf-` namespaces,
-// but for the kernel idioms' classes, which a page writes on a control or a scroll box
-// and never on a root, so that boundary identifies the authored share without mistaking
+// but for the kernel idioms' classes, which a page writes on a scroll box and never on
+// a root, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
 /** @param {Element} root */
@@ -1854,7 +1854,7 @@ export function createVersionController({
   ) => unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
   /** @param {Element} before @param {Element} after @param {string | null} arrivingRoot */
   function sameAuthoredMarkup(before, after, arrivingRoot) {
-    if (before.isEqualNode(after)) return true;
+    if (before.isEqualNode(after) && sameTemplates(before, after)) return true;
     const strip = (
       /** @type {Element} */ element,
       /** @type {string | null} */ root,
@@ -1869,7 +1869,32 @@ export function createVersionController({
       }
       return copy;
     };
-    return strip(before, authoredRoot).isEqualNode(strip(after, arrivingRoot));
+    const held = strip(before, authoredRoot);
+    const arriving = strip(after, arrivingRoot);
+    return held.isEqualNode(arriving) && sameTemplates(held, arriving);
+  }
+  // A <template>'s markup is its content, which isn't among its children, so
+  // isEqualNode passes two templates whose content differs, and a revision that
+  // rewrites only that content would leave the page holding the old one.
+  /** @param {Element | DocumentFragment} before @param {Element | DocumentFragment} after @returns {boolean} */
+  function sameTemplates(before, after) {
+    /** @param {Element | DocumentFragment} node */
+    const templates = (node) =>
+      [node, ...node.querySelectorAll("template")].filter(
+        (each) => each instanceof HTMLTemplateElement,
+      );
+    const held = templates(before);
+    const arriving = templates(after);
+    return (
+      held.length === arriving.length &&
+      held.every((template, at) => {
+        const other = /** @type {HTMLTemplateElement} */ (arriving[at]);
+        return (
+          template.content.isEqualNode(other.content) &&
+          sameTemplates(template.content, other.content)
+        );
+      })
+    );
   }
   // A widget's module says how a revision reaches it, as its class's static `lfPatch`
   // (module-authoring.md, "Revisions"). The module of every widget standing in the
@@ -1877,7 +1902,10 @@ export function createVersionController({
   // feed starts, and an activation awaits the arriving revision's (`prepareActivation`).
   // A `members` container retains authored markup while the inputs its renderer
   // consumes stay the same. A structured member list, or a declared x-views list,
-  // consumes its direct members' identities and attributes. A markup container
+  // consumes its direct members' identities and attributes, and the face a member
+  // opens with: a leading <template>, whose markup the list draws in place of the
+  // member's label (lf-tabs.js). A template's markup is its content, which isn't
+  // among its children, so the shell carries that content. A markup container
   // without views consumes only its own attributes: the patch owns its evidence,
   // including native attributes. A widget that draws its content itself
   // (`x-content` `data` or `empty`) reads the text a revision would edit, so a
@@ -1885,7 +1913,13 @@ export function createVersionController({
   const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
     const copy = element.ownerDocument.importNode(element, false);
     if (members)
-      for (const child of element.childNodes) copy.append(child.cloneNode(false));
+      for (const child of element.childNodes) {
+        const face = child instanceof Element ? child.firstElementChild : null;
+        const member = child.cloneNode(false);
+        if (face instanceof HTMLTemplateElement && member instanceof Element)
+          member.append(face.content.cloneNode(true));
+        copy.append(member);
+      }
     return copy;
   };
   const reachesMembers = (

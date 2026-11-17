@@ -167,7 +167,11 @@ function field(name, controls) {
     write: (value) => {
       control.value = words(value);
     },
-    parse: (raw) => raw,
+    // A colour reads the same in either case, and its field holds it lowercase.
+    parse: (raw) =>
+      control instanceof HTMLInputElement && control.type === "color"
+        ? raw.toLowerCase()
+        : raw,
   };
 }
 
@@ -178,12 +182,14 @@ export function createPlayground(host) {
   if (!output || extraOutput)
     throw new Error("playground needs one lf-playground-output");
   const asides = own(host, "aside");
-  // A control that belongs to a form of its own, inside the playground or named by its
-  // `form` attribute, is that form's; one in no form, or in a form around the whole
-  // playground, joins the playground's.
+  // A control that belongs to a form of its own, one inside the playground or one its
+  // `form` attribute names, is that form's; one in no form, or in a form around the
+  // whole playground, joins the playground's form (render).
   /** @param {FieldControl | HTMLOutputElement | HTMLButtonElement} control */
   const member = (control) =>
-    belongsTo(host, control) && (!control.form || control.form.contains(host));
+    belongsTo(host, control) &&
+    !control.hasAttribute("form") &&
+    !(control.form && host.contains(control.form));
   /** @type {Map<string, FieldControl[]>} */
   const named = new Map();
   /** @type {NodeListOf<FieldControl>} */
@@ -213,11 +219,17 @@ export function createPlayground(host) {
   // The fields are live from the first paint, before this view is built, so what each
   // shows now may differ from its authored value: the user's edit before the upgrade,
   // or the browser's restoration of their last one. The drawing leaves those in place,
-  // and the live widget takes them as edits (lf-playground.js).
+  // and the live widget takes them as edits (lf-playground.js). Until the drawing puts
+  // them in this playground's form, its radios share a group with every radio of their
+  // name on the page that no form holds either, so one reading none checked lost its
+  // check to that other group, as no press can clear a group: the drawing restores it.
+  // So is a number field holding no number.
   /** @type {Map<string, FieldValue>} */
-  const shown = new Map(
-    [...fields].map(([name, each]) => [name, each.read() ?? each.initial]),
-  );
+  const shown = new Map();
+  for (const [name, each] of fields) {
+    const value = each.read();
+    if (value !== undefined && !(each.radios && value === null)) shown.set(name, value);
+  }
   const edited = Object.freeze(
     Object.fromEntries(
       [...shown].filter(([name, value]) => !Object.is(value, defaults[name])),
@@ -440,6 +452,13 @@ export function createPlayground(host) {
     },
     /** @param {Element | null} element */
     isField: (element) => Boolean(element && fieldByControl.has(element)),
+    // The next drawing writes these fields, or all of them, as a gesture that sets them
+    // from outside (Reset, a preset) requires: a field may show what the configuration
+    // doesn't hold, such as a number field the user cleared.
+    /** @param {Iterable<string>} [names] */
+    forget: (names = fields.keys()) => {
+      for (const name of names) shown.delete(name);
+    },
     // The field a control the user changed belongs to, with the value it now holds,
     // which the drawing then leaves in place; null for any other control, and while a
     // number field holds no number.

@@ -281,7 +281,8 @@ lf-playground .lf-playground-preview-region > .lf-playground-preview-body {
   padding: 0;
   font-weight: 600;
 }
-:where(.lf-playground-controls-region > aside fieldset) > .lf-choice {
+:where(.lf-playground-controls-region > aside fieldset)
+  > label:has(> input:is([type="radio"], [type="checkbox"])) {
   justify-self: stretch;
   margin-inline-start: calc(-1 * var(--lf-choice-pad));
 }

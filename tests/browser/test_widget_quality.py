@@ -194,12 +194,12 @@ INITIAL_DRAWING_PAGE = """
 <h1 id="title">First drawing</h1>
 <lf-playground id="drawing">
   <aside>
-    <label id="field-note-title">Title <input class="lf-field" name="title" value="Field note"></label>
+    <label id="field-note-title">Title <input name="title" value="Field note"></label>
     <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
-    <label class="lf-choice" id="compact"><input type="checkbox" name="compact" role="switch"> Compact spacing</label>
+    <label id="compact"><input type="checkbox" name="compact" role="switch"> Compact spacing</label>
     <fieldset id="tone"><legend>Tone</legend>
-      <label class="lf-choice" id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
-      <label class="lf-choice" id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
     </fieldset>
   </aside>
   <p id="drawing-words">The actual preview, with its own words.</p>

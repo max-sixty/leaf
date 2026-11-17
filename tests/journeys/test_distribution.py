@@ -80,7 +80,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
     source = source.replace(
         "</main>",
         '<lf-playground id="prepared-playground">'
-        '<aside><label id="label">Label <input class="lf-field" name="label" '
+        '<aside><label id="label">Label <input name="label" '
         'value="Prepared"></label></aside>'
         "<p>Native initial drawing works.</p>"
         "<lf-playground-output>Use "

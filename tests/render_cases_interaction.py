@@ -1088,8 +1088,8 @@ IN_FORCE_PAGE = leaf_page(
   <aside>
     <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
     <fieldset id="tone"><legend>Tone</legend>
-      <label class="lf-choice" id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
-      <label class="lf-choice" id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
     </fieldset>
   </aside>
   <div id="ab-card-preview">

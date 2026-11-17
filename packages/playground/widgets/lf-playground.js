@@ -361,10 +361,9 @@ customElements.define(
         });
         for (const [preset, button] of initial.presetButtons)
           button.addEventListener("click", () => {
-            this.#values = this.#normalize({
-              ...this.#values,
-              ...initial.presetSettings.get(preset),
-            });
+            const settings = initial.presetSettings.get(preset) ?? {};
+            initial.forget(Object.keys(settings));
+            this.#values = this.#normalize({ ...this.#values, ...settings });
             this.#draw();
           });
         const { instruction } = initial;
@@ -541,6 +540,7 @@ customElements.define(
             control: this.#reset,
             title: "reset controls",
             run: () => {
+              this.#view.forget();
               this.#restore(this.#defaults);
               this.#draw();
               this.#commit();

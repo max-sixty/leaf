@@ -37,10 +37,10 @@ vars:
     configuration:
       <lf-playground id="explorer" submit-label="Use this treatment">
         <aside><fieldset id="treatment"><legend>Treatment to build</legend>
-          <label class="lf-choice" id="treatment-current"><input type="radio" name="treatment" value="current" /> Current</label>
-          <label class="lf-choice" id="treatment-selector"><input type="radio" name="treatment" value="selector" checked /> Red/green selector</label>
-          <label class="lf-choice" id="treatment-edge"><input type="radio" name="treatment" value="edge" /> Colored edge</label>
-          <label class="lf-choice" id="treatment-badge"><input type="radio" name="treatment" value="badge" /> Image badge</label>
+          <label id="treatment-current"><input type="radio" name="treatment" value="current" /> Current</label>
+          <label id="treatment-selector"><input type="radio" name="treatment" value="selector" checked /> Red/green selector</label>
+          <label id="treatment-edge"><input type="radio" name="treatment" value="edge" /> Colored edge</label>
+          <label id="treatment-badge"><input type="radio" name="treatment" value="badge" /> Image badge</label>
         </fieldset></aside>
         <lf-playground-preset id="preset-current" label="Current">
           <lf-playground-setting for="treatment" value="current"></lf-playground-setting>

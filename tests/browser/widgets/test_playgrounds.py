@@ -42,7 +42,7 @@ CONTRIBUTOR_PAGE = leaf_page(
 <lf-ask id="query-ask"><h1>Choose the alert query</h1>
 <lf-playground id="query-config">
   <aside>
-  <fieldset id="stream"><legend>Event stream</legend><label class="lf-choice" id="stream-checkout"><input type="radio" name="stream" value="checkout" checked /> Checkout</label><label class="lf-choice" id="stream-billing"><input type="radio" name="stream" value="billing" /> Billing</label></fieldset>
+  <fieldset id="stream"><legend>Event stream</legend><label id="stream-checkout"><input type="radio" name="stream" value="checkout" checked /> Checkout</label><label id="stream-billing"><input type="radio" name="stream" value="billing" /> Billing</label></fieldset>
   </aside>
   <lf-playground-preset id="preset-checkout-stream" label="Checkout stream">
     <lf-playground-setting for="stream" value="checkout"></lf-playground-setting>
@@ -822,8 +822,8 @@ def test_a_small_playground_keeps_its_controls_next_to_its_content(browser, serv
         "Small configuration",
         '<lf-playground id="small-playground">'
         '<aside><fieldset id="priority"><legend>Priority</legend>'
-        '<label class="lf-choice" id="priority-normal"><input type="radio" name="priority" value="normal" checked> Normal</label>'
-        '<label class="lf-choice" id="priority-urgent"><input type="radio" name="priority" value="urgent"> Urgent</label>'
+        '<label id="priority-normal"><input type="radio" name="priority" value="normal" checked> Normal</label>'
+        '<label id="priority-urgent"><input type="radio" name="priority" value="urgent"> Urgent</label>'
         "</fieldset></aside>"
         "<table><tbody><tr><th>Daily export</th><td>Ready</td></tr>"
         "<tr><th>Weekly digest</th><td>Ready</td></tr></tbody></table>"
@@ -856,8 +856,8 @@ def test_an_artifact_that_changes_height_leaves_the_stage_where_it_stands(
         '<lf-playground id="stage-playground">'
         '<aside><label id="rows">Rows <input type="range" name="rows" min="1" max="8" value="4" /></label>'
         '<fieldset id="mode"><legend>Mode</legend>'
-        '<label class="lf-choice" id="mode-a"><input type="radio" name="mode" value="a" checked> A</label>'
-        '<label class="lf-choice" id="mode-b"><input type="radio" name="mode" value="b"> B</label>'
+        '<label id="mode-a"><input type="radio" name="mode" value="a" checked> A</label>'
+        '<label id="mode-b"><input type="radio" name="mode" value="b"> B</label>'
         "</fieldset></aside>"
         '<div id="first">First</div>'
         '<div id="artifact" style="height: 200px">Artifact</div>'
@@ -1198,6 +1198,77 @@ def test_a_press_in_flight_does_what_the_playground_button_says(browser, serve):
     ] == [chosen[0]["id"]]
 
 
+def test_playgrounds_keep_their_own_radios_from_the_first_paint(browser, serve):
+    """Until a playground's drawing puts its radios in a form of its own, they share a
+    group with every same-named radio no form holds, so a second playground's checked
+    default unchecks the first's as the page parses. Each still shows and sends its own
+    default. A radio a page's form claims by its `form` attribute is that form's, so it
+    joins no playground's configuration and keeps apart from both."""
+
+    def playground(ident, checked):
+        radios = "".join(
+            f'<label id="{ident}-{value}"><input type="radio" name="mode"'
+            f' value="{value}"{" checked" if value == checked else ""}> {value}</label>'
+            for value in "ab"
+        )
+        return (
+            f'<lf-playground id="{ident}"><aside><fieldset><legend>Mode</legend>'
+            f"{radios}</fieldset>"
+            f'<label id="{ident}-kept"><input type="radio" name="kept" value="x"'
+            ' form="outer"> Kept apart</label></aside><p>Preview</p>'
+            f'<lf-playground-output id="{ident}-task">Use'
+            ' <output for="mode"></output>.</lf-playground-output></lf-playground>'
+        )
+
+    source = leaf_page(
+        "Two playgrounds",
+        '<form id="outer">'
+        + playground("first", "a")
+        + playground("second", "b")
+        + "</form>",
+    )
+    page = open_page(browser, serve(source))
+    for ident, checked in (("first", "a"), ("second", "b")):
+        playground = page.locator(f"#{ident}")
+        expect(page.locator(f"#{ident}-{checked} input")).to_be_checked()
+        expect(page.locator(f"#{ident}-task")).to_have_text(f"Use {checked}.")
+        assert playground.evaluate("root => root.values") == {"mode": checked}
+    page.locator("#second-a input").check()
+    expect(page.locator("#first-a input")).to_be_checked()
+    assert page.locator("#first").evaluate("root => root.values") == {"mode": "a"}
+    assert page.locator("#second").evaluate("root => root.values") == {"mode": "a"}
+
+
+def test_reset_and_a_preset_rewrite_the_fields_they_set(browser, serve):
+    """Reset writes a number field the user cleared back to its authored value, which
+    is what it sends, and a preset may write a colour in capitals, which its field holds
+    lowercase."""
+    source = leaf_page(
+        "Number and colour",
+        '<lf-playground id="tuned"><aside>'
+        '<label id="count">Count <input type="number" name="count" value="5"></label>'
+        '<label id="accent">Accent <input type="color" name="accent"'
+        ' value="#4f766f"></label></aside>'
+        '<lf-playground-preset id="preset-plum" label="Plum">'
+        '<lf-playground-setting for="accent" value="#8B4A5F"></lf-playground-setting>'
+        "</lf-playground-preset><p>Preview</p>"
+        '<lf-playground-output>Use <output for="count"></output>.</lf-playground-output>'
+        "</lf-playground>",
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#tuned")
+    count = playground.get_by_role("spinbutton", name="Count")
+    count.fill("")
+    playground.get_by_role("button", name="Reset", exact=True).click()
+    expect(count).to_have_value("5")
+    playground.get_by_role("button", name="Plum", exact=True).click()
+    expect(playground.get_by_label("Accent", exact=True)).to_have_value("#8b4a5f")
+    assert playground.evaluate("root => root.values") == {
+        "count": 5,
+        "accent": "#8b4a5f",
+    }
+
+
 def test_a_playground_refuses_a_preset_its_field_cannot_hold(browser, serve):
     """A preset's setting must be a value its field can hold, as the browser
     sanitizes the field's values; a radius past the slider's max fails the playground
@@ -1455,7 +1526,7 @@ def test_a_rail_taller_than_the_window_keeps_its_bar_whole_under_its_controls(
     controls = "".join(
         f'<fieldset id="setting-{n}"><legend>Setting {n}</legend>'
         + "".join(
-            f'<label class="lf-choice" id="setting-{n}-{value}"><input type="radio"'
+            f'<label id="setting-{n}-{value}"><input type="radio"'
             f' name="setting-{n}" value="{value}"{" checked" if value == "a" else ""}>'
             f" Choice {value}</label>"
             for value in "abcd"
@@ -1532,12 +1603,12 @@ def test_a_comment_names_the_playground_member_it_points_at(browser, serve, subt
   <lf-playground-preset id="start-today" label="Start from today">
     <lf-playground-setting for="word" value="today"></lf-playground-setting>
   </lf-playground-preset>
-  <aside><fieldset id="word"><legend>At rest</legend><label class="lf-choice" id="word-today"><input type="radio" name="word" value="today" checked /> Reply, and Comment beside a target</label><label class="lf-choice" id="word-verb"><input type="radio" name="word" value="verb" /> Reply, Comment</label></fieldset></aside>
+  <aside><fieldset id="word"><legend>At rest</legend><label id="word-today"><input type="radio" name="word" value="today" checked /> Reply, and Comment beside a target</label><label id="word-verb"><input type="radio" name="word" value="verb" /> Reply, Comment</label></fieldset></aside>
     <fieldset id="shape"><legend>Shape</legend>
-      <div id="shape-round"><label class="lf-choice"><input type="radio" name="shape" value="round" checked /> Round</label>
+      <div id="shape-round"><label><input type="radio" name="shape" value="round" checked /> Round</label>
         <p>A round box.</p>
       </div>
-      <div id="shape-square"><label class="lf-choice"><input type="radio" name="shape" value="square" /> Square</label>
+      <div id="shape-square"><label><input type="radio" name="shape" value="square" /> Square</label>
         <p>A square box.</p>
       </div>
     </fieldset>
@@ -1604,10 +1675,10 @@ def test_playground_candidates_keep_previews_operable_and_submit_one_choice(
         """<lf-playground id="candidates">
   <aside><label id="radius">Corner radius <input type="range" name="radius" min="0" max="24" value="10" /></label></aside>
     <fieldset id="format"><legend>Notification</legend>
-      <div id="format-banner"><label class="lf-choice"><input type="radio" name="format" value="banner" checked /> Banner</label>
+      <div id="format-banner"><label><input type="radio" name="format" value="banner" checked /> Banner</label>
         <p>Checkout deployed.</p>
       </div>
-      <div id="format-strip"><label class="lf-choice"><input type="radio" name="format" value="strip" /> Status strip</label>
+      <div id="format-strip"><label><input type="radio" name="format" value="strip" /> Status strip</label>
         <p>Checkout · deployed · 18 checks passed</p>
         <label>Preview title <input id="preview-title" value="Checkout"></label>
         <details><summary>Open preview</summary><p>Preview details</p></details>

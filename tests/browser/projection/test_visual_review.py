@@ -23,6 +23,7 @@ from render_harness import (
 
 from leaf import data as data_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -76,9 +77,8 @@ def test_on_me_materializes_a_frozen_review_at_its_requested_case(browser, serve
         },
     )
     page = open_page(browser, url)
-    count = page.locator(".lf-fp-on-user")
     expect_on_me(page, 6)
-    count.click()
+    open_on_me(page)
     card = page.locator(
         '.lf-fp-on-item[data-lf-obligation-id="widget:reply-review:keep-mobile-destinations"]'
     )

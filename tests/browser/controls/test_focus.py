@@ -38,6 +38,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
+from leaf_dev.browser import open_on_me
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -147,9 +148,10 @@ def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     the page with the user in it. The arrival stood them on the message On Me drew,
     and On Me closing then dropped them on the page."""
     page = open_page(browser, serve(named_source("ship-review")))
-    page.locator(".lf-fp-on-user").click()
-    card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
-        has_text="The vendor release is the only schedule"
+    card = (
+        open_on_me(page)
+        .locator(".lf-fp-on-item")
+        .filter(has_text="The vendor release is the only schedule")
     )
     card.locator(".lf-fp-show").click()
     preview = page.locator(".lf-margin-preview")

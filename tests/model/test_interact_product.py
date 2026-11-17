@@ -262,12 +262,11 @@ def test_sample_admits_interactive_widgets(page_dir):
 
 
 def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
-    """A widget that asks on a page stands in a group the author declares and names:
-    the group is where going to the obligation starts and its name the obligation's
-    prompt, read from the markup with no heading inferred. `page check` refuses a
-    widget no group holds, and a group without a name or an id; a message's widget, a
-    mention in a sample, a widget that asks nothing and one set among words need
-    none."""
+    """A widget that asks on a page stands in a named group, an `lf-group`: the group is
+    where going to the obligation starts and its `label` the obligation's prompt, read
+    from the markup with no heading or ARIA read. `page check` refuses a widget no group
+    holds, and the registry a group without a label or an id; a message's widget, a
+    mention in a sample, a widget that asks nothing and one set among words need none."""
     registry = registry_storage.load_registry(page_dir)
     first = (
         '<lf-options id="g-one">'
@@ -284,78 +283,35 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
         document = SourceDocument(f"<main>{body}</main>")
         return obligations_model.obligation_sources(document, registry).prompts
 
-    # aria-labelledby names the question by the heading's words, however the heading
-    # stands in the group; several widgets in one group share it.
-    group = '<section id="d" role="group" aria-labelledby="d-h">{}</section>'
+    # The label names the question, wherever the widget stands in the group; several
+    # widgets in one group share it.
+    group = '<lf-group id="d" label="Choose">{}</lf-group>'
     for named in (
-        group.format(f'<h2 id="d-h">Choose</h2><p>Context.</p>{first}'),
-        group.format(f'<hgroup><p>#5</p><h2 id="d-h">Choose</h2></hgroup>{first}'),
-        group.format(f'<p>Context.</p>{first}<h2 id="d-h">Choose</h2>'),
+        group.format(f"<p>Context.</p>{first}"),
+        group.format(f"<div><p>Context.</p>{first}</div>"),
     ):
         assert refused(named) == [], named
         assert prompts(named)["g-one"] == {"text": "Choose", "target": "d"}, named
-    shared = group.format(f'<h2 id="d-h">Choose</h2>{first}{second}')
+    shared = group.format(f"{first}{second}")
     assert prompts(shared)["g-two"] == prompts(shared)["g-one"]
-    # Several labels join; an aria-label names a group with no element, and a
-    # fieldset's legend names it natively.
-    assert prompts(
-        '<h2 id="area">Storage</h2><section id="d" role="group"'
-        f' aria-labelledby="area d-h"><h3 id="d-h">Which store?</h3>{first}</section>'
-    )["g-one"] == {"text": "Storage Which store?", "target": "d"}
-    labelled = f'<div id="d" role="group" aria-label="Which store?">{first}</div>'
-    assert refused(labelled) == []
-    assert prompts(labelled)["g-one"] == {"text": "Which store?", "target": "d"}
-    fieldset = f'<fieldset id="d"><legend>Which store?</legend>{first}</fieldset>'
-    assert refused(fieldset) == []
-    assert prompts(fieldset)["g-one"] == {"text": "Which store?", "target": "d"}
     # The innermost group is the question.
-    nested = group.format(
-        '<h2 id="d-h">Choose</h2><fieldset id="part"><legend>First part</legend>'
-        f"{first}</fieldset>"
-    )
-    assert prompts(nested)["g-one"]["target"] == "part"
+    nested = group.format(f'<lf-group id="part" label="First part">{first}</lf-group>')
+    assert prompts(nested)["g-one"] == {"text": "First part", "target": "part"}
 
-    # A section opened by a heading is no question until its author says so: Leaf
-    # reads no heading to find one.
-    for ungrouped in (first, f'<section id="d"><h2>Choose</h2>{first}</section>'):
+    # A section opened by a heading, a group ARIA names and a fieldset are no question:
+    # Leaf reads neither a heading nor ARIA to find one.
+    for ungrouped in (
+        first,
+        f'<section id="d"><h2>Choose</h2>{first}</section>',
+        f'<section id="d" role="group" aria-label="Choose">{first}</section>',
+        f'<fieldset id="d"><legend>Choose</legend>{first}</fieldset>',
+    ):
         assert refused(ungrouped) == [
             ("ungrouped-question", "<lf-options id=g-one>")
         ], ungrouped
     assert prompts(first)["g-one"] == {"text": "", "target": "g-one"}
-
-    # A group holding a question needs a name, which a name pointing at nothing
-    # isn't, and an id, its place to stand. One finding on the group says all it
-    # lacks, however many of its widgets ask.
-    def lacking(body):
-        document = SourceDocument(f"<main>{body}</main>")
-        return [
-            (f.code, f.at, f.values["lacks"])
-            for f in question_errors(document, registry)
-        ]
-
-    assert lacking(
-        f'<section id="d" role="group"><h2>Choose</h2>{first}</section>'
-    ) == [("question-group", "<section id=d>", ["name"])]
-    assert lacking(
-        f'<section id="d" role="group" aria-labelledby="gone">{first}</section>'
-    ) == [("question-group", "<section id=d>", ["name"])]
-    assert lacking(
-        f'<section role="group" aria-labelledby="d-h"><h2 id="d-h">Choose</h2>{first}'
-        "</section>"
-    ) == [("question-group", "<section>", ["id"])]
-    (both,) = question_errors(
-        SourceDocument(f'<main><section role="group">{first}{second}</section></main>'),
-        registry,
-    )
-    assert both.values["lacks"] == ["id", "name"]
-    assert both.values["widgets"] == ["<lf-options id=g-one>", "<lf-options id=g-two>"]
-    assert "aria-labelledby" in str(both)
-    # A fieldset is named by its legend, so that is what its finding asks for.
-    (fieldset,) = question_errors(
-        SourceDocument(f'<main><fieldset id="d">{first}</fieldset></main>'), registry
-    )
-    assert fieldset.values["lacks"] == ["name"]
-    assert "<legend>" in str(fieldset) and "aria-labelledby" not in str(fieldset)
+    (finding,) = question_errors(SourceDocument(f"<main>{first}</main>"), registry)
+    assert '<lf-group id="…" label="…">' in str(finding)
 
     # A settled group, which asks nothing, a sample's widgets, which ask nothing beyond
     # the sample, and a suggestion, which its sentence names, need no group.
@@ -577,11 +533,11 @@ def test_a_widget_takes_the_attributes_any_element_takes():
         return [
             (e.code, e.values["keyword"], e.values["path"])
             for e in fragment_errors(
-                '<section id="kind-ask" role="group" aria-labelledby="kind-ask-h"><h2 id="kind-ask-h">Choose a route</h2>'
+                '<lf-group id="kind-ask" label="Choose a route"><h2 id="kind-ask-h">Choose a route</h2>'
                 '<lf-options id="kind-options">'
                 f'<lf-option id="route" {attributes}>Page</lf-option>'
                 '<lf-option id="other">Ticket</lf-option>'
-                "</lf-options></section>",
+                "</lf-options></lf-group>",
                 registry,
             )
         ]
@@ -611,11 +567,11 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
 
     def playground(preset):
         return (
-            '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2><lf-playground id="a">'
+            '<lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2><lf-playground id="a">'
             '<aside><input type="range" name="size" max="4" value="2" /></aside>'
             f"{preset}"
             "<lf-playground-output>Use it.</lf-playground-output>"
-            "</lf-playground></section>"
+            "</lf-playground></lf-group>"
         )
 
     def preset(*names, ident=' id="preset-loud"'):
@@ -829,10 +785,10 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
             "--text",
             (
                 "Pick:\n\n"
-                '<section id="pick-decision" role="group" aria-labelledby="pick-decision-h">\n<h2 id="pick-decision-h">Pick?</h2>'
+                '<lf-group id="pick-decision" label="Pick?">\n<h2 id="pick-decision-h">Pick?</h2>'
                 '<lf-options id="lf-pick">'
                 '<lf-option id="o1" label="A"></lf-option>'
-                "</lf-options></section>"
+                "</lf-options></lf-group>"
             ),
         ],
     )

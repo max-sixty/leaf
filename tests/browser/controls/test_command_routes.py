@@ -121,8 +121,8 @@ def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hin
             leaf_page(
                 "command hints",
                 '<h1>Command hints</h1><button id="outside">Outside the widget</button>'
-                '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Apply the operation?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
+                '<lf-group id="question" label="Apply the operation?"><h2 id="question-h">Apply the operation?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={
@@ -485,8 +485,8 @@ def test_context_commands_keep_widget_assigned_aliases_and_source_lifetime(
         serve(
             leaf_page(
                 "explicit context commands",
-                '<h1>Explicit bindings</h1><section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
+                '<h1>Explicit bindings</h1><lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
@@ -542,8 +542,8 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
             leaf_page(
                 "synchronous context commands",
                 '<h1>Explicit bindings</h1><button id="outside">Outside</button>'
-                '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
+                '<lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": CONTEXT_COMMAND_MODULE},
@@ -591,8 +591,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         serve(
             leaf_page(
                 "contextual escape",
-                '<h1>Explicit bindings</h1><section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
+                '<h1>Explicit bindings</h1><lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -666,8 +666,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
             leaf_page(
                 "context command identity",
                 '<h1>Explicit bindings</h1><button id="outside">Outside</button>'
-                '<section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
+                '<lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -733,8 +733,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         serve(
             leaf_page(
                 "contextual reference policy",
-                '<h1>Explicit bindings</h1><section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Which action?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></section>',
+                '<h1>Explicit bindings</h1><lf-group id="question" label="Which action?"><h2 id="question-h">Which action?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
             ),
             layer_registry=KEYBOARD_HINT_REGISTRY,
             layer_widgets={"lf-keyboard-probe.js": module},
@@ -800,8 +800,8 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
         serve(
             leaf_page(
                 "route hint override",
-                '<h1>Inspection</h1><section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Inspect this?</h2>'
-                '<lf-verdict id="probe" asks>The proposal.</lf-verdict></section>',
+                '<h1>Inspection</h1><lf-group id="question" label="Inspect this?"><h2 id="question-h">Inspect this?</h2>'
+                '<lf-verdict id="probe" asks>The proposal.</lf-verdict></lf-group>',
             ),
             layer_registry=registry,
             layer_widgets={"lf-verdict.js": ROUTE_HINT_OVERRIDE_MODULE},

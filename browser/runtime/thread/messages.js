@@ -397,25 +397,33 @@ const keptElements = new Map();
 // (`authoredHolders`): the message less what a second copy would duplicate, each id
 // and each custom element, which a module upgrades once. A widget set among words
 // (`inline`) leaves its words, and any other goes whole, as a choice the drawing
-// asks in its own controls does. The innermost group the author declares round a widget
-// that asks, `role="group"` or a `<fieldset>` (`obligations.widget_groups` in Python),
-// is its question, so it goes whole with it rather than leaving the question's words
-// with nothing to answer them. Any other group stays, less its widgets, as a figure
-// keeps its caption when its chart goes.
+// asks in its own controls does. The innermost named group round a widget that asks,
+// an element whose declaration's `reading-role` is `group` (`obligations.widget_groups`
+// in Python), is its question, so it goes whole with it rather than leaving the
+// question's words with nothing to answer them. Any other group leaves what it holds,
+// less its widgets, as a figure keeps its caption when its chart goes.
+/** The innermost named group holding `element`, or null.
+ * @param {Element} element @returns {Element | null} */
+function groupRound(element) {
+  for (let at = element.parentElement; at; at = at.parentElement)
+    if (declarationFor(at)?.["reading-role"] === "group") return at;
+  return null;
+}
 /** @param {DocumentFragment} message */
 function heldElsewhere(message) {
   const copy = document.createElement("template");
   copy.content.append(message.cloneNode(true));
   for (const element of copy.content.querySelectorAll("*")) {
     const declaration = declarationFor(element);
-    if (declaration?.awaits && !declaration.inline)
-      element.parentElement?.closest('[role~="group"], fieldset')?.remove();
+    if (declaration?.awaits && !declaration.inline) groupRound(element)?.remove();
   }
-  for (const element of copy.content.querySelectorAll("*"))
+  for (const element of copy.content.querySelectorAll("*")) {
+    const declaration = declarationFor(element);
     if (!element.localName.includes("-")) element.removeAttribute("id");
-    else if (declarationFor(element)?.inline)
+    else if (declaration?.inline || declaration?.["reading-role"] === "group")
       element.replaceWith(...element.childNodes);
     else element.remove();
+  }
   return copy.innerHTML;
 }
 

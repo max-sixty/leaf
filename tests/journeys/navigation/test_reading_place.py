@@ -19,10 +19,10 @@ PLACES_PAGE = (
     )
     .replace(
         "<p id='p50'>",
-        '<section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which route?</h2><lf-options id="routes">'
+        '<lf-group id="ask" label="Which route?"><h2 id="ask-h">Which route?</h2><lf-options id="routes">'
         '<lf-option id="left">Take the left route</lf-option>'
         '<lf-option id="right">Take the right route</lf-option>'
-        "</lf-options></section><p id='p50'>",
+        "</lf-options></lf-group><p id='p50'>",
     )
 )
 

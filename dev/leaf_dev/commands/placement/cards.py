@@ -288,14 +288,14 @@ needed.</p>
 <li id="step-2">Send a tenth of writes and watch the error budget.</li>
 <li id="step-3">Switch the remaining traffic and keep the old cluster warm.</li>
 </ul>
-<section id="choice-q" role="group" aria-label="How long should the old cluster stay warm?">
+<lf-group id="choice-q" label="How long should the old cluster stay warm?">
 <lf-options id="choice">
 <lf-option id="choice-week" label="Keep the old cluster for a week">Covers the
 Sunday batch jobs.</lf-option>
 <lf-option id="choice-days" label="Keep it for three days">Saves most of the
 cost.</lf-option>
 </lf-options>
-</section>
+</lf-group>
 <section id="wide">
 <h2>Where each region stands</h2>
 <p id="wide-lede">Every region's state, its traffic and its error budget.</p>

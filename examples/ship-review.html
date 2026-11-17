@@ -41,10 +41,9 @@
                 <strong>Keep the resend workaround in the patch</strong>
                 <span class="tag">review · mobile</span> After 20 seconds the client
                 resends the queued batch; 500 forced stalls all recovered.
-                <section
+                <lf-group
                   id="off-workaround-decision"
-                  role="group"
-                  aria-labelledby="off-workaround-decision-h"
+                  label="Patch decision: ship with the resend"
                 >
                   <h3 id="off-workaround-decision-h">
                     Patch decision: ship with the resend
@@ -57,7 +56,7 @@
                       Hold the patch for a native fix.
                     </lf-option>
                   </lf-options>
-                </section>
+                </lf-group>
               </li>
               <li id="off-t-vendor">
                 <strong>Land the upstream fix</strong>
@@ -89,10 +88,9 @@
         <dt>Upstream fix</dt>
         <dd>acknowledged, no release date</dd>
       </dl>
-      <section
+      <lf-group
         id="off-release-decision"
-        role="group"
-        aria-labelledby="off-release-decision-h"
+        label="Ship the iOS patch with the resend workaround?"
       >
         <h2 id="off-release-decision-h">
           Ship the iOS patch with the resend workaround?
@@ -110,7 +108,7 @@
             >The release cohort gets offline editing now.</lf-option
           >
         </lf-options>
-      </section>
+      </lf-group>
     </main>
   </body>
 </html>

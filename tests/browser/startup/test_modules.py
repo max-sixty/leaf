@@ -507,11 +507,11 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "Depends what you want to keep:"
             + "\n\n"
             + (
-                '<section id="store-decision" role="group" aria-labelledby="store-decision-h">\n<h3 id="store-decision-h">Which store?</h3>'
+                '<lf-group id="store-decision" label="Which store?">\n<h3 id="store-decision-h">Which store?</h3>'
                 '<lf-options id="store-pick">'
                 '<lf-option id="store-redis" label="Redis"></lf-option>'
                 '<lf-option id="store-cookie" label="A signed cookie">'
-                "</lf-option></lf-options></section>"
+                "</lf-option></lf-options></lf-group>"
             ),
         ],
     )

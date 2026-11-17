@@ -3308,23 +3308,23 @@ FRAMED_TABLES_PAGE = leaf_page(
 <table id="allocated" data-width="wide"><tr><th>Session</th><td>9:00</td></tr></table>
 <figure data-width="available">
 <table id="figure-table"><tr><th>Session</th><td>9:00</td></tr></table>
-<section id="figure-asked" role="group" aria-labelledby="figure-asked-h">
+<lf-group id="figure-asked" label="Which session ends?">
 <h2 id="figure-asked-h">Which session ends?</h2>
 <table id="figure-asked-table"><tr><th>Session</th><td>17:00</td></tr></table>
 <lf-options id="figure-asked-choice">
 <lf-option id="figure-asked-early" label="Early">End it at 16:00.</lf-option>
 <lf-option id="figure-asked-late" label="Late">End it at 18:00.</lf-option>
 </lf-options>
-</section>
+</lf-group>
 </figure>
-<section id="asked" role="group" aria-labelledby="asked-h">
+<lf-group id="asked" label="Which session moves?">
 <h2 id="asked-h">Which session moves?</h2>
 <table id="asked-table"><tr><th>Session</th><td>9:00</td></tr></table>
 <lf-options id="asked-choice">
 <lf-option id="asked-early" label="Early">Move it to 8:00.</lf-option>
 <lf-option id="asked-late" label="Late">Move it to 10:00.</lf-option>
 </lf-options>
-</section>
+</lf-group>
 <section class="panel" id="checks">
 <h2>Checks</h2>
 <table id="framed"><thead><tr><th>Check</th><th>Observed</th></tr></thead>
@@ -3844,10 +3844,10 @@ def test_an_obligation_spanning_its_block_is_a_breakout(browser, serve):
     column, and a box pulled off the leading edge, which no scroll reaches, is also
     clipped out. A box sized past only the trailing edge is reached by the root's
     sideways scroll, so it is not clipped out."""
-    item = """<section id="{id}" role="group" aria-labelledby="{id}-h"><h2 id="{id}-h">Which one?</h2>
+    item = """<lf-group id="{id}" label="Which one?"><h2 id="{id}-h">Which one?</h2>
   <figure data-width="wide"><p>Evidence the room holds.</p></figure>
   <lf-options id="{id}-o"><lf-option id="{id}-a">This one</lf-option></lf-options>
-</section>"""
+</lf-group>"""
     source = leaf_page(
         "Reaching past the column",
         f"""

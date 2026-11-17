@@ -471,10 +471,9 @@ leaf server start ./review</code></pre>
                   The importer receives bursts of records faster than it can process
                   them. Its queue has room for 1,000 records.
                 </p>
-                <section
+                <lf-group
                   id="queue-question"
-                  role="group"
-                  aria-labelledby="queue-question-h"
+                  label="When the queue fills, what should happen?"
                 >
                   <h3 id="queue-question-h">
                     When the queue fills, what should happen?
@@ -489,7 +488,7 @@ leaf server start ./review</code></pre>
                       one.</lf-option
                     >
                   </lf-options>
-                </section>
+                </lf-group>
                 <h3>Recorded actions</h3>
                 <lf-activity id="queue-activity"></lf-activity>
               </lf-sample>
@@ -515,10 +514,10 @@ leaf thread create ./review --obligation --text "Does the revised policy match t
                 A comment needs a thread reply. A widget that asks, any widget whose
                 registry entry declares <code>awaits</code>, creates an
                 <em>obligation</em> on the user’s On Me list, with a prompt, typed
-                answer, and lifecycle; the group the author names around it, with
-                <code>role="group"</code> and <code>aria-labelledby</code>, supplies the
-                prompt. The widget owns the value, and the agent records the decision in
-                a stamped revision. The browser fetches the revised HTML and state.
+                answer, and lifecycle; the <code>lf-group</code> the author puts around
+                it supplies the prompt in its <code>label</code>. The widget owns the
+                value, and the agent records the decision in a stamped revision. The
+                browser fetches the revised HTML and state.
               </p>
               <details id="decision-example">
                 <summary>Example: answer a page choice</summary>
@@ -1874,7 +1873,7 @@ flowchart TD
               The three undos return the choices to their starting state.
             </p>
             <lf-sample id="try-sample" label="release question" interactive>
-              <section id="ship-ask" role="group" aria-labelledby="ship-ask-h">
+              <lf-group id="ship-ask" label="When should this ship?">
                 <h2 id="ship-ask-h">When should this ship?</h2>
                 <lf-options id="ship">
                   <lf-option id="ship-now" label="Now"
@@ -1884,7 +1883,7 @@ flowchart TD
                     >Next week, after the load test.</lf-option
                   >
                 </lf-options>
-              </section>
+              </lf-group>
               <lf-activity id="sample-feed"></lf-activity>
             </lf-sample>
           </section>
@@ -2290,10 +2289,9 @@ flowchart TD
               label="Permission for a sample report"
               interactive
             >
-              <section
+              <lf-group
                 id="sample-publish-report-decision"
-                role="group"
-                aria-labelledby="sample-publish-report-decision-h"
+                label="Publish the sample report?"
               >
                 <h2 id="sample-publish-report-decision-h">
                   Publish the sample report?
@@ -2309,7 +2307,7 @@ flowchart TD
                     label="Publish the report"
                   ></lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
               <lf-activity id="sample-permission-history"></lf-activity>
             </lf-sample>
           </section>

@@ -267,7 +267,7 @@ variants:
         </article>
         </main>
       question: |
-        <section id="next-touch-question" role="group" aria-labelledby="next-touch-question-h">
+        <lf-group id="next-touch-question" label="Should #59 be the next extraction scope?">
           <h3 id="next-touch-question-h">Should #59 be the next extraction scope?</h3>
           <p>Tapping a discussion should select it even when an older message still has
           focus. I recommend this independent fix next; extraction and verification are
@@ -276,7 +276,7 @@ variants:
             <lf-option id="next-touch-keep" value="keep-priority">Keep the current priorities</lf-option>
             <lf-option id="next-touch-next" value="next-scope">Make #59 the next extraction scope</lf-option>
           </lf-options>
-        </section>
+        </lf-group>
       prompt: |
         We have been splitting a large UI branch into independently reviewable changes.
         I asked for a Leaf explaining the work that is left and what we should do next.

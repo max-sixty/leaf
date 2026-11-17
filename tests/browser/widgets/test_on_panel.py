@@ -154,20 +154,20 @@ def test_an_answered_obligations_words_are_its_widgets_semantic_state(browser, s
             "answer words",
             """
 <h1 id="h">Answers</h1>
-<section id="note-ask" role="group" aria-labelledby="note-ask-h"><h2 id="note-ask-h">Is this release note right?</h2>
+<lf-group id="note-ask" label="Is this release note right?"><h2 id="note-ask-h">Is this release note right?</h2>
 <lf-draft id="note" required><pre>
 Adds --dry-run to every mutating command.
-</pre></lf-draft></section>
-<section id="cache-ask" role="group" aria-labelledby="cache-ask-h"><h2 id="cache-ask-h">Which cache?</h2>
+</pre></lf-draft></lf-group>
+<lf-group id="cache-ask" label="Which cache?"><h2 id="cache-ask-h">Which cache?</h2>
 <lf-options id="cache">
   <lf-option id="cache-none" label="No cache">Read through.</lf-option>
-</lf-options></section>
-<section id="tags-ask" role="group" aria-labelledby="tags-ask-h"><h2 id="tags-ask-h">Which tags?</h2>
+</lf-options></lf-group>
+<lf-group id="tags-ask" label="Which tags?"><h2 id="tags-ask-h">Which tags?</h2>
 <lf-options id="tags" multiple>
   <lf-option id="tag-alpha" label="Alpha" selected></lf-option>
   <lf-option id="tag-beta" label="Beta"></lf-option>
-</lf-options></section>
-<section id="tone-ask" role="group" aria-labelledby="tone-ask-h"><h2 id="tone-ask-h">Which notification?</h2>
+</lf-options></lf-group>
+<lf-group id="tone-ask" label="Which notification?"><h2 id="tone-ask-h">Which notification?</h2>
 <lf-playground id="tone">
   <aside><fieldset id="format"><legend>Format</legend>
     <label id="format-banner"><input type="radio" name="format" value="banner" checked> Banner</label>
@@ -176,7 +176,7 @@ Adds --dry-run to every mutating command.
   <p id="tone-preview">The notification.</p>
   <lf-playground-output>Build the <output for="format"></output>
   notification.</lf-playground-output>
-</lf-playground></section>
+</lf-playground></lf-group>
 """,
         )
     )
@@ -443,9 +443,9 @@ WALKED_PAGE = leaf_page(
     "many asks",
     '<h1 id="title">Kit list</h1>'
     + "".join(
-        f'<section id="ask-{n}" role="group" aria-labelledby="ask-{n}-h"><h2 id="ask-{n}-h">Bring item {n}?</h2>'
+        f'<lf-group id="ask-{n}" label="Bring item {n}?"><h2 id="ask-{n}-h">Bring item {n}?</h2>'
         f'<lf-options id="pick-{n}"><lf-option id="yes-{n}">Yes</lf-option>'
-        f'<lf-option id="no-{n}">No</lf-option></lf-options></section>'
+        f'<lf-option id="no-{n}">No</lf-option></lf-options></lf-group>'
         for n in range(1, 9)
     ),
 )
@@ -492,9 +492,9 @@ def test_the_m_walk_brings_its_card_into_on_me_s_view_and_rings_it(browser, serv
 ORDERED_PAGE = leaf_page(
     "walk order",
     '<h1 id="title">Release</h1><p id="cadence">We publish a build every week.</p>'
-    '<section id="channel-ask" role="group" aria-labelledby="channel-ask-h"><h2 id="channel-ask-h">Which channel first?</h2>'
+    '<lf-group id="channel-ask" label="Which channel first?"><h2 id="channel-ask-h">Which channel first?</h2>'
     '<lf-options id="channel"><lf-option id="beta">Beta first</lf-option>'
-    '<lf-option id="both">Both at once</lf-option></lf-options></section>'
+    '<lf-option id="both">Both at once</lf-option></lf-options></lf-group>'
     '<p id="notes">Release notes come from merged titles.</p>',
 )
 
@@ -554,14 +554,14 @@ GROUPED_PAGE = leaf_page(
     "grouped asks",
     '<h1 id="title">Release</h1>'
     '<section><h2 id="impl">Implementation</h2>'
-    '<section id="exit-ask" role="group" aria-labelledby="exit-ask-h"><h3 id="exit-ask-h">Which exit code?</h3>'
+    '<lf-group id="exit-ask" label="Which exit code?"><h3 id="exit-ask-h">Which exit code?</h3>'
     '<lf-options id="exit"><lf-option id="e75">75</lf-option>'
-    '<lf-option id="e124">124</lf-option></lf-options></section>'
+    '<lf-option id="e124">124</lf-option></lf-options></lf-group>'
     '<p id="reap">Reap every process under the sandbox user.</p></section>'
     '<section><h2 id="rollout">Rollout</h2>'
-    '<section id="runner-ask" role="group" aria-labelledby="runner-ask-h"><h3 id="runner-ask-h">Include self-hosted runners?</h3>'
+    '<lf-group id="runner-ask" label="Include self-hosted runners?"><h3 id="runner-ask-h">Include self-hosted runners?</h3>'
     '<lf-options id="runners"><lf-option id="r-yes">Yes</lf-option>'
-    '<lf-option id="r-no">No</lf-option></lf-options></section></section>',
+    '<lf-option id="r-no">No</lf-option></lf-options></lf-group></section>',
 )
 
 
@@ -648,13 +648,13 @@ TABBED_PAGE = leaf_page(
     '<header><h1 id="first-title">Move the runs into one sandbox</h1></header>'
     '<section><h2 id="first-context">What needs to change</h2>'
     "<p>The checkout stays fixed.</p></section>"
-    '<section><section id="first-ask" role="group" aria-labelledby="first-ask-h"><h3 id="first-ask-h">Include self-hosted runners?</h3>'
+    '<section><lf-group id="first-ask" label="Include self-hosted runners?"><h3 id="first-ask-h">Include self-hosted runners?</h3>'
     '<lf-options id="first-q"><lf-option id="first-yes">Yes</lf-option>'
-    '<lf-option id="first-no">No</lf-option></lf-options></section></section></lf-tab>'
+    '<lf-option id="first-no">No</lf-option></lf-options></lf-group></section></lf-tab>'
     '<lf-tab id="tab-second" label="Second plan">'
-    '<section id="second-ask" role="group" aria-labelledby="second-ask-h"><h3 id="second-ask-h">Ship on Tuesday?</h3>'
+    '<lf-group id="second-ask" label="Ship on Tuesday?"><h3 id="second-ask-h">Ship on Tuesday?</h3>'
     '<lf-options id="second-q"><lf-option id="second-yes">Yes</lf-option>'
-    '<lf-option id="second-no">No</lf-option></lf-options></section></lf-tab>'
+    '<lf-option id="second-no">No</lf-option></lf-options></lf-group></lf-tab>'
     "</lf-tabs>",
 )
 
@@ -743,7 +743,7 @@ def test_an_item_arriving_above_takes_its_walk_place_and_moves_no_card_read(
 CARD_OPTIONS_PAGE = leaf_page(
     "card options",
     """<h1 id="title">Sidebar</h1>
-<section id="stick-ask" role="group" aria-labelledby="stick-ask-h"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
+<lf-group id="stick-ask" label="How should a long sidebar stick?"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
 <lf-options id="stick">
   <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="tag">two days</small>
     One mechanism for any number of <em>blocks</em>.
@@ -752,7 +752,7 @@ CARD_OPTIONS_PAGE = leaf_page(
     footer.</lf-option>
   <lf-option id="stick-rule" label="Keep the one-block rule">    <p>Authors keep writing one block.</p></lf-option>
   <lf-option id="stick-none">Leave it</lf-option>
-</lf-options></section>""",
+</lf-options></lf-group>""",
 )
 
 
@@ -810,11 +810,11 @@ def test_a_group_s_done_on_its_card_commits_rather_than_reading_as_a_choice(
             leaf_page(
                 "done on its card",
                 """<h1 id="title">Tags</h1>
-<section id="tags-ask" role="group" aria-labelledby="tags-ask-h"><h2 id="tags-ask-h">Which tags?</h2>
+<lf-group id="tags-ask" label="Which tags?"><h2 id="tags-ask-h">Which tags?</h2>
 <lf-options id="tags" multiple>
   <lf-option id="tag-alpha" label="Alpha" selected>The first tag.</lf-option>
   <lf-option id="tag-beta" label="Beta">The second tag.</lf-option>
-</lf-options></section>""",
+</lf-options></lf-group>""",
             )
         ),
     )
@@ -1023,16 +1023,16 @@ def test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_cl
 TWO_DECISIONS_PAGE = leaf_page(
     "two decisions",
     """<h1 id="title">Review</h1>
-<section id="timeline-ask" role="group" aria-labelledby="timeline-ask-h"><h2 id="timeline-ask-h">Land the timeline prototype?</h2>
+<lf-group id="timeline-ask" label="Land the timeline prototype?"><h2 id="timeline-ask-h">Land the timeline prototype?</h2>
 <lf-options id="timeline">
   <lf-option id="tl-land">Land it</lf-option>
   <lf-option id="tl-keep">Keep it on its branch</lf-option>
-</lf-options></section>
-<section id="ship-ask" role="group" aria-labelledby="ship-ask-h"><h2 id="ship-ask-h">Ship on Friday?</h2>
+</lf-options></lf-group>
+<lf-group id="ship-ask" label="Ship on Friday?"><h2 id="ship-ask-h">Ship on Friday?</h2>
 <lf-options id="ship">
   <lf-option id="ship-friday">Ship Friday</lf-option>
   <lf-option id="ship-wait">Wait a week</lf-option>
-</lf-options></section>""",
+</lf-options></lf-group>""",
 )
 
 
@@ -1133,13 +1133,12 @@ def test_an_answer_about_two_decisions_stays_on_the_card_that_carried_it(
     is answered the server moves it to the second, but the open view keeps it on the
     card the user answered, drawn once."""
     source = TWO_DECISIONS_PAGE.replace(
-        '<section id="ship-ask" role="group" aria-labelledby="ship-ask-h">',
-        '<section id="both-asks"><section id="ship-ask" role="group" aria-labelledby="ship-ask-h">',
-    ).replace("</section>", "</section></section>")
-    source = source.replace(
-        '<section id="timeline-ask" role="group" aria-labelledby="timeline-ask-h">',
-        '<section id="both-outer"><section id="timeline-ask" role="group" aria-labelledby="timeline-ask-h">',
-    ).replace('</section>\n<section id="both-asks">', "</section>\n")
+        '<lf-group id="timeline-ask"',
+        '<section id="both-outer"><lf-group id="timeline-ask"',
+    ).replace(
+        "Wait a week</lf-option>\n</lf-options></lf-group>",
+        "Wait a week</lf-option>\n</lf-options></lf-group></section>",
+    )
     url = serve(source)
     root = append_carried_log_record(
         serve.page_dir,

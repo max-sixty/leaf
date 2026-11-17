@@ -33,11 +33,7 @@
           group="Mostly noise"
           summary="0 of 47 pages real"
         >
-          <section
-            id="ar-canary-decision"
-            role="group"
-            aria-labelledby="ar-canary-decision-h"
-          >
+          <lf-group id="ar-canary-decision" label="How should the canary probe page?">
             <h4 id="ar-canary-decision-h">How should the canary probe page?</h4>
             <dl class="facts">
               <dt>Rule</dt>
@@ -105,7 +101,7 @@
                 No change to the rule.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-latency"
@@ -113,10 +109,9 @@
           group="Mostly noise"
           summary="1 of 31 pages real"
         >
-          <section
+          <lf-group
             id="ar-latency-decision"
-            role="group"
-            aria-labelledby="ar-latency-decision-h"
+            label="What should the latency alert page on?"
           >
             <h4 id="ar-latency-decision-h">What should the latency alert page on?</h4>
             <p>Checkout's latency objective is 1.2 seconds at p99 over ten minutes.</p>
@@ -154,7 +149,7 @@
                 No change to the rule.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-webhooks"
@@ -162,10 +157,9 @@
           group="Mostly noise"
           summary="2 of 22 pages real"
         >
-          <section
+          <lf-group
             id="ar-webhooks-decision"
-            role="group"
-            aria-labelledby="ar-webhooks-decision-h"
+            label="What should the webhook alert measure?"
           >
             <h4 id="ar-webhooks-decision-h">What should the webhook alert measure?</h4>
             <p>Depth tracks partner traffic; age tracks whether we are keeping up.</p>
@@ -200,7 +194,7 @@
                 No change to the rule.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-export"
@@ -208,10 +202,9 @@
           group="Mostly noise"
           summary="0 of 18 pages real"
         >
-          <section
+          <lf-group
             id="ar-export-decision"
-            role="group"
-            aria-labelledby="ar-export-decision-h"
+            label="What should happen during the nightly batch?"
           >
             <h4 id="ar-export-decision-h">
               What should happen during the nightly batch?
@@ -276,7 +269,7 @@
                 No change to the rule.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-disk"
@@ -284,10 +277,9 @@
           group="Mostly noise"
           summary="0 of 9 pages real"
         >
-          <section
+          <lf-group
             id="ar-disk-decision"
-            role="group"
-            aria-labelledby="ar-disk-decision-h"
+            label="Should the 80% disk alert page at all?"
           >
             <h4 id="ar-disk-decision-h">Should the 80% disk alert page at all?</h4>
             <p>The 95% alert has not fired this quarter.</p>
@@ -315,7 +307,7 @@
                 No change to the rule.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-settlement"
@@ -323,10 +315,9 @@
           group="Mostly noise"
           summary="3 of 6 pages real"
         >
-          <section
+          <lf-group
             id="ar-settlement-decision"
-            role="group"
-            aria-labelledby="ar-settlement-decision-h"
+            label="Should a settlement failure wait for its retry?"
           >
             <h4 id="ar-settlement-decision-h">
               Should a settlement failure wait for its retry?
@@ -360,7 +351,7 @@
                 No change to the rule.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-3ds"
@@ -368,11 +359,7 @@
           group="Mostly noise"
           summary="1 of 3 pages real"
         >
-          <section
-            id="ar-3ds-decision"
-            role="group"
-            aria-labelledby="ar-3ds-decision-h"
-          >
+          <lf-group id="ar-3ds-decision" label="Should one issuer's outage page us?">
             <h4 id="ar-3ds-decision-h">Should one issuer's outage page us?</h4>
             <p>Per-issuer failure rates are already on the payments dashboard.</p>
             <dl class="facts">
@@ -426,7 +413,7 @@
                 No change to the rule.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-cert"
@@ -434,10 +421,9 @@
           group="Wrong owner"
           summary="0 of 7 pages real"
         >
-          <section
+          <lf-group
             id="ar-cert-decision"
-            role="group"
-            aria-labelledby="ar-cert-decision-h"
+            label="Who should hear about the sandbox certificate?"
           >
             <h4 id="ar-cert-decision-h">
               Who should hear about the sandbox certificate?
@@ -468,7 +454,7 @@
                 Payments keeps waking up for a fix it cannot make.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-kafka"
@@ -476,10 +462,9 @@
           group="Wrong owner"
           summary="0 of 5 pages real"
         >
-          <section
+          <lf-group
             id="ar-kafka-decision"
-            role="group"
-            aria-labelledby="ar-kafka-decision-h"
+            label="Who should hear about ledger consumer lag?"
           >
             <h4 id="ar-kafka-decision-h">Who should hear about ledger consumer lag?</h4>
             <p>Lag that outlasts a rebalance does delay the ledger export.</p>
@@ -508,7 +493,7 @@
                 No change to the rule.
               </lf-option>
             </lf-options>
-          </section>
+          </lf-group>
         </lf-tab>
         <lf-tab
           id="ar-errors"

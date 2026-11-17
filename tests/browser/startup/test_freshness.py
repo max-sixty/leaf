@@ -396,9 +396,9 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
     url = serve(
         leaf_page(
             "Offline choice",
-            '<h1>Offline choice</h1><section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2>'
+            '<h1>Offline choice</h1><lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
             '<lf-options id="options"><lf-option id="one">First</lf-option>'
-            '<lf-option id="two">Second</lf-option></lf-options></section>',
+            '<lf-option id="two">Second</lf-option></lf-options></lf-group>',
         )
     )
     append_command(
@@ -431,9 +431,9 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
     url = serve(
         leaf_page(
             "Waiting choice",
-            '<h1>Waiting choice</h1><section id="ask" role="group" aria-labelledby="ask-h"><h2 id="ask-h">Which?</h2>'
+            '<h1>Waiting choice</h1><lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
             '<lf-options id="options"><lf-option id="one">First</lf-option>'
-            '<lf-option id="two">Second</lf-option></lf-options></section>',
+            '<lf-option id="two">Second</lf-option></lf-options></lf-group>',
         )
     )
     append_command(

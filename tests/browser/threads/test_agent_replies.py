@@ -286,12 +286,11 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
 
     def ask(choice, label):
         return (
-            '<section id="stream-reply-ask" role="group"'
-            ' aria-labelledby="stream-reply-ask-h">\n'
+            '<lf-group id="stream-reply-ask" label="Use this answer?">\n'
             '<h3 id="stream-reply-ask-h">Use this answer?</h3>'
             f'<lf-options id="{choice}">'
             f'<lf-option id="{choice}-now">{label}</lf-option>'
-            "</lf-options></section>"
+            "</lf-options></lf-group>"
         )
 
     reply = thread_model.post_reply(

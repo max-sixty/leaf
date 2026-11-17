@@ -139,7 +139,7 @@ PICK_UNDER_A_CARD = leaf_page(
     "Pick under a card",
     """
 <h1 id="title">Pick under a card</h1>
-<section id="ask" role="group" aria-labelledby="ask-h">
+<lf-group id="ask" label="What should a phone's one-row banner hold?">
   <h3 id="ask-h">What should a phone's one-row banner hold?</h3>
   <lf-options id="choice">
     <lf-option id="row" label="Status in words">The status keeps its words
@@ -147,7 +147,7 @@ PICK_UNDER_A_CARD = leaf_page(
     <lf-option id="two" label="Keep two rows">The status keeps its
     sentence.</lf-option>
   </lf-options>
-</section>
+</lf-group>
 """,
 )
 

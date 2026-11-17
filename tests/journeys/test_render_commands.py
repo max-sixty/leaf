@@ -111,17 +111,17 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
         leaf_page(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
-            "<div id='body'><section id='ship-ask' role='group' aria-labelledby='ship-ask-h'><h2 id='ship-ask-h'>Ship now?</h2>"
+            "<div id='body'><lf-group id='ship-ask' label='Ship now?'><h2 id='ship-ask-h'>Ship now?</h2>"
             "<lf-options id='ship'><lf-option id='ship-now'>Now</lf-option>"
-            "<lf-option id='ship-later'>Later</lf-option></lf-options></section>"
+            "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-group>"
             f"<div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
             + "".join(
                 f"<p id='para-{i}'>{'Body paragraph. ' * 30}</p>" for i in range(60)
             )
             + "".join(
-                f"<section id='ask-{i}' role='group' aria-labelledby='ask-{i}-h'><h2 id='ask-{i}-h'>Ship part {i}?</h2>"
+                f"<lf-group id='ask-{i}' label='Ship part {i}?'><h2 id='ask-{i}-h'>Ship part {i}?</h2>"
                 f"<lf-options id='o-{i}'><lf-option id='o-{i}-y'>Yes</lf-option>"
-                f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></section>"
+                f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></lf-group>"
                 for i in range(2)
             )
             + "<p id='note'>Keep this line.<lf-suggestion id='sug'><lf-old>"

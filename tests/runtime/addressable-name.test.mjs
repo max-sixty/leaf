@@ -80,7 +80,7 @@ test("the chrome names an element by its name before its words", () => {
   // A question is its heading, not its heading run into its options and their chips.
   assert.equal(
     labelled(
-      '<section id="it" role="group"><h4>How should it page?</h4><lf-options><lf-option label="Require three"><small class="tag">last week: 0</small>probes.</lf-option></lf-options></section>',
+      '<section id="it"><h4>How should it page?</h4><lf-options><lf-option label="Require three"><small class="tag">last week: 0</small>probes.</lf-option></lf-options></section>',
     ),
     "How should it page?",
   );
@@ -109,7 +109,7 @@ test("an element whose words are its members' takes the nearest enclosing name",
   // Options have no title of their own; the question holding them names them.
   assert.equal(
     labelled(
-      '<section role="group"><h4>Which rollout?</h4><lf-options id="it"><lf-option label="Now"></lf-option></lf-options></section>',
+      '<section><h4>Which rollout?</h4><lf-options id="it"><lf-option label="Now"></lf-option></lf-options></section>',
     ),
     "Which rollout?",
   );

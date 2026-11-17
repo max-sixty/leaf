@@ -287,11 +287,11 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
             "kind": "comment",
             "author": "agent",
             "revision": 1,
-            "text": 'Which region?\n\n<section id="region-ask" role="group" aria-labelledby="region-ask-h">\n<h3 id="region-ask-h">Which region?</h3>'
+            "text": 'Which region?\n\n<lf-group id="region-ask" label="Which region?">\n<h3 id="region-ask-h">Which region?</h3>'
             '<lf-options id="region">'
             '<lf-option id="east" label="East"></lf-option>'
             '<lf-option id="west" label="West"></lf-option>'
-            "</lf-options></section>",
+            "</lf-options></lf-group>",
         },
     )
     chose = append_command(

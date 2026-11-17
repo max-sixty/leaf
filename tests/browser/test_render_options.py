@@ -323,12 +323,12 @@ def test_a_questions_options_own_their_digit_bindings(browser, serve, cards):
             leaf_page(
                 "standalone options",
                 '<button id="outside">Outside</button>'
-                '<section id="apply" role="group" aria-labelledby="apply-h">'
+                '<lf-group id="apply" label="Which apply?">'
                 '<h1 id="apply-h">Which apply?</h1>'
                 '<lf-options id="choices" multiple>'
                 f'<lf-option id="one"{one}</lf-option>'
                 f'<lf-option id="two"{two}</lf-option>'
-                "</lf-options></section>",
+                "</lf-options></lf-group>",
             )
         ),
     )
@@ -373,10 +373,10 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
         serve(
             leaf_page(
                 "stable option numbers",
-                '<h1>Stable numbers</h1><section id="question" role="group" aria-labelledby="question-h"><h2 id="question-h">Which apply?</h2>'
+                '<h1>Stable numbers</h1><lf-group id="question" label="Which apply?"><h2 id="question-h">Which apply?</h2>'
                 '<lf-options id="choices" multiple>'
                 '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
-                "</lf-options></section>",
+                "</lf-options></lf-group>",
             )
         ),
     )
@@ -742,7 +742,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
             heading = page.locator(f"#{item} > :is(h1, h2, h3, h4, h5, h6)")
             expect(heading).to_have_count(1)
             expect(heading).to_have_text(question)
-            expect(page.locator(f"#{group} > [data-lf-said='label']")).to_have_count(0)
+            expect(page.locator(f"#{item} > [data-lf-said='label']")).to_have_count(0)
             assert heading.evaluate(
                 "el => el.getBoundingClientRect().bottom"
             ) < page.locator(f"#{group}").evaluate(
@@ -946,23 +946,23 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
         serve(
             leaf_page(
                 "First Ask",
-                """<section id="page-ask" role="group" aria-labelledby="page-ask-h"><h2 id="page-ask-h">Choose the route</h2>
+                """<lf-group id="page-ask" label="Choose the route"><h2 id="page-ask-h">Choose the route</h2>
 <lf-options id="page-options"><lf-option id="page-route">Route A</lf-option></lf-options>
-</section>
+</lf-group>
 <p id="between-asks">Context before another question.</p>
-<section id="later-ask" role="group" aria-labelledby="later-ask-h"><h2 id="later-ask-h">Choose the backup</h2>
+<lf-group id="later-ask" label="Choose the backup"><h2 id="later-ask-h">Choose the backup</h2>
   <lf-options id="later-options"><lf-option id="later-route">Route B</lf-option></lf-options>
-</section>
+</lf-group>
 <div id="own-frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
-  <section id="framed-ask" role="group" aria-labelledby="framed-ask-h"><h2 id="framed-ask-h">Choose the route</h2>
+  <lf-group id="framed-ask" label="Choose the route"><h2 id="framed-ask-h">Choose the route</h2>
     <lf-options id="framed-options"><lf-option id="framed-route">Route A</lf-option></lf-options>
-  </section>
+  </lf-group>
 </div>
 <lf-sample id="sample" label="a first Ask">
   <template id="sample-page" data-sample>
-    <section id="sample-ask" role="group" aria-labelledby="sample-ask-h"><h2 id="sample-ask-h">Choose the route</h2>
+    <lf-group id="sample-ask" label="Choose the route"><h2 id="sample-ask-h">Choose the route</h2>
       <lf-options id="sample-options"><lf-option id="sample-route">Route A</lf-option></lf-options>
-    </section>
+    </lf-group>
   </template>
 </lf-sample>""",
             )
@@ -972,7 +972,7 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     for root in (page, page.frame_locator("#sample iframe")):
         gap = root.locator("main").evaluate(
             """main => {
-                const heading = main.querySelector('section > h2');
+                const heading = main.querySelector('lf-group > h2');
                 return heading.getBoundingClientRect().top
                   - main.getBoundingClientRect().top
                   - parseFloat(getComputedStyle(main).paddingTop);
@@ -982,7 +982,7 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
 
     framed_gap = page.locator("#own-frame").evaluate(
         """frame => {
-            const heading = frame.querySelector('section > h2');
+            const heading = frame.querySelector('lf-group > h2');
             const style = getComputedStyle(frame);
             return heading.getBoundingClientRect().top
               - frame.getBoundingClientRect().top
@@ -1012,27 +1012,27 @@ WIDE_OBLIGATION_PAGE = leaf_page(
 <h1>Where sessions live</h1>
 <div id="layout">
 <section id="body">
-<section id="cell-decision" role="group" aria-labelledby="cell-decision-h"><h2 id="cell-decision-h">Where should a session live?</h2>
+<lf-group id="cell-decision" label="Where should a session live?"><h2 id="cell-decision-h">Where should a session live?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-cards" data-width="available">
   <lf-option id="cc-redis" label="Redis">A store we already run.</lf-option>
   <lf-option id="cc-pg" label="Postgres">One fewer moving part.</lf-option>
-</lf-options></section>
-<section id="rows-decision" role="group" aria-labelledby="rows-decision-h"><h2 id="rows-decision-h">Which jobs are worth starting?</h2>
+</lf-options></lf-group>
+<lf-group id="rows-decision" label="Which jobs are worth starting?"><h2 id="rows-decision-h">Which jobs are worth starting?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="cell-rows" multiple data-width="available">
   <lf-option id="cr-drill">A revocation drill</lf-option>
   <lf-option id="cr-rotate">Key rotation for the fallback cookie</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 </section>
 <section id="aside"><p>Beside the argument.</p></section>
 </div>
-<section id="page-decision" role="group" aria-labelledby="page-decision-h"><h2 id="page-decision-h">Who owns the migration?</h2>
+<lf-group id="page-decision" label="Who owns the migration?"><h2 id="page-decision-h">Who owns the migration?</h2>
 <p>{WIDE_PROSE}</p>
 <lf-options id="page-cards" data-width="available">
   <lf-option id="pc-platform" label="Platform">They run the store.</lf-option>
   <lf-option id="pc-accounts" label="Accounts">They own the table.</lf-option>
-</lf-options></section></div>
+</lf-options></lf-group></div>
 """,
     head=regions_side_by_side("layout", "2fr 1fr"),
     layout="sidebar",
@@ -1059,7 +1059,7 @@ def test_a_group_on_a_wide_page_draws_its_cells_to_its_own_frame(browser, serve)
           const box = group.getBoundingClientRect();
           const inner = box.right - parseFloat(getComputedStyle(group).borderRightWidth);
           const cells = [...group.children].filter((cell) => cell.checkVisibility());
-          const prose = group.closest('section').querySelector(':scope > p');
+          const prose = group.closest('lf-group').querySelector(':scope > p');
           return {
             id,
             frame: box.width,
@@ -1662,9 +1662,9 @@ def test_only_bound_cards_yield_their_header_state_to_the_obligation(browser, se
             leaf_page(
                 "ten routes",
                 '<h1 id="h">Ten routes</h1>'
-                '<section id="routes-decision" role="group" aria-labelledby="routes-decision-h"><h2 id="routes-decision-h">Which routes survive?</h2>'
+                '<lf-group id="routes-decision" label="Which routes survive?"><h2 id="routes-decision-h">Which routes survive?</h2>'
                 f'<lf-options id="routes" multiple>{options}</lf-options>'
-                "</section>",
+                "</lf-group>",
             )
         ),
     )
@@ -1853,15 +1853,15 @@ def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, sub
     source = leaf_page(
         "Block references",
         """<h1>Follow-up</h1>
-<section id="follow-q" role="group" aria-label="What next?"><lf-options id="follow">
+<lf-group id="follow-q" label="What next?"><lf-options id="follow">
   <lf-option id="short" for="plan">Ship it.</lf-option>
   <lf-option id="long" for="stall">Ship with the resend and keep chasing the upstream
   fix until the vendor names a release.</lf-option>
-</lf-options></section>
-<section id="same-q" role="group" aria-label="Ship or hold?"><lf-options id="same">
+</lf-options></lf-group>
+<lf-group id="same-q" label="Ship or hold?"><lf-options id="same">
   <lf-option id="same-ship" for="stall">Ship it.</lf-option>
   <lf-option id="same-hold" for="stall">Hold it.</lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 <section id="plan"><h2>Release plan</h2><p>Monday.</p></section>
 <section id="stall"><h2>iOS reconnect stall</h2><p>One reconnect in about 40.</p>
 </section>""",
@@ -2717,7 +2717,7 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
         serve(
             leaf_page(
                 "option shapes",
-                '<section id="shapes-q" role="group" aria-label="How should it roll out?">'
+                '<lf-group id="shapes-q" label="How should it roll out?">'
                 '<lf-options id="shapes">'
                 '<lf-option id="sentence" label="Ship it">The cohort gets it now.'
                 "</lf-option>"
@@ -2725,7 +2725,7 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
                 "<em>half</em> now.</lf-option>"
                 '<lf-option id="paragraph" label="Hold it">'
                 "<p>The cohort waits for the fix.</p></lf-option>"
-                "</lf-options></section>",
+                "</lf-options></lf-group>",
             )
         ),
     )

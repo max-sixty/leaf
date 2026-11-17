@@ -228,12 +228,12 @@ def test_crossed_responses_wait_for_the_same_thread_widget_module(browser, serve
     host = REPLY_HOST_PAGE.replace(
         "</main>",
         """
-<section id="delivery" role="group" aria-labelledby="delivery-h"><h2 id="delivery-h">Which delivery?</h2>
+<lf-group id="delivery" label="Which delivery?"><h2 id="delivery-h">Which delivery?</h2>
   <lf-options id="delivery-choice">
     <lf-option id="delivery-now">Now</lf-option>
     <lf-option id="delivery-later">Later</lf-option>
   </lf-options>
-</section></main>""",
+</lf-group></main>""",
     )
     url = serve(host)
     page = open_page(browser, live_url(url))

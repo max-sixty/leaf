@@ -231,12 +231,12 @@ The queue recovered after reverting the timeout change.
 <div>The oldest request is waiting for review.</div></div>
 <dl class="facts" id="pairs"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl>
-<section id="routes-q" role="group" aria-label="What happens to the queue?"><lf-options id="routes">
+<lf-group id="routes-q" label="What happens to the queue?"><lf-options id="routes">
 <lf-option id="route-one" label="Keep the queue"><dl class="facts" id="option-facts"><dt>Owner</dt><dd>Imani</dd>
 <dt>Budget</dt><dd>Four hours</dd></dl><p>Keep the current response budget.</p></lf-option>
 <lf-option id="route-two" label="Review the queue"><p class="facts" id="option-prose">Keep this explanation in the option's full reading
 width while the owner checks the oldest requests.</p></lf-option>
-</lf-options></section>
+</lf-options></lf-group>
 <dl class="facts authored-facts" id="authored-pairs"><dt>Owner</dt><dd>Imani</dd></dl>""",
         head="""<style>
 .prose-box {inline-size:280px;overflow:hidden;}
@@ -384,8 +384,8 @@ def test_a_failed_agent_root_restores_the_focused_first_message_composer(
     url = serve(
         leaf_page(
             "Inline rollback",
-            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
-            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
+            '<h1>Review</h1><lf-group id="proposal-q" label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></lf-group>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -461,8 +461,8 @@ def test_a_failed_resolution_restores_a_focused_inline_reply(browser, serve):
     url = serve(
         leaf_page(
             "Inline reply rollback",
-            '<h1>Review</h1><section id="proposal-q" role="group" aria-label="Ship it?">'
-            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></section>',
+            '<h1>Review</h1><lf-group id="proposal-q" label="Ship it?">'
+            '<lf-verdict id="proposal" asks>Ship it?</lf-verdict></lf-group>',
         ),
         layer_registry=SEATED_OBLIGATION_LAYER,
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
@@ -1357,11 +1357,13 @@ def test_authored_blocks_choose_wide_or_available_space(browser, serve):
         """
 <h1 id="title">Authored block widths</h1>
 <p id="prose">Standard prose.</p>
-<section id="wide" data-width="wide" role="group" aria-label="Which case?">
+<section id="wide" data-width="wide">
   <table id="table" data-width="available"><thead><tr><th>Case</th><th>Result</th></tr></thead>
     <tbody><tr><td>Native table</td><td>Uses its authored allocation.</td></tr></tbody></table>
   <p id="nested-prose">Prose within wide evidence.</p>
-  <lf-options id="options"><lf-option id="option">One</lf-option></lf-options>
+  <lf-group id="case" label="Which case?">
+    <lf-options id="options"><lf-option id="option">One</lf-option></lf-options>
+  </lf-group>
 </section>
 """,
     )
@@ -1881,12 +1883,12 @@ def test_a_table_of_prose_wraps_inside_its_box_in_every_engine(request, serve, e
     table += f"<tbody>{row * 2}</tbody></table>"
     body = (
         "<h1>Tables of prose</h1>"
-        '<section id="asked" role="group" aria-labelledby="asked-h"><h2 id="asked-h">Which copy should a session read?</h2>'
+        '<lf-group id="asked" label="Which copy should a session read?"><h2 id="asked-h">Which copy should a session read?</h2>'
         + table.format(id="in-ask")
         + '<lf-options id="asked-choice">'
         '<lf-option id="asked-reload" label="Reload">Ask for a reload.</lf-option>'
         '<lf-option id="asked-leave" label="Leave">Keep the old copy.</lf-option>'
-        "</lf-options></section>"
+        "</lf-options></lf-group>"
         '<section class="panel" id="panel"><h2>Framed</h2>'
         + table.format(id="in-panel")
         + "</section>"

@@ -491,9 +491,9 @@ def test_a_widget_in_a_message_reads_as_its_own_question(claimed, capsys):
             "revision": 1,
             "title": "Next steps",
             "text": "The benchmark is complete. Please answer below.\n\n"
-            '<section id="ask-cache" role="group" aria-labelledby="ask-cache-h">\n<h3 id="ask-cache-h">Which cache should we use?</h3>\n'
+            '<lf-group id="ask-cache" label="Which cache should we use?">\n<h3 id="ask-cache-h">Which cache should we use?</h3>\n'
             '<lf-options id="cache"><lf-option id="lru">LRU</lf-option>'
-            '<lf-option id="ttl">TTL</lf-option></lf-options>\n</section>',
+            '<lf-option id="ttl">TTL</lf-option></lf-options>\n</lf-group>',
         },
     )
     assert (

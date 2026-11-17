@@ -87,13 +87,13 @@ QUICK_KEYS_PAGE = leaf_page(
     "quick keys",
     """
 <h1 id="title">Field day</h1>
-<section id="map-ask" role="group" aria-labelledby="map-ask-h">
+<lf-group id="map-ask" label="Which map should the sample team carry?">
   <h3 id="map-ask-h">Which map should the sample team carry?</h3>
   <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
-</section>
+</lf-group>
 <div id="local-shortcuts" tabindex="0">
   <button id="shortcut-focus-note" type="button">Write sample note</button>
   <label>Sample note <input id="shortcut-note" type="text" /></label>
@@ -283,7 +283,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     expect(heading).to_be_focused()
     page.keyboard.press("m")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator("section[data-lf-obligation]")).to_be_focused()
+    expect(card.locator("lf-group[data-lf-obligation]")).to_be_focused()
     page.keyboard.press("Escape")
     expect(card).to_be_hidden()
     assert page.evaluate("() => document.activeElement === document.body")

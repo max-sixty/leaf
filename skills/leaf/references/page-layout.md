@@ -222,17 +222,17 @@ grid of panes:
 
 A widget that asks, such as a playground, stands in its question's group
 (`authoring-on-me.md`, "On the page"), and that group is the body. Where the header's
-heading asks the question, the group names that heading:
+heading asks the question, the group's label asks it too:
 
 ```html
 <main class="layout-workspace density-working">
   <header>
-    <h1 id="tune-h">Which latency window should checkout alert on?</h1>
+    <h1>Which latency window should checkout alert on?</h1>
     <p>…</p>
   </header>
-  <section id="tune" role="group" aria-labelledby="tune-h">
+  <lf-group id="tune" label="Which latency window should checkout alert on?">
     <lf-playground id="tune-config">…</lf-playground>
-  </section>
+  </lf-group>
 </main>
 ```
 

@@ -800,13 +800,13 @@ ANSWERS_BOARD_PAGE = leaf_page(
     "proposals",
     """
 <h1 id="t">Proposals</h1>
-<section id="rail-section" role="group" aria-labelledby="rail-section-h">
+<lf-group id="rail-section" label="Keep the rail beside the text">
   <h2 id="rail-section-h">Keep the rail beside the text</h2>
   <lf-options id="rail">
     <lf-option id="rail-next" value="next">Next</lf-option>
     <lf-option id="rail-later" value="later" selected>Later</lf-option>
   </lf-options>
-</section>
+</lf-group>
 <lf-board id="plan">
   <lf-column id="col-open" label="Undecided"></lf-column>
   <lf-column id="col-next" label="Next" value="next"></lf-column>

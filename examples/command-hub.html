@@ -141,10 +141,9 @@
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <section
+              <lf-group
                 id="decision-dedupe-region"
-                role="group"
-                aria-labelledby="decision-dedupe-region-h"
+                label="What should the host do with the stalled work?"
               >
                 <h3 id="decision-dedupe-region-h">
                   What should the host do with the stalled work?
@@ -171,7 +170,7 @@
                     GB for this rewrite.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task
               id="parser-zero"
@@ -180,10 +179,9 @@
             >
               <strong>Choose the zero-row behavior</strong> This policy is consequential
               enough to wait for an explicit choice.
-              <section
+              <lf-group
                 id="decision-zero-region"
-                role="group"
-                aria-labelledby="decision-zero-region-h"
+                label="What should happen when a nightly imports zero rows?"
               >
                 <h3 id="decision-zero-region-h">
                   What should happen when a nightly imports zero rows?
@@ -205,7 +203,7 @@
                     Record the empty import but publish no data.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </lf-atlas-task>
           </lf-atlas-task>
 
@@ -234,10 +232,9 @@
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <section
+              <lf-group
                 id="decision-schema-region"
-                role="group"
-                aria-labelledby="decision-schema-region-h"
+                label="What should the host do with the schema branch?"
               >
                 <h3 id="decision-schema-region-h">
                   What should the host do with the schema branch?
@@ -254,7 +251,7 @@
                     idle, and take one larger review tomorrow.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
               <strong>Backfill reconciliation fields</strong>
@@ -269,10 +266,9 @@
               below, paste its CSV output into the draft, and remove
               <code>customer_name</code> and <code>billing_email</code> before saving.
               Saving the draft tells the orchestrator that w-8 can resume.
-              <section
+              <lf-group
                 id="decision-ledger-fixture-region"
-                role="group"
-                aria-labelledby="decision-ledger-fixture-region-h"
+                label="Which replica-only ledger fixture should the worker use?"
               >
                 <h3 id="decision-ledger-fixture-region-h">
                   Which replica-only ledger fixture should the worker use?
@@ -283,7 +279,7 @@
                   <pre>
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
-              </section>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task
               id="ledger-variance"
@@ -320,10 +316,9 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <section
+              <lf-group
                 id="decision-api-region"
-                role="group"
-                aria-labelledby="decision-api-region-h"
+                label="What should the host do with atlas/public-api?"
               >
                 <h3 id="decision-api-region-h">
                   What should the host do with atlas/public-api?
@@ -343,7 +338,7 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                     reap its reviser.
                   </lf-option>
                 </lf-options>
-              </section>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
               <strong>Map structured failures</strong>

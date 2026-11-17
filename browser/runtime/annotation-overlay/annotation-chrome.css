@@ -4,60 +4,17 @@
  * floating response placement and the contextual Thread preview; importing page chrome
  * needs none of it. */
 
-/* The hand over a mark stands on the element under the pointer (anchor-paint.js,
-   `paintHand`). Armed, the aim's cursor stands instead (chrome.css), and an element's
-   mark states its own (below), at a weight this rule doesn't pass. ⌥'s arm is
-   painted on the element under the pointer too (page-geometry.js), whose cursor is
-   the one that shows, so a rule here reads it on that element, or, for a mark holding
-   that element, through `:has()`; Design mode's stands on `body`. */
-:where(body:not([data-lf-design-mode]))
-  [data-lf-over-mark]:where(:not([data-lf-armed])) {
+/* The hand over a mark stands on the element under the pointer, painted from the hit
+   test a press uses (anchor-paint.js, `paintHand`), so it shows only where a press
+   opens a thread: not over a control or field inside a marked element, which keeps its
+   own press; not on a mark in the chrome, which a press never opens; not while the
+   annotations are hidden. Armed, a press is the aim's, and where it takes an item the
+   aim's hand stands there too (chrome.css). */
+[data-lf-over-mark] {
   cursor: pointer;
-}
-/* An element holding threads draws no contour at rest: its margin entry says so, and a
-   box means "this, now". A contour appears for a moment — a draft on it, the pointer
-   on its row in Threads, the thread the user is in — and is one hollow line, the
-   element's own outline (surfaces.css). The element still takes a press that opens
-   its thread. Armed, a press on it is the aim's, not the thread's, so the hand here
-   is the aim's answer (chrome.css) or a control's own cursor, and not the mark's own
-   "open this thread". */
-:where(body:not([data-lf-design-mode]))
-  .lf-mark-el:where(:not([data-lf-armed], :has([data-lf-armed]))) {
-  cursor: pointer;
-}
-/* The annotation layer hidden (`o`): the element's threads are out of reach, so the
-   hand that promises one goes too, while a gesture's own contour stays. */
-:root[data-lf-annotations="hidden"]
-  .lf-mark-el:not(.lf-pending, .lf-mark-here, [data-lf-focus]) {
-  cursor: auto;
-}
-.lf-mark-el.lf-pending {
-  cursor: auto;
-}
-/* A mark in the chrome, which stands after the body, draws the arrow while the page
-   is armed. */
-body[data-lf-design-mode] ~ .lf-chrome .lf-mark-el,
-body ~ .lf-chrome .lf-mark-el:is([data-lf-armed], :has([data-lf-armed])) {
-  cursor: default;
 }
 
 @scope (.lf-chrome) {
-  /* The hand only where the press lands. An element anchor draws its contour
-     wherever its element stands, the layer's own parts included — that is what lets
-     a design comment about the panel point at the panel, and a thread about a
-     question an agent asked in a reply point at the question. What the mark may
-     not do here is offer the hand: markAt refuses a press inside this container on
-     purpose, because what the container holds keeps its own presses — a panel mark
-     opens its view, an option takes a pick, and neither opens a thread. So
-     the contour goes on saying which element, and stops promising a click nothing
-     takes. Scoped rather than written at document level, where it would widen the
-     shared vocabulary by this container's own class. Design mode's rules outside
-     outrank this at a weight it cannot reach and draw the arrow here too, which is
-     the same answer arrived at twice: the aim never lands in the chrome (isAddressable), so
-     the hand it promises is not one this mark could offer either. */
-  .lf-mark-el {
-    cursor: auto;
-  }
   /* The rail cannot trap a raised item below the page paint it summons. Only the item
      under pointer or focus crosses that paint, and the obligation the user stands in,
      whose marker stands across the location ring where the decision reaches the rail

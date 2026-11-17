@@ -16,11 +16,10 @@ import { pointInto } from "../pointed-place.js";
 // While ⌥ is held the page shows what a click would take — the item under
 // the pointer wears the aim's box (refreshAim), so the sequence
 // answers "which" before the click rather than asking the user to press and find out.
-// `aiming` is the modifier's state. Whether the page is armed (`armed`) is painted on
-// the element under the pointer (page-geometry.js, `refreshAim`), the one element whose
-// cursor the user sees. Painted on `body`, each change of it made Firefox visit every
-// element of the page: about 55 ms for ⌥ down and again for ⌥ up on #4781's 1.5
-// million elements.
+// `aiming` is the modifier's state. The page shows it only where the pointer is: the
+// aim's box, and the hand over an item a press takes (refreshAim). A mark of it on
+// `body` that the cursor rules read made Firefox visit every element of the page each
+// time ⌥ went down or came up, about 55 ms each way on #4781's 1.5 million elements.
 //
 // The target picker (`s`) arms the page the same way for as long as it stands: its hints
 // name targets for the keyboard, and the pointer takes any of them, or one between them,
@@ -55,12 +54,9 @@ export function createAim({
     !drawModeActive() && (!designMode.active() || targetPicker.active());
   // Whether the page is armed, given whether the modifier is held: the one reading the
   // box and the press claim both derive from, so the box cannot promise what the press
-  // does not do. The cursor's paint reads the two sources without the mode gate
-  // (`armed`), since Design and Draw state cursors of their own and a gated paint would
-  // go stale when Design ends under a held key.
+  // does not do.
   /** @param {boolean} held */
   const armedBy = (held) => aimIsAvailable() && (held || targetPicker.active());
-  const armed = () => aiming || targetPicker.active();
   // The picker's promise under the pointer waits for a pointer that hovers: a finger's
   // last tap, on the menu entry that opened the picker, is not where it stands.
   const aimIsOn = () => armedBy(aiming) && (aiming || !coarsePointer.matches);
@@ -111,7 +107,7 @@ export function createAim({
     const point = target?.anchor.visual ? null : pointInto(target?.element, at);
     return target && { ...target, point };
   }
-  // Called when either source of the arm changes, so the paint follows (refreshAim).
+  // Called when either source of the arm changes.
   function armChanged() {
     // Picker keys name the Design legend's corners while the picker owns the choice, so
     // the legend's tags step aside (chrome.css). The mark stands on the legend, which
@@ -272,5 +268,5 @@ export function createAim({
     for (const type of PRESS_EVENTS) document.addEventListener(type, claimPress, true);
   }
   pageCommand(AIM);
-  return { aimIsOn, aimedTarget, armed, armChanged, mount };
+  return { aimIsOn, aimedTarget, armChanged, mount };
 }

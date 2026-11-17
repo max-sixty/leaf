@@ -303,13 +303,13 @@ ARMED_PAGE = leaf_page(
     '<p id="drafted">Words a draft will stand on.</p>'
     '<p id="links"><a id="link" href="#items">A link in an item</a></p></section>',
 )
-# The cursor the user sees at each place, at rest, holding ⌥, and in Design mode. Each
-# rule that answers there reads the armed page (chrome.css, annotation-chrome.css).
+# The cursor the user sees at each place, at rest, holding ⌥, and in Design mode
+# (chrome.css, annotation-chrome.css).
 ARMED_CURSORS = {
     "words in an item": ("auto", "pointer", "pointer"),
     "beside the column": ("auto", "auto", "auto"),
     "words in a marked item": ("pointer", "pointer", "pointer"),
-    "a tab stop in a marked item": ("pointer", "auto", "auto"),
+    "a tab stop in a marked item": ("auto", "auto", "auto"),
     "a marked passage": ("pointer", "pointer", "pointer"),
     "a link in an item": ("pointer", "pointer", "pointer"),
 }
@@ -319,13 +319,13 @@ ARMED_CURSORS = {
 def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     request, serve, engine
 ):
-    """Holding ⌥ or in Design mode, a press is the aim's: the hand stands where it takes
-    an item, a mark's hand ("this opens its thread") stands down, and a control or the
-    words no item holds keep their own cursor. Over a draft's item the aim's hand stands
-    over the draft's own cursor, and a mark in the chrome, whose element the aim never
-    takes, draws the arrow while the page is armed. Each place's cursor is read where
-    the pointer is, since the armed page is painted on the element under it
-    (page-geometry.js): on `body`, arming made Firefox visit every element of the page."""
+    """A hand promises a press: at rest, where a press opens a thread; holding ⌥ or in
+    Design mode, where the aim's press takes an item. A control keeps its own cursor in
+    either, even inside a marked item, where a press only focuses or works it; so do the
+    words no item holds, a draft's item at rest, and a mark in the chrome, which neither
+    press takes. Each place's cursor is read where the pointer is, since each hand is
+    painted on the element under it (anchor-paint.js, page-geometry.js); a mark of the
+    arm on `body` made Firefox visit every element of the page as ⌥ went down or up."""
     url = serve(
         ARMED_PAGE,
         events=[
@@ -404,7 +404,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     assert draft == ["auto", "pointer"], draft
     page.keyboard.press("Escape")
 
-    # A mark in the chrome: whatever its own cursor at rest, the arrow armed.
+    # A mark in the chrome keeps its own cursor, armed or not.
     open_panel_thread(page, "tv-decisioned")
     rendered(page)
     expect(page.locator(".lf-fp-view #tv-decision-region")).to_have_class(
@@ -415,7 +415,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     page.keyboard.down("Alt")
     chrome.append(seen(heading))
     page.keyboard.up("Alt")
-    assert chrome == ["auto", "default"], chrome
+    assert chrome == ["auto", "auto"], chrome
 
 
 def test_a_control_in_a_reply_holds_the_page_s_control_shape(browser, serve):

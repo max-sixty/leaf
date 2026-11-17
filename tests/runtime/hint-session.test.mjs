@@ -468,14 +468,16 @@ test("a walk redraws the chips it moves between and reads no target's box", (t) 
   assert.equal(map.boxReads(), reads);
 });
 
-test("chrome that comes to cover a target keeps every letter and the walk", (t) => {
-  const map = hintMap(t, ["one", "two"]);
+// A panel view the user opens grows the chrome over targets the map named: the map is
+// read again, so no chip stands for a target the user can no longer see or press.
+test("a target the chrome comes to cover leaves the map", (t) => {
+  const map = hintMap(t, ["one", "two", "three"]);
   map.session.arm();
   map.session.paint();
   map.tab();
   map.session.paint();
   assert.equal(map.current(), "a");
-  map.cover(["two"]);
+  map.cover(["three"]);
   map.session.paint();
   assert.deepEqual(
     map.session.candidates().map(({ name, code }) => [name, code]),
@@ -484,5 +486,6 @@ test("chrome that comes to cover a target keeps every letter and the walk", (t) 
       ["two", "s"],
     ],
   );
+  assert.deepEqual(map.shown(), ["a", "s"]);
   assert.equal(map.current(), "a");
 });

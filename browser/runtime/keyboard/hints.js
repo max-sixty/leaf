@@ -554,9 +554,9 @@ export function seatHints(
    first (`seatHints`, `browsed`). A paint between readings measures nothing, and Lit
    writes only the faces that changed, so a Tab writes the two chips it moves between
    however many the map holds. The map is read and seated again once a scroll settles,
-   on a resize, when a member leaves the document, and when the caller invalidates it;
-   chrome that comes to stand elsewhere seats the chips again around it, their letters
-   kept. Between readings a chip rides its target by its anchor (chip-seats.js), so a
+   on a resize, when the chrome comes to cover other boxes, as a panel view the user
+   opens does, when a member leaves the document, and when the caller invalidates it.
+   Between readings a chip rides its target by its anchor (chip-seats.js), so a
    page that moves under the map, as a revision or an opening disclosure does, moves
    the chips with what they name and changes no letter the user has read. Rejected:
    measuring every member again on each paint to notice a move, a hit test per chip,
@@ -878,9 +878,13 @@ export function createHintSession({
     const emptyBefore = mapped.length === 0;
     const detached = candidates.some((candidate) => !identity(candidate)?.isConnected);
     const barriers = chrome.barriers();
+    // Chrome the user has opened over the page, such as a panel view, covers other boxes
+    // than the reading saw.
+    const covered = seating !== null && !sameBoxes(barriers, seating.barriers);
     // Only at rest and with no letters typed: a partly typed code freezes the map until
     // the user completes or backs out of that prefix.
-    if (!moving && !prefix && (stale || detached || !candidates.length)) readAgain();
+    if (!moving && !prefix && (stale || covered || detached || !candidates.length))
+      readAgain();
     const plans = layout(candidates, { current: hinted()[at] });
     // A scroll holds the seats, and so does every paint while they stand, the map the
     // user has read keeping its faces up to date in them as they type or walk it.

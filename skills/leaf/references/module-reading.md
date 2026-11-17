@@ -40,13 +40,14 @@ from an `lfWord()` method where the word depends on the element, as `lf-suggesti
 says "insertion" or "rewrite", else its tag without `lf-`. Where a widget's words alone
 don't convey its structure, as a rewrite's old and new text don't, its `lfSays()`
 returns the words that describe it. A
-widget whose title is an attribute holds it in `label`, as a column does, which names
-its element on every widget that takes it (the registry's `$attributes`).
+widget's title is its `label` attribute, as an option card's, a board card's or a
+column's is, which names its element on every widget that takes it (the registry's
+`$attributes`).
 
 `titledElement(heading)` is the element a heading titles: its `hgroup`, the `section`
-or `article` that opens with it, alone or in that `hgroup`, and a widget it leads, such
-as a card. An element its author names otherwise, as a widget's `label` or a section's
-`aria-label` does, is no heading's. A heading after other content, or opening any other
+or `article` that opens with it, alone or in that `hgroup`. An element its author names
+otherwise, as a section's `aria-label` does, is no heading's, and a heading inside a
+widget titles only itself. A heading after other content, or opening any other
 element, titles only itself. `lf-toc` links each heading to one of them, and a heading's
 link preview counts a thread about any of them.
 

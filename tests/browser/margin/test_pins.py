@@ -9,6 +9,7 @@ from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE
 from render_harness import (
+    CHROME_ROOT,
     PANEL,
     leaf_page,
     margins_laid_out,
@@ -610,7 +611,9 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     expect(toggle).to_contain_text("Hide annotations")
     press_visible(page, toggle, touch=True)
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator("html")).to_have_attribute("data-lf-annotations", "hidden")
+    expect(page.locator(CHROME_ROOT)).to_have_attribute(
+        "data-lf-annotations-hidden", ""
+    )
     expect(pin).to_be_hidden()
     margins_laid_out(page)
     assert page.evaluate(boxes) == before, "hiding the annotations moved the page"
@@ -618,8 +621,8 @@ def test_a_finger_hides_the_annotations_from_the_leaf_s_menu(browser, serve):
     toggle = panel_control(page, "command:annotations.toggle", at="annotate")
     expect(toggle).to_contain_text("Show annotations")
     press_visible(page, toggle, touch=True)
-    expect(page.locator("html")).not_to_have_attribute(
-        "data-lf-annotations", re.compile(".*")
+    expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
+        "data-lf-annotations-hidden", re.compile(".*")
     )
     expect(pin).to_be_visible()
 

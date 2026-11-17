@@ -41,7 +41,6 @@ import {
   quoteFrom,
   quotesChanged,
   refuseBareText,
-  runsIntoLine,
   says,
   segmentsIn,
   trackQuotes,
@@ -59,20 +58,15 @@ test("no node means no passage location, rather than a runtime error", () => {
   assert.equal(closestAcross(undefined, "main"), null);
 });
 
-test("a title's line and a quote across its end read one phrasing rule", () => {
-  // Where a title meets the next words inside an element a line runs through, it runs
-  // into that line (`runsIntoLine`), and a quote across the edge reads with a space or
-  // without (`scan`); where the next words stand in an element outside phrasing, the
-  // title ends its line and the edge is a gap a quote must keep.
+test("a quote across a title's end reads by the phrasing rule", () => {
+  // Where a title meets the next words inside an element a line runs through, a quote
+  // across the edge reads with a space or without (`scan`); where the next words stand
+  // in an element outside phrasing, the edge is a gap a quote must keep.
   document.body.innerHTML =
     '<main><p id="inline"><strong>Title</strong><span>words follow</span></p>' +
     '<div id="block"><strong>Heading</strong><div>words below</div></div></main>';
   const inline = /** @type {Element} */ (document.getElementById("inline"));
   const block = /** @type {Element} */ (document.getElementById("block"));
-  const title = (/** @type {Element} */ el) =>
-    /** @type {Element} */ (el.querySelector("strong"));
-  assert.equal(runsIntoLine(title(inline), inline), true);
-  assert.equal(runsIntoLine(title(block), block), false);
   const reading = pageText();
   for (const quote of ["Title words", "Titlewords"])
     assert.equal(quoteFrom(findQuote(reading, quote, {}, inline)), "Titlewords", quote);

@@ -10,9 +10,11 @@ from page CSS. Page-owned widget implementations are listed from captured
 provenance. JavaScript bytes include executable inline scripts and captured files,
 including downloads; no byte count implies execution. JavaScript is not parsed for
 strings that might become CSS. Words are the page's text reading
-(`passages.page_passages`), split into those a reader sees on arrival and those a
-closed `<details>` or `hidden` holds, so collapsed supporting material, such as a
-quoted source, costs the shown count nothing.
+(`passages.page_passages`), counted only in blocks of a sentence or more, so a table
+of short cells, a heading or code costs nothing, while a table cell that holds
+paragraphs counts as they would. They split into those a reader sees on arrival and
+those a closed `<details>` or `hidden` holds, so collapsed supporting material, such
+as a quoted source, costs the shown count nothing.
 
 This is a static source inventory, not network transfer or CSS coverage. Styles made
 by JavaScript, including widget template strings, are outside it. Browser views
@@ -24,6 +26,7 @@ directories retain the files for an author who needs their full text diff.
 """
 
 import json
+from itertools import pairwise
 from pathlib import Path
 
 import turbohtml
@@ -73,28 +76,49 @@ def _css_counts(css: str, *, inline=False) -> dict:
     return counts
 
 
+# A block shorter than a short sentence, such as a heading, a label or a table cell
+# holding a value, is scanned rather than read, so its words aren't counted.
+_SENTENCE = 12
+
+
 def _words(artifact: RevisionArtifact) -> dict:
-    """The words of the page's text reading: `shown` on arrival, and `collapsed` in a
-    closed `<details>`, other than its `<summary>`, or under `hidden`."""
+    """The words of the page's text reading that sit in blocks of a sentence or more:
+    `shown` on arrival, and `collapsed` in a closed `<details>`, other than its
+    `<summary>`, or under `hidden`."""
     markup = artifact.html.decode("utf-8")
-    arrival = SourceDocument(markup)
-    for element in arrival.tree.select("details:not([open]), [hidden]"):
-        if element.tag != "details" or "hidden" in element.attrs:
-            element.extract()
-            continue
-        for child in element.children:
-            if not (isinstance(child, turbohtml.Element) and child.tag == "summary"):
-                child.extract()
 
-    def count(document):
-        return len(page_passages(document, artifact.registry).text.split())
+    def prose(*, arrival: bool) -> int:
+        document = SourceDocument(markup)
+        # Code is the subject shown as it is, so it isn't counted. A widget's content
+        # keeps its own reading, since a `<pre>` there can hold its data or Markdown body.
+        for element in document.tree.select("pre"):
+            if not any(
+                getattr(ancestor, "tag", None) in artifact.registry
+                for ancestor in element.ancestors
+            ):
+                element.extract()
+        collapsed = document.tree.select("details:not([open]), [hidden]")
+        for element in collapsed if arrival else ():
+            if element.tag != "details" or "hidden" in element.attrs:
+                element.extract()
+                continue
+            for child in element.children:
+                if not (
+                    isinstance(child, turbohtml.Element) and child.tag == "summary"
+                ):
+                    child.extract()
+        reading = page_passages(document, artifact.registry)
+        cuts = [0, *(cut + 1 for cut in sorted(reading.breaks)), len(reading.text) + 1]
+        counts = (len(reading.text[a : b - 1].split()) for a, b in pairwise(cuts))
+        return sum(count for count in counts if count >= _SENTENCE)
 
-    shown = count(arrival)
+    shown = prose(arrival=True)
     return {
         "shown": shown,
-        "collapsed": count(SourceDocument(markup)) - shown,
+        "collapsed": prose(arrival=False) - shown,
         "coverage": [
-            "Words a reader can select on the page; a widget's drawn labels and data notation are not counted.",
+            f"Words in blocks of {_SENTENCE} or more, such as paragraphs and table cells or list items that hold sentences; a heading, label or short cell is scanned, not read, and isn't counted.",
+            "Code in a <pre> isn't counted, nor are a widget's drawn labels and data notation.",
             "A widget that hides content, such as a tab set's other tabs, counts it as shown.",
         ],
     }

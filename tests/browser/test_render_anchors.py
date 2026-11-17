@@ -2822,7 +2822,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
     figure.click()
-    expect(figure).to_have_class(re.compile(r"\blf-projected-mark\b"))
+    expect(figure).to_have_attribute("data-lf-projected-mark", "")
     expect(figure).to_have_attribute("data-lf-mark", re.compile("."))
     look = figure.evaluate(MARK)
     region = page.evaluate(

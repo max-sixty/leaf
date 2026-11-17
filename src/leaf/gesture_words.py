@@ -21,10 +21,11 @@ action at or before the gesture, since an undone add frees its id for another.
 
 Two readings of an element come out of that document. `says` is its whole words.
 `name` is what the authoring contract calls it away from itself: a widget's `label`
-attribute (the registry's `$attributes`), else a leading `<summary>` or heading, or on a
-widget a `<strong>`, inside a leading `<header>` or `<hgroup>` too — the rule the
-browser's `addressableName` reads off the live page, read here off the document the
-gesture was made in.
+attribute (the registry's `$attributes`), else its leading title, and plain markup's
+caption: a disclosure's `<summary>`, an `<hgroup>`'s heading, or the heading a section
+or article opens with (`leading_title_node`). It is the rule the browser's
+`addressableName` reads off the live page, read here off the document the gesture was
+made in.
 """
 
 from collections.abc import Callable
@@ -47,8 +48,9 @@ from .registry.contract import (
 )
 from .revision_artifact import read_revision
 
-TITLES = frozenset({"summary", "h1", "h2", "h3", "h4", "h5", "h6"})
-WIDGET_TITLES = TITLES | {"strong"}
+HEADINGS = frozenset({"h1", "h2", "h3", "h4", "h5", "h6"})
+WIDGET_TITLES = HEADINGS | {"summary", "strong"}
+SECTIONS = frozenset({"section", "article"})
 
 # revision → its immutable document read under the registry captured with it.
 RevisionReader = Callable[[int], SourceReading]
@@ -69,24 +71,50 @@ def _registered(node: dict, registry: dict) -> bool:
 
 
 def leading_title_node(node: dict, registry: dict) -> dict | None:
-    """The element that titles `node`: its first title element, looking inside a
-    leading <header> or <hgroup> and past other elements, until text intervenes. A
-    `<strong>` titles only a widget the registry registers, such as an option or a
-    card: a bold line in plain markup is how it looks, not what it is called."""
-    return _first_title(node, WIDGET_TITLES if _registered(node, registry) else TITLES)
+    """The element that titles `node`. A widget the registry registers, such as an
+    option or a card, is titled by its first heading, summary or `<strong>`, looking
+    inside a leading <header> or <hgroup> and past other elements, until text
+    intervenes. Plain markup is titled by the caption HTML gives it: a disclosure by
+    its first <summary>, an <hgroup> by its heading, and a section or article by the
+    heading it opens with, alone or in an <hgroup>. No other element is titled by a
+    heading inside it, and a bold line in plain markup is how it looks, not what it is
+    called."""
+    if _registered(node, registry):
+        return _widget_title(node)
+    return _opening_title(node)
 
 
-def _first_title(node: dict, titles: frozenset[str]) -> dict | None:
+def _widget_title(node: dict) -> dict | None:
     for child in node["content"]:
         if isinstance(child, str):
             if child.strip():
                 return None
             continue
-        if child["tag"] in titles:
+        if child["tag"] in WIDGET_TITLES:
             return child
         if child["tag"] in {"header", "hgroup"}:
-            return _first_title(child, titles)
+            return _widget_title(child)
     return None
+
+
+def _opening_title(node: dict) -> dict | None:
+    elements = [child for child in node["content"] if not isinstance(child, str)]
+    if node["tag"] == "details":
+        return next((child for child in elements if child["tag"] == "summary"), None)
+    if node["tag"] == "hgroup":
+        return next((child for child in elements if child["tag"] in HEADINGS), None)
+    if node["tag"] not in SECTIONS:
+        return None
+    first = next((child for child in node["content"] if not _blank(child)), None)
+    if first is None or isinstance(first, str):
+        return None
+    if first["tag"] == "hgroup":
+        return _opening_title(first)
+    return first if first["tag"] in HEADINGS else None
+
+
+def _blank(node) -> bool:
+    return isinstance(node, str) and not node.strip()
 
 
 def element_name(node: dict, registry: dict) -> str:

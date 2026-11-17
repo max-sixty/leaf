@@ -289,6 +289,9 @@ export function splitEdges() {
 // A widget's own children are its module's to arrange, whether the layer declares it or
 // the page defines it, and so is everything inside one whose content is not the page's
 // markup or members; inside those containers, the page's elements are the page's again.
+// A box a module builds inside the page's markup, such as a playground's bar of actions,
+// is the module's too: apparatus counts only where an element the page's source wrote
+// stands beside it, since only those siblings' rules change.
 // An inline box's children are its run of words, where the question is not which block
 // comes first or next, so a code block's highlighting or the mark ending a link's words
 // is not this.
@@ -302,6 +305,7 @@ export function apparatusAmongAuthored() {
     const parent = el.parentElement;
     if (
       served.has(el) ||
+      (served.size && ![...parent.children].some((s) => s !== el && served.has(s))) ||
       parent.closest(generated) ||
       inChrome(parent) ||
       declared(parent) ||

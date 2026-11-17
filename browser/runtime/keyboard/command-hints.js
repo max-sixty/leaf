@@ -126,6 +126,11 @@ export function createCommandHints({ presentedControl }) {
   let hasRoutes = false;
   /** @type {Map<BindingBadge, LentFace>} */
   const wornBindingBadges = new Map();
+  // TODO(#5194): this hit test is 28 of a Tab's 30, about 1.8 ms at 256 sections.
+  // Leaving what stands over a lent face to paint order deleted 56 lines in a prototype:
+  // a thread card or a pin covers the control as well as its face, so only a face under
+  // the page's own content, such as a sticky bar, would go unseen instead of becoming a
+  // corner chip.
   /** @param {Element} bindingBadge @param {Element} control @param {import("../rect.js").Box} visible @param {ReadonlySet<Element>} lent */
   function exposedBindingBadge(bindingBadge, control, visible, lent) {
     const whole = bindingBadge.getBoundingClientRect();

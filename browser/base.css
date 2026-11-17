@@ -894,8 +894,8 @@ lf-new *::highlight(lf-sug-ins) {
  * included, which no slot will ever hold and which render nothing if one does. CSS
  * cannot derive the category, so the selector keeps the literal, and
  * `build/registry.test.mjs` holds it to the kernel's `$passages.phrasing`, which the
- * runtime reads for the same question about a bold title's line. The browser tests
- * exercise the marker half through an inline Gloss in a suggestion slot.
+ * runtime reads for the same question about where a line of words runs. The browser
+ * tests exercise the marker half through an inline Gloss in a suggestion slot.
  *
  * The block form's room is above the slot rather than around it, so a run of changes
  * reads as a stack. Room on one side costs the pair nothing, the gap between two slots

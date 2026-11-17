@@ -4,9 +4,10 @@
    A widget's source owns its answer; the context supplies its prompt. The context is
    the part of the page the author assigned to the question: the innermost named group
    round the widget, such as an `lf-group`, whose label words it (`prompt.target`,
-   `obligations.widget_groups` in Python), or else the widget itself. A unique context is also its current node, so `m` lands on the whole
-   question, its premise and evidence included, and focus anywhere in it is being at the
-   question, where digits answer it.
+   `obligations.widget_groups` in Python), or else the widget itself. A unique context
+   is also its current node, so `m` lands on the whole question, its premise and
+   evidence included, and focus anywhere in it is being at the question, where digits
+   answer it.
    When several obligations share that context each stands at its own source, so focus,
    rings, markers and arrival all name the same request. A record unit stands at its
    projected datum, even when it is the widget's only obligation; the owning widget

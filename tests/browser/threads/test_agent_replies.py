@@ -294,7 +294,6 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         '<lf-options id="stream-reply-choice" choose>'
         '<lf-option id="stream-reply-now">Use it now</lf-option>'
         "</lf-options></lf-ask>",
-        html=True,
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )

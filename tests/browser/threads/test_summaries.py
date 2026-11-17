@@ -61,7 +61,6 @@ def test_a_seated_reply_draws_its_widget_in_place(browser, serve, resolved):
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        html=True,
     )
     for i in range(8):
         append_carried_log_record(
@@ -106,7 +105,6 @@ def test_a_seated_reply_lends_its_widget_to_the_panel_and_takes_it_back(browser,
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        html=True,
     )
     page = open_page(browser, url)
     seated = page.locator(f'#jobs .lf-msg[data-lf-event="{reply["id"]}"]')

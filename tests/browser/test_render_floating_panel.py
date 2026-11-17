@@ -1934,7 +1934,6 @@ def test_threads_search_reads_rendered_messages_and_summaries(browser, serve):
         '<lf-ask id="crop"><h3>Should I reshoot it wider?</h3>'
         '<lf-options id="crop-pick" choose><lf-option id="crop-wider">Wider</lf-option>'
         '<lf-option id="crop-same">As it is</lf-option></lf-options></lf-ask>',
-        html=True,
     )
     summarize_thread(serve.page_dir, root, reply["id"], "A **wider** view would help.")
     page = floating(browser, url)
@@ -4870,7 +4869,6 @@ def test_a_press_arriving_in_a_line_of_answers_moves_nothing(browser, serve, tou
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
-        html=True,
     )
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
@@ -4915,7 +4913,6 @@ def test_a_count_arriving_moves_no_mark_under_a_finger(browser, serve):
         '<lf-ask id="week"><h3>Which week?</h3><lf-options id="week-choice" choose>'
         '<lf-option id="this">This week</lf-option>'
         '<lf-option id="next">Next week</lf-option></lf-options></lf-ask>',
-        html=True,
     )
     told(page)
     expect(on_me.locator(".lf-fp-num")).to_have_text("1")
@@ -5000,7 +4997,6 @@ def test_a_reply_s_widget_stands_in_its_card(browser, serve):
         '<lf-option id="mounts">Put the mounts back</lf-option>'
         '<lf-option id="camera">Install the camera</lf-option>'
         "</lf-options></lf-ask>",
-        html=True,
     )
     page = floating(browser, url)
     page.locator("body").focus()

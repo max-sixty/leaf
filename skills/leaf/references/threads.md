@@ -120,7 +120,7 @@ Successful answers check the saved `index.html` and make it the active revision
 with the answer; the first answer on a revision also notes the advice `page check`
 gives. Progress and failure reports use the active revision without checking or
 publishing an in-progress draft. Rerunning an
-answer with the same `ref` adds nothing.
+answer with the same `ref`, text and flags adds nothing.
 
 When an answer has `writer: "turn"`, your turn's final text answers it (your harness's
 "Replies"). Use `leaf thread reply` instead when the answer needs HTML, which your

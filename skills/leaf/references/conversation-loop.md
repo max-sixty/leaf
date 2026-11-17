@@ -171,8 +171,7 @@ the decision their thread is about stays off On Me, and ending the to-do puts it
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done --text "<where>"`,
 or `failed`/`dropped` with the reason. If another session will finish it, put the page
-and the to-do id in its brief; that session runs `leaf task start` on the to-do,
-which lets it end the to-do now or on a later turn.
+and the to-do id in its brief.
 
 Work on an update that finishes inside the turn needs no to-do.
 

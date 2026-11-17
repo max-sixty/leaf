@@ -62,11 +62,10 @@ def thread_obligation(events: list, responses: dict, message: str) -> dict | Non
 
     A thread's response is owed by the thread rather than by the message inside it
     that happens to carry it, so a message with nothing against its own id can still
-    sit in a thread waiting on one. Every writer that asks "may a new message
-    go to this one as a proactive message?" asks this, because two readings of the same
-    question drift: a refusal that sent an agent to name a thread for a message owed
-    nothing sent it to a writer refusing it on the thread's obligation, which is the
-    dead end a refusal is supposed to end.
+    sit in a thread waiting on one. Every writer that asks "what does a proactive
+    message to this one leave owed?" asks this, because two readings of the same
+    question drift: an agent told a message was owed nothing would post to its thread
+    and hear the thread still owed an answer.
     """
     names = thread_names(events)
     thread = names.get(message, message)
@@ -96,9 +95,9 @@ def logged_id(page_dir: Path, events: list, value: str, responses: dict) -> str 
     user's press is answered through its delivery reference until it is answered and not after, and
     a resolve or an undo is owed nothing at all. A
     message is the one id whose writer turns on its thread rather than on
-    itself — naming the thread for a proactive message is refused while the thread owes a
-    response, whichever of its messages is owed it — so it is read through
-    `thread_obligation`, the same reading `post_reply`'s guard refuses on. A
+    itself — a proactive message to a thread that owes a response answers nothing,
+    whichever of its messages is owed it — so it is read through
+    `thread_obligation`, the same reading `post_reply` notes beside such a message. A
     thread's id is its opening comment's, so an agent holding a thread id names it
     as a message.
     """

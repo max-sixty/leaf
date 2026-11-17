@@ -214,9 +214,14 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         assert result.exit_code == code, result.output
         output = result.output
         if code == 0:
-            # A write prints its record; its own id and time differ each run.
+            # A write prints its record, whose own id and time differ each run, and
+            # the words of what it notes beside it.
             output = "".join(
-                json.dumps({key: record[key] for key in ("kind", "parent")}) + "\n"
+                json.dumps(
+                    {key: record[key] for key in ("kind", "parent")}
+                    | {"notes": [found["text"] for found in record.get("findings", [])]}
+                )
+                + "\n"
                 for record in map(json.loads, output.splitlines())
             )
         text = f"$ leaf {' '.join(args)}\nexit: {code}\n{output}"
@@ -235,9 +240,9 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
         )
         assert code == 200, response
         ids.append(events_model.read_events(page)[-1]["id"])
-    # Undelivered, the owed message has no reference yet: the refusal names the
-    # wait that delivers one.
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
+    # A message by id answers nothing. Undelivered, the owed message has no
+    # reference yet: the note names the wait that delivers one.
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 0)
     woke = runner.invoke(cli_model.cli, ["wait", str(page)])
     assert woke.exit_code == 0, woke.output
     envelope = json.loads(woke.output)
@@ -247,9 +252,9 @@ def test_reply_command_guides_selection_and_followup(claimed, server, regtest):
     assert len(batch["events"]) == 2
     reference = batch["events"][0]["answer"]["ref"]
     references.append(reference)
-    # Delivered, the refusal names the delivery's exact reference.
+    # Delivered, the note names the delivery's exact reference.
     record(["thread", "reply", str(page), "--text", "Answer", "--done"], 1)
-    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 1)
+    record(["thread", "reply", str(page), ids[0], "--text", "Answer"], 0)
 
     def response_args(*extra):
         return ["thread", "reply", reference, "--text", "Answer", "--done", *extra]

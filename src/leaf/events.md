@@ -29,7 +29,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-error"></a>`error`               | page            | the runtime                                                                     | `text`                                                                                                                                                                                 | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
 | <a id="kind-render"></a>`render`             | page            | the page's server (`render_gate/handover_pass.py`)                              | `revision`, `findings` (`findings.Finding.json`, less `values`)                                                                                                                        | what the render check newly found in a version the agent handed over                                                                                                                          |
 | <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `subject` (a thread, a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                                                                     | opens work the agent owes (`todos.py`)                                                                                                                                                        |
-| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                                               | ends a to-do (`todos.py`)                                                                                                                                                                     |
+| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`, or a `leaf thread reply --done` that delivers a reply's to-do  | `todo`, an open to-do's id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                                               | ends a to-do (`todos.py`)                                                                                                                                                                     |
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                         | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                                  | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
 | <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge | `state` (`waiting` or `idle`)                                                                                                                                                          | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                | `steps`, an outline of `{depth, title, state}` or `{depth, item}`                                                                                                                      | replaces the agent's plan, which arranges to-dos and obligations without owning them (`plans.py`)                                                                                             |
@@ -188,7 +188,8 @@ retries the same attempt.
 
 Transports own only their input boundary: which kinds and fields they accept.
 `thread.post_reply` matches its own `attempt` before the door by kind and response
-address, so a CLI retry with reworded text returns the first reply. Attempt identity
+address, so a provider's repeated final returns the first reply; a CLI answer's
+`attempt` covers its whole write, so only an identical retry does. Attempt identity
 compares every field but those the server assigns (`event_log._attempt_payload`).
 `$events.ownership` names the `derived` fields only admission supplies and the
 `browser_discard` fields browser ingress drops; it is fixed by the running kernel, and
@@ -292,8 +293,11 @@ A user reply always hands the thread back to the agent.
 
 An agent reply records the delivery event it answers as `responds`, including an
 answer whose update was settled during the turn; a proactive `leaf thread reply`
-carries none. Settlement consumes this exact id rather than log order, so answering
-older work cannot erase newer user input. A substantive reply reopens a resolved
+carries none, and leaves an answer its thread owes owed. Settlement consumes this
+exact id rather than log order, so answering older work cannot erase newer user
+input. A `--done` answer to an update the agent's earlier answer already settled
+with a to-do still open delivers that to-do: it carries no `responds`, and a
+`todo_end` follows it (`thread.post_reply`). A substantive reply reopens a resolved
 thread and restores its unanswered widget and message obligations, as an `unresolve`
 does;
 reactions and failure receipts leave it closed.

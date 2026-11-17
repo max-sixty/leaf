@@ -1,5 +1,6 @@
 """Thread writes, addressed response admission, and provider reply reservations."""
 
+import json
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 from hashlib import sha256
@@ -395,11 +396,19 @@ def ask_again(
     name = f"message:{message}"
     try:
         addressed = _resolve_obligation(
-            page, {"parent": message}, REFUSE, identity["session"], False, None
+            page,
+            {"parent": message},
+            REFUSE,
+            identity["session"],
+            False,
+            None,
+            done=False,
         )
     except Rejected:
         return None
     assert addressed is not None
+    if any(found.code == "owed-response" for found in addressed.advice):
+        return None
     registry = require_registry(page.page_dir)
     asked = thread_questions(page.events, addressed.thread, registry)
     if name not in asked:
@@ -513,6 +522,10 @@ class _Obligation(NamedTuple):
     responds: str | None
     # The update a progress reply takes in hand, if it owes one.
     in_hand: str | None
+    # The to-dos the reply delivers, which it ends done.
+    ends: tuple[str, ...] = ()
+    # What the command notes beside the reply once it is in.
+    advice: tuple[Finding, ...] = ()
 
 
 @contract_writer
@@ -545,14 +558,24 @@ def post_reply(
     ``address`` takes the fields of a response address (`delivery.response_address`):
     ``responds`` fences the write to that exact current obligation, and ``parent``
     names the message it threads under (`obligations.response_address`). ``parent``
-    alone posts a new agent message, which the thread must currently owe no reply
-    for, and the event then carries no ``responds``. ``input`` and ``claim``, which
-    a delivery captured, fence it to that page log and delivery owner.
+    alone posts a new agent message, and the event then carries no ``responds``: it
+    answers nothing, so an answer its thread owes stays owed, which the command
+    notes beside it (`owed-response`). ``input`` and ``claim``, which a delivery
+    captured, fence it to that page log and delivery owner.
 
-    A repeated ``attempt`` is matched more loosely than the append door's payload
-    identity: by kind, progress, failure receipt or answer, response address and
-    declaration, so a CLI retry whose text was reworded returns the first reply
-    rather than refusing.
+    A ``responds`` that no longer names the update owed refuses an answer, which
+    would mark an unread newer message answered (`superseded-reply`), with two
+    exceptions that answer nothing. Progress posts in the thread, taking nothing in
+    hand, and the command notes what the log holds the event as. An answer that
+    declares nothing further, to an update whose earlier answer promised a to-do
+    still open, delivers that to-do: it posts in the thread and ends the to-do done,
+    so `--todo` and then `--done` on one reference both go in.
+
+    A repeated ``attempt`` returns the reply it appended, matched by kind,
+    progress, failure receipt or answer, and response address rather than by the
+    append door's payload identity, so a provider's repeated final returns the
+    first however it reads; a CLI answer's key covers its whole write
+    (`post_response`).
 
     ``html`` reads the text with any HTML in it (`drawn_markup`), as the agent's own
     `leaf thread reply` does; text a harness or Leaf posts keeps its tags as words.
@@ -627,13 +650,7 @@ def post_reply(
         )
         if attempt is not None and (
             repeated := _repeated_reply(
-                page.events,
-                attempt,
-                address,
-                ephemeral,
-                failure is not None,
-                todo,
-                obligation,
+                page.events, attempt, address, ephemeral, failure is not None
             )
         ):
             return repeated
@@ -644,6 +661,9 @@ def post_reply(
             posting_identity.get("session"),
             ephemeral,
             failure,
+            done=not (
+                ephemeral or todo or obligation or asks_back or failure is not None
+            ),
         )
         if addressed is None:
             return None
@@ -666,14 +686,26 @@ def post_reply(
             detach=detach,
             title=title,
         )
-        if beside is not None and responds is not None and not ephemeral:
+        for delivered in addressed.ends:
+            append_admitted(
+                page,
+                {
+                    "kind": "todo_end",
+                    "author": "agent",
+                    **posting_identity,
+                    "todo": delivered,
+                    "outcome": "done",
+                    "detail": f"reply {record['id']}",
+                },
+            )
+        if beside is not None and addressed.responds is not None:
             # Whether the answer took the thread, by the reading once it is in: one to
             # an older message, or to a widget frozen there, leaves a message the fork
             # picked up waiting, and the thread with the fork.
             took = owed_by(page_holding(page).hold(thread).holder)["kind"] == "main"
             beside = replace(beside, values={**beside.values, "answers": took})
-    if beside is not None and claimed_session is None:
-        note(beside)
+    if claimed_session is None:
+        note(*([beside] if beside is not None else []), *addressed.advice)
     if published is not None:
         # Read apart from the page lease, so the user's page sees the reply at once.
         note(*_revision_advice(page_dir, published))
@@ -724,43 +756,40 @@ def _revision_advice(page_dir: Path, published: _Published) -> list[Finding]:
 
 
 def _repeated_reply(
-    events: list,
-    attempt: str,
-    address: dict,
-    ephemeral: bool,
-    failed: bool,
-    todo: str | None,
-    obligation: bool | list[str],
+    events: list, attempt: str, address: dict, ephemeral: bool, failed: bool
 ) -> dict | None:
     """The reply an earlier write with this `attempt` appended, or None; refuses an
-    attempt that named another kind of write: progress, a failure receipt and an
-    answer are each their own."""
+    attempt that named another kind of write, progress, a failure receipt and an
+    answer each being their own, or a write that answered another update."""
     existing = next(
         (event for event in events if event.get("attempt") == attempt), None
     )
     if existing is None:
         return None
     parent, responds = address.get("parent"), address.get("responds")
-    same_scope = (
-        existing.get("responds") == (None if ephemeral else responds)
-        if responds is not None or parent is not None
-        else True
-    )
     if (
         existing["kind"] != "reply"
         or bool(existing.get("ephemeral")) != ephemeral
         or ("failure" in existing) != failed
         or (parent is not None and existing["parent"] != parent)
-        or not same_scope
+        # Progress, and an answer that delivered a to-do, answer nothing.
+        or existing.get("responds") not in (None, responds)
     ):
         raise Rejected([Finding("attempt-conflict", values={"attempt": attempt})])
-    if existing.get("todo") != todo or existing.get("obligation", False) != obligation:
-        # A repeat that promises differently would otherwise return the first
-        # answer and drop what this one declares.
-        raise Rejected(
-            [Finding("redeclared-answer", values={"message": existing["id"]})]
-        )
     return existing
+
+
+def _promised(events: list, responds: str) -> list[dict]:
+    """The open to-dos that earlier answers to `responds` opened
+    (`todos.todo_reading`)."""
+    from .todos import TodoReading
+
+    opened = {
+        answer["id"]
+        for answer in successful_replies(events, responds)
+        if "todo" in answer
+    }
+    return [todo for todo in TodoReading(events).owed if todo["id"] in opened]
 
 
 def _resolve_obligation(
@@ -770,9 +799,13 @@ def _resolve_obligation(
     session: str | None,
     ephemeral: bool,
     failure: str | None,
+    *,
+    done: bool,
 ) -> _Obligation | None:
     """Check `address` against the obligations the log holds now; where the reply
-    goes, or None where `settlement` says to write nothing."""
+    goes and what the command notes beside it, or None where `settlement` says to
+    write nothing. `done` says the write is an answer that declares nothing further
+    (`post_reply`)."""
     page_dir, events = page.page_dir, page.events
     parent, responds = address.get("parent"), address.get("responds")
     if (
@@ -795,6 +828,9 @@ def _resolve_obligation(
     assert parent is not None
     thread_id, parent = thread_addressed(page_dir, events, parent)
     in_hand = None
+    answers = None if ephemeral else responds
+    ends: tuple[str, ...] = ()
+    advice: list[Finding] = []
     if responds is not None:
         if (
             expected is None
@@ -805,14 +841,43 @@ def _resolve_obligation(
                 return None
             if not isinstance(settlement, ProviderFinal):
                 held = logged_id(page_dir, events, responds, responses)
-                raise Rejected(
-                    [
+                promised = _promised(events, responds) if done else []
+                if ephemeral:
+                    advice.append(
                         Finding(
-                            "superseded-reply",
-                            values={"event": responds, "parent": parent, "held": held},
+                            "superseded-progress",
+                            values={"event": responds, "held": held},
+                            severity="advice",
                         )
-                    ]
-                )
+                    )
+                elif promised:
+                    answers = None
+                    ends = tuple(todo["id"] for todo in promised)
+                    advice.extend(
+                        Finding(
+                            "todo-delivered",
+                            values={
+                                "event": responds,
+                                "todo": todo["id"],
+                                "title": todo["title"],
+                            },
+                            severity="advice",
+                        )
+                        for todo in promised
+                    )
+                else:
+                    raise Rejected(
+                        [
+                            Finding(
+                                "superseded-reply",
+                                values={
+                                    "event": responds,
+                                    "parent": parent,
+                                    "held": held,
+                                },
+                            )
+                        ]
+                    )
         elif ephemeral and not isinstance(settlement, Receipt):
             in_hand = responds
         # The open reply reservation decides who may write, whatever the
@@ -825,7 +890,7 @@ def _resolve_obligation(
                     reserved["attempt"],
                 ):
                     return None
-            elif not ephemeral and (
+            elif answers is not None and (
                 address.get("input") is None or failure is not None
             ):
                 assert expected is not None
@@ -841,19 +906,19 @@ def _resolve_obligation(
                         )
                     ]
                 )
-    else:
+    if responds is None or ends:
+        # A message that answers nothing leaves what its thread owes owed.
         owed = thread_obligation(events, responses, thread_id)
         if owed is not None:
-            raise Rejected(
-                [
-                    Finding(
-                        "owed-response",
-                        values={
-                            "thread": thread_id,
-                            "answer": answer_command(owed, page_dir),
-                        },
-                    )
-                ]
+            advice.append(
+                Finding(
+                    "owed-response",
+                    values={
+                        "thread": thread_id,
+                        "answer": answer_command(owed, page_dir),
+                    },
+                    severity="advice",
+                )
             )
     if isinstance(settlement, Receipt) and (
         (
@@ -863,7 +928,7 @@ def _resolve_obligation(
         or (settlement.fence is not None and not settlement.fence(page))
     ):
         return None
-    return _Obligation(parent, thread_id, None if ephemeral else responds, in_hand)
+    return _Obligation(parent, thread_id, answers, in_hand, ends, tuple(advice))
 
 
 def _compose_and_append(
@@ -892,7 +957,8 @@ def _compose_and_append(
     still checks saved source. Return the appended record and any checked
     publication for `_revision_advice` to read."""
     page_dir, events = page.page_dir, page.events
-    parent, thread_id, responds, in_hand = obligation
+    parent, thread_id = obligation.parent, obligation.thread
+    responds, in_hand = obligation.responds, obligation.in_hand
     markup = drawn_markup(text, html)
     event = {
         "kind": "reply",
@@ -1068,9 +1134,11 @@ def post_response(
     Each write's retry key (`post_reply`'s `attempt`) is derived here, never given:
     the reservation for a provider's answer and the reservation's progress line for
     its progress, so a provider's repeat returns the first; without a reservation,
-    the reference, in disjoint namespaces for answers and failure receipts so a
-    receipt's key never stands in for a later answer's. Progress without a
-    reservation takes no key, so each line posts.
+    the whole write, its reference, words and options, in disjoint namespaces for
+    answers and failure receipts so a receipt's key never stands in for a later
+    answer's. So only a retry identical to an earlier answer returns it, and an
+    answer that differs from it goes in as its own write (`post_reply`). Progress
+    without a reservation takes no key, so each line posts.
     """
     address = response_address(reference)
     if address["kind"] != "reply":
@@ -1092,7 +1160,8 @@ def post_response(
         attempt = None
     else:
         namespace = "failure" if options.get("failure") is not None else "response"
-        attempt = f"leaf-{namespace}-{sha256(reference.encode()).hexdigest()}"
+        write = json.dumps([reference, text, options], sort_keys=True)
+        attempt = f"leaf-{namespace}-{sha256(write.encode()).hexdigest()}"
     return post_reply(
         Path(address["page"]),
         address,

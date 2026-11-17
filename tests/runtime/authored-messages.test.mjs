@@ -91,6 +91,39 @@ test("a message's words part its blocks, as the page reading does", async () => 
   assert.equal(prepared.body.text, "Pick one: Open it now Hold it");
 });
 
+// A drawing that doesn't hold the message's widgets, such as a margin card while the
+// panel holds them, draws the message less its widgets. The group round a widget that
+// asks is that widget's question and goes with it; a group round a widget that asks
+// nothing, as a figure round a chart, keeps its caption.
+test("a drawing that doesn't hold a message's widgets drops only a question's group", async () => {
+  adoptRegistry({
+    $layer: { generation: "message-held-elsewhere" },
+    "lf-options": { state: { awaits: { value: "choose" } } },
+    "lf-option": {},
+    "lf-chart": {},
+  });
+  assert.equal(await loadMarkdown(), true);
+  const prepared = await prepareAuthoredMessage(
+    {
+      id: "held-message",
+      text:
+        '<figure id="held-latency" role="group" aria-labelledby="held-latency-caption">' +
+        '<lf-chart id="held-chart"></lf-chart>' +
+        '<figcaption id="held-latency-caption">Latency by day</figcaption></figure>\n\n' +
+        '<section id="held-ask" role="group" aria-labelledby="held-ask-h">' +
+        '<h3 id="held-ask-h">Roll back now?</h3>' +
+        '<lf-options id="held-choice"><lf-option id="held-yes">Yes</lf-option>' +
+        "</lf-options></section>",
+    },
+    "held-thread",
+  );
+  const drawn = document.createElement("div");
+  drawn.innerHTML = prepared.body.heldElsewhere;
+  assert.equal(drawn.querySelector("figure figcaption")?.textContent, "Latency by day");
+  assert.equal(drawn.querySelector("lf-chart, lf-options, [id]"), null);
+  assert.equal(drawn.textContent.includes("Roll back now?"), false);
+});
+
 test("failed message preparation reaches every waiting state read and later reads", async (t) => {
   const initializer = `data:text/javascript,${encodeURIComponent(
     'throw new Error("message initializer failed");',

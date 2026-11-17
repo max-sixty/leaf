@@ -3,7 +3,7 @@
 Open a thread when the answer depends on the user. Add `--obligation` to put the
 message on their On Me list until they answer. The message itself supplies the
 request; no widget is needed, though a question whose answers you can list
-takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
+usually takes them as a choice instead ("Ask for a pick"). Anchor it with a quote for a passage, a section id
 for a diagram or image, a declared part for one box within a visual, or nothing for
 the page as a whole:
 
@@ -163,7 +163,7 @@ Every answer declares whose move it leaves:
   `message:<its id>` on On Me until their next reply or a settling reaction answers
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
-  the message asks instead ("Ask for a pick").
+  the message usually asks instead ("Ask for a pick").
 
   Where their reply left a question standing, as when they asked something back or
   the step is still to do, give `--obligation` its id, repeating the flag for each
@@ -190,9 +190,11 @@ finished work.
 ### Ask for a pick
 
 When a message asks the user to choose among answers you can list, such as which of two
-ways to proceed or whether to take an action, send the answers in the message as an
-`<lf-options id="…">` group holding an `<lf-option id="…">` for each, rather than
-listing them in words. The user answers with a press in the thread, and the group waits
+ways to proceed, whether to take an action or whether a step they took worked, you can
+send the answers in the message as an `<lf-options id="…">` group holding an
+`<lf-option id="…">` for each. Picking an option is generally quicker and easier for
+the user than typing a reply, so a choice usually serves them better than answers
+listed in words. The user answers with a press in the thread, and the group waits
 on them until they do, so the message takes no `--obligation`, which the command refuses
 beside it. The message's text asks the question and gives your reason, so the group
 needs no heading. Title each option by what choosing it does and mark the one you

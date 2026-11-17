@@ -41,8 +41,9 @@ rubrics:
       choosing it does, and an option marked recommended only where the agent
       advised it. An action the agent takes once the user agrees, such as a merge, is
       asked as such a choice. For a step only the user can take,
-      it says what to do, and asks for a reply only for what the user alone can report or the agent's next step waits
-      on, not for an effect the agent could check itself and nothing waits on. A finding's summary says correctly what the conversation
+      it says what to do, and asks for an answer only for what the user alone can report or the agent's next step waits
+      on, not for an effect the agent could check itself and nothing waits on, as a
+      choice where the answers can be listed, such as installed or failed. A finding's summary says correctly what the conversation
       shows. Each change makes the page say what the conversation shows now, in the
       page's own register. Each item not labelled is one the question asks for and
       the conversation clearly shows: an ask the agent left to the user that no On Me
@@ -490,7 +491,7 @@ cases:
         - kind: question
           words: *flag-step
           thread: null
-          choice: false
+          choice: true
     assert:
       - *items
   ask-follow-up:
@@ -570,7 +571,6 @@ cases:
         - kind: question
           words: *flag-step
           thread: q1
-          choice: false
     assert:
       - *items
   ask-step-done:

@@ -127,7 +127,7 @@ lf-text-document .lf-text-document-run > *::highlight(lf-token-ok-ink) {
 lf-text-document .lf-text-document-run > *::highlight(lf-token-danger-ink) {
   color: var(--lf-danger-ink);
 }
-/* A run of rows (lf-text-document.js, `inRuns`) is drawn only while it is in view. */
+/* A run of rows (lf-text-document.js, `run`) is drawn only while it is in view. */
 lf-text-document .lf-text-document-run {
   content-visibility: auto;
 }

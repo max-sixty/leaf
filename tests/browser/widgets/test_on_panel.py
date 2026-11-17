@@ -15,6 +15,7 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import source_revision
 from render_harness import (
+    PANEL,
     expect_obligations_answered,
     expect_preview_words,
     holding,
@@ -37,11 +38,24 @@ from browser.navigation import expect_walk_position
 from leaf import data as data_model
 from leaf import event_log as events_model
 from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import open_on_me, panel_tab
+from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 ON_ME = panel_view("queue")
+
+
+def open_on_me(page):
+    """Open On Me by its mark, unless it stands open, and return its view; another
+    view standing open is put away first, by the ✕ in the mark's seat."""
+    shown = page.locator(PANEL).get_attribute("data-lf-open")
+    if shown not in (None, "queue"):
+        page.locator(".lf-fp-close").click()
+        panel_settled(page, open=False)
+    if shown != "queue":
+        page.locator(".lf-fp-on-user").click()
+    panel_settled(page, view="queue")
+    return page.locator(ON_ME)
 
 
 def on_card(page, at):
@@ -50,9 +64,9 @@ def on_card(page, at):
 
 
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
-    """On Me lists every open obligation, in document order, and every answered one
-    folded under Done with its current answer, so the user can review and revise. A
-    twelfth widget joins by declaring state.awaits.
+    """The panel's On Me mark lists every open obligation under On Me, in document order, and
+    every answered one folded under Done with its current answer, so the user can review
+    and revise. A twelfth widget joins by declaring state.awaits.
 
     A closed view holds no cards at all: they are the open view's rendering, the mark's
     count is the closed view's, and a hidden list of buttons is a set of controls no
@@ -62,7 +76,9 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     resized(page, 1920, 900)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view holds no cards"
 
-    open_on_me(page)
+    page.locator(".lf-fp-on-user").focus()
+    page.keyboard.press("Enter")
+    panel_settled(page, view="queue")
     show_done(page)
     cards = page.evaluate(ON_ITEM_SAYS)
     assert [(c["id"], c["list"]) for c in cards] == [
@@ -1096,7 +1112,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
+    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
@@ -1107,7 +1123,7 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
         ["widget:ship", []],
         ["widget:timeline", [f"message:{reply}"]],
     ]
-    expect(page.locator(".lf-fp-on-user .lf-fp-num")).to_have_text("2")
+    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
     held[0].continue_()
     page.unroute("**/api/event")
 

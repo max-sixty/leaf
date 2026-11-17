@@ -67,6 +67,16 @@ _RENDERING_SETTLED = """facts => {
 }"""
 
 
+def open_render_page(opener, **options):
+    """A new page from `opener`, a browser or a context, opened with Playwright's
+    `new_page` `options`, whose every Playwright wait that names no deadline, its
+    navigations included, takes `SERVED_TIMEOUT_MS` rather than Playwright's own 30s,
+    which a page's `load` overruns on a starved host."""
+    page = opener.new_page(**options)
+    page.set_default_timeout(SERVED_TIMEOUT_MS)
+    return page
+
+
 def _timeout(page, timeout_ms: int | None) -> int:
     page = getattr(page, "page", page)
     return timeout_ms or getattr(page, "_leaf_probe_timeout_ms", SERVED_TIMEOUT_MS)

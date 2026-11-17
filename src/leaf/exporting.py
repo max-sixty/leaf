@@ -508,11 +508,16 @@ def static_document(package: str) -> str:
     serializes what it drew (`static-export.js`).
     Refused where the host has no browser, or the page cannot start, since there is
     then no drawing to keep."""
-    from leaf.render_checks import RENDER_VIEWPORT, PageNotReady, wait_until_ready
+    from leaf.render_checks import (
+        RENDER_VIEWPORT,
+        PageNotReady,
+        open_render_page,
+        wait_until_ready,
+    )
     from leaf.render_gate.command import NoBrowser, run_in_browser
 
     def draw(browser) -> str:
-        page = browser.new_page(viewport=RENDER_VIEWPORT)
+        page = open_render_page(browser, viewport=RENDER_VIEWPORT)
         page.add_init_script(path=DRAWING)
         page.route(
             DRAWING_URL,

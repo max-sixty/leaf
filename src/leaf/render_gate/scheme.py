@@ -22,6 +22,7 @@ from leaf.render_checks import (
     evaluate_probe,
     install_window_errors,
     observe_output_documents,
+    open_render_page,
     output_values,
     rendered,
     start_near_work,
@@ -245,7 +246,7 @@ def _render_page(
 
     from .page_code import PageCode
 
-    page = browser.new_page(viewport=viewport, color_scheme="light")
+    page = open_render_page(browser, viewport=viewport, color_scheme="light")
     stand_in_other_leaves(page)
     opened_pages.append(page)
     page._leaf_probe_timeout_ms = served_timeout_ms

@@ -457,10 +457,10 @@
   }
   /* A flow shares the room of the column's flow it stands in, at any depth; one in
    * any other box has none to share. A widget that draws no box of its own around its
-   * blocks declares itself one (`x-flow`), so its blocks need no class of the author's.
-   * Only a block standing directly in a column or flow reads the room, so every other
-   * box sets it back to zero, and a flow inside a plain wrapper stays within the
-   * wrapper rather than breaking out as one standing in the column does. */
+   * blocks declares itself one (`paint.flow`), so its blocks need no class of the
+   * author's. Only a block standing directly in a column or flow reads the room, so
+   * every other box sets it back to zero, and a flow inside a plain wrapper stays
+   * within the wrapper rather than breaking out as one standing in the column does. */
   :not(.layout-column, .layout-flow, [data-lf-flow]) > * {
     --lf-free-start: 0px;
     --lf-free-end: 0px;
@@ -748,20 +748,21 @@
     --lf-aside: calc(var(--lf-sidebar) - var(--lf-sp-4));
   }
   /* A document's sidebar whose track holds only an element that rests as a spine
-   * (`x-spine`, painted `data-lf-spine`), as the contents map does, narrows to that spine
-   * on a screen where a fine pointer can reach into it, so the room a column would take
-   * goes to the body, whose prose stands as a column page's does (below). The aside comes
-   * before the body, so what the element reveals spreads from the spine toward the inline
-   * end, into the room before the prose and, on a narrower window, over the body. The
-   * narrowed track carries `--lf-track-spine: 1`, and only there does the element take
-   * its resting form (toc.css). The track doesn't clip, the aside paints over the body,
-   * and the body is one stacking context, so nothing it holds paints over what the
-   * element reveals, whatever its z-index. Every other sidebar keeps a column's room: a
-   * track holding anything else, an aside after the body, every track under touch,
-   * where nothing reaches in by pointing, and paper, where nothing reaches in at all.
+   * (`paint.spine`, painted `data-lf-spine`), as the contents map does, narrows to that
+   * spine on a screen where a fine pointer can reach into it, so the room a column
+   * would take goes to the body, whose prose stands as a column page's does (below).
+   * The aside comes before the body, so what the element reveals spreads from the spine
+   * toward the inline end, into the room before the prose and, on a narrower window,
+   * over the body. The narrowed track carries `--lf-track-spine: 1`, and only there
+   * does the element take its resting form (toc.css). The track doesn't clip, the aside
+   * paints over the body, and the body is one stacking context, so nothing it holds
+   * paints over what the element reveals, whatever its z-index. Every other sidebar
+   * keeps a column's room: a track holding anything else, an aside after the body,
+   * every track under touch, where nothing reaches in by pointing, and paper, where
+   * nothing reaches in at all.
    * Rejected (9 November 2026): narrowing every document sidebar. It broke a
    * paragraph in one into a few letters a line, and the render check passed it.
-   * TODO: `x-spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
+   * TODO: `paint.spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
    * `--lf-track-spine`) widen the public interface for one widget's look. Narrowing
    * automatically needs some declaration, since the aside is a size container and takes
    * no width from its content. Without one, the page would narrow its sidebar with

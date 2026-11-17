@@ -17,17 +17,21 @@ pytestmark = pytest.mark.shifts_unsurveyed
 KEYBOARD_HINT_REGISTRY = {
     "lf-keyboard-probe": {
         "description": "Exercises declared keyboard commands and their controls.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "asks": {"type": "boolean"},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "asks": {"type": "boolean"},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-state": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-state"],
-        "x-awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["x-awaits"],
+        "content": "empty",
+        "server": {
+            "state": SEATED_OBLIGATION_LAYER["lf-verdict"]["server"]["state"],
+            "awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["server"]["awaits"],
+        },
     }
 }
 

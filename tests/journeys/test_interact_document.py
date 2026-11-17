@@ -278,11 +278,15 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
     """A package member can belong to different families without validator changes."""
     label = {
         "description": "A package's shared label.",
-        "type": "object",
-        "properties": {},
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-owners": ["lf-option", "lf-card"],
+        "attributes": {
+            "type": "object",
+            "properties": {},
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "markup": {
+            "owners": ["lf-option", "lf-card"],
+        },
     }
     declare_on_page(page_dir, lambda registry: registry.__setitem__("lf-label", label))
     (page_dir / "index.html").write_text(
@@ -309,16 +313,16 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
 
 def test_flag_attribute_accepts_both_html_spellings(page_dir):
     (page_dir / "index.html").write_text(
-        PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="">')
+        PAGE.replace('id="backfill-first">', 'id="backfill-first" selected="">')
     )
     assert check(page_dir).exit_code == 0
     (page_dir / "index.html").write_text(
-        PAGE.replace('id="backfill-first">', 'id="backfill-first" chosen="yes">')
+        PAGE.replace('id="backfill-first">', 'id="backfill-first" selected="yes">')
     )
     status, findings = check_findings(page_dir)
     assert status == 1
     assert found(
-        findings, "attribute-schema", "<lf-option>", keyword="type", path=["chosen"]
+        findings, "attribute-schema", "<lf-option>", keyword="type", path=["selected"]
     )
 
 
@@ -610,7 +614,9 @@ def declare_other_rows(page_dir, kind):
         registry["lf-other-data"] = {
             **registry["lf-test-data"],
             "description": "A differently typed test input.",
-            "x-data": {"data": {"contract": "other-rows", "source": "source"}},
+            "data": {
+                "inputs": {"data": {"contract": "other-rows", "source": "source"}}
+            },
         }
 
     declare_on_page(page_dir, declare)

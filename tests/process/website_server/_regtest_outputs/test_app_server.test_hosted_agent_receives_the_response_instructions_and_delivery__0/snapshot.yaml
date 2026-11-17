@@ -43,7 +43,7 @@ turn/start:
       is already there. Where your answer asks a question of its own whose answers
       you can list, such as which of two ways to proceed or whether to take an action,
       put them in a `leaf thread reply` in place of `--obligation`, as `<lf-options
-      id=\"\u2026\" choose>` holding an `<lf-option id=\"\u2026\">` for each answer,
+      id=\"\u2026\" required>` holding an `<lf-option id=\"\u2026\">` for each answer,
       so the user answers with a press (`references/threads.md`, \"Ask for a pick\").
       Reply explicitly too for other HTML, which your final message shows as text,
       work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`);

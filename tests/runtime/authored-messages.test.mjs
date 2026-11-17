@@ -81,7 +81,7 @@ test("a message's words part its blocks, as the page reading does", async () => 
     {
       id: "worded-message",
       text:
-        'Pick one:\n\n<lf-options id="worded-choice" choose>' +
+        'Pick one:\n\n<lf-options id="worded-choice" required>' +
         '<lf-option id="worded-now"><strong>Open it now</strong></lf-option>' +
         '<lf-option id="worded-hold"><strong>Hold</strong> <em>it</em></lf-option>' +
         "</lf-options>",

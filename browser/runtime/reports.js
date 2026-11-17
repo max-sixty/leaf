@@ -23,7 +23,7 @@
    when their source retains history. A module showing freshness therefore still sees
    when the log last heard from a worker after a stamp absorbs the worker's report.
 
-   An agent-written x-state verb may declare `text: true`, which requires each report
+   An agent-written server.state verb may declare `text: true`, which requires each report
    to carry non-empty `detail.text`. That is the envelope's `text`; consumers never
    infer prose from a field, verb, or widget name. The state boundary exposes it once.
 
@@ -109,12 +109,12 @@ export const saidAt = (el) => {
   return time?.dateTime || publishedAt();
 };
 
-// The server's history reading: `events`, the newest logged events, newest first,
-// each already carrying its thread, whether it was undone, and a gesture's words as its
-// own document had them, and the application's `phase`, so a widget never replaces a
+// The server's history reading: `events`, the newest logged events, newest first, each
+// already carrying its thread, whether it was undone, and a gesture's words as its own
+// document had them, and the application's `phase`, so a widget never replaces a
 // reading it retained with the empty one a page shows before it is `ready`. The server
-// sends the events only to a page holding a widget that declares `x-history`; elsewhere
-// they are empty.
+// sends the events only to a page holding a widget that declares `server.history`;
+// elsewhere they are empty.
 export const readHistory = readPart((root) => ({
   phase: root.phase,
   events: root.authoritative?.browser.history ?? [],

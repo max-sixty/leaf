@@ -108,7 +108,7 @@ UNRESOLVED = """async () => {
   const api = await import(new URL('runtime/check-api.js', boot));
   const { declarationFor } = await import(new URL('runtime/widget-api.js', boot));
   const unsent = (event) => event.kind === 'action' &&
-    declarationFor(document.getElementById(event.widget), 'x-state')?.[event.action]
+    declarationFor(document.getElementById(event.widget))?.server?.state?.[event.action]
       ?.unsent === true;
   return api.readApplication().unresolved.map(({ event }) =>
     [event.attempt, event.kind, unsent(event)]);
@@ -116,7 +116,7 @@ UNRESOLVED = """async () => {
 
 # Controls no worked example shows, by package directory: a `multiple` group's Done.
 STATES = {
-    "default": """<lf-options id="pressed-many" choose multiple>
+    "default": """<lf-options id="pressed-many" required multiple>
   <lf-option id="pressed-first"><strong>Cache the parsed config</strong></lf-option>
   <lf-option id="pressed-second"><strong>Parse it lazily</strong></lf-option>
 </lf-options>""",

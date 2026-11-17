@@ -12,7 +12,7 @@
  * - a `state.Record`: both ways, at the same `since`, since every Leaf writing that
  *   format reads what the others wrote.
  *
- * What a page sends, the x-state verbs its layer declares and the served state are
+ * What a page sends, the server.state verbs its layer declares and the served state are
  * not among them: the Leaf serving a page also supplies its runtime and composes its
  * layer (`runtime_selection.py`), so no older reader or sender meets them.
  *
@@ -276,7 +276,7 @@ const OLDER_READS = { newConsumes: false, validates: false };
 const READ = { newConsumes: true, validates: false };
 
 /** The schemas the baseline holds: each a `protocolSchemas` reading carries but the
- * served state, the x-state verb and the widget declaration schema, which only the
+ * served state, the server.state verb and the widget declaration schema, which only the
  * generated types read. */
 export const baselineSchemas = ({
   served: _served,

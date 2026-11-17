@@ -880,7 +880,7 @@ WORK_PAGE = FLOW_PAGE.replace(
 
 
 def test_a_widget_todo_needs_a_seat_and_a_completing_stamp_ends_it(page_dir):
-    """A to-do on a page widget needs a widget that declares `x-work` or holds an
+    """A to-do on a page widget needs a widget that declares `server.work` or holds an
     unsettled move. Dropping its widget leaves it open; `page stamp --completes`
     ends it done, citing that version."""
     (page_dir / "index.html").write_text(WORK_PAGE)
@@ -1079,7 +1079,7 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
     made there reads Working and lets the turn that started it end over it. A move
     made after the start is not in hand."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+        PAGE.replace("<lf-options>", '<lf-options id="choice" required>', 1)
     )
     publish(page_dir)
     pick = append_command(
@@ -1141,7 +1141,7 @@ def test_a_start_line_is_one_sentence(page_dir):
 def asking(page_dir):
     """Publish the fixture page with its obligation's widget named, so the obligation is open."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+        PAGE.replace("<lf-options>", '<lf-options id="choice" required>', 1)
     )
     publish(page_dir)
 
@@ -1460,7 +1460,7 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
             response_reference(page_dir, asked["id"]),
             "--text",
             "Which store should own sessions?\n\n"
-            '<lf-options id="store" choose>'
+            '<lf-options id="store" required>'
             '<lf-option id="store-account"><strong>Account store</strong></lf-option>'
             '<lf-option id="store-own"><strong>Their own store</strong></lf-option>'
             "</lf-options>",
@@ -1567,7 +1567,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
     which supersedes it, is not in hand until the agent starts it."""
     version = page_dir / "index.html"
     version.write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="choice" choose>', 1)
+        PAGE.replace("<lf-options>", '<lf-options id="choice" required>', 1)
     )
     publish(page_dir)
     chosen = append_command(
@@ -1703,7 +1703,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
 
 
 def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
-    """x-work admits a task on a widget; it is not the task's only later seat.
+    """server.work admits a task on a widget; it is not the task's only later seat.
 
     Re-vendoring can remove that declaration while the live widget remains, because
     the page-edge margin entry continues to present the task already admitted.
@@ -1731,7 +1731,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
     card = json.loads((schema_model.DEFAULT_PACKAGE / "registry.json").read_text())[
         "lf-card"
     ]
-    card.pop("x-work")
+    card["server"].pop("work")
     layer = Path.cwd() / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(json.dumps({"lf-card": card}))
@@ -1748,7 +1748,7 @@ def test_revendoring_can_change_x_work_while_the_target_holds_a_todo(page_dir):
 
     assert result.exit_code == 0, result.output
     registry = registry_storage.load_registry(page_dir)
-    assert "x-work" not in registry["lf-card"]
+    assert "work" not in registry["lf-card"].get("server", {})
     [todo] = state_json(page_dir)["todos"]
     assert todo["subject"] == {"kind": "widget", "id": "rollout-card"}
 
@@ -1761,7 +1761,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     start with it.
     """
     work_page = PAGE.replace(
-        "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+        "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
     )
     (page_dir / "index.html").write_text(work_page)
     publish(page_dir)

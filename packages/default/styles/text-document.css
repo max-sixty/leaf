@@ -165,7 +165,7 @@ lf-text-document .lf-text-document-run:only-child {
    scrolling inside the box rather than at full length in the page.
 
    A Markdown preview of written text is the exception the first paint allows: Leaf
-   draws its rendering beside the `<pre>` before the module does (`x-prepaint`), so the
+   draws its rendering beside the `<pre>` before the module does (`paint.prepaint`), so the
    page first paints at the preview's own height up to the bound, which the Source tab
    takes too. A one-paragraph quote in a 28rem box drew a 530px frame around 156px of
    text.

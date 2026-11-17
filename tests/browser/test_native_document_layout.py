@@ -55,7 +55,7 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     room takes it, on a page with both. A width written on the question moves nothing.
     The words used to go with the question's box, 480px left of the page's column."""
     options = (
-        '<lf-options id="{id}-options" choose>'
+        '<lf-options id="{id}-options" required>'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
     )
     question = (
@@ -115,7 +115,7 @@ def test_a_flow_written_the_other_way_grows_toward_the_room(browser, serve, dire
     available block 334px past the window's edge, since the flow read the room on the
     column's start side as the room on its own."""
     other = "rtl" if direction == "ltr" else "ltr"
-    options = '<lf-options id="{id}-o" choose><lf-option id="{id}-y">Yes</lf-option>'
+    options = '<lf-options id="{id}-o" required><lf-option id="{id}-y">Yes</lf-option>'
     question = (
         f'<lf-ask id="{{id}}" dir="{other}"><h3 id="{{id}}-h">Ship it?</h3>'
         '<div id="{id}-block" data-width="{width}">Evidence.</div>'
@@ -160,7 +160,7 @@ def test_a_block_in_a_workspace_question_fills_its_region(browser, serve):
         """<header><h1>Question in a workspace</h1></header>
         <div id="region"><lf-ask id="asked"><h2>Ship it?</h2>
           <div id="wide-evidence" data-width="wide">Evidence.</div>
-          <lf-options id="choice" choose><lf-option id="yes">Yes</lf-option></lf-options>
+          <lf-options id="choice" required><lf-option id="yes">Yes</lf-option></lf-options>
         </lf-ask></div>""",
         layout="workspace",
     )

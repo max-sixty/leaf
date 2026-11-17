@@ -1603,7 +1603,7 @@ def test_a_nested_platform_control_does_not_pin_its_gloss(browser, serve):
 
 
 def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
-    """The tip is x-says page text, so a comment can rest on it like a tab's rendered
+    """The tip is words.says page text, so a comment can rest on it like a tab's rendered
     label. Following that comment from its thread (Show on page) must reveal the
     otherwise hidden popover before the anchor scrolls; a durable thread cannot point to
     words the page then keeps closed."""

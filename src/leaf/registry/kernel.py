@@ -80,7 +80,7 @@ def kinds_declaring(flag: str) -> frozenset[str]:
 
 @cache
 def verb_writers() -> dict[str, str]:
-    """Each widget kind, one that carries an x-state verb, with the side that writes
+    """Each widget kind, one that carries a server.state verb, with the side that writes
     that verb (`verb_writer`): the user's `action`, the agent's `report`."""
     return {
         kind: contract["verb_writer"]
@@ -113,13 +113,15 @@ def kernel_marks() -> dict:
 def authored_inert(key: str, declaration: Mapping, *, content: bool) -> str | None:
     """Why an occurrence's authored override of the mark `key` means nothing on its
     element, or None where it holds. A width means nothing on an element that takes
-    none of its own (`flow`, `x-flow`); otherwise the override holds where its
+    none of its own (`flow`, `paint.flow`); otherwise the override holds where its
     `authored_on` says, and the condition it fails is the reason (`content`, a block
     in the page's flow, which `main`, `body` and `html` aren't; `declared`, a tag
     declaring the mark). Delivery paints only an override that holds
     (`revision_delivery.mark_declared`), and `page check` names the rest."""
-    if key == "x-space" and declaration.get("x-flow"):
+    from .contract import declared_fact
+
+    if key == "paint.space" and declared_fact(declaration, "paint.flow"):
         return "flow"
     condition = kernel_marks()[key]["authored_on"]
-    holds = content if condition == "content" else bool(declaration.get(key))
+    holds = content if condition == "content" else bool(declared_fact(declaration, key))
     return None if holds else condition

@@ -20,7 +20,7 @@ vars:
     You are a Claude Code session driving a live Leaf review page at
     ~/.local/state/leaf/pages/ui-review, served with `leaf server start`. Section `c13`
     of the page presents one design case, with an `lf-options` group `c13-pick`
-    (`choose`, options "Build it" and "Leave it") asking whether to build it. The user
+    (`required`, options "Build it" and "Leave it") asking whether to build it. The user
     picked "Build it", then cleared the pick, and the delivery brought one user comment,
     id da47301f, opening thread da47301f on section `c13`: "we're changing the backing
     box, so push this off until that's done". Its answer is

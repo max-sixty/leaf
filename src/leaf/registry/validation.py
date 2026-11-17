@@ -11,7 +11,7 @@ from jsonschema.exceptions import SchemaError
 
 from leaf.schema import (
     AWAITS_SCHEMA,
-    EXTENSION_SCHEMA,
+    DECLARATION_SCHEMA,
     IDIOM_SCHEMA,
     LAYER_FACTS,
     VERB_SCHEMA,
@@ -40,7 +40,7 @@ from .widgets import (
 # The facts that document a declaration's keys, each beside the schema that admits
 # those keys (`validate_layer_declarations`).
 DOCUMENTED_KEYS: dict[str, dict] = {
-    "$keys": EXTENSION_SCHEMA,
+    "$keys": DECLARATION_SCHEMA,
     "$state": VERB_SCHEMA,
     "$awaits": AWAITS_SCHEMA,
 }
@@ -153,24 +153,43 @@ def _validate_documented_keys(fact: str, members, schema: dict, path) -> None:
     """Each documenting fact holds exactly the keys its schema admits, one string per
     key, beside its description: the keys are closed by that schema, so a member for
     a key that cannot be declared is documentation of nothing, and a key with no
-    member is one an author reads the registry for and finds unsaid. Agents query
+    member is one an author reads the registry for and finds unsaid. A key whose
+    schema groups keys of its own, as each reader's group in a declaration does, is
+    documented the same way, by an object with its own description. Agents query
     them and the site's table is generated from $keys, which is what makes the pin
-    worth keeping."""
-    admitted = set(schema["properties"])
-    documented = set(members or {}) - {"description"}
-    if (
-        not isinstance(members, dict)
-        or not isinstance(members.get("description"), str)
-        or not all(isinstance(text, str) and text for text in members.values())
-        or documented != admitted
-    ):
+    worth keeping. A declaration's own `description` is the one key a documenting
+    fact can't hold, its `description` being its own."""
+    missing, unadmitted = _undocumented(members, schema)
+    if missing or unadmitted:
         raise registry_error(
             "keys-documentation",
             path,
             fact=fact,
-            missing=sorted(admitted - documented),
-            unadmitted=sorted(documented - admitted),
+            missing=missing,
+            unadmitted=unadmitted,
         )
+
+
+def _undocumented(members, schema: dict, prefix: str = "") -> tuple[list, list]:
+    """The keys `schema` admits that `members` leaves undocumented, and the members
+    that document no admitted key, each named by its path from the fact."""
+    admitted = set(schema["properties"]) - {"description"}
+    if not isinstance(members, dict) or not isinstance(members.get("description"), str):
+        return [f"{prefix}description"], []
+    documented = set(members) - {"description"}
+    missing = [f"{prefix}{key}" for key in sorted(admitted - documented)]
+    unadmitted = [f"{prefix}{key}" for key in sorted(documented - admitted)]
+    for key in sorted(admitted & documented):
+        child = schema["properties"][key]
+        if isinstance(members[key], dict) and "properties" in child:
+            more_missing, more_unadmitted = _undocumented(
+                members[key], child, f"{prefix}{key}."
+            )
+            missing += more_missing
+            unadmitted += more_unadmitted
+        elif not (isinstance(members[key], str) and members[key]):
+            missing.append(f"{prefix}{key}")
+    return missing, unadmitted
 
 
 def _validate_idiom(probe, selector: str, entry: dict, path) -> None:

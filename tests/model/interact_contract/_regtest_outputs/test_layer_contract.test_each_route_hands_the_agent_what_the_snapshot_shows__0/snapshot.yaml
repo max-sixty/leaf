@@ -126,7 +126,7 @@ leaf wait:
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
-            in your reply in place of `--obligation`, as `<lf-options id="…" choose>`
+            in your reply in place of `--obligation`, as `<lf-options id="…" required>`
             holding an `<lf-option id="…">` for each answer: the user answers with
             a press, and the choice waits on them by itself (`references/threads.md`,
             "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
@@ -216,8 +216,8 @@ Claude Code hook:
               your answer asks a question of its own whose answers you can list,
               such as which of two ways to proceed or whether to take an action,
               put them in your reply in place of `--obligation`, as `<lf-options
-              id="…" choose>` holding an `<lf-option id="…">` for each answer: the
-              user answers with a press, and the choice waits on them by itself
+              id="…" required>` holding an `<lf-option id="…">` for each answer:
+              the user answers with a press, and the choice waits on them by itself
               (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
               when it is yours, promising work beyond this turn. `--done` when it
               leaves nobody a move.
@@ -308,7 +308,7 @@ Codex queue:
             the thread, even where the decision itself is already there. Where your
             answer asks a question of its own whose answers you can list, such as
             which of two ways to proceed or whether to take an action, put them
-            in your reply in place of `--obligation`, as `<lf-options id="…" choose>`
+            in your reply in place of `--obligation`, as `<lf-options id="…" required>`
             holding an `<lf-option id="…">` for each answer: the user answers with
             a press, and the choice waits on them by itself (`references/threads.md`,
             "Ask for a pick"). `--todo "<what you owe>"` when it is yours, promising
@@ -391,7 +391,7 @@ Codex App Server:
                 itself is already there. Where your answer asks a question of its
                 own whose answers you can list, such as which of two ways to proceed
                 or whether to take an action, put them in a `leaf thread reply`
-                in place of `--obligation`, as `<lf-options id="…" choose>` holding
+                in place of `--obligation`, as `<lf-options id="…" required>` holding
                 an `<lf-option id="…">` for each answer, so the user answers with
                 a press (`references/threads.md`, "Ask for a pick"). Reply explicitly
                 too for other HTML, which your final message shows as text, work

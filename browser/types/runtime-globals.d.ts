@@ -284,7 +284,7 @@ interface ShadowRoot {
 }
 
 interface Element {
-  /** Package-provided words when the registry declares x-word: module. */
+  /** The word a widget's module names its kind by (`addressable-names.widgetWord`). */
   lfWord?(): string;
   lfSays?(): string;
 }

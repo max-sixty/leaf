@@ -41,9 +41,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
         keyword="dependentRequired",
     )
 
-    group = (
-        '<lf-ask id="pick-decision"><h2>Which one?</h2><lf-options id="pick" choose{}>'
-    )
+    group = '<lf-ask id="pick-decision"><h2>Which one?</h2><lf-options id="pick" required{}>'
     group += '<lf-option id="opt-a"{}><strong>A</strong></lf-option>'
     group += (
         '<lf-option id="opt-b"><strong>B</strong></lf-option></lf-options></lf-ask>'
@@ -53,7 +51,7 @@ def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_di
     )
     publish(page_dir)
     (page_dir / "index.html").write_text(
-        PAGE.replace("</main>", group.format(" settled", " chosen") + "</main>")
+        PAGE.replace("</main>", group.format(" settled", " selected") + "</main>")
     )
     assert checking_command.cmd_check(page_dir)["status"] == 0
 

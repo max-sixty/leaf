@@ -2136,7 +2136,9 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
     end a second time.
     """
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(
+            "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
+        )
     )
     publish(page_dir)
     action = append_command(
@@ -2922,7 +2924,7 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
     else:
         (page_dir / "index.html").write_text(
             PAGE.replace(
-                "<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1
+                "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
             )
         )
         publish(page_dir)
@@ -3145,7 +3147,9 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
     """An action delivery has no reply reservation that could prevent a duplicate
     start."""
     (page_dir / "index.html").write_text(
-        PAGE.replace("<lf-options>", '<lf-options id="plan-choice" choose multiple>', 1)
+        PAGE.replace(
+            "<lf-options>", '<lf-options id="plan-choice" required multiple>', 1
+        )
     )
     publish(page_dir)
     append_command(

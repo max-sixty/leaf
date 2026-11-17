@@ -51,14 +51,14 @@ STATED_KIT = """<!doctype html>
 <body>
 <main>
 <lf-sample id="last-year" label="the kit we took last year">
-  <lf-options id="quoted-pick" choose>
+  <lf-options id="quoted-pick" required>
     <lf-option id="quoted-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
     <lf-option id="quoted-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
   </lf-options>
 </lf-sample>
 <lf-ask id="kit-decision">
   <h2>Which navigation kit this year?</h2>
-  <lf-options id="live-pick" choose>
+  <lf-options id="live-pick" required>
     <lf-option id="live-paper"><strong>Paper maps</strong> Nothing to charge.</lf-option>
     <lf-option id="live-gps"><strong>Dedicated GPS</strong> Offline maps.</lf-option>
   </lf-options>
@@ -89,8 +89,8 @@ STATED_PICK = {"kind": "action", "author": "user", "revision": 1, "action": "cho
 def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     registry = deepcopy(model_layer())
     entry = element_declaration("lf-review", upgrade=True)
-    entry["properties"]["restated"] = {"type": "boolean"}
-    entry["x-state"] = {
+    entry["attributes"]["properties"]["restated"] = {"type": "boolean"}
+    entry.setdefault("server", {})["state"] = {
         "review": {
             "unit": unit,
             "detail": {
@@ -129,7 +129,7 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
     assert action["meaning"]["state"]["decides"] is False
 
     # Reusing the verb as a whole-widget decision does not reinterpret that answer.
-    entry["x-state"]["review"] |= {"unit": "widget", "decides": True}
+    entry["server"]["state"]["review"] |= {"unit": "widget", "decides": True}
     validate_registry(registry, "revised review package")
     assert page_reading(page.reading(1, registry), [action], 1).projection.actions == {}
 
@@ -137,12 +137,12 @@ def test_an_outcome_field_does_not_make_a_domain_action_a_decision(unit):
 def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposal():
     registry = deepcopy(model_layer())
     entry = registry["lf-suggestion"]
-    entry["x-state"]["review"] = {
+    entry["server"]["state"]["review"] = {
         key: value
-        for key, value in entry["x-state"]["decide"].items()
+        for key, value in entry["server"]["state"]["decide"].items()
         if key not in {"decides", "withdraws"}
     }
-    entry["x-awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
+    entry["server"]["awaits"]["answered"]["review"] = {"detail": {"outcome": "reject"}}
     validate_registry(registry, "review package")
     stamp_composition(registry)
     source = (
@@ -171,9 +171,9 @@ def instance_input_registry():
     """A generic custom payload with instance-selected, self-contained schemas."""
     registry = deepcopy(model_layer())
     entry = element_declaration("lf-input-box", upgrade=True)
-    entry["properties"]["restated"] = {"type": "boolean"}
-    entry["properties"]["shape"] = {"type": "string"}
-    entry["x-state"] = {
+    entry["attributes"]["properties"]["restated"] = {"type": "boolean"}
+    entry["attributes"]["properties"]["shape"] = {"type": "string"}
+    entry.setdefault("server", {})["state"] = {
         "submit": {
             "unit": "widget",
             "contract": {"field": "payload", "attribute": "shape"},
@@ -439,12 +439,12 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made(
     A later version that removes the question leaves the row naming the option the
     user picked, by its title rather than its eyebrow or description, and a withdrawn
     pick stays a row marked undone. A page whose markup holds no widget declaring
-    `x-history` is not served the reading.
+    `server.history` is not served the reading.
     """
     question = model.leaf_page(
         "Route",
         f"""<h1>Route</h1>
-<lf-options id="route" choose>
+<lf-options id="route" required>
   <lf-option id="fast">{option_title} ships on Friday.</lf-option>
   <lf-option id="slow">Slow path</lf-option>
 </lf-options>
@@ -481,7 +481,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     question = model.leaf_page(
         "Route",
         """<h1>Route</h1>
-<lf-options id="route" choose>
+<lf-options id="route" required>
   <lf-option id="fast"><strong>Fast path</strong> ships on Friday.</lf-option>
 </lf-options>
 <lf-activity id="feed"></lf-activity>""",
@@ -922,7 +922,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
     """Recorded identities become dependencies and keep their admitted fold and effect."""
     from leaf.files import latest_revision
 
-    source = PAGE.replace("<lf-options>", '<lf-options id="picks" choose>')
+    source = PAGE.replace("<lf-options>", '<lf-options id="picks" required>')
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
     revision = latest_revision(page_dir)
@@ -959,7 +959,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
 
 def test_created_ids_cannot_collide_across_page_and_frozen_content():
     markup = (
-        '<p id="reserved">Page</p><lf-options id="page-options" choose></lf-options>'
+        '<p id="reserved">Page</p><lf-options id="page-options" required></lf-options>'
     )
     commands: list[dict] = [
         {"kind": "comment", "text": "Pick a seed."},
@@ -967,7 +967,7 @@ def test_created_ids_cannot_collide_across_page_and_frozen_content():
             "kind": "reply",
             "author": "agent",
             "parent": "e1",
-            "text": 'Seeds\n\n<lf-options id="thread-options" choose></lf-options>',
+            "text": 'Seeds\n\n<lf-options id="thread-options" required></lf-options>',
             "html": True,
             "revision": 1,
         },

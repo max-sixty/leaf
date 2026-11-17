@@ -298,7 +298,7 @@ def test_an_early_touch_comment_returns_its_words_when_delivery_is_refused(
 COLD_OBLIGATION = leaf_page(
     "Cold decisions",
     """<h1>Cold decisions</h1><lf-ask id="cold-ask"><h2>What now?</h2>
-<lf-options id="cold-choice" choose>
+<lf-options id="cold-choice" required>
 <lf-option id="cold-a">A</lf-option><lf-option id="cold-b">B</lf-option>
 </lf-options></lf-ask>""",
 )
@@ -340,8 +340,8 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     )
     if key == "m":
         expect(page.locator("#cold-ask")).not_to_be_focused()
-    expect(page.locator("#cold-a")).not_to_have_attribute("chosen", "")
-    expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#cold-a")).not_to_have_attribute("selected", "")
+    expect(page.locator("#cold-b")).not_to_have_attribute("selected", "")
     _history_outstanding(page)
 
     with page.expect_response(re.compile(r"/api/state(?:\?|$)")):
@@ -351,7 +351,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
     if key == "m":
         expect(page.locator("#cold-ask")).to_be_focused()
     elif key == "1":
-        expect(page.locator("#cold-a")).to_have_attribute("chosen", "")
+        expect(page.locator("#cold-a")).to_have_attribute("selected", "")
         round_trip(page)
     else:
         # The passing notice says it where the empty field's placeholder would.
@@ -359,7 +359,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
             "placeholder", re.compile("Undid")
         )
         round_trip(page)
-        expect(page.locator("#cold-b")).not_to_have_attribute("chosen", "")
+        expect(page.locator("#cold-b")).not_to_have_attribute("selected", "")
         assert (
             len(
                 [

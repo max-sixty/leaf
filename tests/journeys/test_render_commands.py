@@ -112,7 +112,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "a sidebar page",
             "<header><h1>Rollout</h1></header>"
             "<div id='body'><lf-ask id='ship-ask'><h2>Ship now?</h2>"
-            "<lf-options id='ship' choose><lf-option id='ship-now'>Now</lf-option>"
+            "<lf-options id='ship' required><lf-option id='ship-now'>Now</lf-option>"
             "<lf-option id='ship-later'>Later</lf-option></lf-options></lf-ask>"
             f"<div class='layout-tiles' id='2026-numbers'>{tiles}</div>"
             + "".join(
@@ -120,7 +120,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             )
             + "".join(
                 f"<lf-ask id='ask-{i}'><h2>Ship part {i}?</h2>"
-                f"<lf-options id='o-{i}' choose><lf-option id='o-{i}-y'>Yes</lf-option>"
+                f"<lf-options id='o-{i}' required><lf-option id='o-{i}-y'>Yes</lf-option>"
                 f"<lf-option id='o-{i}-n'>No</lf-option></lf-options></lf-ask>"
                 for i in range(2)
             )

@@ -284,7 +284,7 @@ inline element around it, such as a `<span>`, doesn't count. Followed first by
 text, hidden text included, it is a run-in label: it names its own line, and what
 follows belongs to the enclosing part, which On Me groups by and a link's preview
 names. A block element is any outside HTML's phrasing content, including every widget
-whose registry entry doesn't declare `x-inline`. The markup decides, not CSS: a span
+whose registry entry doesn't declare `words.inline`. The markup decides, not CSS: a span
 styled `display: block` or a newline `white-space` keeps doesn't end the line. A widget whose body is data, such
 as `lf-code`, holds escaped text in a `<pre>`. Escape `&` first, then `<` and `>`.
 

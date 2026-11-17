@@ -311,7 +311,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
         return (
             f'<lf-tab id="t-{key}" label="{key}"><lf-ask id="{key}-decision">'
             f'<h2>Pick the {key}</h2><div style="height: 900px"></div>'
-            f'<lf-options id="{key}" choose><lf-option id="{key}-a">Alpha</lf-option>'
+            f'<lf-options id="{key}" required><lf-option id="{key}-a">Alpha</lf-option>'
             "</lf-options></lf-ask></lf-tab>"
         )
 
@@ -483,7 +483,7 @@ THREE_PART_OBLIGATION_PAGE = leaf_page(
   <lf-ask id="workspace-ask">
     <h2>Which release should go out?</h2>
     <div id="ask-context" style="height: 900px">The context the user weighs.</div>
-    <lf-options id="workspace-options" choose>
+    <lf-options id="workspace-options" required>
       <lf-option id="workspace-ship">Ship it</lf-option>
       <lf-option id="workspace-hold">Hold it</lf-option>
     </lf-options>
@@ -603,12 +603,16 @@ def foot_reserve(page, pane="#workspace-pane"):
 ZONE_PACKAGE = {
     "lf-zone": {
         "description": "A project package's differently named pane.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
-        "required": ["id", "label"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-reading-role": "pane",
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+            "required": ["id", "label"],
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "markup": {
+            "reading-role": "pane",
+        },
     }
 }
 
@@ -751,7 +755,7 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
                 your review decision; it does not deploy code or mark tests as passed.</p>
               <p>Ship with changes keeps the retry budget within the deadline.
                 Update the acceptance checks before beginning rollout.</p>
-              <lf-options id="release-options" choose closed>
+              <lf-options id="release-options" required closed>
               <lf-option id="ship-written"><strong>Ship as written</strong>
                 <p>Keep the supplied retry policy and require passing tests.</p></lf-option>
               <lf-option id="ship-changes"><strong>Ship with changes</strong>

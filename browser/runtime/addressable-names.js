@@ -60,12 +60,11 @@ export function addressableWord(addressable) {
 }
 
 // A widget's word for its kind: what its module answers from `lfWord()` where `element`
-// is drawn and has the method, else its registry's fixed `x-word`, else its tag without
-// the prefix.
+// is drawn and has the method, else its tag without the prefix. The word is the
+// module's alone, since nothing that runs no module names a widget by its kind.
 /** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
-  const own = element?.lfWord?.() || registry[tag]?.["x-word"];
-  return own || (tag.startsWith("lf-") ? tag.slice(3) : "");
+  return element?.lfWord?.() || (tag.startsWith("lf-") ? tag.slice(3) : "");
 }
 
 // The label is rooted at the addressable and reads its authored words. Generated annotation

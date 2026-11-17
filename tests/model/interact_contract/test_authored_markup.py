@@ -99,7 +99,7 @@ def test_check_rejects_an_invalid_bound_and_loose_pane_text(page_dir):
 
 @pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
 def test_a_reference_names_any_element_the_page_holds(page_dir, target):
-    """An `x-refers` attribute takes the id of whatever element it names, a section
+    """A `markup.refers` attribute takes the id of whatever element it names, a section
     whose id a widget couldn't carry included, and `page check` refuses only a value
     naming no element."""
     (page_dir / "index.html").write_text(
@@ -145,7 +145,7 @@ def test_check_advises_an_allocation_leaf_ignores_where_it_stands(page_dir):
             '<div id="plan-choice-decision">',
             '<lf-ask id="plan-choice-decision" data-width="available">',
         )
-        .replace("<lf-options>", '<lf-options id="plan-choice" choose>')
+        .replace("<lf-options>", '<lf-options id="plan-choice" required>')
         .replace(
             "</lf-options>\n  </div>",
             "</lf-options>\n"
@@ -213,7 +213,7 @@ def test_source_reading_keeps_a_sample_out_of_its_parent_identity_space():
     html = (
         '<main><p id="visible">Visible words.</p>'
         '<template id="practice" data-sample><lf-ask id="nested-ask">'
-        '<h2>Hidden question</h2><lf-options id="nested-options" choose>'
+        '<h2>Hidden question</h2><lf-options id="nested-options" required>'
         '<lf-option id="nested-choice">Hidden answer</lf-option>'
         "</lf-options></lf-ask></template></main>"
     )
@@ -267,8 +267,16 @@ def test_the_root_names_the_layouts_of_a_page_of_parts():
     """Which part opens is the browser's, so every part's Layout goes across, and a box
     at a part's depth under any other child names none."""
     registry = {
-        "lf-parts": {"x-views": {"members": "lf-part", "parts": True}},
-        "lf-tabs": {"x-views": {"members": "lf-tab"}},
+        "lf-parts": {
+            "paint": {
+                "views": {"members": "lf-part", "parts": True},
+            },
+        },
+        "lf-tabs": {
+            "paint": {
+                "views": {"members": "lf-tab"},
+            },
+        },
     }
     parts = structure_model.SourceDocument(
         '<main><header><h1>Review</h1></header><lf-parts id="parts">'

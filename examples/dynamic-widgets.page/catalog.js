@@ -109,7 +109,7 @@ export function compile(spec) {
         return element(
           "lf-options",
           node.items.map((value) => element("lf-option", escape(value))).join(""),
-          { choose: true },
+          { required: true },
         );
       case "tabs":
         return element(

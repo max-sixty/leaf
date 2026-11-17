@@ -15,7 +15,7 @@ export const readObligations = readPart((root) => root.effective.obligations);
 /** @param {import("../framework/application.js").ObligationRecord | null | undefined} obligation */
 export const obligationEntry = (obligation) =>
   obligation?.source.kind === "widget"
-    ? registry[obligation.source.tag]?.["x-awaits"]
+    ? registry[obligation.source.tag]?.server?.awaits
     : undefined;
 // An agent message's obligation is answered in words: in its thread, it reads and is
 // answered as a message.

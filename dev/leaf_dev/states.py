@@ -1335,7 +1335,7 @@ def on_me_thread_choice(page: Page) -> None:
         "plan-context",
         "--text",
         "Open the pull request now, or hold it?\n\n"
-        '<lf-options id="pr-timing" choose>\n'
+        '<lf-options id="pr-timing" required>\n'
         '<lf-option id="pr-now"><strong>Open it now</strong></lf-option>\n'
         '<lf-option id="pr-hold"><strong>Hold it</strong></lf-option>\n'
         "</lf-options>",

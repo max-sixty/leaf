@@ -98,7 +98,7 @@ def state_meaning(event: dict, record: dict, registry: dict, scope: str) -> dict
     the old event remains history instead of being read as the new operation."""
     origin = record["tag"]
     entry = registry[origin]
-    spec = entry["x-state"][event["action"]]
+    spec = entry["server"]["state"][event["action"]]
     dependencies = direct_dependencies(event, spec)
     meaning = {
         "scope": scope,
@@ -150,7 +150,7 @@ def answer_meaning(
         "seq": readings.events[-1]["seq"] + 1 if readings.events else 1,
     }
     projection = with_action(
-        reading.projection, candidate, entry["x-state"][event["action"]]
+        reading.projection, candidate, entry["server"]["state"][event["action"]]
     )
     return (
         answering_action(
@@ -175,7 +175,7 @@ def answer_meaning(
         record["attrs"].get("resolves")
         if not declined
         and matches_when(
-            replayed_attrs(record, projection), entry["x-awaits"].get("when")
+            replayed_attrs(record, projection), entry["server"]["awaits"].get("when")
         )
         else None,
     )
@@ -194,7 +194,7 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
     entry = registry[record["tag"]]
     admitted = dict(event)
     admitted["meaning"] = state_meaning(event, record, registry, scope)
-    position = entry["x-state"][event["action"]].get("record") or {}
+    position = entry["server"]["state"][event["action"]].get("record") or {}
     if position.get("kind") == "position":
         # The authored units the rank lies among, in their order on the sending
         # document: a later document that authors them differently has placed

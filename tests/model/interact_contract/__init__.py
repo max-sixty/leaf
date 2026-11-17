@@ -29,7 +29,7 @@ def _stateful_page_declaration(page_dir, tag="lf-local"):
     widgets = page_dir / "page" / "widgets"
     widgets.mkdir(parents=True, exist_ok=True)
     (widgets / f"{tag}.js").write_text("export function upgrade() {}\n")
-    declaration["properties"].update(
+    declaration["attributes"]["properties"].update(
         {
             "restated": {"type": "boolean"},
             "value": {"type": "string"},
@@ -39,7 +39,7 @@ def _stateful_page_declaration(page_dir, tag="lf-local"):
         "unit": "widget",
         "record": {"kind": "value", "attr": "value"},
     }
-    declaration["x-state"] = {"first": state}
+    declaration.setdefault("server", {})["state"] = {"first": state}
     return declaration
 
 

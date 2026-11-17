@@ -57,9 +57,9 @@ keeping the meaning of the user's decisions. To withdraw a decision, follow the
 registry's `$restated`.
 
 Take in a user's answer to a page's obligation in a stamped version. Where the widget's
-`x-state` declares a `record` form, write that form as its author instructions describe.
-Where it declares no form, the next stamp takes in the answer. Preserve the user's
-decisions and the ids of content you retain. A worker's report likewise stays
+`server.state` declares a `record` form, write that form as its author instructions
+describe. Where it declares no form, the next stamp takes in the answer. Preserve the
+user's decisions and the ids of content you retain. A worker's report likewise stays
 provisional until the stamped revision its `handling` asks for.
 
 ## Make changes easy to find

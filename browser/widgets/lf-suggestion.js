@@ -394,7 +394,7 @@ customElements.define(
       return before || after || this.id;
     }
 
-    // The page's blanket answer (x-awaits.all) calls the deciding verb by name.
+    // The page's blanket answer (server.awaits.all) calls the deciding verb by name.
     /** @param {Outcome} outcome */
     decide(outcome) {
       return this.#decide(outcome);

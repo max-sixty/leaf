@@ -68,22 +68,28 @@ customElements.define("lf-local", class extends LeafElement {
 PAGE_DECLARATION = {
     "lf-local": {
         "description": "A page-owned local widget.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "choice": {"type": "string"},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "choice": {"type": "string"},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-state": {
-            "choose": {
-                "unit": "widget",
-                "record": {"kind": "value", "attr": "choice"},
-            }
+        "content": "empty",
+        "server": {
+            "state": {
+                "choose": {
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "choice"},
+                }
+            },
         },
-        "x-example": '<lf-local id="local-example" choice="idle"></lf-local>',
+        "author": {
+            "example": '<lf-local id="local-example" choice="idle"></lf-local>',
+        },
     }
 }
 
@@ -175,16 +181,22 @@ GENERIC_VISUAL_PAGE = leaf_page(
 GENERIC_VISUAL_LAYER: dict[str, dict] = {
     "lf-test-visual": {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "parts": {"const": "all"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "parts": {"const": "all"},
+            },
+            "required": ["id", "parts"],
+            "additionalProperties": False,
         },
-        "required": ["id", "parts"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-visual": {"parts": "parts"},
-        "x-example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
+        "content": "empty",
+        "words": {
+            "visual": {"parts": "parts"},
+        },
+        "author": {
+            "example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
+        },
     }
 }
 
@@ -226,10 +238,13 @@ def prefixed_visual_layer(*prefixes):
     return {
         "lf-test-visual": {
             **entry,
-            "properties": {"id": entry["properties"]["id"]},
-            "required": ["id"],
-            "x-visual": {"prefixes": list(prefixes)},
-            "x-example": '<lf-test-visual id="visual"></lf-test-visual>',
+            "attributes": {
+                **entry["attributes"],
+                "properties": {"id": entry["attributes"]["properties"]["id"]},
+                "required": ["id"],
+            },
+            "words": {**entry["words"], "visual": {"prefixes": list(prefixes)}},
+            "author": {"example": '<lf-test-visual id="visual"></lf-test-visual>'},
         }
     }
 
@@ -244,17 +259,23 @@ SHADOW_VISUAL_PAGE = leaf_page(
 SHADOW_VISUAL_LAYER = {
     "lf-test-shadow-visual": {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "parts": {"const": "all"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "parts": {"const": "all"},
+            },
+            "required": ["id", "parts"],
+            "additionalProperties": False,
         },
-        "required": ["id", "parts"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-shadow": True,
-        "x-visual": {"parts": "parts"},
-        "x-example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
+        "content": "empty",
+        "words": {
+            "shadow": True,
+            "visual": {"parts": "parts"},
+        },
+        "author": {
+            "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
+        },
     }
 }
 SHADOW_VISUAL_WIDGETS = {
@@ -964,7 +985,7 @@ FRAMED_WIDE_PAGE = leaf_page(
   </lf-board>
 </lf-sample>
 <lf-ask id="pick-decision"><h2>Should the option include evidence?</h2>
-<lf-options id="pick" choose>
+<lf-options id="pick" required>
   <lf-option id="opt-a"><strong>With evidence</strong>
     <lf-diagram id="in-card"><pre>
 graph LR
@@ -975,7 +996,7 @@ graph LR
   <lf-option id="opt-b"><strong>Without</strong></lf-option>
 </lf-options></lf-ask>
 <lf-ask id="row-pick-decision"><h2>Where should the cable run?</h2>
-<lf-options id="row-pick" choose>
+<lf-options id="row-pick" required>
   <lf-option id="row-a">Along the fence line
     <lf-diagram id="in-row"><pre>
 graph LR
@@ -1261,14 +1282,14 @@ WHERE_I_STAND_PAGE = leaf_page(
 <p id="p1">A first passage, with a <a href="https://example.invalid/spec">link into the
 spec</a> so the walk has somewhere to stand that is not a decision.</p>
 <lf-ask id="shape-decision"><h2>Which material?</h2>
-<lf-options id="shape" choose>
+<lf-options id="shape" required>
   <lf-option id="sh-steel"><strong>Steel</strong> Galvanised, and the
   <a href="https://example.invalid/steel">spec for it</a> is short.</lf-option>
   <lf-option id="sh-cedar"><strong>Cedar</strong> Cheap; needs sealing.</lf-option>
 </lf-options></lf-ask>
 <lf-ask id="settled-decision"><h2>Should we keep it?</h2>
-<lf-options id="settled" choose settled>
-  <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week, with the
+<lf-options id="settled" required settled>
+  <lf-option id="st-keep" selected><strong>Keep it</strong> Decided last week, with the
   <a href="https://example.invalid/keep">note behind it</a>.</lf-option>
   <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-ask>

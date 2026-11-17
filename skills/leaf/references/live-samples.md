@@ -8,7 +8,7 @@ id. This mode has no inner page, panel, Reset or Full view controls:
 
 ```html
 <lf-sample id="delivery-sample" interactive label="Delivery choices">
-  <lf-options id="delivery-choice" choose>
+  <lf-options id="delivery-choice" required>
     <lf-option id="delivery-standard">Standard delivery</lf-option>
     <lf-option id="delivery-express">Express delivery</lf-option>
   </lf-options>

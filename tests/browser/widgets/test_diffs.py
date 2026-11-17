@@ -448,7 +448,7 @@ def test_a_diff_pins_to_its_page_tab_panel_or_past_an_option_card(browser, serve
                 "Panel and option",
                 '<lf-tabs id="tabs" class="layout-flow"><lf-tab id="tab" label="Diff">'
                 f"{long_diff('in-tab')}</lf-tab></lf-tabs>"
-                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" choose>'
+                '<lf-ask id="ask"><h2>Which?</h2><lf-options id="opts" required>'
                 f'<lf-option id="opt-a"><strong>A</strong>{long_diff("in-option")}'
                 '</lf-option><lf-option id="opt-b"><strong>B</strong></lf-option>'
                 "</lf-options></lf-ask>" + "<p>Filler.</p>" * 60,
@@ -1089,7 +1089,7 @@ def test_a_widget_in_a_diff_line_thread_wears_its_package_s_look(browser, serve)
         serve.page_dir,
         root,
         "Which should it be?",
-        '<lf-options id="mount" choose><lf-option id="mount-steel">'
+        '<lf-options id="mount" required><lf-option id="mount-steel">'
         '<small class="tag ok">recommended</small> <strong>Keep steel</strong>'
         '</lf-option><lf-option id="mount-plastic"><strong>Go back to plastic'
         "</strong> Lighter.</lf-option></lf-options>",

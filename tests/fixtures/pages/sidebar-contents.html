@@ -78,7 +78,7 @@
             Update the vault entry the services read, then restart them one region at a
             time, starting with the region that has the least traffic at this hour.
           </p>
-          <lf-options id="rotation-first-region" choose>
+          <lf-options id="rotation-first-region" required>
             <lf-option id="rotation-first-apac">
               <strong>Asia-Pacific first</strong> Its traffic is lowest in a European
               morning window.
@@ -121,7 +121,7 @@
             history. Keep the change ticket open for a day in case a batch job that runs
             only nightly still holds the old one.
           </p>
-          <lf-options id="rotation-retire-when" choose>
+          <lf-options id="rotation-retire-when" required>
             <lf-option id="rotation-retire-next-day">
               <strong>The next morning</strong> After the nightly batch has run once on
               the new password.

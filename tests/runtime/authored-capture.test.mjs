@@ -26,10 +26,12 @@ test("capture keeps authored values and parentage when rendering moves members",
   adoptRegistry({
     $layer: { generation: "capture-before-render" },
     "lf-outer": {
-      "x-state": {
-        set: {
-          unit: "widget",
-          record: { kind: "value", attr: "status", value: "status" },
+      server: {
+        state: {
+          set: {
+            unit: "widget",
+            record: { kind: "value", attr: "status", value: "status" },
+          },
         },
       },
     },
@@ -51,16 +53,43 @@ test("capture keeps authored values and parentage when rendering moves members",
   assert.equal(inner.parentElement.localName, "lf-right");
 });
 
+test("an attribute record counts only Leaf elements among its members", () => {
+  document.body.innerHTML =
+    '<main><lf-options id="size" required><lf-option id="small" selected>Small <select id="unit"><option id="unit-m" selected>m</option></select></lf-option><lf-option id="large">Large</lf-option></lf-options></main>';
+  adoptRegistry({
+    $layer: { generation: "native-selected" },
+    "lf-options": {
+      server: {
+        state: {
+          choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
+        },
+      },
+    },
+    "lf-option": {},
+  });
+  const root = document.querySelector("main");
+  rememberAuthoredParents(root);
+  const states = stageAuthoredStates(root, new Map());
+  assert.deepEqual(states.get("size").state.choose.value, ["small"]);
+});
+
 test("native idioms never become widget descriptors or authored widget ancestors", () => {
   document.body.innerHTML =
     '<main><table id="native"><tbody><tr><td><lf-nested id="nested">Value</lf-nested></td></tr></tbody></table></main>';
   adoptRegistry({
     $layer: { generation: "native-idioms" },
     "lf-nested": {},
-    table: { description: "A table idiom.", "x-example": "<table></table>" },
+    table: {
+      description: "A table idiom.",
+      author: {
+        example: "<table></table>",
+      },
+    },
     "lf-nested.selected": {
       description: "A selected widget idiom.",
-      "x-example": '<lf-nested class="selected"></lf-nested>',
+      author: {
+        example: '<lf-nested class="selected"></lf-nested>',
+      },
     },
   });
   const staged = stageWidgetDescriptors(document.querySelector("main"), {
@@ -74,7 +103,11 @@ test("native idioms never become widget descriptors or authored widget ancestors
 test("an arriving source root keeps its declared parent and exhibit fence", () => {
   adoptRegistry({
     $layer: { generation: "initial-arrival" },
-    "lf-quoted-parent": { "x-exhibit": true },
+    "lf-quoted-parent": {
+      server: {
+        exhibit: true,
+      },
+    },
     "lf-arrival": {},
   });
   document.body.innerHTML =
@@ -111,18 +144,24 @@ test("member state owns each physical slot independently across a hierarchy", ()
   const declarations = {
     $layer: { generation: "independent-member-records" },
     "lf-audit-board": {
-      "x-state": {
-        move: { unit: "unit", record: { kind: "position", within: "lf-audit-zone" } },
+      server: {
+        state: {
+          move: { unit: "unit", record: { kind: "position", within: "lf-audit-zone" } },
+        },
       },
     },
     "lf-audit-zone": {
-      "x-state": {
-        choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
+      server: {
+        state: {
+          choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
+        },
       },
     },
     "lf-audit-card": {
-      "x-state": {
-        phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
+      server: {
+        state: {
+          phase: { unit: "widget", record: { kind: "value", attr: "phase" } },
+        },
       },
     },
   };

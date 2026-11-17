@@ -18,7 +18,7 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
 ):
     """Clicks retain the current location; keyboard arrivals show one ring, including carriers."""
     declaration = element_declaration("lf-shadow-focus", upgrade=True)
-    declaration["x-shadow"] = True
+    declaration.setdefault("words", {})["shadow"] = True
     page = open_page(
         browser,
         serve(
@@ -32,13 +32,13 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
   <lf-tab id="focus-second" label="Second">Second panel.</lf-tab>
 </lf-tabs>
 <lf-ask id="focus-decision"><h2>Which option?</h2>
-<lf-options id="focus-options" choose>
+<lf-options id="focus-options" required>
   <lf-option id="focus-choice" for="focus-heading">Keep this option.</lf-option>
   <lf-option id="focus-peer" for="focus-heading">Keep another option.</lf-option>
 </lf-options></lf-ask>
 <lf-shadow-focus id="focus-shadow"></lf-shadow-focus>
 <lf-ask id="focus-open-decision"><h2>Which other option?</h2>
-<lf-options id="focus-open-options" choose>
+<lf-options id="focus-open-options" required>
   <lf-option id="focus-open-choice">Keep this one.</lf-option>
   <lf-option id="focus-open-peer">Keep that one.</lf-option>
 </lf-options></lf-ask>

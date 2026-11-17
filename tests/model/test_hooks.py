@@ -1534,7 +1534,7 @@ def test_agent_sees_the_complete_interaction_recovery(claimed, capsys, snapshot)
     opens hands the move over. That turn ends without answering it, so the watch
     wakes another, whose prompt names the answer it owes."""
     page = claimed
-    source = PAGE.replace("<lf-options>", '<lf-options id="choice" choose>')
+    source = PAGE.replace("<lf-options>", '<lf-options id="choice" required>')
     (page / "index.html").write_text(source)
     publish(page)
     session_model.cmd_waiting(page)

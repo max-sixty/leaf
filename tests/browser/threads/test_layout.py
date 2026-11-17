@@ -613,11 +613,13 @@ def test_a_theme_package_styles_every_page_as_the_pages_own_sheet_does_one(
             {
                 "lf-theme-box": {
                     "description": "A widget beside a page-wide theme.",
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
-                    "required": ["id"],
-                    "additionalProperties": False,
-                    "x-content": "markup",
+                    "attributes": {
+                        "type": "object",
+                        "properties": {"id": {"type": "string"}},
+                        "required": ["id"],
+                        "additionalProperties": False,
+                    },
+                    "content": "markup",
                 }
             }
         )

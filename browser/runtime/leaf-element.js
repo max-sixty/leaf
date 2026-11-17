@@ -1,7 +1,7 @@
 /* A widget that draws what it reads: the one paint route of a `LeafElement`.
 
    A module subclasses `LeafElement` and draws in `render()`, as any `LitElement` does,
-   into its staged shadow root when the registry declares `x-shadow`, otherwise the
+   into its staged shadow root when the registry declares `words.shadow`, otherwise the
    element itself, unless `createRenderRoot()` names a part it generated.
    `render()` reads whatever it shows through readers: the widget's own reading
    (`this.reading`, `this.state`), obligations, reports, work, the time (`ago`,
@@ -44,7 +44,7 @@
    may have rewritten its nodes. An update's claim settles once `updateComplete` does,
    which a widget whose drawing finishes after the render, such as highlighting or a
    loading frame, extends by overriding `getUpdateComplete`, as any Lit element does;
-   a rejection there is the update's failure. So an element whose tag declares `x-data`
+   a rejection there is the update's failure. So an element whose tag declares `data.inputs`
    holds the page's data version while it stands, until it has drawn what was
    delivered and finished that drawing. Lit's own completion, without the extension, is
    what dependent DOM readers wait for (`#committed`).
@@ -222,7 +222,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
         hold: () => this.#hold(),
         refresh: () => this.#refresh(),
       });
-      this.#verbs = Object.keys(this.#descriptor.declaration["x-state"] ?? {});
+      this.#verbs = Object.keys(this.#descriptor.declaration.server?.state ?? {});
     }
     this.#regionName = this.#descriptor
       ? null

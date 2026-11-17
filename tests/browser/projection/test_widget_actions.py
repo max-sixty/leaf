@@ -70,35 +70,41 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
     """Predicate operands survive upgrade even when the obligation starts closed."""
     entry = {
         "description": "A test-owned conditional Ask.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "phase": {"enum": ["closed", "open"]},
-            "restated": {"type": "boolean"},
-        },
-        "required": ["id", "phase"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-state": {
-            "phase": {
-                "unit": "widget",
-                "record": {"kind": "value", "attr": "phase"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "phase": {"enum": ["closed", "open"]},
+                "restated": {"type": "boolean"},
             },
-            "answer": {
-                "detail": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False,
+            "required": ["id", "phase"],
+            "additionalProperties": False,
+        },
+        "content": "markup",
+        "server": {
+            "state": {
+                "phase": {
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "phase"},
                 },
-                "unit": "widget",
+                "answer": {
+                    "detail": {
+                        "type": "object",
+                        "properties": {},
+                        "additionalProperties": False,
+                    },
+                    "unit": "widget",
+                },
+            },
+            "awaits": {
+                "when": {"phase": ["open"]},
+                "value": "answer",
+                "answered": {"answer": {}},
             },
         },
-        "x-awaits": {
-            "when": {"phase": ["open"]},
-            "value": "answer",
-            "answered": {"answer": {}},
+        "author": {
+            "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
         },
-        "x-example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
 import { keeps, LeafElement } from "/runtime/widget-api.js";
@@ -164,21 +170,25 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     add_test_widget(tmp_path / ".leaf", "lf-tally", upgrade=True)
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-tally"]["properties"]["count"] = {
+    declarations["lf-tally"]["attributes"]["properties"]["count"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
-    declarations["lf-tally"]["x-example"] = (
+    declarations["lf-tally"].setdefault("author", {})["example"] = (
         '<lf-tally id="tally-example" count="0"><pre>Nothing yet.</pre></lf-tally>'
     )
-    declarations["lf-tally"]["properties"]["restated"] = {"type": "boolean"}
-    declarations["lf-tally"]["properties"]["overruled"] = {"type": "boolean"}
-    declarations["lf-tally"]["properties"]["seen"] = {
+    declarations["lf-tally"]["attributes"]["properties"]["restated"] = {
+        "type": "boolean"
+    }
+    declarations["lf-tally"]["attributes"]["properties"]["overruled"] = {
+        "type": "boolean"
+    }
+    declarations["lf-tally"]["attributes"]["properties"]["seen"] = {
         "type": "string",
         "pattern": "^[0-9]+$",
     }
     record = {"kind": "value", "attr": "count"}
-    declarations["lf-tally"]["x-state"] = {
+    declarations["lf-tally"].setdefault("server", {})["state"] = {
         "set": {
             "unit": "widget",
             "record": record,
@@ -290,30 +300,41 @@ def test_lit_parent_moves_before_controller_members_render_selection(
     )
     declarations["lf-owner"].update(
         {
-            "x-content": "members",
-            "x-example": markup,
-            "x-state": {
-                "move": {
-                    "unit": "unit",
-                    "record": {"kind": "position", "within": "lf-zone"},
-                }
+            "content": "members",
+            "server": {
+                "state": {
+                    "move": {
+                        "unit": "unit",
+                        "record": {"kind": "position", "within": "lf-zone"},
+                    }
+                },
+            },
+            "author": {
+                "example": markup,
             },
         }
     )
     zone = declarations["lf-zone"]
-    zone.update({"x-content": "members", "x-owners": ["lf-owner"]})
-    zone["properties"]["restated"] = {"type": "boolean"}
-    zone["x-state"] = {
+    zone.update(
+        {
+            "content": "members",
+            "markup": {
+                "owners": ["lf-owner"],
+            },
+        }
+    )
+    zone["attributes"]["properties"]["restated"] = {"type": "boolean"}
+    zone.setdefault("server", {})["state"] = {
         "choose": {
             "unit": "widget",
             "record": {"kind": "attribute", "attr": "selected"},
         }
     }
     piece = declarations["lf-piece"]
-    piece["x-owners"] = ["lf-zone"]
-    piece["properties"]["selected"] = {"type": "boolean"}
+    piece.setdefault("markup", {})["owners"] = ["lf-zone"]
+    piece["attributes"]["properties"]["selected"] = {"type": "boolean"}
     for declaration in (zone, piece):
-        declaration.pop("x-example", None)
+        declaration["author"].pop("example", None)
     path.write_text(json.dumps(declarations))
     (package / "widgets/lf-owner.js").write_text(
         'await customElements.whenDefined("lf-zone");\n' + LEAF_OWNER
@@ -364,8 +385,8 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     registry_path = tmp_path / ".leaf" / "registry.json"
     declarations = json.loads(registry_path.read_text())
     owner = declarations["lf-owner"]
-    owner["x-content"] = "members"
-    owner["x-state"] = {
+    owner["content"] = "members"
+    owner.setdefault("server", {})["state"] = {
         "move": {
             "unit": "unit",
             "record": {
@@ -374,29 +395,29 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
             },
         }
     }
-    owner["x-example"] = (
+    owner.setdefault("author", {})["example"] = (
         '<lf-owner id="sample-owner"><lf-zone id="sample-zone">'
         '<lf-piece id="sample-piece" pinned="no">Piece</lf-piece>'
         "</lf-zone></lf-owner>"
     )
     zone = declarations["lf-zone"]
-    zone["x-owners"] = ["lf-owner"]
-    zone["x-content"] = "members"
-    zone.pop("x-example", None)
+    zone.setdefault("markup", {})["owners"] = ["lf-owner"]
+    zone["content"] = "members"
+    zone["author"].pop("example", None)
     piece = declarations["lf-piece"]
-    piece["x-owners"] = ["lf-zone"]
-    piece["properties"] |= {
+    piece.setdefault("markup", {})["owners"] = ["lf-zone"]
+    piece["attributes"]["properties"] |= {
         "pinned": {"type": "string"},
         "restated": {"type": "boolean"},
     }
-    piece.setdefault("required", []).append("pinned")
-    piece["x-state"] = {
+    piece["attributes"].setdefault("required", []).append("pinned")
+    piece.setdefault("server", {})["state"] = {
         "move": {
             "unit": "widget",
             "record": {"kind": "value", "attr": "pinned"},
         }
     }
-    piece.pop("x-example", None)
+    piece["author"].pop("example", None)
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-owner.js").write_text(LEAF_OWNER)
     (tmp_path / ".leaf" / "widgets" / "lf-piece.js").write_text(LEAF_PIECE)
@@ -762,7 +783,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
     """The test above takes its decisions in front of the user, on a page that has
     been up long enough for everything to have arrived. Here the log holds it before
     the page opens, which is what puts the anchor pass's skip list on the clock: the
-    registry names the slot a decision retires (x-retired-when), and the registry
+    registry names the slot a decision retires (server.retired-when), and the registry
     arrives over the network, after the module that reads it has evaluated. Replay
     settles the suggestion on the first poll, so the pass that runs with it has to be
     skipping lf-old already — or the page opens with a live mark on words the user
@@ -866,7 +887,7 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
         "Carried decision",
         """<h1>Plan</h1>
 <lf-ask id="cz-ask"><h2>Which comes first?</h2>
-  <lf-options id="cz-options" choose>
+  <lf-options id="cz-options" required>
     <lf-option id="cz-flag">Flag</lf-option>
     <lf-option id="cz-backfill">Backfill</lf-option>
   </lf-options>
@@ -875,7 +896,7 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
     page = open_page(browser, live_url(serve(first)))
     page.locator("#cz-flag .lf-pick").click()
     round_trip(page)
-    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+    expect(page.locator("#cz-flag")).to_have_attribute("selected", "")
 
     stamp_page(
         serve.page_dir,
@@ -883,8 +904,8 @@ def test_z_takes_back_a_decision_carried_into_a_later_revision(browser, serve):
         "add context",
     )
     wait_for_revision(page, 2)
-    expect(page.locator("#cz-flag")).to_have_attribute("chosen", "")
+    expect(page.locator("#cz-flag")).to_have_attribute("selected", "")
 
     undo(page)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    expect(page.locator("#cz-options lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#cz-options lf-option[selected]")).to_have_count(0)

@@ -644,7 +644,7 @@ def test_an_answer_to_an_older_choice_leaves_the_forks_newer_message_with_the_fo
             "author": "agent",
             "revision": 1,
             "html": True,
-            "text": 'Which region?\n\n<lf-options id="thread-region" choose>'
+            "text": 'Which region?\n\n<lf-options id="thread-region" required>'
             '<lf-option id="thread-east"><strong>East</strong></lf-option>'
             "</lf-options>",
         },

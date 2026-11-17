@@ -105,7 +105,7 @@ def test_authored_reply_is_read_when_its_visible_body_is_shown(browser, serve):
         None,
         "Choose the next step.\n\n"
         '<lf-ask id="read-decision"><h3>Which way?</h3>'
-        '<lf-options id="read-choice" choose>'
+        '<lf-options id="read-choice" required>'
         '<lf-option id="read-yes">Yes</lf-option>'
         '<lf-option id="read-no">No</lf-option>'
         "</lf-options></lf-ask>",
@@ -149,7 +149,7 @@ def test_automatic_read_refusal_keeps_message_unread(browser, serve):
         None,
         "Choose this answer.\n\n"
         '<lf-ask id="read-refusal"><h3>Choose</h3>'
-        '<lf-options id="read-refusal-options" choose>'
+        '<lf-options id="read-refusal-options" required>'
         '<lf-option id="read-refusal-yes">Yes</lf-option>'
         "</lf-options></lf-ask>",
     )["id"]

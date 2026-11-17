@@ -245,13 +245,19 @@ def _shadow_tree_widget(tag):
     shadow tree."""
     declaration = {
         "description": "A project-supplied tree.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-shadow": True,
-        "x-example": f'<{tag} id="example"></{tag}>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
+        "words": {
+            "shadow": True,
+        },
+        "author": {
+            "example": f'<{tag} id="example"></{tag}>',
+        },
     }
     module = f"""
 import {{shadowStage}} from '/runtime/widget-api.js';

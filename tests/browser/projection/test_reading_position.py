@@ -437,7 +437,7 @@ def test_revision_changes_follow_authored_text_into_declared_shadow_trees(
     add_test_widget(package, "lf-shadow-reading", upgrade=True)
     registry_path = package / "registry.json"
     declarations = json.loads(registry_path.read_text())
-    declarations["lf-shadow-reading"]["x-shadow"] = True
+    declarations["lf-shadow-reading"].setdefault("words", {})["shadow"] = True
     registry_path.write_text(json.dumps(declarations))
     (package / "widgets" / "lf-shadow-reading.js").write_text(
         """import { once, shadowStage } from "/runtime/widget-api.js";
@@ -679,7 +679,7 @@ def test_obligation_repaints_keep_the_on_me_view_s_reading(browser, serve):
     """Obligation repaint keeps the reading of the panel's On Me view the user scrolled."""
     questions = "".join(
         f'<lf-ask id="ask-{index}"><h2>Question {index} about this project</h2>'
-        f'<lf-options id="options-{index}" choose>'
+        f'<lf-options id="options-{index}" required>'
         f'<lf-option id="yes-{index}">Proceed with this choice</lf-option>'
         f'<lf-option id="no-{index}">Leave this choice for now</lf-option>'
         "</lf-options></lf-ask>"
@@ -837,18 +837,20 @@ def test_revision_does_not_move_an_offset_between_bounded_region_owners(browser,
     """A nested flow region cannot carry one parent's offset into another parent."""
     entry = {
         "description": "A test-owned reading scroller.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "markup",
-        "x-example": (
-            '<lf-owned-scroll id="example">'
+        "content": "markup",
+        "author": {
+            "example": '<lf-owned-scroll id="example">'
             "<div data-scroll-body><button>Control</button></div>"
-            "</lf-owned-scroll>"
-        ),
+            "</lf-owned-scroll>",
+        },
     }
     module = """
 import {registerReadingRegion} from '/runtime/widget-api.js';

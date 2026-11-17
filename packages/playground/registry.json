@@ -1,128 +1,149 @@
 {
   "lf-playground": {
     "description": "A form whose fields the user tunes against a live preview, comparing candidates, and sends as one configuration.",
-    "x-instructions": "Write its fields as native form controls: each `input`, `select` or `textarea` with a `name` is one, and radios that share a name are one. An `<aside>` directly inside stands in the rail beside the preview; everything else it holds, except presets and its one `lf-playground-output`, is the preview. `<output for=\"NAME\">` shows field NAME's value. A `<button type=\"submit\">` written inside, with an optional `<button type=\"reset\">`, takes the place of the bar of actions Leaf draws.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      },
-      "contract": {
-        "type": "string"
-      },
-      "submit-label": {
-        "type": "string",
-        "minLength": 1
-      },
-      "restated": {
-        "type": "boolean"
-      }
-    },
-    "required": ["id"],
-    "additionalProperties": false,
-    "x-awaits": {
-      "value": "choose",
-      "answered": {
-        "choose": {}
-      }
-    },
-    "x-state": {
-      "choose": {
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
         "contract": {
-          "field": "values",
-          "attribute": "contract"
+          "type": "string"
         },
-        "detail": {
-          "type": "object",
-          "properties": {
-            "values": {
-              "type": "object",
-              "minProperties": 1,
-              "propertyNames": {
-                "pattern": "^[a-z0-9][a-z0-9-]*$"
-              },
-              "additionalProperties": {}
-            },
-            "instruction": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "required": ["values", "instruction"],
-          "additionalProperties": false
+        "submit-label": {
+          "type": "string",
+          "minLength": 1
         },
-        "unit": "widget"
+        "restated": {
+          "type": "boolean"
+        }
       },
-      "tune": {
-        "detail": {
-          "type": "object",
-          "properties": {
-            "values": {
-              "type": "object",
-              "minProperties": 1,
-              "propertyNames": {
-                "pattern": "^[a-z0-9][a-z0-9-]*$"
-              },
-              "additionalProperties": {}
-            }
+      "required": ["id"],
+      "additionalProperties": false
+    },
+    "server": {
+      "awaits": {
+        "value": "choose",
+        "answered": {
+          "choose": {}
+        }
+      },
+      "state": {
+        "choose": {
+          "contract": {
+            "field": "values",
+            "attribute": "contract"
           },
-          "required": ["values"],
-          "additionalProperties": false
+          "detail": {
+            "type": "object",
+            "properties": {
+              "values": {
+                "type": "object",
+                "minProperties": 1,
+                "propertyNames": {
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "additionalProperties": {}
+              },
+              "instruction": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "required": ["values", "instruction"],
+            "additionalProperties": false
+          },
+          "unit": "widget"
         },
-        "unit": "widget",
-        "unsent": true
+        "tune": {
+          "detail": {
+            "type": "object",
+            "properties": {
+              "values": {
+                "type": "object",
+                "minProperties": 1,
+                "propertyNames": {
+                  "pattern": "^[a-z0-9][a-z0-9-]*$"
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": ["values"],
+            "additionalProperties": false
+          },
+          "unit": "widget",
+          "unsent": true
+        }
       }
     },
-    "x-example": "<lf-ask id=\"notification-ask\"> <h2>Which deployment notification should we build?</h2> <lf-playground id=\"notification-playground\" submit-label=\"Create notification\" data-width=\"available\"> <aside> <label id=\"radius\">Corner radius, px <input type=\"range\" name=\"radius\" min=\"0\" max=\"24\" value=\"10\" /></label> <output for=\"radius\">10</output> <label id=\"compact\"><input type=\"checkbox\" name=\"compact\" /> Compact spacing</label> </aside> <lf-playground-preset id=\"preset-compact\" label=\"Compact\"> <lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting> <lf-playground-setting for=\"compact\" value=\"true\"></lf-playground-setting> </lf-playground-preset> <fieldset id=\"format\" class=\"notification-candidates\"> <legend>Notification</legend> <article id=\"format-banner\" class=\"notification-candidate\"> <label><input type=\"radio\" name=\"format\" value=\"banner\" checked /> Banner</label> <h3>Checkout deployed</h3> <p>Review the deployment run.</p> </article> <article id=\"format-status-strip\" class=\"notification-candidate\"> <label><input type=\"radio\" name=\"format\" value=\"status strip\" /> Status strip</label> <p>Checkout · deployed · 18 checks passed</p> </article> </fieldset> <lf-playground-output> Build the <output for=\"format\"></output> notification with <output for=\"radius\"></output>px corners and compact spacing set to <output for=\"compact\"></output>. Replace the notification component and show me its browser test. </lf-playground-output> </lf-playground> </lf-ask>"
+    "author": {
+      "instructions": "Write its fields as native form controls: each `input`, `select` or `textarea` with a `name` is one, and radios that share a name are one. An `<aside>` directly inside stands in the rail beside the preview; everything else it holds, except presets and its one `lf-playground-output`, is the preview. `<output for=\"NAME\">` shows field NAME's value. A `<button type=\"submit\">` written inside, with an optional `<button type=\"reset\">`, takes the place of the bar of actions Leaf draws.",
+      "example": "<lf-ask id=\"notification-ask\"> <h2>Which deployment notification should we build?</h2> <lf-playground id=\"notification-playground\" submit-label=\"Create notification\" data-width=\"available\"> <aside> <label id=\"radius\">Corner radius, px <input type=\"range\" name=\"radius\" min=\"0\" max=\"24\" value=\"10\" /></label> <output for=\"radius\">10</output> <label id=\"compact\"><input type=\"checkbox\" name=\"compact\" /> Compact spacing</label> </aside> <lf-playground-preset id=\"preset-compact\" label=\"Compact\"> <lf-playground-setting for=\"radius\" value=\"4\"></lf-playground-setting> <lf-playground-setting for=\"compact\" value=\"true\"></lf-playground-setting> </lf-playground-preset> <fieldset id=\"format\" class=\"notification-candidates\"> <legend>Notification</legend> <article id=\"format-banner\" class=\"notification-candidate\"> <label><input type=\"radio\" name=\"format\" value=\"banner\" checked /> Banner</label> <h3>Checkout deployed</h3> <p>Review the deployment run.</p> </article> <article id=\"format-status-strip\" class=\"notification-candidate\"> <label><input type=\"radio\" name=\"format\" value=\"status strip\" /> Status strip</label> <p>Checkout · deployed · 18 checks passed</p> </article> </fieldset> <lf-playground-output> Build the <output for=\"format\"></output> notification with <output for=\"radius\"></output>px corners and compact spacing set to <output for=\"compact\"></output>. Replace the notification component and show me its browser test. </lf-playground-output> </lf-playground> </lf-ask>"
+    }
   },
   "lf-playground-preset": {
     "description": "A named partial playground configuration the user can apply at once.",
-    "x-instructions": "A control the preset has no setting for keeps its current value.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string",
+          "minLength": 1
+        }
       },
-      "label": {
-        "type": "string",
-        "minLength": 1
-      }
+      "required": ["id", "label"],
+      "additionalProperties": false
     },
-    "required": ["id", "label"],
-    "additionalProperties": false,
-    "x-word": "preset",
-    "x-owners": ["lf-playground"],
-    "x-content": "members"
+    "content": "members",
+    "markup": {
+      "owners": ["lf-playground"]
+    },
+    "author": {
+      "instructions": "A control the preset has no setting for keeps its current value."
+    }
   },
   "lf-playground-setting": {
     "description": "One control value applied by a playground preset.",
-    "x-instructions": "Set for to the name of a field in the same playground and write value as that field's `value` attribute would: a number for a range or number input, true or false for a checkbox, and a radio's or option's value.",
-    "type": "object",
-    "properties": {
-      "for": {
-        "type": "string"
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "for": {
+          "type": "string"
+        },
+        "value": {
+          "type": "string"
+        }
       },
-      "value": {
-        "type": "string"
-      }
+      "required": ["for", "value"],
+      "additionalProperties": false
     },
-    "required": ["for", "value"],
-    "additionalProperties": false,
-    "x-unique": {
-      "for": "lf-playground-preset"
+    "content": "empty",
+    "markup": {
+      "unique": {
+        "for": "lf-playground-preset"
+      },
+      "owners": ["lf-playground-preset"]
     },
-    "x-owners": ["lf-playground-preset"],
-    "x-content": "empty"
+    "author": {
+      "instructions": "Set for to the name of a field in the same playground and write value as that field's `value` attribute would: a number for a range or number input, true or false for a checkbox, and a radio's or option's value."
+    }
   },
   "lf-playground-output": {
     "description": "The task instruction displayed by a playground and sent with the chosen configuration; an `<output for>` inside shows a field's value.",
-    "type": "object",
-    "properties": {
-      "id": {
-        "type": "string"
-      }
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
     },
-    "additionalProperties": false,
-    "x-owners": ["lf-playground"]
+    "markup": {
+      "owners": ["lf-playground"]
+    }
   }
 }

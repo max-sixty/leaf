@@ -4,6 +4,7 @@ Leaf's examples and instructions teach are the ones its references name."""
 import json
 import re
 
+from leaf.registry.contract import declared_fact
 from leaf.schema import ASSETS, BUNDLED_PACKAGES
 from leaf.state import PLUGIN_ROOT
 
@@ -88,10 +89,10 @@ def test_what_leaf_teaches_reads_only_the_tokens_its_references_name():
         for path in sorted(root.rglob("registry.json")):
             entries = json.loads(path.read_text())
             taught[path.relative_to(PLUGIN_ROOT)] = "\n".join(
-                str(entry.get(key, ""))
+                str(declared_fact(entry, key, ""))
                 for entry in entries.values()
                 if isinstance(entry, dict)
-                for key in ("x-example", "x-instructions", "description")
+                for key in ("author.example", "author.instructions", "description")
             )
         for path in sorted(root.rglob("instructions/*.md")):
             taught[path.relative_to(PLUGIN_ROOT)] = path.read_text()

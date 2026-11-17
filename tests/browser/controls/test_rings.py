@@ -494,9 +494,9 @@ def test_a_contour_stands_inside_a_target_its_clip_leaves_no_room_around(
             """
 <h1>Contours</h1>
 <p id="said">A paragraph with room around it.</p>
-<lf-options id="pick" choose>
+<lf-options id="pick" required>
   <lf-option id="keep"><strong>Keep</strong> the words alone.</lf-option>
-  <lf-option id="place" chosen><strong>Place</strong> them in the line.</lf-option>
+  <lf-option id="place" selected><strong>Place</strong> them in the line.</lf-option>
 </lf-options>
 """,
         )
@@ -1181,7 +1181,7 @@ def test_an_obligations_margin_marker_keeps_its_location_ring_whole(browser, ser
                 """
       <lf-ask id="decision"><h2>Ready?</h2>
         <p>Review the evidence before choosing.</p>
-        <lf-options id="answer" choose>
+        <lf-options id="answer" required>
           <lf-option id="yes">Approve</lf-option>
           <lf-option id="no">Hold</lf-option>
         </lf-options>

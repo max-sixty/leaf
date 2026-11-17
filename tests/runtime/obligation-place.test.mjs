@@ -229,7 +229,13 @@ test("which regions ask the user is read from the captured widgets, not the regi
       id,
       tag: "lf-probe",
       document: kind === "page" ? { kind, revision: 1 } : { kind, thread: "t" },
-      declaration: awaits ? { "x-awaits": { value: "choose" } } : {},
+      declaration: awaits
+        ? {
+            server: {
+              awaits: { value: "choose" },
+            },
+          }
+        : {},
       parent: null,
       ancestors: [],
       quoted: false,

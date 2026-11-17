@@ -77,7 +77,7 @@ export {
 } from "./obligations/place.js";
 export { comparisonChanges } from "./version.js";
 export { answerWords } from "./obligations/answer.js";
-// A view's reading and writing of another widget's answer (x-shows).
+// A view's reading and writing of another widget's answer (server.shows).
 export { shownAnswer } from "./shown-answer.js";
 export { readWork, workAncestor } from "./work.js";
 export { obligationActions } from "./application.js";

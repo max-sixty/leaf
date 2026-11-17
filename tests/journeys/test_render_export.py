@@ -117,24 +117,28 @@ customElements.define("lf-offline-test", class extends LeafElement {
 OFFLINE_REGISTRY = {
     "lf-offline-test": {
         "description": "A page-owned offline export test widget.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "choice": {"type": "string"},
-            "restated": {"type": "boolean"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "choice": {"type": "string"},
+                "restated": {"type": "boolean"},
+            },
+            "required": ["id"],
+            "additionalProperties": False,
         },
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-state": {
-            "choose": {
-                "unit": "widget",
-                "record": {"kind": "value", "attr": "choice"},
-            }
+        "content": "empty",
+        "server": {
+            "state": {
+                "choose": {
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "choice"},
+                }
+            },
         },
-        "x-example": (
-            '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>'
-        ),
+        "author": {
+            "example": '<lf-offline-test id="offline-example" choice="idle"></lf-offline-test>',
+        },
     },
 }
 

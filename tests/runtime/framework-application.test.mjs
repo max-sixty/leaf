@@ -30,7 +30,7 @@ const stamped = (registry) => ({
       .map(([tag, entry]) => [
         tag,
         Object.fromEntries(
-          Object.entries(entry["x-state"] ?? {}).map(([verb, verbSpec]) => [
+          Object.entries(entry.server?.state ?? {}).map(([verb, verbSpec]) => [
             verb,
             { writer: verbSpec.writer, definition: definition(tag, verbSpec) },
           ]),
@@ -51,7 +51,11 @@ const descriptor = {
   id: "choice",
   tag: "lf-choice",
   document: { kind: "page", revision: 1 },
-  declaration: { "x-state": { decide: { ...spec, writer: "user" } } },
+  declaration: {
+    server: {
+      state: { decide: { ...spec, writer: "user" } },
+    },
+  },
   parent: null,
   ancestors: [],
   quoted: false,
@@ -155,7 +159,14 @@ const capture = (extraDescriptors = [], extraAuthored = []) => {
     ...app.read().document,
     registry: stamped(
       Object.fromEntries([
-        ["lf-choice", { "x-state": { decide: { ...spec, writer: "user" } } }],
+        [
+          "lf-choice",
+          {
+            server: {
+              state: { decide: { ...spec, writer: "user" } },
+            },
+          },
+        ],
         ...extraDescriptors.map(([, captured]) => [captured.tag, captured.declaration]),
       ]),
     ),
@@ -893,7 +904,7 @@ test("admitted edits, a raced undo refusal, and revisions share one sequence", (
     const app = createSemanticApplication();
     app.identify(1);
     const declaration = sequence.declaration;
-    const specs = new Map(Object.entries(declaration["x-state"]));
+    const specs = new Map(Object.entries(declaration.server?.state));
     const document = (revision) => ({
       ...app.read().document,
       revision,
@@ -1507,8 +1518,12 @@ test("an unsettled report supplies desired widget state", () => {
   const source = {
     ...descriptor,
     declaration: {
-      properties: { choice: { type: "string" } },
-      "x-state": { preview: { ...valueSpec, writer: "agent" } },
+      attributes: {
+        properties: { choice: { type: "string" } },
+      },
+      server: {
+        state: { preview: { ...valueSpec, writer: "agent" } },
+      },
     },
   };
   const app = setup([[source.id, source]]);
@@ -1588,8 +1603,12 @@ test("a revision preserves pending delivery while replacing incompatible specula
     record: { kind: "value", attr: "status" },
   };
   const declaration = {
-    properties: { status: { type: "integer" } },
-    "x-state": { decide: revisedSpec },
+    attributes: {
+      properties: { status: { type: "integer" } },
+    },
+    server: {
+      state: { decide: revisedSpec },
+    },
   };
   document.registry = stamped({ ...document.registry, "lf-choice": declaration });
   document.descriptors.set("choice", {
@@ -1638,7 +1657,11 @@ test("a pending undo keeps withdrawing its target once the log admits it under a
   document.revision = 2;
   document.registry = stamped({
     ...document.registry,
-    "lf-choice": { "x-state": { decide: broadened } },
+    "lf-choice": {
+      server: {
+        state: { decide: broadened },
+      },
+    },
   });
   document.descriptors.set("choice", {
     ...descriptor,
@@ -1660,7 +1683,11 @@ test("a revision changing a verb's writer retains delivery without drawing the o
   const document = structuredClone(app.read().document);
   document.revision = 2;
   const agentSpec = { ...spec, writer: "agent" };
-  const declaration = { "x-state": { decide: agentSpec } };
+  const declaration = {
+    server: {
+      state: { decide: agentSpec },
+    },
+  };
   document.registry = stamped({ ...document.registry, "lf-choice": declaration });
   document.descriptors.set("choice", {
     ...descriptor,
@@ -1682,7 +1709,10 @@ test("An obligation contains the local typed answer while completion waits for a
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      "x-awaits": { value: "decide", answered: { decide: {} } },
+      server: {
+        ...descriptor.declaration.server,
+        awaits: { value: "decide", answered: { decide: {} } },
+      },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1710,13 +1740,15 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
   const choose = {
     unit: "widget",
     writer: "user",
-    record: { kind: "attribute", attr: "chosen" },
+    record: { kind: "attribute", attr: "selected" },
   };
   const declared = {
     ...descriptor,
     declaration: {
-      "x-state": { choose },
-      "x-awaits": { value: "choose", answered: { choose: {} } },
+      server: {
+        state: { choose },
+        awaits: { value: "choose", answered: { choose: {} } },
+      },
     },
   };
   const app = capture(
@@ -1755,7 +1787,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
 
 test("pending undo removes completed empty obligation values and refusal restores them", () => {
   for (const [record, value] of [
-    [{ kind: "attribute", attr: "chosen" }, []],
+    [{ kind: "attribute", attr: "selected" }, []],
     [{ kind: "body" }, ""],
   ]) {
     const choose = { unit: "widget", writer: "user", record };
@@ -1763,8 +1795,10 @@ test("pending undo removes completed empty obligation values and refusal restore
     const declared = {
       ...descriptor,
       declaration: {
-        "x-state": { choose, answer },
-        "x-awaits": { value: "choose", answered: { answer: {} } },
+        server: {
+          state: { choose, answer },
+          awaits: { value: "choose", answered: { answer: {} } },
+        },
       },
     };
     const app = capture(
@@ -1821,7 +1855,10 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      "x-awaits": { value: "decide", answered: { decide: {} } },
+      server: {
+        ...descriptor.declaration.server,
+        awaits: { value: "decide", answered: { decide: {} } },
+      },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1856,7 +1893,10 @@ test("pending undo removes a custom obligation answer before authoritative compl
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      "x-awaits": { value: "decide", answered: { decide: {} } },
+      server: {
+        ...descriptor.declaration.server,
+        awaits: { value: "decide", answered: { decide: {} } },
+      },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1907,7 +1947,11 @@ test("unchanged selection republishes when a move changes its members", () => {
     ...descriptor,
     id,
     tag,
-    declaration: { "x-state": verbs },
+    declaration: {
+      server: {
+        state: verbs,
+      },
+    },
     parent: parent && { id: parent, tag: "lf-audit-manifest" },
     ancestors: [],
   });
@@ -1977,13 +2021,17 @@ test("parent memberships include flat creations until undone", () => {
   const choose = {
     unit: "widget",
     writer: "user",
-    record: { kind: "attribute", attr: "chosen" },
+    record: { kind: "attribute", attr: "selected" },
   };
   const tray = {
     ...descriptor,
     id: "tray",
     tag: "lf-tray",
-    declaration: { "x-state": { sow, choose } },
+    declaration: {
+      server: {
+        state: { sow, choose },
+      },
+    },
   };
   const app = setup(
     [[tray.id, tray]],
@@ -2016,7 +2064,7 @@ test("parent memberships include flat creations until undone", () => {
     },
     "now",
   );
-  assert.deepEqual(selected.read().memberships.chosen, ["elm"]);
+  assert.deepEqual(selected.read().memberships.selected, ["elm"]);
   app.enqueue({ kind: "undo", undoes: created.localId, attempt: "undo-sow" }, "now");
-  assert.deepEqual(selected.read().memberships.chosen, []);
+  assert.deepEqual(selected.read().memberships.selected, []);
 });

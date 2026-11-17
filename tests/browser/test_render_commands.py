@@ -24,7 +24,7 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
-    page_registry,
+    page_declarations,
     resized,
     scroll_settled,
     select,
@@ -1450,12 +1450,13 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     )
 
     assert (
-        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
+        render_checks_model.evaluate_probe(page, "tinyBoxes", page_declarations(page))
+        == []
     ), "the gate refuses glosses and a suggestion with nothing wrong with them"
 
     # Asked without the declaration, the same floor flags it — so what passes the page
     # is the declaration, not a floor gone missing.
-    undeclared = json.loads(json.dumps(page_registry(page)))
+    undeclared = json.loads(json.dumps(page_declarations(page)))
     del undeclared["lf-suggestion"]["x-inline"]
     assert [
         box
@@ -1471,7 +1472,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
         content="lf-gloss { display: block; height: 2px; overflow: hidden; }"
     )
     flattened = render_checks_model.evaluate_probe(
-        page, "tinyBoxes", page_registry(page)
+        page, "tinyBoxes", page_declarations(page)
     )
     page.close()
     assert [box for box in flattened if box["tag"] == "lf-gloss"], (

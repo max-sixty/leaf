@@ -33,16 +33,15 @@ vars:
     You can use placeholders for the child templates. A page-local Show all
     comparison-view control operates the same inspection state in every sample.
 
-    The first draft wraps those samples in lf-playground-preview, inside this
+    The first draft writes those samples in the playground's preview, beside this
     configuration:
       <lf-playground id="explorer" submit-label="Use this treatment">
-        <lf-playground-control id="treatment" name="treatment" label="Treatment to build"
-          kind="choice" value="selector">
-          <lf-playground-choice id="treatment-current" value="current" label="Current"></lf-playground-choice>
-          <lf-playground-choice id="treatment-selector" value="selector" label="Red/green selector"></lf-playground-choice>
-          <lf-playground-choice id="treatment-edge" value="edge" label="Colored edge"></lf-playground-choice>
-          <lf-playground-choice id="treatment-badge" value="badge" label="Image badge"></lf-playground-choice>
-        </lf-playground-control>
+        <aside><fieldset id="treatment"><legend>Treatment to build</legend>
+          <label id="treatment-current"><input type="radio" name="treatment" value="current" /> Current</label>
+          <label id="treatment-selector"><input type="radio" name="treatment" value="selector" checked /> Red/green selector</label>
+          <label id="treatment-edge"><input type="radio" name="treatment" value="edge" /> Colored edge</label>
+          <label id="treatment-badge"><input type="radio" name="treatment" value="badge" /> Image badge</label>
+        </fieldset></aside>
         <lf-playground-preset id="preset-current" label="Current">
           <lf-playground-setting for="treatment" value="current"></lf-playground-setting>
         </lf-playground-preset>
@@ -55,9 +54,9 @@ vars:
         <lf-playground-preset id="preset-image-badge" label="Image badge">
           <lf-playground-setting for="treatment" value="badge"></lf-playground-setting>
         </lf-playground-preset>
-        <lf-playground-preview>...inspection controls and four samples...</lf-playground-preview>
+        ...inspection controls and four samples...
         <lf-playground-output>Apply the
-          <lf-playground-value for="treatment"></lf-playground-value> treatment to
+          <output for="treatment"></output> treatment to
           Leaf's lf-shot comparison. Preserve its comparison views, divider,
           keyboard controls, and unambiguous frame labels. Show the
           result in light and dark themes at desktop and phone widths.

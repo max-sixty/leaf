@@ -270,6 +270,11 @@ too, passing `readObligations().user` for those waiting on the user.
 pass, as a `Map` from each region to its obligations; a module that marks every card
 or section in one render reads it, since asking `obligationsIn` once per region costs
 the regions times the obligations.
+`regionsAwaiting(regions)` returns the `Set` of `regions` whose markup holds a widget
+declaring `x-awaits`, whether its obligation has yet to arrive or was withdrawn, as
+`lf-tabs` reads it to keep a row's room for an answer. It reads the captured widgets,
+not the regions' elements, and follows each revision, so ask it rather than
+`elementsDeclaring` in a render.
 `tally(obligations)` counts such a set as `{onUser, onAgent, open, total}`, splitting the
 open ones by next actor, and `tallyWords(count, agentName())` words it as `lf-tally`
 does, such as "2 left to answer · 1 on Claude", so every count of a queue reads alike.

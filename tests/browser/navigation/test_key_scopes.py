@@ -32,6 +32,7 @@ from render_harness import (
     back_gesture,
     consume_browser_errors,
     draft_control,
+    expect_design_mode,
     expect_panel_says,
     hold_selection,
     is_problem,
@@ -57,7 +58,7 @@ from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
 from leaf import event_log as events_model
 from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf_dev.browser import PANEL_THREAD, on_view_tab, open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -274,8 +275,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         page.keyboard.press("Escape")
         assert page.evaluate(on_body)
 
-    # On Me by pointer: out with the panel's view.
-    toggle.click()
+    # On Me by pointer, its tab beside the leaf's menu: out with the panel's view.
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -323,8 +324,8 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     expect(threads[0]).to_be_focused()
     out()
 
-    toggle.focus()
-    page.keyboard.press("Enter")
+    # And On Me's tab pressed from the keyboard.
+    on_view_tab(page, "On Me").press("Enter")
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -1065,7 +1066,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     # The popover is nonmodal, but the modal below it remains a hard floor. A page
     # command and the widget ancestor outside the dialog are both unreachable.
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
     page.keyboard.press("Escape")
     expect(popover).to_be_hidden()
     expect(modal).to_be_visible()

@@ -89,14 +89,24 @@ test("authored activity detail retains its exact source only in the words that s
   );
 });
 
-test("working with no sentence of the agent's leaves the row's words to it", () => {
+test("working with no sentence of the agent's says Working in Leaf's voice until one comes", () => {
   const picked = (handling) =>
     said({ kind: "working", detail: "", ts: minutesAgo(0), counts: { handling } });
-  // The leaf's tone says it works; only the disclosure says so in words, Leaf's.
   for (const handling of [1, 3, 0])
-    assert.deepEqual(picked(handling), ["", "Working (just now)"]);
+    assert.deepEqual(picked(handling), ["Working", "Working (just now)"]);
   const status = pageStatus(state({ kind: "working", detail: "" }));
-  assert.ok(status.explanationParts.every((part) => part.voice === "leaf"));
+  assert.ok(
+    [...status.summaryParts, ...status.explanationParts].every(
+      (part) => part.voice === "leaf",
+    ),
+  );
+  assert.equal(status.adds, "");
+  // A step the harness observed changes under the row's one word; the disclosure names it.
+  const step = pageStatus(
+    state({ kind: "working", detail: "", observed_kind: "tool" }),
+  );
+  assert.equal(step.summary, "Working");
+  assert.equal(step.adds, "Using a tool");
 });
 
 test("a step the transport watched names the work and stands beside the agent's sentence", () => {
@@ -382,7 +392,7 @@ test("what the disclosure adds to the row says only what the row does not", () =
       ts: minutesAgo(0),
       counts: { handling: 1 },
     }),
-    "Working",
+    "",
   );
   assert.equal(
     adds({ kind: "listening", detail: "", counts: { pending: 1 } }),
@@ -457,7 +467,7 @@ test("a leaves row says each kind in a row's words, with the updates still waiti
       observed_kind: "tool",
       counts: { pending: 1, queued: 2 },
     }),
-    "2 responses owed on queued updates · 1 response owed on updates awaiting delivery",
+    "Working · 2 responses owed on queued updates · 1 response owed on updates awaiting delivery",
   );
   assert.equal(
     row({

@@ -1182,21 +1182,22 @@
       [data-lf-reading-role="pane"]:not([data-lf-generated]) > :not(header, footer) {
         overscroll-behavior: contain;
       }
-      /* A section told it has a definite height, as a question that is the workspace's
-       * body or a page tab's one block is, gives its answer, the last of its children,
-       * what its heading and context leave, and tells it so, so a widget composing its
-       * own regions there, such as a playground, fills the window below a premise,
-       * straight under the heading, or alone in a group the workspace's header names.
+      /* A question's group (`role="group"`) told it has a definite height, as one that
+       * is the workspace's body or a page tab's one block is, gives its answer, the last
+       * of its children, what its heading and context leave, and tells it so, so a
+       * widget composing its own regions there, such as a playground, fills the window
+       * below a premise, straight under the heading, or alone in a group the
+       * workspace's header names. Any other section keeps its document flow.
        * The context keeps its own height, and the answer keeps at least its own: a
        * list of options takes its content's height below a long premise, and a
        * playground the minimum of its stage and bar (playground/defaults.css), and the
-       * section scrolls.
-       * Every child hears the height the section is told, the context's included, so
+       * group scrolls.
+       * Every child hears the height the group is told, the context's included, so
        * the context is held at its own height: a playground followed by a note is
        * context, and would otherwise shrink to make room for the note and draw its
        * instruction over it. A pane lays out its own header, body and footer, and its
        * body scrolls as a whole and keeps its flow, so neither takes this. */
-      section:not([data-lf-reading-role], [data-lf-reading-role] > *) {
+      section[role~="group"]:not([data-lf-reading-role], [data-lf-reading-role] > *) {
         display: flex;
         flex-direction: column;
         > * {

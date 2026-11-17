@@ -249,9 +249,7 @@ is `null` for authored state. `prompt.target` is where the user goes to answer: 
 group the author declares round the widget, `role="group"` or a `<fieldset>`, or else
 the widget itself; `prompt.text` is that group's name, from its `aria-labelledby`, its
 `aria-label` or a fieldset's legend, else the widget's own name, and `null` for an
-update; `prompt.labelledby` is the id of the first element the name comes from, or
-`null`. `thread`
-and `message` name the Thread and message of a widget inside a Thread. A user's answer
+update. `thread` and `message` name the Thread and message of a widget inside a Thread. A user's answer
 shows in `answer` at once; which obligations exist changes when the server's reading
 arrives. Each `source.kind` adds its own facts:
 

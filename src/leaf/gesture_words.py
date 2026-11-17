@@ -102,20 +102,19 @@ def element_name(node: dict, registry: dict) -> str:
     return collapse(_text(title)) if title else ""
 
 
-def group_name(group: dict, nodes: dict[str, dict]) -> tuple[str, str | None]:
-    """The name the author gives a group, as ARIA reads it, and the id of the first
-    element the name comes from: the words of the elements its `aria-labelledby`
-    names, read from `nodes`, its document's elements by id; else its `aria-label`;
-    else a fieldset's legend, its first `<legend>` child. The name is empty, and the id
-    None, where the author named nothing."""
+def group_name(group: dict, nodes: dict[str, dict]) -> str:
+    """The name the author gives a group, as ARIA reads it: the words of the elements
+    its `aria-labelledby` names, read from `nodes`, its document's elements by id; else
+    its `aria-label`; else a fieldset's legend, its first `<legend>` child; empty where
+    the author named nothing."""
     attrs = group["attrs"]
     named = [
         nodes[i] for i in (attrs.get("aria-labelledby") or "").split() if i in nodes
     ]
     if words := collapse(" ".join(_text(node) for node in named)):
-        return words, named[0]["attrs"]["id"]
+        return words
     if words := collapse(attrs.get("aria-label") or ""):
-        return words, None
+        return words
     if group["tag"] == "fieldset":
         legend = next(
             (
@@ -125,9 +124,9 @@ def group_name(group: dict, nodes: dict[str, dict]) -> tuple[str, str | None]:
             ),
             None,
         )
-        if legend and (words := collapse(_text(legend))):
-            return words, legend["attrs"].get("id")
-    return "", None
+        if legend:
+            return collapse(_text(legend))
+    return ""
 
 
 def _nodes(content: list):

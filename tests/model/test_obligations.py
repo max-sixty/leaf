@@ -60,7 +60,6 @@ def test_context_changes_prompt_target_without_changing_obligation_identity_or_v
     assert (item["id"], item["source"]["id"]) == ("widget:choice", "choice")
     assert item["prompt"] == {
         "text": "Which route?",
-        "labelledby": "evidence-h",
         "target": "evidence",
     }
     assert item["answer"]["value"] == ["a"]
@@ -1153,8 +1152,7 @@ def test_data_record_obligations_follow_approval_undo_and_source_membership():
     before = page_obligations(read())["all"]
     assert [item["source"]["unit"] for item in before] == [case["id"] for case in cases]
     assert [item["prompt"] for item in before] == [
-        {"text": case["title"], "labelledby": None, "target": "review"}
-        for case in cases
+        {"text": case["title"], "target": "review"} for case in cases
     ]
     assert all(
         item["status"] == "open" and item["next_actor"] == "user" for item in before

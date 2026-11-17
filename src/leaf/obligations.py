@@ -258,7 +258,7 @@ def update_obligation(
         "source": {"kind": "update", "id": source, "subject": subject},
         "thread": thread,
         "message": message,
-        "prompt": {"text": None, "labelledby": None, "target": subject["id"]},
+        "prompt": {"text": None, "target": subject["id"]},
         "answer": {"value": None, "event": event_reference(answer)} if answer else None,
         "status": "answered" if answer else "open",
         "next_actor": next_actor,
@@ -679,9 +679,8 @@ class ObligationSources(NamedTuple):
     `asking` holds each declared widget, with whether it stands inside an exhibit
     (`shown_in`).
     `prompts` maps each one's id to its prompt: `text`, the words naming it, its group's
-    name (`framed_widgets`) or else its own; `labelledby`, the id of the element its
-    group's name comes from, or None; and `target`, the id of the element going to it
-    starts at, its group or else itself.
+    name (`framed_widgets`) or else its own, and `target`, the id of the element going
+    to it starts at, its group or else itself.
 
     These depend on the document and the vocabulary alone, and finding them is most
     of the cost of reading a page's obligations. A stored revision's reading
@@ -716,10 +715,9 @@ def obligation_sources(source, registry: dict) -> ObligationSources:
         for node, group in framed_widgets(document.authoring.content, registry):
             if not (identity := node["attrs"].get("id")):
                 continue
-            text, labelledby = group_name(group, nodes) if group else ("", None)
+            text = group_name(group, nodes) if group else ""
             prompts[identity] = {
                 "text": text or element_name(node, registry),
-                "labelledby": labelledby,
                 "target": (group["attrs"].get("id") if group else None) or identity,
             }
     return ObligationSources(
@@ -857,7 +855,6 @@ class _ObligationReducer:
                     "message": None,
                     "prompt": {
                         "text": datum[records["label"]],
-                        "labelledby": None,
                         "target": self.prompts[owner]["target"],
                     },
                     "answer": {
@@ -1121,7 +1118,7 @@ def thread_obligation_readings(
             "source": {"kind": "message", "id": question.removeprefix("message:")},
             "thread": identity,
             "message": message["id"],
-            "prompt": {"text": first[question], "labelledby": None, "target": None},
+            "prompt": {"text": first[question], "target": None},
             "answer": None,
             "status": "open",
             "next_actor": "user",

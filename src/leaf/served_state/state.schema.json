@@ -1175,16 +1175,12 @@
       "type": "object",
       "properties": {
         "text": { "type": ["string", "null"] },
-        "labelledby": {
-          "description": "The id of the first element a widget's question takes its name from, the group's `aria-labelledby` or a fieldset's legend; null where the name comes from no element or the obligation has no group.",
-          "type": ["string", "null"]
-        },
         "target": {
           "description": "Where the user goes to answer: the id of the group the author declares round a widget, or of the widget itself, or of the thread or widget an update stands on; null for a message, whose thread supplies navigation.",
           "type": ["string", "null"]
         }
       },
-      "required": ["text", "labelledby", "target"],
+      "required": ["text", "target"],
       "additionalProperties": false
     },
     "Obligation": {

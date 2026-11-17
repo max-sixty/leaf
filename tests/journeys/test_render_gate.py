@@ -1301,13 +1301,13 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
         cut = page.index(start)
         return page[:cut] + page[page.index(end, cut) + len(end) :]
 
-    option = INLINE_PAGE[INLINE_PAGE.index('<section id="opts-decision">') :]
+    option = INLINE_PAGE[INLINE_PAGE.index('<section id="opts-decision"') :]
     option = option[: option.index("</section>") + len("</section>")]
     # The question the granted figure holds takes its words off the column, which the
     # gate rightly advises against (`words-off-column`); the figure's table stays.
     framed = without(
         tables(FRAMED_TABLES_PAGE, '<table id="bare">'),
-        '<section id="figure-asked">',
+        '<section id="figure-asked"',
         "</section>",
     )
     page = AUTHORED_LINES_PAGE.replace(

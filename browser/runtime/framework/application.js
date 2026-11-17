@@ -702,7 +702,6 @@ function localUpdates(workflows) {
           message: workflow.message,
           prompt: {
             text: null,
-            labelledby: null,
             target: "id" in workflow.subject ? workflow.subject.id : workflow.input,
           },
           answer: null,

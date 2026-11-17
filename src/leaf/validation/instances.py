@@ -266,7 +266,7 @@ def question_errors(document: SourceDocument, registry: dict) -> list[Finding]:
             continue
         group = groups[key]
         at = element_at(rec["tag"], rec["attrs"].get("id", ""))
-        if group is None or not group_name(group, nodes)[0]:
+        if group is None or not group_name(group, nodes):
             unnamed = group and element_at(group["tag"], group["attrs"].get("id", ""))
             errors.append(
                 Finding(

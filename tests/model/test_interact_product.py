@@ -293,35 +293,21 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
         group.format(f'<p>Context.</p>{first}<h2 id="d-h">Choose</h2>'),
     ):
         assert refused(named) == [], named
-        assert prompts(named)["g-one"] == {
-            "text": "Choose",
-            "labelledby": "d-h",
-            "target": "d",
-        }, named
+        assert prompts(named)["g-one"] == {"text": "Choose", "target": "d"}, named
     shared = group.format(f'<h2 id="d-h">Choose</h2>{first}{second}')
     assert prompts(shared)["g-two"] == prompts(shared)["g-one"]
-    # Several labels join, and the first is where the name comes from; an aria-label
-    # names it with no element, and a fieldset's legend names it natively.
+    # Several labels join; an aria-label names a group with no element, and a
+    # fieldset's legend names it natively.
     assert prompts(
         '<h2 id="area">Storage</h2><section id="d" role="group"'
         f' aria-labelledby="area d-h"><h3 id="d-h">Which store?</h3>{first}</section>'
-    )["g-one"] == {"text": "Storage Which store?", "labelledby": "area", "target": "d"}
+    )["g-one"] == {"text": "Storage Which store?", "target": "d"}
     labelled = f'<div id="d" role="group" aria-label="Which store?">{first}</div>'
     assert refused(labelled) == []
-    assert prompts(labelled)["g-one"] == {
-        "text": "Which store?",
-        "labelledby": None,
-        "target": "d",
-    }
-    fieldset = (
-        f'<fieldset id="d"><legend id="d-l">Which store?</legend>{first}</fieldset>'
-    )
+    assert prompts(labelled)["g-one"] == {"text": "Which store?", "target": "d"}
+    fieldset = f'<fieldset id="d"><legend>Which store?</legend>{first}</fieldset>'
     assert refused(fieldset) == []
-    assert prompts(fieldset)["g-one"] == {
-        "text": "Which store?",
-        "labelledby": "d-l",
-        "target": "d",
-    }
+    assert prompts(fieldset)["g-one"] == {"text": "Which store?", "target": "d"}
     # The innermost group is the question.
     nested = group.format(
         '<h2 id="d-h">Choose</h2><fieldset id="part"><legend>First part</legend>'
@@ -342,12 +328,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
         assert [code for code, _ in refused(unframed)] == ["unframed-question"], (
             unframed
         )
-        assert prompts(unframed)["g-one"]["labelledby"] is None
-    assert prompts(first)["g-one"] == {
-        "text": "",
-        "labelledby": None,
-        "target": "g-one",
-    }
+    assert prompts(first)["g-one"] == {"text": "", "target": "g-one"}
     # An unnamed group is named in the refusal, so the author names that group.
     (finding,) = question_errors(
         SourceDocument(f'<main><fieldset id="d">{first}</fieldset></main>'), registry

@@ -586,8 +586,10 @@ export function createQueueWalk({
   // A press naming one obligation outright, as a Page Map row or
   // `obligationActions.open` does, arrives where the walk would and says where the
   // obligation stands in On Me as `m` landing there would, so every route counts the one
-  // list. One On Me doesn't hold, answered or left with the agent, has no position
-  // there: its word says what it is, and a finished one how it ended.
+  // list. It says so only where the stop the user then stands on is the obligation's
+  // own: one On Me doesn't hold, answered or left with the agent, can stand inside a
+  // stop that waits, as a question inside a proposal does, and has no position of its
+  // own there. Its word says what it is, and a finished one's how it ended.
   /** @param {Obligation} record */
   function goToObligation(record) {
     /** @type {Stop} */
@@ -597,11 +599,13 @@ export function createQueueWalk({
       thread: record.thread,
       obligation: record,
     };
+    const key = `${stop.kind}:${stop.id}`;
     const ready = arriveAt(stop).then((arrived) => {
       if (!arrived) return false;
       const word = obligationWord(record);
       announce(
-        beginWalk("queue", null, () => position(null)) ??
+        (position(null)?.target === key &&
+          beginWalk("queue", null, () => position(null))) ||
           (record.status === "open"
             ? word
             : [`${word} · `, obligationEnding(record)].flat()),

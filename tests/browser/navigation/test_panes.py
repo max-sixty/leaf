@@ -268,6 +268,46 @@ def test_the_box_waits_for_the_press_beside_a_pane_the_rail_does_not_stand_by(
     expect(page.locator(".lf-fab-input")).to_be_focused()
 
 
+def test_a_walk_from_a_pane_reaches_a_question_in_view_ahead_of_its_words(
+    browser, serve
+):
+    """A question of options alone at the top of the pane the user reads is where a walk
+    from that pane starts, as it is on the page, though the first words the pane shows
+    stand below it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a pane opening with options",
+                '<header><h1 id="top">Queue</h1></header><div id="regions">'
+                '<lf-pane id="rail" label="Rail"><div><p>The words of the rail.</p>'
+                '</div></lf-pane><lf-pane id="detail" label="Detail"><div>'
+                '<lf-group id="first" label="First"><lf-options id="first-o">'
+                '<lf-option id="first-a">Take the first way</lf-option>'
+                '<lf-option id="first-b">Take the other way</lf-option></lf-options></lf-group>'
+                '<p id="after">The words after the first question run on for a line.</p>'
+                '<lf-group id="second" label="Second"><h3>Second</h3><lf-options id="second-o">'
+                '<lf-option id="second-a">Yes</lf-option>'
+                '<lf-option id="second-b">No</lf-option></lf-options></lf-group>'
+                "<div style='height: 1400px'></div></div></lf-pane></div>",
+                head=regions_side_by_side("regions", "1fr 3fr"),
+                layout="workspace",
+            )
+        ),
+    )
+    resized(page, 1440, 900)
+    detail = "#detail > :not(header, footer)"
+    pane_scroll_behavior(page, page.locator("#detail"), "bounded")
+    box = page.locator(detail).bounding_box()
+    page.mouse.move(box["x"] + 300, box["y"] + 200)
+    page.mouse.wheel(0, 20)
+    page.wait_for_function(f"() => document.querySelector('{detail}').scrollTop > 0")
+    scroll_settled(page, detail)
+    expect(page.locator("#first-o")).to_be_in_viewport()
+    page.keyboard.press("m")
+    expect(page.locator("#first")).to_be_focused()
+
+
 def test_a_wheel_or_a_press_on_words_gives_a_pane_the_reading_keys_and_the_walk(
     browser, serve
 ):

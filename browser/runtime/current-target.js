@@ -68,7 +68,7 @@ import { ON_CARD } from "./obligations/view-elements.js";
 import { composedParentNode, renderedOrder, renderedUnder, under } from "./shadow.js";
 import { isElement } from "./shadow-tree.js";
 import { eventSource } from "./pointer.js";
-import { pageReadingBlock, seenBeside } from "./reading-place.js";
+import { pageReadingBlock, seenWhereRead } from "./reading-place.js";
 
 // Each side's reading, and whether it shows its target beside the page.
 /** @type {Map<(node: Element) => Element | null, boolean>} */
@@ -299,7 +299,7 @@ export function walkOrigin() {
 // A `view` origin is the block the user reads, the first of the window's words in their
 // column, but a stop is something the user sees whatever its words: a question of
 // options alone, a figure, a widget drawing its own. So the first stop ahead of that
-// block that they see where they read it (reading-place.js, `seenBeside`) is where they
+// block that they see where they read it (reading-place.js, `seenWhereRead`) is where they
 // are, and either press arrives there rather than passing a question in view for the
 // paragraph below it. Only the stops ahead of the block are measured.
 /** @template T @param {readonly T[]} list @param {WalkOrigin} origin
@@ -307,6 +307,7 @@ export function walkOrigin() {
  * @param {T | null} [at] */
 export function stepFrom(list, { place: here, kind }, dir, placeOfItem, at = null) {
   if (kind === "view" && here) {
+    const seen = seenWhereRead(here);
     /** @type {[T, Element] | null} */
     let first = null;
     for (const item of list) {
@@ -315,7 +316,7 @@ export function stepFrom(list, { place: here, kind }, dir, placeOfItem, at = nul
         place &&
         renderedOrder(place, here) < 0 &&
         (!first || renderedOrder(place, first[1]) < 0) &&
-        seenBeside(place, here)
+        seen(place)
       )
         first = [item, place];
     }

@@ -824,20 +824,30 @@ const shownAtLine = () => {
 };
 export const pageReadingBlock = () => pageReading({ bodies: false });
 
-// Whether the reader sees `node` where they read `block` (`readingBlock`): in the same
-// reading region, on screen where the glides under way leave it, outside a stuck box, and
-// across their column where their pointer or focus names one, as `readingBlock` asks of
-// each block. A walk asks it of its stops, which need hold no words
-// (current-target.js, `stepFrom`).
-/** @param {Element} node @param {Element} block */
-export function seenBeside(node, block) {
+// Whether the reader sees a node where they read `block` (`readingBlock`): in its
+// reading region, on screen where the glides under way leave it, and passing each test
+// `readingBlock` chose the block by, so outside a stuck box unless the block stands in
+// one, as it does where every block on screen rides a fixed shell, and across the
+// reader's column wherever the block stands across it. A walk asks it of its stops,
+// which need hold no words (current-target.js, `stepFrom`). The block's own readings
+// are taken once, for every node asked.
+/** @param {Element} block @returns {(node: Element) => boolean} */
+export function seenWhereRead(block) {
   const region = readingRegionFor(block) ?? null;
-  if ((readingRegionFor(node) ?? null) !== region || !seenAhead(node)) return false;
-  if (stuckBox(node, region?.body ?? null)) return false;
+  const box = region?.body ?? null;
+  const stuck = Boolean(stuckBox(block, box));
   const bounds = readingBounds(region);
-  const body = region?.body ?? pageDocument();
-  const column = bounds && body ? readerColumn(bounds, body) : null;
-  return column === null || spans(node, node.getBoundingClientRect(), column);
+  const body = box ?? pageDocument();
+  const reader = bounds && body ? readerColumn(bounds, body) : null;
+  const column =
+    reader !== null && spans(block, block.getBoundingClientRect(), reader)
+      ? reader
+      : null;
+  return (node) =>
+    readingRegionFor(node)?.id === region?.id &&
+    seenAhead(node) &&
+    (stuck || !stuckBox(node, box)) &&
+    (column === null || spans(node, node.getBoundingClientRect(), column));
 }
 
 // The sections whose words or pictures the user sees, by id in page order: the

@@ -721,9 +721,14 @@ def test_a_changed_diff_file_keeps_its_sideways_reader(browser, serve):
     page.keyboard.press("Tab")
     page.locator("lf-diff summary").first.focus()
     page.keyboard.press("ArrowRight")
-    page.keyboard.press("]")
-    page.keyboard.press("]")
-    page.keyboard.press("]")
+    # Each step walks from the row the last one landed on, so each waits for its landing.
+    for line in (1, 40, 80):
+        page.keyboard.press("]")
+        expect(
+            page.locator(
+                f'lf-diff [data-lf-datum=\'["app/handlers.py","both",{line},{line}]\']'
+            )
+        ).to_be_focused()
     reading = """() => {
       const diff = document.querySelector('lf-diff');
       const row = diff.lfDataDatum('[\"app/handlers.py\",\"new\",81]');

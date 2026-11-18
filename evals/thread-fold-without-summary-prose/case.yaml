@@ -1,7 +1,7 @@
 # This measures command selection from the shipped thread instructions, not automatic
 # progress lifecycles or execution of the returned command. The failure uses the label
-# as summary prose rather than --label and explicit empty --text. The label is
-# "Previous progress messages", the reference's own example.
+# as summary prose rather than --label and explicit empty --text. The user asks for
+# the label, so the case scores `--label`, which the reference names as optional.
 description: thread-fold-without-summary-prose
 metadata:
   purpose: Fold earlier progress messages under a requested label without summary prose, preserving their originals.

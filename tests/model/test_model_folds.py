@@ -354,7 +354,6 @@ def test_summary_leaves_messages_after_its_range_visible():
 
     thread = model.threads(state)["e1"]
     assert thread["summaries"][0]["covers"] == ["e1", "e2"]
-    assert thread["summaries"][0]["label"] == "Earlier discussion"
     assert thread["msgs"][-1]["text"] == "new message"
 
 

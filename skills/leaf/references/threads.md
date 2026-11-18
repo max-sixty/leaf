@@ -299,14 +299,19 @@ one is not an answer.
 When a thread's topic has moved on, or settled detail buries the current exchange,
 summarize the earlier discussion as part of answering new input, without waiting to
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
-with `leaf page state <page> <message>` and choose a contiguous range, starting and
-ending on spoken messages rather than reactions. Leave out messages whose wording
-still matters to the current exchange. A range may take in summaries already in the
-thread, and the new summary replaces them. Take them in, as the hint does, so the
-user reads one account of the earlier discussion rather than a row of summaries. No
-message but the thread's first may stay unsummarized above any summary. Leaf refuses
-a range that would leave one there, a fold without prose included, and names a wider
-range it accepts; write that summary to cover the added messages too.
+with `leaf page state <page> <message>` and choose a contiguous range yourself,
+starting and ending on spoken messages rather than reactions.
+
+Fold what compresses most: settled detail, finished exchanges and progress, whose
+outcome a few sentences carry. Keep in full the messages whose wording still matters
+to the current exchange, such as the question a kept answer replies to, or an opening
+message whose words still frame the thread. A range may take in summaries already in
+the thread, and the new summary replaces them. Take them in, as the hint does, so the
+user reads one account of the earlier discussion rather than a row of summaries.
+
+No message but the thread's first may stay unsummarized above any summary. Leaf
+refuses a range that would leave one there, a fold without prose included, and names
+a wider range it accepts; write that summary to cover the added messages too.
 
 A summary gives the range's decisions, reasoning, and open questions in Markdown
 prose, written from the original messages rather than only from the summaries it
@@ -325,8 +330,11 @@ To fold messages
 without a summary, pass an empty `--text`:
 
 ```bash
-leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --label 'Previous progress messages' --text ''
+leaf thread summarize <page> --from <first-message-id> --through <last-message-id> --text ''
 ```
+
+Either form takes `--label <name>` where the range has a name worth giving it; the
+thread shows the name in bold ahead of the summary's words.
 
 Editing a message inside a summary with prose, or the user taking back a message
 the thread held when you wrote it, cancels that summary, so stale prose cannot hide

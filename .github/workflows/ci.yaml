@@ -339,6 +339,24 @@ jobs:
     env:
       PYTEST_ADDOPTS: --durations=25 --durations-min=1
     steps:
+      # The runner's DHCP server answers a new client but not a renewal, so the runner
+      # drops its address when each one-hour lease ends and takes the same one back a
+      # few seconds later. Chromium answers the change by failing every loopback load
+      # still waiting for a socket with net::ERR_NETWORK_CHANGED, and the test that was
+      # loading fails. Setting the leased address, router and DNS server by hand keeps
+      # the interface unchanged for the rest of the job.
+      - name: Hold the runner's network address
+        run: |
+          interface=$(route -n get default | awk '/interface:/ {print $2}')
+          service=$(networksetup -listnetworkserviceorder | awk -v device="$interface" '/^\([0-9]+\) / {sub(/^\([0-9]+\) /, ""); name=$0} index($0, "Device: " device ")") {print name}')
+          address=$(ipconfig getifaddr "$interface")
+          sudo networksetup -setmanual "$service" "$address" \
+            "$(ipconfig getoption "$interface" subnet_mask)" \
+            "$(ipconfig getoption "$interface" router)"
+          sudo networksetup -setdnsservers "$service" \
+            "$(ipconfig getoption "$interface" domain_name_server)"
+          until [ "$(ipconfig getifaddr "$interface")" = "$address" ]; do sleep 1; done
+
       - name: 📂 Checkout code
         uses: actions/checkout@v7
 

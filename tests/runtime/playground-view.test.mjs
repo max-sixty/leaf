@@ -3,7 +3,7 @@ import test from "node:test";
 import { render } from "/vendor/lit.js";
 import { createPlayground } from "../../packages/playground/widgets/playground-view.js";
 
-test("a playground reads its own fields and leaves quoted fields and their outputs alone", () => {
+test("a playground reads its own fields and leaves quoted and generated fields and their outputs alone", () => {
   const host = document.createElement("lf-playground");
   host.id = "quoted-fields-drawing";
   host.innerHTML = `
@@ -12,6 +12,8 @@ test("a playground reads its own fields and leaves quoted fields and their outpu
       <input name="tone" value="quoted"><input type="checkbox" name="quoted" checked>
     </lf-sample>
     <form><input name="case" value="small"></form>
+    <div data-lf-gen="1"><input type="range" name="time" value="0"></div>
+    <select name="speed" data-lf-gen="1"><option value="1">1</option></select>
     <lf-playground-output><output for="tone"></output>
       <lf-sample data-lf-exhibit><lf-playground id="quoted-output-drawing">
         <input name="tone" value="quoted"><input name="inner-tone" value="independent">

@@ -1,6 +1,8 @@
 """Charts and drawn figures: axis labels, theme colors, drawing for the room a chart
 has, failed redraws, and inspecting a merge film by touch and keyboard."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
@@ -23,9 +25,11 @@ from render_harness import (
     open_page,
     plant_quiet_word,
     resized,
+    sending,
 )
 
 from browser.threads import open_panel_thread
+from leaf import event_log as events_model
 from leaf import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1947,3 +1951,441 @@ def _picked(page, svg, box, fx, fy):
         " requestAnimationFrame(done)))"
     )
     return page.locator(svg).evaluate(PICKED)
+
+
+# A comment on one of a chart's points (lf-chart.js, chart-points.js `datumOf`): a line
+# through two series, which draws no element for a datum, a dot chart, and a binned
+# bar chart, whose point is a bin.
+POINT_CHARTS = {
+    "p-line": """{
+  ariaLabel: "Hours to first review by week: backend fell from 31 to 12, frontend rose to 21 then fell",
+  x: {type: "utc", label: null},
+  y: {label: "hours"},
+  marks: [
+    Plot.lineY(
+      [
+        {week: "2026-05-04", team: "backend", hours: 31},
+        {week: "2026-05-11", team: "backend", hours: 26},
+        {week: "2026-05-18", team: "backend", hours: 12},
+        {week: "2026-05-04", team: "frontend", hours: 18},
+        {week: "2026-05-11", team: "frontend", hours: 21},
+        {week: "2026-05-18", team: "frontend", hours: 11},
+      ],
+      {x: "week", y: "hours", stroke: "team"},
+    ),
+  ],
+}""",
+    "p-dots": """{
+  ariaLabel: "Sessions by week, rising from 4,100 to 9,300",
+  x: {label: "week"},
+  y: {label: "sessions"},
+  marks: [
+    Plot.dot(
+      [4100, 5200, 8412, 9300].map((sessions, i) => ({week: i + 1, sessions})),
+      {x: "week", y: "sessions"},
+    ),
+  ],
+}""",
+    "p-bins": """{
+  ariaLabel: "Requests by response time, most between 10 and 20 ms",
+  x: {label: "ms"},
+  y: {label: "requests"},
+  marks: [
+    Plot.rectY(
+      [1, 2, 12, 13, 14, 25].map((ms) => ({ms})),
+      Plot.binX({y: "count"}, {x: "ms", thresholds: [0, 10, 20, 30]}),
+    ),
+  ],
+}""",
+}
+POINTS_PAGE = leaf_page(
+    "chart points",
+    '<h1 id="t">Points</h1><button id="before">Before</button>'
+    + "".join(
+        chart_markup(chart, body).replace("<lf-chart ", '<lf-chart data-height="200" ')
+        for chart, body in POINT_CHARTS.items()
+    ),
+)
+# Each chart's point a comment takes, by its id, and the shape Plot draws for it where it
+# draws one: the reader reaches the line's by keyboard and the others' by pointer.
+POINT_IDS = {
+    "p-line": "point:0;stroke=frontend;x=2026-05-11;y=21;z=frontend",
+    "p-dots": "point:0;x=3;y=8412",
+    "p-bins": "point:0;x1=10;y1=0;x2=20;y2=3",
+}
+POINT_SHAPES = {
+    "p-dots": "[data-lf-part=dot] circle",
+    "p-bins": "[data-lf-part=rect] rect",
+}
+# Where a chart's point stands in its drawing, from what Plot drew for it: the dot's or
+# bin's middle and box, or the frontend line's second vertex; and the box of the mark
+# round the point a comment names, its middle and its size.
+DATUM_AT = """([chart, shapes, index]) => {
+  const el = document.getElementById(chart);
+  const svg = el.querySelector('svg[role=img]');
+  const middle = (box) => [box.x + box.width / 2, box.y + box.height / 2];
+  let at, size = null;
+  if (shapes) {
+    const box = [...svg.querySelectorAll(shapes)][index].getBBox();
+    [at, size] = [middle(box), [box.width, box.height]];
+  } else {
+    const [, frontend] = svg.querySelectorAll('[data-lf-part=line] path');
+    at = frontend.getAttribute('d').match(/-?[\\d.]+,-?[\\d.]+/g)[1].split(',').map(Number);
+  }
+  const marks = [...el.querySelectorAll('.lf-chart-marks > :not(.lf-chart-aim)')];
+  return {at, size, marks: marks.map((mark) => {
+    const box = mark.getBBox();
+    return {at: middle(box), size: [box.width, box.height]};
+  })};
+}"""
+
+
+def _shape_middle(page, chart, index):
+    box = page.locator(f"#{chart} svg[role=img] {POINT_SHAPES[chart]}").nth(index)
+    box = box.bounding_box()
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_comment_takes_the_point_a_chart_s_ring_is_on(engine, request, serve):
+    """Alt over a chart aims at the point the pointer reads, a mark round its ring wearing
+    the aim, while its reading stays up, or after Escape put the reading away, and Alt
+    and a click comment on that point, named in the box by what its preview says. With
+    the chart focused, the point the arrow keys reach is where `c` comments, on a line
+    that draws no shape for it. Each comment names its point by its datum."""
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(POINTS_PAGE))
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    quote = page.locator("#lf-composer-quote")
+
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#p-line")).to_be_focused()
+    for key in ("ArrowRight", "ArrowDown"):
+        page.keyboard.press(key)
+    assert said(page) == ["week May 11, 2026", "team frontend", "hours 21"]
+    # The points the keys reached join no list a reader picks from: each chart offers a
+    # screen reader one response, to the whole chart.
+    render_checks_model.rendered(page)
+    expect(page.locator(".lf-visual-action")).to_have_text(["Respond to chart"] * 3)
+    page.keyboard.press("c")
+    expect(quote).to_have_text(
+        "\u00a7 chart \u00b7 week May 11, 2026, team frontend, hours 21"
+    )
+    page.keyboard.type("Why did frontend rise?")
+    with sending(page, "the line's comment"):
+        page.keyboard.press("Enter")
+
+    # The reader reads the dot's value, which stays up under Alt, and puts the bin's
+    # reading and its ring away with Escape before pressing Alt.
+    preview = page.locator(PREVIEW)
+    for chart, index, words, escaped in (
+        ("p-dots", 2, "week 3, sessions 8,412", False),
+        ("p-bins", 1, "ms 10\u201320, requests 3", True),
+    ):
+        x, y = _shape_middle(page, chart, index)
+        page.mouse.move(x - 2, y - 2)
+        page.mouse.move(x, y)
+        waited_out(page)
+        expect(preview).to_be_visible()
+        if escaped:
+            page.keyboard.press("Escape")
+            expect(preview).to_be_hidden()
+        page.keyboard.down("Alt")
+        if not escaped:
+            render_checks_model.rendered(page)
+            assert said(page) == words.split(", "), chart
+        # The aim stands on the ring round a dot, and on the bar Plot drew for a bin.
+        aimed = page.locator("[data-lf-aimed]")
+        expect(aimed).to_have_count(1)
+        expected = (
+            page.locator(f"#{chart} svg[role=img] {POINT_SHAPES[chart]}").nth(index)
+            if chart == "p-bins"
+            else page.locator(f"#{chart} .lf-chart-aim")
+        )
+        assert aimed.evaluate(
+            "(node, other) => node === other", expected.element_handle()
+        ), chart
+        page.mouse.click(x, y)
+        page.keyboard.up("Alt")
+        expect(quote).to_have_text(f"\u00a7 chart \u00b7 {words}")
+        page.keyboard.type("Why here?")
+        with sending(page, f"{chart}'s comment"):
+            page.keyboard.press("Enter")
+
+    anchors = [
+        event["anchor"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    assert anchors == [
+        {"section": chart, "visual": visual} for chart, visual in POINT_IDS.items()
+    ]
+
+
+def test_a_comment_on_a_chart_s_point_stays_on_its_datum(browser, serve):
+    """A comment on a point is marked on its datum when the page opens, though Leaf
+    lists no other point, and again when a narrower window draws the chart afresh, and
+    opening the comment from the margin takes the reader to its point, which its mark
+    then stands for. A comment whose datum the chart doesn't draw marks no point."""
+    url = serve(POINTS_PAGE)
+    for n, (chart, visual) in enumerate(
+        [*POINT_IDS.items(), ("p-dots", "point:0;x=9;y=1")]
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": f"on-{n}",
+                "author": "user",
+                "revision": 1,
+                "text": "Why here?",
+                "anchor": {"section": chart, "visual": visual},
+            },
+        )
+    page = open_page(browser, url)
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    index = {"p-line": None, "p-dots": 2, "p-bins": 1}
+
+    # A dot's and a vertex's comment wears a ring round its datum; a bin's is marked on
+    # the bar Plot drew, and takes no ring.
+    def stands_on_its_datum():
+        render_checks_model.rendered(page)
+        for chart in POINT_IDS:
+            drawn = page.evaluate(
+                DATUM_AT, [chart, POINT_SHAPES.get(chart), index[chart]]
+            )
+            if chart == "p-bins":
+                assert drawn["marks"] == [], drawn
+                continue
+            assert len(drawn["marks"]) == 1, (chart, drawn)
+            [mark] = drawn["marks"]
+            assert mark["at"] == pytest.approx(drawn["at"], abs=0.5), (chart, drawn)
+            assert mark["size"] == pytest.approx([14, 14], abs=1.5), (chart, drawn)
+            ringed = drawn
+        return ringed
+
+    before = stands_on_its_datum()
+    drawn = page.locator("#p-bins").evaluate("el => el.drawn")
+    resized(page, 700, 900)
+    page.wait_for_function(
+        "(drawn) => document.getElementById('p-bins').drawn !== drawn", arg=drawn
+    )
+    assert stands_on_its_datum()["at"] != before["at"], "the chart drew afresh"
+
+    page.locator('[data-lf-margin-for="p-dots"] .lf-margin-marker').click()
+    expect(
+        page.locator("#p-dots .lf-chart-marks > :not(.lf-chart-aim)")
+    ).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    page.locator('[data-lf-margin-for="p-bins"] .lf-margin-marker').click()
+    expect(
+        page.locator(f"#p-bins svg[role=img] {POINT_SHAPES['p-bins']}").nth(1)
+    ).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+
+
+def test_a_comment_on_a_point_in_a_shut_tab_stands_on_its_chart_until_it_draws(
+    browser, serve
+):
+    """A chart in a shut tab has drawn no point, so a comment on one stands on the
+    chart, and going to it opens the tab, where the chart draws and the comment's mark
+    stands on its point."""
+    dots = chart_markup("p-dots", POINT_CHARTS["p-dots"])
+    url = serve(
+        leaf_page(
+            "a chart in a tab",
+            '<h1 id="t">Tabs</h1><lf-tabs id="views">'
+            '<lf-tab id="words" label="Words"><p id="w">Words first.</p></lf-tab>'
+            f'<lf-tab id="numbers" label="Numbers">{dots}</lf-tab></lf-tabs>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "on-dot",
+            "author": "user",
+            "revision": 1,
+            "text": "Why week 3?",
+            "anchor": {"section": "p-dots", "visual": POINT_IDS["p-dots"]},
+        },
+    )
+    page = open_page(browser, url)
+    expect(page.locator('[data-lf-margin-for="p-dots"]')).to_be_attached()
+    expect(page.locator("#p-dots svg[role=img]")).to_have_count(0)
+    page.keyboard.press("t")
+    mark = page.locator("#p-dots .lf-chart-marks > :not(.lf-chart-aim)")
+    expect(mark).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
+    drawn = page.evaluate(DATUM_AT, ["p-dots", POINT_SHAPES["p-dots"], 2])
+    assert [mark["at"] for mark in drawn["marks"]] == [
+        pytest.approx(drawn["at"], abs=0.5)
+    ]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_c_on_a_chart_takes_the_keys_point_and_hands_focus_back_to_it(
+    engine, request, serve
+):
+    """With the chart focused, `c` comments on the point the keys stand on, though the
+    chart holds a comment on another point, and on the whole chart once Escape has put
+    the point away; leaving the comment box hands focus back to the chart, on the point
+    it was about. Where the keys stand on the commented point, `c` continues its
+    thread."""
+    url = serve(POINTS_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "on-week-3",
+            "author": "user",
+            "revision": 1,
+            "text": "Why week 3?",
+            "anchor": {"section": "p-dots", "visual": POINT_IDS["p-dots"]},
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    composer = page.locator(".lf-composer")
+    quote = page.locator("#lf-composer-quote")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 2", "sessions 5,200"]
+    page.keyboard.press("c")
+    expect(composer).to_be_visible()
+    expect(quote).to_have_text("\u00a7 chart \u00b7 week 2, sessions 5,200")
+    page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    expect(chart).to_be_focused()
+    # A focus handed back previews nothing (preview.js), and the ring stands on the point.
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 2"
+    expect(chart.locator(".lf-chart-at")).to_be_visible()
+
+    page.keyboard.press("ArrowLeft")
+    assert said(page) == ["week 1", "sessions 4,100"]
+    page.keyboard.press("Escape")
+    expect(page.locator(PREVIEW)).to_be_hidden()
+    expect(chart.locator(".lf-chart-at")).to_be_hidden()
+    page.keyboard.press("c")
+    expect(composer).to_be_visible()
+    expect(quote).not_to_have_text(re.compile("week"))
+    page.keyboard.press("Escape")
+    expect(chart).to_be_focused()
+
+    for _ in range(2):
+        page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 3", "sessions 8,412"]
+    page.keyboard.press("c")
+    expect(page.locator(".lf-page-thread .lf-thread-reply leaf-text")).to_be_focused()
+    expect(composer).to_be_hidden()
+
+
+def _seeded(serve, *anchors):
+    """A served points page whose log holds a user's comment on each anchor."""
+    url = serve(POINTS_PAGE)
+    for n, anchor in enumerate(anchors):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "id": f"seeded-{n}",
+                "author": "user",
+                "revision": 1,
+                "text": f"Seeded {n}",
+                "anchor": anchor,
+            },
+        )
+    return url
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_leaving_a_pointed_comment_hands_focus_to_its_point(engine, request, serve):
+    """A comment box opened with Alt on a point hands focus back to the chart on that
+    point, though the pointer has left the chart since."""
+    page = open_page(request.getfixturevalue(engine), serve(POINTS_PAGE))
+    expect(page.locator("#p-dots svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    x, y = _shape_middle(page, "p-dots", 2)
+    page.mouse.move(x - 2, y - 2)
+    page.mouse.move(x, y)
+    page.keyboard.down("Alt")
+    page.mouse.click(x, y)
+    page.keyboard.up("Alt")
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.mouse.move(2, 2)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+    expect(chart).to_be_focused()
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 3"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_link_to_a_chart_s_point_puts_the_reader_on_it(engine, request, serve):
+    """A link naming a point by the chart's id and the point's own lands focus on the
+    chart, standing on that point."""
+    url = serve(
+        POINTS_PAGE.replace(
+            '<button id="before">Before</button>',
+            f'<a id="to-point" href="#p-dots:{POINT_IDS["p-dots"]}">Week 3</a>',
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#p-dots svg[role=img]")).to_be_visible()
+    page.locator("#to-point").focus()
+    page.keyboard.press("Enter")
+    chart = page.locator("#p-dots")
+    expect(chart).to_be_focused()
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 3"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_link_to_another_point_moves_a_focused_chart_s_reading_to_it(
+    engine, request, serve
+):
+    """A chart the keys hold on one point, followed to another of its points by a
+    link, reads the point the link names, though focus arrives as no new focus."""
+    page = open_page(request.getfixturevalue(engine), serve(POINTS_PAGE))
+    expect(page.locator("#p-dots svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    assert said(page) == ["week 2", "sessions 5,200"]
+    page.evaluate("hash => { location.hash = hash; }", f"#p-dots:{POINT_IDS['p-dots']}")
+    expect(page).to_have_url(re.compile("#p-dots:"))
+    expect(chart).to_be_focused()
+    page.wait_for_function(
+        "() => document.getElementById('p-dots').lfPreview()?.name === 'week 3'"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_c_on_a_commented_point_continues_its_thread_beside_one_on_the_chart(
+    engine, request, serve
+):
+    """A thread on the point the keys stand on is the thread there, ahead of one on the
+    whole chart, so `c` continues it rather than starting a second on the point."""
+    url = _seeded(
+        serve,
+        {"section": "p-dots"},
+        {"section": "p-dots", "visual": POINT_IDS["p-dots"]},
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
+    chart = page.locator("#p-dots")
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    page.keyboard.press("Tab")
+    expect(chart).to_be_focused()
+    for _ in range(2):
+        page.keyboard.press("ArrowRight")
+    assert chart.evaluate("el => el.lfPreview()?.name") == "week 3"
+    page.keyboard.press("c")
+    reply = page.locator(".lf-page-thread", has_text="Seeded 1").locator(
+        ".lf-thread-reply leaf-text"
+    )
+    expect(reply).to_be_focused()
+    expect(page.locator(".lf-composer")).to_be_hidden()

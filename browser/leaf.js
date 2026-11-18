@@ -20,6 +20,7 @@ import {
   markPagePresented,
   markPageUpgraded,
   whenArrived,
+  arrivalsOutstanding,
   pageReadiness,
   settlePageInterface,
   afterPresentation,
@@ -185,7 +186,8 @@ async function boot() {
   // it. Keep the synchronous validation seam on Leaf's own bootstrap element so render
   // checks can inspect either distribution without turning it into a package API. These
   // scene readings answer different questions: which readiness fact the page has yet to state
-  // (`pageReadiness`), whether its counted queue or complete finite preparation has
+  // (`pageReadiness`), how many arrivals it has yet to land (`arrivalsOutstanding`),
+  // whether its counted queue or complete finite preparation has
   // settled (`renderingState`), and which native layers expose reading and controls.
   // Job lifecycle tracing binds at enqueue without replacing any rendering callback, and
   // widget preparation tracing at each declaration and its settlement.
@@ -194,6 +196,7 @@ async function boot() {
   );
   if (validationEntry) {
     validationEntry.lfReadiness = pageReadiness;
+    validationEntry.lfArrivalsOutstanding = arrivalsOutstanding;
     validationEntry.lfRenderingState = renderingState;
     validationEntry.lfObserveQueuedWork = observeQueuedWork;
     validationEntry.lfObserveWidgetPreparations = observePreparations;
@@ -488,13 +491,13 @@ async function boot() {
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     openPageThread: app.threadDestinations.openPageThread,
+    threadLanding: anchorTravel.threadLanding,
     repaint,
   });
   const queueWalk = createQueueWalk({
     arriveAtRecord: items.arriveAtRecord,
     arriveAtThread: navigation.arriveAtThread,
     threadPlace: (id) => app.threadDestinations.threadPlace(id),
-    placementVersion: anchorPlacement.placementVersion,
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     announce,

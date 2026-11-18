@@ -221,6 +221,9 @@ export const scrollChoices = () => choices;
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
 /** @param {Element} box */
 const chooseScroll = (box) => chosen.set(box, ++choices);
+// How many moves Leaf has started in `box` (`startScroll`).
+/** @param {Element} box */
+export const scrollStarts = (box) => starts.get(box) ?? 0;
 // Record an explicit landing or a glide before native scroll events: an instant move
 // can coincide with layout, and a new gesture can interrupt a glide before its first
 // frame.
@@ -399,10 +402,10 @@ watchScrollEnds((box) => {
   kept.delete(box);
 });
 
-// Boxes whose content is drawn away from where its layout stands it. A send's stream
-// (box-motion.js) draws a scroller's content where it stood, below where its layout now
-// stands it, and the browser counts that drawing in the box's scroll height while the
-// content rides (`contentRides`, false when the ride ends). Meanwhile the box's height
+// Boxes whose content is drawn away from where its layout stands it. A stream a send
+// or news joins (box-motion.js) draws a scroller's content where it stood, below where
+// its layout now stands it, and the browser counts that drawing in the box's scroll
+// height while the content rides (`contentRides`, false when the ride ends). Meanwhile the box's height
 // is read from its layout each time it is asked, so its end stays where its layout puts
 // it, content arriving mid-ride included, and a landing at the end doesn't chase the
 // ride.
@@ -646,7 +649,13 @@ export function afterBrowserScroll(box, then) {
   return true;
 }
 // The goal is clamped here, so a step pressed on at the foot banks no debt for u to press
-// back through, and an edge may be asked for as the height it cannot exceed. Motion the
+// back through, and an edge may be asked for as the height it cannot exceed. The goal and
+// every write are whole pixels, where the box stands, since a write within a pixel of
+// where the box stands moves nothing (arrivals.js, `setScroll`): a fractional goal would
+// leave the box on whichever pixel the glide's last frame reached, and a step back from
+// there, such as `u` after `d`, would stop a pixel short of the edge. A goal at the end
+// stays the end, which `scrollToEnd` and a glide's `end` compare with `scrollLimit`
+// exactly. Motion the
 // browser drives in the box at the press, or that the glide this replaces had yet to
 // take, is this glide's to take over, and stops where the box stands. Otherwise the
 // glide holds the box from the press, and a hand that moves it before the glide's first
@@ -655,7 +664,8 @@ export function afterBrowserScroll(box, then) {
 export function glideTo(box, top) {
   const replaced = glideIn.get(box);
   const takesOver = replaced ? replaced.wrote === null : browserScrolls(box);
-  const goal = Math.max(0, Math.min(scrollLimit(box), top));
+  const limit = scrollLimit(box);
+  const goal = top >= limit ? limit : Math.max(0, Math.min(limit, Math.round(top)));
   if (!replaced && !takesOver && Math.abs(goal - box.scrollTop) < 0.5) return;
   startScroll(box);
   if (takesOver) stopWhereItStands(box);
@@ -690,7 +700,7 @@ export function glideTo(box, top) {
     if (current.wrote === null) start = box.scrollTop;
     const from = box.scrollTop;
     setScroll(box, {
-      top: goal - (goal - start) * (1 - t) ** 3,
+      top: Math.round(goal - (goal - start) * (1 - t) ** 3),
       behavior: "instant",
     });
     // Where the write left the box, not what it asked for: the box clamps at its ends

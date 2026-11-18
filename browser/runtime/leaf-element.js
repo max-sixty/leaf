@@ -64,6 +64,7 @@ import { SignalWatcher, untracked } from "/vendor/signals-core.js";
 import {
   failSoft,
   failSoftUnreported,
+  inWindowDocument,
   once,
   placesFailure,
   reportFailure,
@@ -210,6 +211,8 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   }
 
   connectedCallback() {
+    // A copy connected in another document neither sets up nor draws (widget-upgrade.js).
+    if (!inWindowDocument(this)) return;
     if (once(this)) this.#setup();
     super.connectedCallback();
   }

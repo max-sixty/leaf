@@ -723,6 +723,9 @@ customElements.define(
         values: this.#values,
         instruction: this.#renderedInstruction.value,
         chosen: () => this.#chosen(),
+        // The submission's action says why it can't be sent (module-state.md, "The
+        // widget controller"), so the bar keeps no rule of its own about delivery.
+        unavailable: this.controller.read().actions.choose?.unavailable ?? null,
       });
       this.#paint();
       return template;

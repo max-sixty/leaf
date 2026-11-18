@@ -5,7 +5,8 @@
    "since": a hold asks whether focus was placed anywhere since it began, since typing in
    the box it holds is the user working there; delayed work asks whether the user did
    anything at all since the gesture that started it. A press on a label leaves the user
-   standing on the control they stood on until the press lands. These are asked over
+   standing on the control they stood on until the press lands, and a press on what a
+   tab panel holds lands where it would without the panel's stop. These are asked over
    happy-dom's focus, which moves focus and fires its events as a browser does but lays
    nothing out. */
 
@@ -233,6 +234,22 @@ test("delayed work gives way to any input since its gesture", () => {
   assert.equal(typed(), false);
 });
 
+test("a placement takes an element of another window as an element", () => {
+  // A playground's preview is a same-origin frame, whose elements are instances of its
+  // own window's `Element`, not this one's, and its range control puts focus back
+  // inside the frame. happy-dom's windows share one `Element`, so the page's own is
+  // swapped for another while the field is placed.
+  const { first } = scene();
+  const own = globalThis.Element;
+  globalThis.Element = class Element {};
+  try {
+    assert.doesNotThrow(() => focusDestination(first, "move"));
+  } finally {
+    globalThis.Element = own;
+  }
+  assert.equal(document.activeElement, first);
+});
+
 test("early input ignores inaccessible foreign events but counts keys before interception", async () => {
   const page = new Window({ url: "https://leaf.test/" });
   try {
@@ -365,6 +382,114 @@ test("a label press whose control takes no focus leaves the user nowhere, by the
   assert.deepEqual(heard, [[null, "move"]]);
   assert.equal(held(), false);
   assert.equal(document.activeElement, document.body);
+});
+
+test("a press on what a tab panel holds lands where it would without the panel's stop", async () => {
+  const { first } = scene();
+  const thread = document.createElement("section");
+  thread.tabIndex = -1;
+  const panel = document.createElement("div");
+  panel.setAttribute("role", "tabpanel");
+  panel.tabIndex = 0;
+  const words = document.createElement("p");
+  words.append("Words in the open tab");
+  panel.append(words);
+  document.body.append(panel);
+  focusDestination(first, "move");
+  heard.length = 0;
+  // The platform focuses the panel at the press, and keeps it there through a drag,
+  // while every reading of where the user is reads where the press will land.
+  pointer("pointerdown", words);
+  panel.focus();
+  await settled();
+  assert.deepEqual(heard, []);
+  assert.equal(document.activeElement, panel);
+  assert.equal(focused(), document.body);
+  pointer("pointerup", words);
+  click(words);
+  await settled();
+  assert.deepEqual(heard, [[null, "move"]]);
+  assert.equal(document.activeElement, document.body);
+
+  // Inside a box a press focuses, the press lands on that box.
+  thread.append(panel);
+  document.body.append(thread);
+  heard.length = 0;
+  pointer("pointerdown", words);
+  panel.focus();
+  assert.equal(focused(), thread);
+  pointer("pointerup", words);
+  click(words);
+  await settled();
+  assert.deepEqual(heard, [[thread, "press"]]);
+
+  // The keyboard reaching the panel stands on it, and a press on its words then lands
+  // as any other does.
+  heard.length = 0;
+  key(thread, "Tab");
+  panel.focus();
+  assert.deepEqual(heard, [[panel, "step"]]);
+  heard.length = 0;
+  pointer("pointerdown", words);
+  pointer("pointerup", words);
+  click(words);
+  await settled();
+  assert.deepEqual(heard, [[thread, "press"]]);
+
+  // A tap focuses at its click, after the release, and lands a task later.
+  heard.length = 0;
+  pointer("pointerdown", words);
+  pointer("pointerup", words);
+  panel.focus();
+  click(words);
+  assert.equal(document.activeElement, panel);
+  assert.equal(focused(), thread);
+  await settled();
+  assert.deepEqual(heard, [[thread, "press"]]);
+
+  // A control that takes no focus from a press, as a button in WebKit, leaves the panel
+  // the browser's focus, and the press lands as one on the panel's words.
+  const button = document.createElement("button");
+  panel.append(button);
+  heard.length = 0;
+  pointer("pointerdown", button);
+  panel.focus();
+  pointer("pointerup", button);
+  click(button);
+  await settled();
+  assert.deepEqual(heard, [[thread, "press"]]);
+});
+
+test("a key or a placement during a press on a tab panel takes over from it", async () => {
+  const { first } = scene();
+  const panel = document.createElement("div");
+  panel.setAttribute("role", "tabpanel");
+  panel.tabIndex = 0;
+  const words = document.createElement("p");
+  words.append("Words in the open tab");
+  panel.append(words);
+  document.body.append(panel);
+  // Away and back by the keyboard while the pointer is held, then the release.
+  pointer("pointerdown", words);
+  panel.focus();
+  key(panel, "Tab");
+  first.focus();
+  key(first, "Tab");
+  panel.focus();
+  pointer("pointerup", words);
+  click(words);
+  await settled();
+  assert.equal(document.activeElement, panel);
+  // A placement on the panel itself.
+  first.focus();
+  heard.length = 0;
+  pointer("pointerdown", words);
+  focusDestination(panel, "move");
+  pointer("pointerup", words);
+  click(words);
+  await settled();
+  assert.deepEqual(heard, [[panel, "move"]]);
+  assert.equal(document.activeElement, panel);
 });
 
 test("a native menu lands a label press, whose release it swallowed", async () => {

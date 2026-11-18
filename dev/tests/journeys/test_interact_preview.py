@@ -44,6 +44,7 @@ from leaf import codex_adapter, hosting, leases, server, service, state
 from leaf.harness import claim_harness
 from leaf.interaction_log import read_interactions
 from leaf.registry.storage import layer_record
+from leaf_dev import arms
 from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import read_fixture, record_run_context
 
@@ -152,7 +153,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
         assert turn_record is not None
         assert turn_record["generation"] == before["generation"]
         assert state.held_claims(sid)
-        assert leases.lock_is_held(preview.preview_lease(page))
+        assert leases.lock_is_held(arms.preview_lease(page))
         assert (current := server.running_server(page)) is not None
         assert current["url"] == url
 
@@ -202,7 +203,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
                 failure=f"chat {retirement} left its page server running",
             )
         wait_for(
-            lambda: leases.lock_is_held(preview.preview_lease(page)),
+            lambda: leases.lock_is_held(arms.preview_lease(page)),
             lambda held: not held,
             failure=f"chat {retirement} left its preview watcher running",
         )
@@ -234,7 +235,7 @@ def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
             hosting.cmd_stop(page)
             state.end_session(sid)
             wait_for(
-                lambda: leases.lock_is_held(preview.preview_lease(page)),
+                lambda: leases.lock_is_held(arms.preview_lease(page)),
                 lambda held: not held,
                 failure="the explicitly stopped detached preview kept watching",
             )
@@ -318,7 +319,7 @@ def test_abandoned_desktop_preview_publishes_no_claim(
     assert task.returncode == 0, f"{output}{errors}"
     assert service.page_claim(page) is None
     assert server.running_server(page) is None
-    assert not leases.lock_is_held(preview.preview_lease(page))
+    assert not leases.lock_is_held(arms.preview_lease(page))
 
 
 def test_preview_publishes_companion_edits_at_its_existing_url(

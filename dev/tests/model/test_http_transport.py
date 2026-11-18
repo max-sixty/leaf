@@ -10,9 +10,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import pytest
 from playwright.sync_api import Error, sync_playwright
 
-from leaf_dev import ROOT
-from leaf_dev.commands.site import verify as verify_site
-from leaf_dev.commands.site.verify import read_state
+from leaf_dev import ROOT, website
+from leaf_dev.website import read_state
 
 
 @pytest.mark.parametrize("failure", ["single_reset", "repeated_reset", "http500"])
@@ -21,7 +20,7 @@ def test_state_transport_retries_resets_and_records_them_without_secrets(
 ):
     # One retry keeps the exhausted case inside the model tier's budget; the backoff
     # between retries is Playwright's.
-    monkeypatch.setattr(verify_site, "STATE_RESET_RETRIES", 1)
+    monkeypatch.setattr(website, "STATE_RESET_RETRIES", 1)
     state_attempts = 0
 
     class Handler(BaseHTTPRequestHandler):

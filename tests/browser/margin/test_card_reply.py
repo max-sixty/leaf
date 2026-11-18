@@ -348,6 +348,88 @@ def test_next_on_me_rings_the_options_a_card_message_asks_with_whole(browser, se
     )
 
 
+# The long thread's section a window's height and more below the page's top, with the
+# page going on past it, so Next On Me from the top travels to it.
+FAR_THREAD_PAGE = leaf_page(
+    "Far thread",
+    '<h1 id="title">Far thread</h1><div style="height: 150vh"></div>'
+    '<section id="open"><h2>What this leaves open</h2>'
+    "<p>Two layers close onto the control that opened them rather than the page.</p>"
+    '</section><div style="height: 200vh"></div>',
+)
+
+
+def test_next_on_me_brings_options_in_a_card_s_answer_into_view(browser, serve):
+    """Next On Me from the page's top reaches the options an agent's reply asks with,
+    in the card of a thread on words far below, and the window shows them, and Back
+    returns to the top. Focus went into the card while the card stood by its words
+    below the window, and the page stayed at its top."""
+    question = {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Claude",
+        "parent": LONG_THREAD_ROOT["id"],
+        "responds": LONG_THREAD_ROOT["id"],
+        "revision": 1,
+        "text": "Which job first?\n\n"
+        '<lf-options id="order">'
+        '<lf-option id="order-mounts" label="Put the mounts back">'
+        "<strong>Put the mounts back</strong></lf-option>"
+        '<lf-option id="order-camera" label="Install the camera">'
+        "<strong>Install the camera</strong></lf-option>"
+        "</lf-options>",
+        "id": "b" * 32,
+    }
+    page = open_page(
+        browser, serve(FAR_THREAD_PAGE, events=[LONG_THREAD_ROOT, question])
+    )
+    page.emulate_media(reduced_motion="reduce")
+    resized(page, 1440, 900)
+    page.keyboard.press("m")
+    options = page.locator(".lf-margin-preview lf-options#order")
+    expect(options).to_be_focused()
+    expect(options).to_be_in_viewport(ratio=1)
+    page.go_back()
+    expect(page.locator("#open")).to_be_attached()
+    page.wait_for_function("scrollY === 0")
+
+
+def test_next_on_me_opens_a_long_question_clear_of_its_words_far_below(browser, serve):
+    """Next On Me from the page's top opens a long question on words far below, in a
+    window with no margin to stand it beside them, and once the page lands the card
+    stands clear of the words. It chose its side as it opened, over words still below
+    the window, and the walk's landing then left it covering them."""
+    question = {
+        **LONG_THREAD[1],
+        "text": "Should the old layer close to the page or to the control? " * 14,
+        "obligation": True,
+    }
+    page = open_page(
+        browser, serve(FAR_THREAD_PAGE, events=[LONG_THREAD_ROOT, question])
+    )
+    resized(page, 1000, 700)
+    page.keyboard.press("m")
+    card = page.locator(".lf-margin-preview")
+    expect(card.locator(f'.lf-msg[data-lf-event="{question["id"]}"]')).to_be_focused()
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
+    rendered(page)
+    words = page.locator("#open p").bounding_box()
+    stands = card.bounding_box()
+    assert stands["height"] > 300, stands
+    assert (
+        stands["y"] >= words["y"] + words["height"]
+        or stands["y"] + stands["height"] <= words["y"]
+    ), {"card": stands, "words": words}
+    # Once it stands, a scroll no input makes leaves the page where it went.
+    landed = page.evaluate("scrollY")
+    page.evaluate("scrollBy(0, 120)")
+    scroll_settled(page)
+    page.wait_for_function(CARD_AT_REST)
+    rendered(page)
+    assert page.evaluate("scrollY") == landed + 120
+
+
 # Whether a message stands wholly between the transcript's top and the reply row pinned
 # over its foot, which is the part of the transcript the user can read.
 SHOWN_ABOVE_THE_REPLY = """message => {

@@ -1004,7 +1004,7 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     native SVG is the other control: a gradient reference is valid paint even though
     it is not a color.
 
-    And the replay check reaches a decision made in the panel. `RELATIVE_REPLAYS`
+    And the replay check reaches a decision made in the panel. `relativeReplays`
     applies every winner in force again and asks whether anything moved; a widget an
     agent sent in a reply is folded by a projection of its own and replayed into a tree
     the panel built, and the probe reads the validation state adapter, which returns
@@ -1297,14 +1297,14 @@ def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
         cut = page.index(start)
         return page[:cut] + page[page.index(end, cut) + len(end) :]
 
-    option = INLINE_PAGE[INLINE_PAGE.index('<section id="opts-decision"') :]
-    option = option[: option.index("</section>") + len("</section>")]
+    option = INLINE_PAGE[INLINE_PAGE.index('<lf-group id="opts-decision"') :]
+    option = option[: option.index("</lf-group>") + len("</lf-group>")]
     # The question the granted figure holds takes its words off the column, which the
     # gate rightly advises against (`words-off-column`); the figure's table stays.
     framed = without(
         tables(FRAMED_TABLES_PAGE, '<table id="bare">'),
-        '<section id="figure-asked"',
-        "</section>",
+        '<lf-group id="figure-asked"',
+        "</lf-group>",
     )
     page = AUTHORED_LINES_PAGE.replace(
         "</main>",
@@ -1654,7 +1654,7 @@ def test_the_readiness_wait_names_the_stage_a_page_still_owes(browser, serve):
         wait_until_ready(page, timeout_ms=EXPECTED_STALL_MS)
     assert unready.value.stage == "log"
     assert str(unready.value) == (
-        f"the runtime never finished replaying the log within {EXPECTED_STALL_MS}ms"
+        f"the runtime never finished replaying the log: no progress in {EXPECTED_STALL_MS}ms"
     )
 
     for route in held:

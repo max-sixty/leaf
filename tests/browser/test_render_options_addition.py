@@ -26,7 +26,9 @@ from render_harness import (
     http_error_console,
     open_page,
     open_threads,
+    rendered,
     round_trip,
+    select,
     sending,
     shown,
     stored_draft_text,
@@ -555,6 +557,49 @@ def test_a_closed_group_answers_only_from_its_options(browser, serve):
     # Nor does it keep the field's number: Done takes the one after the last option.
     page.keyboard.press("m")
     expect(page.locator("#jobs > lf-options-done .lf-key-badge")).to_have_text("4")
+
+
+def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
+    """Firefox, asked for the contents of a selection a drag carried through the add
+    field's shadow root, copies the Document itself and upgrades and connects the
+    widgets it copies there before it throws. A highlighter extension asks that of every
+    selection the user makes. The copy stays markup: a copied group that set up would
+    build its add field there, whose style sheet that document refuses, and the page
+    would report the refusal to the agent."""
+    page = open_page(firefox_browser, serve(OBLIGATION_PAGE))
+    # The extension's reading of the selection, which it makes as the drag ends.
+    page.evaluate("""() => {
+      window.copies = [];
+      document.addEventListener("mouseup", () => {
+        try {
+          getSelection().getRangeAt(0).cloneContents();
+          copies.push("cloned");
+        } catch (error) {
+          copies.push(error.name);
+        }
+      });
+    }""")
+    page.locator("#bracket-decision").scroll_into_view_if_needed()
+    # From inside an option's words to over the field, where Firefox has moved the
+    # selection into the field's shadow root by the time the drag ends.
+    start = page.locator("#br-steel").evaluate("""option => {
+      const text = [...option.childNodes].find((node) => node.data?.includes("drop-in"));
+      const range = document.createRange();
+      range.setStart(text, text.data.indexOf("drop-in"));
+      range.setEnd(text, text.data.indexOf("drop-in") + 1);
+      const box = range.getBoundingClientRect();
+      return [box.x, box.y + box.height / 2];
+    }""")
+    field = page.locator("#bracket > .lf-another leaf-text").bounding_box()
+    select(page, start, (field["x"] + 230, field["y"] + field["height"] / 2), steps=15)
+    # The throw says Firefox still copies the Document, so the drag reached the copy this
+    # guards.
+    page.wait_for_function("copies.length")
+    assert page.evaluate("copies") == ["HierarchyRequestError"], (
+        "Firefox now clones the range alone: drop `inWindowDocument` from "
+        "widget-upgrade.js and leaf-element.js, and this test"
+    )
+    rendered(page)
 
 
 def test_another_option_becomes_a_real_option_without_starting_a_thread(browser, serve):

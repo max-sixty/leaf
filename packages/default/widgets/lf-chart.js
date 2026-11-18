@@ -19,8 +19,9 @@
  * sets beside it are drawn to fill it and move nothing below it. Its type and ink are
  * the theme's, and so are its series colours, because Plot takes `var(--lf-series-N)`
  * wherever it takes a colour. A user who cannot see it hears Plot's `ariaLabel` in its
- * place. It is one comment target, through `visual: whole`. And a chart that
- * cannot draw says why over its own source.
+ * place. A comment takes the whole chart, or the point the reader is on (below) as a
+ * part of it named by its datum. And a chart that cannot draw says why over its own
+ * source.
  *
  * A chart says the value under the reader's aim (chart-points.js says which marks and
  * how): the point nearest a resting pointer or a held finger, by Plot's pointer's rule,
@@ -42,6 +43,25 @@
  * stands over the drawing (preview.js), so a pointer moving toward it to read it
  * crosses the drawing's empty space, and clearing there would take the reading away
  * from under the reader's eye.
+ *
+ * A comment on a point is about the point the reader is on. Leaf's aim and a pointed
+ * comment take the point the pointer is on wherever it stands in the drawing: the one
+ * its ring is on, or the one it rests on whose reading Escape or a press put away. ⌥
+ * alone leaves the reading standing (preview.js). Focus on the chart takes the point
+ * the ring is on, so the keys reach one too, and the whole chart once Escape has put
+ * the ring away, as does ⌥ where no point is within reach or over a legend. The comment
+ * names its point by its datum (chart-points.js, `datumOf`). Leaf marks the point on
+ * the bar, bin or cell Plot drew for it, as it marks any drawing's shape, and on a ring
+ * the chart draws round a dot or a line's vertex, and travels to it. The chart is where
+ * Leaf puts the reader for a point, its reading moved to that point (`focus`), as
+ * travel to a comment on it and the hand back from one do. So Leaf learns of only
+ * those points (`registerVisualParts`, with `find` and `at`), and the cost grows with
+ * the comments rather than the data: a drawing holds no element for each dot, a line
+ * none at all, and a list of every point would cost Leaf's picker a hint for each and
+ * offer the reader nothing they could aim at, so the chart lists none. A comment whose
+ * datum the drawing lacks stands on the whole chart, named by its datum's values, since
+ * a chart in a shut tab has drawn nothing yet and one whose body reads its width may
+ * draw a datum at one width and not another.
  *
  * The vendored bundle loads once, on the first draw rather than with this module: a chart
  * in a shut panel has no box, so measure holds its draw, and the 384KB bundle waits with
@@ -71,23 +91,45 @@ import {
   nextRender,
   once,
   previewChanged,
+  registerVisualParts,
   sizeObserver,
 } from "/runtime/portable-api.js";
 import {
   cross,
+  datumOf,
+  datumPoint,
+  datumWords,
   nearest,
   readPoints,
-  sameDatum,
   sayPoint,
+  shapeOf,
   step,
 } from "./chart-points.js";
 
 const SVG = "http://www.w3.org/2000/svg";
+// The prefix of a point's id as a comment target, which the registry declares.
+const POINT = "point:";
 
 /** @typedef {import("./chart-points.js").Point} Point
  * @typedef {import("./chart-points.js").PlotBundle} PlotBundle
- * @typedef {import("./chart-points.js").Reading & {svg: SVGSVGElement, ring: SVGGElement}} Reading
+ * @typedef {import("./chart-points.js").Reading & {svg: SVGSVGElement, ring: SVGGElement, marks: SVGGElement, aim: SVGCircleElement}} Reading
+ * @typedef {{id: string, element: Element, label: string}} Part
  * @typedef {"pointer" | "focus" | "key"} By */
+
+// A ring round a dot or a line's vertex, wider than the chart's own ring, where Leaf
+// marks the point for its aim and a comment on it.
+/** @param {SVGCircleElement} mark @param {Point} point */
+function ringRound(mark, point) {
+  keeps(mark, "cx", String(point.x));
+  keeps(mark, "cy", String(point.y));
+}
+
+// What a point says, on one line, as a comment on it is named.
+/** @param {Point} point */
+const pointWords = (point) => {
+  const { name, detail } = sayPoint(point);
+  return [name, ...detail].filter(Boolean).join(", ");
+};
 
 let plotReady;
 const loadPlot = () => (plotReady ??= import("/vendor/plot.esm.js"));
@@ -162,7 +204,8 @@ customElements.define(
     drawn;
     // The points the drawing showing says, the one the reader is on and what brought
     // them there, whether a pointer or finger is over the drawing, the point the keys
-    // step on from once Escape has put the keyboard's reading away, and the one the
+    // step on from once Escape has put the keyboard's reading away or focus has left
+    // the chart, and the one the
     // pointer rests on whose reading the page put away, quiet until the pointer reaches
     // another.
     /** @type {Reading | null} */
@@ -182,6 +225,16 @@ customElements.define(
     /** @type {object | null} */
     #declared = null;
     #presses = 0;
+    // The points Leaf has named by id in the drawing showing, each with its point and
+    // the mark drawn at it (`#find`), or null for one the drawing lacks; whether Leaf
+    // has asked for any, in this drawing or before it; the registration Leaf names them
+    // through; and whether the next rendering pass tells Leaf they changed.
+    /** @type {Map<string, {point: Point, part: Part} | null>} */
+    #marks = new Map();
+    #asked = false;
+    /** @type {{update: () => void} | null} */
+    #parts = null;
+    #telling = false;
 
     // What the point the reader is on says, standing above its ring, on every route,
     // in a new object each time. Off a point the chart adds nothing, so what holds it
@@ -200,6 +253,15 @@ customElements.define(
 
     connectedCallback() {
       if (!once(this)) return;
+      // The chart lists no point for a reader to pick from a list: its own aim and keys
+      // reach each point, and Leaf finds a comment's point by its id.
+      this.#parts = registerVisualParts(this, () => [], {
+        find: (id) => this.#find(id),
+        at: (node) => this.#partAt(node),
+        focus: (id) => this.#focusOn(id),
+        label: (id) =>
+          id.startsWith(POINT) ? datumWords(id.slice(POINT.length)) : null,
+      });
       whileConnected(this, (signal) => {
         // The pointer and a finger read the point nearest them on the drawing, by
         // Plot's pointer's rule, and nothing elsewhere, as over a legend: one reading
@@ -238,21 +300,27 @@ customElements.define(
           { signal, passive: true },
         );
         this.addEventListener("pointerleave", () => this.#leave(), { signal });
-        // Focus the browser shows lands the reader on a point, the one they are on or
-        // the first, which the arrows then step from: the keyboard's from then on.
+        // Focus the browser shows lands the reader on a point, the one they are on, the
+        // one the keys left them on, or the first, which the arrows then step from: the
+        // keyboard's from then on. Focus Leaf puts on a point has put them on it already
+        // (`#focusOn`).
         this.addEventListener(
           "focus",
           () => {
             if (this.#reading && this.matches(":focus-visible"))
-              this.#choose(this.#at ?? step(this.#reading, null, "first"), "focus");
+              this.#choose(
+                this.#at ?? this.#place ?? step(this.#reading, null, "first"),
+                "focus",
+              );
           },
           { signal },
         );
-        // Leaving the chart ends the keyboard's hold on its point.
+        // Leaving the chart takes the ring off a point the keys hold, which stays the
+        // point they step on from.
         this.addEventListener(
           "blur",
           () => {
-            this.#place = null;
+            if (this.#at && this.#by !== "pointer") this.#place = this.#at;
             this.#choose(this.#over ? this.#at : null, "pointer");
           },
           { signal },
@@ -284,6 +352,7 @@ customElements.define(
               if (this.matches(":focus")) this.#place = read;
               if (this.#over) this.#away = read;
               this.#choose(null, "pointer");
+              this.#placeAim();
             });
           },
           { signal },
@@ -424,19 +493,126 @@ customElements.define(
 
     // A new drawing's points. The reader stays on the point they were on, drawn again
     // where it now stands. A chart with none to read takes no Tab stop and no keys.
+    // Leaf, where it has asked for a point, hears that it may ask again (`#find`).
     /** @param {Reading | null} reading */
     #read(reading) {
       const at = this.#at;
+      /** @param {Point | null} point */
+      const again = (point) =>
+        reading && point ? datumPoint(reading, datumOf(point)) : null;
       this.#reading = reading;
       this.#at = null;
-      this.#place = reading && this.#place ? sameDatum(reading, this.#place) : null;
-      this.#away = reading && this.#away ? sameDatum(reading, this.#away) : null;
+      this.#place = again(this.#place);
+      this.#away = again(this.#away);
+      this.#marks = new Map();
+      if (this.#asked) this.#tell();
       const points = reading?.points.length ?? 0;
       keeps(this, "tabindex", points ? "0" : null);
       this.lfCommands = reading && points ? this.#keys(reading) : null;
       commandsChanged(this);
-      if (reading && at) this.#choose(sameDatum(reading, at), this.#by);
+      if (reading && at) this.#choose(again(at), this.#by);
       else if (at) previewChanged(this);
+      this.#placeAim();
+    }
+
+    // The point an id names in the drawing showing, or null where the drawing has no
+    // such datum: the bar, bin or cell Plot drew for it, or a ring drawn round it once
+    // Leaf asks, which stays until the next drawing, as one does round a bar a render
+    // transform has drawn again (`shapeOf`). Leaf asks for a comment's point each time
+    // it places comments, and for the point `c` would comment on, the one the reader is
+    // on, at each key step, which is found without a search of the drawing. So until
+    // the next drawing a ring, unseen until Leaf strokes it, stands round each dot or
+    // vertex the keys or a comment reached.
+    /** @param {string} id */
+    #find(id) {
+      const reading = this.#reading;
+      if (!id.startsWith(POINT)) return null;
+      this.#asked = true;
+      if (!reading) return null;
+      let found = this.#marks.get(id);
+      // A bar a render transform has drawn again, or joined to other data, is no longer
+      // the point's (`shapeOf`), where a ring stays its point's.
+      const { element } = found?.part ?? {};
+      if (
+        found &&
+        element &&
+        !reading.marks.contains(element) &&
+        shapeOf(reading, found.point) !== element
+      )
+        found = undefined;
+      if (found === undefined) {
+        const datum = id.slice(POINT.length);
+        const point =
+          this.#at && datumOf(this.#at) === datum
+            ? this.#at
+            : datumPoint(reading, datum);
+        found = point && { point, part: this.#mark(reading, point, id) };
+        this.#marks.set(id, found);
+      }
+      return found?.part ?? null;
+    }
+
+    /** @param {Reading} reading @param {Point} point @param {string} id
+     * @returns {Part} */
+    #mark(reading, point, id) {
+      let mark = shapeOf(reading, point);
+      if (!mark) {
+        const ring = document.createElementNS(SVG, "circle");
+        ring.setAttribute("r", "7");
+        ringRound(ring, point);
+        reading.marks.append(ring);
+        mark = ring;
+      }
+      return { id, element: mark, label: pointWords(point) };
+    }
+
+    // Puts the reader on the point an id names, as Leaf places focus on the chart for
+    // it, travelling to a comment on it or handing the reader back from one: the chart
+    // takes that focus itself, since a mark is no place to stand. The reading moves
+    // now, since the chart may hold focus already, as it does when a link to another
+    // of its points is followed, and focus it holds arrives as no new focus.
+    /** @param {string} id */
+    #focusOn(id) {
+      const reading = this.#reading;
+      const point =
+        reading && id.startsWith(POINT)
+          ? datumPoint(reading, id.slice(POINT.length))
+          : null;
+      if (point) this.#choose(point, "focus");
+    }
+
+    // The point a node of the chart stands for: for a node of the drawing, the point
+    // the pointer aims at (`#placeAim`), and for the chart itself while it holds focus,
+    // the point the reader is on. Leaf marks it on the bar Plot drew for it, or the
+    // ring round it.
+    /** @param {Element} node */
+    #partAt(node) {
+      const reading = this.#reading;
+      const point =
+        node === this
+          ? this.matches(":focus")
+            ? this.#at
+            : null
+          : reading?.svg.contains(node)
+            ? (this.#at ?? this.#away)
+            : null;
+      if (!reading || !point) return null;
+      return {
+        id: `${POINT}${datumOf(point)}`,
+        element: shapeOf(reading, point) ?? reading.aim,
+        label: pointWords(point),
+      };
+    }
+
+    // Tells Leaf, in its next rendering pass, that a new drawing holds none of the marks
+    // it found, so it finds them again.
+    #tell() {
+      if (this.#telling) return;
+      this.#telling = true;
+      nextRender(() => {
+        this.#telling = false;
+        this.#parts?.update();
+      });
     }
 
     // The arrows step along the series the points stand in, along the axis they stand
@@ -500,7 +676,20 @@ customElements.define(
           keeps(rule, "y2", String(across ? 0 : point.drawn.bottom - point.y));
         }
       }
+      this.#placeAim();
       previewChanged(this, { aim: aim && point !== null });
+    }
+
+    // The mark round the point a pointer on the drawing aims at (`#partAt`): the
+    // point it reads, or the one it rests on whose reading the page put away, as Escape
+    // or a press does. It draws nothing of its own.
+    #placeAim() {
+      const reading = this.#reading;
+      if (!reading) return;
+      const point = this.#at ?? this.#away;
+      const ringed = point && !shapeOf(reading, point) ? point : null;
+      keeps(reading.aim, "display", ringed ? null : "none");
+      if (ringed) ringRound(reading.aim, ringed);
     }
 
     // The point nearest a place in the window, by Plot's pointer's rule, or none.
@@ -538,6 +727,7 @@ customElements.define(
     #leave() {
       this.#over = false;
       this.#away = null;
+      this.#placeAim();
       if (this.#by !== "pointer" || this.#declared) return;
       this.#choose(null, "pointer");
     }
@@ -575,8 +765,9 @@ customElements.define(
       const drawing = [built, ...built.children].find((node) =>
         node.matches("svg[aria-label]"),
       );
-      // The drawing is one picture and takes a whole-widget comment, so nothing inside
-      // it needs to be reachable on its own. `role="img"` closes the tree under it, and
+      // The drawing is one picture, whose points the chart says itself (`lfPreview`,
+      // `announce`), so nothing inside it needs to be reachable on its own to a screen
+      // reader. `role="img"` closes the tree under it, and
       // Plot names every group inside — `aria-label="bar"`, `"x-axis tick label"` — on
       // `<g>` elements carrying no role, which axe reports as a serious WCAG failure.
       // Kept as data, because what Plot calls each group is the only thing that names
@@ -597,13 +788,22 @@ customElements.define(
       // Plot writes a mark's `title` channel as each shape's <title>, the platform's
       // tooltip, which would stand beside the preview that says it.
       for (const title of drawing.querySelectorAll("title")) title.remove();
+      // The marks of the points comments name (`#find`), and of the point the reader is
+      // on (`#partAt`), which goes where the ring goes, under the ring.
+      const marks = document.createElementNS(SVG, "g");
+      marks.setAttribute("class", "lf-chart-marks");
+      const aim = document.createElementNS(SVG, "circle");
+      aim.setAttribute("class", "lf-chart-aim");
+      aim.setAttribute("r", "7");
+      aim.setAttribute("display", "none");
+      marks.append(aim);
       const ring = document.createElementNS(SVG, "g");
       ring.setAttribute("class", "lf-chart-at");
       ring.setAttribute("display", "none");
       const dot = document.createElementNS(SVG, "circle");
       dot.setAttribute("r", "4");
       ring.append(document.createElementNS(SVG, "line"), dot);
-      drawing.append(ring);
+      drawing.append(marks, ring);
       return {
         built,
         legend: built !== drawing,
@@ -611,6 +811,8 @@ customElements.define(
           ...points.done(),
           svg: /** @type {SVGSVGElement} */ (drawing),
           ring,
+          marks,
+          aim,
         },
       };
     }

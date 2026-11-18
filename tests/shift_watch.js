@@ -5,9 +5,10 @@
 // modelled in general for any markup, never for one shape Leaf ships: scrolling,
 // which layout coordinates remove, except where it carries the control a gesture was
 // made on (Scrolls a gesture makes); sticky positioning, through its scroller's travel;
-// CSS anchor positioning, through its anchor's scroll; and native animation that a
+// CSS anchor positioning, through its anchor's scroll; native animation that a
 // scroll drives or an input began (Each trusted gesture), through sampled translation
-// or reflow from size changes.
+// or reflow from size changes; and native translation that draws a layout step the page
+// took without input (Carries of a step).
 // Beside those, it credits only what that rule itself declares:
 // a gesture's rendering, the document while it parses, the page before it
 // presents or as it returns from a hidden tab, runtime regions declared with
@@ -147,6 +148,27 @@
 // (`stickyInsetMotion`). Scale, rotation and
 // composed effects receive no inferred translation credit.
 //
+// Carries of a step. A box that follows its own layout draws a step its layout took as
+// travel: once it reads the step, in the ResizeObserver delivery after it or where a
+// placed box's placement lands, box-motion.js begins a carry that draws each part it
+// moved where the part was and slides it to where it stands, including a step news
+// made. The sensor reads as such a carry a translation begun while no input's rendering
+// is open whose last keyframe draws its target where its layout puts it and whose first
+// draws it elsewhere (`carrySteps`); it drew its underlying style until it began, and
+// the readings from before its step are kept while it moves. Its sampled translation is
+// credited only while it keeps a node between where the reading before the step drew it
+// and where the node's layout stands net of the carry (`carriesWithin`). A node first
+// read in the step or after rides a carry only as far as one draws a node read before
+// it, as a turn news adds rides the stream it joins. The step itself is judged as if
+// drawn at once: append growth's permission and a size change's reflow are asked of
+// layout net of the carry (`restingLayout`), a step is asked even where the carry draws
+// the node where it was, so no reading shows it move, and a move the step made that the
+// carry draws back stands, since the carry ends where layout puts the node. So a carry
+// may draw part of a step at once, as the step itself may draw all of it at once, but
+// it may not draw a node beyond either end of the step, nor make a step news may not
+// take pass. A translation that ends elsewhere is no carry, and a carry that draws no
+// step holds no node within one, so both fail as before.
+//
 // Runs of motion. Movement without input is judged from the sensor's own readings,
 // which add up a slow animation's steps, rather than from Chrome's layout-shift
 // entries. Chrome reports a shift only of layout, never of a transform, and only for a
@@ -162,9 +184,13 @@
 // to the move a starved host draws in one frame, and both fail. A declaration's
 // permission (append growth, widening, reflow) is asked only of one frame's step, since
 // two permitted transitions need not form one from the first frame to the last, and
-// the run's comparison takes away what each step it permitted moved. A landmark first
-// read during the run, or read again after it left the page, is compared from the
-// frame that read it then.
+// the run's comparison takes away what each step it permitted moved. Append growth's
+// permission stands whether or not the node shows at its step, since a carry can keep
+// the run going until a later frame shows it. A landmark first read during the run,
+// read again after it left the page, or held by a popover that opened since the frame
+// before, is compared from the frame that read it then. A popover closed and shown
+// again in one task, as a preview that stands by the next target the pointer reaches
+// is, never reads as gone, but what it shows is a new appearance, not a move.
 //
 // A landmark held by a box whose scroll offset changed in a frame, the root's
 // included, is judged on that frame's step alone, and from where that frame left it.
@@ -621,12 +647,17 @@
   // opens the popover sets its anchor: one made while it stands open, or one that
   // throws, leaves the anchor the browser kept.
   const implicitAnchors = new WeakMap();
+  // When each popover last opened, for `reopened`.
+  const openedAt = new WeakMap();
+  let lastOpened = -Infinity;
   for (const method of ["showPopover", "togglePopover"]) {
     const native = HTMLElement.prototype[method];
     HTMLElement.prototype[method] = function (options) {
       const wasOpen = this.matches(":popover-open");
       const result = native.call(this, options);
       if (!wasOpen && this.matches(":popover-open")) {
+        lastOpened = nativePerformance.now();
+        openedAt.set(this, lastOpened);
         const source = options instanceof Object ? options.source : null;
         if (source instanceof Element) implicitAnchors.set(this, source);
         else implicitAnchors.delete(this);
@@ -634,6 +665,16 @@
       return result;
     };
   }
+  // Whether the popover holding `node` opened after `since` (the header's "Runs of
+  // motion").
+  const reopened = (node, since) => {
+    if (lastOpened <= since) return false;
+    for (let box = node; box; box = up(box)) {
+      const at = openedAt.get(box);
+      if (at !== undefined) return at > since;
+    }
+    return false;
+  };
   const implicitAnchor = (node, style) =>
     style.positionAnchor === "auto" && node.matches(":popover-open")
       ? (implicitAnchors.get(node) ?? null)
@@ -1258,7 +1299,7 @@
       consumers,
     });
     continueMotion(animation);
-    if (moves(animation)) deliveredBy()?.own.add(animation);
+    beginsOwned(animation, at);
     return animation;
   };
   // Reusing a native effect is a new operation when play resumes or reverse changes
@@ -1280,7 +1321,7 @@
         beganAt.set(this, { at });
         if (origin) origins.set(this, origin);
         continueMotion(this);
-        if (moves(this)) deliveredBy()?.own.add(this);
+        beginsOwned(this, at);
       }
       return result;
     };
@@ -1360,6 +1401,29 @@
           .map((property) => [property, animatedValue(effect.target, style, property)]),
       );
       const readings = animated.get(animation) ?? [];
+      // A carry drew its underlying style until it began, so a comparison from a
+      // reading before it credits its first step too.
+      if (!readings.length && origin && carrySteps.has(animation))
+        readings.push({
+          at: -Infinity,
+          values: Object.fromEntries(
+            Object.keys(values)
+              .filter((property) => property in origin)
+              .map((property) => [property, origin[property]]),
+          ),
+          axes: translationAxes(effect.target),
+          scroll: null,
+          keyframes: effect.getKeyframes(),
+          consumers: inheritedBindings(animation).map((binding) => {
+            const reading = inheritedReading(animation, binding, false);
+            return (
+              reading && {
+                ...reading,
+                value: origin.consumers?.get(reading.node) ?? reading.value,
+              }
+            );
+          }),
+        });
       readings.push({
         at,
         values,
@@ -1981,6 +2045,67 @@
   };
   const deliveredBy = () =>
     delivering > 0 && open && !open.told && open.drawsIn === frameCount ? open : null;
+  // A carry draws its target back to where its layout puts it: a translation whose last
+  // keyframe moves the target by nothing and whose first moves it by something.
+  const carriesBack = (animation) => {
+    const properties = animationProperties(animation);
+    if (
+      !properties.length ||
+      !properties.every((p) => ["translate", "transform"].includes(p))
+    )
+      return false;
+    const keyframes = animation.effect?.getKeyframes() ?? [];
+    const bound = translationBindings.get(animation)?.match(/var\(\s*(--[-\w]+)/)?.[1];
+    const shifts = (keyframe) =>
+      properties.map((property) => {
+        const value =
+          keyframe[property] ??
+          (property === "translate" && bound ? keyframe[bound] : null);
+        return value == null ? null : animationTranslation(property, value);
+      });
+    const still = (shift) =>
+      shift && Math.abs(shift.left) < 0.5 && Math.abs(shift.top) < 0.5;
+    return (
+      keyframes.length > 1 &&
+      shifts(keyframes.at(-1)).every(still) &&
+      shifts(keyframes[0]).some((shift) => shift && !still(shift))
+    );
+  };
+  // An effect no rendering owns, begun while no input's rendering or preparation's
+  // landing is open, that carries its target back to its layout place (`carriesBack`)
+  // draws a layout step the page took without input, as box-motion.js carries what news
+  // moved, in the ResizeObserver delivery after the step or where a placed box's
+  // placement lands. An effect a rendering owned that resumes is still that rendering's.
+  // Each keeps when it began, and when the frame before the latest reading was read, the
+  // earliest reading that can already hold that step (`carriesWithin`). The ones still
+  // moving are credited each frame, within that step (`carriedMotion`).
+  const carrySteps = new WeakMap();
+  const carrying = new Set();
+  const beginsOwned = (animation, at) => {
+    if (!moves(animation)) return;
+    const owner = deliveredBy();
+    if (owner) owner.own.add(animation);
+    else if (
+      !(open && !open.told) &&
+      !landing.size &&
+      !renderings.some((rendering) => rendering.own.has(animation)) &&
+      carriesBack(animation)
+    ) {
+      const step = frames.at(-2)?.at ?? -Infinity;
+      carrySteps.set(animation, { began: at, step });
+      carrying.add(animation);
+      // A move the step made that waits to be judged, read where layout put it, the
+      // carry draws back where the move found it, but it ends where layout puts the
+      // node, so the move stands (`admittedMotion`).
+      const target = animation.effect.target;
+      for (const move of pendingMotion) {
+        const element =
+          move.node.nodeType === Node.TEXT_NODE ? up(move.node) : move.node;
+        if (move.after >= step && ancestryAt(element, move.after).includes(target))
+          move.hidden = true;
+      }
+    }
+  };
   // The typing rule stops reading the open rendering, which runs on.
   const unwatch = () => {
     if (open?.typing?.until === Infinity)
@@ -2108,6 +2233,9 @@
     for (const rendering of renderings)
       for (const animation of rendering.own)
         if (activeMotion(animation)) motion.push(animation);
+    for (const animation of carrying)
+      if (activeMotion(animation)) motion.push(animation);
+      else carrying.delete(animation);
     audit();
     standingMotion();
     standingTyping();
@@ -2702,7 +2830,7 @@
     // layout coordinates are read net of.
     let lift = () => 0;
     const read = (node, at, screen = false) => {
-      const rect = screen ? boxAt(node, at) : layoutAt(node, at);
+      const rect = screen ? restingBox(node, at) : restingLayout(node, at);
       if (!rect || screen) return rect;
       const by = lift(at);
       return { ...rect, top: rect.top - by, bottom: rect.bottom - by };
@@ -2727,12 +2855,13 @@
       );
     };
     // How far `node`'s foot moved down on screen.
-    const drop = (node) => boxAt(node, last).bottom - boxAt(node, first).bottom;
+    const drop = (node) =>
+      restingBox(node, last).bottom - restingBox(node, first).bottom;
     // Whether `node` keeps its sides while its head rises and its foot holds or
     // grows; how far the head rose, or 0. A rising port's growth bounds the two
     // together.
     const headRise = (node) => {
-      const rects = around.map(({ at }) => boxAt(node, at));
+      const rects = around.map(({ at }) => restingBox(node, at));
       if (!rects.every(Boolean)) return 0;
       const rise = rects[0].top - rects[2].top;
       return rise >= 1 &&
@@ -2764,8 +2893,8 @@
       const rise =
         port && around.every(({ at }) => paintAt(port, at)?.rises) ? headRise(port) : 0;
       if (rise) {
-        const head = boxAt(port, first).top;
-        lift = (at) => boxAt(port, at).top - head;
+        const head = restingBox(port, first).top;
+        lift = (at) => restingBox(port, at).top - head;
       }
       // Hidden checkpoints may disappear when their visible tail becomes an answer.
       // Only children with a box contribute to the prefix whose geometry we protect.
@@ -2874,11 +3003,32 @@
           by: grown,
           rise,
           stand,
-          head: boxAt(port, first).top,
+          head: restingBox(port, first).top,
         },
       ];
     });
   };
+  // Where `node` stands at `at` net of the carries drawing it then (`carrySteps`), which
+  // is where its layout put it. A declaration's permission and a size change's reflow
+  // are asked of that place, so they judge the step a carry draws, not its way there.
+  const carriesAt = (at) => {
+    const frame = frames.findLast((reading) => reading.at <= at);
+    return [
+      ...new Set([
+        ...(frame?.motion ?? []),
+        ...[...carrying].filter((animation) => carrySteps.get(animation).began <= at),
+      ]),
+    ].filter((animation) => carrySteps.has(continued(animation)));
+  };
+  const resting = (rect, node, at) => {
+    if (!rect) return rect;
+    const carries = carriesAt(at);
+    if (!carries.length) return rect;
+    const drawn = animationMotion(node, -Infinity, at, carries);
+    return drawn.left || drawn.top ? unmoved(rect, drawn) : rect;
+  };
+  const restingBox = (node, at) => resting(boxAt(node, at), node, at);
+  const restingLayout = (node, at) => resting(layoutAt(node, at), node, at);
   // How far the append growth `growth` carried `node` between `around`'s frames, in
   // layout pixels, where that carry is its whole move; otherwise nothing.
   const permittedAppend = (node, previousRect, currentRect, around, growth) => {
@@ -2886,8 +3036,8 @@
       last = around[2].at;
     const element = node.nodeType === Node.TEXT_NODE ? up(node) : node;
     const ancestry = around.map(({ at }) => ancestryAt(element, at));
-    const before = layoutAt(node, first),
-      after = layoutAt(node, last);
+    const before = restingLayout(node, first),
+      after = restingLayout(node, last);
     if (!before || !after) return false;
     const carries = growth.filter(
       ({ source, port, bottom }) =>
@@ -2903,7 +3053,7 @@
         ({ port, stand, head }) =>
           ancestry.every((parents) => parents.includes(port)) ||
           (ancestry.every((parents) => parents.includes(stand)) &&
-            boxAt(node, first).bottom <= head + 1),
+            restingBox(node, first).bottom <= head + 1),
       )
       .reduce((sum, each) => sum + each.rise, 0);
     if (!by && !rise) return false;
@@ -2930,7 +3080,7 @@
         (owner) => owner !== sticky && paintAt(owner, last)?.scrollportY,
       );
       if (!carries.every((each) => each.port === port)) return false;
-      const prior = layoutAt(sticky, first),
+      const prior = restingLayout(sticky, first),
         paint = paintAt(sticky, last),
         portPaint = paintAt(port, last),
         portBox = boxAt(port, last),
@@ -3466,8 +3616,8 @@
         paintAt(target, to)?.display !== "contents",
     );
     if (!holders.length) return;
-    const first = layoutAt(node, from),
-      last = layoutAt(node, to);
+    const first = restingLayout(node, from),
+      last = restingLayout(node, to);
     if (!first || !last) return;
     const between = (value, a, b) =>
       value >= Math.min(a, b) - 1 && value <= Math.max(a, b) + 1;
@@ -3644,8 +3794,8 @@
         if (!properties.some((property) => SIZE_GEOMETRY.has(property))) continue;
         const before = boxAt(target, from),
           after = boxAt(target, to);
-        const first = layoutAt(element, from),
-          last = layoutAt(element, to);
+        const first = restingLayout(element, from),
+          last = restingLayout(element, to);
         for (const axis of ["left", "top"]) {
           const size = axis === "top" ? "height" : "width";
           const logicalSize = axis === "top" ? "blockSize" : "inlineSize";
@@ -3845,6 +3995,108 @@
     width: rect.width,
     height: rect.height,
   });
+  // Whether the carries of a layout step (`carrySteps`) keep `node`, at `to`, between
+  // where the reading before that step drew it and where its layout stands net of them,
+  // on each axis. The last reading before they began may already hold the step, as one
+  // the frame takes before the delivery that begins them does: then the one before it
+  // drew the node before the step. A node first read in the step or after rides them
+  // from wherever they draw it, as a turn news adds does.
+  let riding = false;
+  const carriesWithin = (node, to, carries) => {
+    const steps = carries.map((animation) => carrySteps.get(continued(animation)));
+    const began = Math.min(...steps.map(({ began }) => began));
+    const first = Math.min(
+      ...carries.map(
+        (animation) => animated.get(continued(animation))?.[1]?.at ?? Infinity,
+      ),
+    );
+    const readings = placed.get(node) ?? [];
+    let index = readings.findLastIndex((reading) => reading.at < began);
+    // A node new with the step rides a carry that draws a node read before the step,
+    // in it, by as far as it draws this one, as a turn news adds rides the stream it
+    // joins and a part inside a carried one rides it.
+    const rides = () => {
+      if (riding) return false;
+      const drawn = animationMotion(node, -Infinity, to, carries);
+      riding = true;
+      try {
+        return [...new Set([...carries, ...carrying])].some((animation) => {
+          const target = continued(animation).effect?.target;
+          const step = carrySteps.get(continued(animation));
+          if (!target || target === node || !step) return false;
+          if (!(placed.get(target) ?? []).some((reading) => reading.at < step.began))
+            return false;
+          const along = animationMotion(target, -Infinity, to, [animation]);
+          return (
+            Math.abs(along.left - drawn.left) < 1 &&
+            Math.abs(along.top - drawn.top) < 1 &&
+            carriesWithin(target, to, [animation])
+          );
+        });
+      } finally {
+        riding = false;
+      }
+    };
+    // The node's layout at `at`, read no earlier than the retained readings begin: the
+    // ledger keeps each node's last reading from before then, which still holds it.
+    const layout = (at) => layoutAt(node, Math.max(at, retainedFrom));
+    const now = layout(to);
+    if (!now || first === Infinity) return true;
+    if (index < 0) return rides();
+    // Where the node's layout stands at `at`, net of the carries.
+    const stands = (at) => {
+      const box = layout(at);
+      const drawn = animationMotion(node, began, at, carries);
+      return box && { left: box.left - drawn.left, top: box.top - drawn.top };
+    };
+    const landed = stands(first),
+      last = layout(readings[index].at);
+    if (
+      landed &&
+      last &&
+      readings[index].at >= Math.min(...steps.map(({ step }) => step)) &&
+      ["left", "top"].every((axis) => Math.abs(last[axis] - landed[axis]) < 1)
+    ) {
+      // That reading holds the step, and one read first there is new with it.
+      if (index === 0) return rides();
+      index--;
+    }
+    const before = layout(readings[index].at),
+      after = stands(to);
+    return (
+      !before ||
+      !after ||
+      ["left", "top"].every(
+        (axis) =>
+          now[axis] >= Math.min(before[axis], after[axis]) - 1 &&
+          now[axis] <= Math.max(before[axis], after[axis]) + 1,
+      )
+    );
+  };
+  // The motion `animations` credit `node` from `from` to `to`, a carry of a layout step
+  // only where it keeps the node within that step (`carriesWithin`), so it draws the
+  // step's way and the step itself is judged as if drawn at once. `carried` holds the
+  // carries' part, which a step is asked for its permission net of.
+  const carriedMotion = (node, from, to, animations) => {
+    const carry = (animation) => carrySteps.has(continued(animation));
+    const motion = animationMotion(
+      node,
+      from,
+      to,
+      animations.filter((animation) => !carry(animation)),
+    );
+    motion.carried = { left: 0, top: 0 };
+    const carries = animations.filter(carry);
+    if (!carries.length) return motion;
+    const carried = animationMotion(node, from, to, carries);
+    if (!carried.terms.length || !carriesWithin(node, to, carries)) return motion;
+    motion.carried = { left: carried.left, top: carried.top };
+    motion.left += carried.left;
+    motion.top += carried.top;
+    motion.terms.push(...carried.terms);
+    motion.sizePropagation.push(...carried.sizePropagation);
+    return motion;
+  };
   // Compares each protected node read at frame `to` with its reading at the frame
   // `from` gives it, crediting `animations` across them, less the displacement
   // `permitted` holds for it, and keeps each uncredited move of a node `judged` accepts
@@ -3899,7 +4151,7 @@
           around[after].at,
           animations,
         );
-        const motion = animationMotion(
+        const motion = carriedMotion(
           node,
           around[before].at,
           around[after].at,
@@ -3921,7 +4173,21 @@
             continue;
           const shift = permitted?.get(node)?.[i] ?? { left: 0, top: 0 };
           const currentRect = unmoved(drawnRect, shift);
+          // Append growth permits a step the node's layout takes. The step is asked net
+          // of any carry drawing it, which may draw the node where it was, and the
+          // permission stands whether or not the node shows there, since a run's
+          // comparison takes away what each of its steps permitted.
+          const permit = (step) => {
+            if (!permits || reported(node)) return;
+            const held = permits.get(node) ?? [];
+            const by = held[i] ?? { left: 0, top: 0 };
+            held[i] = { left: by.left + step.left, top: by.top + step.top };
+            permits.set(node, held);
+          };
+          const carrying =
+            Math.abs(motion.carried.left) >= 1 || Math.abs(motion.carried.top) >= 1;
           if (
+            !carrying &&
             !carried(previousRect, currentRect, "top", "bottom") &&
             !carried(previousRect, currentRect, "left", "right")
           )
@@ -3942,7 +4208,45 @@
             carried(previousRect, currentRect, "top", "bottom") &&
             Math.abs(layoutTop - nextTop) >= 1 &&
             Math.abs(currentRect.top - previousRect.top - scroll.top - motion.top) >= 1;
-          if (!x && !y) continue;
+          // What no credit explains, which a carry hiding the step leaves to be asked.
+          const unexplained =
+            Math.abs(
+              currentRect.left - previousRect.left - scroll.left - motion.left,
+            ) >= 1 ||
+            Math.abs(currentRect.top - previousRect.top - scroll.top - motion.top) >= 1;
+          if (
+            !permitted &&
+            (x || y || (carrying && unexplained)) &&
+            readIn(around[before], node) &&
+            readIn(around[after], node)
+          ) {
+            // A run's comparison spans transitions a declaration may not permit
+            // together, so it takes away only what each step's own comparison found
+            // permitted. Append growth measures how far it carried the node, so a drift
+            // beside it within its tolerance stays the node's own.
+            const appended = permittedAppend(
+              node,
+              previousRect,
+              drawnRect,
+              around,
+              growth(),
+            );
+            // Append growth measures the node's layout move, which the placement and
+            // anchor credits the step took away already make part of, as a placed
+            // card's rise is both its placement's and its standing port's.
+            if (appended) {
+              permit({
+                left: appended.left - scroll.left,
+                top: appended.top - scroll.top,
+              });
+              continue;
+            }
+          }
+          // A step a carry hides that nothing permitted stands once the carry ends,
+          // since a carry ends where layout puts what it draws (`carriesBack`), so it
+          // is judged at its own frame, as the step drawn at once would be.
+          const hidden = !x && !y && !permitted && carrying && unexplained;
+          if (!x && !y && !hidden) continue;
           const fromPaint = paintState(node, previousRect, around[before].at);
           const toPaint = paintState(node, drawnRect, around[after].at);
           if (
@@ -3958,29 +4262,16 @@
             previousRect: fromPaint.painted,
             currentRect: toPaint.painted,
           };
-          // A run's comparison spans transitions a declaration may not permit together,
-          // so it takes away only what each step's own comparison found permitted.
-          const appended =
-            !permitted &&
-            permittedAppend(node, previousRect, drawnRect, around, growth());
+          // Widening and reflow say only that the node stayed inside the box declaring
+          // them, so the step's move is theirs.
           if (
-            appended ||
-            (!permitted &&
-              (permittedWidening(painted, around) || permittedReflow(painted, around)))
+            !permitted &&
+            (permittedWidening(painted, around) || permittedReflow(painted, around))
           ) {
-            if (!permits || reported(node)) continue;
-            // Append growth measures how far it carried the node, so a drift beside it
-            // within its tolerance stays the node's own. Widening and reflow say only
-            // that the node stayed inside the box declaring them, so the step's move is
-            // theirs.
-            const step = appended || {
+            permit({
               left: currentRect.left - previousRect.left - scroll.left - motion.left,
               top: currentRect.top - previousRect.top - scroll.top - motion.top,
-            };
-            const held = permits.get(node) ?? [];
-            const by = held[i] ?? { left: 0, top: 0 };
-            held[i] = { left: by.left + step.left, top: by.top + step.top };
-            permits.set(node, held);
+            });
             continue;
           }
           if (judged(node))
@@ -3988,9 +4279,10 @@
               node,
               fragment: i,
               previousRect,
-              currentRect,
+              currentRect: hidden ? unmoved(currentRect, motion.carried) : currentRect,
               drawnRect,
               permitted,
+              hidden,
               reported: reported(node),
               stepAt: step.at,
               stepRect: readingAt(node, step.at)?.fragments[i] ?? previousRect,
@@ -4077,10 +4369,12 @@
       }
       return false;
     };
-    // A node first read during the run, read again after it left the page, or moved by
-    // a scroll this frame is judged from the frame that read it then.
+    // A node first read during the run, read again after it left the page or in a
+    // popover that opened again, or moved by a scroll this frame is judged from the
+    // frame that read it then.
+    const fresh = (node) => !readIn(before, node) || reopened(node, before.at);
     for (const node of after.nodes)
-      if (!readIn(before, node) || scrolls(node)) {
+      if (fresh(node) || scrolls(node)) {
         arrived.set(node, after);
         permitted.delete(node);
       }
@@ -4089,7 +4383,7 @@
     // moved, on Chrome's report. On the run's first frame it is the run's own
     // comparison too.
     protectedMotion(after, {
-      from: () => before,
+      from: (node) => (fresh(node) ? null : before),
       animations,
       step: before,
       judged: (node) => from === before || scrolls(node),
@@ -4172,9 +4466,11 @@
         const net =
           carried(first.previousRect, last.currentRect, "top", "bottom") ||
           carried(first.previousRect, last.currentRect, "left", "right");
-        // A node gone from the next reading stood only if Chrome painted its move.
+        // A node gone from the next reading stood only if Chrome painted its move. A
+        // step a carry hid stands once the carry ends (`protectedMotion`).
         const stable =
-          net && (current ? moved(current, first.previousRect) : entry !== null);
+          chain.some((move) => move.hidden) ||
+          (net && (current ? moved(current, first.previousRect) : entry !== null));
         const proof = stable
           ? { previousRect: first.previousRect, currentRect: last.currentRect }
           : chain.find(confirms);
@@ -4280,7 +4576,14 @@
       if (observed && frame !== -1)
         protectedMotion(observed, {
           from: () => frames[frame],
-          animations: frames[frame].motion,
+          // A carry a delivery began after that frame's reading already draws in the
+          // paint it reports.
+          animations: [
+            ...frames[frame].motion,
+            ...[...carrying].filter(
+              (animation) => carrySteps.get(animation).began <= observed.at,
+            ),
+          ],
           step: frames[frame],
         });
       const typing = rendering?.typing;
@@ -4357,6 +4660,8 @@
       through,
       ...waiting.map((entry) => entry.startTime),
       ...pendingMotion.map((move) => move.stepAt),
+      // A carry still moving is bounded by the readings from before its step.
+      ...[...carrying].map((animation) => carrySteps.get(animation).step),
       ...renderings
         .filter(
           (rendering) =>

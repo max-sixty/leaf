@@ -3732,8 +3732,8 @@ def test_a_focus_preview_out_of_view_stands_once_its_target_comes_into_view(
 
 
 # A region a preview's target stands just above, each of which the user must keep
-# reaching: code Leaf lends a tab stop to as it overflows, a tab panel that takes focus,
-# and a frame with a field in it.
+# reaching: code Leaf lends a tab stop to as it overflows, a tab panel, and a frame with
+# a field in it.
 REACHED = {
     "code": (
         '<pre id="region" class="lf-scroll" style="width: 400px; height: 120px;'
@@ -3760,7 +3760,9 @@ def test_a_preview_leaves_a_region_the_user_works_in_reachable(
 ):
     """A preview stands clear of a region the user must keep reaching, though nothing
     in it previews and the gestures Leaf routes leave it alone: code that scrolls, a
-    tab panel that takes focus, a frame. A press there reaches it."""
+    tab panel, a frame. A press there reaches it. A press on a tab panel's contents
+    lands where it would without the panel's tab stop (focus.js), so the panel shows
+    the press reached it by receiving it rather than by taking focus."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -3784,8 +3786,16 @@ def test_a_preview_leaves_a_region_the_user_works_in_reachable(
     rendered(page)
     assert page.evaluate(COVERS, ["region"]) == []
     box = page.locator("#region").bounding_box()
+    page.evaluate(
+        """() => addEventListener('click', event => {
+          window.pressed = event.target.id;
+        }, {capture: true, once: true})"""
+    )
     page.mouse.click(box["x"] + 40, box["y"] + 20)
     if region == "frame":
         expect(page.frame_locator("#region").locator("#inner")).to_be_focused()
+    elif region == "panel":
+        page.wait_for_function("() => window.pressed !== undefined")
+        assert page.evaluate("() => window.pressed") == "region"
     else:
         expect(page.locator("#region")).to_be_focused()

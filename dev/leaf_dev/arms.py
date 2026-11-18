@@ -297,10 +297,19 @@ class ServedPage(NamedTuple):
     state: Path
 
     def leaf(
-        self, *args: str, timeout: float | None = None
+        self, *args: str, timeout: float | None = None, **extra: str
     ) -> subprocess.CompletedProcess:
-        """Run the arm's launcher under the state home, refusing a failed command."""
-        return run_leaf(self.arm, self.state, *args, check=True, timeout=timeout)
+        """Run the arm's launcher under the state home with `extra` in its
+        environment, such as a session for a command only an agent's voice may run,
+        refusing a failed command."""
+        return run_leaf(
+            self.arm,
+            self.state,
+            *args,
+            env=environment(**extra),
+            check=True,
+            timeout=timeout,
+        )
 
 
 # The page `serving_source` serves while it does, for an input that writes to it from
@@ -352,6 +361,29 @@ def live_copies(pages: Iterable[Path], arm: Path, *, plain: bool):
             )
             copies.append(ServedPage(copy, address, arm, state))
         yield copies
+
+
+def preview_lease(page: Path) -> Path:
+    """The lock a running `leaf-dev preview` holds on its slot `page`: beside the
+    page, not in it, since a discard removes the page and a lock on a removed inode
+    excludes nobody."""
+    page.parent.mkdir(parents=True, exist_ok=True)
+    return page.with_name(f"{page.name}.lock")
+
+
+# The signals that stop a process serving Leaf in the foreground, such as a preview.
+STOP_SIGNALS = (signal.SIGINT, signal.SIGTERM)
+
+
+def terminated(signum, _frame) -> None:
+    """Begin shutdown once and let its cleanup finish despite later stop signals.
+
+    Ignore both SIGINT and SIGTERM before unwinding so another stop cannot
+    interrupt the watcher or service cleanup.
+    """
+    for stop_signal in STOP_SIGNALS:
+        signal.signal(stop_signal, signal.SIG_IGN)
+    raise SystemExit(128 + signum)
 
 
 def merge_base() -> str:

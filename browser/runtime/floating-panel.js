@@ -215,18 +215,18 @@
  *
  * Every change of the box's layout takes effect in one step, and what the user sees
  * then travels from where it was drawn to where it stands, by one model
- * (box-motion.js): the surface behind the box, a separate layer, follows by a
- * clip, the way the Codex app's floating panel moves, and so does the field's ring; a
- * part that kept its size is carried by a transform; one that changed size grows from
- * where it stood, carrying its words by their start corner; one that is new is revealed
- * by the edges of what holds it. That carrying is for the user's own change, a key,
- * press or typing: news, such as an answer growing a thread's view, shows what it moved
- * where it now stands, revealed by the surface's clip, so news moves nothing the reader
- * reads. Nothing's layout tweens, so the box's room on the page is its new room at
- * once. The user asked for this, so a line the field gains doesn't leave its
- * attachment vanishing and its ring outrunning the box, nor does more room leave the field
- * behind the box widening around it. Rejected: revealing everything a change moves
- * by the surface's clip, which hides each part that moved until the clip reaches it. */
+ * (box-motion.js): the surface behind the box, a separate layer, follows by a clip, the
+ * way the Codex app's floating panel moves, and so does the field's ring; a part that
+ * kept its size is carried by a transform; one that changed size grows from where it
+ * stood, carrying its words by their start corner; one that is new is revealed by the
+ * edges of what holds it. News is carried as the user's own change is, so an answer
+ * growing a thread's view slides the turns above it up rather than jumping them, as the
+ * user chose (box-motion.js). Nothing's layout tweens, so the box's room on the page is
+ * its new room at once. The user asked for this, so a line the field gains doesn't
+ * leave its attachment vanishing and its ring outrunning the box, nor does more room
+ * leave the field behind the box widening around it. Rejected: revealing everything a
+ * change moves by the surface's clip, which hides each part that moved until the clip
+ * reaches it. */
 import {
   guard,
   html,
@@ -354,6 +354,7 @@ import { pagePresented } from "./page-paint.js";
 import {
   claimReleaseClick,
   focusDestination,
+  focusElement,
   focused,
   holdFocus,
   inputCount,
@@ -410,13 +411,14 @@ import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
 // The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
-// takes (queue-walk.js).
-/** @type {import("./notifications.js").NoticePress} */
+// takes (queue-walk.js). No notice carries it, so it has no `stands`; `pageOffer`
+// decides when it stands.
+/** @typedef {Omit<import("./notifications.js").NoticePress, "stands">} FieldPress */
+/** @type {FieldPress} */
 const NEXT_ON_ME = {
   action: "next-on-me",
   command: "queue.next",
   run: () => pressCommand("queue.next"),
-  stands: () => onUserCount() > 0,
 };
 
 // What the field's own search box asks for, in each list it searches, in Leaf's words
@@ -1211,7 +1213,7 @@ export function createFloatingPanel({
   // Leaf, each in its face (voice.js), and read dim (floating-panel.css). The field
   // carries the agent's words, so nothing in it is nobody's: Leaf says a stance's name,
   // where the user stands and the words quoted, since the interface's upright face would
-  // read as the agent's (the user's choice, 16 November 2026).
+  // read as the agent's (the user's choice).
   const HIDDEN = "Annotations hidden";
   // A notice offering a press after the user's own gesture is newer than any error the
   // field says, so while it passes it says its words over that error,
@@ -1363,7 +1365,7 @@ export function createFloatingPanel({
   // once the pointer leaves: a press arriving there would stand where the user was
   // about to press another (browser/AGENTS.md, "The page holds still under the user's
   // aim").
-  /** @returns {import("./notifications.js").NoticePress | "latest" | null} */
+  /** @returns {FieldPress | "latest" | null} */
   const pageOffer = () =>
     latestPress() ? "latest" : onUserCount() ? NEXT_ON_ME : null;
   /** @type {ReturnType<typeof pageOffer>} */
@@ -5157,7 +5159,7 @@ export function createFloatingPanel({
   // Its key stands beside it only while that key would make the same press now, as the
   // dispatcher reads it (`activeCommandLabel`): with the caret in a box, `m` is a letter
   // typed, and the press alone still acts.
-  /** @param {import("./notifications.js").NoticePress} press
+  /** @param {FieldPress} press
    * @returns {import("./composing/input.js").BoxPress} */
   function noticePress(press) {
     return {
@@ -5538,7 +5540,7 @@ export function createFloatingPanel({
     if (
       doors.queue.shows() &&
       focus !== false &&
-      onMe.lists(focus ?? placeHolder(where))
+      onMe.lists(focus ? focusElement(focus) : placeHolder(where))
     )
       return;
     if (standsOver(where, landed)) close();

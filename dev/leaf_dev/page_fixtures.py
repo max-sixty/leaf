@@ -167,7 +167,7 @@ def authored_markup(path: Path, assets: Path | None = None) -> str:
 
 def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
     """Composition inputs besides `path` and the asset pin, including discovery trees."""
-    from leaf_dev.commands.generate import corpus as corpus
+    from leaf_dev import corpus
 
     if root := corpus.source_root(path):
         return corpus.composition_inputs(root)
@@ -176,7 +176,7 @@ def composition_inputs(path: Path) -> tuple[list[Path], list[Path]]:
 
 def refresh_composition(source: Path) -> None:
     """Materialize a generated fixture before reading its markup and companions."""
-    from leaf_dev.commands.generate import corpus as corpus
+    from leaf_dev import corpus
 
     if root := corpus.source_root(source):
         corpus.generate(root)

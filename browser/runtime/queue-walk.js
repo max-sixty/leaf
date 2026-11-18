@@ -453,21 +453,17 @@ export function createQueueWalk({
     return readQueues().on_user.find((item) => queueItemKey(item) === card) ?? null;
   }
 
-  // A list's obligation stops and their records, read once for each list, so that
-  // asking which holds a place costs the place's depth for a list the walk keeps
+  // A list's obligation stops and their records, read once for each list (kept.js), so
+  // that asking which holds a place costs the place's depth for a list the walk keeps
   // (`obligationHolding`).
-  /** @type {WeakMap<readonly PlacedStop[], {listed: PlacedStop[], records: Obligation[]}>} */
-  const obligationStops = new WeakMap();
+  const obligationStops = keptEach((/** @type {readonly PlacedStop[]} */ list) => {
+    const listed = list.filter((stop) => stop.kind === "obligation");
+    return { listed, records: listed.map((stop) => stop.obligation) };
+  });
   // The obligation or subject stop the user is on, if any.
   /** @param {readonly PlacedStop[]} list @param {Origin} origin */
   function placeStop(list, { node, place: here }) {
-    let held = obligationStops.get(list);
-    if (!held) {
-      const listed = list.filter((stop) => stop.kind === "obligation");
-      held = { listed, records: listed.map((stop) => stop.obligation) };
-      obligationStops.set(list, held);
-    }
-    const { listed, records } = held;
+    const { listed, records } = obligationStops(list);
     const item =
       questionAsked(node) ??
       obligationHolding(records, placeOf(here), readObligations().all);

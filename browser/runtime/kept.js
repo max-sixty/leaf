@@ -63,9 +63,10 @@ const AT = Symbol("at");
 /** @type {Entry | null} */
 let making = null;
 // The catch-ups run since a reading was read from outside every other, so a reading
-// read inside it runs only those it adds.
-/** @type {CatchUp[] | null} */
-let caughtUp = null;
+// read inside it runs only those it adds, and how many readings are being read.
+/** @type {CatchUp[]} */
+const caughtUp = [];
+let depth = 0;
 
 /** A count of a fact no signal carries, which its owner moves when the fact changes:
  * `read()` answers it, and says the reading being made, if one is, read it. An owner
@@ -151,7 +152,7 @@ function entryOf(make, key, args) {
 
 /** @param {Entry} entry */
 function catchUp(entry) {
-  if (!entry.catchUps || !caughtUp) return;
+  if (!entry.catchUps) return;
   for (const each of entry.catchUps)
     if (!caughtUp.includes(each)) {
       caughtUp.push(each);
@@ -169,8 +170,7 @@ export function keptEach(make) {
   /** @type {WeakMap<K, Entry>} */
   const entries = new WeakMap();
   return (key, ...args) => {
-    const outermost = !caughtUp;
-    if (outermost) caughtUp = [];
+    if (depth++ === 0) caughtUp.length = 0;
     try {
       let entry = entries.get(key);
       if (entry) catchUp(entry);
@@ -194,7 +194,7 @@ export function keptEach(make) {
       }
       return value;
     } finally {
-      if (outermost) caughtUp = null;
+      depth -= 1;
     }
   };
 }

@@ -28,10 +28,12 @@ CPU rather than more copies: `--cpu-throttle RATE` passes the suite's own option
 slows every Chromium page the browser fixtures open (`tests/AGENTS.md`, "Races").
 
 Prints each test's count per outcome, then every failure's message, grouped where
-copies agree. Each copy's output stays under `.tmp/flake/`. Exits 0 only when every
-copy of every test passed; a skip is not a pass.
+copies agree. Each copy's output stays under `.tmp/flake/`, with the pictures of the
+pages its failing browser tests held (`tests/AGENTS.md`, "Failing tests"). Exits 0
+only when every copy of every test passed; a skip is not a pass.
 """
 
+import os
 import shutil
 import subprocess
 import sys
@@ -47,9 +49,9 @@ from leaf_dev.arms import run_directory
 from leaf_dev.commands.suite._runs import checkout, collect, run, snapshot
 
 BACKGROUND = ("taskpolicy", "-b") if sys.platform == "darwin" else ()
-# A busy loop that spins while this command is its parent, so one this command
-# can't end, as after a SIGKILL, ends itself.
-SPIN = "import os\nparent = os.getppid()\nwhile os.getppid() == parent:\n    pass"
+# A busy loop that spins while this command, whose pid it is given, is its parent, so
+# one this command can't end, as after a SIGKILL, ends itself.
+SPIN = "import os, sys\nwhile os.getppid() == int(sys.argv[1]):\n    pass"
 # A message is printed to this many lines; the log keeps all of it.
 LINES = 12
 OUT = ROOT / ".tmp" / "flake"
@@ -123,10 +125,15 @@ def flake(
                     under=BACKGROUND,
                 )
             finally:
+                screens = target / ".tmp" / "test-results" / "screens"
+                if screens.is_dir():
+                    shutil.move(screens, out / f"{target.name}-screens")
                 shutil.rmtree(target)
 
         loops = [
-            subprocess.Popen([*BACKGROUND, sys.executable, "-c", SPIN])
+            subprocess.Popen(
+                [*BACKGROUND, sys.executable, "-c", SPIN, str(os.getpid())]
+            )
             for _ in range(load)
         ]
         pool = ThreadPoolExecutor(workers)

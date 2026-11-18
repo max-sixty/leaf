@@ -159,9 +159,7 @@ route. An unresolved diagnosis, or a verification environment you can reach anot
 way, remains engineering work, owned by the cause's session through
 `/tend-ci-runner:triage`'s **A cause issue** route.
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
-development**, gives its non-deploying CI route. For a failure only `test-macos`
-shows, `tests/AGENTS.md`, **Races**, gives the dispatch that runs the test on that
-job's runner.
+development**, gives its non-deploying CI route.
 
 A cause waits on the maintainer when its next step is one only they can take, such
 as a decision. Assign it to the maintainer while it waits (`TODO.md`, "Backlog",
@@ -210,11 +208,13 @@ those tests itself.
 
 The scheduled run's `test-macos` job runs every tier on macOS and takes four to five
 hours, so reproduce a failure only it shows by dispatching that test alone on its
-runner (`tests/AGENTS.md`, **Races**). The same dispatch failing on the fix's base
-and passing every copy on its branch is the evidence from before and after the fix.
-Where no dispatch reproduces the failure, the failing scheduled run is the evidence
-from before, and the next one on main, after the fix merges, the evidence from after.
-If that run still fails, its report brings the failure back to triage.
+runner (`tests/AGENTS.md`, **Races**). The same dispatch failing on a branch at the
+fix's base, and passing every copy on the fix's branch in enough copies that the
+base's failure rate would have failed three of them (54 where the base failed 1 of
+18), is the evidence from before and after the fix. Where no dispatch reproduces the
+failure, the failing scheduled run is the evidence from before, and the next one on
+main, after the fix merges, the evidence from after. If that run still fails, its
+report brings the failure back to triage.
 
 ## Cloudflare logs
 

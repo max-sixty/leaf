@@ -48,6 +48,10 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
         "def test_candidate():\n"
         " root = Path(__file__).parent\n"
         f" Path({str(started)!r}).touch()\n"
+        # A failing browser test's picture, which outlives its copy's checkout.
+        " screens = root / '.tmp' / 'test-results' / 'screens'\n"
+        " screens.mkdir(parents=True)\n"
+        " (screens / 'page.png').touch()\n"
         + (
             f" open({str(bands)!r}, 'a').write("
             "str(os.getpriority(os.PRIO_DARWIN_PROCESS, 0)))\n"
@@ -89,6 +93,9 @@ def test_flake_copies_share_a_snapshot_but_not_outputs(tmp_path, monkeypatch, sc
             editor.join(timeout=STATED_TIMEOUT)
     assert result.exit_code == 0, result.output
     assert "| 4 | 0 | 0 | 0 | 0 |" in result.output
+    assert (
+        len(list((root / ".tmp" / "flake").glob("run-*/copy-*-screens/page.png"))) == 4
+    )
     # The busy loop ended with the command that started it.
     spinning = ["pgrep", "-P", str(os.getpid()), "-f", "os.getppid"]
     assert subprocess.run(spinning, capture_output=True).stdout == b""

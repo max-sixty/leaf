@@ -10,8 +10,8 @@ name: ci
 #   the tests over their directory's budget; `test-macos` runs them on macOS too.
 #   The daily schedule also runs the benchmark (`bench`), whose readings gate
 #   nothing;
-# - a dispatch given `flake` runs only `test-macos`, which runs those tests alone in
-#   place of the suite.
+# - a dispatch given `flake` runs only `test-macos`, which runs `leaf-dev suite flake`
+#   with those arguments in place of the suite.
 # Developer-tool tests live in dev/tests and are opt-in, outside every CI selection.
 # Relevant pushes to main run the website gate in publish-site before deploy.
 on:
@@ -329,8 +329,8 @@ jobs:
   # nightly suite takes, and a failure turns the run red for tend like `test`'s. The
   # Linux job's gates, website checks and profiles are platform-independent or
   # Linux-only, so this job runs the suite alone. A failure only this job shows is
-  # reproduced here too, by a dispatch on the ref under test that names its tests in
-  # `flake`, so nobody edits this file to probe one.
+  # reproduced here too, by a dispatch on a branch that names its tests in `flake`
+  # (tests/AGENTS.md, "Races"), so nobody edits this file to probe one.
   test-macos:
     if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
     runs-on: macos-15
@@ -385,12 +385,11 @@ jobs:
             pytest tests -n 4 -v --run-nightly --junitxml=.tmp/test-results/results.xml \
             2>&1 | tee .tmp/test-results/output.log
 
-      # The named tests as copies starved of the runner's three cores, as the suite's
-      # workers starve each other: `--copies` sets how many run, `--workers` how many
-      # at once and `--load` how many busy loops spin beside them. The step's log ends
-      # with each test's count per outcome and every failure's message, and the
-      # artifact holds each copy's whole log. xargs splits the input as a shell would,
-      # quotes included, without running it.
+      # `flake` holds `leaf-dev suite flake`'s arguments (its `--help` says what each
+      # does), which xargs splits as a shell would, quotes included, without running a
+      # shell. The step's log ends with each test's count per outcome and every
+      # failure's message, and the artifact holds each copy's log and its failing
+      # pages' pictures.
       - name: Run the named tests as copies under load
         if: ${{ inputs.flake }}
         env:

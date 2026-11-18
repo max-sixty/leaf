@@ -606,13 +606,11 @@
        going from aim to comment to arrival changes only the stroke, and two marks on
        one region draw one line.
      - A control standing on its own: outside its edge at --lf-focus-ring-gap.
-     - A box that draws its own edge, such as a field, a mark (controls.css), a margin
-       entry or an option group's frame, or a control whose neighbours stand closer
-       than a control's gap, such as a reaction beside others: on its edge, at 0. A
-       field's ring replaces its border. The user chose to stand a question's ring on
-       its frame where an option group asks it alone, and a region's gap out where a
-       named group holds it. A ring a gap off a frame read as a second box round it,
-       and a ring close to words with no frame round them crowded them.
+     - A box that draws its own edge, such as a field, a mark (controls.css) or a margin
+       entry, or a control whose neighbours stand closer than a control's gap, such as
+       a reaction beside others: on its edge, at 0. A field's ring replaces its border,
+       and any box that draws a frame round itself stands its rings on the frame (the
+       user's choice): a ring a gap off a frame read as a second box round it.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, or one whose clip leaves no room outside it:
        one band inside its edge, at --lf-focus-ring-inset. A box that clips a mark standing

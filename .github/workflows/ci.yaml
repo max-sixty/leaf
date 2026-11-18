@@ -186,7 +186,7 @@ jobs:
       # other's cores, and a failure turns the run red for tend. They come before the
       # next step, which replaces the harness packages in `node_modules`.
       - name: 🧪 Developer-tool tests
-        if: github.event_name == 'schedule' && !cancelled()
+        if: (github.event_name == 'schedule' || github.event_name == 'pull_request') && !cancelled()
         timeout-minutes: 60
         run: uv run pytest dev/tests -n 3 -v
 

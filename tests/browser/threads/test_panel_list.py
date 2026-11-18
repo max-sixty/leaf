@@ -83,12 +83,12 @@ def test_an_agent_reply_says_when_the_user_owes_an_answer(browser, serve):
     thread_model.post_reply(
         serve.page_dir,
         {"parent": answered},
-        "Choose the backend here.",
-        '<lf-ask id="backend-decision"><h3>Which backend?</h3>'
-        '<lf-options id="backend" choose>'
-        '<lf-option id="backend-sqlite"><strong>SQLite</strong></lf-option>'
-        '<lf-option id="backend-postgres"><strong>Postgres</strong></lf-option>'
-        "</lf-options></lf-ask>",
+        "Choose the backend here.\n\n"
+        '<lf-group id="backend-decision" label="Which backend?">\n<h3 id="backend-decision-h">Which backend?</h3>'
+        '<lf-options id="backend">'
+        '<lf-option id="backend-sqlite" label="SQLite"><strong>SQLite</strong></lf-option>'
+        '<lf-option id="backend-postgres" label="Postgres"><strong>Postgres</strong></lf-option>'
+        "</lf-options></lf-group>",
     )
     told(page)
     expect(thread_row(page, answered).locator(".lf-row-end")).to_contain_text(

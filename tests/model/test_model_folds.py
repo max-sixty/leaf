@@ -632,13 +632,13 @@ def test_every_served_agent_record_carries_the_name_it_is_shown_under():
     ]
 
 
-def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
+def test_a_thread_move_that_owes_nothing_stands_in_its_thread_without_holding_it():
     """A card moved on a board the agent sent in a reply is served in that reply's
     thread, so every surface of the thread shows its receipt; but the move owes
     nothing and publishes no obligation, so it leaves the thread the user's to answer,
     and no card reads it as work the agent is holding. The thread's own unanswered
     input is the contrast: it publishes the obligation that holds its thread."""
-    board = model.model_layer()["lf-board"]["x-example"]
+    board = model.model_layer()["lf-board"]["example"]
     state = model.reading(
         HUB,
         (
@@ -648,8 +648,7 @@ def test_a_frozen_move_that_owes_nothing_stands_in_its_thread_without_holding_it
                 "author": "agent",
                 "parent": "e1",
                 "responds": "e1",
-                "text": "Here is the board. Which card goes first?",
-                "markup": board,
+                "text": "Here is the board. Which card goes first?\n\n" + board,
                 "obligation": True,
             },
             {
@@ -721,10 +720,10 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
     ]
 
 
-def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
+def test_questions_settle_one_by_one():
     """Each question in a thread waits on the user until a message or settling
-    reaction after it answers it; the thread's head marks the latest. A reply after
-    the agent ended a question does not change that end."""
+    reaction after it answers it, or a resolve after it ends it; the thread's head
+    marks the latest."""
     events = []
 
     def add(kind, identity, author="agent", **fields):
@@ -745,26 +744,25 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
         "message:first"
     ]
     assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
-    state = add(
-        "todo_end",
-        "end",
-        todo="message:first",
-        outcome="dropped",
-        detail="Asked elsewhere",
-    )
-    assert served_obligations(state)["user"] == []
     state = add("reply", "answer", "user", parent="first", text="Route A")
     first, second = served_obligations(state)["all"]
-    assert (first["status"], first["answer"]) == ("withdrawn", None)
+    assert (first["status"], first["answer"]["value"]) == (
+        "answered",
+        {"text": "Route A"},
+    )
     assert (second["status"], second["answer"]["event"]["id"]) == (
         "answered",
         "reaction",
     )
+    # A resolve ends the questions asked before it, and a reopening brings back
+    # none of them; taking the resolve back does.
     state = add("reply", "third", parent="first", text="Size?", obligation=True)
     state = add("resolve", "close", "user", parent="first")
     assert state["todos"] == []
     assert served_obligations(state)["user"] == []
     state = add("unresolve", "reopen", "user", parent="first")
+    assert served_obligations(state)["user"] == []
+    state = add("undo", "back", "user", undoes="close")
     assert [item["id"] for item in served_obligations(state)["user"]] == [
         "message:third"
     ]
@@ -777,15 +775,15 @@ def test_questions_settle_one_by_one_and_an_end_outlasts_a_later_reply():
     ]
 
 
-def test_frozen_obligation_attention_comes_from_its_widget_without_a_prose_task():
-    """Frozen widgets have no independent thread seat: their user and unanswered
+def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_prose_task():
+    """Thread widgets have no independent thread seat: their user and unanswered
     lists agree, and later prose or reactions cannot retire the widget obligation."""
     events = [
         {
             "kind": "comment",
             "author": "agent",
-            "text": "Choose a route.",
-            "markup": '<lf-options id="routes" choose><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
+            "text": "Choose a route.\n\n"
+            + '<lf-options id="routes"><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },
         {"kind": "reply", "author": "agent", "parent": "e1", "text": "Still checking."},
         {"kind": "reply", "parent": "e1", "token": "keep"},
@@ -864,9 +862,9 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
     for the whole answer it completes to)."""
     page = model.leaf_page(
         "Tail",
-        '<p id="p">One.</p><lf-ask id="ask"><h2>Which?</h2>'
-        '<lf-options id="pick" choose><lf-option id="one">One</lf-option>'
-        '<lf-option id="two">Two</lf-option></lf-options></lf-ask>',
+        '<p id="p">One.</p><lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
+        '<lf-options id="pick"><lf-option id="one">One</lf-option>'
+        '<lf-option id="two">Two</lf-option></lf-options></lf-group>',
     )
     pick = {
         "kind": "action",
@@ -943,6 +941,34 @@ def test_a_reply_sends_its_message_and_what_it_changed_of_its_thread():
     assert [message["text"] for message in messages["items"]] == ["Thanks."]
 
 
+def test_a_data_write_sends_a_held_reading_only_the_source_it_wrote():
+    """However many sources a page holds, a write to one sends that source's new value
+    and fields and nothing of any other source, and a rerun that writes the same value
+    again sends its run and not the value (`served_state.tail`)."""
+    page = model.leaf_page("Tail", '<p id="p">One.</p>')
+
+    def changes(sources: int, rewritten: str) -> dict:
+        texts = {f"s{at}": ("first", f"Line of {at}.\n" * 200) for at in range(sources)}
+        before = model.served_data(texts, "text-document")
+        held = model.served_reading(page, data=before)["browser"]["basis"]["key"]
+        after = model.served_data(
+            {**texts, "s1": ("second", rewritten)}, "text-document"
+        )
+        tail = model.served_reading(page, data=after, held=held)
+        return {tuple(change["at"]): change.get("value") for change in tail["patch"]}
+
+    few, many = changes(2, "A new line.\n"), changes(30, "A new line.\n")
+    assert few.keys() == many.keys()
+    assert {at[:3] for at in many if at[0] == "data"} == {
+        ("data", "version"),
+        ("data", "sources", "s1"),
+    }
+    assert many[("data", "sources", "s1", "value")] == "A new line.\n"
+    rerun = changes(30, "Line of 1.\n" * 200)
+    assert ("data", "sources", "s1", "run") in rerun
+    assert ("data", "sources", "s1", "value") not in rerun
+
+
 def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
     """A key the server never named, or named so many readings ago that it has
     forgotten it, gets the whole answer (`served_state.tail.REMEMBERED`)."""
@@ -973,3 +999,21 @@ def test_one_pages_answers_leave_another_readings_remembered(monkeypatch):
     held = tail.answer(deepcopy(first), None, "page")["browser"]["basis"]["key"]
     tail.answer(deepcopy(later), None, "sample")
     assert "since" in tail.answer(deepcopy(later), held, "page")
+
+
+def test_revision_labels_name_each_draft_after_the_newest_earlier_stamp():
+    from leaf.files import revision_labels
+
+    events = [
+        {"kind": "note", "revision": 2, "version": 1},
+        {"kind": "note", "revision": 5, "version": 2},
+        {"kind": "activation", "revision": 6},
+    ]
+    assert revision_labels(events, range(1, 7)) == {
+        1: "Draft",
+        2: "v1",
+        3: "Draft after v1",
+        4: "Draft after v1",
+        5: "v2",
+        6: "Draft after v2",
+    }

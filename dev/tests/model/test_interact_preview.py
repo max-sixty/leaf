@@ -45,7 +45,9 @@ from leaf.media import media_name
 from leaf.registry.storage import layer_record, load_registry, selected
 from leaf.structure import SourceDocument
 from leaf_dev import arms, page_fixtures
-from leaf_dev.commands import preview, record_demo, site
+from leaf_dev.commands import preview
+from leaf_dev.commands.site import build as site
+from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import leaf_in_process, prepare_page, read_fixture
 
@@ -58,7 +60,7 @@ def test_developer_fixtures_do_not_capture_the_developers_personal_theme(tmp_pat
 
     personal = tmp_path / "personal"
     personal.mkdir()
-    (personal / "overrides.css").write_text(":root { --accent: #814b07; }")
+    (personal / "overrides.css").write_text(":root { --lf-accent: #814b07; }")
     cmd_package_install(personal)
     config = Path(os.environ["XDG_CONFIG_HOME"]) / "leaf/themes.toml"
     config.parent.mkdir(parents=True)
@@ -663,6 +665,16 @@ def test_a_preview_follows_a_nearer_media_directory_when_one_appears(tmp_path):
     assert str(nearer) in after.paths
     assert str(inherited) not in after.paths
     assert after.roots == before.roots
+
+
+def test_a_page_directory_source_takes_its_layer_records_packages(tmp_path):
+    page = tmp_path / "page"
+    result = CliRunner().invoke(
+        cli_model.cli, ["page", "init", "--package", "diagram", str(page)]
+    )
+    assert result.exit_code == 0, result.output
+
+    assert preview.source_packages(page / "index.html") == ["diagram"]
 
 
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):

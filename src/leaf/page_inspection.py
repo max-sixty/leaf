@@ -9,7 +9,12 @@ document, with sample children named separately. Selected-layer CSS stays separa
 from page CSS. Page-owned widget implementations are listed from captured
 provenance. JavaScript bytes include executable inline scripts and captured files,
 including downloads; no byte count implies execution. JavaScript is not parsed for
-strings that might become CSS.
+strings that might become CSS. Words are the page's text reading
+(`passages.page_passages`), counted only in blocks of a sentence or more, so a table
+of short cells, a heading or code costs nothing, while a table cell that holds
+paragraphs counts as they would. They split into those a reader sees on arrival and
+those a closed `<details>` or `hidden` holds, so collapsed supporting material, such
+as a quoted source, costs the shown count nothing.
 
 This is a static source inventory, not network transfer or CSS coverage. Styles made
 by JavaScript, including widget template strings, are outside it. Browser views
@@ -21,10 +26,14 @@ directories retain the files for an author who needs their full text diff.
 """
 
 import json
+from itertools import pairwise
 from pathlib import Path
+
+import turbohtml
 
 from .files import latest_revision, list_revisions
 from .leases import page_locked
+from .passages import page_passages
 from .refusals import Refused
 from .registry.storage import read_page_registry, selected
 from .revision_artifact import (
@@ -65,6 +74,54 @@ def _css_counts(css: str, *, inline=False) -> dict:
 
     walk(css_block(css) if inline else css_stylesheet(css))
     return counts
+
+
+# A block shorter than a short sentence, such as a heading, a label or a table cell
+# holding a value, is scanned rather than read, so its words aren't counted.
+_SENTENCE = 12
+
+
+def _words(artifact: RevisionArtifact) -> dict:
+    """The words of the page's text reading that sit in blocks of a sentence or more:
+    `shown` on arrival, and `collapsed` in a closed `<details>`, other than its
+    `<summary>`, or under `hidden`."""
+    markup = artifact.html.decode("utf-8")
+
+    def prose(*, arrival: bool) -> int:
+        document = SourceDocument(markup)
+        # Code is the subject shown as it is, so it isn't counted. A widget's content
+        # keeps its own reading, since a `<pre>` there can hold its data or Markdown body.
+        for element in document.tree.select("pre"):
+            if not any(
+                getattr(ancestor, "tag", None) in artifact.registry
+                for ancestor in element.ancestors
+            ):
+                element.extract()
+        collapsed = document.tree.select("details:not([open]), [hidden]")
+        for element in collapsed if arrival else ():
+            if element.tag != "details" or "hidden" in element.attrs:
+                element.extract()
+                continue
+            for child in element.children:
+                if not (
+                    isinstance(child, turbohtml.Element) and child.tag == "summary"
+                ):
+                    child.extract()
+        reading = page_passages(document, artifact.registry)
+        cuts = [0, *(cut + 1 for cut in sorted(reading.breaks)), len(reading.text) + 1]
+        counts = (len(reading.text[a : b - 1].split()) for a, b in pairwise(cuts))
+        return sum(count for count in counts if count >= _SENTENCE)
+
+    shown = prose(arrival=True)
+    return {
+        "shown": shown,
+        "collapsed": prose(arrival=False) - shown,
+        "coverage": [
+            f"Words in blocks of {_SENTENCE} or more, such as paragraphs and table cells or list items that hold sentences; a heading, label or short cell is scanned, not read, and isn't counted.",
+            "Code in a <pre> isn't counted, nor are a widget's drawn labels and data notation.",
+            "A widget that hides content, such as a tab set's other tabs, counts it as shown.",
+        ],
+    }
 
 
 def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
@@ -237,6 +294,7 @@ def inspect_artifact(artifact: RevisionArtifact, revision: int | None) -> dict:
                 "JavaScript is not searched for strings that may become CSS.",
             ],
         },
+        "words": _words(artifact),
     }
 
 
@@ -359,6 +417,10 @@ def cmd_inspect(
                         for key, value in report["javascript"][owner].items()
                     }
                     for owner in ("page", "layer")
+                },
+                "words": {
+                    key: report["words"][key] - baseline["words"][key]
+                    for key in ("shown", "collapsed")
                 },
                 "coverage": "Source changes only. Browser observations are not subtracted across rendering environments or interaction states.",
             }

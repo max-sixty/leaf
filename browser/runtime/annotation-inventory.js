@@ -8,9 +8,10 @@
    refreshes after current widget claims and required conversation commits. Mechanical
    paints and immediate contribution updates refresh this same directory.
 
-   Each collection reads the whole page, and an entry stays the same object from one
-   collection to the next for as long as what it is made from holds still (`keptEntry`),
-   so a reader learns whether an entry changed by comparing the two. */
+   Each collection reads the whole page's records, and the words of a target only where
+   they changed (`passageRows`). An entry stays the same object from one collection to
+   the next for as long as what it is made from holds still (`keptEntry`), so a reader
+   learns whether an entry changed by comparing the two. */
 import { share } from "/runtime/framework.js";
 import { replyIsEditing } from "./thread/replies.js";
 import { KINDS } from "./contribution-model.js";
@@ -26,20 +27,25 @@ import {
   findEach,
   GENERATED,
   inChrome,
+  keptAnswer,
+  keptWithReading,
+  pageDocument,
   quoteFrom,
   textNodesUnder,
 } from "./passages.js";
 import { addressableLabel, addressableWord } from "./addressable-names.js";
-import { threadList } from "./thread/state.js";
+import { threadList, threadNamed } from "./thread/state.js";
 import { threadKey } from "./thread/model.js";
 import { readingOrder, readingPlace, targetSegments } from "./resolved-target.js";
+import { resolveAnchor } from "./anchor-resolution.js";
+import { draftAnchor, draftSends, draftsReading } from "./drafts.js";
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
 import { notice } from "./notifications.js";
 import { claimed } from "./thread/surfaces.js";
 import { threadName } from "./thread/messages.js";
-import { outlineSubjectFor, pageOutline } from "./thread/placement.js";
+import { outlineContexts } from "./thread/placement.js";
 import {
   isPageWidgetWorkflow,
   isWorkflowProgress,
@@ -49,9 +55,10 @@ import {
   workflowWord,
 } from "./thread/workflow.js";
 import { agentSays, leafSays } from "./voice.js";
-import { shadowHost, under } from "./shadow.js";
+import { renderedOrdering, shadowHost, under } from "./shadow.js";
 import { placeOf } from "./current-target.js";
 import { obligationPlace } from "./obligations/place.js";
+import { hasObligationSource } from "./obligations/source.js";
 import { scrollBehavior } from "./motion.js";
 import {
   changeAccount,
@@ -61,6 +68,13 @@ import {
   toggleChangeCard,
 } from "./version.js";
 import { versionProvenance } from "./change-provenance.js";
+
+// The words of every obligation's row, one reading for all of them, so a collection
+// finds each row's words unchanged by identity rather than by reading them
+// (`captureItem`).
+const WAITING_ON_ME = leafSays("Waiting on me");
+// The owner under which a reading of the page keeps where each draft stands.
+const DRAFT_PLACES = Object.freeze({});
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -107,13 +121,14 @@ export const annotationSelection = (root) => ({
   todos: root.authoritative?.browser.todos ?? null,
 });
 
-/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./obligations/view.js").createObligationView>["goToObligation"], scrollToElement: ScrollToElement}} dependencies */
+/** @param {{readObligations: typeof import("./obligations/model.js").readObligations, placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"], openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: ReturnType<typeof import("./queue-walk.js").createQueueWalk>["goToObligation"], scrollToElement: ScrollToElement, resumeDraft: (context: string) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
   openThread,
   goToObligation,
   scrollToElement,
+  resumeDraft,
 }) {
   /** @param {string | null | undefined} value */
   const humanized = (value) =>
@@ -121,6 +136,10 @@ export function createAnnotationInventory({
       .replace(/[-_]+/g, " ")
       .trim();
 
+  // A target is named from the nearest element with an id, itself or one around it, and
+  // below that by each element's place among its authored siblings. A name reads only
+  // the siblings between the target and that element, so naming every target costs the
+  // page once rather than its square, and a name survives content added above the id.
   /** @param {Element} target @returns {string} */
   function targetPath(target) {
     const host = shadowHost(target.getRootNode());
@@ -139,6 +158,10 @@ export function createAnnotationInventory({
       const projection = node.getAttribute("data-lf-projection");
       if (projection && node.hasAttribute("data-lf-datum")) {
         from = `datum:${projection}/${node.getAttribute("data-lf-datum")}:`;
+        break;
+      }
+      if (node.id) {
+        from = `id:${node.id}/`;
         break;
       }
       const parent =
@@ -239,7 +262,7 @@ export function createAnnotationInventory({
   // threads stand there together, by what they are about, and everything else about the
   // target (its other threads, an obligation's marker, a widget's actions) keeps the target's
   // own row. `pointed` is `{ key, element, passage, words }`: the row's key (a pointed
-  // row's its first comment gave it, a passage's from its words, `passageRow`), the
+  // row's its first comment gave it, a passage's from its words, `passageRows`), the
   // element it is or the passage it stands by (a resolved anchor), and its words, which
   // name it.
   /** @param {Groups} groups @param {Element} target @param {Pointed | null} [pointed] */
@@ -277,9 +300,46 @@ export function createAnnotationInventory({
   // passage starts among the target's words, heard as they are read, and every place each
   // passage's words stand in them, found by one pass for all of them. So a paragraph
   // holding many quoted passages costs its words and its passages, not their product.
+  //
+  // A passage's key is kept, under where it starts and what it says, for as long as the
+  // target's words are unchanged (passages.js, `keptAnswer`). So a collection reads a
+  // target again only where its words changed or a passage in it is new. Every change to
+  // the page starts a collection, a closed tab's document drawing included, and a change
+  // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
+  // collection, one comment on a large text document would read that document again
+  // each time another document drew.
   /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
    * @returns {string[]} */
   function passageRows(target, quoted) {
+    // Each key by the passage's first text node, then by where it starts there and what
+    // it says.
+    /** @type {Map<Text, Map<string, string>>} */
+    const kept = keptAnswer(target, "passage rows", () => new Map());
+    const asked = quoted.map((passage) => ({
+      passage,
+      node: passage[0].node,
+      key: `${passage[0].start} ${quoteFrom(passage)}`,
+    }));
+    const unkeyed = asked.filter(({ node, key }) => !kept.get(node)?.has(key));
+    if (unkeyed.length) {
+      const read = readPassageRows(
+        target,
+        unkeyed.map(({ passage }) => passage),
+      );
+      unkeyed.forEach(({ node, key }, at) =>
+        kept.set(
+          node,
+          (kept.get(node) ?? new Map()).set(key, /** @type {string} */ (read[at])),
+        ),
+      );
+    }
+    return asked.map(
+      ({ node, key }) => /** @type {string} */ (kept.get(node)?.get(key)),
+    );
+  }
+  /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
+   * @returns {string[]} */
+  function readPassageRows(target, quoted) {
     // How many of the target's words stand before each passage's first character, as
     // reading the target only up to there would say: all of them where the passage
     // starts in none of its text nodes.
@@ -432,9 +492,18 @@ export function createAnnotationInventory({
     return best?.ids ?? [];
   }
 
+  // Each collection builds every group on the page again from every record, and sorts
+  // them all, though a gesture changes few of them, a cost that grows with the page
+  // (`leaf-dev bench` measures it), and sending a comment runs two. Not
+  // yet built: keep each group between collections while its records are the same
+  // objects and the page's reading stands (`pageReadingVersion`, passages.js), build
+  // again only the groups that changed, and sort again only when that reading moves,
+  // placing a new group into the kept order. A collection would then cost what the
+  // gesture changed.
   function collectEntries() {
     /** @type {Groups} */
     const groups = new Map();
+    const labelOf = perTarget(addressableLabel);
     /** @type {Map<string, Workflow>} */
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
@@ -442,83 +511,166 @@ export function createAnnotationInventory({
       const coordinate = receipt.coordinate;
       receiptByCoordinate.set(JSON.stringify(coordinate), receipt);
     }
+    // Each draft the user wrote and hasn't sent (drafts.js, the drafts list) stands as
+    // an entry where it is about: a reply or a rewrite in its thread's row, and a
+    // comment at its passage or element. A press takes the user back to writing it
+    // (`resumeDraft`), and its preview reads its words as they now stand.
+    /** @param {import("./drafts.js").ListedDraft} draft @returns {LiveItem} */
+    const draftItem = (draft) => ({
+      kind: "draft",
+      id: `draft:${draft.context}`,
+      draft: draft.context,
+      // What the draft is, not its words, which a view reads where it draws them: the
+      // drafts list publishes no keystroke, so words copied here would go stale.
+      text: `${draftSends(draft)} draft`,
+      context: leafSays(draftSends(draft)),
+      activate: () => resumeDraft(draft.context),
+    });
+    /** @type {Map<string, LiveItem[]>} */
+    const threadDrafts = new Map();
+    const placedDrafts = [];
+    for (const draft of draftsReading()) {
+      if (draft.part === "reply" || draft.part === "rewrite") {
+        const thread = threadNamed(draft.name);
+        if (thread)
+          threadDrafts.set(thread.id, [
+            ...(threadDrafts.get(thread.id) ?? []),
+            draftItem(draft),
+          ]);
+      } else placedDrafts.push(draft);
+    }
+    // A draft's place is resolved once for each reading of the page, since a quote's is
+    // a search of the page's words, which a collection made on every reading would
+    // repeat for each draft (`passageRows` says what that cost a large page).
+    /** @type {Map<string, {anchor: object, resolved: ReturnType<typeof resolveAnchor>}>} */
+    const draftPlaces = keptWithReading(pageDocument(), DRAFT_PLACES, () => new Map());
+    /** @param {import("./drafts.js").ListedDraft} draft @param {object} anchor */
+    const draftPlacement = (draft, anchor) => {
+      let kept = draftPlaces.get(draft.context);
+      if (kept?.anchor !== anchor) {
+        kept = {
+          anchor,
+          resolved: resolveAnchor(
+            /** @type {import("../types/domain.js").Anchor} */ (anchor),
+          ),
+        };
+        draftPlaces.set(draft.context, kept);
+      }
+      return kept.resolved;
+    };
+    // What stands on the page, each where its anchor resolves: a thread with the drafts
+    // written in it, a thread's drafts alone where the thread shows no entry of its own,
+    // as a resolved one doesn't, and a comment's draft. Each takes the row its passage
+    // or pointed row gives it, so a draft about the passage a thread quotes joins that
+    // thread's row, and drafts about two passages of one paragraph stand apart.
+    /** @type {{thread: ThreadRecord | null, drafts: LiveItem[], placement: Placement, target: Element, point: Element | null, passage: readonly [Segment, ...Segment[]] | null, quote: string | undefined}[]} */
     const standing = [];
     /** @type {Map<Element, (readonly [Segment, ...Segment[]])[]>} */
     const quotedIn = new Map();
-    for (const thread of threadList()) {
-      if (!threadHasDiscussion(thread) || !thread.anchor || claimed(thread.id))
-        continue;
-      const placement = placedAt(thread.id);
+    /** @param {ThreadRecord | null} thread @param {LiveItem[]} drafts
+     * @param {Placement | null | undefined} placement @param {string | undefined} quote */
+    const stand = (thread, drafts, placement, quote) => {
       const target = placement?.place;
-      if (!target) continue;
+      if (!target) return;
       const [first, ...rest] = targetSegments(placement);
       const point = livePoint(target, placement.point);
       /** @type {readonly [Segment, ...Segment[]] | null} */
       const passage = !point && first ? [first, ...rest] : null;
       if (passage) quotedIn.set(target, [...(quotedIn.get(target) ?? []), passage]);
-      standing.push({ thread, placement, target, point, passage });
+      standing.push({ thread, drafts, placement, target, point, passage, quote });
+    };
+    for (const thread of threadList()) {
+      if (!thread.anchor || claimed(thread.id)) continue;
+      const drafts = threadDrafts.get(thread.id) ?? [];
+      const shown = threadHasDiscussion(thread);
+      if (shown || drafts.length)
+        stand(shown ? thread : null, drafts, placedAt(thread.id), thread.anchor.quote);
+    }
+    for (const draft of placedDrafts) {
+      const anchor = draftAnchor(draft);
+      const resolved = anchor && draftPlacement(draft, anchor);
+      if (resolved)
+        stand(
+          null,
+          [draftItem(draft)],
+          /** @type {Placement} */ ({
+            ...resolved,
+            messageTarget: null,
+            point: null,
+            pointRow: null,
+            pointWords: null,
+          }),
+          anchor.quote,
+        );
     }
     /** @type {Map<Element, string[]>} */
     const rows = new Map(
       [...quotedIn].map(([target, quoted]) => [target, passageRows(target, quoted)]),
     );
-    for (const { thread, placement, target, point, passage } of standing) {
-      const id = thread.id;
+    for (const {
+      thread,
+      drafts,
+      placement,
+      target,
+      point,
+      passage,
+      quote,
+    } of standing) {
       const pointed = point
         ? { key: placement.pointRow, element: point, words: placement.pointWords }
         : passage
           ? {
               key: /** @type {string} */ (rows.get(target)?.shift()),
               passage: placement,
-              words: thread.anchor?.quote,
+              words: quote,
             }
           : null;
-      add(
-        groups,
-        target,
-        {
-          kind: "comment",
-          // One row for one thread, across the log answering for it. A thread the
-          // user just opened is known by its attempt until the log names it, and a row
-          // whose identity changed there would be rebuilt — taking with it the reply box
-          // the send had just put them in.
-          id: marginThreadItem(thread),
-          text: threadName(thread),
-          thread,
-          // The Thread record already combines server attention with the local workflow
-          // overlay. Margin and Page Map carry that reading rather than deriving another
-          // answer from raw turn or workflow fields. Work decorates the thread control;
-          // it never replaces the control's comment face or its disclosure action.
-          ...threadMarks(thread, agentName()),
-          activate: () => openThread(id),
-        },
-        pointed,
-      );
+      if (thread) {
+        const id = thread.id;
+        add(
+          groups,
+          target,
+          {
+            kind: "comment",
+            // One row for one thread, across the log answering for it. A thread the
+            // user just opened is known by its attempt until the log names it, and a
+            // row whose identity changed there would be rebuilt — taking with it the
+            // reply box the send had just put them in.
+            id: marginThreadItem(thread),
+            text: threadName(thread),
+            thread,
+            // The Thread record already combines server attention with the local
+            // workflow overlay. Margin and Page Map carry that reading rather than
+            // deriving another answer from raw turn or workflow fields. Work decorates
+            // the thread control; it never replaces the control's comment face or its
+            // disclosure action.
+            ...threadMarks(thread, agentName()),
+            activate: () => openThread(id),
+          },
+          pointed,
+        );
+      }
+      for (const item of drafts) add(groups, target, item, pointed);
     }
-
     // A widget's obligation has a place on the page (obligations/place.js); the rest
     // have no node.
-    /** @param {import("./framework/application.js").ObligationRecord} item
-     * @returns {item is import("./obligations/answer.js").AnswerableObligation} */
-    const hasPlace = (item) => Boolean(obligationPlace(item).node);
-    const placed = () => readObligations().user.filter(hasPlace);
-    for (const item of placed()) {
+    for (const item of readObligations().user) {
       const id = item.id;
       const target = obligationPlace(item).node;
+      if (!target) continue;
       add(groups, target, {
         kind: "on-me",
         id: `on-me:${id}`,
         // The group this row stands in already names the obligation; the row says why it is
         // there, since these are the obligations the user owes.
         text: "Waiting on me",
-        words: leafSays("Waiting on me"),
+        words: WAITING_ON_ME,
         // The marker's own label is the question, which says more than the kind its
         // glyph already shows: the widget's name.
-        label: addressableLabel(target) || null,
+        label: labelOf(target) || null,
         activate: () => {
-          const items = placed();
-          const next = items.find((candidate) => candidate.id === id);
-          if (next) goToObligation(next, items);
+          const next = readObligations().byId.get(id);
+          if (hasObligationSource(next, "widget")) goToObligation(next);
         },
       });
     }
@@ -720,7 +872,6 @@ export function createAnnotationInventory({
       }
     }
 
-    const outline = pageOutline();
     const collected = [...groups.values()];
     const subjects = collected
       .filter((group) => !group.subject)
@@ -730,15 +881,19 @@ export function createAnnotationInventory({
     passages.clear();
     /** @type {typeof lastEntries} */
     const nextEntries = new Map();
-    const subjectOf = perTarget((target) =>
-      outlineSubjectFor(target, subjects, outline),
-    );
-    const labelOf = perTarget(addressableLabel);
+    const contextOf = perTarget(outlineContexts(subjects));
+    // Each group's place read once for the sort, and each node's climb once in it.
+    const places = new Map(collected.map((group) => [group, placeIn(group)]));
+    const order = renderedOrdering();
+    /** @param {Group} group */
+    const placeOfGroup = (group) =>
+      /** @type {ReturnType<typeof placeIn>} */ (places.get(group));
     entries = Object.freeze(
       collected
-        .sort((left, right) => readingOrder(placeIn(left), placeIn(right)))
+        .sort((left, right) =>
+          readingOrder(placeOfGroup(left), placeOfGroup(right), order),
+        )
         .map((group) => {
-          const subject = subjectOf(group.target);
           targets.set(group.key, group.target);
           if (group.point) points.set(group.key, group.point);
           if (group.passage) passages.set(group.key, group.passage);
@@ -749,7 +904,7 @@ export function createAnnotationInventory({
             targetId: group.target.id,
             title: labelWords(
               [
-                group.subject ? null : subject.context,
+                group.subject ? null : contextOf(group.target),
                 group.word,
                 group.subject ?? labelOf(group.target),
                 // A pointed row is named by the words it stands by, so it and the

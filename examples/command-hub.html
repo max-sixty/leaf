@@ -13,8 +13,10 @@
   <body>
     <main class="layout-sidebar density-working">
       <header>
-        <p class="eyebrow">command hub · importer rewrite</p>
-        <h1>Atlas importer rewrite</h1>
+        <hgroup>
+          <p>command hub · importer rewrite</p>
+          <h1>Atlas importer rewrite</h1>
+        </hgroup>
         <p class="lede" id="hub-lede">
           Get the new importer through one shadow week with no unexplained variance.
           Review the stopped goals and answer beside their evidence.
@@ -39,9 +41,7 @@
               <dt>Stopped</dt>
               <dd><output data-atlas-count="stopped">0</output></dd>
             </dl>
-            <button type="button" class="button atlas-refresh" disabled>
-              Show latest
-            </button>
+            <button type="button" class="atlas-refresh" disabled>Show latest</button>
             <details class="atlas-stopped" open>
               <summary>Stopped work</summary>
               <ul></ul>
@@ -76,7 +76,13 @@
               </div>
             </details></lf-atlas-worker
           >
-          <lf-atlas-task id="goal-parser" status="active" when="week 3" talk>
+          <lf-atlas-task
+            id="goal-parser"
+            label="Replace the XML parser"
+            status="active"
+            when="week 3"
+            talk
+          >
             <strong>Replace the XML parser</strong>
             Two workers own separate worktrees; open each worker to inspect its
             evidence. The stalled deduplication task appears under this goal.
@@ -93,12 +99,16 @@
                   <lf-atlas-tree id="tree-w-1" source="atlas-worktrees"></lf-atlas-tree>
                 </div></details
             ></lf-atlas-worker>
-            <lf-atlas-task id="parser-declarations" status="active">
+            <lf-atlas-task
+              id="parser-declarations"
+              label="Declarations and entities"
+              status="active"
+            >
               <strong>Declarations and entities</strong> Three new corpus cases remain.
-              <lf-atlas-task id="parser-stream" status="done">
+              <lf-atlas-task id="parser-stream" label="Streaming core" status="done">
                 <strong>Streaming core</strong> Constant memory over the full corpus.
               </lf-atlas-task>
-              <lf-atlas-task id="parser-cdata" status="active">
+              <lf-atlas-task id="parser-cdata" label="CDATA edge cases" status="active">
                 <strong>CDATA edge cases</strong> Eleven legacy exports replay cleanly.
                 <lf-atlas-worker id="w-2" state="working" on="parser-cdata"
                   ><details>
@@ -119,6 +129,7 @@
             </lf-atlas-task>
             <lf-atlas-task
               id="parser-dedupe"
+              label="Deduplicate the corpus snapshot"
               status="blocked"
               stopped-at="2026-08-21T08:12:00-07:00"
             >
@@ -141,63 +152,88 @@
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <lf-ask id="decision-dedupe-region">
-                <h3>What should the host do with the stalled work?</h3>
+              <lf-group
+                id="decision-dedupe-region"
+                label="What should the host do with the stalled work?"
+              >
+                <h3 id="decision-dedupe-region-h">
+                  What should the host do with the stalled work?
+                </h3>
                 <p>
                   I recommend restarting, which keeps the durable work and replaces the
                   stalled process.
                 </p>
-                <lf-options id="decision-dedupe" choose>
-                  <lf-option id="dedupe-restart">
-                    <small class="tag ok">recommended</small>
+                <lf-options id="decision-dedupe">
+                  <lf-option
+                    id="dedupe-restart"
+                    label="Restart with a fresh worker"
+                    recommended
+                  >
                     <strong>Restart with a fresh worker</strong> Preserve tree-w-5
                     (atlas/dedupe-attempt), its commits, and comments; reap w-5 and
                     start a new worker on it.
                   </lf-option>
-                  <lf-option id="dedupe-park">
+                  <lf-option id="dedupe-park" label="Park it for tomorrow">
                     <strong>Park it for tomorrow</strong> Keep tree-w-5
                     (atlas/dedupe-attempt) and take the goal out of today's plan.
                   </lf-option>
-                  <lf-option id="dedupe-drop">
+                  <lf-option id="dedupe-drop" label="Drop it">
                     <strong>Drop it</strong> Archive tree-w-5 (atlas/dedupe-attempt);
                     corpus storage stays at 40 GB for this rewrite.
                   </lf-option>
                 </lf-options>
-              </lf-ask>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task
               id="parser-zero"
+              label="Choose the zero-row behavior"
               status="active"
               stopped-at="2026-08-21T08:46:00-07:00"
             >
               <strong>Choose the zero-row behavior</strong> This policy is consequential
               enough to wait for an explicit choice.
-              <lf-ask id="decision-zero-region">
-                <h3>What should happen when a nightly imports zero rows?</h3>
+              <lf-group
+                id="decision-zero-region"
+                label="What should happen when a nightly imports zero rows?"
+              >
+                <h3 id="decision-zero-region-h">
+                  What should happen when a nightly imports zero rows?
+                </h3>
                 <p>
                   I recommend failing and paging, since zero rows is a failure until
                   proved otherwise.
                 </p>
-                <lf-options id="decision-zero" choose>
-                  <lf-option id="zero-alert" for="parser-zero">
-                    <small class="tag ok">recommended</small>
+                <lf-options id="decision-zero">
+                  <lf-option
+                    id="zero-alert"
+                    label="Fail and page"
+                    recommended
+                    for="parser-zero"
+                  >
                     <strong>Fail and page</strong> Preserve the export and stop the
                     downstream publish.
                   </lf-option>
-                  <lf-option id="zero-warn" for="parser-zero">
+                  <lf-option id="zero-warn" label="Warn and continue" for="parser-zero">
                     <strong>Warn and continue</strong> Record the empty import but
                     publish no data.
                   </lf-option>
                 </lf-options>
-              </lf-ask>
+              </lf-group>
             </lf-atlas-task>
           </lf-atlas-task>
 
-          <lf-atlas-task id="goal-schema" status="active" when="week 3" talk>
+          <lf-atlas-task
+            id="goal-schema"
+            label="Reconcile schema and ledger"
+            status="active"
+            when="week 3"
+            talk
+          >
             <strong>Reconcile schema and ledger</strong> The schema decision blocks the
             backfill, ledger fixture, and nightly variance report.
             <lf-atlas-task
               id="schema-choice"
+              label="Choose the additive schema"
               status="review"
               stopped-at="2026-08-21T07:20:00-07:00"
             >
@@ -218,29 +254,39 @@
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <lf-ask id="decision-schema-region">
-                <h3>What should the host do with the schema branch?</h3>
+              <lf-group
+                id="decision-schema-region"
+                label="What should the host do with the schema branch?"
+              >
+                <h3 id="decision-schema-region-h">
+                  What should the host do with the schema branch?
+                </h3>
                 <p>I recommend landing it now, while the evidence is current.</p>
-                <lf-options id="decision-schema" choose>
-                  <lf-option id="schema-land">
-                    <small class="tag ok">recommended</small>
+                <lf-options id="decision-schema">
+                  <lf-option id="schema-land" label="Land it now" recommended>
                     <strong>Land it now</strong> Merge tree-w-8 (atlas/schema) from w-8.
                     Tests are green, it unblocks the dependent work, and shadow reads
                     begin before anything depends on it.
                   </lf-option>
-                  <lf-option id="schema-hold">
+                  <lf-option id="schema-hold" label="Hold for the backfill">
                     <strong>Hold for the backfill</strong> Keep tree-w-8 (atlas/schema)
                     unmerged, leave the dependent work idle, and take one larger review
                     tomorrow.
                   </lf-option>
                 </lf-options>
-              </lf-ask>
+              </lf-group>
             </lf-atlas-task>
-            <lf-atlas-task id="schema-backfill" status="planned" needs="schema-choice">
+            <lf-atlas-task
+              id="schema-backfill"
+              label="Backfill reconciliation fields"
+              status="planned"
+              needs="schema-choice"
+            >
               <strong>Backfill reconciliation fields</strong>
             </lf-atlas-task>
             <lf-atlas-task
               id="ledger-fixture"
+              label="Bring one replica-only ledger fixture"
               status="active"
               needs="schema-choice"
               stopped-at="2026-08-21T09:04:00-07:00"
@@ -249,18 +295,24 @@
               below, paste its CSV output into the draft, and remove
               <code>customer_name</code> and <code>billing_email</code> before saving.
               Saving the draft tells the orchestrator that w-8 can resume.
-              <lf-ask id="decision-ledger-fixture-region">
-                <h3>Which replica-only ledger fixture should the worker use?</h3>
+              <lf-group
+                id="decision-ledger-fixture-region"
+                label="Which replica-only ledger fixture should the worker use?"
+              >
+                <h3 id="decision-ledger-fixture-region-h">
+                  Which replica-only ledger fixture should the worker use?
+                </h3>
                 <pre><code class="language-bash">psql "$ATLAS_REPLICA" -c "\copy (select * from ledger_entry
     where refunded_minor is not null limit 1) to stdout with csv header"</code></pre>
-                <lf-draft id="ledger-cargo" needed>
+                <lf-draft id="ledger-cargo" required>
                   <pre>
 Paste the complete CSV row here. Remove customer_name and billing_email before saving.</pre>
                 </lf-draft>
-              </lf-ask>
+              </lf-group>
             </lf-atlas-task>
             <lf-atlas-task
               id="ledger-variance"
+              label="Nightly variance report"
               status="planned"
               needs="schema-choice ledger-fixture"
             >
@@ -269,12 +321,19 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             </lf-atlas-task>
           </lf-atlas-task>
 
-          <lf-atlas-task id="goal-api" status="active" when="week 4" talk>
+          <lf-atlas-task
+            id="goal-api"
+            label="Publish the parser contract"
+            status="active"
+            when="week 4"
+            talk
+          >
             <strong>Publish the parser contract</strong> Review the public API branch. A
             line comment goes to a new evidence worker and stays attached to the source
             line.
             <lf-atlas-task
               id="api-shape"
+              label="Review the public result type"
               status="review"
               stopped-at="2026-08-21T10:35:00-07:00"
             >
@@ -294,62 +353,107 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
                     ></lf-atlas-tree>
                   </div></details
               ></lf-atlas-worker>
-              <lf-ask id="decision-api-region">
-                <h3>What should the host do with atlas/public-api?</h3>
+              <lf-group
+                id="decision-api-region"
+                label="What should the host do with atlas/public-api?"
+              >
+                <h3 id="decision-api-region-h">
+                  What should the host do with atlas/public-api?
+                </h3>
                 <p>I recommend landing it, since the public contract is ready.</p>
-                <lf-options id="decision-api" choose>
-                  <lf-option id="api-land">
-                    <small class="tag ok">recommended</small>
+                <lf-options id="decision-api">
+                  <lf-option id="api-land" label="Land" recommended>
                     <strong>Land</strong> Merge tree-w-3 (atlas/public-api) from w-3.
                     The compatibility suite is green.
                   </lf-option>
-                  <lf-option id="api-revise">
+                  <lf-option id="api-revise" label="Request changes">
                     <strong>Request changes</strong> Restate this card and start a fresh
                     revision worker on tree-w-3; the request remains in the record.
                   </lf-option>
-                  <lf-option id="api-land-as-is">
+                  <lf-option id="api-land-as-is" label="Land as-is — discard revision">
                     <strong>Land as-is — discard revision</strong> Merge tree-w-3
                     (atlas/public-api) over an open change request and reap its reviser.
                   </lf-option>
                 </lf-options>
-              </lf-ask>
+              </lf-group>
             </lf-atlas-task>
-            <lf-atlas-task id="api-errors" status="planned" needs="api-shape">
+            <lf-atlas-task
+              id="api-errors"
+              label="Map structured failures"
+              status="planned"
+              needs="api-shape"
+            >
               <strong>Map structured failures</strong>
             </lf-atlas-task>
-            <lf-atlas-task id="api-sdk" status="planned" needs="api-shape">
+            <lf-atlas-task
+              id="api-sdk"
+              label="Regenerate the SDK fixture"
+              status="planned"
+              needs="api-shape"
+            >
               <strong>Regenerate the SDK fixture</strong>
             </lf-atlas-task>
           </lf-atlas-task>
 
-          <lf-atlas-task id="goal-ground" status="done" when="weeks 1–2">
+          <lf-atlas-task
+            id="goal-ground"
+            label="Groundwork"
+            status="done"
+            when="weeks 1–2"
+          >
             <strong>Groundwork</strong>
-            <lf-atlas-task id="ground-corpus" status="done">
+            <lf-atlas-task
+              id="ground-corpus"
+              label="Snapshot the import corpus"
+              status="done"
+            >
               <strong>Snapshot the import corpus</strong> Nine months pinned by content
               hash.
             </lf-atlas-task>
-            <lf-atlas-task id="ground-harness" status="done">
+            <lf-atlas-task
+              id="ground-harness"
+              label="Build the replay harness"
+              status="done"
+            >
               <strong>Build the replay harness</strong> Old and new importer over the
               same corpus.
             </lf-atlas-task>
-            <lf-atlas-task id="ground-schema" status="done">
+            <lf-atlas-task
+              id="ground-schema"
+              label="Map the legacy schema"
+              status="done"
+            >
               <strong>Map the legacy schema</strong> Every downstream field has an
               owner.
             </lf-atlas-task>
           </lf-atlas-task>
 
-          <lf-atlas-task id="goal-docs" status="done" when="week 3">
+          <lf-atlas-task
+            id="goal-docs"
+            label="Document the operator path"
+            status="done"
+            when="week 3"
+          >
             <strong>Document the operator path</strong>
-            <lf-atlas-task id="docs-runbook" status="done">
+            <lf-atlas-task
+              id="docs-runbook"
+              label="Write the replica runbook"
+              status="done"
+            >
               <strong>Write the replica runbook</strong>
             </lf-atlas-task>
-            <lf-atlas-task id="docs-rollback" status="done">
+            <lf-atlas-task
+              id="docs-rollback"
+              label="Write rollback and evidence capture"
+              status="done"
+            >
               <strong>Write rollback and evidence capture</strong>
             </lf-atlas-task>
           </lf-atlas-task>
 
           <lf-atlas-task
             id="goal-cutover"
+            label="Cut over the nightly"
             status="planned"
             when="weeks 5–6"
             tags="downstream"
@@ -360,12 +464,18 @@ Paste the complete CSV row here. Remove customer_name and billing_email before s
             both schema and ledger evidence.
             <lf-atlas-task
               id="cutover-shadow"
+              label="Shadow both importers for one week"
               status="planned"
               needs="ledger-variance api-shape"
             >
               <strong>Shadow both importers for one week</strong>
             </lf-atlas-task>
-            <lf-atlas-task id="cutover-swap" status="planned" needs="cutover-shadow">
+            <lf-atlas-task
+              id="cutover-swap"
+              label="Swap with the old path behind a flag"
+              status="planned"
+              needs="cutover-shadow"
+            >
               <strong>Swap with the old path behind a flag</strong>
             </lf-atlas-task>
           </lf-atlas-task>

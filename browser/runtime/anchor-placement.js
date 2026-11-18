@@ -54,6 +54,7 @@ import {
   inChrome,
   quotesChanged,
   rangeOf,
+  segmentBounds,
   trackQuotes,
 } from "./passages.js";
 import { under } from "./shadow-tree.js";
@@ -120,19 +121,20 @@ function heldIn(anchor, threads) {
 // A range over each of a passage's segments, which the anchor paint paints: the last
 // reading's own where they still stand where this reading resolved the passage, so a
 // reading that moves nothing keeps the ranges the anchor paint painted and indexed.
-/** @param {Placement | undefined} was @param {readonly import("./passages.js").Segment[]} segments */
+/** @param {ResolvedTarget | null | undefined} was @param {readonly import("./passages.js").Segment[]} segments */
 function liveRanges(was, segments) {
   const ranges = was?.kind === "passage" ? was.ranges : undefined;
   const stand =
     ranges?.length === segments.length &&
     ranges.every((range, at) => {
       const segment = segments[at];
+      if (segment === undefined) return false;
+      const [startNode, startOffset, endNode, endOffset] = segmentBounds(segment);
       return (
-        segment !== undefined &&
-        range.startContainer === segment.node &&
-        range.startOffset === segment.start &&
-        range.endContainer === segment.node &&
-        range.endOffset === segment.end
+        range.startContainer === startNode &&
+        range.startOffset === startOffset &&
+        range.endContainer === endNode &&
+        range.endOffset === endOffset
       );
     });
   return stand && ranges ? ranges : segments.map((segment) => rangeOf([segment]));
@@ -233,6 +235,17 @@ export function createAnchorPlacement() {
     });
   }
 
+  // The draft's anchor as it resolves now, a passage over the ranges `was` had where
+  // they still stand, as a thread's is (`place`), so the anchor paint marks the draft's
+  // words from ranges a reading that moves nothing keeps, as it marks a thread's.
+  /** @param {ReturnType<typeof resolveAnchor>} was */
+  function placePending(was) {
+    const resolved = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
+    if (resolved?.kind === "passage")
+      resolved.ranges = liveRanges(was, resolved.segments);
+    return resolved;
+  }
+
   /** @param {{threads: readonly Thread[], draft: ThreadDraft, actionAnchor: Anchor | null}} options */
   function read({ threads: all, draft, actionAnchor }) {
     if (!anchoringIsReady()) return null;
@@ -279,7 +292,7 @@ export function createAnchorPlacement() {
           pointWords: point.words,
         });
     }
-    const resolvedDraft = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
+    const resolvedDraft = placePending(pendingPlaced);
     pendingPlaced = resolvedDraft;
     note(DRAFT, resolvedDraft, true);
     const active = draft.open ? null : actionAnchor;
@@ -328,7 +341,7 @@ export function createAnchorPlacement() {
         if (id === DRAFT) {
           const was = pendingPlaced;
           note(DRAFT, was, false);
-          pendingPlaced = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
+          pendingPlaced = placePending(was);
           note(DRAFT, pendingPlaced, true);
           if (!samePlacement(was ?? undefined, pendingPlaced ?? undefined))
             unheard.add(DRAFT);

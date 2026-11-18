@@ -1,6 +1,6 @@
 /* lf-deck: a pile of cards worked through one at a time, as Slack's Catch up works
- * through unread conversations. Each authored child is a card, an `lf-ask` or a
- * decision widget the user answers there with its own controls. A card waits while it
+ * through unread conversations. Each authored child is a card, the named group of a
+ * question or a decision widget the user answers there with its own controls. A card waits while it
  * holds an obligation open on the user (`obligationsIn`, read from the server's
  * inventory, the rule `lf-tally` counts by). When the server's reading says the open
  * card no longer waits, after the user answered it on the card or on a control standing
@@ -17,15 +17,15 @@
  * first reading is in, as offline, Later and Next step to the next card in order.
  *
  * Which card is open is view state for this user, as a tab set's open panel is
- * (`x-views`): the runtime names the opening card (`openingView`), the module records
- * each card it shows (`keepView`), so a reload comes back to it, and no event carries
- * it. Where neither the address nor the tab names a card, the deck opens on the first
- * that waits once the first reading is in. Inactive cards are `hidden="until-found"`, so find-in-page, a fragment and the On
- * walk (`m`, `obligationActions.next`) open the card holding what they reach
- * (`beforematch`); `m` is therefore the keyboard's Later, and a card the
- * walk leaves behind stays waiting for the end of the pass. Leaf's Undo travels to the
- * answer it takes back before taking it, which opens its card the same way, so the deck
- * has no Undo of its own.
+ * (`views`): the runtime names the opening card (`openingView`), the module
+ * records each card it shows (`keepView`), so a reload comes back to it, and no event
+ * carries it. Where neither the address nor the tab names a card, the deck opens on the
+ * first that waits once the first reading is in. Inactive cards are
+ * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
+ * `obligationActions.next`) open the card holding what they reach (`beforematch`); `m`
+ * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
+ * for the end of the pass. Leaf's Undo travels to the answer it takes back before
+ * taking it, which opens its card the same way, so the deck has no Undo of its own.
  *
  * The bar above the cards holds Back, the tally's count of the deck's obligations
  * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,
@@ -48,7 +48,8 @@
  *
  * Rejected: a Catch up button at the Leaf panel's foot opening a deck over the whole
  * window, built from the On Me list. Catch up is a widget the agent puts on the page
- * around the questions it is waiting on, chosen by the user on 2026-10-24. */
+ * around the questions it is waiting on, chosen by the user. */
+import { html, nothing } from "/vendor/lit.js";
 import {
   agentName,
   nameAction,
@@ -65,6 +66,7 @@ import {
   LeafElement,
   motion,
   obligationActions,
+  obligationsByRegion,
   obligationsIn,
   offer,
   offerAction,
@@ -80,8 +82,6 @@ import {
   tallyWords,
   under,
   whileConnected,
-  html,
-  nothing,
   commandsChanged,
 } from "/runtime/widget-api.js";
 
@@ -107,6 +107,7 @@ const waitsOn = (held) =>
 customElements.define(
   "lf-deck",
   class extends LeafElement {
+    static lfPatch = "members";
     #bar = offer("div", "lf-deck-bar");
     #status = document.createElement("span");
     #back = offerAction("symbol", "lf-deck-back", "Back", { action: "previous" });
@@ -206,7 +207,8 @@ customElements.define(
     #readings() {
       const items = readObligations();
       if (items.phase !== "ready") return null;
-      return (/** @type {HTMLElement} */ card) => obligationsIn(card, items.all);
+      const held = obligationsByRegion(this.#cards, items.all);
+      return (/** @type {HTMLElement} */ card) => held.get(card) ?? [];
     }
 
     // Show one card, or none once the pass is over, without motion.

@@ -155,7 +155,7 @@ def shows(page: Page, pattern: str) -> bool:
     return page.evaluate(SHOWS, pattern)
 
 
-def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
+def reveal(page: Page, target: str, pattern: str) -> str:
     """Open the item `target` names, as a reader opens a ticket from a queue: click
     the first drawn control naming it, the innermost where one holds another, as a
     reader presses the button rather than its row, unless the control says its
@@ -188,10 +188,10 @@ def reveal(page: Page, target: str, pattern: str, settled=settle) -> str:
         if not opener.evaluate(OPEN):
             shown = shows(page, pattern)
             opener.click()
-            settled(page)
+            settle(page)
             if shown and not shows(page, pattern):
                 opener.click()
-                settled(page)
+                settle(page)
                 return "opened"
         if shows(page, pattern):
             return "opened"

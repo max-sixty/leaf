@@ -9,7 +9,7 @@
    agent's plan whose steps name them, those no goal names last. Until the user picks, a
    plan that gives the user a step groups By <agent>, else By place. The walk steps
    through the groups' items in the list's one order (`onMeGroups`), so successive
-   presses reach successive rows. The user chose these groupings (2026-10-21) over Leaf
+   presses reach successive rows. The user chose these groupings over Leaf
    ordering by what the plan waits on, an agent's note with picks, and a priority on
    every obligation, each needing a new contract or a guess. A step from where the user
    reads goes to the first item in that order after their place (`stepFrom`), which
@@ -43,7 +43,7 @@
    With nothing waiting on the user, a press of `m` or Shift+`m` says so in the panel's
    seat (notifications.js, `notice`), as every walk with nothing to step through does
    (keyboard/AGENTS.md, "Page grammar"); the reading that empties the list says it
-   unasked (semantic-news.js). The user asked for both on 5 November 2026, taking the
+   unasked (semantic-news.js). The user asked for both, taking the
    words over a flash of the panel's colour for now.
 
    The walk opens what answers each item it reaches: a thread opens, and a widget's
@@ -66,7 +66,8 @@
    one on the tally's own control above it, counts from the obligation the user last went to, if
    it is in the region: Tab and Shift+Tab pass over what they cross on the way to the
    control, so they keep it, while any other move the user makes ends it. Without one it
-   counts from the block they read in the region (reading-place.js, `readingBlock`), as a
+   counts from what they see of the region, the block they read there (reading-place.js,
+   `readingBlock`) or a stop in view ahead of it (current-target.js, `stepFrom`), as a
    place they are at without being on it, and with none in sight it counts from where
    they are. That obligation, kept by identity
    so a revision replacing its node keeps it, is the one place this walk keeps, and only
@@ -92,7 +93,7 @@ import { closestAcross, inChrome } from "./passages.js";
 import { byRenderedOrder, under } from "./shadow.js";
 import { hasObligationSource } from "./obligations/source.js";
 import { ON_CARD } from "./obligations/view-elements.js";
-import { obligationWord } from "./obligations/answer.js";
+import { obligationEnding, obligationWord } from "./obligations/answer.js";
 import { answeredInWords, readObligations } from "./obligations/model.js";
 import { obligationsIn, obligationPlace, subjectPlace } from "./obligations/place.js";
 import { readPlan, readQueues, queueItemKey } from "./queue-api.js";
@@ -462,7 +463,7 @@ export function createQueueWalk({
   /** @param {readonly PlacedStop[]} list @param {Step} dir @param {Element | null} region @param {Origin} origin */
   function step(list, dir, region, origin) {
     // Outside the region nothing the user is on is one of its stops, even where the
-    // press sits inside the lf-ask around an obligation.
+    // press sits inside the group around an obligation.
     if (region && !under(origin.place, region)) return cycledRow(list, null, dir);
     const currentLocation = currentLocationStop(list, origin);
     if (currentLocation) return cycledRow(list, currentLocation, dir);
@@ -582,6 +583,44 @@ export function createQueueWalk({
   // An On Me row arrives where the walk would, whichever list its obligation is on.
   /** @param {QueueItem} item */
   const arriveAtItem = (item) => arriveAt(stopOf(item));
+
+  // A press naming one obligation outright, as a Page Map row or
+  // `obligationActions.open` does, arrives where the walk would and says where the
+  // obligation stands in On Me as `m` landing there would, so every route counts the one
+  // list. It says so only where the stop the user then stands on is the obligation's
+  // own: one On Me doesn't hold, answered or left with the agent, can stand inside a
+  // stop that waits, as a question inside a proposal does, and has no position of its
+  // own there. Its word says what it is, and a finished one's how it ended.
+  /** @param {Obligation} record */
+  function goToObligation(record) {
+    /** @type {Stop} */
+    const stop = {
+      kind: "obligation",
+      id: record.id,
+      thread: record.thread,
+      obligation: record,
+    };
+    const key = `${stop.kind}:${stop.id}`;
+    // Read where the obligation's own stop is the one the user stands on, and nowhere
+    // else, so a position another stop declared ends here too.
+    const own = () => {
+      const at = position(null);
+      return at?.target === key ? at : null;
+    };
+    const ready = arriveAt(stop).then((arrived) => {
+      if (!arrived) return false;
+      const word = obligationWord(record);
+      announce(
+        beginWalk("queue", null, own) ??
+          (record.status === "open"
+            ? word
+            : [`${word} · `, obligationEnding(record)].flat()),
+      );
+      return true;
+    });
+    void ready.catch(() => {});
+    return ready;
+  }
   // Whether the walk takes the user somewhere for an item that its card does not already
   // offer: its place on the page, or a widget in a thread the page draws no passage for,
   // which the panel opens with the user on the widget. A question can also arrive at
@@ -622,13 +661,14 @@ export function createQueueWalk({
         place: obligationPlace(kept).source,
         kind: "current-location",
       });
-    // What the user reads in the region, where they are without being on any of its
-    // obligations, so the one holding it or the next waiting one is the next.
+    // What the user sees of the region, where they are without being on any of its
+    // obligations, so one on screen ahead of what they read there, else the one
+    // holding it or the next waiting one, is the next.
     const reading = readingBlock(readingRegionFor(within) ?? null, within);
     return walk(
       toward,
       within,
-      reading ? { node: reading, place: reading, kind: "at" } : here,
+      reading ? { node: reading, place: reading, kind: "view" } : here,
     );
   }
 
@@ -652,5 +692,5 @@ export function createQueueWalk({
       ),
   });
 
-  return { arriveAtItem, arrivesAt, onMe, nextWithin };
+  return { arriveAtItem, arrivesAt, goToObligation, onMe, nextWithin };
 }

@@ -91,8 +91,9 @@ allows "an end user … signing in to the unmodified Claude Code binary with the
 own Claude subscription" and says plan limits "assume ordinary, individual usage";
 the [SDK overview](https://code.claude.com/docs/en/agent-sdk/overview) says third
 parties may not "offer claude.ai login … including agents built on the Claude
-Agent SDK". `inference.py` already runs the user's own `claude -p` and never holds
-a token, which is the shape the legal page allows.
+Agent SDK". `inference.py` already asks the user's own Claude Code session for its
+completions, through Leaf's hooks module, and never holds a token, which is the
+shape the legal page allows.
 
 ## Options
 

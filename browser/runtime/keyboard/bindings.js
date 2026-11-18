@@ -72,8 +72,8 @@
      command answers it, and so, with `false`, does every page-scope row with a `run`
      that is not its stance's `exit`: a scope row takes no words. `touchValue` is a
      terse reading that row shows at its end, past words the row may cut, such as how
-     long ago the gesture Undo would take back was made; the row's hover reads the
-     description whole.
+     long ago the gesture Undo would take back was made; the row's hover reads words it
+     cuts whole (preview.js), and never its description.
    - `travels: true` says the command takes the user somewhere, as a walk, a scroll or
      a Go-to destination does, so its result may move what they pressed it on. Every
      other command leaves the control it was pressed on where it stood on screen

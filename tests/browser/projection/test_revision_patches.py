@@ -7,7 +7,9 @@ from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
 from render_harness import (
     EXAMPLE_PACKAGES,
     expect_obligations_answered,
+    latest_press,
     leaf_page,
+    open_latest_by_keys,
     open_page,
     panel_menu,
     panel_settled,
@@ -68,13 +70,13 @@ def test_a_revision_leaves_root_attributes_it_does_not_change_untouched(browser,
     assert page.evaluate("[...document.body.style].includes('--live-empty')")
 
     # A revision newly declaring an empty property or a `var()` shorthand puts it on.
-    page.evaluate("document.body.style.borderTop = '2px solid var(--ink)'")
+    page.evaluate("document.body.style.borderTop = '2px solid var(--lf-ink)'")
     (serve.page_dir / "index.html").write_text(
         LIVE_V2.replace(
             "<title>Live second</title>", "<title>Live more</title>"
         ).replace(
             empty,
-            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--ink);"
+            f"{empty}; --live-empty: ; --live-added: ; outline: 5px dashed var(--lf-ink);"
             " min-width: calc(1px + 1px",
         )
     )
@@ -547,7 +549,7 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
         " the user is asking about.</p>\n"
         '<p id="nm-edited">The store has not moved.</p>\n'
         '<lf-sample id="qt-spec" label="an inert pick">\n'
-        '  <lf-options id="qt-opts" choose>\n'
+        '  <lf-options id="qt-opts">\n'
         '    <lf-option id="qt-a">Alpha</lf-option>\n'
         '    <lf-option id="qt-b">Beta</lf-option>\n'
         "  </lf-options>\n"
@@ -714,7 +716,7 @@ def test_another_kind_of_sibling_above_an_edited_paragraph_keeps_the_user_on_it(
     told(page)
     expect(page).to_have_title("Kinds first")
     page.evaluate("() => { window.__kdFocus = document.activeElement; }")
-    page.locator("button.lf-fp-row-notice-press").evaluate("el => el.click()")
+    open_latest_by_keys(page)
     expect(page).to_have_title("Kinds second")
 
     expect(page.locator("main h2")).to_have_text("Progress")
@@ -777,7 +779,7 @@ def test_a_paragraph_inserted_above_the_user_does_not_shift_the_ones_below(
     told(page)
     expect(page).to_have_title("Prose order first")
     page.evaluate("() => { window.__poFocus = document.activeElement; }")
-    page.locator("button.lf-fp-row-notice-press").evaluate("el => el.click()")
+    open_latest_by_keys(page)
     expect(page).to_have_title("Prose order second")
 
     kept = page.evaluate(
@@ -813,8 +815,8 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     first = leaf_page(
         "Widgets first",
         """
-<lf-ask id="wd-store-ask"><h2>Which store?</h2>
-<lf-options id="wd-store" choose>
+<lf-group id="wd-store-ask" label="Which store?"><h2 id="wd-store-ask-h">Which store?</h2>
+<lf-options id="wd-store">
   <lf-option id="wd-keep">Keep the store
   <img src="/page/held.svg" alt="Leaf" data-evidence="/media/051bee487bfb5d13.png">
   <svg width="16" height="16"><image width="16" height="16" xlink:href="/page/held.svg"></image></svg>
@@ -823,26 +825,29 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
   <script>if (false) import("/runtime/widget-api.js");</script>
 </lf-option>
   <lf-option id="wd-drop">Drop the store</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="wd-when-ask"><h2>Which schedule?</h2>
-<lf-options id="wd-when" choose>
+</lf-options></lf-group>
+<lf-group id="wd-when-ask" label="Which schedule?"><h2 id="wd-when-ask-h">Which schedule?</h2>
+<lf-options id="wd-when">
   <lf-option id="wd-now">Start now</lf-option>
   <lf-option id="wd-later">Start later</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 """,
     )
     second = (
         first.replace("Widgets first", "Widgets second")
-        .replace('<lf-ask id="wd-store-ask">', '\n<lf-ask id="wd-store-ask">')
+        .replace(
+            '<lf-group id="wd-store-ask" label="Which store?">',
+            '\n<lf-group id="wd-store-ask" label="Which store?">',
+        )
         .replace(
             '<lf-option id="wd-later">Start later</lf-option>',
             '<lf-option id="wd-later">Start later</lf-option>\n'
             '  <lf-option id="wd-never">Do not start at all</lf-option>',
         )
         .replace(
-            '<lf-ask id="wd-when-ask">',
+            '<lf-group id="wd-when-ask" label="Which schedule?">',
             '<p><lf-tally id="arriving-tally" for="wd-when-ask" next></lf-tally></p>'
-            '<lf-ask id="wd-when-ask">',
+            '<lf-group id="wd-when-ask" label="Which schedule?">',
         )
     )
     page = open_page(
@@ -880,17 +885,17 @@ def test_a_revision_replaces_the_widget_it_rewrote_and_keeps_the_one_it_did_not(
     )
     expect(page.locator("#wd-keep .lf-pick")).to_be_focused()
     page.keyboard.press("1")
-    expect(page.locator("#wd-keep")).to_have_attribute("chosen", "")
+    expect(page.locator("#wd-keep")).to_have_attribute("selected", "")
     page.locator("#wd-never .lf-pick").click()
     round_trip(page)
-    expect(page.locator("#wd-never")).to_have_attribute("chosen", "")
+    expect(page.locator("#wd-never")).to_have_attribute("selected", "")
 
 
 def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     browser, serve
 ):
     """A tab set's module builds its strip beside the panels and reads only their labels
-    (`x-patch: members`), so a revision that rewrites a sentence in one tab edits that
+    (`lfPatch`), so a revision that rewrites a sentence in one tab edits that
     sentence: the tab set, the tab the user has open and the question in the other tab
     are the elements they were. A revision that adds a tab changes what the strip was
     built from, and the set is rebuilt with a tab for it."""
@@ -899,11 +904,12 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
         return f"""<lf-tabs id="tp-views">
   <lf-tab id="tp-plan" label="Plan"><p id="tp-lede">{lede}</p></lf-tab>
   <lf-tab id="tp-ask-tab" label="Ask">
-    <lf-ask id="tp-store-ask"><h2>Which store?</h2>
-    <lf-options id="tp-store" choose>
+    <lf-group id="tp-store-ask" label="Which store?">
+    <h2 id="tp-store-ask-h">Which store?</h2>
+    <lf-options id="tp-store">
       <lf-option id="tp-keep">Keep the store</lf-option>
       <lf-option id="tp-drop">Drop the store</lf-option>
-    </lf-options></lf-ask>
+    </lf-options></lf-group>
   </lf-tab>{extra}
 </lf-tabs>"""
 
@@ -941,6 +947,57 @@ def test_a_revision_inside_one_tab_keeps_the_tab_set_and_every_other_tab(
     expect(page.locator("#tp-notes")).to_be_visible()
 
 
+DRAWN_DATA = """customElements.define('lf-drawn-data', class extends HTMLElement {
+ static lfPatch = 'members';
+ connectedCallback() {
+  if (this.querySelector('output')) return;
+  const drawn = document.createElement('output');
+  drawn.textContent = this.querySelector('pre').textContent;
+  this.append(drawn);
+ }
+});"""
+
+
+def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serve):
+    """A widget that draws its content itself (`content: data`) reads the text a
+    revision edits, so the revision replaces it and the replacement draws the new text,
+    whatever its class declares as `lfPatch`. Edited in place, its `<pre>` held the new
+    text beside a drawing of the old."""
+
+    def source(text):
+        return leaf_page(
+            "Drawn data",
+            f'<h1>Drawn data</h1><lf-drawn-data id="dd"><pre>{text}</pre></lf-drawn-data>',
+        )
+
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source("one"),
+                layer_registry={
+                    "lf-drawn-data": {
+                        "description": "Text its module draws once, at upgrade.",
+                        "attributes": {
+                            "type": "object",
+                            "properties": {"id": {"type": "string"}},
+                            "required": ["id"],
+                            "additionalProperties": False,
+                        },
+                        "content": "data",
+                    }
+                },
+                layer_widgets={"lf-drawn-data.js": DRAWN_DATA},
+            )
+        ),
+    )
+    expect(page.locator("#dd output")).to_have_text("one")
+
+    stamp_page(serve.page_dir, source("two"), "new data")
+    wait_for_revision(page, 2)
+    expect(page.locator("#dd output")).to_have_text("two")
+
+
 @pytest.mark.parametrize("departure", ["focused", "link", "selection"])
 def test_a_revision_releases_the_served_markup_it_removes(browser, serve, departure):
     """Markup the page was served with leaves memory once a revision removes it. The
@@ -958,9 +1015,9 @@ def test_a_revision_releases_the_served_markup_it_removes(browser, serve, depart
         '<p id="served-selection">A passage with a saved caret.</p></section>'
         '<div style="height:1600px"></div>'
         '<h2 id="destination">Destination</h2>'
-        '<lf-ask id="question"><h2>A decision?</h2>'
-        '<lf-options id="answer" choose><lf-option id="yes">Yes</lf-option>'
-        "</lf-options></lf-ask>",
+        '<lf-group id="question" label="A decision?"><h2 id="question-h">A decision?</h2>'
+        '<lf-options id="answer"><lf-option id="yes">Yes</lf-option>'
+        "</lf-options></lf-group>",
     )
     second = leaf_page("Revised", "<h1>Revised</h1><p>Revised words.</p>")
     page = open_page(browser, live_url(serve(first)))
@@ -1021,9 +1078,9 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     )
     first = leaf_page("Questions arriving", '<h1 id="h">Decisions</h1>' + reading)
     questions = "".join(
-        f'<lf-ask id="question-{i}"><h2>Decision {i}?</h2>'
-        f'<lf-options id="options-{i}" choose>'
-        f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></lf-ask>'
+        f'<lf-group id="question-{i}" label="Decision {i}?"><h2 id="question-{i}-h">Decision {i}?</h2>'
+        f'<lf-options id="options-{i}">'
+        f'<lf-option id="yes-{i}">Yes</lf-option></lf-options></lf-group>'
         for i in range(3)
     )
     second = first.replace(reading, questions + reading)
@@ -1046,7 +1103,7 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
 
     # An empty but open composer was sufficient to hold the original report.
     (serve.page_dir / "index.html").write_text(second)
-    expect(page.locator("lf-ask")).to_have_count(3)
+    expect(page.locator("lf-options")).to_have_count(3)
     expect(door).to_have_attribute("aria-label", "On Me: 3")
     if subject == "selection":
         assert (
@@ -1061,8 +1118,9 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     write(editor, "Keep this comment while questions change.")
     editor.evaluate("node => node.setSelectionRange(5, 9)")
     (serve.page_dir / "index.html").write_text(first)
-    expect(page.locator("lf-ask")).to_have_count(0)
-    expect(door).to_have_attribute("aria-label", "On Me")
+    expect(page.locator("lf-options")).to_have_count(0)
+    # With nothing on the user, the door names the comment they are writing.
+    expect(door).to_have_attribute("aria-label", "On Me, 1 draft unsent")
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property(
         "value", "Keep this comment while questions change."
@@ -1080,9 +1138,9 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     )
     second = first.replace("</section>", paragraph + "</section>").replace(
         "</main>",
-        '<lf-ask id="question"><h2>Decision?</h2>'
-        '<lf-options id="options" choose><lf-option id="yes">Yes</lf-option>'
-        "</lf-options></lf-ask></main>",
+        '<lf-group id="question" label="Decision?"><h2 id="question-h">Decision?</h2>'
+        '<lf-options id="options"><lf-option id="yes">Yes</lf-option>'
+        "</lf-options></lf-group></main>",
     )
     page = open_page(browser, live_url(serve(first)))
     page.locator("#subject p").click(click_count=3)
@@ -1091,15 +1149,19 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
 
     (serve.page_dir / "index.html").write_text(second)
     # The row offers the latest, without a press that would end the hold.
-    expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
+    expect(latest_press(page)).to_be_visible()
     expect(page.locator("#subject p")).to_have_count(1)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
+        "aria-label", "On Me, 1 draft unsent"
+    )
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "This occurrence matters.")
 
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me: 1")
+    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
+        "aria-label", "On Me: 1, 1 draft unsent"
+    )
 
 
 def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
@@ -1123,7 +1185,7 @@ def test_a_live_revision_preserves_an_unchanged_authored_editor(browser, serve):
 
     third = second.replace('id="note"', 'id="note" placeholder="New instruction"')
     (serve.page_dir / "index.html").write_text(third)
-    expect(page.locator("button.lf-fp-row-notice-press")).to_be_enabled()
+    expect(latest_press(page)).to_be_visible()
     expect(editor).not_to_have_attribute("placeholder", "New instruction")
     expect(editor).to_have_value("Keep my words.")
     editor.press("Tab")
@@ -1138,11 +1200,11 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     owner."""
 
     def question(identity, label):
-        return f"""<lf-ask id="{identity}-ask"><h2>{label}?</h2>
-  <lf-options id="{identity}-options" choose>
+        return f"""<lf-group id="{identity}-ask" label="{label}?"><h2 id="{identity}-ask-h">{label}?</h2>
+  <lf-options id="{identity}-options">
     <lf-option id="{identity}-yes">Yes</lf-option>
   </lf-options>
-</lf-ask>"""
+</lf-group>"""
 
     first_question = question("first", "First")
     second_question = question("second", "Second")
@@ -1174,7 +1236,11 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
             "nodes => nodes.map(node => JSON.parse(node.dataset.lfKey)[1])"
         )
 
-    assert identities("main > lf-ask", "id") == ["first-ask", "second-ask", "gone-ask"]
+    assert identities("main > lf-group", "id") == [
+        "first-ask",
+        "second-ask",
+        "gone-ask",
+    ]
     assert asked() == [
         "widget:first-options",
         "widget:second-options",
@@ -1184,7 +1250,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     stamp_page(serve.page_dir, second, "reverse the questions, remove the third")
     wait_for_revision(page, 2)
 
-    assert identities("main > lf-ask", "id") == ["second-ask", "first-ask"]
+    assert identities("main > lf-group", "id") == ["second-ask", "first-ask"]
     # An open view keeps its cards where they stand while the user reads it; the
     # inventory's new order shows at the next opening.
     expect(page.locator(cards)).to_have_count(2)

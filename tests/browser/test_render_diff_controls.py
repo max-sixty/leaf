@@ -6,18 +6,15 @@ from itertools import pairwise
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import live_url
 from render_harness import (
     before_landing_frame,
     consume_browser_errors,
     holding,
     leaf_page,
     open_page,
-    reported_browser_errors,
     resized,
     scroll_settled,
     sending,
-    told,
 )
 
 from leaf import data as data_model
@@ -144,164 +141,6 @@ def test_page_search_reads_a_worktrees_label_and_branch_apart(request, serve, en
         "retain-drafts codex/retain-drafts"
     )
     expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")
-
-
-def test_worktree_disclosures_keep_diff_reading_state_and_unknown_totals(
-    browser, serve
-):
-    """Several worktrees stay open independently, retaining each nested reader.
-
-    Missing evidence remains visibly unknown beside known totals; neither an empty
-    collection nor a fifth member needs a different browsing surface. A revision to a
-    row's evidence edits it in place, and one that rebuilds the rows reopens each the
-    reader opened.
-    """
-    head = "1234567890abcdef1234567890abcdef12345678"
-    patch = "".join(
-        f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
-        "@@ -1 +1 @@\n-old\n+new\n"
-        for path in ("app.py", "tests.py")
-    )
-    page = open_page(
-        browser,
-        live_url(
-            serve(
-                leaf_page(
-                    "Review worktrees",
-                    '<h1>Review worktrees</h1><lf-worktree-diffs id="trees">'
-                    '<lf-worktree id="drafts" label="retain-drafts" '
-                    'branch="codex/retain-drafts" path="/workspace/leaf.retain-drafts" '
-                    f'head="{head}" status="changed" files="2" additions="2" deletions="2" open>'
-                    "<p>Keep reply drafts keyed by thread</p>"
-                    "<aside>Drafts survive changing the selected thread.</aside>"
-                    "<details><summary>Snapshot details</summary>"
-                    f"<p>Current commit <code>{head}</code></p></details>"
-                    f'<lf-diff id="patch"><pre>{escape(patch)}</pre></lf-diff>'
-                    '</lf-worktree><lf-worktree id="missing" label="missing checkout" '
-                    'path="/workspace/missing" status="unavailable">'
-                    "<p>The supplied checkout could not be read.</p></lf-worktree>"
-                    + "".join(
-                        f'<lf-worktree id="clean-{index}" label="clean {index}" '
-                        f'path="/workspace/clean-{index}" status="clean" files="0" '
-                        f'additions="0" deletions="0">'
-                        "<p>No changes.</p></lf-worktree>"
-                        for index in range(3)
-                    )
-                    + '</lf-worktree-diffs><lf-worktree-diffs id="empty"></lf-worktree-diffs>'
-                    '<lf-file-tree id="files" for="patch"></lf-file-tree>',
-                ),
-                packages=("diff", "file-tree"),
-            )
-        ),
-    )
-    overview = page.locator("#trees .lf-worktree-overview")
-    expect(overview).to_contain_text("5 worktrees")
-    expect(overview).to_contain_text("2 files")
-    expect(overview).to_contain_text("+2")
-    expect(overview).to_contain_text("−2")
-    expect(overview).to_contain_text("1 unavailable")
-    expect(page.locator("#empty").get_by_text("No worktrees supplied")).to_be_visible()
-    expect(
-        page.locator("#empty").get_by_text("0 files", exact=True)
-    ).not_to_be_visible()
-
-    row = page.locator("#drafts .lf-worktree-disclosure")
-    summary = row.locator(":scope > summary")
-    expect(row).to_contain_text("/workspace/leaf.retain-drafts")
-    expect(summary).to_contain_text(head[:8])
-    # Counts say a row changed; a word names only what counts can't.
-    expect(summary).not_to_contain_text("Changed")
-    expect(page.locator("#clean-0 .lf-worktree-summary")).to_contain_text("Clean")
-    snapshot = page.locator("#drafts").locator(
-        "details", has=page.get_by_text("Snapshot details", exact=True)
-    )
-    snapshot.locator("summary").click()
-    expect(snapshot.locator("code")).to_have_text(head)
-    diff = page.locator("#patch")
-    search = diff.get_by_label("Filter diff files")
-    search.fill("app.py")
-    file_summary = diff.locator("summary").filter(has_text="app.py")
-    file_summary.click()
-    expect(file_summary.locator("..")).not_to_have_attribute("open")
-
-    summary.click()
-    expect(search).not_to_be_visible()
-    # Tab reaches the next worktree; Enter opens it independently of the first.
-    page.keyboard.press("Tab")
-    missing_summary = page.locator("#missing .lf-worktree-summary")
-    expect(missing_summary).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
-    expect(missing_summary).to_contain_text("Unavailable")
-    expect(missing_summary).not_to_contain_text("0 files")
-    expect(missing_summary).not_to_contain_text("+0")
-
-    summary.click()
-    expect(search).to_have_value("app.py")
-    expect(file_summary.locator("..")).not_to_have_attribute("open")
-    expect(snapshot.locator("code")).to_be_visible()
-    expect(page.get_by_text("The supplied checkout could not be read.")).to_be_visible()
-    # Editing both the active row and its sibling retains nested reading state, even
-    # where the edit changes the evidence's own elements: the row reads none of them.
-    source = serve.page_dir / "index.html"
-    source.write_text(
-        source.read_text()
-        .replace(
-            "The supplied checkout could not be read.",
-            "The supplied checkout is temporarily unavailable.",
-        )
-        .replace(
-            "Keep reply drafts keyed by thread",
-            "Keep reply drafts safely keyed by thread",
-        )
-        .replace("<aside>", '<aside title="Agent commentary">')
-    )
-    told(page)
-    expect(
-        page.get_by_text("The supplied checkout is temporarily unavailable.")
-    ).to_be_visible()
-    expect(page.get_by_text("Keep reply drafts safely keyed by thread")).to_be_visible()
-    expect(page.locator("#drafts > aside")).to_have_attribute(
-        "title", "Agent commentary"
-    )
-    expect(search).to_have_value("app.py")
-    expect(file_summary.locator("..")).not_to_have_attribute("open")
-    expect(snapshot.locator("code")).to_be_visible()
-    file_summary.click()
-    expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
-    fifth_summary = page.locator("#clean-2 .lf-worktree-summary")
-    fifth_summary.click()
-    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
-    # A related navigator must reveal the worktree around its destination too.
-    summary.click()
-    expect(row).not_to_have_attribute("open")
-    page.locator("#files").get_by_role("treeitem", name="app.py", exact=True).click()
-    expect(row).to_have_attribute("open", "")
-    expect(diff.locator("[data-line]:visible").filter(has_text="new")).to_be_visible()
-    # A changed snapshot attribute rebuilds the rows; each keeps the reader's choice,
-    # whether it closed an authored-open row or opened a closed one.
-    summary.click()
-    expect(row).not_to_have_attribute("open")
-    source.write_text(
-        source.read_text().replace(
-            'path="/workspace/missing"', 'path="/workspace/gone"'
-        )
-    )
-    told(page)
-    expect(page.locator("#missing")).to_contain_text("/workspace/gone")
-    expect(row).not_to_have_attribute("open")
-    expect(
-        page.get_by_text("The supplied checkout is temporarily unavailable.")
-    ).to_be_visible()
-    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
-    # A fresh shadow tree restores both an authored-open row the reader closed
-    # and an authored-closed row they opened, after startup observation has ended.
-    page.reload()
-    wait_until_ready(page)
-    expect(page.locator("#drafts .lf-worktree-disclosure")).not_to_have_attribute(
-        "open"
-    )
-    expect(page.locator("#clean-2").get_by_text("No changes.")).to_be_visible()
 
 
 def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
@@ -437,16 +276,16 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(folds.last).not_to_be_visible()
         expect(row).to_have_attribute("aria-selected", "true")
         expect(other).to_have_attribute("aria-selected", "false")
-        # Reading new evidence does not take ownership of a selection made while
-        # that read is in flight. Hold one boundary to make the ordering exact.
+        # Preparing new evidence does not take ownership of a selection made while
+        # that preparation is in flight. Hold one boundary to make the ordering exact.
         page.evaluate("""() => {
           const diff = document.getElementById('patch');
-          const readEntry = diff.readEntry.bind(diff);
+          const prepareEntry = diff.prepareEntry.bind(diff);
           const held = new Promise(resolve => window.releaseEvidence = resolve);
-          diff.readEntry = async (...args) => {
+          diff.prepareEntry = async (...args) => {
             window.evidenceHeld = true;
             await held;
-            return readEntry(...args);
+            return prepareEntry(...args);
           };
         }""")
         data_model.cmd_data_set(
@@ -515,138 +354,6 @@ def test_reloading_a_picked_file_reopens_it_in_a_one_file_view(browser, serve):
     page.reload()
     expect(picked).to_be_visible()
     expect(lines.filter(has_text="app.py new")).to_be_hidden()
-
-
-@pytest.mark.parametrize("scroller", ["pane", "document"])
-def test_file_tree_lands_at_the_file_start_after_reading_down(browser, serve, scroller):
-    """File activation reveals its first line in document and nested scrollports,
-    including a return to the current file after reading further down."""
-
-    def patch(path, lines=100):
-        return (
-            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
-            f"@@ -1,{lines} +1,{lines} @@\n"
-            + "".join(f"-old line {line}\n+new line {line}\n" for line in range(lines))
-        )
-
-    pane = scroller == "pane"
-    tree_markup = '<lf-file-tree id="files" for="patch"></lf-file-tree>'
-    evidence_markup = (
-        '<div id="evidence"><p>Inspect the changes in each file.</p>'
-        '<lf-diff id="patch" source="change" view="file"></lf-diff>'
-        "</div>"
-    )
-    regions = (
-        '<lf-pane id="files-pane" label="Files"><header>Files</header>'
-        + tree_markup
-        + '</lf-pane><lf-pane id="patch-pane" label="Patch"><header>Patch</header>'
-        + evidence_markup
-        + "</lf-pane>"
-        if pane
-        else '<aside id="files-pane">' + tree_markup + "</aside>" + evidence_markup
-    )
-    url = serve(
-        leaf_page(
-            "Navigate a long patch",
-            '<header><h1>Review files</h1></header><div id="regions">'
-            + regions
-            + "</div>"
-            + ("" if pane else '<p style="min-height:1200px">Review context</p>'),
-            head="""<style>
-              #regions { display:grid; grid-template-columns:240px minmax(0,1fr); }
-              #files { --lf-pane-top:0px; margin:0; padding:0; }
-              #patch { margin:0; }
-              aside#files-pane { position:sticky; top:var(--lf-top); align-self:start; }
-              aside #files { --lf-file-tree-height:250px; }
-            </style>""",
-            layout="workspace" if pane else "column",
-        )
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "change",
-        patch_manifest(
-            patch("first.md")
-            + patch("second.md")
-            + patch("third.md", 3)
-            + "diff --git a/z-mode.sh b/z-mode.sh\nold mode 100644\nnew mode 100755\n"
-        ),
-    )
-    context = browser.new_context(viewport={"width": 810, "height": 990})
-    page = open_page(browser, url, context=context)
-    tree = page.locator("#files")
-    evidence = page.locator("#evidence")
-    visible = page.locator("#patch .lf-diff-fold:visible")
-    expect(visible).to_contain_text("first.md")
-    tree_box = tree.bounding_box()
-    if pane:
-        pane_box = page.locator("#files-pane").bounding_box()
-        border = page.locator("#files-pane").evaluate(
-            "node => parseFloat(getComputedStyle(node).borderBottomWidth)"
-        )
-        assert tree_box["y"] + tree_box["height"] == pytest.approx(
-            pane_box["y"] + pane_box["height"] - border, abs=0.5
-        ), "the navigator must fill the pane without an authored height override"
-    second = tree.get_by_role("treeitem", name="second.md", exact=True)
-
-    def scroll_into_file():
-        evidence.hover()
-        page.mouse.wheel(0, 900)
-        page.wait_for_function(
-            "document.getElementById('evidence').scrollTop > 400"
-            if pane
-            else "scrollY > 400"
-        )
-        scroll_settled(page)
-
-    def starts_below_header():
-        page.wait_for_function("""() => {
-          const body = document.getElementById('evidence');
-          const fold = [...document.getElementById('patch').shadowRoot
-            .querySelectorAll('.lf-diff-fold')].find(node => node.checkVisibility());
-          const summary = fold?.querySelector('summary');
-          const firstLine = fold?.querySelector('.lf-diff-line > [data-line]');
-          if (!summary || !firstLine?.textContent.includes('old line 0')) return false;
-          const top = summary.getBoundingClientRect().top;
-          const pane = body.closest('lf-pane');
-          const edge = pane ? body.getBoundingClientRect().top + body.clientTop : 0;
-          const bottom = pane ? body.getBoundingClientRect().bottom : innerHeight;
-          const line = firstLine.getBoundingClientRect();
-          return top >= edge - 1
-            && line.top >= summary.getBoundingClientRect().bottom - 1
-            && line.bottom <= bottom;
-        }""")
-
-    scroll_into_file()
-    second.click()
-    expect(visible).to_contain_text("second.md")
-    starts_below_header()
-    expect(second).to_be_focused()
-    # A file already selected still has a route back to the start after reading down.
-    scroll_into_file()
-    second.click()
-    starts_below_header()
-    expect(second).to_be_focused()
-    # Keyboard selection of a much shorter file must reveal its first line too;
-    # its pinned heading alone is not evidence that the beginning is visible.
-    scroll_into_file()
-    second.press("ArrowDown")
-    third = tree.get_by_role("treeitem", name="third.md", exact=True)
-    expect(third).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(visible).to_contain_text("third.md")
-    starts_below_header()
-    expect(third).to_be_focused()
-    # A mode-only file has a commentable metadata row, without a textual body.
-    third.press("ArrowDown")
-    mode = tree.get_by_role("treeitem", name="z-mode.sh", exact=True)
-    expect(mode).to_be_focused()
-    page.keyboard.press("Enter")
-    metadata = page.locator("#patch .lf-diff-metadata:visible")
-    expect(metadata).to_contain_text("z-mode.sh")
-    expect(metadata).to_be_in_viewport(ratio=1)
-    expect(visible).to_have_count(0)
-    expect(mode).to_be_focused()
 
 
 @pytest.mark.parametrize("bound", [False, True], ids=["inline", "bound"])
@@ -733,116 +440,6 @@ def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
         await diff.sourceRendering;
         return row !== null && row === diff.shadowRoot.querySelector('[data-line]');
     }"""), "a completed patch replaced its rows on return"
-
-
-def test_an_expanded_diff_file_can_retry_its_failed_chunk_in_place(browser, serve):
-    """A recovered network has a visible route to retry the expanded file."""
-    url = serve(
-        leaf_page(
-            "Retry a file diff",
-            '<h1>Retry a file diff</h1><lf-diff id="patch" source="review-patch" '
-            'collapsed></lf-diff><button id="after" '
-            'style="position:fixed;right:1rem;bottom:1rem">After diff</button>',
-        )
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "review-patch",
-        patch_manifest("""diff --git a/config.py b/config.py
---- a/config.py
-+++ b/config.py
-@@ -1 +1 @@
--enabled = False
-+enabled = True
-"""),
-    )
-    context = browser.new_context()
-    attempts = []
-    pending = []
-
-    def fail_until_success(route):
-        attempts.append(route.request.url)
-        if len(attempts) == 1:
-            route.abort("failed")
-        elif len(attempts) < 4:
-            pending.append(route)
-        else:
-            route.continue_()
-
-    context.route("**/api/deferred*", fail_until_success)
-    with context.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        page = open_page(browser, url, context=context)
-    summary = page.locator("lf-diff summary")
-    summary.focus()
-    assert failed.value.failure == "net::ERR_FAILED"
-    expect(page.locator("lf-diff .lf-error")).to_contain_text(
-        "That file's diff failed to load: Failed to fetch"
-    )
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    assert len(attempts) == 1
-
-    retry = page.get_by_role("button", name="Retry")
-    assert retry.count() == 1, "the expanded file needs an in-place retry control"
-
-    # A native Enter retry stays focused while in flight. Another Enter is ignored
-    # until it resolves, so it cannot start a parallel deferred request.
-    page.keyboard.press("Tab")
-    expect(retry).to_be_focused()
-    page.keyboard.press("Enter")
-    holding(page, pending, 1, "the first deferred retry")
-    assert len(attempts) == 2 and len(pending) == 1
-    expect(retry).to_have_attribute("aria-disabled", "true")
-    expect(retry).to_be_focused()
-    page.keyboard.press("Enter")
-    assert len(attempts) == 2 and len(pending) == 1
-    with page.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        pending.pop().abort("failed")
-    assert failed.value.failure == "net::ERR_FAILED"
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    retry = page.get_by_role("button", name="Retry")
-    # Network failure precedes the new error paint. The old pending button can
-    # still hold focus, so wait for the replacement to accept another activation.
-    expect(retry).not_to_have_attribute("aria-disabled", "true")
-    expect(retry).to_be_focused()
-
-    # If the user tabs away during another pending retry, its failure must leave
-    # focus at the newer control instead of restoring the old Retry button.
-    page.keyboard.press("Enter")
-    holding(page, pending, 1, "the second deferred retry")
-    assert len(attempts) == 3 and len(pending) == 1
-    expect(retry).to_have_attribute("aria-disabled", "true")
-    page.keyboard.press("Tab")
-    after = page.get_by_role("button", name="After diff")
-    expect(after).to_be_focused()
-    with page.expect_event(
-        "requestfailed", lambda request: "/api/deferred" in request.url
-    ) as failed:
-        pending.pop().abort("failed")
-    assert failed.value.failure == "net::ERR_FAILED"
-    reported_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
-    expect(page.get_by_role("button", name="Retry")).not_to_have_attribute(
-        "aria-disabled", "true"
-    )
-    expect(after).to_be_focused()
-
-    # A successful retry falls back to the file disclosure when its error control
-    # is replaced by rendered source.
-    retry = page.get_by_role("button", name="Retry")
-    page.keyboard.press("Shift+Tab")
-    expect(retry).to_be_focused()
-    with page.expect_response(
-        lambda response: "/api/deferred" in response.url and response.status == 200
-    ):
-        page.keyboard.press("Enter")
-    expect(
-        page.locator('lf-diff [data-lf-datum=\'["config.py","new",1]\']')
-    ).to_contain_text("enabled = True")
-    expect(page.locator("lf-diff summary")).to_be_focused()
-    assert len(attempts) == 4
 
 
 def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, serve):
@@ -1254,7 +851,7 @@ def test_a_file_conversation_ends_the_list_past_files_the_filter_hides(browser, 
         corner: getComputedStyle(head(file)).borderTopLeftRadius,
       }));
     }"""
-    corner = diff.evaluate("d => getComputedStyle(d).getPropertyValue('--r').trim()")
+    corner = diff.evaluate("d => getComputedStyle(d).getPropertyValue('--lf-r').trim()")
     models, views, guide = diff.evaluate(read)
     assert views["top"] - views["outlet"] == pytest.approx(8, abs=0.5), views
     assert views["corner"] == corner, views
@@ -1435,6 +1032,49 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     search.fill("main")
     search.press("Escape")
     expect(search).to_have_value("")
+
+
+def test_file_tree_keeps_the_folders_the_reader_closed_when_its_paths_change(
+    browser, serve
+):
+    """A folder the reader closed stays closed when the file list gains a path, and
+    a folder the update adds opens as every folder does at first."""
+    url = serve(
+        leaf_page(
+            "Explore project files",
+            '<lf-file-tree id="project-files" source="project"></lf-file-tree>',
+        ),
+        packages=("file-tree",),
+    )
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {"files": [{"path": "src/main.py"}, {"path": "tests/test_main.py"}]},
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#project-files")
+    src = tree.get_by_role("treeitem", name="src", exact=True)
+    expect(src).to_have_attribute("aria-expanded", "true")
+    src.click()
+    expect(src).to_have_attribute("aria-expanded", "false")
+    data_model.cmd_data_set(
+        serve.page_dir,
+        "project",
+        {
+            "files": [
+                {"path": "docs/guide.md"},
+                {"path": "src/main.py"},
+                {"path": "src/util.py"},
+                {"path": "tests/test_main.py"},
+            ]
+        },
+    )
+    docs = tree.get_by_role("treeitem", name="docs", exact=True)
+    expect(docs).to_have_attribute("aria-expanded", "true")
+    expect(src).to_have_attribute("aria-expanded", "false")
+    expect(tree.get_by_role("treeitem", name="tests", exact=True)).to_have_attribute(
+        "aria-expanded", "true"
+    )
 
 
 @pytest.mark.shifts_unsurveyed  # The test explicitly scrubs native CSS transitions.

@@ -112,27 +112,27 @@ const MANIFEST = {
       states: { "1": "/_leaf/state/extending.json" },
       title: "Extending Leaf",
     },
-    "/registry": {
-      assets: `/_leaf-release/${RELEASE}/registry`,
-      description: "The leaf registry keys page.",
-      directory: "_leaf/pages/registry",
+    "/using": {
+      assets: `/_leaf-release/${RELEASE}/using`,
+      description: "Working on a Leaf page.",
+      directory: "_leaf/pages/using",
       image: "/media/0000000000000006.png",
       kind: "product",
       layer: LAYER,
-      state: "/_leaf/state/registry.json",
-      states: { "1": "/_leaf/state/registry.json" },
-      title: "leaf registry keys",
+      state: "/_leaf/state/using.json",
+      states: { "1": "/_leaf/state/using.json" },
+      title: "Using a Leaf page",
     },
-    "/threads": {
-      assets: `/_leaf-release/${RELEASE}/threads`,
-      description: "Comments and replies in Leaf.",
-      directory: "_leaf/pages/threads",
+    "/pages": {
+      assets: `/_leaf-release/${RELEASE}/pages`,
+      description: "Writing a Leaf page.",
+      directory: "_leaf/pages/pages",
       image: "/media/0000000000000007.png",
       kind: "product",
       layer: LAYER,
-      state: "/_leaf/state/threads.json",
-      states: { "1": "/_leaf/state/threads.json" },
-      title: "Threads in Leaf",
+      state: "/_leaf/state/pages.json",
+      states: { "1": "/_leaf/state/pages.json" },
+      title: "Writing a Leaf page",
     },
   },
 };
@@ -357,8 +357,7 @@ describe("product-site delivery", () => {
   it.each([
     "/",
     "/how-it-works/",
-    "/registry/",
-    "/threads/",
+    "/using/",
     "/examples/",
     "/examples/triage-board/",
     "/extending/",
@@ -1034,6 +1033,65 @@ describe("product-site delivery", () => {
       expect(logged).toHaveBeenCalledOnce();
       expect(getContainer).not.toHaveBeenCalled();
     } finally {
+      logged.mockRestore();
+    }
+  });
+
+  it("has the session's container compose the page when the visitor focuses a text box", async () => {
+    const sessionId = "17".repeat(16);
+    const logged = vi.spyOn(console, "log").mockImplementation(() => undefined);
+    const env = environment();
+    const fetched = vi.fn(
+      async (_request: Request) => new Response(null, { status: 204 }),
+    );
+    vi.mocked(getContainer)
+      .mockClear()
+      .mockReturnValue({ fetch: fetched } as never);
+    const pending: Promise<unknown>[] = [];
+    const focused = (control: string, textBox?: true) =>
+      worker.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/interaction", {
+          method: "POST",
+          headers: { Cookie: `__Host-leaf-page=${sessionId}` },
+          body: JSON.stringify({
+            session: "a".repeat(32),
+            entries: [
+              {
+                monotonic_ms: 1,
+                visibility: "visible",
+                observed_at: "2026-11-10T12:00:00.000Z",
+                sequence: 1,
+                type: "focusin",
+                target: [control],
+                control,
+                textBox,
+              },
+            ],
+          }),
+        }),
+        env,
+        executionContext(vi.fn((promise: Promise<unknown>) => pending.push(promise))),
+      );
+    try {
+      expect((await focused("button")).status).toBe(204);
+      expect(pending).toHaveLength(0);
+      expect((await focused("leaf-text", true)).status).toBe(204);
+      await Promise.all(pending);
+      expect(getContainer).toHaveBeenCalledExactlyOnceWith(
+        env.PAGES,
+        containerId(sessionId),
+      );
+      expect(fetched).toHaveBeenCalledOnce();
+      const [request] = fetched.mock.calls[0]!;
+      expect(request.method).toBe("POST");
+      expect(request.url).toBe(
+        "http://container/examples/triage-board/_leaf/agent/prewarm",
+      );
+      expect(logged).toHaveBeenCalledWith(
+        expect.objectContaining({ event: "container_prewarm_completed" }),
+      );
+    } finally {
+      vi.mocked(getContainer).mockClear();
       logged.mockRestore();
     }
   });
@@ -2077,7 +2135,6 @@ describe("website page agent", () => {
         environment(),
       );
       for (const [body, headers, expected] of [
-        ["Container suddenly disconnected, try again", {}, "disconnected"],
         ["private-page-content-and-secret".repeat(100), {}, "unclassified"],
         ["private-adapter-error", { "Leaf-Release": RELEASE }, "adapter"],
       ] as const) {
@@ -2097,6 +2154,7 @@ describe("website page agent", () => {
           method: "GET",
           status: 500,
           source: expected,
+          retried: false,
         });
       }
       expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
@@ -2106,6 +2164,99 @@ describe("website page agent", () => {
         await (await session.fetch(new Request("https://leaf.page/"))).text(),
       ).toBe("healthy");
       expect(log).not.toHaveBeenCalled();
+    } finally {
+      log.mockRestore();
+      close();
+    }
+  });
+
+  it("resends a read or a view report once when the container connection drops, but no other write", async () => {
+    const { storage, close } = sqliteStorage();
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const session = new LeafWebsiteSession(
+        { storage, container: { running: true } } as never,
+        environment(),
+      );
+      const url = "https://leaf.page/examples/triage-board/api/news?private=secret";
+      for (const body of [
+        "Container suddenly disconnected, try again",
+        "Error proxying request to container: Error: Container port connection closed unexpectedly.",
+      ]) {
+        forwardedContainerFetch.mockClear();
+        log.mockClear();
+        forwardedContainerFetch
+          .mockResolvedValueOnce(new Response(body, { status: 500 }))
+          .mockResolvedValueOnce(new Response("news"));
+        const response = await session.fetch(new Request(url));
+        expect(response.status).toBe(200);
+        expect(await response.text()).toBe("news");
+        expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+        expect(log).toHaveBeenCalledExactlyOnceWith({
+          component: "leaf-container",
+          event: "http_error",
+          method: "GET",
+          status: 500,
+          source: "disconnected",
+          retried: true,
+        });
+      }
+
+      // A second loss reaches the caller rather than retrying again.
+      forwardedContainerFetch.mockClear();
+      const lost = "Container suddenly disconnected, try again";
+      forwardedContainerFetch
+        .mockResolvedValueOnce(new Response(lost, { status: 500 }))
+        .mockResolvedValueOnce(new Response(lost, { status: 500 }));
+      expect((await session.fetch(new Request(url))).status).toBe(500);
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch.mockResolvedValueOnce(
+        new Response(lost, { status: 500 }),
+      );
+      const write = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/media", {
+          method: "POST",
+          body: "bytes",
+        }),
+      );
+      expect(write.status).toBe(500);
+      expect(forwardedContainerFetch).toHaveBeenCalledOnce();
+      expect(log).toHaveBeenLastCalledWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "POST",
+        status: 500,
+        source: "disconnected",
+        retried: false,
+      });
+
+      // A view report replaces only an older report of its session, so a resent
+      // copy changes nothing the first one stored.
+      forwardedContainerFetch.mockClear();
+      forwardedContainerFetch
+        .mockResolvedValueOnce(new Response(lost, { status: 500 }))
+        .mockResolvedValueOnce(new Response(null, { status: 204 }));
+      const view = await session.fetch(
+        new Request("https://leaf.page/examples/triage-board/api/user-view", {
+          method: "POST",
+          body: '{"session":"s","sequence":3}',
+        }),
+      );
+      expect(view.status).toBe(204);
+      expect(forwardedContainerFetch).toHaveBeenCalledTimes(2);
+      const resent = forwardedContainerFetch.mock.calls[1][0] as Request;
+      expect(await resent.text()).toBe('{"session":"s","sequence":3}');
+      expect(log).toHaveBeenLastCalledWith({
+        component: "leaf-container",
+        event: "http_error",
+        method: "POST",
+        status: 500,
+        source: "disconnected",
+        retried: true,
+      });
+      expect(JSON.stringify(log.mock.calls)).not.toMatch(/private|secret/);
     } finally {
       log.mockRestore();
       close();
@@ -2135,11 +2286,6 @@ describe("website page agent", () => {
           }),
         ],
         ["api/news", "saved-reading"],
-        ["api/deferred?source=table&source_revision=one&key=row", "saved-detail"],
-        [
-          "api/deferred?source=table&source_revision=one&key=a~b%2Acaf%C3%A9+%2F%2B",
-          "special-detail",
-        ],
         ["revisions/r3-private.html", "<p>Private revision</p>"],
       ]) {
         const bytes = new TextEncoder().encode(body);
@@ -2181,25 +2327,6 @@ describe("website page agent", () => {
           )
         ).text(),
       ).toBe("saved-reading");
-      expect(
-        await (
-          await session.fetch(
-            new Request(
-              "https://leaf.page/examples/triage-board/api/deferred?key=row&source=table&source_revision=one",
-            ),
-          )
-        ).text(),
-      ).toBe("saved-detail");
-      const deferred = new URL("https://leaf.page/examples/triage-board/api/deferred");
-      deferred.search = new URLSearchParams({
-        key: "a~b*café /+",
-        source_revision: "one",
-        source: "table",
-        through_seq: "12",
-      }).toString();
-      const detail = await session.fetch(new Request(deferred));
-      expect(detail.headers.get("Leaf-State-Source")).toBe("durable");
-      expect(await detail.text()).toBe("special-detail");
       expect(
         await (
           await session.fetch(
@@ -2318,16 +2445,30 @@ describe("website page agent", () => {
       expect(idFromString.mock.calls.every(([id]) => id === "trusted-owner")).toBe(
         true,
       );
-      await expect(
-        handler(
-          new Request(`https://leaf-state.internal/blobs/${digest}`, {
-            method: "PUT",
-            body: new Uint8Array(1024 * 1024 + 1),
-          }) as never,
-          env as never,
-          context as never,
-        ),
-      ).rejects.toThrow("exceeds 1 MiB");
+      // A refusal reaches the container as an answer carrying its reason, which
+      // a thrown handler would turn into a closed connection.
+      const oversized = await handler(
+        new Request(`https://leaf-state.internal/blobs/${digest}`, {
+          method: "PUT",
+          body: new Uint8Array(1024 * 1024 + 1),
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(oversized.status).toBe(500);
+      expect(await oversized.text()).toBe("page storage chunk exceeds 1 MiB");
+      const otherRelease = await handler(
+        new Request("https://leaf-state.internal/prepare", {
+          method: "PUT",
+          body: JSON.stringify({ ...publication, release: "previous-release" }),
+        }) as never,
+        env as never,
+        context as never,
+      );
+      expect(otherRelease.status).toBe(500);
+      expect(await otherRelease.text()).toBe(
+        "publication does not name a page in this website release",
+      );
     } finally {
       close();
     }

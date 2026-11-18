@@ -24,7 +24,7 @@ from render_harness import (
     leaf_page,
     open_page,
     opened_tab,
-    page_registry,
+    page_declarations,
     resized,
     scroll_settled,
     select,
@@ -1225,12 +1225,13 @@ def stage_reach_cases(page):
 FILM_DECLARATION = {
     tag: {
         "description": f"A <{tag}> page widget.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-upgrade": True,
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
     }
     for tag in ("lf-film", "lf-loader")
 }
@@ -1325,15 +1326,20 @@ def test_the_gate_passes_words_set_close_or_declared_decorative(browser, serve):
 def test_reduced_motion_is_the_page_s_to_answer(browser, serve):
     """With the reader's preference for less motion, Leaf's stylesheets stop their own
     motion and leave the page's: a spinner the page never stops keeps turning, and the
-    gate's reading names it, while one the page stops under the preference is quiet."""
+    gate's reading names it, while one the page stops under the preference is quiet, as
+    is one a scroll timeline drives, which moves only as the reader scrolls."""
     url = serve(
         leaf_page(
             "motion",
             "<style>@keyframes turn { to { rotate: 1turn } }"
             ".spinner { width: 20px; height: 20px; animation: turn 1s linear infinite }"
             "@media (prefers-reduced-motion: reduce) { #calm { animation: none } }"
+            ".pan { width: 100px; overflow-x: auto; scroll-timeline: --pan x }"
+            "#panned { width: 400px; height: 10px; animation: turn linear both;"
+            " animation-timeline: --pan }"
             "</style><h1>Motion</h1>"
-            '<div class="spinner" id="busy"></div><div class="spinner" id="calm"></div>',
+            '<div class="spinner" id="busy"></div><div class="spinner" id="calm"></div>'
+            '<div class="pan"><div id="panned"></div></div>',
         )
     )
     page = open_page(browser, url)
@@ -1425,7 +1431,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     nothing wrong with it — for a price, which is the shortest thing an author is likely to
     put in one. A suggestion swapping one short word is the same case in a second tag,
     there because the gate dispatches on the declaration: the day the wrapper took a box
-    it stood in front of this floor, and only x-inline says whose floor is whose.
+    it stood in front of this floor, and only `inline` says whose floor is whose.
 
     The floor a gloss does keep is the height, since a line of words is a line tall under
     any layout. Both halves are asserted, because a floor deleted outright passes the
@@ -1446,19 +1452,20 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
     )
 
     assert (
-        render_checks_model.evaluate_probe(page, "tinyBoxes", page_registry(page)) == []
+        render_checks_model.evaluate_probe(page, "tinyBoxes", page_declarations(page))
+        == []
     ), "the gate refuses glosses and a suggestion with nothing wrong with them"
 
     # Asked without the declaration, the same floor flags it — so what passes the page
     # is the declaration, not a floor gone missing.
-    undeclared = json.loads(json.dumps(page_registry(page)))
-    del undeclared["lf-suggestion"]["x-inline"]
+    undeclared = json.loads(json.dumps(page_declarations(page)))
+    del undeclared["lf-suggestion"]["inline"]
     assert [
         box
         for box in render_checks_model.evaluate_probe(page, "tinyBoxes", undeclared)
         if box["tag"] == "lf-suggestion"
     ], (
-        "with x-inline stripped the gate stays quiet, so the floor is gone rather than declared"
+        "with `inline` stripped the gate stays quiet, so the floor is gone rather than declared"
     )
 
     # Flattened, the same glosses are a collapse and the gate says so — the reading the
@@ -1467,7 +1474,7 @@ def test_the_gate_measures_an_inline_widget_by_its_words(browser, serve):
         content="lf-gloss { display: block; height: 2px; overflow: hidden; }"
     )
     flattened = render_checks_model.evaluate_probe(
-        page, "tinyBoxes", page_registry(page)
+        page, "tinyBoxes", page_declarations(page)
     )
     page.close()
     assert [box for box in flattened if box["tag"] == "lf-gloss"], (

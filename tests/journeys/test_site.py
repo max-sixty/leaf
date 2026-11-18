@@ -70,13 +70,13 @@ from leaf.event_log import read_events
 from leaf.events import bare_reaction, build_threads
 from leaf.passages import enclosing_ids
 from leaf.registry.storage import layer_packages, layer_record, selected
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import rendered, wait_until_ready
 from leaf.render_gate import version as render_gate_model
 from leaf.revision_artifact import read_artifact
 from leaf.service import acknowledged
 from leaf.structure import SourceDocument
 from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
-from leaf_dev.commands import site as site_build
+from leaf_dev.commands.site import build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
     WORKED_EXAMPLES,
@@ -322,11 +322,11 @@ def test_product_pages_select_the_sources_packages(site):
         ], page.name
 
 
-@pytest.mark.parametrize("name", ["index", "event-log", "how-it-works"])
+@pytest.mark.parametrize("name", ["index", "using", "how-it-works"])
 def test_published_product_page_renders(site, browser, name):
     """The render gate passes the published product pages: the landing page, a
-    reference page of prose, tables, code and a sample, and the page that holds
-    every widget the docs use. The other routes share their sheet and parts, and
+    guide of prose, tables and a live sample, and the page that holds every widget
+    the docs use. The other routes share their sheet and parts, and
     `test_every_product_route_is_a_live_leaf_page` opens each of them."""
     product = site_build.product_page(site, f"{name}.html")
     with hosting_model.TemporaryPageServer(product) as server:
@@ -391,8 +391,11 @@ def test_published_example_has_the_normal_leaf_layout(hosted, browser, serve):
         }))"""
     for width in (390, 1200):
         for page in (normal, published):
-            page.set_viewport_size({"width": width, "height": 900})
-            wait_until_ready(page)
+            # The film picks its phone or desktop layout as a size observer hears its
+            # stage, in the rendering update after the resize, which a readiness
+            # reading taken before that update knows nothing of.
+            resized(page, width, 900)
+            rendered(page)
         assert published.evaluate(layout) == normal.evaluate(layout)
 
 
@@ -775,7 +778,7 @@ def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser)
         if replaced:
             route.fulfill(response=answer)
             return
-        replaced.append(answer.text())
+        replaced.append(answer.json()["reading"])
         route.fulfill(
             response=answer,
             headers={
@@ -793,7 +796,7 @@ def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser)
         )
     ) as response:
         pass
-    assert response.value.text() == reading
+    assert response.value.json()["reading"] == reading
     # The next poll starts after the runtime admitted the replacement response.
     with page.expect_request("**/api/news"):
         pass
@@ -1191,8 +1194,8 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
         for scheme in ("dark", "light"):
             page.emulate_media(color_scheme=scheme)
             assert page.evaluate(paper) == PAPER[scheme], (name, scheme)
-        page.set_viewport_size(PHONE)
-        wait_until_ready(page)
+        resized(page, **PHONE)
+        rendered(page)
         overflow = root_overflow(page)
         assert overflow == 0, f"{name} scrolls {overflow}px sideways on a phone"
         assert not failed, f"{name}: {failed[:3]}"
@@ -1202,14 +1205,13 @@ def test_every_product_route_is_a_live_leaf_page(site, hosted, browser):
 def staged_site(site, tmp_path):
     """The module's built site, copied for one test to break files in.
 
-    `build` links the vendored layer into every page it publishes rather than
-    writing it again, so the site is 18,054 files and 65M on disk. A plain
-    `copytree` copies bytes and breaks every one of those links, so each copy
-    measured 398M. Sharing the layer the way `build` does, and the way a lent page
-    shares it, brings that to 84M. It buys nothing in time — the two take 3.5s and
-    3.9s, because the cost is the directory entry rather than the bytes — and
-    everything outside the layer is still copied, so a test rewrites the file it is
-    here to break without that write reaching the build the rest of the module reads.
+    `build` links the vendored layer into every page it publishes rather than writing it
+    again. A plain `copytree` copies bytes and breaks every one of those links, so each
+    copy holds the layer again for every page. Sharing the layer the way `build` does,
+    and the way a lent page shares it, keeps the links. It saves disk rather than time,
+    since the cost can lie in the directory entry rather than the bytes, and everything
+    outside the layer is still copied, so a test rewrites the file it is here to break
+    without that write reaching the build the rest of the module reads.
     """
     staged = tmp_path / "staged"
 
@@ -1259,7 +1261,7 @@ def test_the_public_catalog_paints_in_its_final_position_before_leaf_loads(
         )
         assert initial_catalog["width"] > page.evaluate(
             "() => parseFloat(getComputedStyle(document.documentElement)"
-            ".getPropertyValue('--col'))"
+            ".getPropertyValue('--lf-col'))"
         ), "the catalog painted at the prose measure and widened once leaf.js resolved"
     finally:
         for route in boot:
@@ -1319,25 +1321,9 @@ def test_the_public_catalog_is_a_visual_index_of_full_page_routes(
             560,
         ]
 
-    developer_galleries = page.locator("#developer-galleries")
-    expect(developer_galleries).to_be_visible()
-    developer_galleries.scroll_into_view_if_needed()
-    expect(developer_galleries.locator("a.developer-gallery-link")).to_have_count(2)
     expect(page.locator("iframe, lf-tabs")).to_have_count(0)
     published = {path.name for path in (site / "examples").iterdir() if path.is_dir()}
     assert published == {source.stem for source in published_pages()}
-    assert page.evaluate(
-        "() => Boolean(document.querySelector('#pages')"
-        ".compareDocumentPosition(document.querySelector('#developer-galleries'))"
-        " & Node.DOCUMENT_POSITION_FOLLOWING)"
-    )
-    product_gallery = developer_galleries.locator("#product-gallery")
-    expect(product_gallery).to_contain_text("Core product gallery")
-    expect(product_gallery).to_contain_text("core interactions to try live")
-    expect(product_gallery).to_have_attribute("href", "/examples/feature-gallery/")
-    threads_gallery = developer_galleries.locator("#thread-panel-gallery")
-    expect(threads_gallery).to_contain_text("Four live panel views")
-    expect(threads_gallery).to_have_attribute("href", "/examples/thread-panel-gallery/")
 
 
 def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, browser):
@@ -1354,13 +1340,13 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
     assert frame.evaluate("frame => frame.contentDocument === null")
     result = child.evaluate(
         """async () => {
-          const {tabStore, draftStore, userStore} = await window.__lfCheckApi();
+          const {tabStore, writingStore, userStore} = await window.__lfCheckApi();
           const {uploadMedia} = await window.__lfClientApi();
           const {scopedMediaUrl} = await window.__lfWidgetApi();
           const denied = ['localStorage', 'sessionStorage'].every(name => {
             try { window[name]; return false; } catch { return true; }
           });
-          const retained = [tabStore, draftStore, userStore].every((store, index) => {
+          const retained = [tabStore, writingStore, userStore].every((store, index) => {
             const value = `child-${index}`;
             return store.set('isolation-test', value)
               && store.get('isolation-test') === value
@@ -1386,8 +1372,8 @@ def test_a_sample_keeps_ephemeral_storage_and_presents_uploaded_media(serve, bro
     sample.evaluate("async sample => { await sample.ready; }")
     assert child.evaluate(
         """async () => {
-          const {tabStore, draftStore, userStore} = await window.__lfCheckApi();
-          return [tabStore, draftStore, userStore].every(store => store.get('isolation-test') === null);
+          const {tabStore, writingStore, userStore} = await window.__lfCheckApi();
+          return [tabStore, writingStore, userStore].every(store => store.get('isolation-test') === null);
         }"""
     )
 
@@ -1415,6 +1401,9 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
             expect(samples).to_have_count(3)
+            # A sample starts its page as it nears the window, and these stand in a
+            # shut tab.
+            render_checks_model.start_near_work(page)
             for sample in samples.all():
                 sample.evaluate("async sample => { await sample.ready; }")
         if source.stem in framed:
@@ -1691,7 +1680,9 @@ def test_a_published_decision_survives_reload(served_example, browser):
     decisions = page.locator(".lf-fp-on-user")
     expect_obligations_answered(page, "0/1")
     expect(decisions).to_be_visible()
-    chosen = "() => [...document.querySelectorAll('lf-option[chosen]')].map(o => o.id)"
+    chosen = (
+        "() => [...document.querySelectorAll('lf-option[selected]')].map(o => o.id)"
+    )
     with sending(page, "the published option pick"):
         page.locator("#heat-opt-floor .lf-pick").click()
     expect(page.locator("#heat-first")).to_have_attribute("data-lf-user-override", "1")
@@ -1788,9 +1779,9 @@ def test_a_sample_waits_for_slow_contained_page_state(serve, browser):
         storage = contained_document.evaluate(
             """async () => {
                 const {readApplication} = await window.__lfCheckApi();
-                const {PAGE_SCOPE, tabStore, draftStore, userStore} =
+                const {PAGE_SCOPE, tabStore, writingStore, userStore} =
                     await window.__lfCheckApi();
-                for (const [name, store] of Object.entries({tabStore, draftStore, userStore})) {
+                for (const [name, store] of Object.entries({tabStore, writingStore, userStore})) {
                     if (!store.set('isolation-test', name) || store.get('isolation-test') !== name)
                         throw new Error(`${name} did not retain sample working state`);
                     if (!store.keys().includes('isolation-test'))

@@ -46,7 +46,7 @@ export function drawingThumbnail(drawing, target) {
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");
   canvas.dataset.lfDrawingContext = "pending";
-  canvas.style.color = "var(--accent)";
+  canvas.style.color = "var(--lf-accent)";
   let picture = readPicture(drawing, target);
   const sizeCanvas = () => {
     const width = Math.ceil(picture.width * picture.scale);

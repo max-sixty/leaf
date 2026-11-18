@@ -118,19 +118,24 @@
             <figcaption>Reply lands below the screen.</figcaption>
           </figure>
         </div>
-        <lf-ask id="page-reply-policy">
-          <h3>Should an on-screen reply wait behind a fixed-size “1 new reply” row?</h3>
-          <lf-options id="page-reply-policy-options" choose>
-            <lf-option id="page-reply-immediate"
+        <lf-group
+          id="page-reply-policy"
+          label="Should an on-screen reply wait behind a fixed-size “1 new reply” row?"
+        >
+          <h3 id="page-reply-policy-h">
+            Should an on-screen reply wait behind a fixed-size “1 new reply” row?
+          </h3>
+          <lf-options id="page-reply-policy-options">
+            <lf-option id="page-reply-immediate" label="Show it immediately"
               ><strong>Show it immediately</strong> Let the new reply occupy its space
               in the thread.</lf-option
             >
-            <lf-option id="page-reply-hold"
+            <lf-option id="page-reply-hold" label="Hold until revealed"
               ><strong>Hold until revealed</strong> Keep the incoming reply behind a
               fixed-size “1 new reply” row.</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-group>
       </section>
       <section id="shift-10">
         <h2>#10 — The reply box in an open panel card</h2>
@@ -138,19 +143,24 @@
           The reply box follows the messages today. An alternative pins it at the
           panel’s foot, keeping the writing position still as replies arrive.
         </p>
-        <lf-ask id="panel-reply-position">
-          <h3>Should an open panel card’s reply box be pinned at the panel’s foot?</h3>
-          <lf-options id="panel-reply-position-options" choose>
-            <lf-option id="panel-reply-after"
+        <lf-group
+          id="panel-reply-position"
+          label="Should an open panel card’s reply box be pinned at the panel’s foot?"
+        >
+          <h3 id="panel-reply-position-h">
+            Should an open panel card’s reply box be pinned at the panel’s foot?
+          </h3>
+          <lf-options id="panel-reply-position-options">
+            <lf-option id="panel-reply-after" label="Keep it after the messages"
               ><strong>Keep it after the messages</strong> The reply box follows the end
               of the card’s messages.</lf-option
             >
-            <lf-option id="panel-reply-pinned"
+            <lf-option id="panel-reply-pinned" label="Pin it at the panel’s foot"
               ><strong>Pin it at the panel’s foot</strong> Keep the reply box in place
               while messages grow above it.</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-group>
       </section>
     </main>
   </body>

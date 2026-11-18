@@ -32,10 +32,10 @@
      its resolving or reopening;
    - a thread not drawn yet draws at once, moving what follows it: one the agent starts
      in a seat or at a widget's datum, and one reopened out of a seat's closed Resolved
-     disclosure. The user chose that on 4 November, over the notices these once waited
+     disclosure. The user chose that over notices for these to wait
      behind: in the row the thread would follow, in place of the seat's first-message
      row, in the Resolved summary, and at the margin marker of a datum with no seat,
-     which took a second hold for widgets out of what they were handed (surfaces.js).
+     which take a second hold for widgets out of what they are handed (surfaces.js).
 
    An open panel card shows appended messages immediately when no composition is
    active: its idle reply row and later cards may move, while existing messages keep
@@ -58,12 +58,12 @@
    working message's arrival, its departure, and a new step whose words wrap to
    another height change the thread's height, so a seat holds any change of its words
    when that growth would move the reader. Its notice doesn't say that change (the
-   user's choice, 2026-10-26): progress never counts as unread, and the receipt on the
+   user's choice): progress never counts as unread, and the receipt on the
    user's message, such as "On it", already says the agent is working, so a red
-   "1 new message" over a draft announced news the user owes nothing. Held alone, it
+   "1 new message" over a draft announces news the user owes nothing. Held alone, it
    shows by any route below but the notice. Rejected: counting each held step as
-   "1 new message" (2026-10-14 to 2026-10-26), and "Work in progress" or "Work
-   changed" where the working message changed alone, which repeated that receipt.
+   "1 new message", and "Work in progress" or "Work
+   changed" where the working message changes alone, which repeat that receipt.
    Completed progress disappears when the answer shows. Changes to other existing
    messages, reactions, folds and settlement use the same hold as a seat in page flow,
    and a notice calls a changed message an edit.
@@ -102,27 +102,27 @@
    drawn, so it stays unread until it shows.
 
    Decisions. An idle open panel card shows appended messages (the user's decision,
-   2026-10-08, relaxing #1694's blanket hold), and a streaming reply's words as they
-   come (2026-10-09: holding them as an edit left the agent's opening an empty bubble
-   behind "1 new reply" until the user pressed it), and an answer folding the progress
-   run at the thread's end (2026-10-09: since #1926 the agent's first move is a progress
-   acknowledgement, so holding the fold held nearly every answer). Everything above that
-   run, the message the user is on and an active editor remain protected. Rejected: filling the list (#1480), which makes the
+   over a blanket hold), and a streaming reply's words as they
+   come (holding them as an edit leaves the agent's opening an empty bubble
+   behind "1 new reply" until the user presses it), and an answer folding the progress
+   run at the thread's end (the agent's first move is a progress
+   acknowledgement, so holding the fold holds nearly every answer). Everything above that
+   run, the message the user is on and an active editor remain protected. Rejected: filling the list, which makes the
    open card as tall as the panel and leaves later cards below the fold; and letting a
    list that cannot scroll push its contents down, which needs the shift watch to stop
-   checking such lists. Arrival is read from where the user is (the user's decision,
-   2026-10-06, reversing #1780's record). Rejected: a `showHeld` call in each route that
+   checking such lists. Arrival is read from where the user is (the user's decision).
+   Rejected: a `showHeld` call in each route that
    takes the user to a thread, which every new route had to remember and a route putting
    them back had to opt out of. The margin's floating card holds news that would move
-   the reply the user writes and keeps the width it first stood at (the user's decision,
-   2026-10-13): before, it took every change at once, widening up to 232px and carrying
-   Resolve, Close and Send sideways, and rising under a draft. Rejected: keeping only
-   its width, which doubled the rise; keeping its box and scrolling the transcript,
-   which scrolls Resolve away; and holding all news while it is open, which stops
+   the reply the user writes (the user's decision), and its width never
+   follows its words (comment-placement.js, `size-width`). Rejected: taking every change
+   at once, which can widen it, carrying Resolve, Close and Send sideways, and raise it
+   under a draft; keeping only its width, which can double the rise; keeping its
+   box and scrolling the transcript, which scrolls Resolve away; and holding all news while it is open, which stops
    progress showing live where the user watches it. A presentation that makes room for
    the agent's answer to the user's last turn itself shows that answer at once, as the
-   floating panel's thread view does (the user's decision, 2026-10-14, floating-panel.js):
-   held, the reply the user waited for stood unseen behind a small notice in their own
+   floating panel's thread view does (the user's decision, floating-panel.js):
+   held, the reply the user waits for stands unseen behind a small notice in their own
    message's head row.
 
    `HeldReading` is the same rule for a widget's region whose rows only the log or the
@@ -461,10 +461,10 @@ const said = (news) => {
  *  voice user saying the words they see reaches it; its preview says each fact, "1 new
  *  reply · 1 new message", and a screen reader hears that as its description while it
  *  stands on focus (preview.js). A name of the facts
- *  alone matched nothing the user saw. The user chose this on 31 October over a line
- *  of facts that dropped those past its room and counted them at its end ("1 new reply
- *  +1"), and said "2 new" only where even the first fact didn't fit, so one piece of
- *  news read three ways, in the danger ink an error wears. The words have a span of
+ *  alone matches nothing the user sees. The user chose this over a line
+ *  of facts that drops those past its room and counts them at its end ("1 new reply
+ *  +1"), and says "2 new" only where even the first fact doesn't fit, so one piece of
+ *  news reads three ways, in the danger ink an error wears. The words have a span of
  *  their own, so a card that holds the notice's room (`data-lf-room`, controls.css)
  *  keeps it at the width of the widest count it says (`NEWS_ROOM`). */
 export function newsNotice() {
@@ -483,8 +483,8 @@ export function newsNotice() {
   // A key on the notice, which stands the user on it, lands them on the thread, since
   // the notice goes with what it held. A pointer's press takes no focus itself, and
   // its owner's `open` decides where the press lands: a thread's leaves the user where
-  // they stand, so a reply being written keeps its caret, where the press once took it
-  // out of the box.
+  // they stand, so a reply being written keeps its caret rather than the press taking
+  // it out of the box.
   node.addEventListener("mousedown", (event) => event.preventDefault());
   const show = () => {
     const currentLocation = focused() === node;

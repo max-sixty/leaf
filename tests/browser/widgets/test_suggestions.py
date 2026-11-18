@@ -106,7 +106,7 @@ def test_suggestions_sharing_a_block_keep_source_and_keyboard_order(browser, ser
                 "?.dataset.lfMarginFor"
             )
         )
-        # Each row has two decision controls, and the roving semantic marker now joins
+        # Each row has two decision controls, and the roving semantic marker joins
         # them in the same item. Walk past whichever row currently owns that one stop.
         page.keyboard.press("Tab")
         page.keyboard.press("Tab")
@@ -122,7 +122,7 @@ def test_suggestion_controls_stay_out_of_the_column(browser, serve):
     and reads as it will once the change is settled. The row takes its line
     from an anchor inside the change, so how deep the
     change sits costs it nothing: one inside a card — a positioned ancestor, which
-    `left: 100%` used to resolve against, dropping the row back into the text —
+    `left: 100%` would resolve against, dropping the row back into the text —
     hangs in the rail beside its card like any other. What is left is a
     measurement no lint can make: where a row stands as a pin, it touches the change
     it decides, over none of the change's words, and stays on the page."""
@@ -198,10 +198,11 @@ def test_the_page_says_a_change_is_only_proposed(browser, serve):
     for whoever is listening, so it stays clipped. Paper has no row, so each pending
     slot needs visible words distinguishing a proposal from ordinary settled content.
 
-    The word also had to change to be worth showing. Pendingness was carried by the
-    word's mere presence, which no user can perceive — nothing sits alongside to
-    compare it against — and `deletion` is ARIA's own name for the completed act, so
-    a listener heard the change announced as made while the page was still asking."""
+    The word has to say more than its presence to be worth showing. Pendingness carried
+    by the word's mere presence is something no user can perceive — nothing sits
+    alongside to compare it against — and `deletion` is ARIA's own name for the
+    completed act, so a listener would hear the change announced as made while the page
+    was still asking."""
     url = serve(PROPOSED_PAGE)
     page = open_page(browser, url)
 
@@ -237,7 +238,7 @@ def test_the_page_says_a_change_is_only_proposed(browser, serve):
 
 def test_a_moved_change_takes_its_controls_with_it(browser, serve):
     """The row is the column's child, not the change's, so the subtree a card
-    travels in no longer carries it: a card dragged to another column, or moved by
+    travels in doesn't carry it: a card dragged to another column, or moved by
     the replay of someone else's drag, leaves and re-enters the document with its
     row unhooked. Re-connection has to hang it again, or the user loses the
     only way to decide a change that is still plainly pending on the page. Replayed
@@ -340,10 +341,10 @@ def test_the_obligation_walk_lands_on_a_suggestion_the_reveal_just_opened(
 ):
     """Stepping the obligations opens the closed <details> a change waits inside, and does
     it in the same task as the arrival. The row un-waits as the arrival lands rather than
-    at the observer's next frame: settled asynchronously, the arrival landed
-    on a display:none element and the user stayed where they were — at the previous
-    decision — while the announce said otherwise, so Enter was aimed at a decision they
-    had already seen."""
+    at the observer's next frame: settled asynchronously, the arrival would land on a
+    display:none element and the user would stay where they were — at the previous
+    decision — while the announce said otherwise, so Enter would be aimed at a decision
+    they had already seen."""
     page = open_page(browser, serve(COLLAPSED_PAGE))
     page.keyboard.press("m")
     expect(page.locator("#sug-now[data-lf-obligation]")).to_have_count(1)
@@ -403,7 +404,7 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     )
 
     # A strike and two tints say which words are going and which are proposed, and say
-    # it in no text at all: a user listening got the sentence twice, the two readings
+    # it in no text at all: a user listening would get the sentence twice, the two readings
     # contradicting each other, with nothing to say either was a change.
     assert "deletion" in page.locator("#sug-refill lf-old").aria_snapshot()
     assert "insertion" in page.locator("#sug-refill lf-new").aria_snapshot()
@@ -449,10 +450,10 @@ def test_accepting_a_suggestion_settles_it_and_reaches_claude(browser, serve):
     expect_accept_all(page, 2)
 
     # The boundary before reading the shared log: what the press sent has to have a
-    # definitive outcome first. The fetch this replaced proved nothing —
+    # definitive outcome first. A fetch in a predicate would prove nothing —
     # `wait_for_function` awaits the promise a predicate returns, but a falsy
-    # resolution ends the wait instead of polling again, so it came back `False` on
-    # the first poll and the read below ran unguarded.
+    # resolution ends the wait instead of polling again, so it would come back `False`
+    # on the first poll and leave the read below unguarded.
     round_trip(page)
     logged = [
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
@@ -574,13 +575,14 @@ def test_a_refused_undo_keeps_the_outcome_and_its_undo(browser, serve):
 
 def test_a_widget_naming_its_own_words_does_not_read_the_runtimes(browser, serve):
     """The line saying a block carries a comment goes in the block, and a block inside a
-    widget is still a block — so `textContent` on a widget's own slot now returns the
-    author's words with the runtime's appended. A suggestion labels itself from that slot,
-    and offered to accept “Retry three times. 1 comment”. It reads the slot the way the
-    page is read instead, which is what `says` is for — read before deciding, because a
-    reject retires the very slot the label comes from, and a retired slot says nothing:
-    the announcement then named the widget's id instead of the words the user judged. Short
-    on purpose: the label cuts at 48 characters, which hid this on every shipped example."""
+    widget is still a block — so `textContent` on a widget's own slot returns the
+    author's words with the runtime's appended. A suggestion labelling itself from that
+    slot's `textContent` would offer to accept “Retry three times. 1 comment”. It reads
+    the slot the way the page is read instead, which is what `says` is for — read before
+    deciding, because a reject retires the very slot the label comes from, and a retired
+    slot says nothing: the announcement would then name the widget's id instead of the
+    words the user judged. Short on purpose: the label cuts at 48 characters, which
+    hides this on a longer suggestion."""
     url = serve(SHORT_SUGGESTION, anchored=[("now", "Retry three times")])
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
@@ -617,9 +619,9 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     """A decision may move the page; it may not teleport it.
 
     A block change is a struck old paragraph stacked over a tinted new one, and
-    accepting used to drop the old one with `display: none` in the frame of the press —
-    179 measured pixels out of the middle of the shipped design page, with everything
-    below jumping up under the pointer that had just pressed. The rule this layer
+    accepting by dropping the old one with `display: none` in the frame of the press
+    would take its height out of the middle of the page, with everything below jumping
+    up under the pointer that had just pressed. The rule this layer
     already carries is that a change the user asked for may move the page and must do
     it as motion, because motion is the form the eye can follow to where the sentence
     went.
@@ -649,9 +651,12 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     # The state lands in the frame of the press. Its fold then carries the pixels toward
     # that already-current reading while the outbox carries it toward the log.
     expect(page.locator("#sug[data-lf-state='accept']")).to_have_count(1)
+    # The panel's leaf answers the same press with its own gesture (On Me emptying), so
+    # the slot's motions are the held ones inside it.
+    folds = "window.__lfHeld.filter((m) => document.getElementById('sug').contains(m.effect.target))"
     held = page.evaluate(
-        """() => window.__lfHeld.map((m) => [m.effect.target.tagName.toLowerCase(),
-                                             m.effect.getTiming().duration])"""
+        f"""() => {folds}.map((m) => [m.effect.target.tagName.toLowerCase(),
+                                      m.effect.getTiming().duration])"""
     )
     assert [t for t, _ in held] == ["lf-old"], (
         f"the retired slot went without motion to follow: {held}"
@@ -661,7 +666,7 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
         "the fold begins somewhere other than where the paragraph was standing"
     )
     page.evaluate(
-        "() => { const m = window.__lfHeld[0];"
+        f"() => {{ const m = {folds}[0];"
         "        m.currentTime = m.effect.getTiming().duration / 2; }"
     )
     middle = page.evaluate(at)
@@ -672,15 +677,15 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     # effect has already stopped applying here and the slot springs back to its
     # unanimated height before cleanup gets its turn.
     endpoint = page.evaluate(
-        """() => {
-          const m = window.__lfHeld[0];
+        f"""() => {{
+          const m = {folds}[0];
           m.currentTime = m.effect.getTiming().duration;
-          return {
+          return {{
             height: m.effect.target.getBoundingClientRect().height,
             opacity: Number(getComputedStyle(m.effect.target).opacity),
             fill: m.effect.getTiming().fill,
-          };
-        }"""
+          }};
+        }}"""
     )
     assert endpoint["height"] == pytest.approx(0, abs=0.1), (
         f"the fold exposed its unanimated box at the endpoint: {endpoint}"
@@ -689,7 +694,7 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
         f"the fold exposed its unanimated ink at the endpoint: {endpoint}"
     )
 
-    page.evaluate("() => window.__lfHeld[0].finish()")
+    page.evaluate(f"() => {folds}[0].finish()")
     expect(old).to_be_hidden()
     page.wait_for_function(
         "() => document.querySelector('#sug lf-old').getAnimations().length === 0"
@@ -706,7 +711,7 @@ def test_a_decided_change_folds_away_rather_than_vanishing(engine, request, serv
     page.locator("[data-lf-margin-for='sug'] [data-lf-margin-entry-key=accept]").click()
     round_trip(page)
     page.evaluate(
-        "() => { const m = window.__lfHeld.at(-1);"
+        f"() => {{ const m = {folds}.at(-1);"
         " m.currentTime = m.effect.getTiming().duration / 2; }"
     )
     assert 0 < page.evaluate(at) < tall

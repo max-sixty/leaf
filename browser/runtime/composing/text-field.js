@@ -81,15 +81,15 @@
  * The placeholder is a layer under the words, shown while the field is empty. It reads
  * the `placeholder` attribute, and a child in slot `placeholder` stands in its place when
  * a box wants more than one run of text there, such as a label and the key that sends.
- * It is drawn in the theme's muted ink; a box that wants another face for it styles
- * `::part(placeholder)`, which a slotted child inherits. The words are hidden from
+ * It is drawn in the theme's quiet ink (`--lf-quiet`); a box that wants another face for
+ * it styles `::part(placeholder)`, which a slotted child inherits. The words are hidden from
  * assistive technology, which reads them as the content node's `aria-placeholder`.
  * A child in slot `end` is a press of the box's own at the placeholder's far end, such
  * as a Resolve's Next thread: it wears the placeholder's face and stands exactly while the
  * words do, the words shorten before it, and it stays in the accessibility tree and
  * takes the pointer, so a press on it is its own and never a press on the field.
  * Rejected: the press among the slotted words, whose `aria-hidden` took it out of the
- * accessibility tree (found in review, 6 November 2026).
+ * accessibility tree.
  *
  * A connected field holding words draws them in its editor. An empty one builds its
  * editor when the user arrives in it (`#build`), since a page can show many empty
@@ -107,7 +107,7 @@
  * hold until CodeMirror arrives, draws its words plain in the empty line's place, and
  * keeps the user's focus there; what they type meanwhile lands natively in that place,
  * which the field reads back as its value, so the editor builds holding it. Rejected:
- * loading CodeMirror with the page, about 345 KB of the bytes before the server's
+ * loading CodeMirror with the page, adding its bytes to those before the server's
  * state shows, for a capability most openings never use.
  *
  * The host is also the control accessibility tooling addresses, since nothing outside a
@@ -123,7 +123,7 @@
  * The field keeps that room at the end of every line, so where its words wrap depends
  * only on the words and the box's width, never on which line Send stands beside or on
  * what follows the last word. A sent message that keeps the draft's wrapping keeps the
- * same room. Rejected: the room after the last words only (#1871 to #3678), which ran
+ * same room. Rejected: the room after the last words only, which ran
  * the lines above under Send's column but made the last line's wrapping turn on the
  * caret's surroundings: an inline spacer after the last word wrapped alone or carried
  * that word with it, so typing a space after a word could pull it back up a line,
@@ -170,6 +170,7 @@ import { TEXT_FIELD } from "../control-selectors.js";
 import { afterPresentation } from "../presentation.js";
 import { loadFieldEditor, readFaces } from "./field-editor.js";
 import { holdRendering, sizeObserver } from "../rendering.js";
+import { contentsRects } from "../shown-box.js";
 import { keepFieldKeys } from "../field-keys.js";
 
 const sheet = new CSSStyleSheet();
@@ -216,7 +217,7 @@ sheet.replaceSync(`
      scrolling. A cut naming none is invalid, which leaves the words uncut. The clip
      reaches 2px past that box, the caret's width at a line's end: Firefox paints the
      caret from its offset onward and pulls it inside only a scroll container, so a
-     caret after a line that fills the box, as a trailing space can, was
+     caret after a line that fills the box, as a trailing space can, would be
      cut away whole. Words an owner carries down from above the box, as a line removed
      carries them, need more: it sets --lf-field-reach as far as they travel, and
      stops the host scrolling meanwhile. Chrome refuses calc() here, so the reach
@@ -231,7 +232,7 @@ sheet.replaceSync(`
      words — and shortens with an ellipsis where the box is narrow, so it reads the same
      height whether it shows the plain words or a keyed hint. */
   .lf-field-placeholder { pointer-events: none; display: flex; align-items: baseline;
-    block-size: 1lh; contain: inline-size; color: var(--muted); }
+    block-size: 1lh; contain: inline-size; color: var(--lf-quiet); }
   .lf-field-placeholder-words { flex: 1 1 auto; min-width: 0; white-space: nowrap;
     overflow-x: clip; text-overflow: ellipsis; }
   :host(:not(:state(placeholder-shown))) .lf-field-placeholder { visibility: hidden; }
@@ -255,23 +256,23 @@ sheet.replaceSync(`
      unseen and unspoken. Its glyphs go unfilled while its colour stays the words',
      because the caret can stand at the end of unseen text, as just past a new item's
      marker, and the browser draws it in that text's colour. */
-  .lf-md-mark { color: var(--muted); }
+  .lf-md-mark { color: var(--lf-muted); }
   .lf-md-unseen { -webkit-text-fill-color: transparent; }
-  code { font-family: var(--mono); font-size: var(--code-inline-size);
-    background: var(--code-bg); border-radius: var(--code-inline-r);
-    padding: var(--code-inline-pad); box-decoration-break: slice; }
+  code { font-family: var(--lf-mono); font-size: var(--lf-code-inline-size);
+    background: var(--lf-code-bg); border-radius: var(--lf-code-inline-r);
+    padding: var(--lf-code-inline-pad); box-decoration-break: slice; }
   .lf-md-heading { font-weight: bold; }
-  .lf-md-link { color: var(--accent); text-decoration: underline var(--link-underline);
-    text-underline-offset: var(--link-underline-offset); }
+  .lf-md-link { color: var(--lf-accent); text-decoration: underline var(--lf-link-underline);
+    text-underline-offset: var(--lf-link-underline-offset); }
   /* A quote and a list item are boxes around their lines (field-editor.js, \`box\`), as
      the message's blockquote and li are, so their words stand where the message's do at
      every level of nesting. An item stands one list inset in, under the platform's own
      list marker, as in the message, so it is the same bullet or number at the same
      place: the inset is the item's margin, as it is its list's padding in the message,
      since the platform draws the marker outside the item's border. */
-  .lf-md-quote { border-inline-start: var(--quote-rule); font-style: var(--quote-style);
-    padding-inline-start: var(--quote-inset); color: var(--muted); }
-  .lf-md-item { margin-inline-start: var(--list-inset); }
+  .lf-md-quote { border-inline-start: var(--lf-quote-rule); font-style: var(--lf-quote-style);
+    padding-inline-start: var(--lf-quote-inset); color: var(--lf-muted); }
+  .lf-md-item { margin-inline-start: var(--lf-list-inset); }
   /* The source's markers that open a line stand in the insets before its words, each as
      wide as its container's rule and inset, so each stands beside the rule it draws,
      unseen while the caret is away, and revealing one moves no word: their run takes no
@@ -279,22 +280,23 @@ sheet.replaceSync(`
   .lf-md-markers { display: inline-flex; inline-size: 0; justify-content: flex-end; }
   .lf-md-marker { display: inline-flex; flex: none; justify-content: flex-end;
     white-space: pre; box-sizing: content-box; }
-  .lf-md-item-marker { inline-size: var(--list-inset); }
-  .lf-md-quote-marker { inline-size: var(--quote-inset);
-    border-inline-start: var(--quote-rule); border-inline-start-color: transparent; }
+  .lf-md-item-marker { inline-size: var(--lf-list-inset); }
+  .lf-md-quote-marker { inline-size: var(--lf-quote-inset);
+    border-inline-start: var(--lf-quote-rule); border-inline-start-color: transparent; }
   .lf-md-listed { display: list-item; }
   .lf-md-disc { list-style-type: disc; }
   .lf-md-circle { list-style-type: circle; }
   .lf-md-square { list-style-type: square; }
   .lf-md-number { list-style-type: decimal; }
-  .lf-md-code-block { font-family: var(--mono); font-size: var(--code-size);
-    line-height: var(--code-line); color: var(--code-ink); background: var(--pre-bg);
-    font-variant-ligatures: none; border-inline: 1px solid var(--code-border);
-    padding-inline: var(--pre-inset); }
-  .lf-md-code-first { border-block-start: 1px solid var(--code-border);
-    border-start-start-radius: var(--r); border-start-end-radius: var(--r); }
-  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--code-border);
-    border-end-start-radius: var(--r); border-end-end-radius: var(--r); }
+  .lf-md-code-block { color-scheme: var(--lf-code-scheme, inherit); font-family: var(--lf-mono);
+    font-size: var(--lf-code-size);
+    line-height: var(--lf-code-line); color: var(--lf-code-ink); background: var(--lf-pre-bg);
+    font-variant-ligatures: none; border-inline: 1px solid var(--lf-code-border);
+    padding-inline: var(--lf-pre-inset); }
+  .lf-md-code-first { border-block-start: 1px solid var(--lf-code-border);
+    border-start-start-radius: var(--lf-r); border-start-end-radius: var(--lf-r); }
+  .cm-line.lf-md-code-last { border-block-end: 1px solid var(--lf-code-border);
+    border-end-start-radius: var(--lf-r); border-end-end-radius: var(--lf-r); }
   /* A picture fits the field as media fits its container on the page, centred on its
      line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
@@ -304,13 +306,13 @@ sheet.replaceSync(`
      reaching it moves nothing (browser/AGENTS.md, "The page holds still under the
      user's aim"). */
   .lf-md-rule {
-    background: linear-gradient(var(--rule), var(--rule)) center / 100% 1px no-repeat; }
+    background: linear-gradient(var(--lf-rule), var(--lf-rule)) center / 100% 1px no-repeat; }
   /* A press on a task's box reaches the line, which puts the caret in its brackets, as a
      press on any drawn source does; Chromium's disabled box would take it and do
      nothing. */
   .task-list-item-checkbox { pointer-events: none; }
   .lf-external-mark { display: inline-block; width: 0.75em; height: 0.75em;
-    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--accent);
+    margin-inline-start: 0.24em; vertical-align: 0.03em; color: var(--lf-accent);
     background: currentColor; mask: var(--lf-external-icon) center / contain no-repeat;
     user-select: none;
     -webkit-user-select: none; }
@@ -319,8 +321,8 @@ sheet.replaceSync(`
      where a fence's container or the draft ends it, where code shares its opening line
      and at both ends of an indented block, takes that padding on the code's own line
      instead. */
-  .cm-line.lf-md-code-pad-start { padding-block-start: var(--code-line); }
-  .cm-line.lf-md-code-pad-end { padding-block-end: var(--code-line); }
+  .cm-line.lf-md-code-pad-start { padding-block-start: var(--lf-code-line); }
+  .cm-line.lf-md-code-pad-end { padding-block-end: var(--lf-code-line); }
 `);
 
 // The field's editor (field-editor.js), once CodeMirror under it has loaded. It loads as
@@ -466,8 +468,9 @@ class LeafText extends HTMLElement {
   // past (`more-above`, `more-below`), read again as the host scrolls, so an owner can
   // show there is more without a scrollbar. The host stops at the page's height limit
   // while words grow inside it, so the reading watches the editor's content too, in the
-  // editor's read/write phase. A scroll timeline would say it in CSS alone, but Firefox
-  // lacks scroll timelines.
+  // editor's read/write phase. A scroll timeline could fade the edges in CSS, but this
+  // reading runs on each scroll anyway for `corner-taken`, so the timeline would add two
+  // registered properties and their keyframes and save no work.
   #overflow = sizeObserver(() => this.#measureOverflow());
 
   #measureOverflow() {
@@ -551,9 +554,7 @@ class LeafText extends HTMLElement {
       const block = line.getBoundingClientRect();
       if (block.bottom <= top || block.top >= box.bottom) continue;
       const height = Number.parseFloat(getComputedStyle(line).lineHeight) * scaleY;
-      const words = document.createRange();
-      words.selectNodeContents(line);
-      for (const rect of words.getClientRects())
+      for (const rect of contentsRects(line))
         if (reaches(rect, Math.max(0, (height - rect.height) / 2) || 0)) return true;
     }
     if (!view.hasFocus) return false;

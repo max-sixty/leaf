@@ -1,10 +1,8 @@
-# Added after a simplification audit queried lf-toc's example and schema, then
-# wrote a custom anchor index without reading its behavioral description.
-# The initial cold prompt passed 3/3 on both arms; this less directive prompt
-# passed 2/2 on both. It guards navigation and comparison together rather than
-# reproducing the long session. Also passed 2/2 with both the landed Contents
-# rule and its short-document exception. Native history replays, rather than
-# this cold prompt, discriminate the long-session instruction changes.
+# A simplification audit queried lf-toc's example and schema, then wrote a custom
+# anchor index without reading its behavioral description. This prompt guards
+# navigation and comparison together rather than reproducing the long session.
+# Native history replays, rather than this cold prompt, discriminate the
+# long-session instruction changes.
 description: report-navigation-uses-vocabulary
 metadata:
   purpose: "Contents navigation: retain comparison metadata alongside the report outline."
@@ -23,8 +21,7 @@ vars:
     210 LOC, preserve drafts and focus; one Threads reading surface,\n300\u2013450 LOC, lose inline conversation\
     \ cards; remove smart margin placement,\n3500\u20134200 LOC, lose local markers; remove the hosted\
     \ AI agent, 1200\u20131400 LOC,\nretain public interactive demos; remove drawing comments, 900\u2013\
-    1050 LOC,\nkeep ordinary anchored text comments. Mark implementation proofs as pending.\n\nThe vendored\
-    \ vocabulary is `../../packages/default/registry.json` relative to the Leaf\nskill's base directory. The page\
+    1050 LOC,\nkeep ordinary anchored text comments. Mark implementation proofs as pending.\n\nThe page\
     \ directory is not reachable from here, so\nreply with the complete `index.html`, rather than writing\
     \ a file.\n"
 assert:

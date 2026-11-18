@@ -209,7 +209,7 @@ test("content moved across the page marks nothing at the place it left", async (
 
 test("rounded frames do not join neighbouring text into a changed container", async () => {
   // The curve has non-line edge pixels, but the border is not a paragraph. A frame
-  // near static text used to join it, then fragment the moving frame into changes.
+  // near static text that joined it would then fragment the moving frame into changes.
   const framed = (x) => {
     const image = painted(
       blank(360, 180),
@@ -280,7 +280,7 @@ test("a rule drawn in the image's commonest colour still changes where it is dra
 });
 
 test("crowded changes consolidate nearby fragments while a distant edit stays separate", async () => {
-  // Adjacent fragments of the same hunk once kept separate outlines around line
+  // Kept separate, adjacent fragments of the same hunk would draw outlines around line
   // numbers and individual words. The same two fragments merit separate attention
   // in a sparse comparison, but less ink when there are many places to inspect.
   for (const scale of [1, 2, 3]) {

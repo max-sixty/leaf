@@ -15,7 +15,7 @@
  * The tree commits no kernel, so an install from git serves the source modules, and
  * two branches that change the runtime conflict only where their sources do. A
  * prepared installation, which the website's build and container use, compiles its
- * own into `dist/kernel/` (`leaf_dev.commands.distribution.prepare`) and serves it
+ * own into `dist/kernel/` (`leaf_dev.commands.site.distribution.prepare`) and serves it
  * while it matches that tree's modules (`leaf.runtime_selection.read_runtime`).
  * Rolldown names shared chunks from their modules, without content hashes, and writes
  * their references itself.

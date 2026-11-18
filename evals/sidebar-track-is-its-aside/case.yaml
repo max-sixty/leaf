@@ -1,9 +1,8 @@
-# Added with a sidebar's track as its aside (#1363). Base at ec9572b46 put the summary
-# in a last `div` (0 of 3); the change put it in an `aside` before the body (2 of 3).
-# Rewritten to a code review's verdict and file list, it also fails a stuck `aside`:
-# base at eee4a2d6d 0 of 3, the change 3 of 3. Since the Layout sticks what a track
-# holds, it fails a page that writes its own sticking instead; since it sticks several
-# blocks as well as one, it no longer asks for one block.
+# A sidebar's track is its aside; a failing page puts the summary in a last `div`
+# rather than in an `aside` before the body. With a code review's verdict and file
+# list, it also fails a stuck `aside`. Since the Layout sticks what a track holds, it
+# fails a page that writes its own sticking instead; since it sticks several blocks
+# as well as one, it doesn't ask for one block.
 description: sidebar-track-is-its-aside
 metadata:
   purpose:

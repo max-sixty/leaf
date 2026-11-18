@@ -138,6 +138,60 @@ def test_desktop_target_picker_arms_the_page_as_alt_does(browser, serve):
     assert page.context.pages == [page], "the picker's middle press opened the link"
 
 
+def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
+    """The picker's map names what the window shows, and a closed tab's panel shows
+    nothing, so the map reads none of the boxes in it: the browser lays the panel out
+    to answer each read, and on a page of thirty 4 MB text documents in tabs the first
+    map took 7 to 15 s in Firefox, about 270 ms a closed tab (geometry.js,
+    `shownParts`). Its words take a hint once their tab opens."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Tabs",
+                '<lf-tabs id="views"><lf-tab id="one" label="One">'
+                '<p id="open-words">Words in the open tab.</p></lf-tab>'
+                '<lf-tab id="two" label="Two">'
+                '<p id="closed-words">Words in the closed tab.</p></lf-tab></lf-tabs>',
+            )
+        ),
+    )
+    closed = page.locator("#closed-words")
+    expect(closed).to_be_hidden()
+    page.evaluate("""() => {
+      window.closedReads = [];
+      for (const name of ['getBoundingClientRect', 'getClientRects']) {
+        const read = Element.prototype[name];
+        Element.prototype[name] = function (...args) {
+          if (this.parentElement?.closest('lf-tab[hidden]'))
+            closedReads.push(`${name} ${this.localName}`);
+          return read.apply(this, args);
+        };
+      }
+    }""")
+    page.keyboard.press("s")
+    hints = page.locator(".lf-target-picker-hint")
+    expect(hints).not_to_have_count(0)
+    assert page.evaluate("closedReads") == []
+    page.keyboard.press("Escape")
+    expect(hints).to_have_count(0)
+
+    page.get_by_role("tab", name="Two", exact=True).click()
+    expect(closed).to_be_visible()
+    page.keyboard.press("s")
+    expect(hints).not_to_have_count(0)
+    # A target's hint stands by its upper-left corner (keyboard/hints.js, `seatHints`).
+    assert page.evaluate(
+        """() => {
+          const words = document.getElementById('closed-words').getBoundingClientRect();
+          return [...document.querySelectorAll('.lf-target-picker-hint')].some((hint) => {
+            const box = hint.getBoundingClientRect();
+            return Math.abs(box.top - words.top) < 40 && Math.abs(box.left - words.left) < 60;
+          });
+        }"""
+    ), "the opened tab's words took no hint"
+
+
 def test_target_picker_takes_a_margin_press_as_the_target_it_stands_by(browser, serve):
     """Over a suggestion's ✓ Accept, the picker comments on the change, as Alt does."""
     page = open_page(browser, serve(named_source("release-notes")))
@@ -255,11 +309,12 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(field).to_be_hidden()
 
 
-def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, serve):
-    """Keyboard and pointer Comment gestures make the same explicit re-anchoring."""
+def test_a_keyboard_comment_gesture_opens_its_targets_own_draft(browser, serve):
+    """Keyboard and pointer Comment gestures take the same explicit target: the chosen
+    target's own draft opens, and the words typed about the heading stay with it."""
     page = open_page(browser, serve(TARGETS_PAGE))
     field = page.locator(".lf-fab-input")
-    draft = "Carry these deliberate words."
+    draft = "Words about the heading."
 
     page.locator("h1").click(modifiers=["Alt"])
     expect(field).to_be_focused()
@@ -281,8 +336,11 @@ def test_a_keyboard_comment_gesture_carries_the_current_unsent_draft(browser, se
     page.keyboard.type(prose_code)
 
     expect(field).to_be_focused()
-    expect(field).to_have_js_property("value", draft)
+    expect(field).to_have_js_property("value", "")
     assert page.evaluate(DRAFT_MARK) == "prose"
+    page.keyboard.press("Escape")
+    page.locator("h1").click(modifiers=["Alt"])
+    expect(field).to_have_js_property("value", draft)
 
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
@@ -393,8 +451,8 @@ DENSE_TARGETS_PAGE = leaf_page(
     "dense visual targets",
     '<h1 id="title">Visual targets</h1><div class="visual-grid">'
     + "".join(
-        f'<figure id="visual-{i}"><svg viewBox="0 0 32 18" width="32" height="18" '
-        f'role="img" aria-label="Visual {i}"><rect x="1" y="1" width="30" '
+        f'<figure id="visual-{i}" aria-label="Visual {i}"><svg viewBox="0 0 32 18" '
+        'width="32" height="18" aria-hidden="true"><rect x="1" y="1" width="30" '
         'height="16" fill="none" stroke="currentColor"></rect></svg></figure>'
         for i in range(60)
     )
@@ -448,9 +506,13 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     page.keyboard.press("Tab")
     expect(page.locator(".lf-live")).to_contain_text("figure: Visual 0")
 
+    # A typed letter hides the chips it rules out and moves none
+    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    shown = page.locator(".lf-target-picker-hint:visible")
+    held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     last = codes[-1]
     page.keyboard.press(last[0])
-    expect(hints).to_have_count(sum(code.startswith(last[0]) for code in codes))
+    expect(shown).to_have_count(sum(code.startswith(last[0]) for code in held))
     page.keyboard.press(last[1])
     expect(hints).to_have_count(0)
     expect(page.locator(".lf-fab-input")).to_be_focused()
@@ -604,10 +666,13 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     page.keyboard.press("s")
     expect(hints).to_have_count(32)
 
-    codes = hints.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
-    tail = next(code for code in codes if len(code) > 1)
+    # A typed letter hides the chips it rules out and moves none
+    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    shown = page.locator(".lf-target-picker-hint:visible")
+    held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
+    tail = next(code for code in held if len(code) > 1)
     page.keyboard.press(tail[0])
-    expect(hints).to_have_count(sum(code.startswith(tail[0]) for code in codes))
+    expect(shown).to_have_count(sum(code.startswith(tail[0]) for code in held))
     continued = page.locator(
         f'.lf-target-picker-hint[data-lf-hint-code="{tail}"] .lf-binding-sequence'
     )
@@ -1527,4 +1592,40 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
     expect(status).to_have_text("4 of 4")
     expect(page.locator("#details")).to_have_attribute("open", "")
     search.fill("copper copper")
+    expect(status).to_have_text("1 of 1")
+
+
+def test_page_search_counts_the_words_an_off_screen_box_skips(browser, serve):
+    """A word the browser skips in an off-screen `content-visibility: auto` box, as a
+    long text document's runs are, counts by that box (passages.js,
+    `searchableWords`): every line of the document, and the author's far box's words,
+    less those under a `hidden` element in it. A box that is `visibility: hidden`
+    still counts a word that restores `visibility: visible`. `leaf-dev bench document
+    --input matches` reads what the count costs."""
+    lines = "\n".join(f"needle on line {i}" for i in range(4000))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Skipped runs",
+                f'<h1>Search</h1><lf-text-document id="doc" label="lines.txt"><pre>{lines}'
+                '</pre></lf-text-document><div id="far" style="margin-top: 4000px;'
+                ' content-visibility: auto; contain-intrinsic-size: auto 600px">'
+                "<p>needle far</p><p hidden>needle hidden far</p></div>"
+                '<div style="margin-top: 4000px; content-visibility: auto;'
+                ' contain-intrinsic-size: auto 600px; visibility: hidden">'
+                '<p style="visibility: visible">needle restored</p><p>needle unseen</p>'
+                "</div>",
+            )
+        ),
+    )
+    expect(page.locator("#doc .lf-text-document-run")).to_have_count(32)
+    page.keyboard.press("/")
+    search = page.get_by_role("searchbox", name="Search page text")
+    status = page.locator(".lf-page-search-status")
+    search.fill("needle")
+    expect(status).to_have_text("1 of 4002")
+    search.fill("needle far")
+    expect(status).to_have_text("1 of 1")
+    search.fill("needle restored")
     expect(status).to_have_text("1 of 1")

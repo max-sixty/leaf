@@ -21,7 +21,7 @@
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
  * is never replaced, so there is no failSoft.
  *
- * A card with `shows` is the board's view of another widget's answer (x-shows,
+ * A card with `shows` is the board's view of another widget's answer (`shows`,
  * `shownAnswer`), such as a proposal's pick in its own section. The board draws it in
  * the column whose `value` that answer names, read from the widget's state in this
  * render, so a pick there, an undo, a refusal and a revision's retraction move the card
@@ -40,17 +40,16 @@
  * text, so the label reaches the tree once, as the list's name, rather than
  * twice. */
 import Sortable from "/vendor/sortable.esm.js";
+import { nothing } from "/vendor/lit.js";
 import {
   setScroll,
   elementById,
   LeafElement,
-  nothing,
   move,
   offer,
   offerAction,
   generatedElement,
   quoted,
-  says,
   announce,
   labelOf,
   layoutChanged,
@@ -133,7 +132,7 @@ customElements.define(
     // describe rather than afford, so this holds for a quoted board too: an
     // exhibit is read like anything else, it just takes no input.
     //
-    // The heading is written here too, rather than declared x-says and left to
+    // The heading is written here too, rather than declared `says` and left to
     // the runtime's pass, because it is two things at once: the words a user
     // selects to comment on the column, and the list's accessible name. The pass
     // renders one run of words at an edge and knows nothing about names, so it
@@ -251,7 +250,7 @@ customElements.define(
       return Boolean(this.reading?.actions.move?.available);
     }
 
-    // A card showing another widget's answer (x-shows) moves when that answer can
+    // A card showing another widget's answer (`shows`) moves when that answer can
     // change, and every other card when the board's own move can.
     /** @param {Element} card */
     #movable(card) {
@@ -260,10 +259,10 @@ customElements.define(
     }
 
     // The value a column holds for a card showing an answer, null for none: the
-    // attribute the card's x-shows names.
+    // attribute the card's `shows` names.
     /** @param {Element} column @param {Element} card */
     #holds(column, card) {
-      const shows = declarationFor(card, "x-shows");
+      const shows = declarationFor(card)?.shows;
       if (!shows) throw new Error("Shown-answer card has no declared column value");
       return column.getAttribute(shows.value) || null;
     }
@@ -293,8 +292,7 @@ customElements.define(
 
     /** @param {Element} card */
     #title(card) {
-      const strong = card.querySelector(":scope > strong");
-      return (strong && says(strong)) || card.id;
+      return card.getAttribute("label")?.trim() || card.id;
     }
     /** @returns {NodeListOf<HTMLElement>} */
     #columns() {
@@ -328,7 +326,7 @@ customElements.define(
       const held = () => this.#grabbed?.grip === grip;
       // Whether the card is authored to show an answer, read off its markup since the
       // answer's own state may not have loaded yet.
-      const shows = card.hasAttribute(declarationFor(card, "x-shows")?.attr ?? "");
+      const shows = card.hasAttribute(declarationFor(card)?.shows?.reference ?? "");
       // Columns run the way the page's words do, so left is the previous column only
       // in left-to-right text; the title names the column, which holds whichever way
       // the board lays them out.

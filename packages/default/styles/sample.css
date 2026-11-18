@@ -1,6 +1,6 @@
 /* lf-sample: labeled content with a provenance gutter. `interactive` keeps inline
  * widgets in the parent page's state, with no child document or sample controls; they
- * still ask nothing of the user (x-exhibit).
+ * still ask nothing of the user (`exhibit`).
  * Without that flag, it is quoted material — a widget or section the page exhibits rather
  * than speaks (a sample decision, a demo board). It wears the quotation idiom, a
  * muted left gutter — not the callout's tinted field, and not the left-accent bar
@@ -8,17 +8,15 @@
  * attention. The content itself renders at full fidelity
  * (an exhibit must show the real thing), so the gutter alone says "mention, not
  * use". Input never leaves one: the interactive widgets check quoted() before
- * wiring (lf-options.js, lf-board.js), so a quoted choose group renders as though
- * it never declared `choose` and a quoted board stays the static board the theme
- * already renders.
+ * wiring (lf-options.js, lf-board.js), so a quoted group shows its options and takes
+ * no pick, and a quoted board stays the static board the theme already renders.
  *
  * The gutter runs beside the exhibit and nothing else. The note naming it — this
  * theme's "quoted ·" over the author's label — is a word *about* the quoted
- * region rather than a word in it, and it opened the gutter from inside: the marking
- * took in a line the quoted page never said, and the exhibit read as though it came
- * with a heading of its own. Every other reading had it right — the quote search, the
- * diff and the capture all take the note where the file has it, first inside the
- * element — so the one account that was wrong was the one the user could see.
+ * region rather than a word in it. Opening the gutter from inside, the marking would
+ * take in a line the quoted page never said, and the exhibit would read as though it
+ * came with a heading of its own. Every other reading takes the note where the file
+ * has it, first inside the element: the quote search, the diff and the capture.
  *
  * The word over it is the user's; `lf-sample` is the author's. A tag names a member
  * of a vocabulary its author picks from and can afford a word to learn, where the note's
@@ -44,13 +42,13 @@
  * What the layout costs is a declaration for each thing a block had for free. A table
  * shrink-wraps, so the width is asked for whole and stated border-box, which is what
  * keeps the gutter and the inset inside the column rather than 27px past it. And a
- * table sizes to its content besides, so the board on the how-it-works page came out
- * 523px wide in a 380px column, with the document scrolling sideways to reach what the
- * board's own overflow was holding — which is what `table-layout: fixed` settles, and
+ * table sizes to its content besides, so a wide board in it comes out wider than its
+ * column, with the document scrolling sideways to reach what the board's own overflow
+ * holds — which is what `table-layout: fixed` settles, and
  * what test_a_sample_holds_a_wide_exhibit_inside_the_column holds it to.
  *
- * The bar is a pixel heavier than the 2px it was and the exhibit is set deeper: the
- * bar is the whole of the marking now that the note stands off it, and it is read
+ * The bar is 3px and the exhibit is inset `--lf-sp-4`: the bar is the whole of the
+ * marking, since the note stands off it, and it is read
  * against content that draws its own boxes — a sample full of cards is one more line
  * on a page of borders, where a quoted paragraph is the only rule in a column of prose.
  * The note stands 4px off the bar and the theme's own 18px under the paragraph above,
@@ -60,39 +58,32 @@
  * Beside the exhibit is how far the bar runs as well as where it starts, and the cell is
  * what made that a rule to write rather than something that happens. A block reserves
  * room against the neighbours it expects; a table cell is a margin barrier, so the room
- * the exhibit's outermost blocks reserve cannot collapse out of the marking and is
- * painted as bar instead. Sixteen pixels of it over the first card and under the last,
- * on every sample in the corpus, held for neighbours that are not there — and the
- * user who reported it read the top as the loose end, because the note is 4px off the
- * bar and so appears to open it, leaving a marking that begins at a line and then waits
- * twenty pixels for the thing it is marking. So the sample states no padding of its
+ * the exhibit's outermost blocks reserve cannot collapse out of the marking and would
+ * be painted as bar instead, over the first card and under the last, held for
+ * neighbours that are not there — and the user read the top as the loose end, because
+ * the note is 4px off the bar and so appears to open it, leaving a marking that begins
+ * at a line and then waits for the thing it is marking. So the sample states no
+ * padding of its
  * own and declares the frame, which drops those margins where they abut the marking:
  * what separates a sample from the prose around it is its own 18px, stated once.
  *
  * The trim that declaration buys is the layer's (base.css), and the reach is the direct
  * children, which is what a selector has. Nothing about the note is stated here, though
- * it is a child on a live page (`x-says` writes it `before`) and a pseudo-element on one
- * carrying no script: the trim asks for the first child the page itself put there, so
- * both arrangements come out the same and the exhibit's first block is what it lands on.
+ * it is a child on a live page (`says` writes it `before`) and a pseudo-element
+ * on one carrying no script: the trim asks for the first child the page itself put
+ * there, so both arrangements come out the same and the exhibit's first block is what
+ * it lands on.
  *
  * A child that generates no box hands its own margins to the flow and the trim lands on
- * nothing. The one such widget shipped is the suggestion, and it is why the block slot
- * asks for its room above rather than around itself (base.css) — which leaves one edge
- * rather than two, measured: a suggestion leading a sample still holds its 10px. Which
- * edge is left follows from the room having to sit on one side, and the other side was
- * worse — stated between siblings, it could not cross the boxless wrapper at all, and two
- * suggestions in a row on a shipped page shut against each other. A box that stands in
- * that position and has one declares the frame itself, one level in, which is the answer
- * `.facts` takes; a suggestion has no box to declare it on. Reaching a level further from
- * out here is the fix that suggests itself, and it
- * trades a silent failure for a worse one: the grandchild whose margin shows is the
- * grandchild of a *boxless* parent, and the same selector over a padded one — a callout
- * leading a sample — closes up that box's own first line, which is the exhibit
- * rendering at less than full fidelity, the one thing a sample promises. So no
- * selector reaches the next boxless widget either, and what holds this is a reading of
- * the painted bar against the exhibit's own boxes over every sample the corpus has
- * (test_the_gutter_runs_beside_the_exhibit_and_no_further) — loud where the rule goes
- * quiet, and what a leading suggestion meets the day one is written. */
+ * nothing. A box that stands in that position and has one declares the frame itself,
+ * one level in, which is the answer `.facts` takes. Reaching a level further from out
+ * here is the fix that suggests itself, and it trades a silent failure for a worse one:
+ * the grandchild whose margin shows is the grandchild of a *boxless* parent, and the
+ * same selector over a padded one — a callout leading a sample — closes up that box's
+ * own first line, which is the exhibit rendering at less than full fidelity, the one
+ * thing a sample promises. So no selector reaches a boxless child's children, and what
+ * holds this is a reading of the painted bar against the exhibit's own boxes over every
+ * sample the corpus has (test_the_gutter_runs_beside_the_exhibit_and_no_further). */
 /* A table box keeps to its content unless given a width, so the sample fills its holder,
  * and an authored width widens it (layouts.css). */
 lf-sample {
@@ -101,8 +92,8 @@ lf-sample {
   width: 100%;
   box-sizing: border-box;
   margin: 18px 0;
-  padding-left: var(--sp-4);
-  border-left: 3px solid var(--border-2);
+  padding-left: var(--lf-sp-4);
+  border-left: 3px solid var(--lf-border);
   --lf-block-frame: 1;
 }
 /* Containment does not apply to a table, so the sample cannot be the size container
@@ -116,19 +107,19 @@ lf-sample > * {
 lf-sample::before,
 lf-sample > [data-lf-said="label"] {
   display: table-caption;
-  margin-bottom: var(--sp-1);
-  font: var(--font-label);
+  margin-bottom: var(--lf-sp-1);
+  font: var(--lf-font-label);
   letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
+  color: var(--lf-muted);
 }
 /* The note is the sample's own label: from the attribute, or from an authored label
  * child, which takes any prefix itself. A quoted sample's opens with "quoted", which
  * says it takes no input. A sample that works, interactive or live, wears its label
- * alone, and none without one, since its gutter or frame already marks it a sample. On
- * 2026-10-26 the user chose that over opening with "interactive sample" or "live
- * sample", a word whose one distinction, this page's log or the sample's own, the
- * note no longer draws; a live sample's Reset and Full view still set it apart. */
+ * alone, and none without one, since its gutter or frame already marks it a sample.
+ * The user chose that over opening with "interactive sample" or "live sample", a word
+ * whose one distinction, this page's log or the sample's own, the note doesn't draw; a
+ * live sample's Reset and Full view set it apart. */
 lf-sample {
   --lf-sample-word: "quoted";
   --lf-sample-prefix: "quoted · ";
@@ -178,8 +169,8 @@ lf-sample:has(> template[data-sample]) {
 .lf-sample-exhibit {
   display: flex;
   flex-direction: column;
-  padding-left: var(--sp-4);
-  border-left: 3px solid var(--border-2);
+  padding-left: var(--lf-sp-4);
+  border-left: 3px solid var(--lf-border);
 }
 .lf-sample-controls {
   margin-bottom: 10px;
@@ -202,11 +193,11 @@ lf-sample:has(> template[data-sample]) {
   position: relative;
   flex: 1 1 10em;
   min-width: 0;
-  min-height: max(1lh, var(--aim-floor));
+  min-height: max(1lh, var(--lf-aim-floor));
   align-content: center;
   white-space: nowrap;
-  color: var(--muted);
-  font: var(--font-small);
+  color: var(--lf-muted);
+  font: var(--lf-font-small);
 }
 .lf-sample-failure {
   margin: 0;
@@ -227,17 +218,17 @@ lf-sample:has(> template[data-sample]) {
   inset: 0 0 auto;
   z-index: 1;
   white-space: normal;
-  background: var(--paper);
-  border-bottom: 1px solid var(--border-2);
+  background: var(--lf-paper);
+  border-bottom: 1px solid var(--lf-border);
 }
 .lf-sample-frame {
   display: block;
   box-sizing: content-box;
   width: auto;
   height: 32rem;
-  border: 1px solid var(--border-2);
-  border-radius: var(--r);
-  background: var(--paper);
+  border: 1px solid var(--lf-border);
+  border-radius: var(--lf-r);
+  background: var(--lf-paper);
 }
 /* While the user is on the frame, their keys go to the sample's page rather than this
  * one, and its gutter takes the focus ring's colour to say so, whether a press or a Tab
@@ -245,11 +236,14 @@ lf-sample:has(> template[data-sample]) {
  * Tab: a press rings no control, and a ring round the frame would ring the whole
  * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
  * both read the runtime's marks (focus.js, `inputInFrame`). */
-.lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
-  border-left-color: var(--accent);
+.lf-sample-exhibit > .lf-sample-frame {
+  --lf-focus-box: .lf-sample-exhibit;
+}
+.lf-sample-exhibit[data-lf-control-focus] {
+  border-left-color: var(--lf-accent);
 }
 @media (forced-colors: active) {
-  .lf-sample-exhibit:has(> .lf-sample-frame[data-lf-focus]) {
+  .lf-sample-exhibit[data-lf-control-focus] {
     border-left-color: Highlight;
   }
 }
@@ -268,16 +262,16 @@ lf-sample[window] .lf-sample-frame {
   height: 100dvh;
   display: flex;
   flex-direction: column;
-  padding: max(var(--sp-3), env(safe-area-inset-top))
-    max(var(--sp-3), env(safe-area-inset-right))
-    max(var(--sp-3), env(safe-area-inset-bottom))
-    max(var(--sp-3), env(safe-area-inset-left));
-  background: var(--paper);
+  padding: max(var(--lf-sp-3), env(safe-area-inset-top))
+    max(var(--lf-sp-3), env(safe-area-inset-right))
+    max(var(--lf-sp-3), env(safe-area-inset-bottom))
+    max(var(--lf-sp-3), env(safe-area-inset-left));
+  background: var(--lf-paper);
   overflow: hidden;
   overscroll-behavior: contain;
 }
 .lf-sample-view:modal::backdrop {
-  background: var(--paper);
+  background: var(--lf-paper);
 }
 .lf-sample-view:modal > .lf-sample-controls {
   flex: none;

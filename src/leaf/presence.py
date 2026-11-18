@@ -18,7 +18,6 @@ from .activity import (
     undeclared,
 )
 from .files import file_stamp
-from .forks import forked, lane_since
 from .harness import claim_harness
 from .leases import lock_is_held, wait_is_live, waiter_lease_path
 from .page_memory import memo
@@ -33,7 +32,7 @@ from .service import (
     read_stream,
     unacknowledged,
 )
-from .state import now_iso, state_home, turn_closed
+from .state import agent_turn_stamps, now_iso, state_home, turn_closed
 
 # Presence is deliberately a short-lived reading: process and lock leases can change
 # without touching a page file. Readers share one observation for two seconds, while
@@ -55,8 +54,10 @@ class _Neighbors:
 
 
 def neighbor_reading(page_dir: Path) -> list:
-    """The page's one reading of its neighbours (`other_leaves`), which its state
-    answer and its news fingerprint both take, so the two never disagree.
+    """The page's reading of its neighbours (`other_leaves`), which `/api/pages`
+    answers and the news names by its `pages_reading`. Nothing the page's own state
+    or reading holds takes it, so a neighbour's change moves only this list, and a
+    tab reads this page's state again for its own changes alone.
 
     Local page writes do not invalidate it. Producer writes invalidate it
     immediately; kernel lease changes have the same bounded two-second observation
@@ -73,6 +74,17 @@ def neighbor_reading(page_dir: Path) -> list:
         return kept.token[2]
 
 
+def pages_reading(pages: list) -> str | None:
+    """The token naming a list of other pages (`neighbor_reading`), which the news
+    answer carries beside the page's own reading, or None while the list is empty, so
+    a tab with no neighbour asks for no list."""
+    if not pages:
+        return None
+    return hashlib.sha256(
+        json.dumps(pages, sort_keys=True, default=str).encode()
+    ).hexdigest()[:8]
+
+
 class _Presence:
     """What a page keeps of its presence between readings.
 
@@ -81,7 +93,7 @@ class _Presence:
 
     def __init__(self) -> None:
         self.lock = threading.RLock()
-        # (page reading, wait lease and neighbours; expiry; the token given)
+        # (page reading and wait lease; expiry; the token given)
         self.token: tuple | None = None
 
 
@@ -272,9 +284,6 @@ def live_facts(page_dir: Path, claim: dict | None, *, process: bool = True) -> d
         "session_name": claim_harness(claim).session_name() if claim else None,
         # Whether a nudge would start the claimant's next turn (`Harness.input_wakes`).
         "input_wakes": bool(active and claim_harness(active).input_wakes()),
-        # When the claimant's fork lane came up, or None while none runs
-        # (`forks.lane_since`), which decides the threads a fork holds (`forked`).
-        "fork_lane": lane_since(active["id"]) if active else None,
     }
 
 
@@ -285,7 +294,6 @@ LIVE_FACTS = (
     "live_turn",
     "session_name",
     "input_wakes",
-    "fork_lane",
 )
 
 
@@ -321,7 +329,7 @@ def presence_with_activity(
     agent is working. Keeping private activity records out of that dictionary makes
     them unavailable to every browser-facing consumer by construction.
 
-    `full_state` spreads it into the page's own state answer, so the runtime's one
+    `read_served_page` spreads it into the page's own state answer, so the runtime's one
     claim-against-proof judgment reads these fields. The server's row publication
     carries only the compact presentation fields derived from these facts. A captured
     host publication without a process keeps durable acknowledgement and pending
@@ -340,9 +348,6 @@ def presence_with_activity(
         "status": status,
         **live_facts(page_dir, claim, process=process),
         "cursor": cursor,
-        # The user's waiting messages a fork of the claimant's conversation has taken
-        # on, which read On it while their delivery stands (`forks.forked`).
-        "forked": sorted(forked(page_dir, events, cursor, active)),
         # The user's number, not the watcher's: their own messages the agent
         # hasn't taken in. Reports ride the same cursor but are the agent's debt,
         # so the panel never tells a user that a worker's news is waiting on them.
@@ -375,6 +380,10 @@ def presence_with_activity(
         # new input before it ends (`Harness.turn_takes_input`).
         "turn_opened": claim["turn_opened"] if claim else None,
         "turn_takes_input": bool(active and claim_harness(active).turn_takes_input()),
+        # The turns of the agents the claiming session runs beside its main thread,
+        # such as a fork that took a thread's work, which a pickup or start names as
+        # it names the main thread's (`agent_turn_stamps`).
+        "agent_turns": agent_turn_stamps(claim, events) if claim else {},
         # Where the claimant is working (claim_page), for All pages' hover: what
         # tells one leaf from another is the work behind it, and neither the title
         # nor the page directory says which that is. It outlives the session that
@@ -406,10 +415,10 @@ def presence(page_dir: Path, events: list) -> dict:
     return reading
 
 
-def presence_fingerprint(present: dict, others: list) -> str:
+def presence_fingerprint(present: dict) -> str:
     """The half of a reading that file stamps cannot supply, from the facts a state
-    already carries: its `live_facts`, and the neighbours as All pages shows them."""
-    facts = ([present[key] for key in LIVE_FACTS], others)
+    already carries: its `live_facts`."""
+    facts = [present[key] for key in LIVE_FACTS]
     return hashlib.sha256(
         json.dumps(facts, sort_keys=True, default=str).encode()
     ).hexdigest()[:8]
@@ -421,9 +430,9 @@ def presence_reading(page_dir: Path, files: str) -> str:
     It keys on `files`, the page's own reading (`served_state.reading`), which
     names every page input, and on the claimant's wait lease, the one input of
     presence outside them. A move in either invalidates it immediately; process
-    and lock leases are refreshed when the interval expires. The three facts are
-    read the way `presence` and `full_state` read them, so a freshness answer and
-    the state it prompts name the same reading once the bounded cache interval has
+    and lock leases are refreshed when the interval expires. The facts are read
+    the way `presence` and `read_served_page` read them, so a freshness answer and the
+    state it prompts name the same reading once the bounded cache interval has
     elapsed.
     """
     claim = page_claim(page_dir)
@@ -433,8 +442,7 @@ def presence_reading(page_dir: Path, files: str) -> str:
     # unclaimed page's lease is in the page directory, so `files` covers it.
     lease_path = waiter_lease_path(None, claim["id"]) if claim else None
     lease = file_stamp(lease_path) if lease_path is not None else None
-    neighbors = neighbor_reading(page_dir)
-    stamp = (files, lease, neighbors)
+    stamp = (files, lease)
     now = time.monotonic()
     kept = memo(page_dir, _Presence)
     with kept.lock:
@@ -442,10 +450,10 @@ def presence_reading(page_dir: Path, files: str) -> str:
         if held and held[0] == stamp and now < held[1]:
             return held[2]
 
-        # Keep the lock while observing the neighbours. Concurrent freshness reads
-        # then share one complete reading instead of racing into one each; the
-        # lock and pid checks remain part of this fresh observation.
-        reading = presence_fingerprint(live_facts(page_dir, claim), neighbors)
+        # Keep the lock while observing. Concurrent freshness reads then share one
+        # complete reading instead of racing into one each; the lock and pid checks
+        # remain part of this fresh observation.
+        reading = presence_fingerprint(live_facts(page_dir, claim))
         kept.token = (stamp, now + PRESENCE_CACHE_S, reading)
         return reading
 

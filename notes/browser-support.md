@@ -64,9 +64,9 @@ the continuing hill-climb report opened Cases & outputs → Overview. The report
 output table includes several `<small>` metadata lines in each Version cell.
 Changing only their `display: block` to `display: flow-root` preserved the layout
 and allowed repeated visits. The report stylesheet in
-`dev/leaf_dev/commands/eval_report.py` keeps that formatting context.
+`dev/leaf_dev/commands/eval/report.py` keeps that formatting context.
 
-Recheck the populated report produced by `leaf-dev eval-report`: override
+Recheck the populated report produced by `leaf-dev eval report`: override
 `.sample-table small { display: block !important; }`, visit another tab, then
 open the output index and capture the viewport. Compare the same source and
 browser with `display: flow-root`. Inline metadata without line breaks also
@@ -74,6 +74,40 @@ survived, but explicit `<br>` breaks did not. Disabling CSS highlights, table
 containment, masks or background painting did not repair the observed crash.
 This is a bounded report reproduction, not a standalone browser-engine diagnosis
 or a claim about other Chrome builds or engines.
+
+### Walking every element of a page of millions in Chromium
+
+The pages Leaf's checks and measurements drive are opened by
+`dev/leaf_dev/browser.py`. On 2026-11-15, on macOS 26.5.1, Playwright 1.65.0's
+Chromium headless shell 158.0.8127.18, build 1254, and installed Google Chrome
+157.0.8103.51, driven headlessly through Playwright's `chrome` channel, crashed
+the renderer of a page of 2.96 million elements partway through a run of
+back-to-back walks over every element. Playwright reported `Target crashed`,
+and the browser's log `V8 process OOM (ExternalEntityTable::AllocateEntry)`. A
+script's `for (const el of document.querySelectorAll("*"))` is such a walk, and
+crashed on the 24th to 26th. Each `page.query_selector` for a CSS selector is
+one too, because Playwright's injected CSS engine walks every element that way
+to look inside shadow roots, and crashed between the 22nd and the 32nd. A page
+of plain `div` rows built by a script crashed as the page of issue #4781 did,
+30 text documents of 4 MB with as many elements. With a forced full garbage
+collection after each walk (CDP `HeapProfiler.collectGarbage`), 100 walks
+passed, and 60 walks over 1.48 million elements passed without one. The counts
+fit one entry for each element a walk wraps, in a V8 pointer table of 2^26
+entries whose dead entries only a full collection frees; that mechanism is
+inferred from the counts, not read from V8.
+
+Opening #4781's 30 tabs walks only each opened document, and clicking them one
+after another crashed neither Chromium nor Playwright's Firefox 159.0, build
+1572; Firefox also survived the same journey driven by `page.query_selector`. A
+check or measurement that drives a page this size through Playwright selectors
+crashes the renderer itself, so it finds controls with `document.querySelector`
+inside `page.evaluate` and clicks the returned position with `page.mouse`.
+There is no Leaf workaround.
+
+Recheck: in a blank page opened by `leaf_dev.browser.launch("chromium")`, build
+2.96 million `div` rows by script and run the script walk above 100 times in a
+row, then again with a forced full collection after each walk. The gap stands
+while the first run ends in `Target crashed` and the second passes all 100.
 
 ### Tab underline travel between anchors
 
@@ -129,16 +163,43 @@ padding; `test_page_fixture_renders[visual-review-gallery]` in
 `tests/journeys/test_render_gate.py` reads the same difference in its resize
 journey.
 
-### Contents spine lens
+### A recomputed length less a percentage counts as a change in Chromium
 
-`packages/default/widgets/lf-toc.js` uses a paused animation updated on scroll
-where `ScrollTimeline` is absent. The lens still marks the visible part of the
-page, but follows scrolling a frame later than the native timeline.
-Installed Firefox 157.0.1 lacked the API on 2026-10-10; Chrome 155 exposed it.
-Revisit the fallback when supported engines provide it.
-`test_the_lens_follows_the_scroll_without_a_scroll_timeline` in
-`tests/browser/widgets/test_contents_and_glosses.py` checks the fallback against
-the native timeline with the API removed.
+Playwright Chromium 158.0.8127.18 (build 1254) counted an inheriting registered
+`<length-percentage>` whose value mixes a length with a percentage, such as
+`calc(10px - 50%)` or `max(0px, 10px - 50%)`, as changed each time its element
+was restyled, the value unchanged, so every restyle of that element restyled its
+children too, and children that set the property again a level further. A plain
+length, a plain percentage, or the same expression registered `*`, restyled the
+element alone. On 2026-11-10, a class on a column page's `main` that changed
+nothing restyled 246 elements at 10 sections, and 6 with the room set to a
+constant; focus marking `main` as the user landed on a passage did the same.
+
+It holds for a property that doesn't inherit too, where the element also states
+a length in container units: on 2026-11-11, with the column's room in
+non-inheriting `<length-percentage>` properties and its shell's width in `cqi`, a
+`:has()` asked again of `main` as focus moved restyled every element under it:
+7,152 elements a move at 1,024 sections, and 1,014 with the room registered `*`.
+So the column resolves the lengths in its room in registered `<length>`
+properties (`--lf-room-length`, `browser/layouts.css`) and
+states the room from them, percentage and all, only in `--lf-free-start` and its
+kin, registered `*`. Firefox and WebKit were not checked. Recheck by registering
+`--lf-free-start` `<length-percentage>` again:
+`test_a_focus_move_near_a_long_pages_end_restyles_what_focus_marks` in
+`tests/browser/test_chrome_contracts.py` fails while the gap stands.
+
+### A near-grey colour's hue in relative `oklch()` in Chromium
+
+Playwright Chromium 158.0.8127.18 (build 1254) reads the hue of a low-chroma colour as
+`none` in a relative `oklch()`: on 2026-11-14,
+`oklch(from #d1d0cc l calc(c * 3.4) h)` computed to `oklch(0.857 0.019 none)` and
+painted `rgb(219, 203, 207)`, a pink, where Firefox 159 and WebKit 27.2 kept the hue
+(95) and painted `rgb(212, 208, 195)`. The colour's chroma is 0.0055, and a hue of
+`none` is drawn at 0. The theme's neutrals are near-grey mixes of the paper and ink
+whose chroma is raised (`browser/styles/tokens.css`, at `--lf-paper`), so they scale
+the two axes of `oklab()` instead, which holds no hue and paints the same in all three
+engines. Recheck by loading that `oklch()` declaration in the engine: the gap stands
+while it computes a hue of `none`.
 
 ### Sticky boxes' own place
 
@@ -160,14 +221,122 @@ the pin with no input. Playwright Chromium 156.0.8078.4 (build 1248) and WebKit 
 
 ### Highlight style inheritance
 
-Playwright Firefox 155 accepted `:root::highlight()` and `:host::highlight()`
-on 2026-10-22 but painted no highlight on nested syntax spans in either light
-or shadow DOM. Universal highlight rules paint those ranges correctly; retain
-them in `browser/runtime/annotation-overlay/annotation-marks.css` and
-`browser/runtime/marks.css`. Revisit root-scoped rules when
-`test_highlight_paint_reaches_nested_syntax_in_the_widgets_theme` in
-`tests/browser/navigation/test_comment_marks.py` passes with them in supported
-engines. Chromium 153.0.8010.12 passed both forms in that check.
+Firefox and shipping Safari have no highlight inheritance (css-pseudo-4, "Cascading
+and Per-Element Highlight Styles"). Firefox resolves a `::highlight()` style as it
+paints a run of text, only from the rules that match the run's own element
+(`nsIFrame::ComputeHighlightSelectionStyle`), and
+[bug 1999628](https://bugzilla.mozilla.org/show_bug.cgi?id=1999628) is open for it,
+unassigned. On 2026-11-11, Playwright Firefox 159.0 (build 1572) and release Firefox
+160.0 on macOS painted nothing from a rule on `:root` or `:host`, in the document or
+a shadow tree, and `getComputedStyle(element, "::highlight(name)")` read the
+rule's background as transparent on every element below the root. On 2026-11-12,
+Safari 26.1 on the iOS simulator answered the same way. Playwright Chromium
+158.0.8127.18 (build 1254) and Playwright's WebKit 27.2 (build 2388) painted the rule
+on every element below the root and read it there, shadow trees included.
+
+So each highlight rule names the elements holding the words it paints: a
+suggestion's rules name its slot and every element in it (`browser/base.css`), a text
+document's name its rows (`packages/default/styles/text-document.css`), and the comment
+marks name each element the runtime marks as holding marked words
+(`browser/runtime/anchor-paint.js`, `holdWords`). Slotted words
+are styled from their light parent: on 2026-11-14 a rule naming the host painted
+slotted words in all three Playwright engines, one naming the slot painted them only
+in Chromium, and one naming an element between the slot and the shadow root painted
+them in Chromium and WebKit but not Firefox. Recheck in Firefox and in iOS Safari
+with a page whose only rule is `:root::highlight(m) { background-color: red }` over
+a `<p>`'s words; the gap has closed once they paint red. A suggestion's rules could
+then name only its slot; the comment marks would still name each element, for its own
+tokens and `color-scheme` (the next entry).
+
+### A highlight's `light-dark()` colour in a dark region
+
+An element that inherits a highlight style, rather than matching a rule for it, takes
+the colour computed where the rule matched. `light-dark()` computes to one of its
+colours on that element (css-color-5), so a rule on `:root` alone paints the root
+scheme's half inside a `color-scheme: dark` region: on a light page, marked words in
+a dark panel would wear the light violet ink and wash on the panel's dark ground. On
+2026-11-14 Playwright Chromium 158.0.8127.18 (build 1254) and WebKit 27.2 (build 2388) painted and read it that way. This is the specification, not an engine gap:
+[CSSWG #11011](https://github.com/w3c/csswg-drafts/issues/11011) resolved in January
+2025 that a highlight takes `color-scheme` from its originating element, which
+reaches only an element a rule matches, and
+[CSSWG #13836](https://github.com/w3c/csswg-drafts/issues/13836), to resolve
+`light-dark()` at used-value time instead, was discussed in May 2026 without a
+resolution, against concerns about breaking pages. The comment marks therefore name
+each element holding marked words (`browser/runtime/marks.css`).
+
+Chromium also paints the light half where the element does match the rule, when the
+rule names no element (`::highlight(m)`), though `getComputedStyle` reports the dark
+half. On 2026-11-14, Chromium 158.0.8127.18 (build 1254) painted the page below red
+and read it blue; WebKit 27.2 (build 2388) and Firefox 159.0 (build 1572) painted it
+blue. A selector naming an element, as `p::highlight(m)`, `[data-m]::highlight(m)` or
+`p > *::highlight(m)`, painted blue in Chromium too. Chromium's own test of
+`light-dark()` in a highlight, WPT `css/css-pseudo/highlight-styling-004.html` (added
+February 2025), names the element (`p::selection`). A web search on 2026-11-14 found
+no Chromium issue for the universal form; none is filed. Leaf writes no highlight rule
+that names no element (`browser/AGENTS.md`, "Runtime ownership").
+
+```html
+<style>
+  .dark {
+    color-scheme: dark;
+    background: black;
+    color: white;
+  }
+  ::highlight(m) {
+    background-color: light-dark(red, blue);
+  }
+</style>
+<p class="dark" id="p">marked words</p>
+<script>
+  const r = new Range();
+  r.selectNodeContents(p);
+  CSS.highlights.set("m", new Highlight(r));
+</script>
+```
+
+Recheck by loading that page in Chromium: the gap has closed once the words paint
+blue.
+
+### A highlight that sets no colour in WebKit
+
+Where two highlights cover the same words and the upper one sets only a background,
+css-pseudo-4 paints the words in the colour of the highlight below ("Painting the
+Highlight"), since the upper one's `color` inherits `currentcolor` from the root's
+highlight ("Cascading and Per-Element Highlight Styles"). From a rule naming the words' own element, WebKit paints them in that
+element's colour instead. On 2026-11-14, Playwright WebKit 27.2 (build 2388) painted
+words red under the page below, and blue with the two rules on `:root`, though red
+again once `:root` also set `color: red`; Chromium 158.0.8127.18 (build 1254) and
+Firefox 159.0 (build 1572) painted them blue under the page below. Writing
+`color: currentcolor` on the upper rule kept them red in WebKit and turned Firefox's red
+too. So the hover and current-location marks, which set no colour, paint under the
+comment's mark, whose ink stays on top
+(`browser/runtime/marks.css`), and
+`test_marked_words_are_seen_and_told_apart` reads their words' ink off the drawn page
+in WebKit. Recheck by loading the page in WebKit: the gap has closed once the words
+paint blue. The two marks could then paint above the comment's again, which nothing
+needs today.
+
+```html
+<style>
+  body {
+    color: red;
+  }
+  [data-m]::highlight(a) {
+    background-color: rgba(255, 255, 0, 0.4);
+    color: blue;
+  }
+  [data-m]::highlight(b) {
+    background-color: lime;
+  }
+</style>
+<p id="p" data-m>marked words</p>
+<script>
+  const r = new Range();
+  r.selectNodeContents(p);
+  CSS.highlights.set("a", new Highlight(r));
+  CSS.highlights.set("b", Object.assign(new Highlight(r), { priority: 2 }));
+</script>
+```
 
 ### Font style in syntax highlights
 
@@ -227,33 +396,6 @@ interpolation is not near ("Intrinsic block retirement motion" has the bugs,
 checked 2026-10-25). Recheck both capabilities and keyboard access when
 changing this enhancement.
 
-### A short name in a table's first column
-
-`browser/styles/components/reading.css` keeps code in a row's first cell on one
-line up to 20ch or a quarter of its container, with `calc-size()` behind
-`@supports`. Engines without `calc-size()` keep the name breakable anywhere, so
-in a column of short option names beside a column of sentences, `--output-dir`
-reads as `--output-` over `dir`. The table still fits and every name stays
-readable, so this is an accepted visual difference. No fallback caps the
-minimum the same way, since `min()` takes no `max-content`.
-
-On 2026-11-06, Playwright 1.64.1's Firefox 157.0 (build 1555) and WebKit
-(Safari 27.2, build 2370) on Linux reported no `calc-size()` support. On the
-three-row table in the test below, the names `--plugin`, `--dry-run` and
-`--output-dir` took 1, 2 and 3 lines in Firefox at 1600 and 800px and 2, 2
-and 3 at 420px, and 2, 2 and 3 lines in WebKit at all three widths. The Chromium
-headless shell 156.0.8078.4 (build 1248) kept each on one line. Firefox tracks
-`calc-size()` in
-[bug 1896734](https://bugzilla.mozilla.org/show_bug.cgi?id=1896734)
-("Intrinsic block retirement motion" has its status), and WebKit in
-[bug 274177](https://bugs.webkit.org/show_bug.cgi?id=274177).
-
-Recheck by running
-`test_a_short_name_in_a_rows_first_cell_stays_on_one_line` in
-`tests/browser/test_render_gate.py` with `firefox_browser` or `webkit_browser`
-in place of `browser`; it fails while the gap holds. When both engines pass,
-parametrize the test over them.
-
 ### Browser dictation in comment boxes
 
 `browser/runtime/composing/dictation.js` offers dictation when
@@ -275,6 +417,85 @@ open when checked on 2026-10-22; this is published evidence, not a local Safari
 reproduction. Recheck native find-in-page on text inside a closed panel before
 removing this entry.
 
+### A `:has()` subject left unrestyled when its match moves out, in Firefox
+
+On Me's card for a choice asked in a thread hides its choices while its own drawing of
+the message holds the choice's widget. Keyed on the widget itself, as
+`.lf-fp-on-item:has(.lf-fp-asked:not([data-lf-carried]) [data-lf-awaits])`, the rule
+failed in Playwright Firefox 159.0 (build 1572) on 2026-11-15: with On Me open on a
+choice no thread on the page showed, `m` opened the thread's margin card, which took
+the widget out of the card, and the card's choices stayed `display: none` though the
+card no longer matched the rule (`card.matches()` read false). The card showed
+neither the options nor its choices in 337 of 437 recorded frames, and at each step
+of a probe through `m` and Escape. Chromium 158.0.8127.18 (build 1254) restyled at
+once. A minimal page in Firefox restyled correctly after moving the matching element
+out of the subject, whether moved directly, through a detached parent, into a shadow
+root, or with its parent replaced, so something in Leaf's DOM is needed to show it,
+not yet isolated.
+
+The rule reads a mark the drawing writes as it gains or loses the widget instead
+(`data-lf-holds`, `MessageView.present` in `browser/runtime/thread/messages.js`),
+which Firefox restyles. To recheck, key the rule in `browser/styles/floating-panel.css`
+on `[data-lf-awaits]` again and delete the `data-lf-holds` write: the Firefox arm of
+`test_a_thread_choice_s_card_shows_the_choice_once_as_its_thread_opens_and_closes`
+(`tests/browser/widgets/test_on_panel.py`) fails while the gap stands, its card
+showing no choices after `m`, and the Chromium arm passes.
+
+### An `auto` box under a fold in Firefox
+
+A box with `content-visibility: auto` whose ancestor skips its content, as a
+`hidden="until-found"` panel or a shut `<details>` does, should skip nothing itself
+until the fold opens, when the browser decides which such boxes are in view. On
+2026-11-14 Playwright Firefox 159.0 (build 1572) instead reported every such box
+drawn (`contentvisibilityautostatechange` with `skipped: false`) as the fold closed
+or the box arrived under it, kept them drawn as the fold opened, and reported the
+ones out of view over the following frames. In a 300px scroller holding 50 such
+boxes of five 20px rows, under either fold, all 50 reported drawn while folded and
+46 reported skipped on opening; with the boxes `content-visibility: visible` while
+folded, none reported anything until the fold opened, then 4 drawn and 46 skipped.
+Playwright Chromium 158.0.8127.18 (build 1254) reported nothing under a fold either
+way, then 17 drawn and 33 skipped.
+
+A text document's runs are `visible` under a fold
+(`packages/default/styles/text-document.css`), so a closed tab Firefox opens reads
+and colours only the runs in view; with `auto` there, opening a tab of 95,000 lines
+on #4781's page held the main thread for 6.6 s rather than 2 s, the page reading and
+colouring every line. `test_opening_a_closed_tab_draws_only_the_lines_in_view` in
+`tests/browser/widgets/test_code_and_documents.py` fails in Firefox without the rule,
+drawing all 32 runs of its document in the first frame after the press. Recheck by
+deleting the rule's `content-visibility: visible` and running that test: once its
+Firefox arm passes, the rule can go.
+
+### A root's touch-action in Firefox
+
+Draw mode states `touch-action: pinch-zoom` on `html` and Capture area
+`touch-action: none` (`browser/runtime/chrome.css`), so one finger draws or drags
+out an area while two still pan and zoom. On 2026-11-15, on macOS 26.5.1, Playwright
+1.65.0's Firefox 159.0 (build 1572) updated every box of the page each time the
+root's touch-action changed. On #4781's shape, thirty text documents of 50,000 lines
+in side tabs (1.51 million elements), toggling Draw mode's attribute on `html`
+alone, with a layout read after each toggle, took 24 ms, and 73 to 94 ms the first
+time; the Gecko profiler put the time in `RestyleManager::ProcessRestyledFrames`,
+with one element styled. On a page of 900,000 plain rows it took 8 to 12 ms, against
+under 1 ms for an attribute no rule reads. Playwright's Chromium 158.0.8127.18
+restyles every element it draws when the root's touch-action changes, 691 elements on
+a page of 600 paragraphs, though not what `content-visibility` skips, so on #4781's
+shape a whole Draw mode toggle took it 30 to 65 ms; the restyle count in
+`test_a_page_mode_restyles_only_what_the_pointer_is_over`
+(`tests/browser/test_chrome_contracts.py`) holds the root's touch-action through the
+page for that reason.
+
+Leaf keeps the rule on the root whenever either mode stands. Stating it only under
+`(any-pointer: coarse)` removed the cost on a computer without a touchscreen, but
+Firefox on Linux can report no touchscreen while it receives touch events, so
+`any-pointer: coarse` doesn't match there
+([Mozilla bug 1870900](https://bugzilla.mozilla.org/show_bug.cgi?id=1870900)), and
+one finger would pan the page rather than draw. Recheck with Playwright's Firefox on
+a page of 900,000 `div` rows and the rule `html[data-x] { touch-action: pinch-zoom; }`:
+toggle `data-x` on `html` and read `document.body.getBoundingClientRect()` after each
+toggle. The gap stands while a toggle takes several times as long as one of an
+attribute no rule reads.
+
 ### Native focus and scrolling inside samples
 
 An opaque sample's sandbox isolates DOM and storage, but authored JavaScript's
@@ -287,6 +508,23 @@ on 2026-10-09. On 2026-10-10, typing into an already focused offscreen native
 editor also revealed its frame without a JavaScript reveal call.
 Reproduce by focusing the parent, then invoking native focus or reveal from a
 child message handler; separately type into an offscreen focused child editor.
+
+### Percentage scroll margins in Chromium
+
+What Leaf calls near the window (`browser/runtime/geometry.js`, `nearObserver`), which
+decides where anchored controls stand in layout and when a live sample's page starts
+(`whenNear`), is an IntersectionObserver with `rootMargin: "100%"` and a
+`scrollMargin` in pixels. A percentage there misreads in Chromium: on 2026-11-11, on a
+Leaf column page with a sample frame about 3,800px down a 900px window, HeadlessChrome
+158.0.8127.18 (Playwright 1.65.0) read the frame as intersecting under
+`rootMargin: "100% 0px"` with `scrollMargin: "100% 0px"`, though under either alone it
+did not and the reported root ended at 1,800px. With `scrollMargin: "600px"` it read the
+frame correctly. Playwright Firefox 159.0 read every form correctly but grew the window
+by the scroll margin as well as the root margin, so the window reaches 1,500px further
+there than in Chromium. Plain test pages, even with the body as an inline-size
+container, read the percentage correctly in both. Recheck by observing `#far iframe`
+with each option in `uv run leaf-dev probe` of a page that places `<lf-sample id="far">`
+under a 400vh spacer, in both engines.
 
 ### A selection written during focus in WebKit
 
@@ -421,19 +659,24 @@ window's width, a breakout may move by an offset again. In Leaf,
 `test_a_table_granted_room_stands_on_the_prose_axis` ring a paragraph beside
 breakouts and fail if the page then scrolls sideways.
 
-### An inherited length after a container resize in WebKit
+### A non-inheriting property taken with `inherit` in WebKit
 
-A registered custom property that does not inherit, computed from `100cqi` on the
-column and passed to a child with `inherit`, kept the child's first value in
-Playwright WebKit 27.2 after the window resized: the column's own value followed
-the resize, but an `available` block sized from the child's copy stayed 1392px wide
-at 1200 and 900px wide windows (2026-10-31). Declared to inherit, the same
-property updates in every child. So the column's room (`--lf-free-start`,
-`--lf-free-end`, `browser/layouts.css`) inherits, and a box outside the column's
-flow sets it back to zero. Recheck with
+A child or `::after` that takes a registered custom property declared
+`inherits: false` with `inherit` keeps its first value in Playwright WebKit 27.2
+when only that property changes on its parent; Chromium 158.0.8127.18 and
+Firefox 159.0 restyle it (2026-11-12, a parent's `--len` set from 10px to 30px
+left a child's and an `::after`'s `height: var(--len)` at 10px). On 2026-10-31
+the same engine kept a child's copy of the column's room through a window resize:
+an `available` block sized from it stayed 1392px wide at 1200 and 900px wide
+windows. So the column's room (`--lf-free-start`, `--lf-free-end`,
+`browser/layouts.css`) inherits, and a box outside the column's flow sets it back
+to zero; and a thread card's fade (`--lf-thread-fade-top`,
+`--lf-thread-fade-height`, `annotation-chrome.css`) inherits, though each write then
+restyles every element in the thread. Recheck with a page holding that pair of
+rules in `leaf-dev probe --browser webkit`, then with
 `test_a_breakout_grows_only_from_a_holder_that_spans_the_column` in
-`tests/browser/test_render_pages.py` under `webkit_browser`, after making the
-properties non-inheriting and passing them down with `inherit`.
+`tests/browser/test_render_pages.py` under `webkit_browser` after making the
+column's properties non-inheriting and passing them down with `inherit`.
 
 ### State-preserving content reordering
 
@@ -449,6 +692,22 @@ Chromium 153.0.8010.12 also left a focused node unmatched by its own
 `:focus-within` after moves through a hidden parent on 2026-10-12. Leaf's focus
 marks follow rendered ancestry; selectors for the focused editor use `:focus`.
 Recheck with a focused input moved into a hidden parent and back out.
+
+Chromium 158.0.8127.18 kept `:hover` on a node moved while the pointer was over
+it, and on the ancestors it left, on 2026-11-14. The comment box moves this way
+between a widget's outlet and its home (`composing/surface.js`, `seatFab` and
+`restoreFab`), so once the user has pointed at the box in an outlet and put it
+away, those nodes match `:hover` until the pointer crosses them again. The
+effect seen so far is in tooling: `leaf-dev probe` and `stills` wait for the
+hover to reach the element under the pointer (`catch_up_hover`) and fail. Whether
+a page's `:hover` rule on such an ancestor shows is not assessed. Recorded, not
+corrected. Reproduce with `leaf-dev probe pr-walkthrough` and a journey that
+presses a diff line's Comment control, hovers `.lf-fab-input`, presses Escape
+and moves the pointer to an empty part of the page: the arm fails at `settle`,
+and passes with `Element.prototype.moveBefore` deleted first. On a Command Hub
+task the same journey left `:hover` on the outlet the box had stood in
+(`.atlas-task-threads`) and not on the task around it, on 2026-11-15. Firefox
+159.0 (Playwright build 1572) left it on neither that day.
 
 ### Clearing a shadow host unloads its frames in WebKit
 
@@ -543,6 +802,23 @@ page scrolls. Playwright WebKit 26.6 applied the root scroll twice on
 `browser/runtime/css-anchors.js` accepts this gap; Leaf's page-of-parts column
 is an affected surface. Recheck a fixed anchored box against a target in a
 fixed scrolling panel while scrolling both the document and panel.
+
+### An anchor inside an SVG foreignObject in Chromium
+
+A fixed box anchored to an HTML element inside an SVG `<foreignObject>` takes
+its `anchor()` fallback, so a key chip, aim, mark or margin row there stood at
+-9999px, off the window. Playwright Chromium 158.0.8127.18 (build 1254) did so
+on 2026-11-12; Firefox 159.0 (build 1572) and WebKit 27.2 (build 2388) placed
+the box on the element, and all three placed it on the drawing's `<svg>`.
+`anchorElement` in `browser/runtime/css-anchors.js` anchors such an element
+through the drawing in every engine, as it does the drawing's own shapes, with
+the box's insets measured from the drawing. A scroller inside the drawing's HTML
+doesn't move the drawing, so a mark or composer against a target in it stays
+where it was placed as that scroller scrolls, until it is placed again;
+accepted, since no shipped page scrolls inside a drawing. Recheck with
+`test_a_chip_stands_beside_a_link_in_an_svg_drawing_s_html` with the
+`foreignObject` step removed from `anchorElement`, or a fixed box whose `left`
+is `anchor(--a left, -9999px)` against a button in a `foreignObject`.
 
 ### An anchor's transforms in Firefox
 
@@ -670,13 +946,18 @@ scroller when a horizontal strip's edge extended just beyond its band.
 Recheck a partly clipped strip's inner and outer scroll offsets before
 replacing Leaf's bounded walk with native reveal.
 
-### A repeated reveal of an anchored fixed box in Chromium
+### A reveal of an anchored fixed box before the next frame in Chromium
 
-Chromium and WebKit reveal a caret in a `position: fixed` box anchored to page
-content by scrolling the page, which carries the box, and Chromium reveals the
-box itself the same way (`scrollIntoView`, focus). Playwright Chromium
-156.0.8078.4 (build 1248), on 2026-11-05, scrolled the page again for each such
-reveal made before the next frame, as if the first had not moved the box. Give
+A `position: fixed` box anchored to page content takes a scroll at the next
+frame: read after a script scrolls the page 200px, it stands where it stood
+until a frame passes, in Playwright Chromium 158.0.8127.18 (build 1254) and
+Firefox 159 alike on 2026-11-15, as the anchor positioning spec's scroll
+snapshot allows. Chromium and WebKit reveal a caret in such a box by scrolling
+the page, which carries the box, and Chromium reveals the box itself the same
+way (`scrollIntoView`, focus), so in Chromium a reveal made before the next
+frame scrolls for where the box stood. Playwright Chromium 156.0.8078.4 (build
+1248), on 2026-11-05, scrolled the page again for each such reveal, as if the
+first had not moved the box. Give
 a 4000px body an absolutely positioned anchor at `top: 2000px`, a 20px fixed
 box at `top: anchor(top)` through `position-anchor`, and the root
 `scroll-padding-bottom: 100px`; scroll the anchor 830px down an 860px window
@@ -690,8 +971,17 @@ reveals no fixed box through the page.
 In Leaf the root drops its scroll padding while the user writes in a floating
 box (`base.css`, `data-lf-floating-editor`), so only a caret outside the window
 is revealed, and each key that lands in the same frame adds another reveal's
-scroll; #5417 accepted that overshoot. Recheck the three calls in Chromium; a
-90px scroll means the gap has closed.
+scroll; #5417 accepted that overshoot. Tab pressed in the frame `t` sets off
+in lands the walk's glide first (scrolling.js, `landForKey`), and Chromium then
+reveals the thread card's next control where the card stood before the landing,
+scrolling the page on past where the walk leaves it; the glide matrix in
+`tests/journeys/navigation/test_reading_place.py` holds that case as known.
+Leaf's own readers ask where the glides land instead of reading an anchored box
+after a landing (scroll-containers.js, `seenAhead`), and a reading of the whole
+scene, as a hint map's, waits until the rendering update after a script's scroll
+(arrivals.js, `scrollDrawn`). Recheck the three calls in
+Chromium; a 90px scroll means the gap has closed, and the matrix's known case
+then passes.
 
 ### `calc()` in `overflow-clip-margin` in Chromium
 
@@ -807,6 +1097,47 @@ short. To recheck, draw a `content-visibility: auto` box with
 `contain-intrinsic-size: 300px` and read its height a few frames later: 300 px is the
 specified behaviour.
 
+### A row moved to the head of a skipped run in Chromium
+
+Playwright Chromium 158.0.8127.18 (build 1254) builds no `::before` box for a row that
+`moveBefore` moves to the head of a `content-visibility: auto` box it is skipping, so
+where the head row resets a counter for the rows after it, as a text document's first
+row in each run does (`text-document.css`), that row draws no line number and the
+rows after it count from 1, also once the box comes into view. The same move made with
+`insertBefore` or `prepend`, or while the box is drawn, numbers right. On 2026-11-15
+#5916's reproduction (three such boxes of 40 rows, each drawn once and scrolled back
+out of view, then each box's last row moved to the head of the next with `moveBefore`)
+drew no number on the moved row in the third box and numbered the rows after it from
+1; with `insertBefore`, every row read its line. A text document moves a row only onto
+the end of a run or into a run a split has just made (`lf-text-document.js`,
+`regroup`). Recheck by running that reproduction: once the moved row reads its line
+number, a text document may move rows to a run's head again.
+
+### A style read lays out a size container's contents
+
+Playwright Chromium 158.0.8127.18 (build 1254) answers `getComputedStyle` for an
+element whose style is out of date inside a size container by laying out everything out
+of date in that container, once a size query is evaluated against the container,
+whether it matches or not; a style query doesn't do it. Playwright Firefox 159 does it
+for the size container alone. Leaf's `body` is the `lf-shell` inline-size container
+(base.css), and `@container lf-shell (width < 640px)` queries it (`layouts.css`,
+`packages/default/styles/tabs.css`), so on a Leaf page a script's style read inside
+`body` pays for layout too, inside a closed tab's `hidden="until-found"` panel as well,
+which the read unlocks. On 2026-11-16, 20,000 `div` rows in such a panel, shown again
+after `display: none`, took 20 ms of style and 46 ms of the layout the read forced in
+Chromium (a trace's `UpdateLayoutTree` and `Layout`), and 6.5 ms for the whole read
+with no Leaf sheets. Page search's first read inside a closed tab pays it for the
+whole panel (`passages.js`, `searchableWords`). Leaf leaves it for now, since the
+container gives a narrow column and a widget's `100cqi` the shell's width. Rewriting
+the two `lf-shell` size queries would cost less than giving up the container and may
+lift it in Chromium, though not in Firefox; it is untested on a Leaf page, where the
+`cqi` lengths read the same container. Recheck on a plain page of 20,000 `div` rows
+under `body { container-type: inline-size }`, timing `getComputedStyle(lastRow).color`
+after toggling the rows' parent's `display`: in Chromium, 46 to 47 ms with
+`@container (max-width: 1px) { div { color: red } }`, which matches nothing, and 7.5 ms with
+`@container style(--x: 1) { div { color: red } }` in its place; in Firefox, 33 to 35
+ms with either rule or none, against 6 ms without the container.
+
 ### Styling content Firefox skips
 
 Firefox 157 (Playwright build 1555, macOS) styles every element inside a box whose
@@ -831,8 +1162,8 @@ element, as are `.lf-inspection-body :is(h2, h3) + *` (`chrome.css`) and the rea
 theme's `.eyebrow + :is(h1, h2, h3)` against every heading, so a paragraph added at
 the top of `main` restyled the whole page: 280 to 310 ms over 97,000 rows, and 24 ms
 with the trims written as `:first-child` and `:last-child` and the two sibling rules
-taken out. The first is Firefox's to change; rewriting the rules is
-open (#5194).
+taken out. The first is Firefox's to change. The theme's eyebrow rules now end at an
+`hgroup` or a heading's place in it, and rewriting the others is open (#5194).
 
 To recheck, build a `pre` of 97,000 `div` rows in runs of 128 with
 `content-visibility: auto`, each row numbered by a `::before` counter, let it paint,
@@ -869,7 +1200,7 @@ Chromium headless shell 156.0.8078.4, Firefox 157 and WebKit 27.2 all ship it. O
 2026-11-05 it answered correctly at a range's edges and inside a shadow tree passed in
 `shadowRoots`, which it needs in every engine. Two things keep a thread's passage
 marks from using it to say which mark the pointer is on
-(`browser/runtime/annotation-overlay/anchor-paint.js`, `markHit`):
+(`browser/runtime/anchor-paint.js`, `markHit`):
 
 - Its cost grows with the ranges the page's highlights hold, every one of them read
   on each call. At the last of a paragraph's marks, one call took 20 µs at 32 and
@@ -962,3 +1293,43 @@ held past 500 ms reads rather than presses whatever the user set in Touch
 Accommodations, which no page can read. To recheck, hold a finger on an element with a
 `contextmenu` listener in Safari on an iPhone or the simulator; once it logs, drop the
 timer and `holdsUntold` in `preview.js`.
+
+### Two spellings of position-visibility
+
+Firefox gap. The CSS working group renamed `position-visibility: anchors-visible` to
+`anchor-visible` ([Chrome Platform Status
+5136123851571200](https://chromestatus.com/feature/5136123851571200), which plans to
+remove the plural later). On 2026-11-10, `CSS.supports("position-visibility", …)`
+and the computed value read:
+
+| Engine                                                    | `anchors-visible`            | `anchor-visible` |
+| --------------------------------------------------------- | ---------------------------- | ---------------- |
+| Chromium headless shell 158.0.8127.18 (Playwright 1.65.0) | read, with a console warning | read             |
+| Google Chrome 157.0.8103.50, installed                    | read                         | read             |
+| WebKit 27.2 (Playwright build 2388)                       | read                         | read             |
+| Firefox 159.0 (Playwright 1.65.0)                         | read                         | refused          |
+
+Chromium 158 warns on the plural wherever it parses it, a second declaration after it
+or a false `@supports` block included, and `page check --render` reports that warning
+as a finding against the page. So Leaf names the value once, as `--lf-anchor-visible`
+(`browser/styles/tokens.css`), set to the singular where `@supports` reads it, and every
+`position-visibility` that hides a box with its anchor reads the property. A custom
+property's value is parsed only where a declaration uses it, so Chromium never parses
+the plural and Firefox never the singular. To recheck, read
+`CSS.supports("position-visibility", "anchor-visible")` in Playwright's Firefox; once it
+is true, spell `anchor-visible` in each declaration and drop the property.
+
+### A stroked line's box in Chromium
+
+Leaf stands the ⌥ aim on a drawing's part only where the part's box has area
+(`placement` in `browser/runtime/target-paint-geometry.js`, from `shownBox`).
+Chromium measures an SVG shape's box by its geometry alone, without its stroke, so a
+part drawn as one straight stroked line, such as a bar matplotlib draws with
+`ax.plot(…, lw=6)`, is 0px tall: on 2026-11-17, HeadlessChrome 158.0.8127.18
+(Playwright 1.65.0) gave such a horizontal `<path>` and its `<g>` a box 0px tall, and
+Playwright Firefox 159.0 one 8.5px tall. Holding ⌥ over the bar in Chromium draws no
+aim, though an ⌥-click still comments on it. Bars drawn as rectangles and curves have
+area and aim in both. Recorded rather than corrected, since a chart's bars are usually
+rectangles. Recheck with `uv run leaf-dev probe` of a page whose inline `<svg>` holds
+`<g id="bar"><path d="M0 10 L100 10" stroke="black" stroke-width="6"/></g>`, reading
+`document.querySelector('#bar').getBoundingClientRect().height` in Chromium.

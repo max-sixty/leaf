@@ -36,7 +36,10 @@ default acts on what they can't see (`controller.js`). A key
 typed into one of Leaf's fields, a `leaf-text` or a search box, stops at the field once
 the field and the dispatcher have read it there (`field-keys.js`), so the page never
 hears it bubble, and any other Leaf listener that needs keys typed into a field listens
-in capture.
+in capture. Leaf reads printed letters before the page's listeners, and other keys when
+they reach its listener on `document`. A key aimed inside `body` whose default is
+already prevented by then is the page's, and Leaf takes no step for it
+(`controller.js`).
 
 ## Escape
 
@@ -67,10 +70,9 @@ same step, through its row's `keep` where `run` would throw away unsent words
 - A composer, reply box or find box returns to its container: an element comment's
   composer to its element, a reply box to its thread, a find box to its panel. A layer
   opened from the floating panel's menu returns to the panel.
-- After Send, a reply box keeps the caret for the next message, in a card, a seat and
-  the panel's field alike (`thread/replies.js`), and so does a box that stays open for
-  more messages such as a widget's thread box (`x-thread-seat`). A thread's first
-  comment leaves focus on the thread's card or title, never on the page.
+- After Send, a reply box keeps the caret for the next message, in a card, a widget's
+  outlet and the panel's field alike (`thread/replies.js`). A thread's first comment
+  leaves focus on the thread's card or title, never on the page.
 - A selected destination (a thread, an obligation, a heading) steps back to the document
   through `letGo` (`focus.js`), landing beside it while it is in view, else on the
   visible block, rather than on the control that opened it, so Tab carries on from it.
@@ -133,6 +135,13 @@ words. Suggest and reactions share an anchored Other responses picker, reached b
 (in one, Tab nests the item, `nestItems` in `composing/field-editor.js`), or the
 contextual reaction command. Opening the picker
 keeps the field in place on desktop and touch surfaces alike.
+
+A comment box that offers a second send, as one standing in a widget's outlet whose
+`lfHold` names it does (`composing/surface.js`, `fabHoldAt`), leaves Tab its native
+order and opens no picker by it. The second send is a press of its own beside the
+primary action, and Tab is its keyboard route: from the field it reaches the primary
+action, then the ⋯ while the field is empty, then the second send. The ⋯ still opens
+the picker there.
 
 A command that should leave the user where they are declares `retainCurrentLocation`: the
 row's press restores the focus, caret and selection the floating panel saved as the

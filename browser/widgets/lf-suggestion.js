@@ -18,21 +18,21 @@
  * That owner renders and places the resulting entries, in the rail or as a pin, and
  * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
+import { nothing } from "/vendor/lit.js";
 import {
-  alignText,
   commandScope,
   commandsChanged,
-  foldBlock,
   keeps,
   LeafElement,
   contributionEntry,
   failSoft,
-  nothing,
   quoted,
   registerContribution,
   says,
 } from "/runtime/widget-api.js";
+import { foldBlock } from "../runtime/motion.js";
 import { renderRetired, textNodesUnder } from "../runtime/passages.js";
+import { alignText } from "../runtime/text-alignment.js";
 import { shownParts } from "../runtime/geometry.js";
 
 /** @typedef {"accept" | "reject"} Outcome */
@@ -394,7 +394,7 @@ customElements.define(
       return before || after || this.id;
     }
 
-    // The page's blanket answer (x-awaits.all) calls the deciding verb by name.
+    // The page's blanket answer (`awaits.all`) calls the deciding verb by name.
     /** @param {Outcome} outcome */
     decide(outcome) {
       return this.#decide(outcome);

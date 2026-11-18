@@ -1,7 +1,7 @@
 /* lf-gloss: a brief explanation at the phrase that needs it.
  *
  * The body stays where the author put it: it is the page's selectable, quotable
- * phrase. The explanation is the x-says rendering of the validated `tip` attribute:
+ * phrase. The explanation is the `says` rendering of the validated `tip` attribute:
  * generated for the diff, but still page text a user can select and comment on. Paper
  * places those same words after the phrase.
  *
@@ -85,13 +85,14 @@ customElements.define(
       this.#bubble.style.positionAnchor = anchor;
       this.#mark.setAttribute("aria-controls", this.#bubble.id);
       this.#mark.setAttribute("aria-describedby", this.#bubble.id);
-      // x-says="after" puts the tip directly after the authored body and before any
+      // `says`="after" puts the tip directly after the authored body and before any
       // trailing generated chrome. Writing that declared span here lets this module
       // also make it the popover; renderSaid sees the same marker and adds no duplicate.
       this.append(this.#bubble, this.#mark);
-      // A comment can rest on the x-says tip itself, and following it opens the tip as
-      // Leaf opens any closed popover holding a destination. Opened by anyone but this
-      // module, the tip stays pinned open, as a click pins it; a light dismissal unpins it.
+      // A comment can rest on the `says` tip itself, and following it opens the tip
+      // as Leaf opens any closed popover holding a destination. Opened by anyone but
+      // this module, the tip stays pinned open, as a click pins it; a light dismissal
+      // unpins it.
       this.#bubble.addEventListener("beforetoggle", (event) => {
         if (event.newState === "open" && !this.#pinned) this.#pin(true);
       });
@@ -109,6 +110,7 @@ customElements.define(
       const nested = worksInside(target, this);
       if (nested && nested !== this.#mark) return;
       if (event.composedPath().includes(this.#bubble)) return;
+      event.preventDefault();
       this.#pin(!this.#pinned);
       this.#sync();
     }

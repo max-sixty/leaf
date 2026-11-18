@@ -118,7 +118,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     expect(add).to_have_attribute("aria-disabled", "false")
     expect(add).to_have_css("opacity", "1")
     aim_floor = page.locator("html").evaluate(
-        "el => parseFloat(getComputedStyle(el).getPropertyValue('--aim-floor'))"
+        "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-aim-floor'))"
     )
     form_box = form.bounding_box()
     field_box = field.bounding_box()
@@ -158,21 +158,23 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     # from the shared face. Both rules are the theme's, and this one wins by coming
     # after it; when the face was stated in the adopted sheet instead, it outranked
     # this rule and drew the mark near black.
-    assert face["glyph"] == token_colour(page, "--accent")
-    assert face["glyph"] != token_colour(page, "--ink")
+    assert face["glyph"] == token_colour(page, "--lf-accent")
+    assert face["glyph"] != token_colour(page, "--lf-ink")
     # The disc is clear until the pointer is on it, and it is the whole of what rises:
     # the press still paints nothing of its own, at the size it holds at rest. The
     # pointer leaves again so the coarse reading below is of a press at rest too.
     add.hover()
     hovered = glyph_action_face(add)
     assert hovered["press"] == "rgba(0, 0, 0, 0)"
-    assert hovered["disc"] == token_colour(page, "--accent-tint")
+    assert hovered["disc"] == token_colour(page, "--lf-accent-tint")
     assert hovered["discWidth"] == face["discWidth"]
     page.mouse.move(0, 0)
     page.keyboard.press("Tab")
     expect(add).to_be_focused()
 
-    page.locator("html").evaluate("el => el.style.setProperty('--aim-floor', '44px')")
+    page.locator("html").evaluate(
+        "el => el.style.setProperty('--lf-aim-floor', '44px')"
+    )
     form_box = form.bounding_box()
     add_aim = add.evaluate(AIM_RECT)
     assert form_box["height"] >= 44
@@ -221,14 +223,14 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     mark = page.locator("#storage-evict .lf-pick")
     mark.focus()
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#storage-options .lf-page-thread")).to_have_count(0)
 
     # Enter is not navigation from a checkbox. It neither chooses the option nor enters
     # the add field; the field is an ordinary later stop in the Tab order.
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
-    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
     # Located on the obligation shows its discussion beside it, so c enters the reply
     # instead of adding an answer or opening another comment box.
@@ -240,7 +242,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()
-    expect(page.locator("#storage-options > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
 
 def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve):
@@ -295,10 +297,10 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     """A pick made while the send is open leaves the sent generation alone.
 
     Every pick rewrites the add field's draft, because the choice that draft would submit
-    has changed. A pick made while the added option was in the wire used to write over
-    the generation that send owned, so its answer settled nothing and the words it had
-    already carried into an option stayed in the box for good. A sent generation is no
-    longer the box's to write — the same mask that empties the box keeps the pick out of
+    has changed. A pick that wrote over the generation a send owns, while the added
+    option was in the wire, would leave its answer settling nothing and the words it had
+    already carried into an option in the box for good. A sent generation is not the
+    box's to write — the same mask that empties the box keeps the pick out of
     it.
     """
     browser, held = held_events
@@ -315,7 +317,7 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     # The queue holds this second action behind the first, so the pick's own paint, not
     # another held route, is what says the gesture was taken while the send was open.
     page.locator("#job-heater").click()
-    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+    expect(page.locator("#job-heater")).to_have_attribute("selected", "")
     expect(field).to_have_js_property("value", "")
 
     while held:
@@ -347,7 +349,7 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     row = form.evaluate(inner)
     page.keyboard.press("Enter")
     added = page.locator(f"#{group} > lf-option[data-lf-added]")
-    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_have_attribute("selected", "")
     round_trip(page)
     assert added.evaluate(inner) == pytest.approx(row, abs=0.5)
     authored = page.locator(f"#{group} > lf-option:not([data-lf-added])").evaluate_all(
@@ -367,7 +369,7 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     expect(page.locator("#mounts-p")).to_contain_text("the second came")
     assert page.evaluate(order) == [*authored, added_id]
     assert added.evaluate(inner) == pytest.approx(row, abs=0.5)
-    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_have_attribute("selected", "")
 
 
 PASTE_IMAGE = """(textarea, encoded) => {
@@ -408,7 +410,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
     # first key or press there, and then waits in the leaf's menu.
     cover = form.locator(".lf-compose-error")
     expect(cover).to_have_text("Images can be added to comments, not options")
-    expect(page.locator(".lf-fp-error-dot")).to_be_hidden()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_hidden()
     cover.click()
     expect(cover).to_be_hidden()
     expect(field).to_be_focused()
@@ -448,7 +450,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
         },
     )
     told(page)
-    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#jobs .lf-page-thread")).to_have_count(0)
     expect(first).to_be_visible()
     expect(first).to_have_js_property("value", draft)
 
@@ -458,7 +460,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     round_trip(page)
     added = page.locator("#jobs > lf-option[data-lf-added]")
     expect(added).to_contain_text(draft)
-    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_have_attribute("selected", "")
     roots = [e for e in events_model.read_events(d) if e["kind"] == "comment"]
     assert [(e["anchor"], e["text"]) for e in roots] == [
         ({"section": "jobs"}, "A separate note on this question."),
@@ -482,7 +484,7 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
     page = open_page(browser, live_url(serve(OBLIGATION_PAGE)), context=context)
     page.locator("#br-steel").tap()
     round_trip(page)
-    expect(page.locator("#br-steel")).to_have_attribute("chosen", "")
+    expect(page.locator("#br-steel")).to_have_attribute("selected", "")
     faces = page.locator(
         ".lf-key-badge[data-lf-binding-badge], .lf-command-binding-badge"
     )
@@ -499,7 +501,7 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
     page.keyboard.type("Ask the neighbours first")
     page.keyboard.press("Enter")
     added = page.locator("#bracket > lf-option[data-lf-added]")
-    expect(added).to_have_attribute("chosen", "")
+    expect(added).to_have_attribute("selected", "")
     expect(added).to_contain_text("Ask the neighbours first")
     expect(field).to_have_js_property("value", "")
     # Words with a line break, as a paste brings them, stay on the one line.
@@ -510,8 +512,9 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
 
 def test_the_add_field_says_its_whole_hint_on_a_phone(browser, serve):
     """The add field keeps room at its end for the Add press and the obligation's key, so on a
-    phone the words before that room are few: alert-review's card group at 360px cut
-    "Another option — add to select" to "Another option — ad…", which lost the verb.
+    phone the words before that room are few: alert-review's card group at 360px would
+    cut "Another option — add to select" to "Another option — ad…", which loses the
+    verb.
     The hint says the same in words that fit, and the room it keeps is measured here
     rather than restated."""
     example = named_source("alert-review")
@@ -566,7 +569,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     page = open_page(browser, url)
     d = serve.page_dir
 
-    expect(page.locator("#jobs > .lf-thread-seat")).to_have_count(0)
+    expect(page.locator("#jobs .lf-page-thread")).to_have_count(0)
     added = page.locator("#jobs > .lf-another")
     assert added.count() == 1, (
         f"the add-option cell was not rendered: {shown(page.lf_errors)}; "
@@ -592,7 +595,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         f"group={page.locator('#jobs').inner_html()}"
     )
     expect(new_option).to_contain_text("Insulate the camera battery")
-    expect(new_option).to_have_attribute("chosen", "")
+    expect(new_option).to_have_attribute("selected", "")
     identity = new_option.get_attribute("id")
     moves = [
         (event["action"], event["detail"])
@@ -609,22 +612,22 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
 
     page.locator("#job-heater").click()
     round_trip(page)
-    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
-    expect(new_option).to_have_attribute("chosen", "")
+    expect(page.locator("#job-heater")).to_have_attribute("selected", "")
+    expect(new_option).to_have_attribute("selected", "")
 
     page.reload(wait_until="load")
     page.wait_for_function(
         "() => document.body.getAttribute('data-lf-presented') === '1'"
     )
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
-    expect(page.locator("#job-heater")).to_have_attribute("chosen", "")
+    expect(page.locator("#job-heater")).to_have_attribute("selected", "")
 
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_attribute(
-        "chosen", ""
+        "selected", ""
     )
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(1)
-    expect(page.locator("#jobs > lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("#jobs > lf-option[selected]")).to_have_count(0)
     undo(page)
     expect(page.locator("#jobs > lf-option[data-lf-added]")).to_have_count(0)

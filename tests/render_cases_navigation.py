@@ -61,18 +61,18 @@ BINDING_BADGE_PAGE = leaf_page(
     "binding badges",
     """
 <h1 id="h">Two questions, two forms</h1>
-<lf-ask id="cards-decision"><h2>How should the bath be heated?</h2>
-<lf-options id="cards" choose>
-  <lf-option id="c-heater"><strong>Immersion heater</strong> Drops into the basin.</lf-option>
-  <lf-option id="c-cable"><strong>Heated cable</strong> A cord across the base.</lf-option>
-  <lf-option id="c-hand"><strong>Break the ice</strong> Someone goes out each morning.</lf-option>
-</lf-options></lf-ask>
+<lf-group id="cards-decision" label="How should the bath be heated?"><h2 id="cards-decision-h">How should the bath be heated?</h2>
+<lf-options id="cards">
+  <lf-option id="c-heater" label="Immersion heater"><strong>Immersion heater</strong> Drops into the basin.</lf-option>
+  <lf-option id="c-cable" label="Heated cable"><strong>Heated cable</strong> A cord across the base.</lf-option>
+  <lf-option id="c-hand" label="Break the ice"><strong>Break the ice</strong> Someone goes out each morning.</lf-option>
+</lf-options></lf-group>
 <p id="plan">The camera mount is the part nobody has costed.</p>
-<lf-ask id="rows-decision"><h2>When should it be costed?</h2>
-<lf-options id="rows" choose>
+<lf-group id="rows-decision" label="When should it be costed?"><h2 id="rows-decision-h">When should it be costed?</h2>
+<lf-options id="rows">
   <lf-option id="r-now" for="plan">Cost it now</lf-option>
   <lf-option id="r-later" for="plan">Leave it for the spring</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 """,
 )
 
@@ -135,9 +135,9 @@ OVER_WORDS = """(el, id) => {
 # rect is relative to the scroller, so a scroll landing between the two reads is subtracted
 # straight into the answer. `d` scrolls to the decision it steps to, the root is the scroller,
 # and a page whose content sits on fractional pixels settles that scroll across a frame —
-# so the chip's offset came back a pixel out on about half of the runs, on whichever row
-# the frame happened to fall between. Nothing had moved by then except the root scrollport,
-# which is the one thing this measurement is not about.
+# so the chip's offset can come back a pixel out, on whichever row the frame happens to
+# fall between. Nothing has moved by then except the root scrollport, which is the one
+# thing this measurement is not about.
 #
 # Every reading is stated from the option's padding box, because that is where the chip is
 # placed from and where the option's own room starts: a joined cell wears the hairline
@@ -274,13 +274,13 @@ enough that it runs past the end of one line and carries on onto the next</a>, a
 <details id="dsc"><summary id="dsc-head">What the store costs</summary>
 <p id="dsc-body">A replica in each region, and a read on every request that carries a
 session.</p></details>
-<lf-ask id="opts-decision"><h2>How should sessions work?</h2>
-<lf-options id="opts" choose>
-  <lf-option id="opt-a"><strong>Keep the store</strong> Sessions stay where they are,
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-options id="opts">
+  <lf-option id="opt-a" label="Keep the store"><strong>Keep the store</strong> Sessions stay where they are,
   which costs a replica and buys revocation for free.</lf-option>
-  <lf-option id="opt-b"><strong>Signed tokens</strong> No store at all, until revocation
+  <lf-option id="opt-b" label="Signed tokens"><strong>Signed tokens</strong> No store at all, until revocation
   quietly puts one back.</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 <p id="p2">A short second passage.</p>
 {tail}
 """,
@@ -292,12 +292,14 @@ session.</p></details>
 )
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a sequence in progress.
+# A chip a typed letter or a filter rules out keeps its seat, hidden, so a count of the
+# map the user sees counts `:visible` chips.
 CHIPS = ".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]"
 
 
 def address_codes(page):
     rendered(page)
-    return page.locator(CHIPS).evaluate_all(
+    return page.locator(f"{CHIPS}:visible").evaluate_all(
         "chips => chips.map(chip => chip.dataset.lfHintCode)"
     )
 
@@ -439,11 +441,11 @@ First line of the note.
 
 Second paragraph of the note.
 </pre></lf-draft>
-<lf-ask id="picks-decision"><h2>Should we keep the mounts?</h2>
-<lf-options id="picks" choose>
+<lf-group id="picks-decision" label="Should we keep the mounts?"><h2 id="picks-decision-h">Should we keep the mounts?</h2>
+<lf-options id="picks">
   <lf-option id="opt-a">Keep the mounts</lf-option>
-  <lf-option id="opt-b" chosen>Replace the mounts</lf-option>
-</lf-options></lf-ask>
+  <lf-option id="opt-b" selected>Replace the mounts</lf-option>
+</lf-options></lf-group>
 """,
 )
 
@@ -456,11 +458,11 @@ NESTED_SUGGESTION = (
     SUGGESTION_PAGE.replace(
         "<lf-new>Switch the north feeder to thistle in autumn.</lf-new>",
         "<lf-new>Switch the north feeder to thistle in autumn."
-        '<lf-ask id="blend-decision"><h2>Which seed blend?</h2>'
-        '<lf-options id="blend" choose>'
+        '<lf-group id="blend-decision" label="Which seed blend?"><h2 id="blend-decision-h">Which seed blend?</h2>'
+        '<lf-options id="blend">'
         '<lf-option id="blend-nyjer">Nyjer only</lf-option>'
         '<lf-option id="blend-mixed">Mixed thistle</lf-option>'
-        "</lf-options></lf-ask></lf-new>",
+        "</lf-options></lf-group></lf-new>",
     )
     .replace('<p id="insert">', '<div id="insert">')
     .replace("</lf-suggestion></p>\n<lf-board", "</lf-suggestion></div>\n<lf-board")
@@ -471,11 +473,11 @@ FENCED_CAPTURE_PAGE = leaf_page(
 <h1 id="h">Roadmap</h1>
 <lf-sample id="gate-milestone" label="active · week-1 · wood · solar"><strong>Build feeders</strong> Two classic models.</lf-sample>
 <p id="after-milestone">Ready next.</p>
-<lf-options id="fence-options">
-  <lf-option id="fence-option"><small class="tag">effort: low</small><small class="tag">risk: high</small>
-    <strong>Classic feeder</strong> Easy to clean.
+<lf-group id="fence-q" label="Which fence?"><lf-options id="fence-options">
+  <lf-option id="fence-option" label="Classic feeder"><small class="tag">effort: low</small><small class="tag">risk: high</small> <strong>Classic feeder</strong>
+    Easy to clean.
   </lf-option>
-</lf-options>
+</lf-options></lf-group>
 """,
 )
 # A label a widget renders into a control it also built. The tab strip is the case with
@@ -504,12 +506,12 @@ CODE_PAGE = leaf_page(
 <h1 id="t">Code</h1>
 <section id="walk">
 <p id="lede">The key changes shape:</p>
-<lf-code id="walk-code" language="python" hi="2"><pre>
+<lf-code id="walk-code" hi="2"><pre><code class="language-python">
 def bucket_key(request):
     if request.token:
         return f"tok:{request.token.id}"
     return "anon"
-</pre>
+</code></pre>
 <lf-note at="2">A token id shaped like an address would collide.</lf-note>
 </lf-code>
 <pre><code class="language-bash"># apply the migration, then run the marked suite
@@ -693,10 +695,9 @@ TWO_COPIES_PAGE = leaf_page(
 """,
 ).replace("{passage}", LONG_PASSAGE)
 # Prose past the pattern's own ceiling. One expression with a term per character stops
-# compiling somewhere past ten thousand of them — measured on the corpus: 1.3ms at four
-# hundred characters, 11.6ms at five thousand, a SyntaxError at twelve — and the throw
-# would land inside the pass that draws every mark on the page, not just this one's. A
-# user reaches it in one keystroke, so the guard is a page long enough to prove it.
+# compiling somewhere past ten thousand of them, and the throw would land inside the
+# pass that draws every mark on the page, not just this one's. A user reaches it in one
+# keystroke, so the guard is a page long enough to prove it.
 CEILING_PAGE = leaf_page(
     "everything",
     """
@@ -749,7 +750,7 @@ JOURNEY_SCAFFOLD = leaf_page(
 {before}
 <lf-board id="board">
   <lf-column id="col-todo" label="Todo">
-    <lf-card id="card-x"><strong>Guard the session delete</strong> One line.</lf-card>
+    <lf-card id="card-x" label="Guard the session delete"><strong>Guard the session delete</strong> One line.</lf-card>
   </lf-column>
   <lf-column id="col-done" label="Done"></lf-column>
 </lf-board>
@@ -825,22 +826,22 @@ DISCLOSED_PAGE = leaf_page(
 <details id="dsc"><summary id="dsc-head">What the store costs</summary>
 <p id="dsc-body">A replica in each region, and a read on every request that carries a
 session.</p></details>
-<lf-ask id="settled-decision"><h2>Should we keep it?</h2>
-<lf-options id="settled" choose settled>
-  <lf-option id="st-keep" chosen><strong>Keep it</strong> Decided last week.</lf-option>
-  <lf-option id="st-drop"><strong>Drop it</strong> The alternative.</lf-option>
-</lf-options></lf-ask>
+<section id="settled-decision"><h2>Should we keep it?</h2>
+<lf-options id="settled" settled>
+  <lf-option id="st-keep" label="Keep it" selected><strong>Keep it</strong> Decided last week.</lf-option>
+  <lf-option id="st-drop" label="Drop it"><strong>Drop it</strong> The alternative.</lf-option>
+</lf-options></section>
 """,
 )
 KEYS_PAGE = leaf_page(
     "keys",
     """
 <h1 id="h">Session store</h1>
-<lf-ask id="opts-decision"><h2>How should sessions work?</h2>
-<lf-options id="opts" choose>
-  <lf-option id="opt-keep"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
-  <lf-option id="opt-token"><strong>Signed tokens</strong> No store at all.</lf-option>
-</lf-options></lf-ask>
+<lf-group id="opts-decision" label="How should sessions work?"><h2 id="opts-decision-h">How should sessions work?</h2>
+<lf-options id="opts">
+  <lf-option id="opt-keep" label="Keep the store"><strong>Keep the store</strong> Sessions stay where they are.</lf-option>
+  <lf-option id="opt-token" label="Signed tokens"><strong>Signed tokens</strong> No store at all.</lf-option>
+</lf-options></lf-group>
 <lf-draft id="draft-ops"><pre>Run the migration before deploying.</pre></lf-draft>
 """,
 )
@@ -878,9 +879,7 @@ FIRST_PRESENTATION = """
   };
   requestAnimationFrame(sample);
 """
-_CARD = (
-    '<lf-card id="card-x"><strong>Guard the session delete</strong> One line.</lf-card>'
-)
+_CARD = '<lf-card id="card-x" label="Guard the session delete"><strong>Guard the session delete</strong> One line.</lf-card>'
 
 
 def _card_done(html):
@@ -933,7 +932,7 @@ def live_watcher(page_dir, page):
 # The tone read is the sheet the runtime appended, never the mark's own — and the two are
 # not told apart by their colours. The mark is authored in the accent, so a working page
 # paints it the shade it already was, and a reading that took the first rule it found
-# agreed with the leaf on the one state where nothing had to have happened.
+# would agree with the leaf on the one state where nothing had to have happened.
 TAB_TONE = """(want) => {
     const leaf = document.querySelector('.lf-fp-leaf');
     const el = leaf.querySelector('svg[data-lf-icon=leaf]');
@@ -967,7 +966,8 @@ DATA_PROJECTION_PAGE = leaf_page(
 )
 
 DATA_PROJECTION_MODULE = """
-import {keeps, offer, LeafElement, nothing, setChildren} from '/runtime/widget-api.js';
+import { nothing } from '/vendor/lit.js';
+import { keeps, offer, LeafElement, setChildren } from '/runtime/widget-api.js';
 customElements.define('lf-feed', class extends LeafElement {
   render() {
     this.show(this.value);
@@ -997,23 +997,24 @@ def source_revision(page_dir, source):
 def data_projection_page(serve):
     feed = {
         "description": "A project-supplied live feed.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "source": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "source": {"type": "string"},
+            },
+            "required": ["id", "source"],
+            "additionalProperties": False,
         },
-        "required": ["id", "source"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-data": {
+        "content": "empty",
+        "inputs": {
             "rows": {
                 "contract": "deployment-rows",
                 "source": "source",
                 "property": "value",
             }
         },
-        "x-upgrade": True,
-        "x-example": ('<lf-feed id="feed-example" source="deployments"></lf-feed>'),
+        "example": '<lf-feed id="feed-example" source="deployments"></lf-feed>',
     }
     contract = {
         "description": "Current deployment status rows.",

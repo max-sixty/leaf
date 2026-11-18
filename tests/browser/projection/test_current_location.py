@@ -98,7 +98,7 @@ def test_the_presses_a_user_is_mid_way_through_survive_the_page_following(
         "the revision took the user's keys down"
     )
     page.keyboard.press("2")
-    expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
+    expect(page.locator("#lk-two")).to_have_attribute("selected", "")
     expect(page.locator(".lf-live")).to_have_text("Chose “Two”")
     round_trip(page)
 
@@ -110,8 +110,8 @@ def test_a_revision_that_restates_an_obligation_preserves_the_users_location_in_
 
     A patch keeps every node the revision did not rewrite, so an untouched control is
     still holding the focus the user put on it. The question they are answering is the
-    one thing a revision is most likely to rewrite, and rewriting it replaced every node
-    inside — which used to drop the user onto `body` in the same breath as "Updated
+    one thing a revision is most likely to rewrite, and rewriting it replaces every node
+    inside — which would drop the user onto `body` in the same breath as "Updated
     to …". An obligation is named by a declared id rather than by a control's shape, so the
     current location is a lookup: the user is put back on the obligation, or on the control that
     answers it, according to which of the two they held. A revision that withdraws the
@@ -135,7 +135,7 @@ def test_a_revision_that_restates_an_obligation_preserves_the_users_location_in_
     # again, and the third option the revision brought is among them.
     assert active_digit_bindings(page) == "1–4"
     page.keyboard.press("3")
-    expect(page.locator("#lk-three")).to_have_attribute("chosen", "")
+    expect(page.locator("#lk-three")).to_have_attribute("selected", "")
 
 
 def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
@@ -165,9 +165,9 @@ def test_a_restated_obligation_returns_a_user_to_the_question_not_to_a_control(
     # The press they had lined up decides nothing on its own, and the option they were
     # holding is still the one their own digit reaches.
     page.keyboard.press("Space")
-    expect(page.locator("lf-option[chosen]")).to_have_count(0)
+    expect(page.locator("lf-option[selected]")).to_have_count(0)
     page.keyboard.press("2")
-    expect(page.locator("#lk-two")).to_have_attribute("chosen", "")
+    expect(page.locator("#lk-two")).to_have_attribute("selected", "")
 
 
 def test_a_withdrawn_obligation_leaves_the_user_on_the_page(browser, serve):
@@ -507,12 +507,12 @@ customElements.define('page-counter', class extends HTMLElement {
 
 def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve):
     """A stamped version follows by navigation, and the user's place rides across.
-    The passage they were reading did; where the walk had got to was a variable in a
-    module the navigation threw away, so it did not, and the user was demoted without
-    a word from the most exact reading of where they stand to the coarsest. Located on
-    the third of four obligations when v2 landed, they pressed `m` and were handed the third
-    again — after looking slightly back above that obligation, the block at the top of the
-    window is somewhere they had already walked past.
+    The passage they were reading does; where the walk had got to, kept as a variable in
+    a module the navigation throws away, would not, and the user would be demoted
+    without a word from the most exact reading of where they stand to the coarsest.
+    Located on the third of four obligations when v2 lands, they would press `m` and be
+    handed the third again — after looking slightly back above that obligation, the
+    block at the top of the window is somewhere they had already walked past.
 
     So the walk's place travels in the same record as the passage, and the press after
     the version lands is the press they would have made before it. The ring is not owed a
@@ -530,7 +530,7 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
         expect(page.locator(f"#{item}")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # Obligation travel now starts at the obligation's opening, which normally makes the coarse
+    # Obligation travel starts at the obligation's opening, which normally makes the coarse
     # reading agree with the saved landing. Look back just far enough to make the two
     # meanings diverge: the scroll position says the preceding change, while the walk's
     # exact record still says the third obligation.
@@ -562,32 +562,43 @@ def test_the_obligation_walk_keeps_its_place_when_a_version_lands(browser, serve
     )
 
 
-def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve):
-    """A choosing lf-options that is the decision itself, with no lf-ask round it,
-    gives its location ring up to the row as one inside an ask does. It kept it: a
-    Tab in drew the decision's ring at the region's gap and the row's inside the
-    frame, two accent lines a few pixels apart for one fact."""
+def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
+    browser, serve
+):
+    """A choosing lf-options that stands at its own source, as each does in a named
+    group holding two questions (`obligations/place.js`), gives its location ring up to
+    the row as a group's question does. If the choice kept its ring, a Tab in would
+    draw the choice's ring at the region's gap and the row's inside the frame, two
+    accent lines a few pixels apart for one fact."""
     page = open_page(
         browser,
         serve(
             leaf_page(
-                "Bare choice",
-                """<h1 id="h">Bare choice</h1>
-<lf-options id="ship" choose>
-  <lf-option id="ship-monday"><strong>Ship Monday</strong></lf-option>
-  <lf-option id="ship-thursday"><strong>Ship Thursday</strong></lf-option>
-</lf-options>""",
+                "Release",
+                """<h1 id="h">Release</h1>
+<lf-group id="release" label="When and where does it ship?">
+<h2 id="release-h">When and where does it ship?</h2>
+<lf-options id="ship">
+  <lf-option id="ship-monday" label="Ship Monday"><strong>Ship Monday</strong></lf-option>
+  <lf-option id="ship-thursday" label="Ship Thursday"><strong>Ship Thursday</strong></lf-option>
+</lf-options>
+<lf-options id="region">
+  <lf-option id="region-eu" label="EU first"><strong>EU first</strong></lf-option>
+  <lf-option id="region-us" label="US first"><strong>US first</strong></lf-option>
+</lf-options>
+</lf-group>""",
             )
         ),
     )
     choice = page.locator("#ship")
     page.keyboard.press("m")
     expect(choice).to_have_attribute("data-lf-obligation", "1")
+    expect(page.locator("#release")).not_to_have_attribute("data-lf-obligation", "1")
     assert choice.evaluate(LOCATION_RING)[0] == "solid"
-    # An arrival rings the decision at the region's gap, outside its frame.
+    # An arrival rings the choice at the region's gap, outside its frame.
     arrived = choice.evaluate(
         "el => [getComputedStyle(el).outlineOffset, getComputedStyle("
-        "document.documentElement).getPropertyValue('--focus-region-gap').trim()]"
+        "document.documentElement).getPropertyValue('--lf-focus-region-gap').trim()]"
     )
     assert arrived[0] == arrived[1], arrived
 
@@ -596,7 +607,7 @@ def test_a_bare_choice_hands_its_ring_to_the_row_the_user_tabs_to(browser, serve
     # The ring is painted in the frame the focus move asks for (repaint.js).
     rendered(page)
     assert choice.evaluate(LOCATION_RING)[0] == "none", (
-        "the decision kept its ring round the row"
+        "the choice kept its ring round the row"
     )
     assert page.locator("#ship-monday").evaluate(RING)[0] == "solid"
 
@@ -605,16 +616,17 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     """One ring, meaning one thing: this is where the user is located. It is painted
     from the focus, so every way into a decision paints it and leaving takes it off.
 
-    The walk used to write it, and nothing ever took it off. So it said where the walk
+    Written by the walk, with nothing to take it off, it would say where the walk
     had left them rather than where they were: press `d`, click away, work in the panel
-    for ten minutes, and a decision nobody was located in went on wearing "you are here" —
-    while a user who had reached the same decision by Tab or by clicking one of its
-    controls got no ring at all. The same place, marked or not by how they arrived.
+    for ten minutes, and a decision nobody was located in would go on wearing "you are
+    here" — while a user who had reached the same decision by Tab or by clicking one of
+    its controls would get no ring at all. The same place, marked or not by how they
+    arrived.
 
     The chrome wears the same band, because a user who has backed out of the panel is
-    located on a button and that is the same fact about them. It wore the browser's own
-    ring there, in the browser's blue, a few inches from a decision ringed in the page's
-    accent, with nothing saying the two rectangles meant one thing.
+    located on a button and that is the same fact about them. The browser's own ring
+    there, in the browser's blue, would stand a few inches from a decision ringed in the
+    page's accent, with nothing saying the two rectangles meant one thing.
 
     A joined options control is the one shape that draws the band somewhere else: it is
     already a framed box, so a ring around the decision *and* one inside it would read as
@@ -630,7 +642,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     assert arrival_ring == [
         "solid",
         "2px",
-        token_colour(page, "--accent"),
+        token_colour(page, "--lf-accent"),
     ], f"the decision the walk stood the user on is not ringed: {arrival_ring}"
 
     # One press in, and the band moves to the row rather than doubling: the frame is the
@@ -646,7 +658,7 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     assert row_ring == [
         "solid",
         "2px",
-        token_colour(page, "--accent"),
+        token_colour(page, "--lf-accent"),
     ], f"the row the user is on is not ringed in the page's own band: {row_ring}"
 
     # A suggestion hangs its ✓ Accept out in the page margin, so a user working one has
@@ -663,10 +675,9 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
     accept.focus()
     # Tab inside the margin reaches the same suggestion's ✗ Reject, rendered from the
     # same contribution in the options group. The user is still deciding this change,
-    # so the ring stays on it. It did not: the secondary control stood nowhere, the band
-    # came off the suggestion for as long as the user held that control, and returning
-    # to ✓ Accept brought it back a frame later — which is also how the read below came
-    # to be taken while nothing on the page was ringed at all.
+    # so the ring stays on it. Were the secondary control to stand nowhere, the band
+    # would come off the suggestion for as long as the user held that control, and
+    # returning to ✓ Accept would bring it back a frame later.
     #
     # Read after the frame the focus move's repaint is coalesced into, so this states the
     # band the page settles on rather than whichever side of that frame the read lands on.
@@ -731,12 +742,12 @@ def test_the_ring_says_where_the_user_is_located(browser, serve):
 STORE_ASK_PAGE = leaf_page(
     "Session store",
     '<h1 id="h">Where sessions live</h1>'
-    '<lf-ask id="store-ask"><h3>Which store should hold sessions?</h3>'
-    '<lf-options id="store" choose>'
+    '<lf-group id="store-ask" label="Which store should hold sessions?"><h3 id="store-ask-h">Which store should hold sessions?</h3>'
+    '<lf-options id="store">'
     '<lf-option id="store-redis">Redis</lf-option>'
     '<lf-option id="store-cookie">Signed cookie</lf-option>'
     '<lf-option id="store-db">The main database</lf-option>'
-    "</lf-options></lf-ask>",
+    "</lf-options></lf-group>",
 )
 
 
@@ -778,8 +789,8 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     leaves the reply for the view. A digit typed in the reply stays reply text.
 
     A thread the keyboard opens from Threads shows in the panel alone, and Escape from
-    its reply leaves it so. Its view stands at the ask the thread is about, and the
-    margin read the keyboard arriving there as an arrival at the ask, so it opened the
+    its reply leaves it so. Its view stands at the ask the thread is about, and a margin
+    that read the keyboard arriving there as an arrival at the ask would open the
     thread's card beside the ask as well: the same thread twice, the card left standing
     after the panel closed.
     """
@@ -812,7 +823,7 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     expect(view).to_be_focused()
     expect(ask).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
-    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+    expect(page.locator("#store-cookie")).to_have_attribute("selected", "")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
 
@@ -822,12 +833,12 @@ def test_a_thread_about_an_ask_stands_at_the_ask_from_the_panel(browser, serve):
     expect(ask).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.type("3")
     expect(reply).to_have_js_property("value", "3")
-    expect(page.locator("#store-db")).not_to_have_attribute("chosen", "")
+    expect(page.locator("#store-db")).not_to_have_attribute("selected", "")
     page.keyboard.press("Escape")
     expect(view).to_be_focused()
     rendered(page)
     page.keyboard.press("3")
-    expect(page.locator("#store-db")).to_have_attribute("chosen", "")
+    expect(page.locator("#store-db")).to_have_attribute("selected", "")
 
 
 def test_a_finger_opening_a_thread_about_an_ask_stands_in_its_view(browser, serve):
@@ -856,7 +867,7 @@ def test_an_on_me_card_represents_its_ask(browser, serve):
     card.focus()
     expect(page.locator("#store-ask")).to_have_attribute("data-lf-obligation", "1")
     page.keyboard.press("2")
-    expect(page.locator("#store-cookie")).to_have_attribute("chosen", "")
+    expect(page.locator("#store-cookie")).to_have_attribute("selected", "")
 
 
 def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
@@ -876,10 +887,9 @@ def test_escape_lets_go_of_the_obligation_the_users_current_location_names(
     page = open_page(browser, url)
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision[data-lf-obligation]")).to_have_count(1)
-    # The reference says the press in its own words. It said "Back out one layer" for
-    # every rung, which was true while every rung took a layer of chrome off the page:
-    # making a decision current is the user holding something, with no layer over the
-    # page at all.
+    # The reference says the press in its own words. "Back out one layer" for every rung
+    # would be true only while every rung took a layer of chrome off the page: making a
+    # decision current is the user holding something, with no layer over the page at all.
     page.keyboard.press("?")
     expect(
         page.locator(
@@ -948,8 +958,8 @@ def test_the_obligation_walk_follows_registry_declarations(browser, serve):
     url = serve(OBLIGATIONS_PAGE)
 
     def undeclare(registry):
-        del registry["lf-suggestion"]["x-awaits"]
-        del registry["lf-suggestion"]["properties"]["resolves"]
+        del registry["lf-suggestion"]["awaits"]
+        del registry["lf-suggestion"]["attributes"]["properties"]["resolves"]
 
     declare_on_page(serve.page_dir, undeclare)
     stamp_page(

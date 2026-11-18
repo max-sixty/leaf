@@ -5,7 +5,7 @@
    If registry declarations and the log contain enough information to implement a
    behavior, the layer implements it once. Current examples are:
 
-   - `renderSaid` turns `x-says` values into real selectable text.
+   - `renderSaid` turns `says` values into real selectable text.
    - `renderQuiet` gives state provenance a clipped spoken reading.
    - Declared marks expose the width model, inline run, quoting, own height, and
      reading role to the theme: delivery paints a page's document, and `markDeclared`
@@ -13,9 +13,9 @@
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
-   - The obligation model (obligations/model.js) reads `x-awaits`, while the obligation view (obligations/view.js)
-     projects the enclosing widget (`x-encloses`) around that source where one exists;
-     neither names a tag.
+   - The obligation model (obligations/model.js) reads `awaits`, while the obligation
+     view (obligations/view.js) starts an arrival at the group the author declares
+     round that source where one does; neither names a tag.
    - the internal validation adapter exposes replay winners to the render gate,
      the panel's own folds included: a widget an agent sent folds the way a page widget
      does and the poll replays it the same way, so the premise that every widget's `render()`
@@ -49,9 +49,9 @@
 import { isElement } from "./shadow-tree.js";
 
 import { markViews } from "./storage.js";
-import { elementDeclarations, exhibits, registry, tagsDeclaring } from "./registry.js";
+import { elementDeclarations, holdsFor, registry, tagsDeclaring } from "./registry.js";
 import { watchArrivals } from "./arrivals.js";
-import { highlightBlocks } from "./syntax.js";
+import { dressCode } from "./code-dressing.js";
 import { keeps } from "./keeps.js";
 import { move } from "./dom-move.js";
 import { chromeRoot } from "./chrome.js";
@@ -71,17 +71,18 @@ const PAGE_PAINT_ATTRIBUTES = new Set(Object.values(PAGE_PAINT_ATTRIBUTE));
 /** @param {string} name */
 export const isPagePaint = (name) =>
   PAGE_PAINT_ATTRIBUTES.has(name) ||
-  Object.values(marks).some((mark) => mark.paint === name);
+  Object.values(marks).some((mark) => mark.attribute === name);
 
 // A word for a user listening, silent on screen: real text — the one thing every
-// screen reader announces in every mode — placed after the element's leading title,
-// wearing .lf-ui (an invisible word is apparatus the anchor pass must not offer),
-// .lf-quiet (the shared clip), and data-lf-gen (no author wrote it). One writer per
-// element, and the empty word removes what stands: a fact the page has stopped painting
-// must stop being said too, so a caller states the whole of what this element says
-// quietly and never appends to it. Content widgets once hand-copied this idiom
-// before it was one, and the copies had already diverged on whether a stale word was
-// removed first — which is now renderQuiet's to state for every widget that declares it.
+// screen reader announces in every mode — placed at the element's start, after any
+// title its `label` draws, wearing .lf-ui (an invisible word is apparatus the anchor
+// pass must not offer), .lf-quiet (the shared clip), and data-lf-gen (no author wrote
+// it). One writer per element, and the empty word removes what stands: a fact the
+// page has stopped painting must stop being said too, so a caller states the whole of
+// what this element says quietly and never appends to it. Content widgets once
+// hand-copied this idiom before it was one, and the copies had already diverged on
+// whether a stale word was removed first — which is now renderQuiet's to state for
+// every widget that declares it.
 //
 // Which writer an element gets follows from what paints it, and the two sets do not
 // meet: renderQuiet has the elements the runtime paints a provenance on, and a module
@@ -90,7 +91,7 @@ export const isPagePaint = (name) =>
 // user would hear as the element re-reading itself.
 /** @param {Element} el @param {string | null} word */
 function quietWord(el, word) {
-  const title = el.querySelector(":scope > strong");
+  const title = el.querySelector(':scope > [data-lf-said="label"]');
   const seat = title ? title.nextSibling : el.firstChild;
   const existing = el.querySelector(":scope > .lf-quiet");
   if (existing) {
@@ -273,9 +274,9 @@ export function watchNativeContent() {
 
 // What an upgraded subtree owes beyond its module's own work: the words a widget says
 // through an attribute rendered as real text, the facts it paints spoken, and its
-// code — and the page's own <pre><code> blocks, alongside the widgets and for the same
-// reason: the tokenizer is vendored, so a page has it exactly when it has a widget
-// layer at all. Written once because it happens twice, over the page at the upgrade and
+// code — and the page's own <pre><code> blocks and formulas, alongside the widgets and
+// for the same reason: the tokenizer and the typesetter are vendored, so a page has
+// them exactly when it has a widget layer at all. Written once because it happens twice, over the page at the upgrade and
 // over each root a live revision brings into it, and a near-copy of it would go stale
 // the day the vocabulary grows a fourth pass. A link's treatment is not among them: it
 // is the link's for as long as it stands, whoever rendered it (`watchNativeContent`).
@@ -283,7 +284,7 @@ export function watchNativeContent() {
 export function paintDeclaredWords(root) {
   renderSaid(root);
   renderQuiet(root);
-  return highlightBlocks(root);
+  return dressCode(root);
 }
 
 // The declarations a stylesheet has to read and cannot. Three of them first: one about
@@ -294,47 +295,48 @@ export function paintDeclaredWords(root) {
 // and stays at it; a board's columns and a diagram's graph are as wide as what they hold,
 // and a page carrying one had to be either a cramped board or a page whose every
 // paragraph was widened to suit it. Neither is a choice a page should have to make, so
-// the widget declares its capacity (x-space) and the Layout gives it the room:
+// the widget declares its capacity (`space`) and the Layout gives it the room:
 // `wide` uses the shared evidence cap, and `available` uses all remaining room.
 // Internal arrangement remains package-owned.
 //
-// Whether the widget is set among the words around it is the second (x-inline). What
-// reads it is the pair of selectors asking whether a suggestion slot or a variant holds
-// block content, which is HTML's phrasing content inverted: a custom element is in no
-// closed platform set, so any widget in one of those makes it a block — an inline widget
-// included, which is the one wrong answer the inversion gives. The exclusion that fixed
-// it was four widget names, and a bundled chip's tag therefore stood in the integrated
-// theme, saying nothing at all about the next layer's inline widget. It is one marker
-// now, data-lf-inline, and an inline widget from any layer joins by declaring.
+// Whether the widget is set among the words around it is the second (`inline`).
+// What reads it is the pair of selectors asking whether a suggestion slot or a variant
+// holds block content, which is HTML's phrasing content inverted: a custom element is
+// in no closed platform set, so any widget in one of those makes it a block — an inline
+// widget included, which is the one wrong answer the inversion gives. The exclusion
+// that fixed it was four widget names, and a bundled chip's tag therefore stood in the
+// integrated theme, saying nothing at all about the next layer's inline widget. It is
+// one marker now, data-lf-inline, and an inline widget from any layer joins by
+// declaring.
 //
-// Whether the widget quotes what it holds is the third (x-exhibit). An exhibit is a
-// mention, not a use, so every rule saying "this takes input" — the hand, the lift, the
-// joined shape, the reserved strips, the hover wash — stands down inside one. The
+// Whether the widget quotes what it holds is the third (`exhibit`). An exhibit is
+// a mention, not a use, so every rule saying "this takes input" — the hand, the lift,
+// the joined shape, the reserved strips, the hover wash — stands down inside one. The
 // declaration is the tag's and the question is the occurrence's, which is the shape
-// quoted() has too: whether this element sits inside an exhibit. So the mark goes on the
-// exhibit and the rules exclude what stands under it, strictly within, as quoted()
-// does: the exhibit itself is no mention. Ten of those rules spelled lf-sample before: a bundled
-// tag, saying nothing about a project's own exhibit. quoted() still asks the registry
-// rather than this paint, which is the arrangement and not an oversight — the
+// quoted() has too: whether this element sits inside an exhibit. So the mark goes on
+// the exhibit and the rules exclude what stands under it, strictly within, as quoted()
+// does: the exhibit itself is no mention. Ten of those rules spelled lf-sample before:
+// a bundled tag, saying nothing about a project's own exhibit. quoted() still asks the
+// registry rather than this paint, which is the arrangement and not an oversight — the
 // declaration is the one representation, and the mark is how a stylesheet, which cannot
 // read a registry, asks it the same thing.
 //
-// Two more complete the set: x-bound, a block that holds its own height and scrolls
+// Two more complete the set: `bound`, a block that holds its own height and scrolls
 // inside it (`bounds.js` holds each bounded block that arrives as a reading region, and
-// keeps an `end` bound on its newest entry), and x-reading-role, the structure the theme
-// and the workspace Layout lay out, so every package's pane takes the same rules.
+// keeps an `end` bound on its newest entry), and `reading-role`, the structure the
+// theme and the workspace Layout lay out, so every package's pane takes the same rules.
 //
-// An attribute, because the theme cannot read the registry — the same arrangement x-says
-// already has with data-lf-said. Which declarations are marks, the attribute each is
-// painted as, the attribute an occurrence overrides it with, and whether it holds in a
-// message are one table, the kernel registry's `$marks`, which this runtime imports from
-// `kernel-facts.js`. A page's document arrives painted from it: delivery writes
-// the marks into the served source (revision_delivery.py, `mark_declared`), so the first
-// paint already gives a board its room and a workspace its panes, before any module or
-// the registry loads, and a revision the page patches in arrives painted the same way. A
-// message is the runtime's to render, so `markDeclared` paints it from `marks` as it
-// renders, with the marks that hold there: every one but the room, which is the
-// document's to hand out, while a message renders in the panel's.
+// An attribute, because the theme cannot read the registry — the same arrangement
+// `says` already has with data-lf-said. Which declarations are marks, the attribute
+// each is painted as, the attribute an occurrence overrides it with, and whether it
+// holds in a message are one table, the kernel registry's `$marks`, which this runtime
+// imports from `kernel-facts.js`. A page's document arrives painted from it: delivery
+// writes the marks into the served source (revision_delivery.py, `mark_declared`), so
+// the first paint already gives a board its room and a workspace its panes, before any
+// module or the registry loads, and a revision the page patches in arrives painted the
+// same way. A message is the runtime's to render, so `markDeclared` paints it from
+// `marks` as it renders, with the marks that hold there: every one but the room, which
+// is the document's to hand out, while a message renders in the panel's.
 
 /** @param {Scope} root @param {string} selector */
 function* elementsIn(root, selector) {
@@ -343,24 +345,31 @@ function* elementsIn(root, selector) {
 }
 
 // Paint a message's declared marks, the root alongside its descendants: each tag's
-// declaration, and an occurrence's authored override over it.
+// declaration as it holds for the occurrence, and an occurrence's authored override
+// over it.
 /** @param {Scope} root */
 export function markDeclared(root) {
   for (const [key, mark] of Object.entries(marks)) {
-    const { paint, authored, message } = mark;
+    const { attribute, authored, message } = mark;
     if (!message) continue;
-    const tags = tagsDeclaring(
-      /** @param {Record<string, unknown>} entry */ (entry) => entry[key],
+    // `$marks` keys each mark by the name of the fact it paints.
+    const fact = /** @type {keyof import("../types/contract.js").WidgetDeclaration} */ (
+      key
     );
+    const tags = tagsDeclaring((entry) => entry[fact]);
     for (const tag of tags) {
-      const declared = registry[tag][key];
+      const declared = registry[tag]?.[fact];
       for (const el of elementsIn(root, tag)) {
-        const value = key === "x-exhibit" ? exhibits(el, registry[tag]) : declared;
-        if (key === "x-views") {
+        const value = holdsFor(el, declared);
+        if (key === "views") {
           markViews(el);
           continue;
         }
-        keeps(el, paint, !value ? null : value === true || mark.presence ? "" : value);
+        keeps(
+          el,
+          attribute,
+          !value ? null : value === true || mark.presence ? "" : String(value),
+        );
       }
     }
     // Message markup is all content (`authored_on`, `$marks`), so only a
@@ -368,17 +377,17 @@ export function markDeclared(root) {
     if (authored)
       for (const el of elementsIn(root, `[${authored}]`))
         if (mark.authored_on !== "declared" || tags.includes(el.localName))
-          keeps(el, paint, el.getAttribute(authored));
+          keeps(el, attribute, el.getAttribute(authored));
   }
 }
 
-// Words a widget says through an attribute — a metric's number, a chronology entry's time, an
-// option's chip band — rendered as text the user can reach. The theme renders the same
-// words with `content: attr()`, and a pseudo-element's glyphs are in no text node: no
-// selection can cover them, so no comment can be anchored on them, and the page shows
-// text you can read and can't point at. Not the widget author's to remember, either: the
-// registry names the attributes (x-says) and one pass renders them, so a widget cannot
-// render a word the user can't quote.
+// Words a widget says through an attribute — a metric's number, a chronology entry's
+// time, an option's chip band — rendered as text the user can reach. The theme renders
+// the same words with `content: attr()`, and a pseudo-element's glyphs are in no text
+// node: no selection can cover them, so no comment can be anchored on them, and the
+// page shows text you can read and can't point at. Not the widget author's to remember,
+// either: the registry names the attributes (`says`) and one pass renders them, so
+// a widget cannot render a word the user can't quote.
 //
 // Each value goes at the edge its pseudo-element occupied (before = first child, after =
 // last) — the only placement a pseudo could ever have had, and so the line past which a
@@ -402,9 +411,9 @@ export function markDeclared(root) {
 /** @param {Scope} root */
 export function renderSaid(root) {
   for (const [tag, entry] of elementDeclarations()) {
-    if (!entry["x-says"]) continue;
+    if (!entry.says) continue;
     for (const el of elementsIn(root, tag))
-      for (const [attr, edge] of Object.entries(entry["x-says"])) {
+      for (const [attr, edge] of Object.entries(entry.says)) {
         const text = el.getAttribute(attr);
         const existing = el.querySelector(`:scope > [data-lf-said="${attr}"]`);
         // A live revision may change or drop the attribute under a span already
@@ -471,11 +480,18 @@ function quietFacts(el) {
   return words.join(", ");
 }
 
-/** @param {Scope} root @param {Iterable<Element>} [also] */
-export function renderQuiet(root, also = []) {
+// Say each element's provenance quietly, or take the word away where it has none.
+/** @param {Iterable<Element>} elements */
+export function sayQuietFacts(elements) {
+  for (const el of elements) quietWord(el, quietFacts(el));
+}
+
+// Say the provenance of every element under `root` that wears a mark, as markup arrives:
+// the page at upgrade, a revision's roots, a message.
+/** @param {Scope} root */
+export function renderQuiet(root) {
   // One query a mark: a single attribute's query is answered far faster than one for the
-  // three as a selector list, which tests every element of the page against each, on
-  // every repaint of a page holding long text documents.
+  // three as a selector list, which tests every element against each.
   /** @type {Set<Element>} */
   const targets = new Set();
   for (const mark of [
@@ -484,6 +500,5 @@ export function renderQuiet(root, also = []) {
     PAGE_PAINT_ATTRIBUTE.reported,
   ])
     for (const el of elementsIn(root, `[${mark}]`)) targets.add(el);
-  for (const el of also) if (el === root || root.contains(el)) targets.add(el);
-  for (const el of targets) quietWord(el, quietFacts(el));
+  sayQuietFacts(targets);
 }

@@ -1,7 +1,7 @@
 """The `codex-app-server` and `codex-queue` journeys: a real Codex task reaching Leaf
 through one transport, and the steps a user takes at its terminal.
 
-    uv run leaf-dev journey codex-app-server|codex-queue [--preview] [--sandbox]
+    uv run leaf-dev journey run codex-app-server|codex-queue [--preview] [--sandbox]
 
 The suite drives the adapter with scripted App Server messages; this drives it with
 Codex itself. It installs this working tree's plugin payload (`extract_payload`) into
@@ -79,6 +79,7 @@ from leaf.codex import private_app_server
 from leaf.event_log import read_events
 from leaf.leases import adapter_is_live, hooks_ran, lock_is_held
 from leaf.server import running_server
+from leaf.thread_context import logged_fragment
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     PageClient,
@@ -89,7 +90,7 @@ from leaf_dev.arms import (
     run_leaf,
 )
 from leaf_dev.codex_task import Task, trust_plugin_hooks
-from leaf_dev.commands.journey import (
+from leaf_dev.commands.journey.run import (
     Isolation,
     Terminal,
     User,
@@ -352,8 +353,8 @@ def steps(
         )
         if rich == "rich-choice":
             require(
-                bool(reply.get("markup")),
-                "the real author did not send clickable thread markup",
+                logged_fragment(reply) is not None,
+                "the real author did not send a clickable choice in its reply",
             )
         else:
             require(

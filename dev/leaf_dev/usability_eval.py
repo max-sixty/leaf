@@ -152,10 +152,6 @@ def admit(run: Run, page: Path, event: dict) -> None:
     arm_fixture(run, "admit", str(page), json.dumps(event))
 
 
-def page_events(page: Path) -> list[dict]:
-    return read_events(page)
-
-
 def build_reading(run: Run, page: Path, surface: str | None) -> None:
     html = (FIXTURES / "reading.html").read_text()
     if surface is not None:
@@ -188,7 +184,7 @@ def build_reading(run: Run, page: Path, surface: str | None) -> None:
     if 'id="cutover-mode"' in html:
         for move in READING_FIXTURE["moves"]:
             if move.get("undoes") == "previous":
-                move = {**move, "undoes": page_events(page)[-1]["id"]}
+                move = {**move, "undoes": read_events(page)[-1]["id"]}
             admit(run, page, move)
 
 
@@ -222,8 +218,8 @@ def build_remaining_review(run: Run, page: Path) -> None:
     )  # fmt: skip
     run.leaf(
         "thread", "create", str(page), "--section", "remaining-next",
-        "--title", "#59: next extraction scope", "--text", "My recommended next scope is #59.",
-        "--markup", seed["question"], check=True,
+        "--title", "#59: next extraction scope",
+        "--text", f"My recommended next scope is #59.\n\n{seed['question']}", check=True,
     )  # fmt: skip
     state = read_page_state(run.payload, run.state, page)
     assert [item["id"] for item in state["queues"]["on_user"]] == ["widget:next-touch"]
@@ -270,7 +266,7 @@ def build_resume(run: Run, page: Path) -> None:
         "text": inputs["rerun_comment"],
         "anchor": anchor(v1, "rehearsal-result", inputs["rerun_quote"]),
     })  # fmt: skip
-    rerun = page_events(page)[-1]["id"]
+    rerun = read_events(page)[-1]["id"]
     (page / "index.html").write_text(v2)
     run.leaf(
         "page", "stamp", str(page), "--text",
@@ -297,8 +293,8 @@ def build_resume(run: Run, page: Path) -> None:
     # inside the options that makes the save invalid, so the live page stays at v2.
     candidate = v2.replace(inputs["original_date"], inputs["unsaved_date"])
     candidate = candidate.replace(
-        '<lf-options id="rollout" choose>',
-        '<lf-options id="rollout" choose>\n' + inputs["invalid_child"],
+        '<lf-options id="rollout">',
+        '<lf-options id="rollout">\n' + inputs["invalid_child"],
     )
     assert candidate.count("3 November") == 1 and "approach-deadline" in candidate
     (page / "index.html").write_text(candidate)
@@ -349,7 +345,7 @@ def build_board(run: Run, page: Path) -> None:
             "kind": "action", "revision": 1, "widget": "work-board",
             "action": "move", "detail": detail,
         })  # fmt: skip
-    admit(run, page, {"kind": "undo", "undoes": page_events(page)[-1]["id"]})
+    admit(run, page, {"kind": "undo", "undoes": read_events(page)[-1]["id"]})
 
 
 def build_package(run: Run, page: Path) -> None:
@@ -408,11 +404,74 @@ def build_cutover(run: Run, page: Path) -> None:
     (page / "index.html").write_text((FIXTURES / "cutover.html").read_text())
 
 
+def build_cutover_advice(run: Run, page: Path) -> None:
+    """The same page with its card grid fixed, so a render check holds only advice:
+    the chart's labels shrink below reading size at narrow widths."""
+    run.leaf("page", "init", str(page), check=True)
+    (page / "index.html").write_text(
+        (FIXTURES / "cutover.html")
+        .read_text()
+        .replace("repeat(4, 220px)", "repeat(auto-fit, minmax(160px, 1fr))")
+    )
+
+
+def build_cutover_hidden(run: Run, page: Path) -> None:
+    """The same page with its card grid fixed and one card's label kept on one line, so a
+    render check fails it at narrow widths where the source reads as fine."""
+    run.leaf("page", "init", str(page), check=True)
+    html = (
+        (FIXTURES / "cutover.html")
+        .read_text()
+        .replace("repeat(4, 220px)", "repeat(auto-fit, minmax(160px, 1fr))")
+        .replace(
+            "      .consumer-grid > div {",
+            "      .consumer-grid .since {\n        white-space: nowrap;\n      }\n"
+            "      .consumer-grid > div {",
+        )
+        .replace(
+            "<strong>fraud-scorer</strong><br />on RabbitMQ",
+            '<strong>fraud-scorer</strong><br /><span class="since">on RabbitMQ until '
+            "the Monday after email-sender</span>",
+        )
+    )
+    (page / "index.html").write_text(html)
+
+
+def reads_on_its_own(run: Run) -> bool:
+    """Whether this arm's page server runs the render pass (`render_gate.handover_pass`),
+    which a base from before it doesn't."""
+    kernel = json.loads(
+        (run.payload / "browser/runtime/kernel-registry.json").read_text()
+    )
+    return "render" in kernel["$events"]["handling"]
+
+
+def await_render_pass(run: Run, page: Path) -> set[str]:
+    """Wait until the arm's server has answered for the version handed over, and return
+    the `render` event that wakes the agent, if it told one. A version the agent
+    checked itself is answered as soon as its turn ends, by that check's reading."""
+    deadline = time.monotonic() + RENDER_PASS_WAIT_S
+    while time.monotonic() < deadline:
+        active = Path(page_state(run, page)["active"]["file"]).stem.split("-")[1]
+        for path in (run.state / "leaf/render-readings").glob("*.json"):
+            digest = json.loads(path.read_text())["digest"]
+            if digest.removeprefix("sha256:").startswith(active):
+                # The event follows the reading it reports by a moment.
+                time.sleep(2)
+                return {
+                    event["id"]
+                    for event in read_events(page)
+                    if event["kind"] == "render" and requires_agent_attention(event)
+                }
+        time.sleep(1)
+    raise TimeoutError(f"no render pass answered for {page}")
+
+
 def render_findings(run: Run, page: Path, n: int) -> str | None:
-    """What a render pass run when the version went live would deliver: the
-    findings `page check --render` reports on the page as served and plain `page
-    check` doesn't, in the check's own words, or None where it reports none. Both
-    readings are kept beside the run."""
+    """What a render pass would deliver where the arm has none: the findings `page
+    check --render` reports on the page as served and plain `page check` doesn't, in
+    the check's own words, or None where it reports none. Both readings are kept
+    beside the run."""
     readings = {}
     for name, flags in (("plain", ()), ("render", ("--render",))):
         out = run.leaf("page", "check", str(page), *flags).stdout
@@ -527,6 +586,8 @@ BUILDERS = {
     "shared-source": build_shared_source,
     "handoff": build_handoff,
     "cutover": build_cutover,
+    "cutover-advice": build_cutover_advice,
+    "cutover-hidden": build_cutover_hidden,
     "mixed": build_mixed,
     "elided": build_elided,
     "plan": build_plan,
@@ -574,6 +635,9 @@ def execute(run: Run, work: Path) -> None:
 
 # How long a finished session stays open for a trailing turn.
 GRACE = 20
+# How long the `render` move waits for an arm's server to read the page it was handed:
+# its quiet window, and a reading at a loaded host's slowest.
+RENDER_PASS_WAIT_S = 240
 
 
 def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
@@ -620,7 +684,7 @@ def execute_live(run: Run, case: Case, work: Path, page: Path) -> None:
                 attention. Inline context or a pointer read only presents them."""
                 nonlocal delivered
                 if delivered < posted and pending_events <= opened_input_ids(
-                    page_events(page)
+                    read_events(page)
                 ):
                     delivered = posted
                     live.note(
@@ -723,12 +787,17 @@ def post_round(
     Return the admitted attention-bearing identities, including the page's native
     error rather than giving it a retry key."""
     admitted = []
+    told = set()
     served = page_state(run, page)
     html = (page / served["active"]["file"]).read_text()
     for i, move in enumerate(moves):
-        # A render pass's findings reach the agent as the page's error, the channel
-        # a failure the browser saw takes; a clean pass delivers nothing.
+        # The arm's server reads the page and tells the agent itself. A base with no
+        # render pass hears the same findings as the page's error, the channel a
+        # failure the browser saw takes; a clean pass delivers nothing.
         if move["kind"] == "render":
+            if reads_on_its_own(run):
+                told |= await_render_pass(run, page)
+                continue
             if (text := render_findings(run, page, n)) is None:
                 continue
             move = {"kind": "error", "text": text.replace("{", "{{").replace("}", "}}")}
@@ -741,7 +810,7 @@ def post_round(
             event["undoes"] = admitted[-1]["id"]
         if move.get("parent") == "latest":
             event["parent"] = [
-                e for e in page_events(page) if e["kind"] in kinds_declaring("message")
+                e for e in read_events(page) if e["kind"] in kinds_declaring("message")
             ][-1]["id"]
         if "text" in move:
             event["text"] = move["text"].format(
@@ -749,7 +818,7 @@ def post_round(
                 line=html[: html.find("replaceAll(")].count("\n") + 1,
             )
         admitted.append(client.post(event))
-    return {e["id"] for e in admitted if requires_agent_attention(e)}
+    return told | {e["id"] for e in admitted if requires_agent_attention(e)}
 
 
 def attempt_key(n: int, i: int) -> str:
@@ -847,7 +916,7 @@ def evidence(run: Run, traces: list[list[dict]]) -> dict:
                     str(path.relative_to(page)): json.loads(path.read_text())
                     for path in sorted((page / "data").rglob("*.json"))
                 },
-                "events": page_events(page),
+                "events": read_events(page),
             }
         )
     fixture = run.dir / "fixture"

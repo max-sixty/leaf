@@ -8,6 +8,7 @@ from render_harness import (
     leaf_page,
     open_page,
     round_trip,
+    shown,
     write,
 )
 
@@ -34,17 +35,25 @@ def shows_whole(editor):
 
 
 def consume_moves_below_the_reply(page):
-    """Consume the moves of the seat's comment box under a reply field that mirrored
-    words resized, once the shift watch has judged every frame they painted."""
-
-    def below_the_reply(problem):
-        return problem.code == "moved-without-input" and any(
-            path and path[-1].startswith("div.lf-say.")
-            for path in [problem.values["node"], *problem.values["beside"]]
-        )
-
+    """Consume the moves under a reply field that mirrored words resized, once the shift
+    watch has judged every frame they painted: the task's Comment control, which stands
+    under the thread, and what moved in the frames that moved it. A frame names at most
+    five of the nodes it moved beside each, so the frame is what ties a move to the
+    control's."""
     page.evaluate("() => window.lfShiftsJudged()")
-    consume_browser_errors(page, below_the_reply)
+    moves = consume_browser_errors(
+        page, lambda problem: problem.code == "moved-without-input"
+    )
+
+    def frame(problem):
+        return problem.values["evidence"]["paint_at"]
+
+    frames = {
+        frame(problem)
+        for problem in moves
+        if ".lf-test-comment." in problem.values["node"][0]
+    }
+    assert frames and all(frame(problem) in frames for problem in moves), shown(moves)
 
 
 def reply_editing_pose(editor):
@@ -94,7 +103,7 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             "</main>", "<p>" + "Further context. " * 600 + "</p></main>"
         )
         anchor = {"section": "jobs"}
-        selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread'
+        selector = "#jobs .lf-page-thread"
     else:
         source = leaf_page(
             "Reply editing",
@@ -264,10 +273,20 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         resting = reply_editing_pose(editor)
         if edit == "mirrored-composing":
             expect(editor).to_be_focused()
-        assert other.evaluate(
+            # Two tabs writing one draft keep the first write, so the other tab
+            # writes over the composing words only once it has heard them.
+            other.evaluate(
+                "async () => { window.loadDraft = (await window.__lfWidgetApi()).loadDraft; }"
+            )
+            other.wait_for_function(
+                "parent => window.loadDraft('reply:' + parent)?.text === 'Composing'",
+                arg=parent,
+            )
+        # The other tab's words reach this one through the page's server.
+        other.evaluate(
             """async parent => {
               const {saveDraft} = await window.__lfWidgetApi();
-              return saveDraft('reply:' + parent, 'First line');
+              saveDraft('reply:' + parent, 'First line');
             }""",
             parent,
         )
@@ -350,7 +369,7 @@ def test_a_draft_typed_in_another_tab_shows_whole(browser, serve):
         viewport={"width": 560, "height": 1100}, reduced_motion="reduce"
     )
     page = open_page(browser, url, context=context, init_script=EDITOR_INSPECTION)
-    selector = '[data-lf-thread-seat="jobs"] > .lf-page-thread leaf-text'
+    selector = "#jobs .lf-page-thread leaf-text"
     editor = page.locator(selector)
     write(editor, "First line\n\n\n\n")
     events_model.append_event(
@@ -494,9 +513,10 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     holding(page, held, 1, "the reply that will be refused")
     rendered(page)
     if place == "nested-end":
-        scroller = page.locator("#continuity-scroll")
-        scroller.evaluate("node => {node.scrollTop = node.scrollHeight}")
-        scroll_settled(page, scroller)
+        page.locator("#continuity-scroll").evaluate(
+            "node => {node.scrollTop = node.scrollHeight}"
+        )
+        scroll_settled(page, "#continuity-scroll")
     attempt = held[0].request.post_data_json["attempt"]
     assert held[0].request.post_data_json["parent"] == parent
 
@@ -564,16 +584,14 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
                 )
     else:
         # A card gives the refused turn's room back too, and its field grows to show
-        # the words whole: the card's own controls, and the page after it, move.
+        # the words whole: the reply box, and the page after it, move. A margin card
+        # holds its top through a send (`heldEdge`, thread-preview.js), so its reply
+        # box rises into that room while its head row stands still.
         def carried_by_card(problem):
             return problem.code == "moved-without-input" and any(
                 path
                 and path[-1].startswith(
-                    (
-                        "div.lf-box-ground.lf-margin-preview-ground",
-                        "lf-diff#patch",
-                        "p#continuity-tail",
-                    )
+                    ("div.lf-thread-reply", "lf-diff#patch", "p#continuity-tail")
                 )
                 for path in [problem.values["node"], *problem.values["beside"]]
             )
@@ -582,7 +600,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         space = owner.locator(":scope > .lf-reply-space")
         assert space.evaluate("node => node.getBoundingClientRect().height") == 0
         assert shows_whole(draft)
-        pose()
+        restored = pose()
+        if "close" in pending:
+            assert abs(restored["close"]["top"] - pending["close"]["top"]) < 0.5, (
+                pending,
+                restored,
+            )
     assert draft.evaluate("node => node.value") == words
     assert stored_draft_text(page, f"reply:{parent}") == words
     assert not [

@@ -60,10 +60,10 @@ from leaf.files import (
 from leaf.findings import Finding, Rejected
 from leaf.page_memory import Slot, memo
 from leaf.passages import SourceReading, enclosing_ids
-from leaf.registry.contract import is_element_name
+from leaf.registry.contract import MODULES
 from leaf.registry.storage import revision_inputs, revision_vocabulary, selected
 from leaf.resource_urls import ReferenceError, resource_reference
-from leaf.schema import CONTENT_TYPES, kernel_registry
+from leaf.schema import CONTENT_TYPES, MEDIA_DIR, kernel_registry
 from leaf.state import fsync_parents
 from leaf.structure import (
     SourceDocument,
@@ -71,6 +71,7 @@ from leaf.structure import (
     delivered_sheets,
     links_with_rel,
     script_kind,
+    splice,
 )
 from leaf.styles import dropped_css
 from leaf.validation.markup import unanswered_media
@@ -305,7 +306,7 @@ def _javascript_imports(data: bytes, path: str):
     """`javascript_imports`, with the imports it refuses beside the rest.
 
     A layer's modules are the same bytes in every page that selects them, and parsing
-    a vendored bundle takes about a second, so a process reads each module once."""
+    a vendored bundle is costly, so a process reads each module once."""
     try:
         data.decode("utf-8")
     except UnicodeDecodeError:
@@ -589,7 +590,7 @@ def css_syntax_errors(
 
 def uncaptured_errors(document: SourceDocument, page_dir: Path) -> list[Finding]:
     """What a capture would refuse in markup no capture reads, such as a message's,
-    which is frozen in the log once admitted: what delivery's reader can't read in
+    which the log carries: what delivery's reader can't read in
     the stylesheets it writes (`css_dependencies`), and each `/media/` file it names
     that the page won't answer (`unanswered_media`), in an attribute or a
     stylesheet. Its stylesheets are every one delivery rewrites
@@ -701,10 +702,14 @@ def _path_stamp(path: Path) -> tuple:
     return (link, file_stamp(path))
 
 
+# The page's trees a capture may read a dependency from (`capture_local_resource`).
+CAPTURED_TREES = ("page", MEDIA_DIR)
+
+
 def _capture_input_stamps(page_dir: Path) -> tuple[tuple[str, tuple], ...]:
     """Name every mutable filesystem input from which a capture may read."""
     paths = []
-    for name in ("page", "media"):
+    for name in CAPTURED_TREES:
         root = page_dir / name
         paths.append(root)
         if root.is_dir() and not root.is_symlink():
@@ -910,11 +915,7 @@ def _capture_artifact(
     # revision captures only what its page owns: `page/`, its declarations among it,
     # and what its document names. Its manifest names the layer's selection.
     if widget_sources is None:
-        widget_sources = {
-            tag: f"widgets/{tag}.js"
-            for tag, entry in registry.items()
-            if is_element_name(tag) and entry.get("x-upgrade")
-        }
+        widget_sources = registry.get(MODULES, {})
     for source in widget_sources.values():
         if source.startswith("page/"):
             capture.add("/" + source)
@@ -999,26 +1000,23 @@ def _capture_artifact(
     # prose, and markup are absent because an open document can be given all of
     # them, and a revision that only edits those should keep the user's document.
     #
-    # The vocabulary is digested without `$layer`, whose selection the vocabulary
-    # already reflects. Its generation is the one part a document runs under, since
-    # a tab speaks it to the server (`runtime/layer-client.js`), so a new selection
-    # gives every later revision a new executable and the tab a new document. The
-    # runtime's and the layer's modules are not captured; a change to either reaches
-    # an open document as a server that refuses it (`runtime_selection`).
+    # Only what the page owns goes in, so every Leaf that captures the same source
+    # captures the same revision. A page is often read by two Leaf versions at
+    # once, as a server keeps the Leaf it started with while the agent's commands
+    # run a newer one, and each composes its own vocabulary: digesting that
+    # vocabulary would have each publish the other's capture again and reload the
+    # tab every time. What an open document runs under comes from the serving Leaf
+    # instead: a change to its runtime or a bundled package reaches the tab as a
+    # server that refuses it (`runtime_selection`), and a new selection or a
+    # changed package copy as a new generation (`vendoring`), which a tab speaks
+    # to the server (`runtime/layer-client.js`).
+    declarations = resources.get(PAGE_DECLARATIONS)
     executable = _digest(
         _canonical_json(
             {
                 "generation": layer.get("generation"),
                 "annotations": annotation_mode(document),
-                "vocabulary": _digest(
-                    _canonical_json(
-                        {
-                            tag: entry
-                            for tag, entry in registry.items()
-                            if tag != "$layer"
-                        }
-                    )
-                ),
+                "page_declarations": declarations.digest if declarations else None,
                 "modules": {
                     path: resource.digest
                     for path, resource in resources.items()
@@ -1047,11 +1045,10 @@ def _capture_artifact(
     )
     manifest = _canonical_json(
         {
-            "html": _digest(document.data),
+            "html": document.digest,
             "title": document.authoring.title.strip(),
             "entries": sorted(set(entries)),
             "executable": executable,
-            "public_modules": list(PUBLIC_MODULES),
             "layer": layer,
             "declarations": dict(declaration_sources or {}),
             "implementations": implementations,
@@ -1476,8 +1473,8 @@ class _History:
 
     Markers are named by their content and only ever added, so a newer listing
     extends the one read, and only the revisions it adds are read. A scan that read
-    each revision on every call re-parsed each one the compact budget had evicted:
-    on 1,600 versions of a page of 16 questions, `leaf page state` took a second."""
+    each revision on every call would re-parse each one the compact budget had
+    evicted."""
 
     def __init__(self) -> None:
         self.lock = threading.Lock()
@@ -1567,9 +1564,9 @@ def authored_imports(data: bytes, logical_path: str):
 
 def bind_imports(data: bytes, imports, address) -> bytes:
     """Rewrite each ``(start, end, target)`` import span to ``address(target)``."""
-    for start, end, target in sorted(imports, reverse=True):
-        data = data[:start] + _json(address(target)) + data[end:]
-    return data
+    return splice(
+        data, [(start, end, _json(address(target))) for start, end, target in imports]
+    )
 
 
 def captured_imports(data: bytes, logical_path: str, resources: Mapping[str, Resource]):

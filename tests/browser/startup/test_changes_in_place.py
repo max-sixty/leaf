@@ -299,9 +299,9 @@ def test_a_section_rewritten_whole_is_one_change(browser, serve):
     [
         '<details><summary>Gamma</summary><p id="c">Gamma reads one way.</p></details>',
         # A widget's own disclosure: the settled group's row controls its options.
-        '<lf-ask id="ask"><h2 id="q">Gamma?</h2><lf-options id="pick" choose settled>'
-        '<lf-option id="keep" chosen>Keep it.</lf-option>'
-        '<lf-option id="c">Gamma reads one way.</lf-option></lf-options></lf-ask>',
+        '<section id="ask"><h2 id="q">Gamma?</h2><lf-options id="pick" settled>'
+        '<lf-option id="keep" selected>Keep it.</lf-option>'
+        '<lf-option id="c">Gamma reads one way.</lf-option></lf-options></section>',
     ],
     ids=["details", "settled-options"],
 )
@@ -416,7 +416,7 @@ FOLDED = leaf_page(
 <p id="d">Delta reads one way.</p>
 <lf-tabs id="views"><lf-tab id="notes" label="Notes"><p id="note">The only note goes.</p>
 </lf-tab><lf-tab id="others" label="Others"><p id="other">Another stays.</p></lf-tab></lf-tabs>
-<div id="pane" class="scroll" style="max-height: 8rem; overflow-y: auto">
+<div id="pane" class="lf-scroll" style="max-height: 8rem; overflow-y: auto">
 <p id="lead">The lead goes.</p><p id="tall">{TALL}</p></div>
 <p id="long">{LONG}</p>
 <p id="end">The end goes.</p>
@@ -615,8 +615,9 @@ def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
     version was saved after: that is the comparison's reading, not the card's."""
     options = PAGE.replace(
         '<p id="d">',
-        '<lf-options id="g" choose><lf-option id="g-a">Ship now</lf-option>'
-        '<lf-option id="g-b">Ship later</lf-option></lf-options>\n<p id="d">',
+        '<lf-group id="g-q" label="When to ship?">'
+        '<lf-options id="g"><lf-option id="g-a">Ship now</lf-option>'
+        '<lf-option id="g-b">Ship later</lf-option></lf-options></lf-group>\n<p id="d">',
     )
     url = live_url(serve(options))
     d = serve.page_dir

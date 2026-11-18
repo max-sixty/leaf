@@ -70,8 +70,8 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
     the new words render and the user sees the widget identified as one whose
     decision this version undid.
 
-    It costs a word, where losing a decision used to cost nothing, which is the
-    whole asymmetry: the failure that stays silent is now the one that needs
+    It costs a word, where losing a decision silently would cost nothing, which is the
+    whole asymmetry: the failure that stays silent is the one that needs
     saying out loud."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
@@ -235,8 +235,8 @@ def test_foreign_state_draws_beside_a_live_drag(browser, serve):
 
 
 def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
-    """A pure state change has no text of its own, so the content diff was blind
-    to it: a card in a new column read as nothing changed. The state half
+    """A pure state change has no text of its own, so the content diff is blind
+    to it: a card in a new column would read as nothing changed. The state half
     compares declared state, so the author moving a card between versions —
     with no user action behind it — marks the card itself. The card alone:
     an id'd element nested inside it rode along rather than changing columns,
@@ -287,7 +287,7 @@ document.getElementById("tally").append(added);
 SCRIPTED = {
     "module": SCRIPT_WORDS.replace(
         "</head>",
-        '<script type="module">\nimport { html, render } from "/runtime/widget-api.js";'
+        '<script type="module">\nimport { html, render } from "/vendor/lit.js";'
         f"{SCRIPT_WRITES}"
         "render(html`<ul><li>Item alpha</li><li>Item beta</li></ul>`,"
         ' document.getElementById("listed"));\n</script>\n</head>',
@@ -376,8 +376,8 @@ KEPT_BOARD = leaf_page(
 <h1 id="title">Kept board</h1>
 <lf-board id="board">
   <lf-column id="col-todo" label="To do">
-    <lf-card id="card-x"><strong>Review</strong> Old words.</lf-card>
-    <lf-card id="card-y"><strong>Ship</strong> Steady words.</lf-card>
+    <lf-card id="card-x" label="Review"><strong>Review</strong> Old words.</lf-card>
+    <lf-card id="card-y" label="Ship"><strong>Ship</strong> Steady words.</lf-card>
   </lf-column>
 </lf-board>
 """,
@@ -454,7 +454,7 @@ def test_the_diff_marks_the_card_the_author_reordered_and_no_other(browser, serv
     half still marks it. Only the card whose move explains the new order is marked:
     the cards it passed kept their order among themselves."""
     cards = {
-        name: f'<lf-card id="card-{name}"><strong>{name.title()}</strong></lf-card>'
+        name: f'<lf-card id="card-{name}" label="{name.title()}"><strong>{name.title()}</strong></lf-card>'
         for name in ("y", "z")
     }
     v1 = JOURNEY_V1.replace(_CARD, _CARD + cards["y"] + cards["z"])

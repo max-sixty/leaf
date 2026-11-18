@@ -2,13 +2,12 @@
 
 exit: 2
 
-stdout: ''
-
-stderr:
-  - code: wait-active
-    severity: error
-    values:
-      target: >-
-        this session
-    text: >-
-      another `leaf wait` is already active for this session
+stdout:
+  findings:
+    - code: wait-active
+      severity: error
+      values:
+        target: >-
+          this session
+      text: >-
+        another `leaf wait` is already active for this session

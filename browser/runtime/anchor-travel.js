@@ -57,7 +57,7 @@ import { renderedParent, under } from "./shadow-tree.js";
 import { nextFrame } from "./rendering.js";
 import { unconcealedReadingRegions } from "./reading-regions.js";
 import { prepareEntry, replaceEntry } from "./history.js";
-import { pageScroller, stopScroll } from "./scrolling.js";
+import { pageScroller, stopBrowserScroll } from "./scrolling.js";
 import {
   alreadyShown,
   fitsWhole,
@@ -133,12 +133,12 @@ export function createAnchorTravel({
     if (!intent()) return false;
     const initial = resolve();
     if (!initial) return false;
-    // Every new navigation step takes over the outgoing native placement, including when
-    // the new destination still looks readable before the old navigation step's first frame.
-    // Read geometry only after its last compositor update has passed; another
-    // gesture during that wait retains the place it chose.
+    // Every new navigation step takes over the outgoing native placement, and lands from
+    // where a glide of Leaf's is headed (scrolling.js, `stopBrowserScroll`). Read
+    // geometry only after the stopped scroll's last compositor update has passed;
+    // another gesture during that wait retains the place it chose.
     if (initial.scroll.length)
-      await stopScroll(
+      await stopBrowserScroll(
         new Set([
           pageScroller,
           ...unconcealedReadingRegions().map((region) => region.body),
@@ -592,7 +592,8 @@ export function createAnchorTravel({
     // press left it.
     // A route naming no part of the thread lands on the place it is about, where the
     // page shows that place but no view of the thread (thread/destination.js,
-    // `reader: "page"`).
+    // `reader: "page"`). A part lands on the page's drawing of it, since this is travel
+    // on the page (thread/destination.js, `threadFocusTarget`'s `page`).
     return arrive(
       () => {
         const where = threadDestination(id);
@@ -601,7 +602,7 @@ export function createAnchorTravel({
         const target = !focus
           ? null
           : part
-            ? threadFocusTarget(id, { part })
+            ? threadFocusTarget(id, { part, page: true })
             : (targetElement(placement) ?? targetPlace(placement));
         /** @type {ScrollPlacement[]} */
         const scroll = [];

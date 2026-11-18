@@ -2,7 +2,7 @@
 
 A page can carry code of its own: module scripts, and page widgets below `/page/`,
 with whatever each imports. It can also place a widget whose module reads content the
-static check only proves exists: a body of data (`x-content: data`), such as a chart's
+static check only proves exists: a body of data (`content: data`), such as a chart's
 Plot expression, a diagram's Mermaid source or a diff, in a notation only the widget's
 module reads, or page media an attribute names, such as a screenshot pair whose two
 widths have to match. No static reading can say whether that code throws or whether
@@ -11,12 +11,13 @@ browser run, a module that breaks on its first paint, or a chart whose body fail
 would pass the check and reach the user, and its author would hear about it only from
 the watcher's `error` event. The check therefore runs the exact candidate once,
 wherever the page carries any of these: through upgrade, authoritative presentation,
-and one rendering frame after it, at the render viewport in the light scheme.
+and one rendering frame after it, in the light scheme, at the render viewport, or with
+`--render` on the render check's page, at its desktop window (`PageCode`).
 
 A thread message's markup is run the same way before it posts (`message_page`,
 `command.message_check`), wherever it places one of those widgets. Nothing else draws
-it before the user opens its thread, and the log freezes it, so posting is the one
-moment its author can still fix it. In the `widgets-draw-as-written` evals, 5 of 6
+it before the user opens its thread, so posting is the one moment its author can
+fix it before the user sees it. In the `widgets-draw-as-written` evals, 5 of 6
 Codex thread messages holding a Mermaid sequence diagram didn't draw (a `;` in a
 loop label or note ends the statement), and their authors never ran `--render`. A
 message with no such widget waits on no browser.
@@ -24,10 +25,14 @@ message with no such widget waits on no browser.
 What fails it is what the runtime would report to the agent. `runtime/layer-client.js`
 posts every uncaught error and unhandled rejection, every widget that fails soft, and
 every fault the runtime reports about the page itself, as an `error` event; that is
-the event `leaf wait` delivers. The run intercepts those posts rather than reading the browser's own
-channels, so the check and the watcher fail on one set, spelled the same way and
-naming the same source location. The preview server is read-only, so the reports
-are answered here and reach no log.
+the event `leaf wait` delivers. It first writes the same words to the console after
+`leaf: `, and the run reads them there rather than the browser's own error channels,
+so the check and the watcher fail on the same reports, spelled the same way and naming
+the same source location; past the twenty a load the runtime posts, the check reads
+on. The console line, not the post, because Firefox, which the check draws in for a
+reader who uses it (`browser.launch_browser`), hands the run no post's body. The
+preview server is read-only, so the posts are answered here and reach no log
+(`scheme.answer_reports`).
 
 A failed browser run also reports failed network requests. Those readings explain a
 failure; they do not decide one: optional assets and other requests that fail without a
@@ -42,7 +47,10 @@ from leaf.findings import Finding
 from leaf.render_checks import (
     RENDER_VIEWPORT,
     PageNotReady,
+    asked_again,
+    open_render_page,
     rendered,
+    start_near_work,
     wait_for_probe,
     wait_until_ready,
 )
@@ -76,7 +84,7 @@ def places_judged_widget(document: SourceDocument, artifact: RevisionArtifact) -
     implementations = artifact.implementations
     return any(
         implementations[record["tag"]]["owner"] == "page"
-        or registry[record["tag"]].get("x-content") == "data"
+        or registry[record["tag"]].get("content") == "data"
         or any(
             isinstance(value, str) and value.startswith(f"/{MEDIA_DIR}/")
             for value in record["attrs"].values()
@@ -110,113 +118,136 @@ def message_page(markup: str) -> SourceDocument:
     return SourceDocument(source)
 
 
+# How `runtime/layer-client.js` `reportPageError` opens the console line it writes for
+# each report, ahead of the words it posts.
+REPORTED = "leaf: "
+
+
+class PageCode:
+    """The page-code reading of one browser page, from before its navigation: every
+    error the runtime reports, and the requests that failed while it ran. A page opened
+    for it alone (`run_page_code`) or the render check's page (`scheme._render_page`)
+    takes it, so `page check --render` loads the page once for both."""
+
+    def __init__(self, page):
+        self.reports = []
+        heard = set()
+
+        def console(message):
+            # Every report, as `reportPageError` writes it before posting it; the
+            # runtime posts each words once a load, so they are read once here too.
+            if message.type == "error" and message.text.startswith(REPORTED):
+                text = message.text.removeprefix(REPORTED)
+                if text not in heard:
+                    heard.add(text)
+                    self.reports.append(Finding("page-report", values={"text": text}))
+
+        page.on("console", console)
+        answer_reports(page)
+        self.network_errors = _failed_requests(page)
+
+    def findings(self, page, unready: PageNotReady | None = None) -> list[Finding]:
+        """The reports, each in the words the runtime gave it, then the stage the page
+        never reached (`unready`), and where any of those failed it, the requests that
+        failed; [] is a pass. Read once the page is ready, or has missed a stage."""
+        reports = self.reports
+        if unready is not None:
+            reports.append(
+                Finding(
+                    "not-ready", values={"stage": unready.stage, "error": str(unready)}
+                )
+            )
+        # A page that refused to start still answers, and posts why; one that missed a
+        # stage may not answer at all. The report is posted asynchronously, and the
+        # route answers it, and the console line reaches this process, only while it
+        # is waiting on the page.
+        if unready is None or unready.stage == "refused":
+            wait_for_probe(page, "sendsAcked")
+        return [*reports, *self.network_errors] if reports else []
+
+
+def _failed_requests(page) -> list[Finding]:
+    """The requests of `page` that fail or answer an error status from now on, filled
+    in as they do, each with its resource type and the address of the frame that made
+    it, which the bootstrap rewrites before any request it makes, taking off its marks
+    (`asked_again`) and the host key. A request the page itself abandons, as a
+    navigation does, is not a failure: Chromium names it `net::ERR_ABORTED`, Firefox
+    `NS_BINDING_ABORTED`."""
+    from playwright.sync_api import Error as PlaywrightError
+
+    network_errors = []
+
+    def frame_of(request) -> str:
+        try:
+            return request.frame.url
+        except PlaywrightError:
+            # A service worker's request belongs to no frame.
+            return "<no-frame>"
+
+    def failed(request):
+        failure = request.failure or "request failed"
+        if "ERR_ABORTED" in failure or "NS_BINDING_ABORTED" in failure:
+            return
+        network_errors.append(
+            Finding(
+                "request-failed",
+                values={
+                    "kind": request.resource_type,
+                    "error": failure,
+                    "frame": frame_of(request),
+                    "url": request.url,
+                },
+            )
+        )
+
+    def answered(response):
+        if response.status < 400:
+            return
+        request = response.request
+        network_errors.append(
+            Finding(
+                "request-status",
+                values={
+                    "status": response.status,
+                    "kind": request.resource_type,
+                    "frame": frame_of(request),
+                    "url": request.url,
+                },
+            )
+        )
+
+    page.on("requestfailed", failed)
+    page.on("response", answered)
+    return network_errors
+
+
 def run_page_code(browser, url: str) -> list[Finding]:
-    """Every error the served page reports while it upgrades and first presents.
+    """Every error the served page reports while it upgrades and first presents, in a
+    page of its own.
 
     Returns the reports, each in the words the runtime gave it, then any stage the page
     never reached; [] is a pass."""
     from playwright.sync_api import Error as PlaywrightError
 
-    reports = []
-    page = browser.new_page(viewport=RENDER_VIEWPORT, color_scheme="light")
-    answer_reports(
-        page, lambda text: reports.append(Finding("page-report", values={"text": text}))
-    )
-    cdp = page.context.new_cdp_session(page)
-    cdp.send("Page.enable")
-    cdp.send("Network.enable")
-    pending = {}
-    frame_urls = {}
-    network_errors = []
-
-    def cdp_frame(params):
-        frame = params["frame"]
-        frame_urls[frame["id"]] = frame.get("url", "")
-
-    def cdp_started(params):
-        request = params["request"]
-        request_id = params["requestId"]
-        kind = params.get("type", "Other")
-        frame_id = params.get("frameId", "<no-frame>")
-        pending[request_id] = (kind, frame_id, request["url"])
-
-    def cdp_finished(params):
-        pending.pop(params["requestId"], None)
-
-    def cdp_failed(params):
-        request = pending.pop(params["requestId"], None)
-        failure = params.get("errorText", "request failed")
-        if request and "ERR_ABORTED" not in failure:
-            kind, frame_id, failed_url = request
-            network_errors.append(
-                Finding(
-                    "request-failed",
-                    values={
-                        "kind": kind,
-                        "error": failure,
-                        "frame": frame_urls.get(frame_id, frame_id),
-                        "url": failed_url,
-                    },
-                )
-            )
-
-    def cdp_response(params):
-        response = params["response"]
-        if response["status"] >= 400:
-            request = pending.get(params["requestId"])
-            if request:
-                kind, frame_id, failed_url = request
-                frame_url = frame_urls.get(frame_id, frame_id)
-            else:
-                kind, frame_url, failed_url = (
-                    "Other",
-                    "<unknown-frame>",
-                    response["url"],
-                )
-            network_errors.append(
-                Finding(
-                    "request-status",
-                    values={
-                        "status": response["status"],
-                        "kind": kind,
-                        "frame": frame_url,
-                        "url": failed_url,
-                    },
-                )
-            )
-
-    cdp.on("Page.frameNavigated", cdp_frame)
-    cdp.on("Network.requestWillBeSent", cdp_started)
-    cdp.on("Network.loadingFinished", cdp_finished)
-    cdp.on("Network.loadingFailed", cdp_failed)
-    cdp.on("Network.responseReceived", cdp_response)
+    page = open_render_page(browser, viewport=RENDER_VIEWPORT, color_scheme="light")
+    code = PageCode(page)
     try:
-        page.goto(url)
+        page.goto(asked_again(url))
+        unready = None
         try:
-            wait_until_ready(
-                page, served(page, url, "/api/state").json(), fixed_server=True
-            )
+            state = served(page, url, "/api/state").json()
+            wait_until_ready(page, state, fixed_server=True)
+            start_near_work(page, state, fixed_server=True)
             # A widget that paints from a rendering callback throws there, not in its
             # upgrade; once the rendering has settled, every callback it queued has run.
             rendered(page)
-            answering = True
         except PageNotReady as error:
-            reports.append(
-                Finding("not-ready", values={"stage": error.stage, "error": str(error)})
-            )
-            # A page that refused to start still answers, and posts why; one that
-            # missed a stage may not answer at all.
-            answering = error.stage == "refused"
-        if answering:
-            # The report is posted asynchronously, and the route above answers it only
-            # while this process is waiting on the page.
-            wait_for_probe(page, "sendsAcked")
+            unready = error
+        return code.findings(page, unready)
     except PlaywrightError as error:
         # A wait that timed out names what never arrived; any other browser error
         # is as much a failed run, and the reports already taken still stand.
-        reports.append(Finding("browser-error", values={"error": str(error).strip()}))
+        browser_error = Finding("browser-error", values={"error": str(error).strip()})
+        return [*code.reports, browser_error, *code.network_errors]
     finally:
         page.close()
-    if reports and network_errors:
-        reports.extend(network_errors)
-    return reports

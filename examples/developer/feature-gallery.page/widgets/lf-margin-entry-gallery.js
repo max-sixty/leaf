@@ -1,5 +1,5 @@
 /* The exhibit grid and its contribution controls share one live Lit view. */
-import { render } from "/runtime/widget-api.js";
+import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
 import {
   contributionEntry,
@@ -29,7 +29,7 @@ function wireSample({ sample, key, control, disclosure }) {
         disabled: !sample.interactive,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
       }),
-      { selected: sample.selected ?? false },
+      { selected: sample.selected ?? false, unread: sample.unread ?? false },
     );
     presentContributionReceipts(
       control,

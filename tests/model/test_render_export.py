@@ -78,7 +78,7 @@ def test_export_draft_captures_current_source_without_stamping(page_dir, tmp_pat
     )
     output = tmp_path / "offline.html"
     runner = CliRunner()
-    args = ["page", "export", str(page_dir), "--out", str(output)]
+    args = ["page", "export", str(page_dir), "--out", str(output), "--runtime"]
     result = runner.invoke(cli_model.cli, [*args, "--draft"])
     assert result.exit_code == 0, result.output
     first = json.loads(result.output)
@@ -123,8 +123,8 @@ def test_export_draft_refuses_invalid_source_and_version_selection(page_dir, tmp
 
 
 def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_path):
-    """A source's value and each deferred field are one gzipped body apiece, so no
-    value rides the composed document through its parsers or reaches the file twice."""
+    """The sources' values are one gzipped body, so no value rides the composed
+    document through its parsers or reaches the file twice."""
     serve(
         leaf_page(
             "Data once",
@@ -142,19 +142,18 @@ def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_p
         ),
     )
     out = tmp_path / "data.html"
-    exporting_model.cmd_export(serve.page_dir, out, None)
+    exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     exported = out.read_text(encoding="utf-8")
     package = SourceDocument(exported).tree.select_one("script[data-lf-export]")
     assert package is not None
-    # gzip reads a run of gzipped bodies as one stream.
-    bodies = "".join(
+    [body] = [
         gzip.decompress(base64.b64decode(resource["base64"])).decode()
         for resource in json.loads(package.text)["resources"].values()
         if resource["mime"] == "application/gzip"
-    )
+    ]
     for sentinel in ("NOTES_SENTINEL", "PATCH_SENTINEL_NEW"):
         # Counted, so a failure doesn't make pytest diff a file of megabytes.
-        assert (exported.count(sentinel), bodies.count(sentinel)) == (0, 1)
+        assert (exported.count(sentinel), body.count(sentinel)) == (0, 1)
 
 
 def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_path):
@@ -168,10 +167,11 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
     those decoded. A choice recorded on the page's widget stays, one the user took back
     stays taken back, and so does the data the page itself binds."""
     decisions = (
+        '<lf-group id="decisions" label="Which ones?">'
         '<lf-options id="picks"><lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options>'
         '<lf-options id="taken-back"><lf-option id="keep">Keep</lf-option>'
-        '<lf-option id="drop">Drop</lf-option></lf-options>'
+        '<lf-option id="drop">Drop</lf-option></lf-options></lf-group>'
     )
     page_notes = (
         '<lf-text-document id="notes" source="page-notes" label="notes.md">'
@@ -219,8 +219,8 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         {
             "kind": "reply",
             **said,
-            "text": "REPLYWORD",
-            "markup": '<lf-options id="frozen"><lf-option id="yes">FROZENWORD'
+            "text": "REPLYWORD\n\n"
+            + '<lf-options id="reply-choice"><lf-option id="yes">OPTIONWORD'
             '</lf-option><lf-option id="PICKWORD">No</lf-option></lf-options>'
             '<lf-text-document id="in-thread" source="thread-notes" label="notes.md">'
             "</lf-text-document>",
@@ -229,7 +229,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
     data_model.cmd_data_set(claimed, "thread-notes", "BOUNDINTHREADWORD\n")
     data_model.cmd_data_set(claimed, "page-notes", "PAGEDATAWORD\n")
     append_command(
-        claimed, {**choice, "widget": "frozen", "detail": {"value": ["PICKWORD"]}}
+        claimed, {**choice, "widget": "reply-choice", "detail": {"value": ["PICKWORD"]}}
     )
     append_carried_log_record(
         claimed,
@@ -284,7 +284,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         "COMMENTWORD",
         "ALTWORD",
         "REPLYWORD",
-        "FROZENWORD",
+        "OPTIONWORD",
         "PICKWORD",
         "BOUNDINTHREADWORD",
         "TITLEWORD",
@@ -302,7 +302,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
     assert [word for word in words if word not in served] == []
 
     out = tmp_path / "shared.html"
-    exporting_model.cmd_export(claimed, out, None)
+    exporting_model.cmd_export(claimed, out, None, runtime=True)
     leases_model.release_lease(lease)
     exported = out.read_text(encoding="utf-8")
     package_script = SourceDocument(exported).tree.select_one("script[data-lf-export]")

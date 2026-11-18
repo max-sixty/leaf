@@ -10,13 +10,15 @@ import { registry } from "/runtime/registry.js";
 
 test("a sweep reaches a scroll surface in a nested declared shadow stage", () => {
   const tag = "x-reach-nested-stage";
-  registry[tag] = { "x-shadow": true };
+  registry[tag] = {
+    shadow: true,
+  };
   const outer = document.createElement(tag);
   const outerRoot = outer.attachShadow({ mode: "open" });
   const inner = document.createElement(tag);
   const innerRoot = inner.attachShadow({ mode: "open" });
   const surface = document.createElement("div");
-  surface.className = "scroll";
+  surface.className = "lf-scroll";
   surface.style.overflow = "auto";
   const contents = new Set();
   for (let index = 0; index < 32; index++) {
@@ -51,7 +53,7 @@ test("late authored and native scroll surfaces enter reach", async () => {
   reachScrollers(document.body);
   watchCodeBlocks();
   const authored = document.createElement("div");
-  authored.className = "scroll";
+  authored.className = "lf-scroll";
   authored.style.overflow = "auto";
   const native = document.createElement("pre");
   native.style.overflow = "auto";
@@ -63,7 +65,7 @@ test("late authored and native scroll surfaces enter reach", async () => {
     await new Promise((resolve) => requestAnimationFrame(resolve));
     assert.equal(authored.getAttribute("data-lf-scrolls"), "");
     assert.equal(native.getAttribute("data-lf-scrolls"), "");
-    authored.classList.remove("scroll");
+    authored.classList.remove("lf-scroll");
     await new Promise((resolve) => setTimeout(resolve, 0));
     assert.equal(authored.hasAttribute("data-lf-scrolls"), false);
   } finally {

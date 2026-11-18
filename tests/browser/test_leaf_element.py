@@ -15,7 +15,8 @@ def test_a_host_updates_and_reconnects_a_portable_element(browser):
 </head><body><div id="host"><host-reading id="reading"></host-reading></div>
 <script type="module">
 try {{
-  const {{ LeafElement, html, shadowStage, whileConnected, publishOutput, loadDeferred, threadSurface, releaseOutlets }} = await import("/runtime/portable-api.js");
+  const {{ LeafElement, shadowStage, whileConnected, publishOutput, threadSurface, releaseOutlets }} = await import("/runtime/portable-api.js");
+  const {{ html }} = await import("/vendor/lit.js");
   window.reading = document.querySelector("#reading");
   shadowStage(document.querySelector("#host"), [reading]);
   customElements.define("host-reading", class extends LeafElement {{
@@ -42,8 +43,6 @@ try {{
   window.outputs = [];
   reading.addEventListener("lf-output", event => outputs.push(event.detail));
   window.publish = value => publishOutput(reading, "rows", value);
-  window.loadUnowned = () => loadDeferred({{files: []}}, "missing")
-    .then(() => "unexpected value", error => error.message);
   window.drawings = [];
   reading.addEventListener("drawn", event => drawings.push({{
     value: event.detail.value, words: reading.querySelector("p").textContent,
@@ -93,7 +92,4 @@ try {{
             {"output": "rows", "value": {"rows": ["first"]}},
             {"output": "rows", "value": None},
         ]
-        assert page.evaluate("loadUnowned()") == (
-            "loadDeferred(missing) needs a source value Leaf delivered"
-        )
         assert page.evaluate("!window.lfRootState")

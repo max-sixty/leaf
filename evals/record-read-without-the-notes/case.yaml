@@ -1,11 +1,9 @@
-# Added with the pre-handover reading by a subagent that has none of the author's notes.
+# Scores the pre-handover reading by a subagent that has none of the author's notes.
 # A triage page written from five research subagents' reports had a heading answering
 # the author's own research question and chips that resolve only from the reports; the
 # author's own glance at the screens passed it. This case checks that an author with a
-# clean render check hands the reading to a reader without its notes. Measured when
-# added: the reader grader passed 0 of 3 on the instructions before the change (the one run
-# that read page-authoring.md read the screens itself) and 3 of 3 after; one run after
-# answered without reading page-authoring.md and so failed the case.
+# clean render check hands the reading to a reader without its notes. A run that
+# answers without reading page-authoring.md fails the case.
 # The contents review also tests navigation from the opening at desktop and phone widths.
 description: record-read-without-the-notes
 metadata:
@@ -19,7 +17,7 @@ vars:
   prompt:
     "You're partway through a Leaf task. The user asked: \"review all outstanding tend\nitems, with\
     \ enough info on each that I can whizz through them, in a /leaf\". You\nsent five research subagents\
-    \ out, one per batch of items, and wrote the page from\ntheir reports: a 21-item queue, one `lf-ask` per\
+    \ out, one per batch of items, and wrote the page from\ntheir reports: a 21-item queue, one question section per\
     \ item, with header chips summarising the\ncounts and a section on the shared Codex blocker. It's\
     \ a record the user will work\nthrough over the next few days.\n\n`leaf page check ~/.local/state/leaf/pages/tend-open-items\
     \ --render` just passed:\n\n  \u2713 index.html: renders clean in Chrome, light and dark at 1200x900\

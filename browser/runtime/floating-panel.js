@@ -398,13 +398,14 @@ import { closestAcross } from "./passages.js";
 
 const prefs = () => window.lfChrome;
 // The field's end at rest while On Me lists anything (`pageOffer`): the walk's route `m`
-// takes (queue-walk.js).
-/** @type {import("./notifications.js").NoticePress} */
+// takes (queue-walk.js). No notice carries it, so it has no `stands`; `pageOffer`
+// decides when it stands.
+/** @typedef {Omit<import("./notifications.js").NoticePress, "stands">} FieldPress */
+/** @type {FieldPress} */
 const NEXT_ON_ME = {
   action: "next-on-me",
   command: "queue.next",
   run: () => pressCommand("queue.next"),
-  stands: () => onUserCount() > 0,
 };
 
 // What the field's own search box asks for, in each list it searches, in Leaf's words
@@ -1168,7 +1169,7 @@ export function createFloatingPanel({
   // Leaf, each in its face (voice.js), and read dim (floating-panel.css). The field
   // carries the agent's words, so nothing in it is nobody's: Leaf says a stance's name,
   // where the user stands and the words quoted, since the interface's upright face would
-  // read as the agent's (the user's choice, 16 November 2026).
+  // read as the agent's (the user's choice).
   const HIDDEN = "Annotations hidden";
   // A notice offering a press after the user's own gesture is newer than any error the
   // field says, so while it passes it says its words over that error,
@@ -1318,7 +1319,7 @@ export function createFloatingPanel({
   // once the pointer leaves: a press arriving there would stand where the user was
   // about to press another (browser/AGENTS.md, "The page holds still under the user's
   // aim").
-  /** @returns {import("./notifications.js").NoticePress | "latest" | null} */
+  /** @returns {FieldPress | "latest" | null} */
   const pageOffer = () =>
     latestPress() ? "latest" : onUserCount() ? NEXT_ON_ME : null;
   /** @type {ReturnType<typeof pageOffer>} */
@@ -5108,7 +5109,7 @@ export function createFloatingPanel({
   // Its key stands beside it only while that key would make the same press now, as the
   // dispatcher reads it (`activeCommandLabel`): with the caret in a box, `m` is a letter
   // typed, and the press alone still acts.
-  /** @param {import("./notifications.js").NoticePress} press
+  /** @param {FieldPress} press
    * @returns {import("./composing/input.js").BoxPress} */
   function noticePress(press) {
     return {

@@ -1,40 +1,215 @@
 // @ts-check
 /* Readings kept by what each was read from.
 
-   A fold that reads one record for each item of a collection on every publication
-   would make each record again, and the publisher would then compare it with the last
-   one to keep its identity, so a publication would cost what the page holds.
-   `keptReadings` keeps each record beside the inputs its fold is given and makes it
-   again only where one of them has changed, compared by identity, so a reading costs
-   the records it makes and a check of each one's inputs. The inputs have to name
-   everything the record reads: a fold that reads more than it names keeps a stale
-   record. They are compared by identity, so they keep it while unchanged, as the
-   served reading does for every record the server didn't change (`completeState` in
-   `layer-client.js`).
+   `kept` keeps a reading of the state or the page, and `keptEach` one for each key, as
+   On Me keeps each item's seat. A reading holds one value, made again only where
+   something it was made from has moved: an argument it was given, compared by
+   identity and two lists by their items; a signal it read, the application state's
+   (`readPart`) and a widget module's own among them, since a reading is a `computed`;
+   a version it read; or a reading it read, so a reading made around another stands no
+   longer than the one inside it. It is never told what it reads, so it stays current
+   however its code changes. A key is an object held weakly, so a reading goes with the
+   record or element it is about, and nothing sweeps keys.
 
-   `kept` keeps a reading of facts outside it, as On Me's groups read the page, the
-   threads' placement and the server's lists, without being told what it reads, and
-   `keptEach` keeps one for each key, made as each is first asked for, as On Me's seat
-   for each item is. A reading is a `computed` signal, so every signal it reads, the
-   application state's (`readPart`) and a widget module's own among them, makes it
-   again when it changes, and a view reading it, kept or made, hears those signals.
-   The page's reading and the threads' placement are not signals: a view drawn from
-   them would draw again at every change the page heard, as on each frame a widget
-   redraws a counter, where Leaf draws a view of the page when the page is presented
-   (`presentDocument`). So a reader of a fact outside any signal calls `reads` with a
-   function answering which version of the fact stands. Each read of a reading asks
-   every version it read again, one call each, and makes the reading afresh where one
-   answers otherwise, rather than telling the old reading's views. An input that
-   catches up when asked, as the page's watcher and placement do, has caught up before
-   the reading answers. So a reading stays current however its code changes, as long
-   as what it reads is a signal or has a reader that calls `reads`; a new kind of fact
-   gets one. What the page's watcher doesn't hear, such as a datum's source or a role
-   making a press, is read beside what announces its change, the document presented or
-   a widget's layout changing (anchor-resolution.js, `currentDatums`,
-   `claimsVisualGesture`).
+   A fact outside any signal, such as the page's reading or the threads' placement, has
+   a `version`: a count its owner moves when the fact changes, which a reader of the
+   fact reads. A view drawn from such a fact isn't told when it moves, since Leaf draws
+   a view of the page when the page is presented (`presentDocument`), not on each
+   change the page hears, as on each frame a widget redraws a counter. So a reading
+   that read a version asks it again when it is next read, and is made afresh where it
+   moved. Every move of any version moves one count, and a reading asked again at the
+   count it was last checked at stands without asking anything, so reading a kept value
+   costs a lookup while nothing moved.
+
+   The browser tells the page's watcher of a change a microtask late, and placement
+   settles only when asked, so their versions move only when their owners catch up.
+   Such a version names its catch-up, and a reading that read one, itself or through a
+   reading inside it, runs that catch-up when read from outside any other reading,
+   before it is checked: a reading read inside another was caught up with it. Leaf
+   can't take the changes once for a batch of reads instead, since a write after that
+   in the same task would go unheard. A reading that read no such version, as the
+   publication's fold reads none, catches nothing up. What the page's watcher doesn't
+   hear, such as a datum's source or a role making a press, is read beside what
+   announces its change, the document presented or a widget's layout changing
+   (anchor-resolution.js, `currentDatums`, `claimsVisualGesture`).
+
+   `keptReadings` keeps each record of a fold beside the inputs its fold is given and
+   makes it again only where one of them has changed, compared by identity. The inputs
+   have to name everything the record reads: a fold that reads more than it names keeps
+   a stale record. They are compared by identity, so they keep it while unchanged, as
+   the served reading does for every record the server didn't change (`completeState`
+   in `layer-client.js`).
 
    This module imports nothing but signals, so the pure folds can use it. */
 import { computed } from "/vendor/signals-core.js";
+
+/** @typedef {() => void} CatchUp
+ * @typedef {{read(): number, move(): void, [AT]: () => number}} Version
+ * @typedef {{
+ *   args: readonly unknown[],
+ *   value: import("@preact/signals-core").ReadonlySignal<unknown>,
+ *   versions: Map<Version, number> | null,
+ *   within: Set<Entry> | null,
+ *   catchUps: Set<CatchUp> | null,
+ *   threw: boolean,
+ *   checked: number,
+ * }} Entry */
+
+// Every move of any version, so a reading checked since the last one stands.
+let moves = 0;
+// Where a version stands, asked without saying a reading read it.
+const AT = Symbol("at");
+// The reading being made, which records what it reads.
+/** @type {Entry | null} */
+let making = null;
+// The catch-ups run since a reading was read from outside every other, so a reading
+// read inside it runs only those it adds.
+/** @type {CatchUp[] | null} */
+let caughtUp = null;
+
+/** A count of a fact no signal carries, which its owner moves when the fact changes:
+ * `read()` answers it, and says the reading being made, if one is, read it. An owner
+ * whose version moves only when it catches up, as the page's watcher takes what the
+ * browser reports late, passes `catchUp`, which a reading runs as it first reads the
+ * version, so it records where the fact stands, and again before it is checked. A
+ * catch-up that reads its own version, as the page's does, is asked once.
+ * @param {CatchUp | null} [catchUp] @returns {Version} */
+export function version(catchUp = null) {
+  let at = 0;
+  /** @type {Version} */
+  const counted = {
+    read() {
+      const versions = making && (making.versions ??= new Map());
+      if (making && versions && !versions.has(counted)) {
+        if (catchUp) {
+          (making.catchUps ??= new Set()).add(catchUp);
+          versions.set(counted, NaN);
+          catchUp();
+        }
+        versions.set(counted, at);
+      }
+      return at;
+    },
+    move() {
+      at += 1;
+      moves += 1;
+    },
+    [AT]: () => at,
+  };
+  return counted;
+}
+
+/** @param {unknown} a @param {unknown} b */
+const sameArgument = (a, b) =>
+  Object.is(a, b) ||
+  (Array.isArray(a) &&
+    Array.isArray(b) &&
+    a.length === b.length &&
+    a.every((item, at) => Object.is(item, b[at])));
+/** @param {readonly unknown[]} held @param {readonly unknown[]} args */
+const sameArguments = (held, args) =>
+  held.length === args.length && args.every((arg, at) => sameArgument(arg, held[at]));
+
+/** Whether every version an entry read, and every reading it read, stands.
+ * @param {Entry} entry @returns {boolean} */
+function stands(entry) {
+  if (entry.threw) return false;
+  if (entry.checked === moves) return true;
+  if (entry.versions)
+    for (const [counted, at] of entry.versions) if (counted[AT]() !== at) return false;
+  if (entry.within) for (const inner of entry.within) if (!stands(inner)) return false;
+  entry.checked = moves;
+  return true;
+}
+
+/** @template {object} K @template {unknown[]} A @template V
+ * @param {(key: K, ...args: A) => V} make @param {K} key @param {A} args @returns {Entry} */
+function entryOf(make, key, args) {
+  /** @type {Entry} */
+  const entry = {
+    args,
+    value: computed(() => {
+      // A signal it read moved: what it reads now is all it reads.
+      entry.versions = entry.within = entry.catchUps = null;
+      entry.threw = false;
+      const outer = making;
+      making = entry;
+      try {
+        return make(key, ...args);
+      } finally {
+        making = outer;
+      }
+    }),
+    versions: null,
+    within: null,
+    catchUps: null,
+    threw: false,
+    checked: moves,
+  };
+  return entry;
+}
+
+/** @param {Entry} entry */
+function catchUp(entry) {
+  if (!entry.catchUps || !caughtUp) return;
+  for (const each of entry.catchUps)
+    if (!caughtUp.includes(each)) {
+      caughtUp.push(each);
+      each();
+    }
+}
+
+/** A reader of what `make` makes of each key and the arguments it is read with, made
+ * when the key is first asked for and kept while those arguments, every signal it read,
+ * every version it read and every reading it read stand. A make that throws keeps
+ * nothing, so it is made again, as is every reading made around it.
+ * @template {object} K @template {unknown[]} A @template V
+ * @param {(key: K, ...args: A) => V} make @returns {(key: K, ...args: A) => V} */
+export function keptEach(make) {
+  /** @type {WeakMap<K, Entry>} */
+  const entries = new WeakMap();
+  return (key, ...args) => {
+    const outermost = !caughtUp;
+    if (outermost) caughtUp = [];
+    try {
+      let entry = entries.get(key);
+      if (entry) catchUp(entry);
+      if (!entry || !sameArguments(entry.args, args) || !stands(entry))
+        entries.set(key, (entry = entryOf(make, key, args)));
+      /** @type {V} */
+      let value;
+      try {
+        value = /** @type {V} */ (entry.value.value);
+      } catch (error) {
+        // Made again when next asked for, as is a reading around it that caught the
+        // throw.
+        if (entries.get(key) === entry) entries.delete(key);
+        if (making) making.threw = true;
+        throw error;
+      }
+      if (making && making !== entry) {
+        (making.within ??= new Set()).add(entry);
+        if (entry.catchUps)
+          for (const each of entry.catchUps) (making.catchUps ??= new Set()).add(each);
+      }
+      return value;
+    } finally {
+      if (outermost) caughtUp = null;
+    }
+  };
+}
+
+/** A reader of what `make` makes of the arguments it is read with, kept as `keptEach`
+ * keeps each key's.
+ * @template {unknown[]} A @template T @param {(...args: A) => T} make
+ * @returns {(...args: A) => T} */
+export function kept(make) {
+  const one = {};
+  const each = keptEach((/** @type {object} */ _, /** @type {A} */ ...args) =>
+    make(...args),
+  );
+  return (...args) => each(one, ...args);
+}
 
 // Between the lists one record's inputs hold, so an item that moves from one list to
 // the next reads as a change.
@@ -56,7 +231,7 @@ const same = (held, inputs) =>
  */
 export function keptReadings() {
   /** @type {Map<unknown, {inputs: readonly unknown[], value: V}>} */
-  let kept = new Map();
+  let held = new Map();
   /** @type {Map<unknown, {inputs: readonly unknown[], value: V}>} */
   let reading = new Map();
   return {
@@ -67,119 +242,14 @@ export function keptReadings() {
      * @returns {V}
      */
     read(key, inputs, make) {
-      const held = kept.get(key);
-      const value = held && same(held.inputs, inputs) ? held.value : make(held?.value);
+      const was = held.get(key);
+      const value = was && same(was.inputs, inputs) ? was.value : make(was?.value);
       reading.set(key, { inputs, value });
       return value;
     },
     done() {
-      kept = reading;
+      held = reading;
       reading = new Map();
     },
-  };
-}
-
-/** @typedef {() => unknown} Input
- * @typedef {Map<Input, unknown>} Inputs */
-// The inputs the reading being made has read so far, each with its answer.
-/** @type {Inputs | null} */
-let reading = null;
-// What an input stands at while it is first asked.
-const ASKING = Symbol("asking");
-
-/** Says that the reading being made, if one is, reads `input`: a function of nothing
- * answering which version of a fact outside any signal stands, the same value while
- * the fact does (`kept`). An input that calls `reads` with itself as it answers, as the
- * page's reading does while it catches up, is asked once; one that throws is not kept.
- * @param {Input} input */
-export function reads(input) {
-  const into = reading;
-  if (!into || into.has(input)) return;
-  into.set(input, ASKING);
-  try {
-    into.set(input, input());
-  } catch (error) {
-    into.delete(input);
-    throw error;
-  }
-}
-
-/** @param {Inputs} held */
-const stands = (held) => {
-  for (const [input, was] of held) if (!Object.is(input(), was)) return false;
-  return true;
-};
-// A signal of what `make` makes, each input it reads added to `held`.
-/** @template T @param {Inputs} held @param {() => T} make */
-const recording = (held, make) =>
-  computed(() => {
-    const outer = reading;
-    reading = held;
-    try {
-      return make();
-    } finally {
-      reading = outer;
-    }
-  });
-// Which of a reader's readings stands, kept as an input of the reading being made, if
-// one is: asking it again checks the inputs the reader's reading has read by then,
-// those it read only after a signal changed what it reads included, so a reading made
-// around another stands no longer than the one inside it. A reader read inside its
-// own make, as one key's make asks for another, is no input of itself.
-/** @param {Input} standing @param {number} generation @param {Inputs} own */
-const within = (standing, generation, own) => {
-  if (reading && reading !== own && !reading.has(standing))
-    reading.set(standing, generation);
-};
-
-/** A reader of what `derive` makes, kept while every signal it read is unchanged and
- * every input it read (`reads`) answers as it did. Read while another reading is
- * being made, it is one of that reading's inputs. A make that throws keeps nothing.
- * @template T @param {() => T} derive @returns {() => T} */
-export function kept(derive) {
-  const each = keptEach(() => derive());
-  const one = {};
-  return () => each()(one);
-}
-
-/** A reader of what `make` makes of each key, made when the key is first asked for,
- * each kept while every signal it read is unchanged, and every key's together while
- * every input any of them read (`reads`) answers as it did. Each read asks those
- * inputs once and answers with a lookup by key, so reading every item of a list costs
- * one check of them, as `kept` does for one value; a lookup kept past a later read
- * answers from what that read found. A key is held no longer than whoever holds it,
- * and one whose make threw is made again, as is every reading made around it.
- * @template {object} K @template V @param {(key: K) => V} make
- * @returns {() => (key: K) => V} */
-export function keptEach(make) {
-  /** @type {Inputs} */
-  let inputs = new Map();
-  /** @type {WeakMap<K, import("@preact/signals-core").ReadonlySignal<V>>} */
-  let values = new WeakMap();
-  let generation = 0;
-  const standing = () => {
-    if (!stands(inputs)) {
-      [inputs, values] = [new Map(), new WeakMap()];
-      generation += 1;
-    }
-    return generation;
-  };
-  /** @param {K} key */
-  const lookup = (key) => {
-    within(standing, generation, inputs);
-    const [held, each] = [inputs, values];
-    let value = each.get(key);
-    if (!value) each.set(key, (value = recording(held, () => make(key))));
-    try {
-      return value.value;
-    } catch (error) {
-      each.delete(key);
-      generation += 1;
-      throw error;
-    }
-  };
-  return () => {
-    within(standing, standing(), inputs);
-    return lookup;
   };
 }

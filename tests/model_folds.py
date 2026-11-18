@@ -72,6 +72,10 @@ UNCLAIMED = {
     "session_cwd": None,
 }
 
+# The page whose memory keeps the readings a fold names (`served_state.tail`). It is
+# no directory, since a fold reads none.
+FOLDED_PAGE = Path("folded-page")
+
 # The Layouts that shape `main` (layouts.css), and None for a `main` with none.
 PAGE_LAYOUTS = ("column", "sidebar", "workspace", None)
 
@@ -160,7 +164,7 @@ def served_reading(
         _fold(documents, events, registry=registry, presence=presence, data=data),
         view_revision=view_revision,
     ).state
-    sent = answer(state, held, "model")
+    sent = answer(state, held, FOLDED_PAGE)
     assert (error := served_state_error(sent, ("Reading", "Tail"))) is None, error
     return sent
 
@@ -182,7 +186,7 @@ def served_answer(
     state = PageStateService(Path(), source=_FoldedPage(folded)).page_state(
         view_revision
     )
-    sent = answer(state, None, "model")
+    sent = answer(state, None, FOLDED_PAGE)
     assert (error := served_state_error(sent, "answer")) is None, error
     return sent
 

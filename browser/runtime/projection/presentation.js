@@ -19,7 +19,7 @@ import {
   readPart,
 } from "../semantic-state.js";
 import { decisionFor } from "../registry.js";
-import { widgetElement } from "../widget-descriptors.js";
+import { addressableAt } from "../thread/messages.js";
 import { authored, elementById, inChrome, renderRetired } from "../passages.js";
 import { isPagePaint, sayQuietFacts } from "../declared-words.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../page-paint.js";
@@ -71,7 +71,7 @@ function paintStateOrigins(projection, marked) {
 /** @param {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").foldWidgetStates>>} widgets */
 function paintSettlements(widgets) {
   for (const [widgetId, { state }] of widgets) {
-    const owner = widgetElement(widgetId);
+    const owner = addressableAt(widgetId);
     const decision = owner && decisionFor(owner.localName);
     if (!decision) continue;
     const wanted = state[decision.verb]?.detail?.outcome;

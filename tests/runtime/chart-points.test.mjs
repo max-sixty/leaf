@@ -3,9 +3,11 @@ import test from "node:test";
 import * as bundle from "../../packages/default/vendor/plot.esm.js";
 import {
   cross,
+  datumOf,
+  datumPoint,
+  datumWords,
   nearest,
   readPoints,
-  sameDatum,
   sayPoint,
   step,
 } from "../../packages/default/widgets/chart-points.js";
@@ -475,9 +477,12 @@ test("a redraw finds the datum the reader was on, wherever the data moved it", (
   const on = before.points.find((point) => said(point)?.name === "x 2");
   assert.ok(on);
   const after = read({ marks: [Plot.lineY(rows([2, 3]), { x: "x", y: "y" })] });
-  assert.deepEqual(said(sameDatum(after, on)), { name: "x 2", detail: ["y 20"] });
+  assert.deepEqual(said(datumPoint(after, datumOf(on))), {
+    name: "x 2",
+    detail: ["y 20"],
+  });
   const gone = read({ marks: [Plot.lineY(rows([3]), { x: "x", y: "y" })] });
-  assert.equal(sameDatum(gone, on), null);
+  assert.equal(datumPoint(gone, datumOf(on)), null);
   // Two readings at one place are two data across drawings too.
   const together = (/** @type {string} */ by) =>
     read({
@@ -494,8 +499,74 @@ test("a redraw finds the datum the reader was on, wherever the data moved it", (
   for (const by of ["title", "fill"]) {
     const two = together(by).points[1];
     assert.ok(two);
-    assert.deepEqual(said(sameDatum(together(by), two)), said(two), by);
+    assert.deepEqual(said(datumPoint(together(by), datumOf(two))), said(two), by);
   }
+});
+
+test("a datum's name is one token of its values that finds it in the next drawing", () => {
+  // A comment keeps it as the point's id, which an agent reads: the mark, then each
+  // channel's value, a day as its date, and words with spaces and the token's own
+  // separators written as a URI writes them.
+  const line = read({
+    x: { type: "utc" },
+    marks: [
+      Plot.lineY(
+        [
+          { week: "2026-05-04", team: "back end; ops", hours: 31 },
+          { week: "2026-06-01T14:00Z", team: "back end; ops", hours: 26 },
+        ],
+        { x: "week", y: "hours", stroke: "team" },
+      ),
+    ],
+  });
+  const [day, moment] = line.points;
+  assert.ok(day && moment);
+  assert.equal(
+    datumOf(day),
+    "0;stroke=back%20end%3B%20ops;x=2026-05-04;y=31;z=back%20end%3B%20ops",
+  );
+  assert.equal(datumOf(moment).split(";")[2], "x=2026-06-01T14:00:00Z");
+  // Each series' points are found by where they stand, the series coming first.
+  assert.equal(datumPoint(line, datumOf(moment)), moment);
+  assert.equal(
+    datumWords(datumOf(day)),
+    "stroke back end; ops, x 2026-05-04, y 31, z back end; ops",
+  );
+  // A channel an author names with a space keeps the token one token.
+  const named = read({
+    marks: [
+      Plot.dot([{ x: 1, y: 2, m: 3 }], {
+        x: "x",
+        y: "y",
+        channels: { "body mass": "m" },
+      }),
+    ],
+  });
+  const [heavy] = named.points;
+  assert.ok(heavy);
+  assert.equal(datumOf(heavy), "0;body%20mass=3;x=1;y=2");
+  assert.equal(datumPoint(named, datumOf(heavy)), heavy);
+  assert.equal(datumWords(datumOf(heavy)), "body mass 3, x 1, y 2");
+  const bins = read({
+    marks: [
+      Plot.rectY(
+        [1, 2, 12, 13, 14].map((v) => ({ v })),
+        Plot.binX({ y: "count" }, { x: "v", thresholds: [0, 10, 20] }),
+      ),
+    ],
+  });
+  assert.deepEqual(bins.points.map(datumOf), [
+    "0;x1=0;y1=0;x2=10;y2=2",
+    "0;x1=10;y1=0;x2=20;y2=3",
+  ]);
+  // A token that names no datum the drawing holds, or holds more than it names, finds
+  // nothing.
+  const [first] = bins.points;
+  assert.ok(first);
+  assert.equal(datumPoint(bins, datumOf(first)), first);
+  assert.equal(datumPoint(bins, "0;x1=0;y1=0;x2=10"), null);
+  assert.equal(datumPoint(bins, "1;x1=0;y1=0;x2=10;y2=2"), null);
+  assert.equal(datumPoint(bins, `${datumOf(first)};z=1`), null);
 });
 
 test("a time reads to the second or millisecond its datum has", () => {

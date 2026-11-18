@@ -84,8 +84,8 @@ const SQUASH = 0.01;
  * @typedef {{key: string, label?: string | null, value?: unknown}} Row
  * @typedef {{values: Values, scales: Scales, fx: unknown, fy: unknown, left: number, bottom: number, number: (value: number) => string | undefined, sources: Sources, format: Format, authored: Format, rows: (this: {format: Format}, i: number, index: {fx?: unknown, fy?: unknown}, sources: Sources, scales: Scales, values: Values) => Iterable<Row>}} Drawn
  * @typedef {{tx: number, ty: number, kx: number, ky: number, reach: number, frame: Dimensions, points: Point[]}} Frame
- * @typedef {{x: number, y: number, px: number, py: number, ax: number, ay: number, i: number, order: number, drawn: Drawn, series: number, n: number, said?: string, same?: Point}} Point
- * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y"}} Reading
+ * @typedef {{x: number, y: number, px: number, py: number, ax: number, ay: number, i: number, order: number, drawn: Drawn, series: number, n: number, said?: string, datum?: string, same?: Point}} Point
+ * @typedef {{points: Point[], series: Point[][], frames: Frame[], axis: "x" | "y", filed?: Map<string, Point[]>}} Reading
  * @typedef {import("@observablehq/plot").Mark & {data?: any, tip?: unknown, facet?: unknown, facetAnchor?: unknown, format: Format, frameAnchor?: string, dx?: number, dy?: number}} Drawable */
 
 /** @param {Scale | undefined} scale */
@@ -364,33 +364,117 @@ export function nearest({ frames }, x, y) {
   return best?.same ?? best;
 }
 
-// What names a point's datum across drawings: its mark, its facet and the values of
-// its channels, as the data says them rather than as a drawing places them.
-/** @param {Point} point */
-function datumOf({ order, i, drawn }) {
-  /** @param {unknown} value */
-  const raw = (value) => (value instanceof Date ? value.getTime() : (value ?? null));
-  return JSON.stringify([
-    order,
-    raw(drawn.fx),
-    raw(drawn.fy),
-    ...Object.entries(drawn.values.channels).map(([key, channel]) => [
-      key,
-      raw(channel?.value[i]),
-    ]),
-  ]);
+/* What names a point's datum across drawings: its mark, its facet and the values of its
+ * channels, as the data says them rather than as a drawing places them. It is one token
+ * a reader can read, the mark's place among the marks that say their values and then
+ * each value under its channel's name, `;` between them: "0;x=2026-05-11;y=26", a time
+ * as its ISO date, with its time of day where it has one. A name or value keeps its own
+ * characters but whitespace, `%`, `;` and `=`, which it writes as a URI does. So the
+ * token is the datum's name wherever it is kept, as the id of a comment on it
+ * (lf-chart.js), and an agent reading the comment reads the datum in it.
+ *
+ * Every value names the datum, a measure included, so a datum whose value changes is
+ * another datum, as a stacked segment is once a segment below it changes, and a
+ * redraw's own data is the same data. */
+
+/** A value as its datum's token writes it.
+ * @param {unknown} value */
+function written(value) {
+  const said =
+    value instanceof Date
+      ? Number.isNaN(value.getTime())
+        ? ""
+        : value
+            .toISOString()
+            .replace(/\.000Z$/, "Z")
+            .replace(/T00:00:00Z$/, "")
+      : value == null
+        ? ""
+        : typeof value === "object"
+          ? JSON.stringify(value)
+          : String(value);
+  return said.replace(/[%;=\s\p{Cc}]/gu, encodeURIComponent);
 }
 
-/** The point of `reading` holding the datum `point` held in an earlier drawing, if it
- * still draws it.
- * @param {Reading} reading @param {Point} point */
-export function sameDatum(reading, point) {
-  const datum = datumOf(point);
-  return (
-    reading.points.find(
-      (other) => other.order === point.order && datumOf(other) === datum,
-    ) ?? null
-  );
+/** The datum's entries after its mark: its facets, then each channel's value.
+ * @param {Point} point */
+function* entries({ i, drawn }) {
+  if (drawn.fx != null) yield `fx=${written(drawn.fx)}`;
+  if (drawn.fy != null) yield `fy=${written(drawn.fy)}`;
+  const { channels } = drawn.values;
+  for (const key in channels)
+    yield `${written(key)}=${written(channels[key]?.value[i])}`;
+}
+
+/** The token naming a point's datum, kept on it once read.
+ * @param {Point} point */
+export const datumOf = (point) =>
+  (point.datum ??= [String(point.order), ...entries(point)].join(";"));
+
+/** The point of `reading` holding the datum `datum` names, if it draws it. The first
+ * ask of a drawing files its points by their mark and the value on the first channel
+ * they stand at (`PLACE`), one pass over the drawing, so each ask reads only the points
+ * standing where the datum does, each until its first value that differs.
+ * @param {Reading} reading @param {string} datum */
+export function datumPoint(reading, datum) {
+  const [order = "", ...named] = datum.split(";");
+  const filed = (reading.filed ??= fileByPlace(reading.points));
+  const place =
+    PLACE.map((key) => named.find((entry) => entry.startsWith(`${key}=`))).find(
+      Boolean,
+    ) ?? "";
+  /** @param {Point} point */
+  const holds = (point) => {
+    let n = 0;
+    for (const entry of entries(point)) if (entry !== named[n++]) return false;
+    return n === named.length;
+  };
+  return filed.get(`${order};${place}`)?.find(holds) ?? null;
+}
+
+// The channels a datum stands at, in the order a drawing files its points by them:
+// where a dot, a bar or a line's vertex stands, a horizontal bar's category, or where a
+// bin starts.
+const PLACE = ["x", "y", "x1", "y1"];
+
+/** @param {Point[]} points */
+function fileByPlace(points) {
+  /** @type {Map<string, Point[]>} */
+  const filed = new Map();
+  for (const point of points) {
+    const { channels } = point.drawn.values;
+    const key = PLACE.find((name) => channels[name]);
+    const place = key ? `${key}=${written(channels[key]?.value[point.i])}` : "";
+    const at = `${point.order};${place}`;
+    const same = filed.get(at);
+    if (same) same.push(point);
+    else filed.set(at, [point]);
+  }
+  return filed;
+}
+
+/** A datum's token in words, each value after its channel's name, for a datum the
+ * chart no longer draws: "x 2026-05-11, y 26".
+ * @param {string} datum */
+export const datumWords = (datum) =>
+  datum
+    .split(";")
+    .slice(1)
+    .map((entry) => {
+      const [key = "", value = ""] = entry.split("=");
+      return `${unwritten(key)} ${unwritten(value)}`.trim();
+    })
+    .join(", ");
+
+// A value as its token wrote it, back in its own characters. A token an agent wrote
+// by hand may hold a `%` that writes nothing, and reads as it stands.
+/** @param {string} value */
+function unwritten(value) {
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 // Where `at` falls along `run`, sorted along `local`: the index of its first point

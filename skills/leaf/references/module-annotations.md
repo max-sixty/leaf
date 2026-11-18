@@ -83,6 +83,17 @@ already, so cancel work that would hide it. `label(id)` names a part in Threads 
 changing the visual, or returns `null`. Call the returned `update()` after the parts or
 their positions change.
 
+A visual with too many parts to list, such as a chart's points, also passes `find` and
+`at`, and its `read()` may return none, since `read()` is what the target picker and a
+screen reader's list offer. `find(id)` returns the part an id names in the current
+state, drawing an element for it if it must, or `null` where the state holds none; Leaf
+asks it for a comment's part rather than searching `read()`, and a part it doesn't find
+stands on the whole visual, since the visual may draw it once it can. `at(node)` returns
+the part a node of the visual stands for where no element `read()` returns holds it, or
+`null`: Leaf asks it for a hit inside the visual, such as the pointer over a line
+through the data, and asks it for the visual itself when focus on the visual names a
+target, such as the point its arrow keys reached.
+
 ## Threads
 
 ### Reading and opening Threads from a widget

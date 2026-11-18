@@ -1738,8 +1738,8 @@ def test_a_nested_obligations_pick_is_not_part_of_its_outers_record(browser, ser
     nested question must not enter the outer question's authored state, or an outer log
     choice that exactly matches its markup is falsely painted as awaiting the author."""
     nested_choices = NESTED_OBLIGATION_PAGE.replace(
-        '<lf-option id="out-drill">', '<lf-option id="out-drill" selected>'
-    ).replace('<lf-option id="in-now">', '<lf-option id="in-now" selected>')
+        '<lf-option id="out-drill"', '<lf-option id="out-drill" selected'
+    ).replace('<lf-option id="in-now"', '<lf-option id="in-now" selected')
     url = serve(nested_choices)
     append_command(
         serve.page_dir,

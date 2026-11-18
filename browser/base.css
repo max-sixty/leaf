@@ -1058,8 +1058,8 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
 }
 /* A named group (`reading-role: group`) is a block that draws nothing of its own: its
  * label is data, and what it holds, any heading included, is the author's. It is where
- * a question asked inside it stands, so its marks stand at a control's gap
- * (tokens.css, "Where it stands"). */
+ * a question asked inside it stands, so its marks stand at a control's gap, a group
+ * that asks nothing included (tokens.css, "Where it stands"). */
 :where([data-lf-reading-role="group"]) {
   display: block;
   --lf-ring-at: var(--lf-focus-ring-gap);

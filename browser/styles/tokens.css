@@ -604,10 +604,12 @@
        paragraph): outside it at --lf-focus-region-gap. Every mark on a region stands on
        this one perimeter, so going from aim to comment to arrival changes only the
        stroke, and two marks on one region draw one line.
-     - A control standing on its own, and a question, which the user answers as one
-       control (a group, or an option group asking alone in a message): outside its
-       edge at --lf-focus-ring-gap. A question's edge is mostly its control's frame, and
-       a ring a region's gap off that frame read as a second box round it.
+     - A control standing on its own, a named group (`reading-role: group`), which is
+       where a question asked inside it stands, and an option group asking alone in a
+       message: outside its edge at --lf-focus-ring-gap. The user answers a question as
+       one control, and its edge is mostly that control's frame, so a ring a region's
+       gap off the frame read as a second box round it. A group that asks nothing
+       stands its marks there too.
      - A box that draws its own edge, such as a field, a mark (controls.css) or a margin
        entry, or a control whose neighbours stand closer than a control's gap, such as
        a reaction beside others: on its edge, at 0. A field's ring replaces its border.

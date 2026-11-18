@@ -67,9 +67,10 @@
  *   The status is the field's own words, and something of the user's takes their
  *   place only while it answers or directs what the user is doing: an error until
  *   their first edit, the words they selected while those stand, keys pressed before
- *   the page was ready, the Go-to filter while its sequence waits for a key, and a
- *   notice or a walk's position for a notice's moment from the gesture or step it
- *   answers (notifications.js, `answerStep`). Where the user stands by a choice that
+ *   the page was ready, the Go-to filter while its sequence waits for a key, a notice
+ *   for its moment, or until the user's next input where it offers a press, and a
+ *   walk's position for a notice's moment from each step (notifications.js,
+ *   `answerStep`). Where the user stands by a choice that
  *   lasts until they undo it, a stance, an older version, a comparison or hidden
  *   annotations, leads the status instead (`standing`). The user asked for this for a
  *   walk's position, so the agent's updates show while they read at its stop; the
@@ -1256,8 +1257,8 @@ export function createFloatingPanel({
   // does at rest, over c alone right after the quote.
   const SAYS_ELSE = new Set(["status", "notice", "selection"]);
   // Where the user stands on the page, which the page field's words say before the
-  // status or the words selected on the page, and in a stance in the status's place,
-  // each for as long as the user's own choice stands: the stance's name, the version
+  // status, the words selected on the page or a walk's position, each for as long as
+  // the user's own choice stands: the stance's name, the version
   // the page shows where it is older than the latest (version.js, `shownBehind`), how
   // many changes the page marks since the version it compares with (`v`, version.js),
   // whose bars say only that a block changed, and that the user hid the annotation

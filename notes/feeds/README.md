@@ -23,11 +23,11 @@ work".
 ## Every verb on a card already exists
 
 A card is one decision with its evidence beside it, which is what an item framed
-by an `lf-ask` already is (`references/authoring-on-me.md`).
+by a section and its heading already is (`references/authoring-on-me.md`).
 
 | Feed card      | Leaf today                                                             |
 | -------------- | ---------------------------------------------------------------------- |
-| The work, done | Evidence inside an `lf-ask`: a table, a chart, a diff                  |
+| The work, done | Evidence in the question's section: a table, a chart, a diff           |
 | Approve        | An `lf-options` pick, a suggestion's Accept, or Approve version        |
 | Edit           | `lf-draft`, text the user rewrites in place, with its history recorded |
 | Dismiss        | A "Not now" option or a reject, recorded as an outcome                 |

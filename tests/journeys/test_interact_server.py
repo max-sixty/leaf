@@ -125,7 +125,7 @@ def test_server_round_trip(server, page_dir):
     source = page_dir / "index.html"
     source.write_text(
         source.read_text()
-        .replace("</section>", registry["lf-board"]["x-example"] + "\n</section>")
+        .replace("</section>", registry["lf-board"]["example"] + "\n</section>")
         .replace(
             "</head>",
             '<style>.probe::before { content: "</head>"; }</style>\n</head>',

@@ -66,7 +66,7 @@ function paintStateOrigins(projection, marked) {
 // current outcome is one the registry says retires it. This marks every such widget,
 // whether or not its module renders anything. A module that animates its own settling,
 // as lf-suggestion does, has already run it in the publication before this writes the
-// same mark. A widget in a message's frozen markup is marked before the thread mounts
+// same mark. A widget in a message's markup is marked before the thread mounts
 // it, so it joins the panel settled and the thread's passages skip what it retired.
 /** @param {import("../framework/snapshot.js").Immutable<ReturnType<typeof import("./model.js").foldWidgetStates>>} widgets */
 function paintSettlements(widgets) {
@@ -90,7 +90,7 @@ const widgetStates = readPart((root) => root.effective.widgets);
 export function createProjectionPresentation() {
   // The region claims a paint synchronously as each publication is made, before the
   // coordinator seals which regions the pass must paint. So its previous paint cannot
-  // stand for a new reading while frozen widget markup is still joining the document;
+  // stand for a new reading while thread widget markup is still joining the document;
   // the pass paints it afterwards. Before the server's first answer `reading` returns
   // null, and there is nothing to paint. The coverage stamp below follows presentation
   // (`watchPresentation`) rather than this region.
@@ -178,8 +178,8 @@ export function createProjectionPresentation() {
 
   // `present` is not returned. The region repaints from its own subscription above, or
   // from `presentDocument` when a caller has changed the document. Handing one caller
-  // a third way in is how the obligation inventory once got left out of a document-wide
-  // repaint.
+  // a third way in can leave an owner, such as the obligation inventory, out of a
+  // document-wide repaint.
 }
 
 /** @param {Element} root */

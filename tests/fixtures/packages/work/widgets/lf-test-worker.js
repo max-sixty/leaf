@@ -2,6 +2,7 @@
  * of the Atlas example's composition. */
 import { html, noChange } from "/vendor/lit.js";
 import {
+  generatedElement,
   ago,
   keeps,
   LeafElement,
@@ -14,8 +15,7 @@ customElements.define(
   "lf-test-worker",
   class extends LeafElement {
     setup() {
-      this.line = document.createElement("div");
-      this.line.dataset.lfGen = "1";
+      this.line = generatedElement(document.createElement("div"), { says: false });
       this.append(this.line);
     }
     createRenderRoot() {

@@ -15,10 +15,12 @@ from render_cases_navigation import (
     TARGETS_PAGE,
 )
 from render_harness import (
+    DESIGN_LEGEND,
     PANEL,
     cursor_at,
     cursor_over,
     delivered,
+    expect_design_mode,
     field_press,
     leaf_page,
     open_page,
@@ -86,13 +88,13 @@ MAP_CHOICE_PAGE = leaf_page(
 """
     + FILLER.replace("filler-", "before-")
     + """
-<lf-ask id="map-ask">
-  <h3>Which map should the sample team carry?</h3>
-  <lf-options id="map" choose>
+<lf-group id="map-ask" label="Which map should the sample team carry?">
+  <h3 id="map-ask-h">Which map should the sample team carry?</h3>
+  <lf-options id="map">
     <lf-option id="map-street">Street map</lf-option>
     <lf-option id="map-trail">Trail map</lf-option>
   </lf-options>
-</lf-ask>
+</lf-group>
 """
     + FILLER.replace("filler-", "after-"),
 )
@@ -737,9 +739,9 @@ def test_a_click_draws_nothing_and_escape_leaves_the_mode(browser, serve):
 
 def test_two_fingers_pan_and_zoom_in_draw_mode_while_one_draws(browser, serve):
     """Draw mode lasts while the user moves about the page, so on a phone two fingers
-    still scroll and zoom it, and one finger draws. The mode once set `touch-action:
-    none` on the whole document, so neither scrolling nor zoom worked until the user
-    left it."""
+    still scroll and zoom it, and one finger draws. A mode that set `touch-action:
+    none` on the whole document would leave neither scrolling nor zoom working until
+    the user left it."""
     filler = "".join(f"<p>Paragraph {n}. " + "Filler. " * 30 + "</p>" for n in range(8))
     html = TARGETS_PAGE.replace("</main>", filler + "</main>")
     context = browser.new_context(
@@ -883,10 +885,10 @@ def test_draw_mode_keeps_the_separate_design_mode_binding(browser, serve):
     page = open_page(browser, serve(TARGETS_PAGE))
 
     page.keyboard.press("l")
-    expect(page.locator("body")).to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page)
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
     page.keyboard.press("l")
-    expect(page.locator("body")).not_to_have_attribute("data-lf-design-mode", "")
+    expect_design_mode(page, on=False)
 
 
 def test_draw_mode_leaves_inline_thread_controls_usable(browser, serve):
@@ -924,9 +926,10 @@ def test_draw_mode_captures_widget_controls(browser, serve):
         serve(
             leaf_page(
                 "Drawing over a choice",
-                '<h1>Choose a route</h1><lf-options id="route" choose>'
+                '<lf-group id="route-q" label="Choose a route">'
+                '<h1 id="route-h">Choose a route</h1><lf-options id="route">'
                 '<lf-option id="trail">Trail</lf-option>'
-                '<lf-option id="street">Street</lf-option></lf-options>',
+                '<lf-option id="street">Street</lf-option></lf-options></lf-group>',
             )
         ),
     )
@@ -941,12 +944,12 @@ def test_draw_mode_captures_widget_controls(browser, serve):
     page.mouse.click(*point)
 
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
-    assert option.get_attribute("chosen") is None
+    assert option.get_attribute("selected") is None
     expect(page.locator(".lf-drawing-mark")).to_have_count(0)
     assert cursor_at(page, *point) == "crosshair"
     stroke_over(page, control)
     expect(page.locator(".lf-drawing-mark")).to_have_count(1)
-    assert option.get_attribute("chosen") is None
+    assert option.get_attribute("selected") is None
 
 
 def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
@@ -962,9 +965,12 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         ),
     )
     draft = page.locator("#draft")
-    for mode, key, root in (("draw", "w", "html"), ("design", "l", "body")):
+    for mode, key, stands in (
+        ("draw", "w", "html[data-lf-draw-mode]"),
+        ("design", "l", DESIGN_LEGEND),
+    ):
         page.keyboard.press(key)
-        expect(page.locator(root)).to_have_attribute(f"data-lf-{mode}-mode", "")
+        expect(page.locator(stands).first).to_be_attached()
         edit = draft.get_by_role("button", name="Edit", exact=True)
         assert cursor_over(page, edit) != "crosshair"
         edit.click()
@@ -979,10 +985,10 @@ def test_pointer_modes_leave_document_editing_controls_usable(browser, serve):
         expect(draft.locator(".lf-draft-body")).to_have_text(
             f"Revised words in {mode} mode."
         )
-        expect(page.locator(root)).to_have_attribute(f"data-lf-{mode}-mode", "")
+        expect(page.locator(stands).first).to_be_attached()
         expect(page.locator(".lf-drawing-mark")).to_have_count(0)
         page.keyboard.press("Escape")
-        expect(page.locator(root)).not_to_have_attribute(f"data-lf-{mode}-mode", "")
+        expect(page.locator(stands)).to_have_count(0)
 
 
 def test_an_active_stroke_re_resolves_a_replaced_target(browser, serve):
@@ -1605,5 +1611,5 @@ def test_a_draw_press_uses_the_exact_target_under_its_start(browser, serve):
 
     event = events_model.read_events(serve.page_dir)[-1]
     assert event["anchor"] == {"section": target}
-    assert page.locator("#map-street").get_attribute("chosen") is None
-    assert page.locator("#map-trail").get_attribute("chosen") is None
+    assert page.locator("#map-street").get_attribute("selected") is None
+    assert page.locator("#map-trail").get_attribute("selected") is None

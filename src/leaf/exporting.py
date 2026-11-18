@@ -33,9 +33,9 @@ bind a data source and an image can be attached to a message, so the file holds 
 the data the page's own markup binds (`_page_data`) and the media that markup and data
 name.
 
-Two other designs were rejected. Exports used to embed the threads and turn their
-surface off, which hid the discussion from the page's reader and left it readable in
-the file's source. Showing the threads read-only would put the discussion in front of
+Two other designs were rejected. Embedding the threads and turning their surface
+off hides the discussion from the page's reader and leaves it readable in the file's
+source. Showing the threads read-only would put the discussion in front of
 the same people.
 
 The package's resource owner allocates one object URL per embedded body before handing
@@ -310,7 +310,7 @@ def _page_log(events: list[dict]) -> list[dict]:
     a page widget (`verb_writers`), each undo of one, and each stamp, which maps a
     version to its revision and names the decisions it takes back.
 
-    A widget frozen into a message belongs to its thread, so the file leaves its actions
+    A widget in a message belongs to its thread, so the file leaves its actions
     out with the thread. A stamp's changelog is the agent's words to the user, so a
     blank replaces it, since the record's schema requires text. An event's `session`
     names the agent's session, and the page has no use for it.
@@ -508,11 +508,16 @@ def static_document(package: str) -> str:
     serializes what it drew (`static-export.js`).
     Refused where the host has no browser, or the page cannot start, since there is
     then no drawing to keep."""
-    from leaf.render_checks import RENDER_VIEWPORT, PageNotReady, wait_until_ready
+    from leaf.render_checks import (
+        RENDER_VIEWPORT,
+        PageNotReady,
+        open_render_page,
+        wait_until_ready,
+    )
     from leaf.render_gate.command import NoBrowser, run_in_browser
 
     def draw(browser) -> str:
-        page = browser.new_page(viewport=RENDER_VIEWPORT)
+        page = open_render_page(browser, viewport=RENDER_VIEWPORT)
         page.add_init_script(path=DRAWING)
         page.route(
             DRAWING_URL,

@@ -49,13 +49,13 @@ export function nameAction(control, action, { label, className } = {}) {
 
 // A control's label, and which kind of word it is. Most are things to do — "Save",
 // "choose", a grip — and go with the rest of the UI on paper, out of reach of a
-// quote. Some are the page speaking: a pick mark reading "chosen" is the only place
+// quote. Some are the page speaking: a pick mark reading "selected" is the only place
 // the page says which option it carries, and a tab's name is the panel's only name
 // once the strip exists. One element wears both over its life, so the kind is
 // restated on every write rather than settled at birth.
 //
 // This writes the page-speaking marker, data-lf-said. Anchoring takes it over the
-// `.lf-ui` box around it — that box is a look, the chrome face, and it was standing
+// `.lf-ui` box around it — that box is a look, the chrome face, and would be standing
 // in for a permission the user has no category for — and paper reads it beside
 // data-lf-offer to keep a control whose label is one of the page's own words.
 // data-lf-gen goes on either way, because no label is words the author wrote, which
@@ -70,14 +70,14 @@ export function nameAction(control, action, { label, className } = {}) {
 // passage, and the same bargain on paper that data-lf-said strikes — the press goes,
 // the words stay. Paper is the medium that bargain holds in.
 //
-// It leaves data-lf-offer alone, which it used to clear. That attribute is what `offer`
+// It leaves data-lf-offer alone. That attribute is what `offer`
 // made: this is a control a widget injected, true for the mark's whole life however it
 // is worded, and four passes ask it (print, the drag guard above, the render gate, and
 // the theme's one pressable rule, which reads the value to tell a press from the rest of
 // what a widget builds).
-// Clearing it here made "paper drops this" the meaning and left the others unable to
-// see a control — a drag across a picked card's mark was a press again, and only
-// lf-options' own guard on the card stood between that and clearing the pick.
+// Clearing it here would make "paper drops this" the meaning and leave the others unable
+// to see a control — a drag across a picked card's mark would be a press again, and only
+// lf-options' own guard on the card would stand between that and clearing the pick.
 //
 // `says` has no default, because the answer a caller doesn't give is the one that
 // costs a printed page its words, and silently. Refusing throws where the widget

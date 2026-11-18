@@ -60,18 +60,18 @@ def expect_accept_all(page, words):
 
 
 MOTION_SAMPLE_CONTENT = """
-<lf-code id="card-code" language="python"><pre>print("retained")</pre></lf-code>
+<lf-code id="card-code"><pre><code class="language-python">print("retained")</code></pre></lf-code>
 <pre id="card-tree">root/
 └── retained.txt</pre>
 <lf-sample id="card-sample" label="Current sample">
   <template id="card-sample-page" data-sample>
     <h2>Painted sample</h2>
-    <lf-ask id="sample-choice-ask"><h3>Choose a sample</h3>
-      <lf-options id="sample-choice" choose>
-        <lf-option id="sample-alpha"><strong>Alpha</strong></lf-option>
-        <lf-option id="sample-beta"><strong>Beta</strong></lf-option>
+    <lf-group id="sample-choice-ask" label="Choose a sample"><h3 id="sample-choice-ask-h">Choose a sample</h3>
+      <lf-options id="sample-choice">
+        <lf-option id="sample-alpha" label="Alpha"><strong>Alpha</strong></lf-option>
+        <lf-option id="sample-beta" label="Beta"><strong>Beta</strong></lf-option>
       </lf-options>
-    </lf-ask>
+    </lf-group>
     <lf-draft id="sample-draft"><pre>Original sample draft.</pre></lf-draft>
   </template>
 </lf-sample>
@@ -93,8 +93,9 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     BOARD = (
         '<lf-board id="board">'
         + "".join(
-            f'<lf-column id="col-{i}" label="Column {i}"><lf-card id="card-{i}">'
-            f"<strong>Card {i}</strong> text</lf-card></lf-column>"
+            f'<lf-column id="col-{i}" label="Column {i}">'
+            f'<lf-card id="card-{i}" label="Card {i}"><strong>Card {i}</strong> text</lf-card>'
+            "</lf-column>"
             for i in range(6)
         )
         + "</lf-board>"
@@ -104,12 +105,12 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         return f"""
 <lf-tab id="t-{key}" label="Ticket {key}" summary="sev {key} · suggested fix">
   <p id="p-{key}">What went wrong with {key}.</p>{BOARD if key == "a" else ""}
-  <lf-ask id="ask-{key}"><h3 id="q-{key}">What happens to {key}?</h3>
-    <lf-options id="o-{key}" choose>
-      <lf-option id="o-{key}-fix"><strong>Fix</strong> Ship the patch.</lf-option>
-      <lf-option id="o-{key}-close"><strong>Close</strong> Explain and close.</lf-option>
+  <lf-group id="ask-{key}" label="What happens to {key}?"><h3 id="q-{key}">What happens to {key}?</h3>
+    <lf-options id="o-{key}">
+      <lf-option id="o-{key}-fix" label="Fix"><strong>Fix</strong> Ship the patch.</lf-option>
+      <lf-option id="o-{key}-close" label="Close"><strong>Close</strong> Explain and close.</lf-option>
     </lf-options>
-  </lf-ask>
+  </lf-group>
 </lf-tab>"""
 
     source = leaf_page(
@@ -225,9 +226,12 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     round_trip(page)
     expect(answer).to_have_text("Fix")
     settled = source.replace(
-        '<lf-options id="o-a" choose>', '<lf-options id="o-a" choose settled>'
-    ).replace('<lf-option id="o-a-fix">', '<lf-option id="o-a-fix" chosen>')
-    assert settled.count("settled") == 1 and settled.count("chosen") == 1
+        '<lf-options id="o-a">', '<lf-options id="o-a" settled>'
+    ).replace(
+        '<lf-option id="o-a-fix" label="Fix">',
+        '<lf-option id="o-a-fix" label="Fix" selected>',
+    )
+    assert settled.count("settled") == 1 and settled.count(" selected>") == 1
     wait_for_revision(page, stamp_page(serve.page_dir, settled, "Settle a")["revision"])
     expect(page.locator("#o-a .lf-settled")).to_be_visible()
     expect(answer).to_be_visible()
@@ -291,13 +295,13 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     source = leaf_page(
         "Session-store follow-ups",
         """<h1>Session-store follow-ups</h1>
-<lf-ask id="session-triage-decision">
-  <h2>Which follow-ups should we keep?</h2>
-  <lf-options id="session-triage" choose multiple>
+<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">
+  <h2 id="session-triage-decision-h">Which follow-ups should we keep?</h2>
+  <lf-options id="session-triage" multiple>
     <lf-option id="rolling-expiry">Rolling expiry</lf-option>
     <lf-option id="bounded-fallback">Bounded fallback</lf-option>
   </lf-options>
-</lf-ask>
+</lf-group>
 """,
     )
     page = open_page(browser, serve(source))
@@ -329,9 +333,9 @@ def test_an_ordinary_two_part_obligation_retains_document_flow(browser, serve):
     # The workspace's full height reaches every obligation in it; an obligation held in a pane is
     # that pane's content, not the body, and keeps its document flow.
     in_pane = held.replace(
-        '<lf-ask id="session-triage-decision">',
-        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-ask id="session-triage-decision">',
-    ).replace("</lf-ask>\n", "</lf-ask>\n</div></lf-pane>\n")
+        '<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">',
+        '<lf-pane id="triage-pane" label="Triage"><div>\n<lf-group id="session-triage-decision" label="Which follow-ups should we keep?">',
+    ).replace("</lf-group>\n", "</lf-group>\n</div></lf-pane>\n")
     page = open_page(browser, serve(in_pane))
     resized(page, 1280, 720)
     expect(page.locator("#session-triage-decision")).to_have_css("display", "block")
@@ -404,7 +408,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     outline.
 
     Under a mouse a sidebar before a `layout-column` holding only the map narrows to its
-    spine rather than keeping a column's width (#5619), and the prose stands where a
+    spine rather than keeping a column's width, and the prose stands where a
     column page's would. Section rows divide the available height according to the content they
     lead, a moving lens shows the visible band, and late content growth redraws both.
     Labels reveal over the body without moving the map or changing the item under the
@@ -447,8 +451,8 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     capacity = nav.get_by_role("link", name="Check capacity", exact=False)
     verify = nav.get_by_role("link", name="Verify both readings", exact=False)
     page.mouse.move(1200, 700)
-    # Every row says its own word as text, the start row included. Its word used to be an
-    # attribute the map drew with `content: attr()`, which left the link that names
+    # Every row says its own word as text, the start row included. Its word is not an
+    # attribute the map draws with `content: attr()`, which leaves the link that names
     # the whole document saying nothing at all to any reading that asks a link what it
     # says — the accessible name it falls back to, a text dump, the widget's own outline.
     said = nav.locator("a").evaluate_all(
@@ -487,7 +491,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     padding = nav.evaluate(
         "node => parseFloat(getComputedStyle(node).paddingBlockStart)"
     )
-    # The map stands in the narrowed sidebar, which keeps no column's width (#5619),
+    # The map stands in the narrowed sidebar, which keeps no column's width,
     # and the prose stands centred in the Layout, as a column page's does.
     placed = page.locator("#route").evaluate("""aside => {
       const layout = aside.parentElement.getBoundingClientRect();
@@ -556,12 +560,12 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     assert markers[0]["content"] == '""'
     assert [marker["width"] for marker in markers] == [
         "9px",
-        "6px",
+        "7px",
         "3px",
         "3px",
-        "6px",
-        "6px",
-        "6px",
+        "7px",
+        "7px",
+        "7px",
     ]
     assert all(marker["height"] == marker["width"] for marker in markers)
     assert markers[0]["color"] != "rgba(0, 0, 0, 0)"
@@ -1062,9 +1066,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
     before_b = candidate_b.locator(".code-measurement").inner_text()
     assert before_a != before_b
 
-    width = playground.locator('lf-playground-control[name="width"]').get_by_role(
-        "slider"
-    )
+    width = playground.locator('input[name="width"]')
     for _ in range(5):
         width.press("ArrowLeft")
     expect(candidate_a).to_have_attribute("style", re.compile(r"width: 320px"))
@@ -1131,7 +1133,7 @@ def test_built_code_comparison_drives_both_candidates(browser, serve):
 
     resized(page, 480, 760)
     assert page.evaluate("document.documentElement.scrollWidth") == 480
-    expect(page.locator("#code-treatment > .lf-playground-choices")).to_have_css(
+    expect(page.locator("#code-treatment")).to_have_css(
         "grid-template-columns", re.compile(r"\d+(?:\.\d+)?px")
     )
     resized(page, 1100, 320)
@@ -1352,7 +1354,7 @@ def test_a_playground_preset_reset_copy_and_narrow_layout_share_the_same_state(
     page = open_page(browser, serve(PLAYGROUND_PAGE), context=context)
     playground = page.locator("#card-playground")
     expect(playground.get_by_role("group", name="Starting points")).to_be_visible()
-    expect(playground.get_by_role("group", name="Controls")).to_be_visible()
+    expect(playground.get_by_role("region", name="Controls")).to_be_visible()
 
     playground.get_by_role("button", name="Dense").click()
     expect(playground.get_by_role("button", name="Dense")).to_have_attribute(
@@ -1414,9 +1416,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
 
     playground.get_by_role("button", name="Needs attention").click()
     playground.get_by_role("radio", name="Status strip", exact=True).click()
-    page.locator('lf-playground-control[name="title"] input').fill(
-        "Checkout needs attention"
-    )
+    page.locator('input[name="title"]').fill("Checkout needs attention")
     expect(playground).to_have_attribute("data-playground-tone", "urgent")
     expect(playground).to_have_attribute("data-playground-compact", "true")
     expect(playground).to_have_attribute("data-playground-format", "status strip")
@@ -1505,11 +1505,16 @@ body { font-family: system-ui, sans-serif; }
     # the page leaves the workspace Layout. Select the authored identities rather
     # than copying their class lists and source whitespace into this revision writer.
     result = turbohtml.parse(source)
-    for control in result.select("#notification-playground lf-playground-control"):
+    for control in result.select("#notification-playground [name]"):
         value = action["detail"]["values"][control.attrs["name"]]
-        control.attrs["value"] = (
-            str(value).lower() if isinstance(value, bool) else str(value)
-        )
+        kind = control.attrs.get("type")
+        if kind in ("radio", "checkbox"):
+            if value is True or value == control.attrs.get("value"):
+                control.attrs["checked"] = ""
+            else:
+                control.attrs.pop("checked", None)
+        else:
+            control.attrs["value"] = str(value)
     workspace = result.select_one("#notification-workspace")
     assert workspace is not None
     workspace.attrs["class"] = "layout-column"
@@ -1547,9 +1552,7 @@ body { font-family: system-ui, sans-serif; }
 
     source_widget = page.locator("#notification-artifact-source")
     expect(source_widget).to_be_visible()
-    assert source_widget.evaluate(
-        "source => source.closest('lf-playground-preview') === null"
-    )
+    assert source_widget.evaluate("source => source.closest('lf-playground') === null")
     expect(source_widget.locator("code")).to_contain_text(
         "<title>Checkout needs attention</title>"
     )
@@ -1559,9 +1562,9 @@ body { font-family: system-ui, sans-serif; }
 
     configuration = page.locator("#notification-configuration")
     expect(configuration).to_have_attribute("open", "")
-    expect(
-        configuration.locator('lf-playground-control[name="title"] input')
-    ).to_have_value("Checkout needs attention")
+    expect(configuration.locator('input[name="title"]')).to_have_value(
+        "Checkout needs attention"
+    )
     configuration.locator(":scope > summary").click()
     expect(configuration).not_to_have_attribute("open", "")
     configuration.locator(":scope > summary").click()
@@ -1716,13 +1719,9 @@ def test_structured_data_explorer_keeps_one_aggregate_query_configuration(
     expect(rows).to_have_count(2)
 
     playground.get_by_role("button", name="Up to 6 results").click()
-    expect(
-        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
-    ).to_have_value("6")
+    expect(playground.locator('input[name="limit"]')).to_have_value("6")
     playground.get_by_role("button", name="Up to 4 results").click()
-    expect(
-        playground.locator('lf-playground-control[name="limit"]').get_by_role("slider")
-    ).to_have_value("4")
+    expect(playground.locator('input[name="limit"]')).to_have_value("4")
     instruction = page.locator("#release-query-instruction")
     expect(instruction).to_contain_text("risk above 80 and region is europe")
     playground.get_by_role("button", name="Show instruction").click()
@@ -1793,14 +1792,13 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
         """
 <h1>Tone playground</h1>
 <p id="host-note">The page around the playground.</p>
-<lf-ask id="tone-ask">
-  <h2>Which tone?</h2>
+<lf-group id="tone-ask" label="Which tone?">
+  <h2 id="tone-ask-h">Which tone?</h2>
   <lf-playground id="tone-playground">
-    <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-      <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-      <lf-playground-choice id="tone-loud" value="loud" label="Loud"></lf-playground-choice>
-    </lf-playground-control>
-    <lf-playground-preview>
+    <aside><fieldset id="tone"><legend>Tone</legend>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-loud"><input type="radio" name="tone" value="loud"> Loud</label>
+    </fieldset></aside>
       <lf-sample id="tone-sample" label="tone sample">
         <template id="tone-page" data-sample>
           <style>:root[data-playground-tone="loud"] p { color: rgb(200, 0, 0); }</style>
@@ -1809,11 +1807,10 @@ def test_a_playground_dresses_each_sample_child_and_never_its_own_page(browser, 
           <lf-draft id="child-draft"><pre>A draft the candidate restyles too.</pre></lf-draft>
         </template>
       </lf-sample>
-    </lf-playground-preview>
     <lf-playground-output id="tone-instruction">Use the
-      <lf-playground-value for="tone"></lf-playground-value> tone.</lf-playground-output>
+      <output for="tone"></output> tone.</lf-playground-output>
   </lf-playground>
-</lf-ask>
+</lf-group>
 """,
     )
     page = open_page(browser, serve(source))
@@ -1895,20 +1892,21 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
         "focus playground",
         """
 <h1>Ring playground</h1>
-<lf-ask id="ring-ask">
-  <h2>Which ring?</h2>
+<lf-group id="ring-ask" label="Which ring?">
+  <h2 id="ring-ask-h">Which ring?</h2>
   <lf-playground id="ring-playground">
     <lf-playground-preset id="preset-wide" label="Wide">
       <lf-playground-setting for="width" value="4"></lf-playground-setting>
     </lf-playground-preset>
-    <lf-playground-control id="ring" name="ring" label="Ring" kind="choice" value="thin">
-      <lf-playground-choice id="ring-thin" value="thin" label="Thin"></lf-playground-choice>
-      <lf-playground-choice id="ring-thick" value="thick" label="Thick"></lf-playground-choice>
-    </lf-playground-control>
-    <lf-playground-control id="width" name="width" label="Width" kind="range" value="2" min="1" max="4" step="1" unit="px"></lf-playground-control>
-    <lf-playground-control id="dim" name="dim" label="Dim" kind="toggle" value="false"></lf-playground-control>
-    <lf-playground-control id="note" name="note" label="Note" kind="text" value="hi"></lf-playground-control>
-    <lf-playground-preview>
+    <aside>
+      <fieldset id="ring"><legend>Ring</legend>
+        <label id="ring-thin"><input type="radio" name="ring" value="thin" checked> Thin</label>
+        <label id="ring-thick"><input type="radio" name="ring" value="thick"> Thick</label>
+      </fieldset>
+      <label id="width">Width <input type="range" name="width" min="1" max="4" value="2"></label>
+      <label id="dim"><input type="checkbox" name="dim" role="switch"> Dim</label>
+      <label id="note">Note <input name="note" value="hi"></label>
+    </aside>
       <button id="preview-button" type="button">A candidate button</button>
       <lf-sample id="ring-sample" label="ring sample">
         <template id="ring-page" data-sample>
@@ -1916,11 +1914,10 @@ def test_a_pointer_press_on_a_playground_control_leaves_the_user_in_the_preview(
           <button id="child-button" type="button">The current location</button>
         </template>
       </lf-sample>
-    </lf-playground-preview>
     <lf-playground-output>Use the
-      <lf-playground-value for="ring"></lf-playground-value> ring.</lf-playground-output>
+      <output for="ring"></output> ring.</lf-playground-output>
   </lf-playground>
-</lf-ask>
+</lf-group>
 """,
     )
     page = open_page(browser, serve(source))

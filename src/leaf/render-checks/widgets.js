@@ -94,8 +94,8 @@ export function invalidPaints() {
 // A widget this page uses whose module never defined its element. The page's own
 // occurrences are the population, because a page imports the modules its markup asks for
 // and no others (widget-loader.js) — asked of the whole declared vocabulary this reports
-// every tag the page simply does not contain. `document`, not the page, so a widget frozen
-// into an agent's reply answers here too. That a declared module exists at all is a layer
+// every tag the page simply does not contain. `document`, not the page, so a widget in
+// an agent's reply answers here too. That a declared module exists at all is a layer
 // fact and `package check` holds it; this is the page's half.
 /** @param {readonly string[]} modules the tags a module upgrades */
 export const missingUpgrades = (modules) =>
@@ -105,12 +105,12 @@ export const missingUpgrades = (modules) =>
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
 export const invalidVisualProviders = (declarations) =>
   Object.entries(declarations)
-    .filter(([, entry]) => entry["x-visual"])
+    .filter(([, entry]) => entry.visual)
     .flatMap(([tag, entry]) =>
       [...document.querySelectorAll(tag)].map((el) => ({
         code: "visual-parts",
         at: locate(el),
-        problems: visualPartProblems(el, entry["x-visual"]),
+        problems: visualPartProblems(el, entry.visual),
       })),
     )
     .filter((instance) => instance.problems.length);
@@ -120,20 +120,19 @@ export const invalidVisualProviders = (declarations) =>
 // the static lint holds an authored document to it. What no source reading can see is the
 // other writer: a module, which upgrades the element and may leave anything it likes on
 // it. So a module writes in that namespace only where the registry declares the
-// attribute as a verb's record form (`chosen`, `status`), which is what makes the write
+// attribute as a verb's record form (`selected`, `status`), which is what makes the write
 // a statement the log's fold, the state gate and construction-linked inspection can all read.
 // Everything else it needs to mark goes where the module's own words go — the chrome it
 // built, in the platform's vocabulary (aria-*, role, hidden, tabindex) or under data-*,
 // which is the layer's and a widget's alike.
 //
-// lf-options had two of the other kind, and both were quiet. `answered` recorded a verb
-// only a thread can post, and a thread's markup is frozen in the log, so no version
-// could ever have honored a record of it; `open` recorded which way this tab last left
-// a disclosure, which no version carries at all. Neither reached a consumer, and the
-// one reader that did see them read them wrong: shallowSigs excludes exactly the
-// attributes no version can assert, and its exclusion list is the runtime's own paint —
-// so a widget writing beside it is counted as state the author wrote, in the reading
-// `page check --render` uses to decide whether a version overrules the user.
+// A record of a verb only a thread can post (no version carries a thread's markup, so
+// none could honor it) or of which way this tab last left a disclosure (which no
+// version carries at all) has no consumer, and the one reader that does see such an
+// attribute reads it wrong: shallowSigs excludes exactly the attributes no version can
+// assert, and its exclusion list is the runtime's own paint — so a widget writing
+// beside it is counted as state the author wrote, in the reading `page check --render`
+// uses to decide whether a version overrules the user.
 //
 // Deduped and reported per tag and attribute, because one mistake is on every instance.
 /** @param {Readonly<Record<string, import("../../../browser/types/contract.js").WidgetDeclaration>>} declarations */
@@ -160,15 +159,12 @@ export function undeclaredAttrs(declarations) {
   const all = openRoots(document);
   const found = [];
   for (const [tag, entry] of Object.entries(declarations)) {
-    if (!entry.properties) continue;
+    const properties = entry.attributes.properties;
+    if (!properties) continue;
     for (const root of all)
       for (const el of root.querySelectorAll(tag))
         for (const a of el.attributes)
-          if (
-            !painted.test(a.name) &&
-            !platform.has(a.name) &&
-            !(a.name in entry.properties)
-          )
+          if (!painted.test(a.name) && !platform.has(a.name) && !(a.name in properties))
             found.push({ code: "undeclared-attr", at: locate(el), tag, attr: a.name });
   }
   return found;
@@ -297,7 +293,7 @@ const withFirstSizes = (holder, inside) => {
 // Each authored widget whose border box changed between the pre-upgrade box and
 // its presented box (`firstBoxes` in driver.js). A holder is left out only where
 // putting the changed widgets inside it back to their first sizes puts its own box
-// back, which proves the change was theirs: an lf-ask that grew by exactly what its
+// back, which proves the change was theirs: a section that grew by exactly what its
 // options grew is not named beside them, and one that also grew on its own, in its
 // flow or in a size it sets itself, is. An inline widget runs through its holder's
 // lines, which no size puts back, so nothing proves its holder's change was the
@@ -338,13 +334,13 @@ export function changedBoxes() {
   }));
 }
 
-// x-height's paint ($marks in runtime/kernel-registry.json): the stated height a page
-// reserves for a drawing, or empty where it states none.
+// `height`'s attribute ($marks in runtime/kernel-registry.json): the stated height a
+// page reserves for a drawing, or empty where it states none.
 const STATED_HEIGHT = "data-lf-height";
 
-// Each drawn element whose tag declares x-height and whose drawing is taller or shorter
-// than the box it first showed before drawing (`undrawnHeights` in driver.js). The
-// drawing's height is the element's box with its paint lifted for one read, since a
+// Each drawn element whose tag declares `height` and whose drawing is taller or
+// shorter than the box it first showed before drawing (`undrawnHeights` in driver.js).
+// The drawing's height is the element's box with its paint lifted for one read, since a
 // package may keep a stated height larger than its drawing, as the diagram's does. The
 // box the element holds now is reported beside both, so the finding can say whether
 // what follows moved as it drew or sits below blank room. An element hidden now has no

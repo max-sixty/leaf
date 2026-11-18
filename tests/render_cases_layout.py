@@ -100,18 +100,14 @@ def arrival_findings(browser, url):
     What it reads: a fresh context holds nothing, so every other reading in the suite
     is of a first visit — design mode off, the annotations shown —
     and each of those is something a user turns on once and gets back on every load
-    afterwards. That left the restores as the one road onto a page with nothing
-    watching it, and a drawer someone had left open came up as a ReferenceError
-    instead of a page: it was put up by code running while the runtime was still
-    evaluating, which could reach almost nothing. It reached the user, who reported
-    it.
+    afterwards. That leaves the restores as the one road onto a page with nothing
+    watching it.
 
     One page, reloaded into each restore case, which is what a returning user does:
     the store is written on the origin the page is already on and read while the next
     load evaluates. What comes back is completed presentation, any page transition that
-    began before it, and the console. Boxes are not measured again: every shipped example
-    was measured in each of these restore cases and none of them moved a box that a first
-    visit didn't.
+    began before it, and the console. Boxes are not measured again, on the premise that
+    a restore moves no box a first visit doesn't.
     """
 
     page = browser.new_page(
@@ -144,9 +140,8 @@ def arrival_findings(browser, url):
         # the served documents and want a page that has stopped asking for things,
         # while everything here is either the stamp below — which the page raises
         # for itself, and which is the stronger fact — or a console the handlers
-        # above are already attached to. Network quiet costs 3.5x what the load
-        # event does over the five navigations here, measured on
-        # the former design-decision example, and buys this nothing.
+        # above are already attached to. Network quiet can cost more than the load
+        # event does over the five navigations here, and buys this nothing.
         page.goto(url, wait_until="load")
         render_checks_model.wait_until_ready(page)
     except (PlaywrightTimeout, render_checks_model.PageNotReady):
@@ -346,9 +341,8 @@ LINKED_CELLS_PAGE = WIDE_TABLE_PAGE.replace(
 # A comparison of options in two-word cells, which a phone squeezes and neither fixed
 # viewport does: at its longest words it stands about 414px wide, so it fits the 540px
 # viewport with some 80px to spare, and at 360px it scrolls about 100px with every
-# option's cells wrapped. An author's comparison table did this on a 390px phone and
-# passed a gate that read only the fixed viewports. Both margins are wide enough that
-# CI's fonts land on the same side of them.
+# option's cells wrapped, which a gate reading only the fixed viewports would pass. Both
+# margins are wide enough that CI's fonts land on the same side of them.
 PHONE_SQUEEZED_TABLE = """
 <table id="options">
 <thead><tr><th></th><th>Stay put</th><th>Move rows</th><th>Drop state</th>
@@ -373,11 +367,11 @@ PHONE_SQUEEZED_TABLE = """
 SPILLING_PAGE = LONG_PAGE.replace(
     "</main>", "<div id='too-wide' style='width: 65vw'>Wide.</div>\n</main>"
 )
-# Two wrappers that generate no box, differing only in whether anything inside them does.
-# `#veiled` is the shape the vocabulary shipped while a suggestion was display: contents,
-# and any page can still write in a line — it is the control: the gate must not report
-# it, or it reports every page that styles a wrapper away. `#ghost` is the same wrapper
-# with its words loose inside it, where there is nothing at all for a mark to hang on.
+# Two wrappers that generate no box, differing only in whether anything inside them
+# does. `#veiled` is a shape any page can write in a line — it is the control: the gate
+# must not report it, or it reports every page that styles a wrapper away. `#ghost` is
+# the same wrapper with its words loose inside it, where there is nothing at all for a
+# mark to hang on.
 UNMARKABLE_PAGE = LONG_PAGE.replace(
     "</main>",
     "<div id='veiled' style='display: contents'>"
@@ -403,31 +397,6 @@ FLOATING_PAGE = LONG_PAGE.replace(
     "<div class='fixture-margin-float' id='off-window' style='float: left; clear: left; width: 180px;"
     " margin-left: -900px'>Gone.</div>\n</main>",
 )
-SIDENOTE_IN_A_WIDGET = LONG_PAGE.replace(
-    "</main>",
-    """<lf-ask id="where-decision"><h2>Which option?</h2>
-<lf-options id="where" choose>
-  <lf-option id="opt-a"><strong>First</strong>
-    <div class="layout-note"><p>An option carrying a note written inside it.</p>
-    <aside class="note" id="boxed-note">Measured over a quarter.</aside></div>
-  </lf-option>
-  <lf-option id="opt-b"><strong>Second</strong> The other one.</lf-option>
-</lf-options></lf-ask>
-</main>""",
-)
-
-
-# A note written level with a change, which is the one restore case that puts two
-# elements in the right margin on the same line.
-NOTE_BESIDE_A_CHANGE = LONG_PAGE.replace(
-    "</main>",
-    """<div class="layout-note"><lf-suggestion id="sug-level">
-  <lf-old><p id="old-level">About three thousand writes a second at peak.</p></lf-old>
-  <lf-new><p>3,400 writes a second at p99, over the last quarter.</p></lf-new>
-</lf-suggestion><aside class="note" id="level-note">Measured over a quarter, and the number
-moved twice inside it.</aside></div>
-</main>""",
-).replace('<main class="layout-column">', '<main class="layout-column layout-notes">')
 # Boxes over their container, differing only in what holds them and how. The first two
 # are the rule and neither alone proves it: a page that named both would refuse every
 # wide table the theme puts in a scroller, and one that named neither is the gate before
@@ -510,12 +479,14 @@ CUT_CONTENT = (
 DRAWING_CONTROL_LAYER = {
     "lf-test-drawing-control": {
         "description": "A native offered control inside a drawing viewport.",
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-content": "empty",
-        "x-example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "content": "empty",
+        "example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
     }
 }
 DRAWING_CONTROL_WIDGETS = {
@@ -592,11 +563,11 @@ SCROLLED_CONTAINER = LONG_PAGE.replace(
 )
 # One obligation, so a page has something On Me.
 ONE_OBLIGATION = (
-    '<lf-ask id="go-decision"><h2>Ship it?</h2>'
-    '<lf-options id="go" choose>'
-    '<lf-option id="go-yes"><strong>Yes</strong></lf-option>'
-    '<lf-option id="go-no"><strong>No</strong></lf-option>'
-    "</lf-options></lf-ask>"
+    '<lf-group id="go-decision" label="Ship it?"><h2 id="go-decision-h">Ship it?</h2>'
+    '<lf-options id="go">'
+    '<lf-option id="go-yes" label="Yes"><strong>Yes</strong></lf-option>'
+    '<lf-option id="go-no" label="No"><strong>No</strong></lf-option>'
+    "</lf-options></lf-group>"
 )
 
 
@@ -627,10 +598,10 @@ def ceiling(limit, approvals):
 # line's reading, which clears the threshold, and never reach the one two lines down, and
 # a walkthrough's hi band is the surface where a code line is most often set on something
 # other than --lf-pre-bg.
-TINTED_CODE = """<lf-code id="tinted" language="python" hi="2"><pre>
+TINTED_CODE = """<lf-code id="tinted" hi="2"><pre><code class="language-python">
 first = "on the block's own colour"
 second = "on the band"
-</pre></lf-code>"""
+</code></pre></lf-code>"""
 
 # The same reading, in a shadow tree. lf-diff renders the page's words into one, so its
 # spans are in no document.querySelectorAll. The fault page changes only its number color,
@@ -676,8 +647,7 @@ CODE_FAULT_PAGE = LONG_PAGE.replace(
     + "\n</main>",
 )
 
-# The shipped dark comment ink must clear the add-line tint behind it. A large real patch
-# put enough comments on that surface for the former 4.4:1 contrast gap to become visible.
+# The shipped dark comment ink must clear the add-line tint behind it.
 CODE_CONTROL_PAGE = LONG_PAGE.replace(
     "</main>",
     CODE_BLOCK + SHADOWED_DIFF_BODY.format(id="default-shadow") + "\n</main>",
@@ -694,7 +664,7 @@ NEIGHBOUR = (
 )
 # What this sweep presses is narrower, and both exclusions are about the press landing
 # rather than about the control. A <select> opens a native popup the page cannot see and
-# the next click closes instead of pressing — which is how this sweep first passed while
+# the next click closes instead of pressing — so a sweep pressing one can pass while
 # pressing nothing at all, the shape of vacuous pass AGENTS.md is about. A link is a
 # user's control and its press is a scroll, so it belongs to the set above and has
 # nothing here to disturb.
@@ -893,9 +863,9 @@ def assert_drawn_in(part, ink, width):
 
 # The item the draft stands on, which is not always the element wearing the outline: a
 # mark hangs on the boxes its element shows through, and a display: contents wrapper shows
-# through its slots. Reading the raw id said the promise was broken for every suggestion
-# on every example — while the reading that had passed all along was the vacuous one, the
-# outline sitting on a wrapper that draws nothing.
+# through its slots. Reading the raw id would say the promise was broken for every
+# suggestion on every example, while a reading of the outline's own element passes
+# vacuously, the outline sitting on a wrapper that draws nothing.
 DRAFT_MARK = """() =>
   document.querySelector(".lf-mark-el.lf-pending")?.closest("[id]")?.id ?? null"""
 # What the arm says about the next press, in the one property that is on screen before
@@ -928,11 +898,11 @@ FOCUS_IN_PAGE = """() => {
 # Except for an emptied class attribute, which is the outline coming off an element that
 # had no class of its own: DOMTokenList leaves `class=""` behind, and that is a residue of
 # the runtime's paint rather than anything the page says.
-# Generated text is blanked before the compare, because a widget may render a clock
-# and a clock is not a press: lf-test-worker's elapsed line re-renders on every poll, so the
-# minute turning during a long sweep read as a press that had reached a widget. What the
-# check is for survives untouched — a stray pick writes `chosen` on the option and a
-# stray tab switch moves the panels' attributes, both of them authored rather than
+# Generated text is blanked before the compare, because a widget may render a clock and
+# a clock is not a press: lf-test-worker's elapsed line re-renders on every poll, so the
+# minute turning during a long sweep would read as a press that had reached a widget.
+# What the check is for survives untouched — a stray pick writes `selected` on the option
+# and a stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
 # The page as a press leaves it. Where the pointer is resting, the marks Leaf has a box
 # draw round itself (surfaces.css), and the generated binding seat are not authored
@@ -946,12 +916,11 @@ PAGE_MARKUP = r"""() => [...document.body.children]
         for (const el of [c, ...c.querySelectorAll("*")]) {
             el.classList?.remove(
                 "lf-mark-hover",
-                "lf-projected-mark",
                 "lf-binding-seat",
             );
             for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
-                "data-lf-proxied", "data-lf-projected-location", "data-lf-over-mark",
-                "data-lf-over-item"])
+                "data-lf-proxied", "data-lf-projected-location", "data-lf-projected-mark",
+                "data-lf-over-mark", "data-lf-over-item"])
                 el.removeAttribute?.(paint);
             // Anchor naming is presentation state. A heading borrows a name by
             // attribute while its link shows, and the layout may copy a name
@@ -994,16 +963,16 @@ AIM_PAINT_PAGE = leaf_page(
     "aim paint",
     """
 <h1 id="t">Aim paint</h1>
-<lf-ask id="cards-decision"><h2>Which card?</h2>
-<lf-options id="cards" choose>
-  <lf-option id="card-plain"><strong>Plain</strong> The first card's argument.</lf-option>
-  <lf-option id="card-star" ><strong>Starred</strong> A border already the accent.</lf-option>
-</lf-options></lf-ask>
-<lf-ask id="rows-decision"><h2>Should we ship?</h2>
-<lf-options id="rows" choose>
+<lf-group id="cards-decision" label="Which card?"><h2 id="cards-decision-h">Which card?</h2>
+<lf-options id="cards">
+  <lf-option id="card-plain" label="Plain"><strong>Plain</strong> The first card's argument.</lf-option>
+  <lf-option id="card-star" label="Starred" ><strong>Starred</strong> A border already the accent.</lf-option>
+</lf-options></lf-group>
+<lf-group id="rows-decision" label="Should we ship?"><h2 id="rows-decision-h">Should we ship?</h2>
+<lf-options id="rows">
   <lf-option id="row-ship">Ship it as is</lf-option>
   <lf-option id="row-hold">Hold for the backfill</lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 """,
 )
 # Two items meeting at a seam the browser puts between two whole pixels, held there by a
@@ -1131,12 +1100,12 @@ def mark_edges(page, ident, ink, outset=None):
     be compared with each other rather than with an earlier frame.
 
     Each scan starts at the element's own edge and stops at the first pixel that
-    isn't the mark's colour, because the first draft counted the first ink-coloured
-    run *anywhere* along the scanline: an accent status dot sitting in the clip's own
-    padding reported 26 device pixels of "mark" on a side the mark never reached, and
-    a marked code block would have counted its identifiers. What follows from that is
-    the tolerance too — ±12 per channel admits the stroke's antialiased shoulder and
-    nothing else, where ±40 reached both --lf-accent and --lf-syn-name.
+    isn't the mark's colour, because counting the first ink-coloured run *anywhere*
+    along the scanline reads an accent status dot sitting in the clip's own padding as
+    "mark" on a side the mark never reached, and a marked code block would count its
+    identifiers. What follows from that is the tolerance too — ±12 per channel admits
+    the stroke's antialiased shoulder and nothing else, where ±40 reaches both
+    --lf-accent and --lf-syn-name.
 
     Three samples a side, returned as a set rather than a majority. A majority is a
     vote for the mark being intact when part of the edge has been painted over, which
@@ -1147,17 +1116,16 @@ def mark_edges(page, ident, ink, outset=None):
     its own ground, because a leaf page's boxes do not land on whole pixels — 17px of
     body serif at a line-height of 1.6 is 27.2px a line, so a widget's height is a stack
     of fractions. A clip is asked for in CSS pixels and answered in device ones, and
-    Chrome truncates the rect to whole CSS pixels before it scales: asked for the board
-    column 101.578px tall on this page, it dropped that 0.578 and took all of it off the
-    bottom, which put the element's own edge two device pixels from where MARK_PAD said
-    it was — outside the window below — and a stroke painted whole on all four sides was
-    read as half of one along the bottom. Squaring the clip is what makes that loss
-    nothing to model rather than something to allow for.
+    Chrome truncates the rect to whole CSS pixels before it scales, taking the fraction
+    off the bottom, which can put the element's own edge two device pixels from where
+    MARK_PAD says it is — outside the window below — so a stroke painted whole on all
+    four sides would read as half of one along the bottom. Squaring the clip is what
+    makes that loss nothing to model rather than something to allow for.
 
     The edge is then snapped in CSS space and scaled, in that order, because that is the
-    order Blink paints in: the painted edge lands at `floor(ground + 0.5) * scale`, and it
-    was multiplying first that made `round(gap * scale)` disagree with it — by a pixel the
-    window below covers, until a scale of 4 makes it two. The window is kept for a device
+    order Blink paints in: the painted edge lands at `floor(ground + 0.5) * scale`, and
+    multiplying first makes `round(gap * scale)` disagree with it — by a pixel the window
+    below covers, until a scale of 4 makes it two. The window is kept for a device
     pixel of engine drift either side."""
     outset = outset or {}
     pad = MARK_PAD + max(outset.values(), default=0)
@@ -1273,11 +1241,12 @@ diff --git a/client/offline/merge.ts b/client/offline/merge.ts
 """,
 )
 # The same diff, arriving the other way a widget reaches a user: on a reply, into a
-# column narrower than any page's.
+# column narrower than any page's. A message reads HTML by CommonMark's rules, so the
+# opening tag stands alone on its line to start a block that keeps the `<pre>` whole.
 PANEL_DIFF_MARKUP = WIDE_DIFF_PAGE[
     WIDE_DIFF_PAGE.index("<lf-diff") : WIDE_DIFF_PAGE.index("</lf-diff>")
     + len("</lf-diff>")
-].replace('id="wide-diff"', 'id="rp-diff"')
+].replace('<lf-diff id="wide-diff"><pre>', '<lf-diff id="rp-diff">\n<pre>')
 
 
 def serious_axe_violations(page):
@@ -1386,7 +1355,7 @@ def overlapped_words(page):
 
     Axe answers these as incomplete, not as violations, so a sweep keeping violations
     alone passes words it never measured. A window-sized transparent layer over the
-    first screen hid every word under it this way (#2559). The run reads the same
+    first screen hides every word under it this way. The run reads the same
     exposed documents as `serious_axe_violations`."""
     axe = Axe()
     unread = []
@@ -1426,15 +1395,15 @@ SHORT_CHIP_PAGE = leaf_page(
 <p id="p">The bracket order goes in on Friday and there is room in it. Change the
 rack flag from <lf-suggestion id="sug-flag"><lf-old>x</lf-old><lf-new>y</lf-new></lf-suggestion>
 before it ships.</p>
-<lf-ask id="extras-decision"><h2>Which extras should we add?</h2>
-<lf-options id="extras" choose multiple>
-<lf-option id="x-tray"><lf-gloss tip="Price">£9</lf-gloss>
-<strong>Seed tray</strong> Catches the spill under the south pair.
+<lf-group id="extras-decision" label="Which extras should we add?"><h2 id="extras-decision-h">Which extras should we add?</h2>
+<lf-options id="extras" multiple>
+<lf-option id="x-tray" label="Seed tray"><lf-gloss>£9<span popover>Price</span></lf-gloss> <strong>Seed tray</strong>
+Catches the spill under the south pair.
 </lf-option>
-<lf-option id="x-dome"><lf-gloss tip="Price">£15</lf-gloss>
-<strong>Weather dome</strong> Keeps the seed dry through a wet week.
+<lf-option id="x-dome" label="Weather dome"><lf-gloss>£15<span popover>Price</span></lf-gloss> <strong>Weather dome</strong>
+Keeps the seed dry through a wet week.
 </lf-option>
-</lf-options></lf-ask>
+</lf-options></lf-group>
 """,
 )
 

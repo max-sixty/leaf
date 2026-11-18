@@ -134,22 +134,22 @@
           </ol>
         </aside>
 
-        <lf-ask id="pr-approval-decision">
-          <h2>Approve PR #3865?</h2>
+        <lf-group id="pr-approval-decision" label="Approve PR #3865?">
+          <h2 id="pr-approval-decision-h">Approve PR #3865?</h2>
           <p id="pr-approval-premise">
             Approval accepts revision <code>9ca8f78b</code> as it stands; the benchmark
             and the dry-run gap become follow-up issues rather than blockers.
           </p>
-          <lf-options id="pr-approval" choose>
-            <lf-option id="pr-approval-hold"
+          <lf-options id="pr-approval">
+            <lf-option id="pr-approval-hold" label="Hold approval"
               ><strong>Hold approval</strong> Ask for the selected-row benchmark before
               this merges.</lf-option
             >
-            <lf-option id="pr-approval-approve"
+            <lf-option id="pr-approval-approve" label="Approve it"
               ><strong>Approve it</strong> File both follow-ups as issues.</lf-option
             >
           </lf-options>
-        </lf-ask>
+        </lf-group>
 
         <section class="panel" id="pr-orientation">
           <h2>Review finding</h2>
@@ -222,8 +222,11 @@
                   <td>
                     Untracked files enter while the
                     <lf-gloss
-                      tip="The integration test reads the real index before and after preview computation and requires the bytes to match exactly."
-                      >real index remains byte-identical</lf-gloss
+                      >real index remains byte-identical<span popover
+                        >The integration test reads the real index before and after
+                        preview computation and requires the bytes to match
+                        exactly.</span
+                      ></lf-gloss
                     >.
                   </td>
                 </tr>
@@ -286,8 +289,10 @@ max-sixty/worktrunk #3865
             The behavior view keeps the picker path fixed and changes the default
             preview in place. The call view is a scoped
             <lf-gloss
-              tip="CallDiff is syntax-derived. Trait dispatch, subprocess behavior, and runtime scheduling can add edges the static tree cannot see."
-              >static analysis</lf-gloss
+              >static analysis<span popover
+                >CallDiff is syntax-derived. Trait dispatch, subprocess behavior, and
+                runtime scheduling can add edges the static tree cannot see.</span
+              ></lf-gloss
             >
             of the orchestration file. Its source coordinates open lines included in the
             exact patch; unchanged lines outside its hunks stay in this call view.
@@ -391,13 +396,8 @@ index b856171b57..cfa4f0448e 100644
               >unified_diff_is_net_change_and_subsidiary_diffs_include_untracked</code
             >
           </p>
-          <lf-code
-            id="pr-review-invariants"
-            language="rust"
-            lines="3018-3023,3041-3044"
-            hi="3041-3044"
-          >
-            <pre>
+          <lf-code id="pr-review-invariants" lines="3018-3023,3041-3044" hi="3041-3044">
+            <pre><code class="language-rust">
         let real_index = repo.current_worktree().git_dir().unwrap().join("index");
         let index_before = std::fs::read(&amp;real_index).unwrap();
         let unified = PickerRow::compute_unified_diff_preview(&amp;repo, &amp;item, 80);
@@ -408,7 +408,7 @@ index b856171b57..cfa4f0448e 100644
             index_after, index_before,
             "preview computation must leave the real index byte-identical"
         );
-</pre>
+</code></pre>
             <lf-note id="pr-note-real-index" at="3044"
               >The test reads the real index around all three preview computations and
               requires its bytes to match exactly.</lf-note
@@ -419,13 +419,8 @@ index b856171b57..cfa4f0448e 100644
             <code>src/commands/picker/preview_orchestrator.rs</code> ·
             <code>initial_precompute_skips_offscreen_worktrees_but_warms_branches</code>
           </p>
-          <lf-code
-            id="pr-demand-evidence"
-            language="rust"
-            lines="1230-1248"
-            hi="1238-1248"
-          >
-            <pre>
+          <lf-code id="pr-demand-evidence" lines="1230-1248" hi="1238-1248">
+            <pre><code class="language-rust">
         orch.spawn_initial_precompute(
             &amp;orch.generation(),
             &amp;[first, Arc::clone(&amp;offscreen), Arc::clone(&amp;branch)],
@@ -445,7 +440,7 @@ index b856171b57..cfa4f0448e 100644
                 .contains_key(&amp;("branch-only".to_string(), PreviewMode::UnifiedDiff)),
             "branch-only default should be prewarmed from the committed diff"
         );
-</pre>
+</code></pre>
             <lf-note id="pr-note-demand-load" at="1248"
               >After prewarm finishes, the off-screen worktree has no cached unified
               diff and the branch-only row does. This checks scheduling; selected-row
@@ -457,13 +452,8 @@ index b856171b57..cfa4f0448e 100644
             <code>src/git/repository/working_tree.rs</code> ·
             <code>WorkingTree::temp_index</code>
           </p>
-          <lf-code
-            id="pr-temp-index-evidence"
-            language="rust"
-            lines="843-856"
-            hi="843-846,852-856"
-          >
-            <pre>
+          <lf-code id="pr-temp-index-evidence" lines="843-856" hi="843-846,852-856">
+            <pre><code class="language-rust">
         let mut temp_file = tempfile::Builder::new()
             .prefix(TEMP_INDEX_PREFIX)
             .tempfile()
@@ -478,7 +468,7 @@ index b856171b57..cfa4f0448e 100644
                 .context("Failed to copy index file")?;
         }
         let temp = temp_file.into_temp_path();
-</pre>
+</code></pre>
             <lf-note id="pr-note-temp-index" at="856"
               >Each call creates a temporary file, copies the real index through its
               open handle when present, and transfers ownership to a
@@ -585,7 +575,7 @@ index b856171b57..cfa4f0448e 100644
               id="pr-prepared-diff-source"
               source="pr-prepared-diff-source"
               label="src/git/repository/diff.rs at 9ca8f78b · lines 1–169"
-              language="rust"
+              class="language-rust"
             ></lf-text-document>
           </details>
         </section>

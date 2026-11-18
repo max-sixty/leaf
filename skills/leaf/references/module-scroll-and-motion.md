@@ -7,7 +7,7 @@ module owes.
 
 ### Reading regions
 
-A pane widget declares `x-reading-role: pane` and `x-content: markup`, and holds one
+A pane widget declares `reading-role: pane` and `content: markup`, and holds one
 body element, with an optional native `header` before it and `footer` after. Whether a
 pane's body scrolls is the workspace Layout's decision (`layouts.css`), not the
 module's, and either way the module registers the body as a reading region, below.
@@ -18,9 +18,10 @@ widget keys its rules for that case on `@container style(--lf-full-height: 1)`, 
 reads its parent, and fits what it shows to the height. It declares
 `--lf-holds-height: 1` on each part that scrolls within it, and sets
 `--lf-full-height: inherit` on each box that passes the height down, as a playground
-does to its panes. An `lf-ask` passes it to its answering widget, and page tabs to a
-tab that is one block. The property doesn't inherit, so a widget nested in a section, or
-in a tab of several blocks, is not told and grows with its content.
+does to its panes. A question's group, once told, passes it to its children, its last
+block, such as the question's answer, taking the height the blocks before it leave, and
+page tabs pass it to a tab that is one block. The property doesn't inherit, so a widget
+nested deeper, or in a tab of several blocks, is not told and grows with its content.
 
 A module that builds its own panes, such as a playground's controls beside its preview,
 marks each generated box `data-lf-reading-role="pane"` and `data-lf-generated`, with a
@@ -271,9 +272,9 @@ region and a page without Leaf leaves unsaid.
 refused, and the Leaf panel shows it until they have dealt with it. Its handle's
 `clear()` takes the error down once it no longer holds. Use it for failures only.
 
-A `data-lf-quiet` attribute gives an element words screen readers say after its leading
-`<strong>` title but the screen doesn't show: Leaf writes them there while the attribute
-stands, and takes them away with it. Set the whole quiet word each time. Leaf writes
+A `data-lf-quiet` attribute gives an element words screen readers say at its start,
+but the screen doesn't show: Leaf writes them there while the attribute stands, and
+takes them away with it. Set the whole quiet word each time. Leaf writes
 quiet words for elements it marks as rewritten, changed or reported, so declare them only
 on parts the module builds or owns, such as a code line or a suggestion's slot. A page
 without Leaf, whose theme would leave them on screen, writes none.

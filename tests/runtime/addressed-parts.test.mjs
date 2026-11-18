@@ -24,7 +24,9 @@ import { registerVisualParts } from "/runtime/visual-parts.js";
 beforeEach(() => {
   for (const tag of Object.keys(registry)) delete registry[tag];
   Object.assign(registry, {
-    "lf-film": { "x-visual": { prefixes: ["frame:"] } },
+    "lf-film": {
+      visual: { prefixes: ["frame:"] },
+    },
     "lf-lazy": {},
   });
 });
@@ -92,7 +94,7 @@ test("a lazy widget answers with its hydration", () => {
 
 test("an opted-in complete inventory derives targets while omission keeps the whole visual", () => {
   document.body.innerHTML = "<main></main>";
-  registry["lf-film"]["x-visual"] = { parts: "parts" };
+  registry["lf-film"].visual = { parts: "parts" };
   const source = film();
   source.setAttribute("parts", "all");
   document.querySelector("main").append(source);

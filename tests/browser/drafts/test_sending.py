@@ -271,7 +271,7 @@ def test_a_refused_selection_comment_reopens_its_words_while_the_send_owns_inten
     # until the user's first key or press there, and the leaf's dot waits for it.
     cover = page.locator(".lf-fab-bar .lf-compose-error")
     expect(cover).to_have_text("Couldn't take this — refused before append")
-    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_hidden()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_hidden()
     # The first Enter only lifts the cover, with the caret at the words' end, so the
     # words are never sent unseen; the error waits in the leaf's menu.
     page.keyboard.press("Enter")
@@ -304,8 +304,7 @@ def test_a_refused_detached_comment_reopens_beside_its_words(held_events, serve)
     """Only the browser's selection knew where a detached comment's words stand, and
     nothing beside them draws its thread, so the send opens that thread in the panel.
     A refusal brings the box back beside the words, where the user wrote, and the
-    thread's view goes with the thread. The box once came back in the window's corner,
-    under a view saying the thread was not on the page."""
+    thread's view goes with the thread."""
     browser, held = held_events
     page = open_page(browser, serve(FENCED_PAGE))
     words = "Why this colour?"
@@ -365,7 +364,7 @@ def test_a_refusals_error_leaves_with_the_words_it_stood_over(held_events, serve
     refuse(page, held)
     box = page.locator(".lf-fab-input")
     cover = page.locator(".lf-fab-bar .lf-compose-error")
-    dot = page.locator(".lf-fp-leaf > .lf-fp-error-dot")
+    dot = page.locator(".lf-fp-leaf .lf-fp-error-dot")
     expect(cover).to_have_text("Couldn't take this — refused before append")
     expect(dot).to_be_hidden()
     assert cover.evaluate(COVER_LINE_REMAINDER) == pytest.approx(0, abs=0.01)
@@ -436,7 +435,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
         )
     # The field holds the later words, so it cannot say an error about nothing in
     # particular: the refusal waits in the leaf's menu, its dot on the leaf.
-    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
     expect(page.locator(".lf-fab-input")).not_to_be_visible()
 
     page.keyboard.press("Escape")
@@ -521,7 +520,7 @@ def test_a_reply_under_a_refused_parent_comes_back_with_it(
     expect(box).to_be_focused()
     expect(box).to_have_js_property("value", parent)
     expect(cover).to_be_hidden()
-    expect(page.locator(".lf-fp-leaf > .lf-fp-error-dot")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
     assert box.evaluate("box => [box.selectionStart, box.selectionEnd]") == [
         len(parent),
         len(parent),
@@ -925,13 +924,13 @@ def test_a_held_comment_send_leaves_the_passage_picked_out_behind_it(
     earlier send becomes a thread behind it.
 
     Held rather than raced: the window is one request's flight, and a machine quick
-    enough closes it before the next gesture. A loaded CI runner is not, and it said so
-    as a 💬 that never came up for the passage picked out after a send.
+    enough closes it before the next gesture. A loaded one leaves it open, where the 💬
+    for the passage picked out after a send would never come up.
 
     The next passage is the one above the first, because the sent comment's card stands
     under its passage, over whatever follows it. The card is placed and revealed some
-    frames after the send, so a passage below was reachable only on a machine quick
-    enough to press it before the card arrived."""
+    frames after the send, so a passage below would be reachable only on a machine
+    quick enough to press it before the card arrived."""
     browser, held = held_events
     page = open_page(browser, serve(NOTED_PAGE))
     select_words(page, "#p2")

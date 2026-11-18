@@ -134,23 +134,27 @@ verify counts
 switch readers
 mirror writes 24h
 expire old keys</code></pre>
-              <lf-ask id="review-cache-decision">
+              <section id="review-cache-decision">
                 <h4>What should happen if post-switch verification fails?</h4>
                 <p>
                   Both choices keep the old keys available while the migration is
                   checked.
                 </p>
-                <lf-options id="review-cache-rollback" choose settled>
-                  <lf-option id="review-cache-auto" chosen>
+                <lf-options id="review-cache-rollback" settled>
+                  <lf-option
+                    id="review-cache-auto"
+                    label="Switch readers back automatically"
+                    selected
+                  >
                     <strong>Switch readers back automatically</strong> Mirror writes for
                     24 hours, then return to the old keys if counts diverge.
                   </lf-option>
-                  <lf-option id="review-cache-hold">
+                  <lf-option id="review-cache-hold" label="Stop for operator review">
                     <strong>Stop for operator review</strong> Keep readers on the new
                     keys until an operator inspects the mismatch.
                   </lf-option>
                 </lf-options>
-              </lf-ask>
+              </section>
             </section>
             <section id="review-email">
               <h3>Receipt email</h3>
@@ -216,23 +220,30 @@ expire old keys</code></pre>
                   the historical ledger entry.
                 </p>
               </div>
-              <lf-ask id="review-billing-decision">
+              <section id="review-billing-decision">
                 <h4>Where should the legacy invoice be reconciled?</h4>
                 <p>
                   The one-cent difference is confined to invoices created before the
                   reporting migration.
                 </p>
-                <lf-options id="review-billing-path" choose settled>
-                  <lf-option id="review-billing-legacy" chosen>
+                <lf-options id="review-billing-path" settled>
+                  <lf-option
+                    id="review-billing-legacy"
+                    label="Keep it on the old reporting path"
+                    selected
+                  >
                     <strong>Keep it on the old reporting path</strong> Close the current
                     run without changing the historical ledger entry.
                   </lf-option>
-                  <lf-option id="review-billing-correct">
+                  <lf-option
+                    id="review-billing-correct"
+                    label="Correct the ledger entry"
+                  >
                     <strong>Correct the ledger entry</strong> Move the invoice into the
                     new path after finance approves the adjustment.
                   </lf-option>
                 </lf-options>
-              </lf-ask>
+              </section>
             </section>
             <section id="review-webhook">
               <h3>Webhook delivery</h3>

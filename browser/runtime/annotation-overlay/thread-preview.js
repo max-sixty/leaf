@@ -32,40 +32,43 @@
    above it. A send empties the box, so the card holds its top through the send and
    grows down past the box, keeping still the transcript the user was reading; so does
    the empty box a click's opening leaves the caret in (thread/focus.js,
-   `openingPart`). A user who empties the box themselves, as Select All and Backspace
-   do, sees it rise to where the empty box stands, a rare path SOUL.md lets move, since
-   to the card that looks the same as a send. A message's rewrite, whose field stands in
-   the transcript, holds the top as well, so the rewrite grows down. Below its subject
-   the card keeps its top even while the user writes, so it never grows up over the
-   words it is about.
+   `openingPart`). A refusal gives back what the send took: its turn goes, and its words
+   return under the refusal's cover (errors.js), which shows no line being typed either,
+   so the card holds its top through the refusal too, and its foot once the user comes
+   back to the words. The user chose this over letting the card drop, which moves both
+   its edges and slides it out from under the pointer. A user who
+   empties the box themselves, as Select All and Backspace do, sees it rise to where
+   the empty box stands, a rare path SOUL.md lets move, since to the card that looks
+   the same as a send. A message's rewrite, whose field stands in the transcript, holds
+   the top as well, so the rewrite grows down. Below its subject the card keeps its top
+   even while the user writes, so it never grows up over the words it is about.
    Nothing else chooses the edge, whatever the user pressed, and the card remembers no
    press or send (`heldEdge`). News at the thread's end shows at once where that edge
    keeps still what the user is on, and waits otherwise (`endNewsMoves`;
    thread-card.js, `newsMoves`). A pointer resting on Resolve or a message's control is
    not where the user is, so that news may carry the control from under it, as the
-   floating panel's growth does (floating-panel.js, the user's choice of 14 November
-   2026).
+   floating panel's growth does (floating-panel.js, the user's choice).
 
-   The user chose this rule on 5 November 2026 as the platform's: CSS scroll anchoring
+   The user chose this rule as the platform's: CSS scroll anchoring
    prefers a focused text field or the find match as the node it keeps still, and
-   neither it nor Floating UI holds a pressed control. On 9 November they asked for a
-   send to grow the card down: holding the foot whenever the caret was in the box
-   lifted the whole transcript at each send, and an empty box has no typed line to keep
+   neither it nor Floating UI holds a pressed control. They asked for a
+   send to grow the card down: holding the foot whenever the caret is in the box
+   lifts the whole transcript at each send, and an empty box has no typed line to keep
    still. Rejected: keeping a pressed
-   control under the pointer (thread/card-anchor.js, which remembered each press until
-   the change it caused had fitted, and each send until the next words arrived), which
-   tied the card's layout to every gesture's lifetime; and the attached edge with no
-   exception for typing, under which an answer arriving while the user typed in a card
-   beside its words waited behind the thread's notice. The rule
-   replaces the card rising beside its subject as the user writes (2026-10-21). It
-   keeps two earlier choices: the foot above the subject (2026-10-31), over keeping a
-   written card's top there, which grew the draft down over its subject; and rising
-   beside it for an answer (2026-10-31), over keeping a read card's top, which scrolled
-   the transcript once the card met the window's foot and hid the question above the
+   control under the pointer, by remembering each press until
+   the change it caused has fitted, and each send until the next words arrive, which
+   ties the card's layout to every gesture's lifetime; the attached edge with no
+   exception for typing, under which an answer arriving while the user types in a card
+   beside its words waits behind the thread's notice; and the card rising beside its
+   subject as the user writes. The rule
+   keeps two other choices: the foot above the subject, over keeping a
+   written card's top there, which grows the draft down over its subject; and rising
+   beside it for an answer, over keeping a read card's top, which scrolls
+   the transcript once the card meets the window's foot and hides the question above the
    answer. Rising ends at the room's height. Past it, the thread keeps the user's turn
    in sight and says New reply at the transcript's foot (thread-card.js), as the
-   floating panel does; that was done on 4 November 2026 to unify the two under the
-   user's request for one thread view, and the user did not pick it.
+   floating panel does, to unify the two under the
+   user's request for one thread view; the user did not pick it.
 
    A selection holds its placement side, and its width once widened. Beside its text a
    card widens from the least width to the measure when a message outgrows the least
@@ -76,15 +79,15 @@
    send it. The comment box keeps the least width however much is
    typed in it (annotation-chrome.css). A card whose start stands away from its text
    takes the measure at once, a narrower room caps either width, and a card the user
-   carried keeps the width it was carried at. On 14 November 2026 the user chose these
-   slim surfaces over three rules: a card as wide as its first words, kept while it was
-   open, which wrapped every answer, however long, in a card 320px wide; a box and card at the
-   measure, which stood a short comment in a mostly empty card; and a box as wide as its
-   words, which widened under their typing, as they asked nothing should. They were
-   shown that the card's one widening moves its controls without a press, and called
-   those controls secondary. On 15 November 2026 they chose where a message outgrows
-   the least width, a block taller than it is wide, over the four lines it first
-   counted, which widened a third of their comments at Send and nearly every answer.
+   carried keeps the width it was carried at. The user chose these
+   slim surfaces over three rules: a card as wide as its first words, kept while it is
+   open, which wraps every answer, however long, in a card 320px wide; a box and card at the
+   measure, which stands a short comment in a mostly empty card; and a box as wide as its
+   words, which widens under their typing, as they asked nothing should. The card's one
+   widening moves its controls without a press, which they accept, calling
+   those controls secondary. They chose where a message outgrows
+   the least width, a block taller than it is wide, over four lines, a count that
+   widens far more comments at Send and answers.
    Another selection chooses afresh. Floating UI supplies room from the held edge; native
    grid tracks share it between transcript and reply, growing to their words before
    scrolling. Reply continuity retains removed turns as flexible space and lets the
@@ -97,9 +100,9 @@
    A reader at the transcript's end follows it, whatever moves it: a turn drawn or
    growing, as a picture in it loads, or the room the card gives it; a reader read back
    stays where they are (scrolling.js, `followEnd`). The user asked for that one keeper
-   on 10 November 2026, replacing two partial ones: one kept the end through a change of
-   room, the fit followed the growth a reading of the thread drew, and growth after a
-   reading, such as a picture loading, reached neither. An answer to the user's own turn
+   over two partial ones: one keeping the end through a change of
+   room, and the fit following the growth a reading of the thread draws; growth after a
+   reading, such as a picture loading, reaches neither. An answer to the user's own turn
    instead stays the thread's to place (`answering`), by the floating panel's rule: their
    turn stays in sight above it, and New reply stands at the transcript's foot where it
    runs past, or where they had read back. An opening that leaves a reply unread offers
@@ -115,17 +118,17 @@
    resolved thread in the card's count ("1/3"), else the one before, and stands the user
    on it, so the page never moves; at a passage with no other thread the card closes
    and leaves the user on its target (`landing`). Undo opens the thread again in the
-   card where it was resolved (undo.js, the page's reader). The user chose this on 4
-   November 2026 over closing the card onto its passage whatever else stood there, which
-   left the card and the floating panel doing different things, and over moving on to
+   card where it was resolved (undo.js, the page's reader). The user chose this
+   over closing the card onto its passage whatever else stands there, which
+   leaves the card and the floating panel doing different things, and over moving on to
    the next open thread on the page, as the panel does, which scrolls the page under the
    user after each Resolve.
 
    A step to another thread at the passage, by Resolve, Previous or Next, places the card
    afresh, so a shorter thread brings it back beside its passage, with the controls on
-   its head line. The user chose this on 4 November 2026 over keeping the frame it stood
-   in, which held ✓ under a pointer resolving several threads in a row but took a
-   placement rule and a press hold of its own, and still moved ✓ on a card above its
+   its head line. The user chose this over keeping the frame it stood
+   in, which holds ✓ under a pointer resolving several threads in a row but takes a
+   placement rule and a press hold of its own, and still moves ✓ on a card above its
    subject. */
 import {
   followEnd,
@@ -189,6 +192,7 @@ import { openingPart, threadFocusDestination } from "../thread/focus.js";
 import { claimSeatReplies } from "../thread/inline.js";
 import { dismissReply, releaseReplies, replyIsEditing } from "../thread/replies.js";
 import { keepThreadLanding, showReturnTurn } from "../thread/reply-landing.js";
+import { errorOver } from "../errors.js";
 
 /** @typedef {import("../annotation-inventory.js").InventoryEntry} Entry
  * @typedef {import("../margin-model.js").ThreadItem} Item
@@ -625,15 +629,17 @@ export function createThreadPreview({
 
   // The edge a card on `side` holds now (the header's rule): the one it is attached by,
   // but its foot beside its subject while the user writes words in its reply box, where
-  // they are (user-place.js, `focusPlace`). Also where they are, if in the card,
-  // whether they type there, and whether they write words in its reply box.
+  // they are (user-place.js, `focusPlace`), and no error covers them (errors.js). Also
+  // where they are, if in the card, whether they type there, and whether they write
+  // words in its reply box.
   /** @param {import("./comment-placement.js").Side} side */
   function heldEdge(side) {
     const place = focusPlace();
     const at = place && under(place, preview) ? place : null;
     const typing = typesText(at);
     const words = closestAcross(at, ".lf-thread-reply")?.querySelector(TEXT_FIELD);
-    const writing = typing && Boolean(words && "value" in words && words.value);
+    const writing =
+      typing && Boolean(words && "value" in words && words.value) && !errorOver(words);
     const beside = side === "left" || side === "right";
     /** @type {"top" | "foot"} */
     const edge = writing && beside ? "foot" : attachedEdge(side);
@@ -931,8 +937,8 @@ export function createThreadPreview({
         // another thread opens travels there from where the last one stood
         // (box-motion.js, `placed`). A card Send opened grows out of the field it
         // replaces, as any box's outline travels: the box paints only its field while
-        // it is written, and the user preferred (19 October) a field that opens into
-        // its card at Send to a box painted as the card throughout (#3157). The card
+        // it is written, and the user preferred a field that opens into
+        // its card at Send to a box painted as the card throughout. The card
         // stands whole under its outline from the first frame, so no word moves.
         const anew = !session.followed;
         if (anew) {
@@ -1104,23 +1110,21 @@ export function createThreadPreview({
       scroll: session.transcript.scrollTop,
     };
     const present = () => {
-      const targetHeading =
-        targetFor(entry)?.querySelector(":scope > strong")?.textContent;
-      // A target with a heading is named by it. One without — an aside, a paragraph —
-      // is headed by the passage the selected thread quotes, as the panel heads it: a card
-      // headed "aside · The fallback cookie is read-only…" over a comment on the aside's
-      // last sentence was a third name for one thread, and the least exact.
+      // The card is headed by the passage the selected thread quotes, as the panel
+      // heads it, else by its margin entry's title: a card headed "aside · The fallback
+      // cookie is read-only…" over a comment on the aside's last sentence was a third
+      // name for one thread, and the least exact.
       const quoted = selected.thread?.anchor
         ? anchorLabel(selected.thread.anchor, selected.thread.root.about)
         : null;
-      const title = labelWords(targetHeading || quoted || entry.title);
+      const title = labelWords(quoted || entry.title);
       keeps(preview, "aria-label", `Thread for ${spokenSubject(title)}`);
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (walk-position.js). This one stands on the card's
       // actions line, which on a card in a narrow room (`--lf-thread-card-min`) already
-      // leaves the message heads little room; " of " made it 12px wider, which on a
-      // 311px card pushed the actions past the card's start.
+      // leaves the message heads little room; " of " would widen it enough to push the
+      // actions past the start of a narrow card.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
       previewNext.toggleAttribute("disabled", selectedIndex === threadItems.length - 1);

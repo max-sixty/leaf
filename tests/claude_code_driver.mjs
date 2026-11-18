@@ -4,7 +4,8 @@
 //
 // Arguments: the session id, then the driver's options as JSON: `pluginRoot`, the
 // plugin's directory in place of this tree; `throwSpawn`, which makes every
-// `$.process.spawn` throw; `forkAnswer`, the text `$.model.fork` answers with;
+// `$.process.spawn` throw; `forkAnswer`, the text `$.model.fork` answers with, or
+// that text by the first line of the fork's prompt;
 // `forkRejects`, which makes every fork reject; `completeReply`, the text
 // `$.model.complete` answers with, after `completeRefusals` completions it
 // answers as a provider's 429; `agentId`, the id each `$.agent.spawn` answers with,
@@ -221,17 +222,21 @@ const $ = {
     fork: async ({ prompt, effort }) => {
       print({ forked: prompt, effort });
       if (options.forkRejects) throw new Error("the model refused the request");
+      const answer =
+        typeof options.forkAnswer === "object"
+          ? options.forkAnswer[prompt.split("\n")[0]]
+          : options.forkAnswer;
       const usage = {
         input_tokens: 10,
         output_tokens: 20,
         cache_read_input_tokens: 1000,
         cache_creation_input_tokens: 0,
       };
-      return options.forkAnswer === undefined
+      return answer === undefined
         ? { isAnswered: false, reason: "nothing-to-fork" }
         : {
             isAnswered: true,
-            text: options.forkAnswer,
+            text: answer,
             usage,
             ...(effort === undefined ? {} : { effort }),
           };

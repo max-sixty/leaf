@@ -80,8 +80,8 @@ test("a relative path to the browser framework's facade is the facade", () => {
 });
 
 // `export * as ns from` is an ExportAllDeclaration carrying `exported`, not an
-// ExportNamedDeclaration holding an ExportNamespaceSpecifier, so the namespace arm the
-// rule used to keep beside its named arm could not run. The whole-namespace reexport is
+// ExportNamedDeclaration holding an ExportNamespaceSpecifier, so a namespace arm beside
+// the rule's named arm could not run. The whole-namespace reexport is
 // read above; this states the parse shape that leaves one reader of it.
 test("a namespace reexport is one declaration, not a named one with a specifier", () => {
   const [node] = parse("export * as browser from './x.js'", {

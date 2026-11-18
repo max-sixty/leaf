@@ -12,12 +12,10 @@
    panel's field says at its end with the key of the page command that makes it too,
    after the words, as "Resolved “One reconnect in about 40” … Next thread t"
    (floating-panel.js, `noticePress`). The notice stands no longer than its gesture
-   does, so its press never acts for anything else. The user chose a notice's press on
-   31 October, after a Resolve that moved the panel on left nothing there offering to
-   take it back; until then a notice was text alone, and what it named the panel's own
-   controls reached. A gesture whose next step needs no words of its own, as an answer
-   with more on the user, offers its press alone (`offerPress`), which the field says at
-   its end after the words it already says. There is no second surface for news, so
+   does, so its press never acts for anything else. The user chose a notice's press,
+   so a Resolve that moves the panel on leaves something there offering to take it
+   back, over a notice of text alone, whose subject only the panel's own controls
+   reach. There is no second surface for news, so
    nothing floats in a corner to become a stale pointer target. A failure is no news: it
    goes through errors.js, which keeps it until the user has dealt with it.
 
@@ -114,7 +112,7 @@ addEventListener(ANNOUNCE, (event) => announce(event.detail));
 // quiet words in the panel's seat. A widget's gesture is no notice, since the widget
 // draws it where it was made; the live region alone hears it (application.js,
 // `named`). A notice offering a press (`press`) has the field's end say that press's
-// word and key, where Comment and its key stand at rest.
+// word and key, where the page's own press stands at rest.
 /** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press] */
 function showNotice(msg, background = null, press = null) {
   presentNotice(msg, true, press);
@@ -137,29 +135,9 @@ function retireNotice() {
   presentNotice(noticePresentation.peek().message, false);
   showingBackground = null;
 }
-// A press offered alone, with no words of its own (`offerPress`), or null.
-/** @type {import("@preact/signals-core").Signal<NoticePress | null>} */
-const offered = signal(null);
-export const offeredPress = () => offered.value;
-// Ends the watch on the offered press.
-let stopWatchingOffer = () => {};
-/** Offer `press` alone, as a notice offers its own: for the moment after a gesture of
- * the user's whose next step it is. @param {NoticePress} press */
-export function offerPress(press) {
-  stopWatchingOffer();
-  offered.value = press;
-  stopWatchingOffer = effect(() => {
-    if (!press.stands() && offered.peek() === press) untracked(withdrawOffer);
-  });
-}
-function withdrawOffer() {
-  stopWatchingOffer();
-  stopWatchingOffer = () => {};
-  offered.value = null;
-}
 // A press stands until the user's next input rather than for its time, and no longer
 // than it can act: a gesture the log refused, or one taken back by any route, takes its
-// notice away, and an offered press goes once it has nowhere to go. The panel says the
+// notice away. The panel says the
 // press at the field's end (floating-panel.js, `fieldReading`), so one leaving on a
 // timer would take it from under a hand on its way there. An input on the press itself,
 // which `keepsNotice` marks, keeps it.
@@ -168,13 +146,11 @@ export const keepsNotice = elementDirective("keepsNotice", (element) =>
   keeps(element, NOTICE_PRESS, ""),
 );
 onUserInput((event) => {
-  const pressing = Boolean(noticePresentation.peek().press);
-  if (!pressing && !offered.peek()) return;
+  if (!noticePresentation.peek().press) return;
   const path = event.composedPath?.() ?? [];
   if (path.some((node) => node instanceof Element && node.hasAttribute(NOTICE_PRESS)))
     return;
-  if (pressing) retireNotice();
-  withdrawOffer();
+  retireNotice();
 });
 
 // A producer may retire a deferred assertion before it reaches the seat.

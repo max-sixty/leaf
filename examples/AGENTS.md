@@ -15,12 +15,12 @@ other pages (`skills/leaf/references/authoring-evidence.md`, "Interactive and vi
 evidence").
 
 When a change adds or removes an example or changes its first screen, run
-`wt refresh-previews` from the repository root on macOS once the examples are ready,
-and again after merging `main` or any later fix that changes a first screen.
+`uv run --frozen leaf-dev site previews` from the repository root on macOS once the
+examples are ready, and again after merging `main` or any later fix that changes a first
+screen.
 `uv run leaf-dev site demo` does the same for the README's recording and the site's
-card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run `wt setup`
-first in a new checkout; if Worktrunk asks to approve the project commands, ask the
-user to run `wt config approvals add`.
+card (`dev/AGENTS.md`, "Commands with consequences outside `.tmp/`"). Run
+`uv run --frozen leaf-dev setup` first in a new checkout.
 
 ## Developer pages and regression fixtures
 

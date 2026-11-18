@@ -106,23 +106,19 @@ def starter_element_declaration(tag: str) -> dict:
     """One useful upgraded markup block, ready for a package author to specialize."""
     name = tag.removeprefix("lf-")
     label = name.replace("-", " ")
-    title = label.capitalize()
     return {
-        "description": (
-            f"A dedicated block for {label} content. Use it to keep one technical "
-            "point with its supporting evidence or rationale. Give the block a stable "
-            "id."
-        ),
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
-        "required": ["id"],
-        "additionalProperties": False,
-        "x-verbatim": True,
-        "x-example": (
-            f'<{tag} id="{name}"><strong>{title}</strong> '
-            "The retry budget is three attempts before manual review."
-            f"</{tag}>"
-        ),
+        "description": f"A dedicated block for {label} content. Use it to keep one technical "
+        "point with its supporting evidence or rationale. Give the block a stable "
+        "id.",
+        "attributes": {
+            "type": "object",
+            "properties": {"id": {"type": "string"}},
+            "required": ["id"],
+            "additionalProperties": False,
+        },
+        "verbatim": True,
+        "example": f'<{tag} id="{name}"><p>The retry budget is three attempts '
+        f"before manual review.</p></{tag}>",
     }
 
 

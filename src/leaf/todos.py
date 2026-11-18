@@ -3,8 +3,8 @@
 A to-do is work the agent owes, on its On <agent> list. Nothing is a to-do on the
 user: everything On Me is an obligation whose source says how the user answers it,
 a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no Done
-of its own to any of them. The user chose this on 2026-11-03, reversing the to-do on
-the user that `leaf task create --on user` opened from 2026-10: the widget or thread
+of its own to any of them. The user chose this over a to-do on the user
+(`leaf task create --on user`): the widget or thread
 an ask stands on is sovereign over how it is answered, and a step such as trying a
 build is asked in a thread, which the user's reply or settling reaction answers.
 
@@ -42,16 +42,13 @@ that `leaf page open` and `leaf page close` write puts down every earlier start
 reads only the document and the log, sees it there. A start on a page declared
 `idle` reopens the page (`activity.declaration`).
 
-Only the session that wrote a to-do's latest start can end it, by `todo_end`
-or a stamp's `--completes` (`TodoReading.completion_error`), and a later start from
-another session moves that right. Putting work down changes activity, not this
-right: neither a turn ending nor a change of claim gives it back to an earlier
-session, and the same session can still end the to-do in a later turn. Before any
-start, any agent session can end it. Commands run outside a harness all share one
-empty session identity, so Leaf can't tell them apart.
+Any agent session can end any open to-do, whoever opened or last started it: a
+start shows who is at work, and gives no right over the to-do's end. The user
+decided this. Letting only the session that last started a to-do end it would
+make another session start the to-do first, a step that protects nothing.
 
 Admission (`todo_error`) accepts a `todo` on a thread, the page, any element, or a
-live widget that declares `x-work` or holds an unsettled action
+live widget that declares `work` or holds an unsettled action
 (`work.widget_seat_error`). It accepts a `start` on an open to-do or an owed update,
 and a `todo_end` of an open to-do.
 `TodoReading` reads the log's to-dos, starts and ends, and `WorkReading.page_todos`
@@ -190,32 +187,6 @@ class TodoReading:
     def owed(self) -> list[dict]:
         return [todo for todo in self.todos if todo["state"] == "open"]
 
-    def completion_error(self, event: dict, todo: dict) -> Finding | None:
-        """Whether the writer can end this to-do under its latest start.
-
-        Read the log rather than `starts`, whose in-hand reading a `status`
-        declaration clears. Admission alone checks authority; projections consume admitted
-        endings without reclassifying them against later activity or claims.
-        """
-        latest = next(
-            (
-                start
-                for logged in reversed(self.events)
-                if (start := start_reading(logged)) and start["item"] == todo["id"]
-            ),
-            None,
-        )
-        if latest is not None and latest.get("session") != event.get("session"):
-            return Finding(
-                "todo-execution",
-                values={
-                    "todo": todo["id"],
-                    "start": latest["id"],
-                    "session": latest.get("session"),
-                },
-            )
-        return None
-
 
 def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
     """Every to-do the log opened, with how it ended: by its `todo_end` in force
@@ -272,8 +243,8 @@ def todo_error(
 
     A to-do stands on an admitted thread, widget, page element or page. Replies can
     also open work on their own thread (`todo_reading`). A start names an open to-do or
-    an owed update. Both completion carriers share `TodoReading.completion_error`. An
-    end naming one of the user's obligations is refused with how that obligation ends.
+    an owed update. An end names an open to-do, and one naming one of the user's
+    obligations is refused with how that obligation ends.
     """
     kind = event["kind"]
     if kind == "todo":
@@ -294,12 +265,6 @@ def todo_error(
         if item in owed or any(todo["id"] == item for todo in log.owed):
             return None
         return Finding("unowed-start", values={"item": item})
-    if kind == "note":
-        completed = note_settlements(event, "todo")
-        for todo in log.owed:
-            if todo["id"] in completed and (error := log.completion_error(event, todo)):
-                return error
-        return None
     if kind != "todo_end":
         return None
     identity = event["todo"]
@@ -317,7 +282,7 @@ def todo_error(
         return Finding("unknown-todo", values=named)
     if todo["state"] != "open":
         return Finding("ended-todo", values={**named, "state": todo["state"]})
-    return log.completion_error(event, todo)
+    return None
 
 
 def cmd_create(page_dir: Path, subject: str, title: str) -> dict:

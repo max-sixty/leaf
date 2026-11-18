@@ -49,7 +49,7 @@ function renderHolds(threads) {
 /** @param {{surfaceView: import("./thread-card.js").ThreadCommands & {composition: import("./surfaces.js").CompositionSurface & {
  * finishPlacement: ReturnType<typeof import("../composing/surface.js").createResponseSurface>["finishPlacement"]}},
  * anchorPlacement: ReturnType<typeof import("../anchor-placement.js").createAnchorPlacement>,
- * anchorPaint: Pick<ReturnType<typeof import("../annotation-overlay/anchor-paint.js").createAnchorPaint>, "paint"> | null,
+ * anchorPaint: Pick<ReturnType<typeof import("../anchor-paint.js").createAnchorPaint>, "paint">,
  * anchorControls: Pick<ReturnType<typeof import("../anchor-controls.js").createAnchorControls>, "render" | "withholdVisualActions">,
  * drawingPaint: Pick<ReturnType<typeof import("../composing/drawing-ink.js").createDrawingInk>, "paint">,
  * pageGeometry: Pick<ReturnType<typeof import("../page-geometry.js").createPageGeometry>, "pageShifted">,
@@ -145,7 +145,7 @@ export function createThreadPresentation({
           actionAnchor: activeActionAnchor(),
         });
         if (anchors) {
-          anchorPaint?.paint(anchors);
+          anchorPaint.paint(anchors);
           anchorControls.render(anchors);
         }
         drawingPaint.paint();

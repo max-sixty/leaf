@@ -167,10 +167,11 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
     those decoded. A choice recorded on the page's widget stays, one the user took back
     stays taken back, and so does the data the page itself binds."""
     decisions = (
+        '<lf-group id="decisions" label="Which ones?">'
         '<lf-options id="picks"><lf-option id="first">First</lf-option>'
         '<lf-option id="second">Second</lf-option></lf-options>'
         '<lf-options id="taken-back"><lf-option id="keep">Keep</lf-option>'
-        '<lf-option id="drop">Drop</lf-option></lf-options>'
+        '<lf-option id="drop">Drop</lf-option></lf-options></lf-group>'
     )
     page_notes = (
         '<lf-text-document id="notes" source="page-notes" label="notes.md">'
@@ -218,8 +219,8 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         {
             "kind": "reply",
             **said,
-            "text": "REPLYWORD",
-            "markup": '<lf-options id="frozen"><lf-option id="yes">FROZENWORD'
+            "text": "REPLYWORD\n\n"
+            + '<lf-options id="reply-choice"><lf-option id="yes">OPTIONWORD'
             '</lf-option><lf-option id="PICKWORD">No</lf-option></lf-options>'
             '<lf-text-document id="in-thread" source="thread-notes" label="notes.md">'
             "</lf-text-document>",
@@ -228,7 +229,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
     data_model.cmd_data_set(claimed, "thread-notes", "BOUNDINTHREADWORD\n")
     data_model.cmd_data_set(claimed, "page-notes", "PAGEDATAWORD\n")
     append_command(
-        claimed, {**choice, "widget": "frozen", "detail": {"value": ["PICKWORD"]}}
+        claimed, {**choice, "widget": "reply-choice", "detail": {"value": ["PICKWORD"]}}
     )
     append_carried_log_record(
         claimed,
@@ -283,7 +284,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         "COMMENTWORD",
         "ALTWORD",
         "REPLYWORD",
-        "FROZENWORD",
+        "OPTIONWORD",
         "PICKWORD",
         "BOUNDINTHREADWORD",
         "TITLEWORD",

@@ -160,10 +160,10 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
     first_page = browser.new_page(viewport={"width": 1200, "height": 900})
     first_page.goto(held.as_uri(), wait_until="load")
     expect(first_page.locator("main")).to_be_visible()
-    expect(first_page.locator("#drawing lf-playground-preview")).to_have_text(
+    expect(first_page.locator("#drawing-words")).to_have_text(
         "The actual preview, with its own words."
     )
-    expect(first_page.locator("#drawing input")).to_have_count(0)
+    expect(first_page.locator("#drawing input")).to_have_count(5)
     assert first_page.evaluate(SHOWN_PANELS) == ["one", "near"]
 
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -183,7 +183,7 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
         "data-lf-startup-error", "entry module did not load"
     )
     expect(broken.locator("main")).to_be_visible()
-    expect(broken.locator("#drawing lf-playground-preview")).to_have_text(
+    expect(broken.locator("#drawing-words")).to_have_text(
         "The actual preview, with its own words."
     )
     assert broken.evaluate(SHOWN_PANELS) == ["one", "two", "near", "far"]
@@ -192,19 +192,21 @@ def test_an_export_reveals_its_widgets_and_releases_readable_failure_fallback(
 
 INITIAL_DRAWING_PAGE = """
 <h1 id="title">First drawing</h1>
-<lf-playground id="drawing">
-  <lf-playground-control id="field-note-title" name="title" label="Title" kind="text" value="Field note"></lf-playground-control>
-  <lf-playground-control id="radius" name="radius" label="Corner radius" kind="range" value="12" min="0" max="24" unit="px"></lf-playground-control>
-  <lf-playground-control id="compact" name="compact" label="Compact spacing" kind="toggle" value="false"></lf-playground-control>
-  <lf-playground-control id="tone" name="tone" label="Tone" kind="choice" value="quiet">
-    <lf-playground-choice id="tone-quiet" value="quiet" label="Quiet"></lf-playground-choice>
-    <lf-playground-choice id="tone-bold" value="bold" label="Bold"></lf-playground-choice>
-  </lf-playground-control>
-  <lf-playground-preview><p>The actual preview, with its own words.</p></lf-playground-preview>
-  <lf-playground-output>Build <lf-playground-value for="title"></lf-playground-value> with
-    <lf-playground-value for="radius"></lf-playground-value> corners and
-    <lf-playground-value for="tone"></lf-playground-value> emphasis.</lf-playground-output>
-</lf-playground>
+<lf-group id="drawing-q" label="How should the field note look?"><lf-playground id="drawing">
+  <aside>
+    <label id="field-note-title">Title <input name="title" value="Field note"></label>
+    <label id="radius">Corner radius, px <input type="range" name="radius" min="0" max="24" value="12"></label>
+    <label id="compact"><input type="checkbox" name="compact" role="switch"> Compact spacing</label>
+    <fieldset id="tone"><legend>Tone</legend>
+      <label id="tone-quiet"><input type="radio" name="tone" value="quiet" checked> Quiet</label>
+      <label id="tone-bold"><input type="radio" name="tone" value="bold"> Bold</label>
+    </fieldset>
+  </aside>
+  <p id="drawing-words">The actual preview, with its own words.</p>
+  <lf-playground-output>Build <output for="title"></output> with
+    <output for="radius"></output>px corners and
+    <output for="tone"></output> emphasis.</lf-playground-output>
+</lf-playground></lf-group>
 <lf-margin-entry-gallery id="faces-one"></lf-margin-entry-gallery>
 <lf-margin-entry-gallery id="faces-two"></lf-margin-entry-gallery>
 <p id="after">Reading after the widgets stays in place.</p>

@@ -23,38 +23,38 @@
 
       <lf-board id="release-board">
         <lf-column id="col-blocking" label="Blocking release" tone="danger">
-          <lf-card id="card-migration"
+          <lf-card id="card-migration" label="Migration reruns on every deploy"
             ><strong>Migration reruns on every deploy</strong> The version stamp never
             lands. The next migration applies credits and is not idempotent.</lf-card
           >
         </lf-column>
         <lf-column id="col-next" label="Fix in 2.4.1">
-          <lf-card id="card-tz"
+          <lf-card id="card-tz" label="Digest email uses server timezone"
             ><strong>Digest email uses server timezone</strong> Cosmetic for most,
             wrong-day for UTC+13.</lf-card
           >
-          <lf-card id="card-export"
+          <lf-card id="card-export" label="CSV export quotes numerics"
             ><strong>CSV export quotes numerics</strong> Breaks one customer's
             downstream import.</lf-card
           >
-          <lf-card id="card-retry"
+          <lf-card id="card-retry" label="Webhook retries ignore Retry-After"
             ><strong>Webhook retries ignore Retry-After</strong> Three partners rate
             limit us during their own deploys; we back off on a fixed schedule.</lf-card
           >
         </lf-column>
         <lf-column id="col-defer" label="Defer from 2.4">
-          <lf-card id="card-logout"
+          <lf-card id="card-logout" label="Logout fails with an expired session"
             ><strong>Logout fails with an expired session</strong> The user can retry
             safely, and the shared-session cleanup is not ready for this
             release.</lf-card
           >
-          <lf-card id="card-avatar"
+          <lf-card id="card-avatar" label="Avatar upload rejects HEIC"
             ><strong>Avatar upload rejects HEIC</strong> iPhone photos need a conversion
             step. Four reports this quarter.</lf-card
           >
         </lf-column>
         <lf-column id="col-repro" label="Needs a repro" tone="warn">
-          <lf-card id="card-search"
+          <lf-card id="card-search" label="Search misses renamed projects"
             ><strong>Search misses renamed projects</strong> One report, on a workspace
             migrated from v1. The reindex job ran clean.</lf-card
           >

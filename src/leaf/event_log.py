@@ -10,7 +10,8 @@ import os
 import secrets
 import signal
 import sys
-from collections.abc import Iterator
+import threading
+from collections.abc import Iterable, Iterator
 from copy import deepcopy
 from pathlib import Path
 
@@ -189,8 +190,8 @@ def _stored_events(data: bytes, before: int = 0) -> list[dict]:
     `before + 1`."""
     events = []
     # The log's grammar is events joined by "\n" — the writer's own separator,
-    # not splitlines()'s wider class, which once read a U+2028 inside a comment's
-    # text as a break and left half an event leading a line no parse could take.
+    # not splitlines()'s wider class, which reads a U+2028 inside a comment's
+    # text as a break and leaves half an event leading a line no parse can take.
     # Bytes, decoded per line: a crash can tear mid-character as easily as
     # mid-line (ensure_ascii=False writes multi-byte UTF-8), and one strict
     # read_text of the file would raise on the tear before any line-level
@@ -231,7 +232,7 @@ def _parse_events(data: bytes, before: int = 0) -> list[dict]:
 # cards page `leaf-dev bench` generates, at 1,024 events, a fifth of an append and a
 # quarter of a state read. Not yet built: the page server keeps the parsed events
 # under the log's inode and length, and parses only the lines appended since, as
-# `follow_events` reads on from its offset.
+# `_Tail` reads on from its place.
 def read_events(page_dir: Path) -> list:
     path = page_dir / EVENTS_FILE
     if not path.exists():
@@ -258,51 +259,95 @@ def _line_start(data: bytes, n: int) -> int:
     return at
 
 
+class _Tail:
+    """A reader's place in one log: the file it first opened, and the bytes and lines
+    it has read there.
+
+    Each read takes only the bytes past that place, and only through the last
+    newline: the line after it is an append mid-flush, whose rest a later read
+    takes. Seq is the line number, so the lines read are counted whether or not they
+    parse, exactly as `_parse_events` counts them. Appends only ever grow the file
+    first opened, so a log that is another file now (a rename put a new one in its
+    place) or shorter than what was read is not the log this place is in: reading
+    on would take its middle under the wrong seqs, so the read raises
+    FileNotFoundError, as it does where the log is gone."""
+
+    def __init__(self, log: Path) -> None:
+        self.log = log
+        self.inode: int | None = None
+        self.read = self.lines = 0
+
+    def read_on(self, after: int = 0) -> list[dict]:
+        """The events appended since the last read, less those at or before seq
+        `after`, which are counted without being parsed."""
+        with open(self.log, "rb") as f:
+            opened = os.fstat(f.fileno())
+            self.inode = self.inode or opened.st_ino
+            if opened.st_ino != self.inode or opened.st_size < self.read:
+                raise FileNotFoundError(f"{self.log} is another file now")
+            f.seek(self.read)
+            data = f.read()
+        complete = data[: data.rfind(b"\n") + 1]
+        unread = _line_start(complete, max(0, after - self.lines))
+        events = _parse_events(
+            complete[unread:], self.lines + complete.count(b"\n", 0, unread)
+        )
+        self.read += len(complete)
+        self.lines += complete.count(b"\n")
+        return events
+
+
+# Each page's admitted attempts, as this process has read them so far.
+_ATTEMPTS: dict[Path, tuple[_Tail, set[str]]] = {}
+_ATTEMPTS_LOCK = threading.Lock()
+
+
+def admitted_attempts(page_dir: Path, attempts: Iterable[str]) -> set[str]:
+    """Which of `attempts` the page's log holds an event sent with. The log keeps every
+    attempt it admitted, so an answer never lapses. The process keeps the attempts it
+    has read from each page's log and reads only what was appended since (`_Tail`), so
+    asking costs what the log gained since the last question, not its length."""
+    log = page_dir.resolve() / EVENTS_FILE
+    with _ATTEMPTS_LOCK:
+        tail, admitted = _ATTEMPTS.get(log.parent) or (_Tail(log), set())
+        try:
+            events = tail.read_on()
+        except FileNotFoundError:
+            # Another log from here on, read whole, or none.
+            tail, admitted = _Tail(log), set()
+            try:
+                events = tail.read_on()
+            except FileNotFoundError:
+                return set()
+        admitted.update(event["attempt"] for event in events if event.get("attempt"))
+        _ATTEMPTS[log.parent] = tail, admitted
+        return admitted.intersection(attempts)
+
+
 def follow_events(page_dir: Path, after: int) -> Iterator[dict]:
     """Every event after seq `after`, then each one appended from here on, forever.
 
     It waits on the page's native subscription (`file_changes.page_changes`), so an
     event any process appends wakes it, and each wake compares the log's own stamp
-    with the one taken before the last read. A moved stamp reads only the bytes past
-    what was already read, and only through the last newline: the line after it is
-    an append mid-flush, whose rest moves the stamp again. Seq is the line number, so
-    the lines read are counted whether or not they parse, exactly as `_parse_events`
-    counts them; the lines at or before `after` are counted without being parsed.
-
-    The offset read so far is a position in the file first opened, and appends
-    only ever grow that file. A log that is another file now (a rename put a new
-    one in its place) or shorter than what was read is not the log being
-    followed, and reading on from the old offset would print its middle under the
-    wrong seqs, so the follower ends there, as it does when the log is removed.
+    with the one taken before the last read. A moved stamp reads on from the
+    follower's place in the log (`_Tail`), and a log that is another file now or
+    gone ends the follower.
     """
     # file_changes reads the page's inputs, which reach back here through `service`.
     from leaf.file_changes import page_changes
 
     log = page_dir / EVENTS_FILE
     gone = FileNotFoundError(f"{log} is gone")
-    read = lines = 0
-    followed = None
+    tail = _Tail(log)
     stamp = file_stamp(log)
     while True:
         if stamp is None:
             raise gone
         try:
-            with open(log, "rb") as f:
-                opened = os.fstat(f.fileno())
-                followed = followed or opened.st_ino
-                if opened.st_ino != followed or opened.st_size < read:
-                    raise gone
-                f.seek(read)
-                data = f.read()
+            events = tail.read_on(after)
         except FileNotFoundError:
             raise gone from None
-        complete = data[: data.rfind(b"\n") + 1]
-        unread = _line_start(complete, max(0, after - lines))
-        yield from _parse_events(
-            complete[unread:], lines + complete.count(b"\n", 0, unread)
-        )
-        read += len(complete)
-        lines += complete.count(b"\n")
+        yield from events
         seen = stamp
         while (stamp := file_stamp(log)) == seen:
             # The generation is taken before the stamp it confirms, so an append

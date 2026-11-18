@@ -258,7 +258,8 @@ function advance(entry, signal, admitted = null) {
  *   registry: Record<
  *     string,
  *     {
- *       "x-state"?: Record<string, ActionSpec>;
+ *       verbs?: Record<string, ActionSpec>;
+ *       awaits?: { value?: string };
  *       [name: string]: unknown;
  *     }
  *   > & {
@@ -269,7 +270,11 @@ function advance(entry, signal, admitted = null) {
  *   descriptors: ReadonlyMap<string, WidgetDescriptor>;
  *   messageBodies?: ReadonlyMap<
  *     string,
- *     { text: string; markup: string; document?: { thread: string; message: string } }
+ *     {
+ *       text: string;
+ *       heldElsewhere?: string;
+ *       document?: { thread: string; message: string };
+ *     }
  *   >;
  * }} SemanticDocument
  */
@@ -393,9 +398,7 @@ function normalizedObligations(
       const sourceId = item.source.id;
       const sourceUnit = item.source.unit;
       const widget = widgets.get(sourceId);
-      const declaration = /** @type {{ value?: string } | undefined} */ (
-        descriptors.get(item.source.id)?.declaration["x-awaits"]
-      );
+      const declaration = descriptors.get(item.source.id)?.declaration.awaits;
       const verb = declaration?.value;
       if (!verb || !widget) return item;
       const withdrawals = withdrawing.get(sourceId) ?? NO_WITHDRAWALS;
@@ -746,7 +749,7 @@ const namesRecord = (item) => item.kind !== "todo";
 // publisher shares each widget's group across publications, so a widget whose entries
 // did not move reads the group it read before. Entries group by widget id alone: the
 // selected server view already bounds page history to the captured revision and thread
-// history to its frozen document, and widget ids are unique across both, so filtering
+// history to its thread markup, and widget ids are unique across both, so filtering
 // again by the event's authored revision would discard carried decisions from an
 // earlier revision.
 /** @param {SemanticRoot} root @returns {WidgetIndex} */
@@ -832,7 +835,7 @@ function widgetReading(inputs, descriptor) {
   const classified = inputs.entries.classified.toSorted(
     (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
   );
-  const actionSpecs = descriptor.declaration["x-state"] ?? {};
+  const actionSpecs = descriptor.declaration.verbs ?? {};
   const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
   const durableUndo = inputs.entries.undo;
@@ -1677,9 +1680,7 @@ export function createSemanticApplication({ presentation } = {}) {
           ? before.document.descriptors.get(event.widget)?.declaration
           : null;
       const spec =
-        event.kind === "action" && widget
-          ? declaration?.["x-state"]?.[event.action]
-          : null;
+        event.kind === "action" && widget ? declaration?.verbs?.[event.action] : null;
       const unit =
         event.kind === "action" && spec
           ? spec.unit === "widget"

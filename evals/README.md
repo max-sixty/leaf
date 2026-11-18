@@ -294,13 +294,17 @@ flowchart TD
           file="/absolute/path/to/change.diff"
           label="Exact retained change"
         ></lf-eval-cite>
-        <lf-ask id="keyboard-review">
-          <h4>Keep the keyboard change?</h4>
-          <lf-options id="keyboard" choose>
-            <lf-option id="keyboard-approve"><strong>Approve change</strong></lf-option>
-            <lf-option id="keyboard-revisit"><strong>Revisit change</strong></lf-option>
+        <lf-group id="keyboard-review" label="Keep the keyboard change?">
+          <h4 id="keyboard-review-h">Keep the keyboard change?</h4>
+          <lf-options id="keyboard">
+            <lf-option id="keyboard-approve" label="Approve change"
+              ><strong>Approve change</strong></lf-option
+            >
+            <lf-option id="keyboard-revisit" label="Revisit change"
+              ><strong>Revisit change</strong></lf-option
+            >
           </lf-options>
-        </lf-ask>
+        </lf-group>
       </section>
     </section>
     <section id="experiments-rejected">
@@ -398,7 +402,7 @@ Each section keeps what its reader needs to judge it:
   rather than inferring causality from timestamps. Order cases and steps as the campaign
   took them, not by score or file time, and leave parallel lanes unordered against each
   other. Keep the original grades when explaining a change to an evaluation contract.
-- Only a change selected for the user's decision gets an `lf-ask`, with a scoped exact
+- Only a change selected for the user's decision gets a question section, with a scoped exact
   diff to read. Scores never make that decision, and existing authorization and landing
   rules still govern what follows from it. Link a change to an experiment only where
   one tested it; a grading or report change has none.
@@ -467,11 +471,12 @@ defaults (`[]` for none), gives its probe that page, initialized, and the prompt
 it (`page_prompt` in `workflows/eval.yaml`). The runner tells such a probe
 the time first, `now` in `workflows/eval.yaml` or the case's own `vars.now`, so
 the ages its fixtures' times give hold whenever it runs. Opus 5.5's safeguards refuse a
-prompt asking for its tool calls with their JSON input. The leading comment records
-where the case came from and what it measured, `metadata.purpose` the behavior it
-pins, and `metadata.tags` its area. `description` is the short task name shown in
-reports (for example, "CSS cascade survey"); the directory address remains the case
-ID used for selection and grouping.
+prompt asking for its tool calls with their JSON input. The leading comment says
+what situation the case reproduces and the failure it invites, `metadata.purpose`
+the behavior it pins, and `metadata.tags` its area; where the case came from and what
+its runs measured go in the commit that adds or changes it. `description` is the
+short task name shown in reports (for example, "CSS cascade survey"); the directory
+address remains the case ID used for selection and grouping.
 
 A short case that needs real authoring declares `metadata.authoring: true`.
 Its agent has native file and command tools, an initialized writable page, the

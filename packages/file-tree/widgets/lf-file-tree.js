@@ -61,7 +61,7 @@ const directory = (tree, path) => {
 
 class FileTreeWidget extends LeafElement {
   // The file list, set by whoever hosts the widget: Leaf from the bound source or
-  // diff (the registry's `x-data.files.property`), or null while it has none.
+  // diff (the registry's `inputs.files.property`), or null while it has none.
   static properties = { value: { attribute: false } };
 
   constructor() {

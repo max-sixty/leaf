@@ -10,7 +10,7 @@ from leaf import revisioning as revisioning_model
 from leaf import thread as thread_model
 
 
-def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
+def test_candidate_vocabulary_can_change_after_thread_widget_actions(page_dir):
     """A thread widget keeps the contract under which its user command was admitted."""
     authored = page_dir / "page" / "registry.json"
     declaration = _stateful_page_declaration(page_dir, "lf-thread-local")
@@ -24,7 +24,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
     thread_model.post_reply(
         page_dir,
         {"parent": "c1", "responds": "c1"},
-        "Use this control.",
+        "Use this control.\n\n"
         '<lf-thread-local id="thread-choice" value="author">Local</lf-thread-local>',
     )
     append_command(
@@ -38,7 +38,7 @@ def test_candidate_vocabulary_can_change_after_frozen_thread_actions(page_dir):
             "detail": {"value": "user"},
         },
     )
-    declaration["x-state"]["second"] = declaration["x-state"].pop("first")
+    declaration["verbs"]["second"] = declaration["verbs"].pop("first")
     authored.write_text(json.dumps({"lf-thread-local": declaration}))
 
     refused = revisioning_model.activate_source(page_dir)

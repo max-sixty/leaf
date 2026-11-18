@@ -451,8 +451,8 @@ DENSE_TARGETS_PAGE = leaf_page(
     "dense visual targets",
     '<h1 id="title">Visual targets</h1><div class="visual-grid">'
     + "".join(
-        f'<figure id="visual-{i}"><svg viewBox="0 0 32 18" width="32" height="18" '
-        f'role="img" aria-label="Visual {i}"><rect x="1" y="1" width="30" '
+        f'<figure id="visual-{i}" aria-label="Visual {i}"><svg viewBox="0 0 32 18" '
+        'width="32" height="18" aria-hidden="true"><rect x="1" y="1" width="30" '
         'height="16" fill="none" stroke="currentColor"></rect></svg></figure>'
         for i in range(60)
     )
@@ -1592,4 +1592,40 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
     expect(status).to_have_text("4 of 4")
     expect(page.locator("#details")).to_have_attribute("open", "")
     search.fill("copper copper")
+    expect(status).to_have_text("1 of 1")
+
+
+def test_page_search_counts_the_words_an_off_screen_box_skips(browser, serve):
+    """A word the browser skips in an off-screen `content-visibility: auto` box, as a
+    long text document's runs are, counts by that box (passages.js,
+    `searchableWords`): every line of the document, and the author's far box's words,
+    less those under a `hidden` element in it. A box that is `visibility: hidden`
+    still counts a word that restores `visibility: visible`. `leaf-dev bench document
+    --input matches` reads what the count costs."""
+    lines = "\n".join(f"needle on line {i}" for i in range(4000))
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Skipped runs",
+                f'<h1>Search</h1><lf-text-document id="doc" label="lines.txt"><pre>{lines}'
+                '</pre></lf-text-document><div id="far" style="margin-top: 4000px;'
+                ' content-visibility: auto; contain-intrinsic-size: auto 600px">'
+                "<p>needle far</p><p hidden>needle hidden far</p></div>"
+                '<div style="margin-top: 4000px; content-visibility: auto;'
+                ' contain-intrinsic-size: auto 600px; visibility: hidden">'
+                '<p style="visibility: visible">needle restored</p><p>needle unseen</p>'
+                "</div>",
+            )
+        ),
+    )
+    expect(page.locator("#doc .lf-text-document-run")).to_have_count(32)
+    page.keyboard.press("/")
+    search = page.get_by_role("searchbox", name="Search page text")
+    status = page.locator(".lf-page-search-status")
+    search.fill("needle")
+    expect(status).to_have_text("1 of 4002")
+    search.fill("needle far")
+    expect(status).to_have_text("1 of 1")
+    search.fill("needle restored")
     expect(status).to_have_text("1 of 1")

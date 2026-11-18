@@ -8,6 +8,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    latest_press,
     leaf_page,
     open_page,
     stamp_page,
@@ -15,7 +16,7 @@ from render_harness import (
 )
 
 from leaf import cli
-from leaf.render_checks import wait_until_ready
+from leaf.render_checks import asked_again, wait_until_ready
 
 
 def _source():
@@ -26,9 +27,9 @@ def _source():
         '<section id="evidence"><h2>Evidence</h2><p id="prose">Read the counts.</p>'
         '</section><lf-activity id="feed"></lf-activity>'
         '<p><lf-tally id="left" for="queue" next></lf-tally></p>'
-        '<section id="queue"><lf-ask id="decision"><h2>Ship it?</h2>'
-        '<lf-options id="choice" choose><lf-option id="yes">Ship it</lf-option>'
-        "</lf-options></lf-ask></section>",
+        '<section id="queue"><lf-group id="decision" label="Ship it?"><h2 id="decision-h">Ship it?</h2>'
+        '<lf-options id="choice"><lf-option id="yes">Ship it</lf-option>'
+        "</lf-options></lf-group></section>",
     )
 
 
@@ -88,7 +89,7 @@ def test_a_required_startup_failure_releases_every_authored_tab(
             "</lf-tabs></main>",
         )
         with page.expect_request("**/" + failed_file):
-            page.goto(serve(source), wait_until="commit")
+            page.goto(asked_again(serve(source)), wait_until="commit")
         expect(page.locator("main")).to_be_visible()
         assert held, "the required widget must still be waiting"
         held.pop().abort()
@@ -116,7 +117,7 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
     script = """<script>
       window.captureProbeRuns = (window.captureProbeRuns || 0) + 1;
       window.captureOption = document.getElementById('yes');
-      window.captureOption.setAttribute('chosen', '');
+      window.captureOption.setAttribute('selected', '');
     </script>"""
     source = _source().replace("</body>", script + "</body>")
     try:
@@ -140,7 +141,7 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
         held.clear()
         page.unroute("**/registry.json")
         expect(page.locator("body")).to_have_attribute("data-lf-upgraded", "1")
-        expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
+        expect(page.locator("#yes")).not_to_have_attribute("selected", "")
         expect(page.locator("main")).to_be_visible()
         assert (
             page.evaluate(
@@ -160,7 +161,7 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
             "window.captureProbeRuns === 1 && "
             "window.captureOption === document.getElementById('yes')"
         )
-        expect(page.locator("#yes")).not_to_have_attribute("chosen", "")
+        expect(page.locator("#yes")).not_to_have_attribute("selected", "")
         consume_browser_errors(page, "Nonfatal authored capture probe")
     finally:
         for route in held:
@@ -177,27 +178,21 @@ customElements.define('lf-progressive-proof',class extends LeafElement {
 PROGRESSIVE_REGISTRY = {
     "lf-progressive-proof": {
         "description": "A progressive widget retaining native authored children.",
-        "type": "object",
-        "properties": {
-            "id": {"type": "string"},
-            "label": {"type": "string"},
+        "attributes": {
+            "type": "object",
+            "properties": {
+                "id": {"type": "string"},
+                "label": {"type": "string"},
+            },
+            "additionalProperties": False,
+            "required": ["id"],
         },
-        "additionalProperties": False,
-        "required": ["id"],
-        "x-content": "markup",
-        "x-shadow": True,
+        "content": "markup",
+        "shadow": True,
     }
 }
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "#5642: how the panel's row shares its room between the version notice and "
-        "Comment… c is still being decided, and until then the hint slides as the "
-        "notice comes and goes"
-    ),
-)
 def test_native_input_survives_progressive_render_revision_and_export(
     browser, serve, tmp_path
 ):
@@ -264,8 +259,8 @@ def test_native_input_survives_progressive_render_revision_and_export(
         )
         stamp_page(serve.page_dir, revised, "Revise widget inputs and defaults")
         told(page)
-        latest = page.locator("button.lf-fp-row-notice-press")
-        expect(latest).to_contain_text("Latest")
+        latest = latest_press(page)
+        expect(latest).to_contain_text("Open latest")
         latest.click()
         expect(page.locator("#proof .proof-control")).to_have_text("revised")
         expect(page.locator("#early-details")).to_have_attribute("open", "")
@@ -282,11 +277,11 @@ def test_native_input_survives_progressive_render_revision_and_export(
         page.locator("#early-draft").evaluate("e => e.setSelectionRange(2,7)")
 
         # A member-only revision keeps the generated control and native editor
-        # nodes, including the caret, after explicit Latest activation.
+        # nodes, including the caret, after explicit Open latest activation.
         revised = revised.replace("Authored evidence.", "Revised evidence.")
         stamp_page(serve.page_dir, revised, "Revise the slotted evidence")
         told(page)
-        expect(latest).to_contain_text("Latest")
+        expect(latest).to_contain_text("Open latest")
         latest.click()
         expect(page.locator("#prose")).to_have_text("Revised evidence.")
         assert page.evaluate(

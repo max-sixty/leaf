@@ -220,7 +220,7 @@ def build() -> dict:
             # The agent asks a question over a board it sent, and the user moves a
             # card on it without answering: the thread is the user's to answer, and
             # the move, which owes nothing, stands in it without holding it.
-            "frozen move owes nothing": _served(
+            "thread move owes nothing": _served(
                 (
                     {"kind": "comment", "text": "Lay the feeder work out on a board."},
                     {
@@ -229,8 +229,8 @@ def build() -> dict:
                         "agent": "Agent",
                         "parent": "e1",
                         "responds": "e1",
-                        "text": "Here is the board. Which card goes first?",
-                        "markup": model_layer()["lf-board"]["x-example"],
+                        "text": "Here is the board. Which card goes first?\n\n"
+                        + model_layer()["lf-board"]["example"],
                         "obligation": True,
                     },
                     {
@@ -440,12 +440,12 @@ QUIET = "2026-09-19T11:30:00+00:00"
 
 OBLIGATION_PAGE = leaf_page(
     "Served queues",
-    '<lf-ask id="pick-ask"><h2>Which one?</h2><lf-options id="pick" choose>'
+    '<lf-group id="pick-ask" label="Which one?"><h2 id="pick-ask-h">Which one?</h2><lf-options id="pick">'
     '<lf-option id="one">One</lf-option><lf-option id="two">Two</lf-option>'
-    "</lf-options></lf-ask>"
-    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
+    "</lf-options></lf-group>"
+    '<lf-group id="ship-ask" label="Ship it?"><h2 id="ship-ask-h">Ship it?</h2><lf-options id="ship">'
     '<lf-option id="ship-now">Now</lf-option><lf-option id="ship-later">Later</lf-option>'
-    "</lf-options></lf-ask>",
+    "</lf-options></lf-group>",
 )
 
 
@@ -482,7 +482,11 @@ def obligation_value_cases():
     ):
         spec = {"unit": unit, **({"record": record} if record else {})}
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
-        registry = {"lf-value": {"x-state": {"set": spec}}}
+        registry = {
+            "lf-value": {
+                "verbs": {"set": spec},
+            }
+        }
         source = SourceReading(SourceDocument(markup), registry)
         held = {}
         entries = []
@@ -539,7 +543,7 @@ def obligation_value_cases():
             }
         )
 
-    attribute = {"kind": "attribute", "attr": "chosen"}
+    attribute = {"kind": "attribute", "attr": "selected"}
     add("attribute authored empty", attribute, initial=[])
     add("attribute completed empty", attribute, initial=[], answered=True)
     add(
@@ -693,12 +697,12 @@ def gesture_sequence() -> dict:
 TAIL_PAGE = leaf_page(
     "Served tails",
     '<p id="p">Two questions.</p>'
-    '<lf-ask id="kinds-ask"><h2>Which kinds?</h2><lf-options id="kinds" choose multiple>'
+    '<lf-group id="kinds-ask" label="Which kinds?"><h2 id="kinds-ask-h">Which kinds?</h2><lf-options id="kinds" multiple>'
     '<lf-option id="red">Red</lf-option><lf-option id="blue">Blue</lf-option>'
-    "</lf-options></lf-ask>"
-    '<lf-ask id="ship-ask"><h2>Ship it?</h2><lf-options id="ship" choose>'
+    "</lf-options></lf-group>"
+    '<lf-group id="ship-ask" label="Ship it?"><h2 id="ship-ask-h">Ship it?</h2><lf-options id="ship">'
     '<lf-option id="now">Now</lf-option><lf-option id="later">Later</lf-option>'
-    "</lf-options></lf-ask>",
+    "</lf-options></lf-group>",
 )
 # Picks, a comment and its answer, an undo of an older pick, which withdraws a held
 # projection entry and drops it from the undo list, and a pickup, which marks held
@@ -805,25 +809,30 @@ def tail_cases() -> list[dict]:
     registry = {
         **model_layer(),
         "lf-value-ask": {
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "active": {"type": "boolean"},
-                "value": {
-                    "type": ["boolean", "integer", "array", "object"],
-                    "items": {"type": "string"},
+            "attributes": {
+                "type": "object",
+                "properties": {
+                    "id": {"type": "string"},
+                    "active": {"type": "boolean"},
+                    "value": {
+                        "type": ["boolean", "integer", "array", "object"],
+                        "items": {"type": "string"},
+                    },
                 },
+                "required": ["id"],
+                "additionalProperties": False,
             },
-            "required": ["id"],
-            "additionalProperties": False,
-            "x-content": "none",
-            "x-awaits": {
+            "content": "none",
+            "awaits": {
                 "when": {"active": [True]},
                 "value": "set",
                 "answered": {"set": {}},
             },
-            "x-state": {
-                "set": {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
+            "verbs": {
+                "set": {
+                    "unit": "widget",
+                    "record": {"kind": "value", "attr": "value"},
+                }
             },
         },
     }

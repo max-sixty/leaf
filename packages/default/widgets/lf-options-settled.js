@@ -81,12 +81,12 @@ export class SettledOptions {
       keeps(el, "hidden", this.#isOpen ? null : "until-found");
 
     const names = options
-      .filter((option) => option.hasAttribute("chosen"))
+      .filter((option) => option.hasAttribute("selected"))
       .map(this.#label)
       .filter(Boolean);
     const changes = comparisonChanges(this.#host).length;
     // The row names only the outcome: its disclosure marker already says the
-    // alternatives are inside. The user chose this on 2026-10-26 over a right-aligned
+    // alternatives are inside. The user chose this over a right-aligned
     // count of the options.
     render(
       html`<span ${generated({ says: true })}

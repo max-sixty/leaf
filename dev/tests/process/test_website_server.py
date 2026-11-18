@@ -40,7 +40,7 @@ from leaf.event_log import read_events
 from leaf.files import revision_path
 from leaf.render_checks import OUTSTANDING
 from leaf.state import session_record
-from leaf_dev import ROOT, startup
+from leaf_dev import ROOT, startup, website
 from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.commands.journey import chart as journey_chart
 from leaf_dev.commands.journey import run as journey_run
@@ -414,7 +414,7 @@ class _RollingSite:
 def _rolling_clock(monkeypatch, samples: list[float], slept: list[float]) -> None:
     readings = iter(samples)
     monkeypatch.setattr(
-        verify_site,
+        website,
         "time",
         SimpleNamespace(monotonic=readings.__next__, sleep=slept.append),
     )
@@ -443,9 +443,9 @@ def _answered(status: int, headers: dict | None = None, body: str = "") -> _Read
 ACTIVATION = "https://leaf.page/examples/triage-board/api/view?revision=1&through_seq=1"
 
 
-def run_browser_journey(website):
-    """The release ask at the user's browser end on `website`'s session and release."""
-    session, version = website
+def run_browser_journey(site):
+    """The release ask at the user's browser end on `site`'s session and release."""
+    session, version = site
     return journey.run_journey(journey.BrowserEnd(session, None), version)
 
 
@@ -497,7 +497,7 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     @contextmanager
     def worker():
         lifecycle.append("worker")
-        yield verify_site.LocalWorker(
+        yield website.LocalWorker(
             "http://127.0.0.1:8787", "b" * 40, "test-worker", ROOT / ".tmp"
         )
 
@@ -777,7 +777,7 @@ def test_the_preview_generator_uses_the_live_website_route(page_dir, tmp_path):
 def test_local_verification_settles_host_network(monkeypatch):
     @contextmanager
     def worker():
-        yield verify_site.LocalWorker(
+        yield website.LocalWorker(
             "http://127.0.0.1:8787", "release", "test-worker", ROOT / ".tmp"
         )
 
@@ -796,14 +796,14 @@ def test_local_verification_settles_host_network(monkeypatch):
     result = CliRunner().invoke(verify_site.verify_site, ["website-worker"])
 
     assert isinstance(result.exception, RuntimeError)
-    assert attempts == [verify_site.wait_for_host_network]
+    assert attempts == [website.wait_for_host_network]
 
 
 def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
     monkeypatch, tmp_path
 ):
     run = tmp_path / "run-_up9yvbg"
-    monkeypatch.setattr(verify_site, "run_directory", lambda parent: run)
+    monkeypatch.setattr(website, "run_directory", lambda parent: run)
 
     def stop_before_build(*args, **kwargs):
         raise RuntimeError("stop before building")
@@ -814,12 +814,12 @@ def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
         calls.append(args[0])
         return subprocess.CompletedProcess(args[0], 0, stdout="")
 
-    monkeypatch.setattr(verify_site, "copy_working", stop_before_build)
-    monkeypatch.setattr(verify_site.subprocess, "run", docker)
+    monkeypatch.setattr(website, "copy_working", stop_before_build)
+    monkeypatch.setattr(website.subprocess, "run", docker)
 
     with (
         pytest.raises(RuntimeError, match="stop before building"),
-        verify_site.local_worker(),
+        website.local_worker(),
     ):
         pass
 
@@ -830,13 +830,13 @@ def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
 def test_host_network_waits_for_addresses_to_stop_changing(monkeypatch):
     now = [0.0]
     readings = itertools.chain(["before", "before"], itertools.repeat("after"))
-    monkeypatch.setattr(verify_site.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(website.time, "monotonic", lambda: now[0])
     monkeypatch.setattr(
-        verify_site.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)
+        website.time, "sleep", lambda seconds: now.__setitem__(0, now[0] + seconds)
     )
-    monkeypatch.setattr(verify_site, "host_addresses", lambda: next(readings))
+    monkeypatch.setattr(website, "host_addresses", lambda: next(readings))
 
-    verify_site.wait_for_host_network()
+    website.wait_for_host_network()
 
     # Quiet for 2.5 s from the change at 0.2 s.
     assert now[0] > 2.6
@@ -846,15 +846,15 @@ def test_a_refused_answer_carries_what_the_server_said_about_it():
     """A status alone cannot separate one 500 from another, so the body travels with
     it, bounded so a page of HTML served by mistake does not become the run log."""
     url = "https://leaf.page/examples/triage-board/api/state"
-    assert verify_site.answered(_answered(200), url).status == 200
+    assert website.answered(_answered(200), url).status == 200
 
     fault = json.dumps({"error": "KeyError: 'browser'"})
     with pytest.raises(RuntimeError) as faulted:
-        verify_site.answered(_answered(500, body=fault), url)
+        website.answered(_answered(500, body=fault), url)
     assert str(faulted.value) == f"{url} returned 500: {fault}"
 
     with pytest.raises(RuntimeError) as refused:
-        verify_site.answered(_answered(502, body="b" * 4000), url)
+        website.answered(_answered(502, body="b" * 4000), url)
     assert len(str(refused.value)) < len(url) + 600
 
 
@@ -977,7 +977,7 @@ def test_the_deploy_gate_reads_outcomes_independently_of_reply_wording():
 
 
 def test_startup_line_distinguishes_an_unobserved_state_request():
-    startup = {
+    reading = {
         "first_byte": 20,
         "document": 30,
         "paint": {"first-contentful-paint": 40},
@@ -996,7 +996,7 @@ def test_startup_line_distinguishes_an_unobserved_state_request():
         },
     }
 
-    line = verify_site.startup_line("page", startup)
+    line = startup.startup_line("page", reading)
 
     assert "JS fetched 45 ms" in line
     assert "state answered not observed" in line
@@ -1004,7 +1004,7 @@ def test_startup_line_distinguishes_an_unobserved_state_request():
 
 
 def test_startup_line_distinguishes_an_unobserved_first_paint():
-    startup = {
+    reading = {
         "first_byte": 20,
         "document": 30,
         "paint": {},
@@ -1023,7 +1023,7 @@ def test_startup_line_distinguishes_an_unobserved_first_paint():
         },
     }
 
-    line = verify_site.startup_line("page", startup)
+    line = startup.startup_line("page", reading)
 
     assert "first contentful paint not observed" in line
     assert "first contentful paint 0 ms" not in line
@@ -1239,7 +1239,7 @@ def test_the_agent_pass_waits_out_an_allocation_the_rollout_has_not_reached(
     _rolling_clock(monkeypatch, [0.0, 12.0], slept)
 
     site = _RollingSite([starting, ready])
-    session = verify_site.agent_session(site, release, origin="https://leaf.page")
+    session = website.agent_session(site, release, origin="https://leaf.page")
 
     assert session.context is ready
     # The unseated allocation is dropped rather than carried into the turn.
@@ -1255,9 +1255,7 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
     class Resetting(_RollingOutContainer):
         def get(self, url: str, headers: dict | None = None, **kwargs):
             if "api/view" in url:
-                raise verify_site.PlaywrightError(
-                    "APIRequestContext.get: read ECONNRESET"
-                )
+                raise website.PlaywrightError("APIRequestContext.get: read ECONNRESET")
             return super().get(url, headers=headers, **kwargs)
 
     resetting = Resetting(release, page)
@@ -1266,7 +1264,7 @@ def test_the_agent_pass_retries_a_reset_activation_on_a_fresh_session(monkeypatc
     _rolling_clock(monkeypatch, [0.0, 12.0], slept)
 
     site = _RollingSite([resetting, ready])
-    session = verify_site.agent_session(site, release, origin="https://leaf.page")
+    session = website.agent_session(site, release, origin="https://leaf.page")
 
     assert session.context is ready
     assert resetting.closed and not ready.closed
@@ -1284,12 +1282,12 @@ def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
     _rolling_clock(monkeypatch, [0.0, 400.0], slept)
 
     with pytest.raises(RuntimeError) as failure:
-        verify_site.agent_session(
+        website.agent_session(
             _RollingSite([starting]), release, origin="https://leaf.page"
         )
 
     assert "reached no container able to admit its agent's turn" in str(failure.value)
-    assert verify_site.STILL_STARTING in str(failure.value)
+    assert website.STILL_STARTING in str(failure.value)
     assert slept == []
 
 
@@ -1310,7 +1308,7 @@ def test_the_rollout_answer_is_the_one_503_the_activating_read_waits_on():
         )
     )
 
-    assert verify_site.activation_read(rolling, ACTIVATION) is None
+    assert website.activation_read(rolling, ACTIVATION) is None
     assert rolling.asked == [ACTIVATION]
 
 
@@ -1326,7 +1324,7 @@ def test_a_503_the_worker_did_not_write_is_this_release_failing():
     )
 
     with pytest.raises(RuntimeError) as failure:
-        verify_site.activation_read(broken, ACTIVATION)
+        website.activation_read(broken, ACTIVATION)
 
     assert str(failure.value) == (
         f"{ACTIVATION} returned 503: the page has no revision 1"
@@ -1404,7 +1402,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     # the wait for the title the log already holds, one the wait for the reply the
     # page has already shown, and two surround the revision wait this case measures.
     with monkeypatch.context() as timing:
-        timing.setattr(verify_site, "time", SimpleNamespace(monotonic=lambda: 0.0))
+        timing.setattr(website, "time", SimpleNamespace(monotonic=lambda: 0.0))
         timing.setattr(
             journey,
             "time",
@@ -1425,7 +1423,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     assert page.revision_waits == [(2, journey.TURN_PRESENTATION)]
     assert journey.TURN_PRESENTATION > 30_000
     # The startup profile the run reports, and the verifier's own readings.
-    assert page.init_scripts == [startup.SCRIPT, verify_site.VERIFIER_SCRIPT]
+    assert page.init_scripts == [startup.SCRIPT, website.SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
     reported = capsys.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
@@ -1730,18 +1728,18 @@ def test_the_local_adapter_owns_its_process_and_disposable_codex_home(
         "print(json.dumps(dict(event='container_http_ready', port=server.server_port)), flush=True)\n"
         "server.serve_forever()\n"
     )
-    monkeypatch.setattr(verify_site, "ROOT", root)
-    monkeypatch.setattr(verify_site, "BUILD_SITE", [sys.executable, str(build_site)])
+    monkeypatch.setattr(website, "ROOT", root)
+    monkeypatch.setattr(website, "BUILD_SITE", [sys.executable, str(build_site)])
     monkeypatch.setattr(
-        verify_site, "serve_site", lambda install: [sys.executable, str(serve_site)]
+        website, "serve_site", lambda install: [sys.executable, str(serve_site)]
     )
     monkeypatch.setenv("CODEX_HOME", str(host_home))
     monkeypatch.setenv("PATH", f"{tmp_path}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("LEAF_CODEX_APP_SERVER", "unix:///another-session.sock")
     with (
         pytest.raises(RuntimeError, match="journey failed"),
-        verify_site.local_adapter() as (origin, release),
-        verify_site.local_adapter() as (other_origin, other_release),
+        website.local_adapter() as (origin, release),
+        website.local_adapter() as (other_origin, other_release),
     ):
         assert release == "a" * 40
         assert other_release == release
@@ -1810,7 +1808,7 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
             return _Read({"status": "started"})
 
     context = Requests()
-    verify_site.start_direct_agent(
+    website.start_direct_agent(
         context,
         "http://127.0.0.1:8080/examples/triage-board/",
         {"id": "comment-id"},

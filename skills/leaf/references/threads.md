@@ -207,7 +207,8 @@ listed in words. The user answers with a press in the thread, and the `lf-option
 waits on them until they do, so the message takes no `--obligation`, which the command
 refuses beside it. The message's text asks the question and gives your reason, so the
 `lf-options` needs no heading or group round it. Title each option by what choosing it
-does and mark the one you advise (`authoring-on-me.md`, "What a question holds").
+does and mark the one you advise `recommended`, which draws its chip
+(`authoring-on-me.md`, "What a question holds").
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'

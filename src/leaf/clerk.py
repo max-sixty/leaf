@@ -236,17 +236,17 @@ REFERENCES = SKILL_FILE.parent / "references"
 REFERENCE = REFERENCES / "turn-end-check.md"
 # The agent's own guidance the fork follows for its asks and its overtaken threads,
 # each a paragraph of a reference named by the words that open it: what goes On Me,
-# which action asks for permission and which is a step, what a question and each of
-# its options hold, how HTML in a message draws, when it asks with a choice, how a
-# message reads in a thread's narrow card, what it links, where a correction to an
-# unanswered reply goes, and the reply a thread is owed once the work it discusses is
-# done. The fork opens no file, so where one of these points to another passage for
-# how to write what the fork writes, that passage is here too.
+# which action asks for permission and which is a step, what a question holds, how
+# HTML in a message draws, when it asks with a choice, how a message reads in a
+# thread's narrow card, what it links, where a correction to an unanswered reply
+# goes, and the reply a thread is owed once the work it discusses is done. The fork
+# opens no file, so it can't follow a pointer in one of these paragraphs to another
+# reference. Each paragraph names the markup the fork needs, as the one on choices
+# names `recommended`.
 GUIDANCE = (
     ("conversation-loop.md", "The user's **On Me** list holds"),
     ("conversation-loop.md", "For an action you take once the user agrees"),
     ("authoring-on-me.md", "Make each question self-contained"),
-    ("authoring-on-me.md", "Each option is a result the user can pick"),
     ("threads.md", "A message is Markdown, and HTML in it draws"),
     ("threads.md", "When a message asks the user to choose among answers"),
     ("threads.md", "A thread shows in a narrow card"),

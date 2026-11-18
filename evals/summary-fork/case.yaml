@@ -11,3 +11,8 @@ metadata:
   conditions: [leaf]
   executor: leaf_dev.fork_eval
   scenario: summary
+variants:
+  keeps-needed:
+    metadata:
+      scenario: summary-keeps
+      purpose: A thread whose earlier claims the user's newest message asks the agent to walk through keeps them in full.

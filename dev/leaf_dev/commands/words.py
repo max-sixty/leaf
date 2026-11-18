@@ -99,9 +99,10 @@ JOURNEYS = (
     ("queue.next", ("m", "ArrowDown", "ArrowDown")),
     ("thread.next", ("t", "Escape", "t")),
 )
-# The keys pressed at the first Tab stop in each kind of widget.
+# The keys pressed at the first Tab stop in each kind of widget that declares no walk
+# of its own there, and how many Tab stops the survey goes through.
 WALK_KEYS = ("ArrowDown", "ArrowRight", "End")
-TAB_STOPS = 60
+TAB_STOPS = 150
 
 # How long a press is given to paint before the seat is read, in real time, and how far
 # the page's clock then runs past a notice's moment (notifications.js, `NOTICE_MS`).
@@ -167,6 +168,26 @@ def routes_at_rest(page: Page) -> list[tuple[str, str]]:
           if (entry.binding) found.push([entry.id, entry.binding]);
       return found;
     }""")
+
+
+def walks_here(page: Page, page_routes: set[str]) -> list[tuple[str, str]]:
+    """Each route a key reaches from where focus stands that travels, as a walk does,
+    and that the page offers nowhere else: the walks of the widget focus is in."""
+    return page.evaluate(
+        """async (pageRoutes) => {
+          const {api} = window.__lfWords;
+          const found = [];
+          for (const [row, bindings] of api.availableCommandRoutes()) {
+            const travels = typeof row.travels === 'function' ? row.travels() : row.travels;
+            if (!travels) continue;
+            for (const entry of api.commandEntries(row, [...bindings]))
+              if (entry.binding && !pageRoutes.includes(entry.id))
+                found.push([entry.id, entry.binding]);
+          }
+          return found;
+        }""",
+        sorted(page_routes),
+    )
 
 
 def signature(reading: dict) -> tuple:
@@ -251,7 +272,7 @@ class Survey:
                 self.sequence(route, keys)
         if "navigation.go-to.open" in available:
             self.go_to()
-        self.tab_through()
+        self.tab_through(available)
         for route, key in routes:
             if route in LAST:
                 self.sequence(route, (key, key))
@@ -274,9 +295,10 @@ class Survey:
         if any(route == "navigation.target" for route, _ in seconds):
             self.sequence("navigation.target", ("g", "a", "Tab", "Tab"), first=1)
 
-    def tab_through(self) -> None:
-        """Tab through the page, and at the first stop in each kind of widget press
-        `WALK_KEYS`, each from that stop."""
+    def tab_through(self, page_routes: set[str]) -> None:
+        """Tab through the page, and at the first stop in each kind of widget press each
+        key of the walks it declares there, or `WALK_KEYS` where it declares none, each
+        from that stop."""
         page = self.page
         seen = set()
         for _ in range(TAB_STOPS):
@@ -286,9 +308,12 @@ class Survey:
             if focus["panel"] or focus["kind"] in seen:
                 continue
             seen.add(focus["kind"])
-            for key in WALK_KEYS:
+            walks = walks_here(page, page_routes) or [(None, key) for key in WALK_KEYS]
+            for route, key in walks:
                 page.keyboard.press(key)
-                self.observe(f"Tab to {focus['name']}, {key}")
+                self.observe(
+                    f"Tab to {focus['name']}, {key}" + (f" ({route})" if route else "")
+                )
                 page.keyboard.press("Shift+Tab")
                 page.keyboard.press("Tab")
 

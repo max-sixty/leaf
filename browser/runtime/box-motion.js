@@ -1018,7 +1018,9 @@ export function boxMotion({
     function streamContent(part) {
       const scroller = part.element;
       const then = streamed.get(scroller) ?? streamFrom.get(scroller);
-      if (!then || !scroller.contains(then.child)) return;
+      // A first child hidden since, which reads no place, gives the stream none to ride.
+      if (!then || !scroller.contains(then.child) || !then.child.checkVisibility())
+        return;
       // Where layout stands the child: a part holding the scroller may already be
       // carried, which its box includes and `move` subtracts again.
       const to = then.child.getBoundingClientRect().top - carriedBy(0)(then.child)[1];

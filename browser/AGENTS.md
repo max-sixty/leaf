@@ -79,7 +79,10 @@ rule draws at once is drawn.
   answer the user waits for (`floating-panel.js`) does. Where news grows a thread's own
   box, the panel's view or a margin card, the growth may carry the box's secondary
   controls, such as Resolve or a message's pencil, from under a pointer resting on one;
-  the words the user is writing and their Send stay (the user's choice).
+  the words the user is writing and their Send stay (the user's choice). What news moves
+  there travels to its new place rather than jumping, as the user chose: a view that
+  scrolls glides to its end (`thread/thread-card.js`) and one that grows carries its
+  parts (`box-motion.js`).
   Check: `test_news_just_after_a_press_moves_nothing`. Owners: `thread/held-news.js`,
   and `threadsListing` in `floating-panel.js` for the rows of Threads.
 - **What the reader reads stays put through re-renders and revisions.** The browser's

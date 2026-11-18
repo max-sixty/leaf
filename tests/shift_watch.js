@@ -149,19 +149,25 @@
 // composed effects receive no inferred translation credit.
 //
 // Carries of a step. A box that follows its own layout draws a step its layout took as
-// travel: box-motion.js begins, in the ResizeObserver delivery after the step, a carry
-// that draws each part it moved where the part was and slides it to where it stands,
-// including a step news made. An effect such a delivery begins that no input's rendering
-// owns is such a carry (`carrySteps`), and it drew its underlying style until it began.
-// Its sampled translation is credited only while it keeps a node between where the
-// reading before the step drew it and where the node's layout stands net of the carry
-// (`carriesWithin`); a node first read in the step or after rides it, as a turn news
-// adds does. The step itself is judged as if drawn at once: append growth's permission
-// and a size change's reflow are asked of layout net of the carry (`restingLayout`),
-// and a step is asked even where the carry draws the node where it was, so no reading
-// shows it move. So a carry may draw part of a step at once, as the step itself may
-// draw all of it at once, but it may not draw a node beyond either end of the step, nor
-// make a step news may not take pass.
+// travel: once it reads the step, in the ResizeObserver delivery after it or where a
+// placed box's placement lands, box-motion.js begins a carry that draws each part it
+// moved where the part was and slides it to where it stands, including a step news
+// made. The sensor reads as such a carry a translation begun while no input's rendering
+// is open whose last keyframe draws its target where its layout puts it and whose first
+// draws it elsewhere (`carrySteps`); it drew its underlying style until it began, and
+// the readings from before its step are kept while it moves. Its sampled translation is
+// credited only while it keeps a node between where the reading before the step drew it
+// and where the node's layout stands net of the carry (`carriesWithin`). A node first
+// read in the step or after rides a carry only as far as one draws a node read before
+// it, as a turn news adds rides the stream it joins. The step itself is judged as if
+// drawn at once: append growth's permission and a size change's reflow are asked of
+// layout net of the carry (`restingLayout`), a step is asked even where the carry draws
+// the node where it was, so no reading shows it move, and a move the step made that the
+// carry draws back stands, since the carry ends where layout puts the node. So a carry
+// may draw part of a step at once, as the step itself may draw all of it at once, but
+// it may not draw a node beyond either end of the step, nor make a step news may not
+// take pass. A translation that ends elsewhere is no carry, and a carry that draws no
+// step holds no node within one, so both fail as before.
 //
 // Runs of motion. Movement without input is judged from the sensor's own readings,
 // which add up a slow animation's steps, rather than from Chrome's layout-shift
@@ -2022,9 +2028,38 @@
   };
   const deliveredBy = () =>
     delivering > 0 && open && !open.told && open.drawsIn === frameCount ? open : null;
-  // An effect a ResizeObserver delivery begins that no rendering owns carries a layout
-  // step the page took without input, as box-motion.js carries what news moved. Each
-  // keeps when it began, and when the frame before the delivery's own was read, the
+  // A carry draws its target back to where its layout puts it: a translation whose last
+  // keyframe moves the target by nothing and whose first moves it by something.
+  const carriesBack = (animation) => {
+    const properties = animationProperties(animation);
+    if (
+      !properties.length ||
+      !properties.every((p) => ["translate", "transform"].includes(p))
+    )
+      return false;
+    const keyframes = animation.effect?.getKeyframes() ?? [];
+    const bound = translationBindings.get(animation)?.match(/var\(\s*(--[-\w]+)/)?.[1];
+    const shifts = (keyframe) =>
+      properties.map((property) => {
+        const value =
+          keyframe[property] ??
+          (property === "translate" && bound ? keyframe[bound] : null);
+        return value == null ? null : animationTranslation(property, value);
+      });
+    const still = (shift) =>
+      shift && Math.abs(shift.left) < 0.5 && Math.abs(shift.top) < 0.5;
+    return (
+      keyframes.length > 1 &&
+      shifts(keyframes.at(-1)).every(still) &&
+      shifts(keyframes[0]).some((shift) => shift && !still(shift))
+    );
+  };
+  // An effect no rendering owns, begun while no input's rendering or preparation's
+  // landing is open, that carries its target back to its layout place (`carriesBack`)
+  // draws a layout step the page took without input, as box-motion.js carries what news
+  // moved, in the ResizeObserver delivery after the step or where a placed box's
+  // placement lands. An effect a rendering owned that resumes is still that rendering's.
+  // Each keeps when it began, and when the frame before the latest reading was read, the
   // earliest reading that can already hold that step (`carriesWithin`). The ones still
   // moving are credited each frame, within that step (`carriedMotion`).
   const carrySteps = new WeakMap();
@@ -2033,9 +2068,25 @@
     if (!moves(animation)) return;
     const owner = deliveredBy();
     if (owner) owner.own.add(animation);
-    else if (delivering > 0) {
-      carrySteps.set(animation, { began: at, step: frames.at(-2)?.at ?? -Infinity });
+    else if (
+      !(open && !open.told) &&
+      !landing.size &&
+      !renderings.some((rendering) => rendering.own.has(animation)) &&
+      carriesBack(animation)
+    ) {
+      const step = frames.at(-2)?.at ?? -Infinity;
+      carrySteps.set(animation, { began: at, step });
       carrying.add(animation);
+      // A move the step made that waits to be judged, read where layout put it, the
+      // carry draws back where the move found it, but it ends where layout puts the
+      // node, so the move stands (`admittedMotion`).
+      const target = animation.effect.target;
+      for (const move of pendingMotion) {
+        const element =
+          move.node.nodeType === Node.TEXT_NODE ? up(move.node) : move.node;
+        if (move.after >= step && ancestryAt(element, move.after).includes(target))
+          move.hidden = true;
+      }
     }
   };
   // The typing rule stops reading the open rendering, which runs on.
@@ -3933,6 +3984,7 @@
   // the frame takes before the delivery that begins them does: then the one before it
   // drew the node before the step. A node first read in the step or after rides them
   // from wherever they draw it, as a turn news adds does.
+  let riding = false;
   const carriesWithin = (node, to, carries) => {
     const steps = carries.map((animation) => carrySteps.get(continued(animation)));
     const began = Math.min(...steps.map(({ began }) => began));
@@ -3943,11 +3995,37 @@
     );
     const readings = placed.get(node) ?? [];
     let index = readings.findLastIndex((reading) => reading.at < began);
+    // A node new with the step rides a carry that draws a node read before the step,
+    // in it, by as far as it draws this one, as a turn news adds rides the stream it
+    // joins and a part inside a carried one rides it.
+    const rides = () => {
+      if (riding) return false;
+      const drawn = animationMotion(node, -Infinity, to, carries);
+      riding = true;
+      try {
+        return [...new Set([...carries, ...carrying])].some((animation) => {
+          const target = continued(animation).effect?.target;
+          const step = carrySteps.get(continued(animation));
+          if (!target || target === node || !step) return false;
+          if (!(placed.get(target) ?? []).some((reading) => reading.at < step.began))
+            return false;
+          const along = animationMotion(target, -Infinity, to, [animation]);
+          return (
+            Math.abs(along.left - drawn.left) < 1 &&
+            Math.abs(along.top - drawn.top) < 1 &&
+            carriesWithin(target, to, [animation])
+          );
+        });
+      } finally {
+        riding = false;
+      }
+    };
     // The node's layout at `at`, read no earlier than the retained readings begin: the
     // ledger keeps each node's last reading from before then, which still holds it.
     const layout = (at) => layoutAt(node, Math.max(at, retainedFrom));
     const now = layout(to);
-    if (index < 0 || !now || first === Infinity) return true;
+    if (!now || first === Infinity) return true;
+    if (index < 0) return rides();
     // Where the node's layout stands at `at`, net of the carries.
     const stands = (at) => {
       const box = layout(at);
@@ -3963,7 +4041,7 @@
       ["left", "top"].every((axis) => Math.abs(last[axis] - landed[axis]) < 1)
     ) {
       // That reading holds the step, and one read first there is new with it.
-      if (index === 0) return true;
+      if (index === 0) return rides();
       index--;
     }
     const before = layout(readings[index].at),
@@ -4113,9 +4191,15 @@
             carried(previousRect, currentRect, "top", "bottom") &&
             Math.abs(layoutTop - nextTop) >= 1 &&
             Math.abs(currentRect.top - previousRect.top - scroll.top - motion.top) >= 1;
+          // What no credit explains, which a carry hiding the step leaves to be asked.
+          const unexplained =
+            Math.abs(
+              currentRect.left - previousRect.left - scroll.left - motion.left,
+            ) >= 1 ||
+            Math.abs(currentRect.top - previousRect.top - scroll.top - motion.top) >= 1;
           if (
             !permitted &&
-            (x || y || carrying) &&
+            (x || y || (carrying && unexplained)) &&
             readIn(around[before], node) &&
             readIn(around[after], node)
           ) {
@@ -4130,12 +4214,22 @@
               around,
               growth(),
             );
+            // Append growth measures the node's layout move, which the placement and
+            // anchor credits the step took away already make part of, as a placed
+            // card's rise is both its placement's and its standing port's.
             if (appended) {
-              permit(appended);
+              permit({
+                left: appended.left - scroll.left,
+                top: appended.top - scroll.top,
+              });
               continue;
             }
           }
-          if (!x && !y) continue;
+          // A step a carry hides that nothing permitted stands once the carry ends,
+          // since a carry ends where layout puts what it draws (`carriesBack`), so it
+          // is judged at its own frame, as the step drawn at once would be.
+          const hidden = !x && !y && !permitted && carrying && unexplained;
+          if (!x && !y && !hidden) continue;
           const fromPaint = paintState(node, previousRect, around[before].at);
           const toPaint = paintState(node, drawnRect, around[after].at);
           if (
@@ -4168,9 +4262,10 @@
               node,
               fragment: i,
               previousRect,
-              currentRect,
+              currentRect: hidden ? unmoved(currentRect, motion.carried) : currentRect,
               drawnRect,
               permitted,
+              hidden,
               reported: reported(node),
               stepAt: step.at,
               stepRect: readingAt(node, step.at)?.fragments[i] ?? previousRect,
@@ -4352,9 +4447,11 @@
         const net =
           carried(first.previousRect, last.currentRect, "top", "bottom") ||
           carried(first.previousRect, last.currentRect, "left", "right");
-        // A node gone from the next reading stood only if Chrome painted its move.
+        // A node gone from the next reading stood only if Chrome painted its move. A
+        // step a carry hid stands once the carry ends (`protectedMotion`).
         const stable =
-          net && (current ? moved(current, first.previousRect) : entry !== null);
+          chain.some((move) => move.hidden) ||
+          (net && (current ? moved(current, first.previousRect) : entry !== null));
         const proof = stable
           ? { previousRect: first.previousRect, currentRect: last.currentRect }
           : chain.find(confirms);
@@ -4544,6 +4641,8 @@
       through,
       ...waiting.map((entry) => entry.startTime),
       ...pendingMotion.map((move) => move.stepAt),
+      // A carry still moving is bounded by the readings from before its step.
+      ...[...carrying].map((animation) => carrySteps.get(animation).step),
       ...renderings
         .filter(
           (rendering) =>

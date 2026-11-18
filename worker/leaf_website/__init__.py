@@ -109,7 +109,7 @@ if TYPE_CHECKING:
 
 PORT = 8080
 # The model every hosted task runs on. Its threads are titled on Codex's title
-# model (`thread_titles.CODEX_TITLE_MODEL`).
+# model (`inference.CODEX_MODEL`).
 HOSTED_MODEL = "gpt-6-luna"
 WEBSITE_AGENT = "Agent"
 WEBSITE_AGENT_SESSION = "leaf-website-agent"

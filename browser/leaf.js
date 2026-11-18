@@ -717,8 +717,11 @@ async function boot() {
   };
 
   if (!offlineInteractive) {
+    // A served page's bootstrap adopted the chrome's sheet for the first paint, with the
+    // panel's row it stands there (bootstrap.js, `standRow`); it keeps its place after
+    // the annotations' sheets.
     document.adoptedStyleSheets = [
-      ...document.adoptedStyleSheets,
+      ...document.adoptedStyleSheets.filter((sheet) => sheet !== chromeSheet),
       ...annotationSheets,
       chromeSheet,
       marksSheet,

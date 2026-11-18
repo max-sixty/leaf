@@ -302,6 +302,7 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there."""
+    title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(body):
         from leaf.render_gate.command import message_check
@@ -570,6 +571,7 @@ def post_reply(
     the user's message gets the agent's first words and its Working line from one
     write. A `Receipt`'s progress takes nothing in hand.
     """
+    title = agent_title(title)
     text = checked_text(page_dir, text, html=True)
     if markup := drawn_markup(text):
         from leaf.render_gate.command import message_check
@@ -1179,15 +1181,33 @@ def _fail_markup_answer(
 
 
 def fit_title(words: str) -> str:
-    """`words` as a title a model wrote: on one line, and cut at a word to fit
-    `title_limit`, ending in an ellipsis where it was cut. A model can't count
-    characters, so Leaf fits its title rather than refusing it, which would leave
-    the thread untitled or drop the ask it names."""
+    """`words` as a thread title: on one line, and cut at a word to fit
+    `title_limit`, ending in an ellipsis where it was cut. Neither the agent nor a
+    model can count characters, and a long title breaks nothing, so Leaf fits a
+    title rather than refusing it, which would leave the thread untitled or drop the
+    message or ask it rides on."""
     title = " ".join(words.split())
     limit = title_limit()
     if len(title) <= limit:
         return title
     return title[: limit - 1].rsplit(" ", 1)[0].rstrip(" ,;:") + "…"
+
+
+def agent_title(words: str | None) -> str | None:
+    """The title the agent gave a command, fitted (`fit_title`), noting beside the
+    command's result the name a cut leaves."""
+    if words is None:
+        return None
+    title = fit_title(words)
+    if len(" ".join(words.split())) > title_limit():
+        note(
+            Finding(
+                "title-fitted",
+                values={"title": title, "limit": title_limit()},
+                severity="advice",
+            )
+        )
+    return title
 
 
 def title_event(thread: str, title: str, identity: dict | None = None) -> dict:
@@ -1237,6 +1257,7 @@ def cmd_edit(
     from leaf.page_view import PageView
     from leaf.registry.storage import require_registry
 
+    title = agent_title(title)
     body = (
         checked_text(page_dir, text, html=True)
         if text is not None or title is None

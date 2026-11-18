@@ -84,6 +84,7 @@ const browserGlobals = Object.fromEntries(
     "HTMLSelectElement",
     "HTMLSpanElement",
     "HTMLTemplateElement",
+    "HTMLTextAreaElement",
     "HTMLVideoElement",
     "Headers",
     "Highlight",

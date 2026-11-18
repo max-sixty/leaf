@@ -137,6 +137,8 @@ select = [
   # Pytest mistakes: invalid fixture arguments, missing exception types,
   # duplicate cases, always-failing asserts, ineffective marks and parameters.
   "PT002", "PT010", "PT014", "PT015", "PT024", "PT025", "PT026", "PT028",
+  # Imports of the APIs `banned-api` below names.
+  "TID251",
 ]
 # The formatter owns line wrapping; existing module setup and callable expressions
 # may put imports after setup or use a lambda as a value.
@@ -150,6 +152,17 @@ explicit-preview-rules = true
 
 [tool.ruff.lint.isort]
 known-first-party = ["leaf", "leaf_dev", "leaf_website"]
+
+# No code outside the CLI, the commands and the tests imports a `leaf-dev` command
+# module (dev/AGENTS.md).
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"leaf_dev.commands".msg = "only the CLI and tests import a leaf-dev command module; move the code this needs into a module in dev/leaf_dev/ (dev/AGENTS.md)"
+
+[tool.ruff.lint.per-file-ignores]
+"dev/leaf_dev/cli.py" = ["TID251"]
+"dev/leaf_dev/commands/**" = ["TID251"]
+"dev/tests/**" = ["TID251"]
+"tests/**" = ["TID251"]
 
 [tool.ty.environment]
 # Match pytest's helper imports below, including tests/browser packages.

@@ -9,7 +9,7 @@ export const WALK = "lf-walk";
 let walking = null; // {key, noun, read, target}; never a list snapshot
 
 // "Thread 2 of 5", or, for a walk over several kinds that names its list in the
-// qualifier, "2 of 5 waiting on me · Thread" with the kind given there instead.
+// qualifier, "2 of 5 waiting on me".
 /** @param {string | null} noun @param {number} position @param {number} total @param {string} [qualifier] */
 export function walkPositionLabel(noun, position, total, qualifier = "") {
   if (!noun && !qualifier) throw new Error("leaf: a walk position needs a noun");

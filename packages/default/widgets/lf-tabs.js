@@ -218,9 +218,12 @@ export class TabSet extends LeafElement {
     this.#watchRootContext();
     this.#syncRootContext();
     // A side list and a page's list of parts both run down beside their panels; parts
-    // placed anywhere else list their names in a row (the package theme).
+    // placed anywhere else list their names in a row (the package theme). The set wears
+    // `data-lf-down` while its list runs down, and the theme draws a row's summary and
+    // state lines from that mark alone (tabs.css).
     const down = side || (this.#parts && this.#root);
     this.#down = down;
+    this.toggleAttribute("data-lf-down", down);
     // The strip is a thing to work, and its tabs ride inside it, so paper drops the
     // whole row and puts each panel's label back on the panel. What a tab says is not
     // the strip's word though — it is the panel's name, and once the strip exists it

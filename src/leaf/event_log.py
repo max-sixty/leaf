@@ -17,6 +17,7 @@ from pathlib import Path
 
 from leaf.files import file_stamp
 from leaf.findings import Finding, Rejected
+from leaf.page_memory import memo
 from leaf.refusals import Refused
 from leaf.registry.kernel import kernel_event_ownership
 from leaf.state import (
@@ -297,19 +298,25 @@ class _Tail:
         return events
 
 
-# Each page's admitted attempts, as this process has read them so far.
-_ATTEMPTS: dict[Path, tuple[_Tail, set[str]]] = {}
-_ATTEMPTS_LOCK = threading.Lock()
+class _Attempts:
+    """The attempts one page's log admitted, as this process has read them so far,
+    beside the place in the log they were read to."""
+
+    def __init__(self) -> None:
+        self.lock = threading.Lock()
+        self.read: tuple[_Tail, set[str]] | None = None
 
 
 def admitted_attempts(page_dir: Path, attempts: Iterable[str]) -> set[str]:
     """Which of `attempts` the page's log holds an event sent with. The log keeps every
-    attempt it admitted, so an answer never lapses. The process keeps the attempts it
-    has read from each page's log and reads only what was appended since (`_Tail`), so
-    asking costs what the log gained since the last question, not its length."""
+    attempt it admitted, so an answer never lapses. The page's memory keeps the
+    attempts read from its log (`page_memory`), and each question reads only what was
+    appended since (`_Tail`), so asking costs what the log gained since the last
+    question, not its length."""
     log = page_dir.resolve() / EVENTS_FILE
-    with _ATTEMPTS_LOCK:
-        tail, admitted = _ATTEMPTS.get(log.parent) or (_Tail(log), set())
+    held = memo(page_dir, _Attempts)
+    with held.lock:
+        tail, admitted = held.read or (_Tail(log), set())
         try:
             events = tail.read_on()
         except FileNotFoundError:
@@ -320,7 +327,7 @@ def admitted_attempts(page_dir: Path, attempts: Iterable[str]) -> set[str]:
             except FileNotFoundError:
                 return set()
         admitted.update(event["attempt"] for event in events if event.get("attempt"))
-        _ATTEMPTS[log.parent] = tail, admitted
+        held.read = tail, admitted
         return admitted.intersection(attempts)
 
 

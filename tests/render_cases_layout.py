@@ -713,18 +713,16 @@ CHROME_WATCH = f"""(sel) => {{
 }}"""
 # One reading, named once, so the rendered-frame wait and the assertion cannot measure
 # differently. The words ride along so `displaced` can tell a box whose own content
-# changed from one that was pushed. The right edge is rounded from the box's own
-# fractional edge, since left and width each rounded can differ by a pixel from where
-# the edge stands. Read every dimension from the screen rectangle;
+# changed from one that was pushed. The edges stay fractional, so an edge that holds
+# still reads equal and one that moves by any amount reads moved. Read every edge from the screen rectangle;
 # ancestor movement and transforms are part of what the user sees, not an origin to
 # subtract. A rendered control carried beyond the viewport still moved.
 DEFINE_BOXES = """() => { window.__lfBoxes = () => window.__lfNeighbours.map(
     (n) => {
       if (!window.__lfRendered(n)) return null;
       const box = n.getBoundingClientRect();
-      return [Math.round(box.left), Math.round(box.top),
-              Math.round(box.width), Math.round(box.height),
-              (n.textContent || '').trim(), Math.round(box.right)];
+      return [box.left, box.top, box.right, box.bottom,
+              (n.textContent || '').trim()];
     }); }"""
 
 
@@ -773,13 +771,13 @@ def displaced(before, boxes, news=False):
         if now is None:
             return False
         if news and was[4] != now[4]:
-            held = was[0] == now[0] or was[5] == now[5]
+            held = was[0] == now[0] or was[2] == now[2]
             return not held or was[1] != now[1] or was[3] != now[3]
         return any(a != b for a, b in zip(was[:4], now[:4], strict=True))
 
     return [
         f"{name} moved by "
-        f"{[round(a - b, 1) for a, b in zip(now[:4], was[:4], strict=True)]} (left, top, width, height)"
+        f"{[round(float(a - b), 1) for a, b in zip(now[:4], was[:4], strict=True)]} (left, top, right, bottom)"
         for name, was, now in zip(before["names"], before["boxes"], boxes, strict=True)
         if moved(was, now)
     ]

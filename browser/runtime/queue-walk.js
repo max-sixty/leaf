@@ -5,7 +5,7 @@
    On Me groups its items one of three ways, which the user picks at the view's foot
    and the browser keeps for every page (storage.js, `userChoice`): By place, under what
    names the part of the page each stands in (thread/placement.js, `partOver`); By kind,
-   under the walk's word for each (`queueStop`); and By <agent>, under the goals of the
+   under a word for what each is (`queueStop`); and By <agent>, under the goals of the
    agent's plan whose steps name them, those no goal names last. Until the user picks, a
    plan that gives the user a step groups By <agent>, else By place. The walk steps
    through the groups' items in the list's one order (`onMeGroups`), so successive
@@ -174,8 +174,8 @@ const stopOf = (item) =>
         };
 
 // An item as the walk reads it: where it is arrived at, the key the walk's position
-// names that stop by, and what the walk calls it. An On Me card reads the same, so it
-// knows when the walk stands on it, and By kind groups by what the walk calls it.
+// names that stop by, and the word By kind groups it under. An On Me card reads the
+// same, so it knows when the walk stands on it.
 /** @param {QueueItem} item @returns {QueueStop} */
 export function queueStop(item) {
   const stop = stopOf(item);
@@ -530,16 +530,16 @@ export function createQueueWalk({
     return arriveAtElement(() => stopElement(stop));
   }
 
-  // Where the walk stands in the whole list, and the kind of item it stands on: the
-  // count is of every kind, so the kind follows it rather than naming the list.
+  // Where the walk stands in the list, named by the list since it counts every kind.
+  // The item the user stands on is in front of them and shows what it is, so the
+  // position names neither it nor its kind, as an On Me card names no kind.
   /** @param {Element | null} region */
   function position(region) {
     const list = stopsOf(region);
-    const here = currentLocationStop(list);
-    const at = listWalkPosition(list, here, { identity: (stop) => stop.key });
-    return at && here
-      ? { ...at, qualifier: `${region ? WITHIN : QUALIFIER} · ${here.noun}` }
-      : null;
+    const at = listWalkPosition(list, currentLocationStop(list), {
+      identity: (stop) => stop.key,
+    });
+    return at && { ...at, qualifier: region ? WITHIN : QUALIFIER };
   }
 
   // Resolves whether it arrived.
@@ -560,7 +560,7 @@ export function createQueueWalk({
             null,
             list.indexOf(next) + 1,
             list.length,
-            `${region ? WITHIN : QUALIFIER} · ${next.noun}`,
+            region ? WITHIN : QUALIFIER,
           ),
       );
       return true;
@@ -612,7 +612,7 @@ export function createQueueWalk({
   // list. It says so only where the stop the user then stands on is the obligation's
   // own: one On Me doesn't hold, answered or left with the agent, can stand inside a
   // stop that waits, as a question inside a proposal does, and has no position of its
-  // own there. Its word says what it is, and a finished one's how it ended.
+  // own there. A finished one says how it ended.
   /** @param {Obligation} record */
   function goToObligation(record) {
     /** @type {Stop} */
@@ -631,13 +631,10 @@ export function createQueueWalk({
     };
     const ready = arriveAt(stop).then((arrived) => {
       if (!arrived) return false;
-      const word = obligationWord(record);
-      announce(
+      const said =
         beginWalk("queue", null, own) ??
-          (record.status === "open"
-            ? word
-            : [`${word} · `, obligationEnding(record)].flat()),
-      );
+        (record.status === "open" ? null : obligationEnding(record));
+      if (said) announce(said);
       return true;
     });
     void ready.catch(() => {});

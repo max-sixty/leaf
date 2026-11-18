@@ -473,8 +473,9 @@ reproduced at rates from 6 to 20, and one rate can miss a finding another reprod
 so try more than one. On macOS, `taskpolicy -b` before the command runs the test, its
 server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
 copy: it reproduced ten of the nightly macOS
-job's failures that `--cpu-throttle 8` reproduced none of. Busy loops started under
-`taskpolicy -b` beside the test, each ending itself, starve it further.
+job's failures that `--cpu-throttle 8` reproduced none of. Its `--load N` runs N busy
+loops in the same band beside the copies, which starve a test more steadily than more
+copies do.
 
 A failure only the nightly macOS job (`test-macos`) shows reproduces on that job's
 runner, from any machine. Dispatch `ci` on the branch to test with `flake` set to
@@ -482,7 +483,7 @@ runner, from any machine. Dispatch `ci` on the branch to test with `flake` set t
 ending its log with each test's counts:
 
 ```sh
-gh workflow run ci --ref BRANCH -f flake="--copies 36 'NODE_ID'"
+gh workflow run ci --ref BRANCH -f flake="--workers 1 --load 4 'NODE_ID'"
 ```
 
 Run the merge base under the same condition to learn whether the change caused it. A

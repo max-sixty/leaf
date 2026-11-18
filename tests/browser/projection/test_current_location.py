@@ -568,8 +568,8 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
     """A choosing lf-options that stands at its own source, as each does in a named
     group holding two questions (`obligations/place.js`), gives its location ring up to
     the row as a group's question does. If the choice kept its ring, a Tab in would
-    draw the choice's ring outside its frame and the row's inside it, two accent lines
-    a few pixels apart for one fact."""
+    draw the choice's ring on its frame and the row's just inside it, two accent lines
+    for one fact."""
     page = open_page(
         browser,
         serve(
@@ -595,12 +595,8 @@ def test_a_choice_sharing_its_group_hands_its_ring_to_the_row_the_user_tabs_to(
     expect(choice).to_have_attribute("data-lf-obligation", "1")
     expect(page.locator("#release")).not_to_have_attribute("data-lf-obligation", "1")
     assert choice.evaluate(LOCATION_RING)[0] == "solid"
-    # An arrival rings the choice at a control's gap, outside its frame.
-    arrived = choice.evaluate(
-        "el => [getComputedStyle(el).outlineOffset, getComputedStyle("
-        "document.documentElement).getPropertyValue('--lf-focus-ring-gap').trim()]"
-    )
-    assert arrived[0] == arrived[1], arrived
+    # An arrival rings the choice on its frame.
+    assert choice.evaluate("el => getComputedStyle(el).outlineOffset") == "0px"
 
     page.keyboard.press("Tab")
     expect(page.locator("#ship-monday .lf-pick")).to_be_focused()

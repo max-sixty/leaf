@@ -504,10 +504,6 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
   lf-options:not([settled]):not(:where([data-lf-exhibit]) *) {
     display: grid;
     gap: var(--lf-cell-gap);
-    /* One control, so its marks stand at a control's gap (tokens.css, "Where it
-     * stands"), and so does the location ring where it asks alone in a message, as a
-     * group's does on the page. */
-    --lf-ring-at: var(--lf-focus-ring-gap);
     /* The authored options paint before the generated Add and Done cells, so their rows
      * are held until upgrade and the next block stays put. Add is one option line inside
      * the same inset and edge as the option it becomes. A `closed` group never draws
@@ -616,6 +612,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     background: var(--lf-rule);
     border: 1px solid var(--lf-border);
     border-radius: var(--lf-r);
+    /* The group draws its own edge, so its marks stand on it (tokens.css, "Where it
+     * stands"), the location ring where it asks alone in a message included. */
+    --lf-ring-at: 0;
     /* Clip, not hidden: a hidden box is a scroll container, which would take a sticky
      * header inside an option (a diff's file header) off the window's top. */
     overflow: clip;

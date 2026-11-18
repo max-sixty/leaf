@@ -601,19 +601,18 @@
      it takes a press and at a region's if not. A rule names the token of the box's kind,
      never a length (`test_every_ring_stands_at_a_kind_of_box`):
      - A region, a block of the page standing among others (a section, a figure, a
-       paragraph): outside it at --lf-focus-region-gap. Every mark on a region stands on
-       this one perimeter, so going from aim to comment to arrival changes only the
-       stroke, and two marks on one region draw one line.
-     - A control standing on its own, a named group (`reading-role: group`), which is
-       where a question asked inside it stands, and an option group asking alone in a
-       message: outside its edge at --lf-focus-ring-gap. The user answers a question as
-       one control, and its edge is mostly that control's frame, so a ring a region's
-       gap off the frame read as a second box round it (the user's choice, over a
-       region's gap for every question). A group that asks nothing stands its marks
-       there too.
-     - A box that draws its own edge, such as a field, a mark (controls.css) or a margin
-       entry, or a control whose neighbours stand closer than a control's gap, such as
-       a reaction beside others: on its edge, at 0. A field's ring replaces its border.
+       paragraph, a named group (`reading-role: group`)): outside it at
+       --lf-focus-region-gap. Every mark on a region stands on this one perimeter, so
+       going from aim to comment to arrival changes only the stroke, and two marks on
+       one region draw one line.
+     - A control standing on its own: outside its edge at --lf-focus-ring-gap.
+     - A box that draws its own edge, such as a field, a mark (controls.css), a margin
+       entry or an option group's frame, or a control whose neighbours stand closer
+       than a control's gap, such as a reaction beside others: on its edge, at 0. A
+       field's ring replaces its border. The user chose to stand a question's ring on
+       its frame where an option group asks it alone, and a region's gap out where a
+       named group holds it. A ring a gap off a frame read as a second box round it,
+       and a ring close to words with no frame round them crowded them.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, or one whose clip leaves no room outside it:
        one band inside its edge, at --lf-focus-ring-inset. A box that clips a mark standing

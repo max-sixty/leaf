@@ -1057,12 +1057,13 @@ lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
   --lf-block-frame: 1;
 }
 /* A named group (`reading-role: group`) is a block that draws nothing of its own: its
- * label is data, and what it holds, any heading included, is the author's. It is where
- * a question asked inside it stands, so its marks stand at a control's gap, a group
- * that asks nothing included (tokens.css, "Where it stands"). */
+ * label is data, and what it holds, any heading included, is the author's. It is a
+ * region, where a question asked inside it stands, so its marks stand at a region's gap
+ * (tokens.css, "Where it stands"). It states the gap because its `role="group"` would
+ * otherwise put them at a control's (surfaces.css). */
 :where([data-lf-reading-role="group"]) {
   display: block;
-  --lf-ring-at: var(--lf-focus-ring-gap);
+  --lf-ring-at: var(--lf-focus-region-gap);
 }
 /* A framed box that holds authored content is an inline-size container, so a widget
  * inside it that caps its minimum at `100cqi` is capped by the box rather than the page:

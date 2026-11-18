@@ -138,9 +138,10 @@ required check on `main`.
 `wt merge` refuses on any failure, so such a change lands through a pull request.
 
 Tend repairs what CI (`ci.yaml`) fails on main: the `test` job on Ubuntu, and
-`test-macos`, which runs every tier on macOS in the daily scheduled run and a dispatch.
-A failed run opens or updates a `tend-ci-failure` report issue, and triage files a
-`tend-ci-cause` issue for each cause and fixes it there.
+`test-macos`, which runs every tier on macOS in the daily scheduled run and a dispatch,
+and whose failures a dispatch reproduces on its runner ("Races"). A failed run opens or
+updates a `tend-ci-failure` report issue, and triage files a `tend-ci-cause` issue for
+each cause and fixes it there.
 The user accepted that a pull request can land green and break a test it never ran, so
 a red main is no reason to widen a change or its tests. A newer push cancels main's
 waiting run, as intended, so to learn what main fails, read the latest run that
@@ -473,9 +474,19 @@ so try more than one. On macOS, `taskpolicy -b` before the command runs the test
 server and every engine on the efficiency cores, as `leaf-dev suite flake` runs each
 copy: it reproduced ten of the nightly macOS
 job's failures that `--cpu-throttle 8` reproduced none of. Busy loops started under
-`taskpolicy -b` beside the test, each ending itself, starve it further. Run the merge
-base under the same condition to learn whether the change caused it. A test whose subject
-is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.
+`taskpolicy -b` beside the test, each ending itself, starve it further.
+
+A failure only the nightly macOS job (`test-macos`) shows reproduces on that job's
+runner, from any machine. Dispatch `ci` on the branch to test with `flake` set to
+`leaf-dev suite flake`'s arguments, and `test-macos` runs them in place of the suite,
+ending its log with each test's counts:
+
+```sh
+gh workflow run ci --ref BRANCH -f flake="--copies 36 'NODE_ID'"
+```
+
+Run the merge base under the same condition to learn whether the change caused it. A
+test whose subject is a slow CPU slows its own page with `leaf_dev.browser.slow_cpu`.
 
 - A route handler that returns without resolving holds the request before the server.
   Call `holding` before reading the list of held requests, since the ledger counts a

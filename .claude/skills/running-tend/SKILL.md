@@ -159,14 +159,14 @@ route. An unresolved diagnosis, or a verification environment you can reach anot
 way, remains engineering work, owned by the cause's session through
 `/tend-ci-runner:triage`'s **A cause issue** route.
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
-development**, gives its non-deploying CI route.
+development**, gives its non-deploying CI route. For a failure only `test-macos`
+shows, `tests/AGENTS.md`, **Races**, gives the dispatch that runs the test on that
+job's runner.
 
-A cause waits on the maintainer when its next step is one only they can take: a
-decision, or reproducing a failure only `test-macos` shows once the failing run's
-diagnostics, pictures and the code leave its cause open, since no runner you can
-reach has macOS. Assign it to the maintainer while it waits (`TODO.md`, "Backlog",
-names them), say in it what you found and what their answer or reproduction should
-settle, and unassign them once they act. A cause that asks them something without
+A cause waits on the maintainer when its next step is one only they can take, such
+as a decision. Assign it to the maintainer while it waits (`TODO.md`, "Backlog",
+names them), say in it what you found and what their answer should settle, and
+unassign them once they act. A cause that asks them something without
 assigning them is missing from their list of assigned issues.
 
 For each durable failure, look for the pull request that introduced it, first
@@ -180,11 +180,10 @@ changes the test or the behavior.
 
 Merge a pull request that fixes tests, without waiting for maintainer approval,
 once each test it claims to fix failed before the change and passes after it
-(a skipped or deleted test has not passed). For a failure only `test-macos` shows, the
-checks your Linux runner can run suffice (**A red `ci` on main is live** says what
-settles the rest). Pull requests run only the later-tier
-tests they edit, so run the claimed ones yourself. The merge also waits for the
-pull request's CI to reach a terminal result on the exact head; `monitor-ci`,
+(a skipped or deleted test has not passed). For a failure only `test-macos` shows,
+**A red `ci` on main is live** says what shows the before and after. Pull requests
+run only the later-tier tests they edit, so run the claimed ones yourself. The merge
+also waits for the pull request's CI to reach a terminal result on the exact head; `monitor-ci`,
 **Which heads to poll**, says which session does that waiting. A failure there outside
 the tests it claims, and not caused by its change, neither blocks the merge nor
 calls for a rerun: the report for that run carries it to its own cause. GitHub's
@@ -209,11 +208,13 @@ don't run, the `journeys` and `nightly` tests and `test-macos`, and links the pu
 report's diagnosis and cause issues for the rest instead of rerunning or bisecting
 those tests itself.
 
-The scheduled run's `test-macos` job runs every tier on macOS, which your Linux runner
-can't reproduce, and it takes four to five hours. For a failure only that job shows, the
-failing run is the evidence from before the fix, and the next scheduled run on main,
-after the fix merges, is the evidence from after it. If that run still fails, its
-report brings the failure back to triage.
+The scheduled run's `test-macos` job runs every tier on macOS and takes four to five
+hours, so reproduce a failure only it shows by dispatching that test alone on its
+runner (`tests/AGENTS.md`, **Races**). The same dispatch failing on the fix's base
+and passing every copy on its branch is the evidence from before and after the fix.
+Where no dispatch reproduces the failure, the failing scheduled run is the evidence
+from before, and the next one on main, after the fix merges, the evidence from after.
+If that run still fails, its report brings the failure back to triage.
 
 ## Cloudflare logs
 

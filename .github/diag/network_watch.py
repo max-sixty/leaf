@@ -43,7 +43,7 @@ def say(line):
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
-    protocol_version = "HTTP/1.1"
+    protocol_version = "HTTP/1.0"
 
     def log_message(self, *args):
         pass

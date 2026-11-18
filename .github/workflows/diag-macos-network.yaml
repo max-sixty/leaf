@@ -22,63 +22,43 @@ jobs:
           mkdir -p out
           { sw_vers; uptime; networksetup -listallnetworkservices; scutil --nwi; ifconfig -a; ipconfig getpacket en0; } > out/describe.txt 2>&1 || true
           log stream --style compact --predicate 'process == "configd" OR subsystem == "com.apple.IPConfiguration"' > out/configd.log 2>&1 &
+      - name: Hold the runner's address
+        run: |
+          interface=$(route -n get default | awk '/interface:/ {print $2}')
+          service=$(networksetup -listnetworkserviceorder | awk -v device="$interface" '/^\([0-9]+\) / {sub(/^\([0-9]+\) /, ""); name=$0} index($0, "Device: " device ")") {print name}')
+          address=$(ipconfig getifaddr "$interface")
+          mask=$(ipconfig getoption "$interface" subnet_mask)
+          router=$(ipconfig getoption "$interface" router)
+          dns=$(ipconfig getoption "$interface" domain_name_server)
+          echo "$service on $interface: $address/$mask via $router, DNS $dns"
+          sudo networksetup -setmanual "$service" "$address" "$mask" "$router"
+          sudo networksetup -setdnsservers "$service" $dns
+          until [ "$(ipconfig getifaddr "$interface")" = "$address" ]; do sleep 1; done
+          scutil --nwi; ipconfig getsummary "$interface" | head -30 || true
+          curl -sSI https://github.com | head -1
+          cp out/describe.txt out/describe-dhcp.txt
+          { scutil --nwi; ifconfig "$interface"; networksetup -getinfo "$service"; } > out/describe.txt 2>&1
       - name: Watch 1
         run: |
           mkdir -p out/1
-          cp out/describe.txt out/configd.log out/1/ 2>/dev/null || true
-          uv run --with playwright python .github/diag/network_watch.py 62 out/1 2>&1 | tee out/1/watch.log || true
+          cp out/describe.txt out/describe-dhcp.txt out/1/ 2>/dev/null || true
+          uv run --with playwright python .github/diag/network_watch.py 68 out/1 2>&1 | tee out/1/watch.log || true
           cp out/configd.log out/1/ || true
       - name: Upload 1
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: network-watch-1
+          name: held-watch-1
           path: out/1/
       - name: Watch 2
         run: |
           mkdir -p out/2
-          cp out/describe.txt out/configd.log out/2/ 2>/dev/null || true
-          uv run --with playwright python .github/diag/network_watch.py 62 out/2 2>&1 | tee out/2/watch.log || true
+          cp out/describe.txt out/describe-dhcp.txt out/2/ 2>/dev/null || true
+          uv run --with playwright python .github/diag/network_watch.py 68 out/2 2>&1 | tee out/2/watch.log || true
           cp out/configd.log out/2/ || true
       - name: Upload 2
         if: always()
         uses: actions/upload-artifact@v7
         with:
-          name: network-watch-2
+          name: held-watch-2
           path: out/2/
-      - name: Watch 3
-        run: |
-          mkdir -p out/3
-          cp out/describe.txt out/configd.log out/3/ 2>/dev/null || true
-          uv run --with playwright python .github/diag/network_watch.py 62 out/3 2>&1 | tee out/3/watch.log || true
-          cp out/configd.log out/3/ || true
-      - name: Upload 3
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: network-watch-3
-          path: out/3/
-      - name: Watch 4
-        run: |
-          mkdir -p out/4
-          cp out/describe.txt out/configd.log out/4/ 2>/dev/null || true
-          uv run --with playwright python .github/diag/network_watch.py 62 out/4 2>&1 | tee out/4/watch.log || true
-          cp out/configd.log out/4/ || true
-      - name: Upload 4
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: network-watch-4
-          path: out/4/
-      - name: Watch 5
-        run: |
-          mkdir -p out/5
-          cp out/describe.txt out/configd.log out/5/ 2>/dev/null || true
-          uv run --with playwright python .github/diag/network_watch.py 62 out/5 2>&1 | tee out/5/watch.log || true
-          cp out/configd.log out/5/ || true
-      - name: Upload 5
-        if: always()
-        uses: actions/upload-artifact@v7
-        with:
-          name: network-watch-5
-          path: out/5/

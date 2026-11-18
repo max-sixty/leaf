@@ -552,6 +552,9 @@ def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
             "data-lf-annotations-hidden", re.compile(".*")
         )
         page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
+        # The highlight is registered at once, but WebKit can screenshot the link before
+        # it paints the re-registered mark, so read it after a rendering update.
+        rendered(page)
         again = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
         assert all(
             _apart(again[name][1], shown[name][1]) < SEEN_APART for name in shown

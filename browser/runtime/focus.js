@@ -380,8 +380,9 @@ function landLabelPress() {
   });
 }
 
-// Where the user is: the element holding focus, inside any open shadow tree, or the
-// element a press on a label holds them on. Asked in `tree`, a document or shadow root,
+// Where the user is: the element holding focus, inside any open shadow tree, the
+// element a press on a label holds them on, or where a press on what a tab panel holds
+// will land (`standingFor`). Asked in `tree`, a document or shadow root,
 // it is the node standing for that place there, as `tree.activeElement` retargets focus:
 // the host of the shadow tree the user is in, for a reader comparing or containing
 // nodes of that tree. Every reading of focus outside this module asks here, so none
@@ -405,7 +406,7 @@ export function followingFocus(read) {
 /** @param {Node | null} [tree] */
 export const focused = (tree = null) => {
   if (following) focusRevision();
-  const at = heldByLabel() ?? deepFocus();
+  const at = heldByLabel() ?? standingFor(deepFocus());
   return tree ? hostIn(at, tree) : at;
 };
 
@@ -767,6 +768,17 @@ function watchFocusPaintIn(root) {
 }
 /** @param {Element | null} node @param {CurrentLocationCause} cause */
 function publish(node, cause) {
+  if (press && cause === "press" && !takenOver && node?.matches(TAB_PANEL)) {
+    // The focus marks leave the element the press took the user off.
+    paintDestination = null;
+    queueFocusPaint();
+    if (press.released) {
+      passing = node;
+      setTimeout(() => passPanel(node));
+    }
+    return;
+  }
+  if (node && press && !press.released) takenOver = true;
   watchCurrentLocationAround(node);
   paintDestination = node && new WeakRef(node);
   // A command-reference return may precede the command's own focus move in this
@@ -869,6 +881,74 @@ function readFocusEvent(event) {
   lastLocation = at && new WeakRef(at);
   publish(at, cause(at, event.relatedTarget));
 }
+// A tab panel has a Tab stop so the keyboard can reach and scroll what it holds. The
+// browser focuses the nearest focusable box around whatever a press lands on, so a
+// press on the panel's words, or on anything in it that takes no focus, focuses the
+// panel. The user pressed what the panel holds, not the panel, so the press lands where
+// it would without the panel's stop: on the nearest other box around the panel that a
+// press focuses, or nowhere, as a press on a plain page's words does. That holds when the
+// keyboard had put them on the panel before the press. The caret stays where they
+// pressed, and walks and the reading keys start from it (reading-regions.js). To comment
+// on the panel, the user steps onto it with the keyboard.
+// DOM focus stays on the panel until the press is released, since Chromium ends a drag's
+// selection when focus moves during it. Until then every reading of where the user is,
+// holds included, reads where the press will land, and no reader hears the panel. A tap
+// focuses at its click, after its release, and lands a task later, since Chromium drops
+// the tap's caret when focus moves while it focuses. A placement or a key that moves the
+// user during the press takes over from it.
+// Rejected: keeping the panel as where the user is. A panel holds most of a page that
+// has one, so a press almost anywhere made `c` comment on the whole panel, with no ring
+// to show it. Rejected too: passing on the stop reach.js lends an overflowing box in the
+// same way. A widget's scrollport wears that stop, as a diff's code does, and a press on
+// a widget's contents is what puts the user in its keys (keyboard/scopes.js).
+const TAB_PANEL = "[role='tabpanel']";
+// Whether a placement or a key moved the user during the press under way.
+let takenOver = false;
+// The panel a tap focused, until it lands a task later.
+/** @type {Element | null} */
+let passing = null;
+const PRESS_FOCUSES = `${TAB_STOP}, [tabindex], iframe`;
+// Where a press on what `panel` holds lands: the nearest box around it that a press
+// focuses and that is no tab panel, or nowhere.
+/** @param {Element} panel */
+function landing(panel) {
+  for (
+    let up = renderedParent(panel);
+    isElement(up) && up !== document.body;
+    up = renderedParent(up)
+  )
+    if (up.matches(PRESS_FOCUSES) && !up.matches(TAB_PANEL) && drawn(up)) return up;
+  return null;
+}
+// Whether `at` is a tab panel around what press `by` pressed, with nothing since moving
+// the user.
+/** @param {Element | null} at @param {Press | null} by @returns {at is Element} */
+const pressedPanel = (at, by) =>
+  at !== null &&
+  by !== null &&
+  !takenOver &&
+  at.matches(TAB_PANEL) &&
+  by.path.includes(at);
+/** @param {Element} panel */
+function passPanel(panel) {
+  if (passing === panel) passing = null;
+  if (labelPress || deepFocus() !== panel) return;
+  // WebKit drops the caret with the focus of the box around it.
+  const selection = getSelection();
+  const caret = selection?.rangeCount ? selection.getRangeAt(0) : null;
+  const up = landing(panel);
+  if (up) focusDestination(up, "press");
+  else blurFocused();
+  if (caret && !selection?.rangeCount) selection?.addRange(caret);
+}
+// The node standing for focus on `at`: where a press on a tab panel's contents will land.
+/** @param {Element | null} at */
+const standingFor = (at) =>
+  at === null
+    ? null
+    : at === passing || (!press?.released && pressedPanel(at, press))
+      ? (landing(at) ?? document.body)
+      : at;
 // Entering a component subscribes this owner to its subsequent internal moves.
 // Those moves do not reach the document; guessing them at the next input would
 // make their cause depend on the old node's later ancestry and lifetime.
@@ -1226,6 +1306,11 @@ addEventListener(
       clickClaimed: false,
     };
     press = begun;
+    takenOver = false;
+    begun.ends.push(() => {
+      const at = deepFocus();
+      if (pressedPanel(at, begun)) passPanel(at);
+    });
     for (const read of pressReaders) {
       const end = read(event, path);
       if (end) begun.ends.push(end);
@@ -1473,8 +1558,8 @@ export function holdFocus(scope, { key = null } = {}) {
 const heldIn = (scope) => {
   const held = heldByLabel();
   if (held) return renderedUnder(held, scope) ? held : null;
-  const currentLocation = deepFocus(
-    activeIn(scope.getRootNode()) ?? scope.ownerDocument.activeElement,
+  const currentLocation = standingFor(
+    deepFocus(activeIn(scope.getRootNode()) ?? scope.ownerDocument.activeElement),
   );
   if (
     currentLocation &&

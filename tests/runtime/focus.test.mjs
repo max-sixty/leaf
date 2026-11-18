@@ -234,6 +234,22 @@ test("delayed work gives way to any input since its gesture", () => {
   assert.equal(typed(), false);
 });
 
+test("a placement takes an element of another window as an element", () => {
+  // A playground's preview is a same-origin frame, whose elements are instances of its
+  // own window's `Element`, not this one's, and its range control puts focus back
+  // inside the frame. happy-dom's windows share one `Element`, so the page's own is
+  // swapped for another while the field is placed.
+  const { first } = scene();
+  const own = globalThis.Element;
+  globalThis.Element = class Element {};
+  try {
+    assert.doesNotThrow(() => focusDestination(first, "move"));
+  } finally {
+    globalThis.Element = own;
+  }
+  assert.equal(document.activeElement, first);
+});
+
 test("early input ignores inaccessible foreign events but counts keys before interception", async () => {
   const page = new Window({ url: "https://leaf.test/" });
   try {

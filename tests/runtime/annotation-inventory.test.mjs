@@ -3,7 +3,8 @@ import test from "node:test";
 import { createAnnotationInventory } from "/runtime/annotation-inventory.js";
 import { contributionEntry } from "/runtime/contribution-controls.js";
 import { registerContribution } from "/runtime/contributions.js";
-import { resolvedPassage } from "/runtime/resolved-target.js";
+import { resolvedElement, resolvedPassage } from "/runtime/resolved-target.js";
+import { registerVisualParts } from "/runtime/visual-parts.js";
 import { applicationState } from "/runtime/semantic-state.js";
 import { servedState, servedThread } from "../served.mjs";
 
@@ -145,6 +146,88 @@ test("a quoted passage is keyed once while its target's words are unchanged", ()
     assert.match(moved.key, /\["beta",0\]$/, "now the first copy of its words");
   } finally {
     Element.prototype.matches = matches;
+    document.body.replaceChildren();
+  }
+});
+
+// A thread on a part of a picture is at the picture only where focus there stands on
+// that part, as a chart's keys stand on a point, and then it is the thread there,
+// above one on the whole picture; a node inside another part is about that part alone,
+// which no reading of the picture's parts decides.
+test("a part's thread is at its picture where focus there stands on the part", () => {
+  applicationState.identify(1);
+  document.body.innerHTML =
+    '<main><lf-plot id="plot"><svg><circle id="p"></circle>' +
+    '<g id="q"><text id="inside-q">Q</text></g></svg></lf-plot></main>';
+  const plot = /** @type {Element} */ (document.getElementById("plot"));
+  const part = (/** @type {string} */ id) =>
+    /** @type {Element} */ (document.getElementById(id));
+  const comment = (/** @type {string} */ id) => ({
+    id,
+    seq: 1,
+    ts: "2026-11-17T12:00:00+00:00",
+    author: "user",
+    revision: 1,
+    kind: "comment",
+    text: "Why here?",
+    attention: true,
+    content_version: id,
+  });
+  const anchors = {
+    whole: { section: "plot" },
+    "on-p": { section: "plot", visual: "point:p" },
+    "on-q": { section: "plot", visual: "point:q" },
+  };
+  applicationState.adopt(
+    servedState({
+      browser: {
+        views: {
+          1: {
+            thread: {
+              threads: Object.entries(anchors).map(([id, anchor]) =>
+                servedThread([comment(id)], { anchor }),
+              ),
+            },
+          },
+        },
+      },
+    }),
+  );
+  const elements = { whole: plot, "on-p": part("p"), "on-q": part("q") };
+  /** @type {string | null} */
+  let standsOn = null;
+  let reads = 0;
+  registerVisualParts(
+    plot,
+    () => {
+      reads += 1;
+      return [];
+    },
+    {
+      at: (node) =>
+        node === plot && standsOn
+          ? { id: standsOn, element: part("p"), label: "a point" }
+          : null,
+    },
+  );
+  const inventory = createAnnotationInventory({
+    readObligations: () => ({ user: [] }),
+    placedAt: (/** @type {keyof typeof elements} */ id) => ({
+      ...resolvedElement({ element: elements[id], place: plot }),
+      point: null,
+    }),
+    openThread() {},
+    goToObligation() {},
+    scrollToElement() {},
+  });
+  try {
+    assert.deepEqual(inventory.threadIdsAt(plot), ["whole"]);
+    standsOn = "point:p";
+    assert.deepEqual(inventory.threadIdsAt(plot), ["on-p"]);
+    reads = 0;
+    assert.deepEqual(inventory.threadIdsAt(part("inside-q")), ["on-q"]);
+    assert.equal(reads, 0, "no reading of the picture's parts");
+  } finally {
     document.body.replaceChildren();
   }
 });

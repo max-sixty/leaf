@@ -27,6 +27,7 @@
    preview has gone (`lf-preview-ended`), so a mark the widget drew for it comes off. */
 import { describeFailure, exceptionError } from "./exception.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
+import { reads } from "./kept.js";
 
 /** @type {WeakSet<Element>} */
 const initialized = new WeakSet();
@@ -78,8 +79,17 @@ export class PendingTaskEvent extends Event {
 // rearranging descendants, so the widget states that geometry change explicitly, and
 // geometry readers listen for it instead of watching every DOM mutation.
 export const LAYOUT = "lf-layout";
+// How many times a widget has said its layout changed, which a reader of what widgets
+// draw that the page's reading doesn't hear says it reads (kept.js, `reads`).
+let layouts = 0;
+const layoutCount = () => layouts;
+export const layoutsChanged = () => {
+  reads(layoutCount);
+  return layouts;
+};
 /** @param {Element} el */
 export const layoutChanged = (el) => {
+  layouts += 1;
   el.dispatchEvent(new CustomEvent(LAYOUT, { bubbles: true, composed: true }));
 };
 

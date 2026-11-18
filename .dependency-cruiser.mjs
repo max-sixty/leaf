@@ -116,6 +116,7 @@ const exactClosures = {
     "widget-upgrade.js",
     "exception.js",
     "page-paint.js",
+    "kept.js",
   ],
 };
 

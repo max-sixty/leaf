@@ -14,20 +14,29 @@
  * including cancelling a pending replacement of an already visible destination. A declared
  * part missing from the current inventory then stands in for the whole visual until
  * travel asks for it, rather than detaching. A label reader can
- * name an absent part in Threads without changing the visual's state. */
+ * name an absent part in Threads without changing the visual's state.
+ *
+ * A reading of a visual's inventory says it reads it (kept.js, `reads`), so a reading
+ * kept from it is made again after the visual's `update()`, a reveal, or a registration
+ * for a source it found none for. */
 
 import { labelWords } from "./words.js";
 import { under, upFrom } from "./shadow-tree.js";
 import { layoutChanged } from "./widget-upgrade.js";
+import { reads } from "./kept.js";
 
 /** @typedef {{id: string, element: Element, label: string, surface?: Element | null}} VisualPart
  * @typedef
  * {import("../types/contract.js").WidgetDeclaration["visual"]}
  * VisualDeclaration
  * @typedef {{read: () => Iterable<VisualPart>, reveal: ((id: string) => void) | null,
- * label: ((id: string) => string | null | undefined) | null}} Registration */
+ * label: ((id: string) => string | null | undefined) | null, drawn: () => number,
+ * redraw: () => void}} Registration */
 /** @type {WeakMap<Element, Registration>} */
 const registrations = new WeakMap();
+// How many sources have registered, which a reading of a source with none reads.
+let registered = 0;
+const registeredCount = () => registered;
 
 /** Register the current visual-part inventory for one rendered source.
  *
@@ -48,8 +57,22 @@ export function registerVisualParts(
 ) {
   if (registrations.has(source))
     throw new TypeError("A visual source may register its parts only once");
-  registrations.set(source, { read, reveal, label });
-  return { update: () => layoutChanged(source) };
+  // How many times the source has said its inventory may have changed.
+  let draws = 0;
+  registrations.set(source, {
+    read,
+    reveal,
+    label,
+    drawn: () => draws,
+    redraw: () => void (draws += 1),
+  });
+  registered += 1;
+  return {
+    update: () => {
+      draws += 1;
+      layoutChanged(source);
+    },
+  };
 }
 
 /** The part ids admitted by a whole-inventory opt-in or generated-id prefixes.
@@ -71,8 +94,11 @@ export const revealsVisualParts = (source) =>
 /** Settle the requested part, even while old pixels await a replacement. */
 /** @param {Element} source @param {string} id */
 export function revealRegisteredVisualPart(source, id) {
-  const reveal = registrations.get(source)?.reveal;
-  if (reveal) reveal(id);
+  const registration = registrations.get(source);
+  if (registration?.reveal) {
+    registration.reveal(id);
+    registration.redraw();
+  }
   return registeredVisualPart(source, id);
 }
 
@@ -92,8 +118,10 @@ export function visualPartProblems(source, declaration) {
 
 /** @param {Element} source */
 export function registeredVisualParts(source) {
-  const read = registrations.get(source)?.read;
-  if (!read) return [];
+  const registration = registrations.get(source);
+  reads(registration?.drawn ?? registeredCount);
+  if (!registration) return [];
+  const { read } = registration;
   const seenIds = new Set();
   const seenElements = new Set();
   const seenSurfaces = new Set();

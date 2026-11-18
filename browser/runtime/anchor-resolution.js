@@ -65,6 +65,7 @@ import {
 import { registry, tagsDeclaring } from "./registry.js";
 import { PAGE_PAINT_ATTRIBUTE } from "./page-paint.js";
 import { PRESSABLE } from "./widget-elements.js";
+import { layoutsChanged } from "./widget-upgrade.js";
 import { PRESSES, WORKS } from "./control-selectors.js";
 import {
   accessibleName,
@@ -96,8 +97,12 @@ export function setAnchoringReady(ready) {
 export const sectionOf = (anchor) =>
   anchor?.section ? elementById(anchor.section) : null;
 
+// The data a widget drew for `key`. What says which they are, their source and
+// identity among it, is not what the page's reading hears, so a reader follows the
+// document changing (`documentChanged`), and so does whatever it reads of them after.
 /** @param {Element | null} source @param {string} key @param {string | null} [identity] @param {string | null} [dataSource] */
 function currentDatums(source, key, identity = null, dataSource = null) {
+  documentChanged();
   if (!source?.id) return [];
   return pageQueryAll(DATUM).filter(
     (datum) =>
@@ -119,12 +124,11 @@ export const projectedDatum = (source, key) => {
 // What an anchor's datum is called: the label its projection gave the element drawn
 // for it, found as resolution finds it, or for a datum its lazy widget has not drawn,
 // what that widget calls it (`lfDatumLabel`), so a thread on a line of a closed file
-// is named as its row would be. It reads the page's nodes, so a paint that draws it
-// follows the document changing (`documentChanged`), as a projection relabelling it does.
+// is named as its row would be. It reads the page's nodes (`currentDatums`), so a paint
+// that draws it follows the document changing, as a projection relabelling it does.
 /** @param {Anchor | null | undefined} anchor */
 export function datumLabel(anchor) {
   if (!anchor?.datum) return "";
-  documentChanged();
   const source = sectionOf(anchor);
   const datums = currentDatums(
     source,
@@ -253,9 +257,15 @@ const outermostAcross = (element, selector) => {
 // A picture inside a press is that control's rendering, so the control keeps the
 // gesture and no visual reading is offered for it. A region that holds content — a tab
 // panel, a scroll region, a stage that takes keys, a grid — leaves its pictures
-// pictures (widget-elements.js, PRESSES).
+// pictures (widget-elements.js, PRESSES). What makes a press, such as a role, is not
+// what the page's reading hears, so it follows the document changing
+// (`documentChanged`) and a widget's layout (widget-upgrade.js, `layoutsChanged`).
 /** @param {Element} element */
-const claimsVisualGesture = (element) => element.matches(`${PRESSES},${PRESSABLE}`);
+const claimsVisualGesture = (element) => {
+  documentChanged();
+  layoutsChanged();
+  return element.matches(`${PRESSES},${PRESSABLE}`);
+};
 
 /** @param {Node | null} target */
 export const unclaimedVisualGesture = (target) => {

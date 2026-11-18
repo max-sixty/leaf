@@ -494,7 +494,6 @@ async function boot() {
     arriveAtRecord: items.arriveAtRecord,
     arriveAtThread: navigation.arriveAtThread,
     threadPlace: (id) => app.threadDestinations.threadPlace(id),
-    placementVersion: anchorPlacement.placementVersion,
     prepareNavigationStep: anchorTravel.prepareNavigationStep,
     arrive: anchorTravel.arrive,
     announce,

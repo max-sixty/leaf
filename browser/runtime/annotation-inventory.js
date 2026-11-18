@@ -28,7 +28,6 @@ import {
   GENERATED,
   inChrome,
   keptAnswer,
-  pageReadingVersion,
   quoteFrom,
   textNodesUnder,
 } from "./passages.js";
@@ -38,6 +37,7 @@ import { threadKey } from "./thread/model.js";
 import { readingOrder, readingPlace, targetSegments } from "./resolved-target.js";
 import { resolveAnchor } from "./anchor-resolution.js";
 import { draftAnchor, draftSends, draftsReading } from "./drafts.js";
+import { kept } from "./kept.js";
 import { projectionOrigins } from "./projection/model.js";
 import { authoredStates } from "./projection/authored.js";
 import { currentProjection } from "./projection/state.js";
@@ -72,10 +72,20 @@ import { versionProvenance } from "./change-provenance.js";
 // finds each row's words unchanged by identity rather than by reading them
 // (`captureItem`).
 const WAITING_ON_ME = leafSays("Waiting on me");
-// Where each draft stands, by its context, kept for one reading of the page
-// (`pageReadingVersion`), which moves with the ids an anchor's section is found by.
-/** @type {{version: object, places: Map<string, {anchor: object, resolved: ReturnType<typeof resolveAnchor>}>} | null} */
-let draftPlacesKept = null;
+// Where each draft written about a place on the page stands, by its context, kept until
+// something it read changes (kept.js, `kept`), the drafts and the page's reading among
+// them: a quote's place is a search of the page's words, which a collection made on
+// every reading would repeat for each draft (`passageRows` says what that cost a large
+// page).
+const draftPlaces = kept(() => {
+  /** @type {Map<string, ReturnType<typeof resolveAnchor>>} */
+  const places = new Map();
+  for (const draft of draftsReading()) {
+    const anchor = draftAnchor(draft);
+    if (anchor) places.set(draft.context, resolveAnchor(anchor));
+  }
+  return places;
+});
 
 // Where each published workflow still in progress stands in the published order, by
 // its id.
@@ -497,7 +507,7 @@ export function createAnnotationInventory({
   // them all, though a gesture changes few of them, a cost that grows with the page
   // (`leaf-dev bench` measures it), and sending a comment runs two. Not
   // yet built: keep each group between collections while its records are the same
-  // objects and the page's reading stands (`pageReadingVersion`, passages.js), build
+  // objects and the page's reading stands (kept.js, `kept`), build
   // again only the groups that changed, and sort again only when that reading moves,
   // placing a new group into the kept order. A collection would then cost what the
   // gesture changed.
@@ -540,27 +550,7 @@ export function createAnnotationInventory({
           ]);
       } else placedDrafts.push(draft);
     }
-    // A draft's place is resolved once for each reading of the page, since a quote's is
-    // a search of the page's words, which a collection made on every reading would
-    // repeat for each draft (`passageRows` says what that cost a large page).
-    const reading = pageReadingVersion();
-    if (draftPlacesKept?.version !== reading)
-      draftPlacesKept = { version: reading, places: new Map() };
-    const draftPlaces = draftPlacesKept.places;
-    /** @param {import("./drafts.js").ListedDraft} draft @param {object} anchor */
-    const draftPlacement = (draft, anchor) => {
-      let kept = draftPlaces.get(draft.context);
-      if (kept?.anchor !== anchor) {
-        kept = {
-          anchor,
-          resolved: resolveAnchor(
-            /** @type {import("../types/domain.js").Anchor} */ (anchor),
-          ),
-        };
-        draftPlaces.set(draft.context, kept);
-      }
-      return kept.resolved;
-    };
+    const placesOfDrafts = draftPlaces();
     // What stands on the page, each where its anchor resolves: a thread with the drafts
     // written in it, a thread's drafts alone where the thread shows no entry of its own,
     // as a resolved one doesn't, and a comment's draft. Each takes the row its passage
@@ -590,8 +580,7 @@ export function createAnnotationInventory({
         stand(shown ? thread : null, drafts, placedAt(thread.id), thread.anchor.quote);
     }
     for (const draft of placedDrafts) {
-      const anchor = draftAnchor(draft);
-      const resolved = anchor && draftPlacement(draft, anchor);
+      const resolved = placesOfDrafts.get(draft.context);
       if (resolved)
         stand(
           null,
@@ -603,7 +592,7 @@ export function createAnnotationInventory({
             pointRow: null,
             pointWords: null,
           }),
-          anchor.quote,
+          draftAnchor(draft)?.quote,
         );
     }
     /** @type {Map<Element, string[]>} */

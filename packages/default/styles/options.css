@@ -54,6 +54,13 @@ lf-options {
   /* The width a row of its options needs, set only where the group lays them across, so
    * a group nested in an option does not inherit its holder's. */
   --lf-options-row-width: initial;
+  /* A picked row's or cell's ground: the card a step toward the settled colour, deeper
+   * than the aim's wash (below), so a pick still shows where the focus ring covers its
+   * ring and a digit takes its check. Rejected: the settled tint, the chips' ground,
+   * which stands no deeper than the aim's wash and differs from it only in chroma, so
+   * over a whole card it reads as khaki on the reading theme's paper, and it hides the
+   * card's own chips. */
+  --lf-picked-ground: color-mix(in srgb, var(--lf-card) 82%, var(--lf-settled));
   container-type: inline-size;
 }
 /* Options are read as lines of text, so the group keeps the reading measure as its
@@ -574,17 +581,11 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > lf-option:is(:hover, [data-lf-control-focus]) {
       --lf-ground: color-mix(in srgb, var(--lf-fill) 92%, var(--lf-ink));
     }
-    /* The pick fills the cell with the settled tint and rings it in the settled colour
-     * inside its edge: the tint alone is about 1.15:1 against the card in the dark
-     * palette. */
+    /* The pick fills the cell with the picked ground and rings it in the settled colour
+     * inside its edge: the ground alone stands about 1.5:1 against the card. */
     & > lf-option[selected] {
-      --lf-fill: var(--lf-settled-tint);
+      --lf-fill: var(--lf-picked-ground);
       box-shadow: inset 0 0 0 2px var(--lf-settled);
-    }
-    /* An ok chip on the chosen cell stands on the card's ground, or it loses its ground
-     * in the cell's tint. */
-    & > lf-option[selected] > .tag.ok {
-      background: var(--lf-card);
     }
     /* The control owns focus at row scale: the mark's ring stays off and the row draws
      * an inset ring (below). */
@@ -923,20 +924,20 @@ lf-options:not(:has(> lf-option:where([label]))) > .lf-another {
     border-radius: var(--lf-r);
   }
   lf-options:not(:has(> lf-option:where([label]))) > lf-option[selected] {
-    --lf-ground: var(--lf-settled-tint);
+    --lf-ground: var(--lf-picked-ground);
     background: var(--lf-ground);
     box-shadow: inset 0 0 0 2px var(--lf-settled);
   }
 }
-/* An opened settled group's option answers the pointer with a wash, without moving its
- * words. A live cell has its own aim wash (above). */
+/* An opened settled group's option answers the pointer with the aim's wash a live cell
+ * takes (above), without moving its words. */
 @media screen {
   lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option:hover {
-    --lf-ground: var(--lf-chip);
+    --lf-ground: color-mix(in srgb, var(--lf-card) 92%, var(--lf-ink));
     background: var(--lf-ground);
   }
   lf-options[settled]:not(:where([data-lf-exhibit]) *) > lf-option[selected]:hover {
-    --lf-ground: color-mix(in srgb, var(--lf-settled-tint) 92%, var(--lf-ink));
+    --lf-ground: color-mix(in srgb, var(--lf-picked-ground) 92%, var(--lf-ink));
   }
 }
 /* The reference floats to the end of the words' last line where it fits there and

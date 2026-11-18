@@ -147,7 +147,7 @@ export function el(tag, cls, text) {
 // widget goes on drawing.
 //
 // Held is half of composing/engagement.js's `unaccountedGesture`, so taking it up or
-// putting it down moves core's `z` row — a row no widget declares. The hands are a
+// putting it down moves core's ⌘Z row — a row no widget declares. The hands are a
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.

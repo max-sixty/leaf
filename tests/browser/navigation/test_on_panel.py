@@ -497,7 +497,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     # Next put the answer out of view in its tab, so the press takes it back and then
     # shows it there.
     with sending(page, "undo the second item's answer after Next"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(page.locator("#second")).to_be_focused()
     expect(words).to_have_text("2 left to answer")
@@ -540,7 +540,7 @@ def test_a_tally_counts_its_regions_obligations_and_walks_them(browser, serve):
     expect(count).not_to_have_css("color", waiting_color)
     expect(button).to_be_disabled()
     with sending(page, "undo the first decision's answer"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(words).to_have_text("1 left to answer")
     expect(count).to_have_css("color", waiting_color)

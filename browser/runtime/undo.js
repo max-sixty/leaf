@@ -1,16 +1,16 @@
-/* Undo: the `z` walk and the one door every withdrawal goes through.
+/* Undo: the ⌘Z walk and the one door every withdrawal goes through.
 
    The server's view of the shown revision lists, newest first, the user's gestures this
    document can take back (`served_state/document.py`); nothing here judges an entry
-   of it again. `z` takes the head of that list only when the server marks it `newest`,
-   the user's newest gesture, so a gesture the list doesn't hold, such as a move a later
-   revision's markup places, ends the walk. The one gesture `z` takes from outside the
+   of it again. ⌘Z (Ctrl+Z off a Mac) takes the head of that list only when the server
+   marks it `newest`, the user's newest gesture, so a gesture the list doesn't hold,
+   such as a move a later revision's markup places, ends the walk. The one gesture ⌘Z takes from outside the
    list is an action still in this page's ledger (below). A widget's Undo, a reaction chip, and a
    reaction strip each name an exact entry, and a notice's Undo takes the gesture it
-   reports by `z`'s rules (`offerUndo`). All of them withdraw
+   reports by ⌘Z's rules (`offerUndo`). All of them withdraw
    through `withdraw`.
 
-   `z` says what it takes and how long ago that was made, in the command reference, the
+   ⌘Z says what it takes and how long ago that was made, in the command reference, the
    floating panel's menu row and the notice its undo leaves ("Undo: resolved “Rollout
    safety” · 3d ago", then "Undid: resolved “Rollout safety” · 3d ago"), in
    every tab and after a reload. A thread goes by its name as it stands now, a rewrite
@@ -22,7 +22,7 @@
    An exact control's older entry carries no such reading, so its undo names only the
    widget. The age is the gesture's own `ts`, worded by the page's one clock (`ago`).
 
-   `z` takes the gesture back in the press, as an editor's undo does, and then leaves
+   ⌘Z takes the gesture back in the press, as an editor's undo does, and then leaves
    the user at its place: the thread a settlement or reaction is in, the message a
    rewrite changed or a reply the user sent, the message holding a widget an agent sent,
    the element changed, or the passage a comment was on, since taking a comment back
@@ -37,17 +37,17 @@
    gesture is drawn, so its withdrawal moves nobody.
 
    Taking at once is the user's decision. Rejected: showing an out-of-view gesture with
-   the first press and taking it with a second, so that `z` never took what the user
+   the first press and taking it with a second, so that a press never took what the user
    couldn't see. Its arm had to be cleared by every input, scroll and surface it met,
    and each reading of visibility that missed cost a press that took nothing, as when
-   `z` followed the Escape closing a panel. The notice and the travel tell the user
+   the press followed the Escape closing a panel. The notice and the travel tell the user
    what a press took instead.
 
    A choice the user has just made may still be on its way to the log when they press,
    which is when a misclick is caught. The press takes it by its attempt, as the
    widget's own Undo does, and travels to it as to any other gesture: the ledger sends
    the undo once the log has the action (`travelling`). A message or a settlement still
-   being sent can't be named before the log answers, so `z` waits for it, as it waits
+   being sent can't be named before the log answers, so ⌘Z waits for it, as it waits
    for a reading being applied, for an older action still being presented, and for a
    held drag.
 
@@ -204,7 +204,7 @@ const seen = (where) => {
   return Boolean(where && holder && seenRect(holder, new Map(), placeBox(where), true));
 };
 
-const UNDO_KEYS = ["z"];
+const UNDO_KEYS = ["Mod+z"];
 
 /** @param {{post: ReturnType<typeof import("./pending/dispatch.js").createCommandDispatch>["post"],
  * stateApplying: () => boolean, unaccountedGesture: () => boolean,
@@ -260,7 +260,7 @@ export function createUndo({
   /** @param {UndoEvent} event */
   const takes = (event) => [said(event), ago(event.ts)].filter(Boolean).join(" · ");
 
-  // The gesture `z` would take on the list the page holds now.
+  // The gesture ⌘Z would take on the list the page holds now.
   const head = () => {
     const [first] = runtime.undo;
     return first?.newest ? first.event : null;
@@ -415,7 +415,7 @@ export function createUndo({
   // The press a notice of the gesture made under `attempt` offers (notifications.js,
   // `press`), as a Reopen's notice, or a Resolve's that leaves no thread open, offers
   // Undo (thread/folding.js, `nextStep`). It takes
-  // back that gesture as `z` takes the list's head, never what `z` would take by then,
+  // back that gesture as ⌘Z takes the list's head, never what ⌘Z would take by then,
   // and stands while the page can still take the gesture back, so the log refusing it,
   // or its withdrawal by any route, takes the notice away.
   /** @param {string} attempt @returns {import("./notifications.js").NoticePress} */
@@ -430,10 +430,16 @@ export function createUndo({
     stands: () => takeable()?.has(attempt) ?? true,
   });
 
-  // The last thing the user did to this page, put back. Its own key rather than the
-  // platform's ⌘Z, which belongs to the box a user is typing in and is taken by the
-  // browser everywhere else: this is a page-level press like every other letter, and the
-  // typing scope keeps it off a composer's words by claiming its letters. The word is
+  // The last thing the user did to this page, put back, on the platform's undo chord
+  // rather than a letter, the user's decision: an undo can change what is out of view,
+  // so a word typed onto the page by someone who thought they were in a box must not
+  // reach it. A box keeps every letter, with any modifier, for its words
+  // (keyboard/text-entry.js), so ⌘Z undoes typing inside a box and a gesture outside
+  // one, as Draw mode's takes back a stroke. Rejected: `z`, which `zazu` typed onto the
+  // page presses twice; ⇧Z, which a capitalised word presses; and `g Z`, two presses
+  // for every undo. Resolve keeps `r`, also the user's choice, since what it changes is
+  // the thread in front of them. A chord is no printed key, so one pressed before the
+  // page's history arrives isn't held for it (bootstrap.js) and does nothing. The word is
   // "undo" and never the verb it is about to state — `move` is one widget's word, and a
   // line that said it would be naming a member where the mechanism is what holds.
   pageCommand({

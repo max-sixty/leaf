@@ -403,14 +403,14 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
     }""")
     added.locator(".lf-pick").focus()
     # Add-and-select records add then choose: undo the pick before its addition.
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(added).not_to_have_attribute("selected", "")
     expect(added.locator(".lf-pick")).to_be_focused()
     assert added.evaluate("""option => option === window.addedOption &&
         [...option.querySelector('.lf-option-words').childNodes].every(
             (node, index) => node === window.addedWords[index])""")
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     round_trip(page)
     expect(added).to_have_count(0)
 

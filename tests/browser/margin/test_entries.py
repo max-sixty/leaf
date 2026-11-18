@@ -933,7 +933,7 @@ def test_every_pin_entry_shares_its_face_and_keeps_its_behavior(browser, serve):
         reject.press("Enter")
     expect(page.locator("#schedule")).to_have_attribute("data-lf-state", "reject")
     with sending(page, "undo the suggestion rejection"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     with sending(page, "accept the suggestion from its pin"):
         accept.click()
     expect(page.locator("#schedule")).to_have_attribute("data-lf-state", "accept")

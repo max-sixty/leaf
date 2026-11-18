@@ -2103,7 +2103,7 @@ export function createFloatingPanel({
   // a layer the command opens records the leaf as where its close returns (focus.js,
   // `openLayer`), folding leaves the user on the leaf it folds to, and a command that
   // places the user elsewhere still does. The command runs on the panel the put-away
-  // drew, and may then open a view or fold the panel, as `z` showing a thread does. The
+  // drew, and may then open a view or fold the panel, as ⌘Z showing a thread does. The
   // row's posture (`rowPress`) waits for the command to return, so it is written once,
   // from where the press found the panel to where the command leaves it, rather than for
   // the empty row in between as well; a view the command opens after an `await` changes

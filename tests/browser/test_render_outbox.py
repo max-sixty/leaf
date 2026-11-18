@@ -117,11 +117,11 @@ def fail_reading_commit(page, reading, fault):
 
 
 def undo_offered(page, offered=True):
-    """Wait until the dispatcher would, or would not, take `z` for Undo where focus
+    """Wait until the dispatcher would, or would not, take ⌘Z for Undo where focus
     stands: the reading the leaf's menu greys its Undo row by."""
     page.evaluate(AVAILABLE_COMMANDS)
     page.wait_for_function(
-        "offered => (window.__lfAvailableCommands()['history.undo']?.includes('z')"
+        "offered => (window.__lfAvailableCommands()['history.undo']?.includes('Mod+z')"
         " ?? false) === offered",
         arg=offered,
     )
@@ -171,7 +171,7 @@ def test_a_refused_message_cannot_present_before_its_thread_reconciles(
 def test_z_takes_back_the_thread_the_user_just_resolved(browser, serve):
     """The gesture with no reverse in front of the user: resolving a thread moves the
     user on from it, so putting it back by hand means finding it under Resolved and
-    pressing Reopen. What `z` writes is a withdrawal
+    pressing Reopen. What ⌘Z writes is a withdrawal
     naming the resolve — not a second settlement, which would read as the user
     deciding to reopen a thread they had only meant not to close. A thread the agent
     closed with `leaf thread resolve` is not the user's to reopen by pressing undo, so
@@ -233,7 +233,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
     page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
     holding(page, held, 1, "the second resolution")
     undo_offered(page, offered=False)
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     assert _traffic(page).sends == sent + 1
 
     held[0].continue_()
@@ -248,7 +248,7 @@ def test_z_waits_for_an_unanswered_thread_resolution(browser, serve):
 
 
 def test_z_takes_back_a_reply_the_user_sent(browser, serve):
-    """`z` takes back the user's newest gesture, a reply they sent included, and doesn't
+    """⌘Z takes back the user's newest gesture, a reply they sent included, and doesn't
     stop at the reply as said rather than unsaid. The reply's thread is out of view,
     so the press takes the reply back and then opens the thread it left."""
     url = serve(LONG_PAGE, comments=3)
@@ -272,7 +272,7 @@ def test_z_takes_back_a_reply_the_user_sent(browser, serve):
 
 
 def test_z_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve):
-    """A page opened weeks after the user's last gesture still says what `z` would
+    """A page opened weeks after the user's last gesture still says what ⌘Z would
     take back, read from the log rather than from the tab that made it: the leaf's
     menu names the thread they resolved and how long ago, and so does the undo's
     notice. An action is named in its own document's words, under the name the page
@@ -372,7 +372,7 @@ def _old_resolve_below_the_fold(serve):
 def test_z_takes_an_old_resolve_out_of_view_then_opens_its_thread(
     browser, serve, route
 ):
-    """A thread resolved weeks ago below the fold is reopened by one press of `z` or of
+    """A thread resolved weeks ago below the fold is reopened by one press of ⌘Z or of
     the leaf's menu row, which then opens the thread, so the user sees what the press
     took back, and the notice says what it was and how old."""
     url, thread, resolve = _old_resolve_below_the_fold(serve)
@@ -394,7 +394,7 @@ def test_z_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
     browser, serve
 ):
     """A choice in front of the user, made in another tab, is taken back by one press,
-    whether or not the agent has picked it up. `z` doesn't show it first if the agent
+    whether or not the agent has picked it up. ⌘Z doesn't show it first if the agent
     has, which would have the same press do two things depending on a delivery the user
     never saw happen."""
     url = serve(UNDO_PAGE)
@@ -424,7 +424,7 @@ def test_z_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
     page = open_page(browser, url)
     undo_offered(page)
     with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     assert _undos(serve.page_dir) == [choice["id"]]
 
 
@@ -512,7 +512,7 @@ def test_z_as_escape_closes_a_view_over_the_choice_takes_it_where_it_stands(
     browser, serve
 ):
     """A fast user closes the panel's thread view, which stood over their choice, and
-    presses `z` in the frames before the view has gone. The press reads the page the
+    presses ⌘Z in the frames before the view has gone. The press reads the page the
     closing leaves, so it takes the choice back where it stands and moves nothing,
     rather than travelling to a choice it read as covered."""
     url = serve(NEAR_CHOICE_PAGE)
@@ -539,14 +539,14 @@ def test_z_as_escape_closes_a_view_over_the_choice_takes_it_where_it_stands(
     undo_offered(page)
     with sending(page, "the withdrawal"):
         page.keyboard.press("Escape")
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     assert _undos(serve.page_dir) == [choice["id"]]
     expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     assert page.evaluate("() => [scrollY, location.hash]") == [0, ""]
 
 
 def test_a_second_z_while_the_first_is_on_its_way_takes_nothing_more(browser, serve):
-    """Two quick presses of `z` take back one gesture: the second finds the first's
+    """Two quick presses of ⌘Z take back one gesture: the second finds the first's
     withdrawal still on its way, so the list's head is still the gesture the first
     took, and it waits rather than take the one before it, which the user hasn't seen
     the first press's result to judge."""
@@ -561,9 +561,9 @@ def test_a_second_z_while_the_first_is_on_its_way_takes_nothing_more(browser, se
         held.append(route)
 
     page.route("**/api/event", hold)
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     holding(page, held, 1, "the first withdrawal")
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     held[0].continue_()
     round_trip(page)
     assert _undos(serve.page_dir) == [newer["id"]]
@@ -696,7 +696,7 @@ def test_z_reaches_the_gestures_made_on_the_version_being_read(browser, serve):
     wait_for_revision(page, 2)
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     undo_offered(page, offered=False)
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     told(page)
     # An undo posts no action, so counting actions says nothing about whether the
     # press was refused — it stays at one either way, which is the assertion passing
@@ -739,7 +739,7 @@ def test_z_takes_the_move_the_log_has_not_taken_yet(browser, serve):
         page.keyboard.press(key)
     holding(page, held, 1, "the move it was asked for")
     undo_offered(page)
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     # The press shows its result at once; the undo waits in the ledger behind the move
     # it names.
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
@@ -783,7 +783,7 @@ def test_an_action_response_accounts_for_its_gesture_without_a_follow_up_poll(
     expect(page.locator("#col-done #card-baffle")).to_have_count(1)
     # The withdrawal entering the wire is the durable edge that proves the press worked.
     with sending(page, "the withdrawal"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     page.wait_for_function("() => document.body.dataset.lfApplied === '3'")
     expect(page.locator("#col-todo #card-baffle")).to_have_count(1)
     expect(page.locator("#col-done #card-heater")).to_have_count(1)
@@ -828,7 +828,9 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
 ):
     """Acceptance and presentation are separate outcomes. A failed response commit
     cannot be repaired by re-posting its accepted attempt, so semantic truth advances,
-    while replay and undo remain held until a later response proves presentation."""
+    while replay and the undo of an older gesture remain held until a later response
+    proves presentation. ⌘Z still takes the newest action by its attempt, as that
+    action's own Undo would."""
     page = open_page(browser, serve(SUGGESTION_PAGE))
 
     def close_page():
@@ -915,12 +917,11 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     # response must not release the hold because the accepted view never completed
     # presentation.
     assert first_attempt[0] not in _traffic(page).pending
-    undo_offered(page, offered=False)
+    # ⌘Z would take the accepted thistle by its attempt, the gesture the user sees.
+    undo_offered(page)
     sent = _traffic(page).sends
-    page.keyboard.press("z")
-    assert _traffic(page).sends == sent
-    # The local margin entry shares the keyboard's guard; it cannot post around an
-    # accepted event whose authoritative state is still incomplete.
+    # An older gesture's Undo cannot post around an accepted event whose authoritative
+    # state is still incomplete.
     first_item = page.locator('[data-lf-margin-for="sug-refill"]')
     first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
     expect_panel_says(page, "Wait for the current change to finish before undoing")
@@ -934,7 +935,10 @@ def test_an_accepted_event_is_not_retried_when_its_state_cannot_render(
     expect(page.locator("#sug-in-card")).not_to_have_attribute(
         "data-lf-state", "accept"
     )
-    undo_offered(page, offered=False)
+    sent = _traffic(page).sends
+    first_item.get_by_role("button", name=re.compile(r"^Undo accepting")).click()
+    expect_panel_says(page, "Wait for the current change to finish before undoing")
+    assert _traffic(page).sends == sent
 
     # A complete poll proves presentation of the older acceptance and refused correction.
     # The re-offered action can then send under a fresh attempt, whose valid answer
@@ -1041,7 +1045,7 @@ def test_a_failed_background_presentation_keeps_the_new_undo_authority(browser, 
             and (response.request.post_data_json or {}).get("kind") == "undo"
         )
     ):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     logged_undo = next(
         event
         for event in reversed(events_model.read_events(serve.page_dir))
@@ -2215,7 +2219,7 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     page.route("**/api/event", lambda route: held.append(route))
     cut = CutOff().hold(page)
     with page.expect_request("**/api/event"):
-        page.keyboard.press("z")
+        page.keyboard.press("ControlOrMeta+z")
     expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-a")
     holding(page, held, 1, "the optimistic withdrawal")
     other_undo = append_command(
@@ -2384,7 +2388,7 @@ def test_a_withdrawal_waits_for_a_widget_that_cannot_take_it_yet(browser, serve)
 
 
 def test_a_withdrawal_is_heard_by_a_tab_reading_a_later_version(browser, serve):
-    """Which version a gesture was made against decides whether `z` is *offered*, and
+    """Which version a gesture was made against decides whether ⌘Z is *offered*, and
     says nothing about whether an undo must be *heard*. A tab holding an older version
     can still take back its gesture — `?pin` is a URL a user keeps, and a tab
     mid-composition holds its version too — so its undo reaches a tab that has moved
@@ -2750,7 +2754,7 @@ def test_opening_the_panel_stands_down_the_field_without_losing_its_draft(
 
 
 def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, serve):
-    """A held drag is half of the `z` liveness the runtime declares, and a pointer
+    """A held drag is half of the ⌘Z liveness the runtime declares, and a pointer
     drag is a whole gesture rather than a frame: the focus paint lands on the
     mousedown, `fallbackTolerance` fires the drag's start after it, and on a quiet
     board nothing repaints between the pick-up and the drop. So unpainted, the line
@@ -2780,7 +2784,7 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     page.wait_for_function(
         "() => document.getElementById('card-heater').getAnimations().length === 0"
     )
-    assert "z" in available_commands(page).get("history.undo", [])
+    assert "Mod+z" in available_commands(page).get("history.undo", [])
     sent = _traffic(page).sends
 
     # The mousedown lands on an already-focused control and fires no focusin, so the
@@ -2800,13 +2804,13 @@ def test_a_pointer_drag_stops_the_line_offering_the_press_it_refuses(browser, se
     # Read once, on the frame the paint coalesces to, rather than through `expect`:
     # a heartbeat two seconds out repaints the line whatever this drag did, so an
     # assertion that re-decisions passes on the poll and says nothing about the edge.
-    assert "z" not in available_commands(page).get("history.undo", []), (
+    assert "Mod+z" not in available_commands(page).get("history.undo", []), (
         "the line offered a press the dispatcher refuses for the length of a drag"
     )
 
     page.mouse.up()
     assert not page.evaluate(DRAG_HELD)
-    assert "z" in available_commands(page).get("history.undo", []), (
+    assert "Mod+z" in available_commands(page).get("history.undo", []), (
         "the drop that sent nothing left the line refusing a press that is live"
     )
     assert _traffic(page).sends == sent, "the drop that moved nothing sent a move"
@@ -2897,7 +2901,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
         held_states.pop(0).fulfill(json=candidate)
     holding(page, preparations, 1, "thread preparation")
     page.evaluate(RELEASE_FOCUS)
-    page.keyboard.press("z")
+    page.keyboard.press("ControlOrMeta+z")
     page.title()
     assert not [event for event in posts if event.get("kind") == "undo"]
 

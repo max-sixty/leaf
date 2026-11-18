@@ -290,9 +290,9 @@ def expect_focus_in(page, locator):
     page.wait_for_function(FOCUS_IN, arg=locator.element_handle())
 
 
-# The ways back from a settlement (undo.js header; folding.js): `z` right after its
-# landing; `z` where its place is in view after the user did something else; the
-# notice's Undo; the log refusing it; and `z` where the user has left its place.
+# The ways back from a settlement (undo.js header; folding.js): ⌘Z right after its
+# landing; ⌘Z where its place is in view after the user did something else; the
+# notice's Undo; the log refusing it; and ⌘Z where the user has left its place.
 # "away" runs last on a shared page, since it leaves the page scrolled and a disclosure
 # open.
 WAYS_BACK = ("landing", "seen", "notice", "refusal", "away")
@@ -316,7 +316,7 @@ class Surface(NamedTuple):
     unreachable: frozenset = frozenset()
 
 
-# A Reopen lands the caret in the thread's reply, where `z` is a letter typed.
+# A Reopen lands the caret in the thread's reply, which keeps ⌘Z for its words.
 REOPENED_IN_THE_BOX = frozenset({"landing"})
 
 FILLER = "".join(
@@ -550,7 +550,7 @@ def test_every_way_back_from_a_settlement_returns_the_user_where_they_made_it(
     browser, serve, subtests, surface, gesture
 ):
     """A settlement takes the user's view of its thread away, and every way back gives
-    that view back on the surface the user had it on: `z` pressed on it, beside it or
+    that view back on the surface the user had it on: ⌘Z pressed on it, beside it or
     away from it, the notice's Undo and the log's refusal (undo.js, folding.js). A route left to
     choose would choose for the thread as it stood at the way back: it would put a
     thread resolved in its card in the panel, where resolved threads open, one resolved
@@ -645,7 +645,7 @@ def test_resolving_one_of_two_threads_leaves_the_user_in_the_card(browser, serve
 
 def test_resolve_in_a_card_moves_on_to_the_next_thread_at_its_passage(browser, serve):
     """Resolve in a card shows the thread after the resolved one at the same passage,
-    else the one before, standing the user on it, and the page doesn't move; `z` brings
+    else the one before, standing the user on it, and the page doesn't move; ⌘Z brings
     the thread back where it was resolved (thread-preview.js, the user's choice)."""
     comment = {
         "kind": "comment",
@@ -822,7 +822,7 @@ def test_a_settlement_in_flight_leaves_its_opposite_live(held_events, serve):
 
 
 def test_taking_back_a_resolve_is_the_users_own_gesture(browser, serve):
-    """`z` after the user's own Resolve reopens the thread at once, as the Resolve
+    """⌘Z after the user's own Resolve reopens the thread at once, as the Resolve
     closed it: an undo stands in the thread of the gesture it takes back, so it is no
     news to hold behind a notice."""
     url = serve(PANEL_PAGE)

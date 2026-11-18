@@ -19,8 +19,8 @@ The hint is the fork's for a thread whose newest delivered message Leaf kept bac
 a line fork, since `forks.ask` asked this fork then: the session's delivery leaves it
 out (`thread_context.batch_threads`), so the session spends no step on it. A delivery
 whose newest message in the thread wasn't kept back, as one arriving while the
-session still owed the thread its answer, carries the hint to the session as any
-delivery does.
+session still owed the thread its answer, carries the hint to the session when a
+range is suggested.
 Where the fork fails, Leaf tells the session the range it suggested (`_handed`), so
 the summary has an owner either way. One path leaves it without one until the
 thread's next message Leaf keeps back: a line turn that lapses, or whose step fails,

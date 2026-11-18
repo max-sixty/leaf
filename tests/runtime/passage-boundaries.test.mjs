@@ -34,7 +34,6 @@ import {
   findEach,
   findQuote,
   inChrome,
-  keptWithReading,
   neighbourhood,
   pageReadingVersion,
   pageText,
@@ -43,6 +42,7 @@ import {
   pointAt,
   quoteFrom,
   quotesChanged,
+  readsDocument,
   refuseBareText,
   says,
   segmentsIn,
@@ -389,8 +389,10 @@ test("a forgotten reading is held by no key or kept answer that outlives it", as
 test("a reading kept from the page is made again when an id or a part's name changes", () => {
   document.body.innerHTML =
     '<main><section id="part"><p id="words">Alpha</p></section></main>';
-  const owner = {};
-  const withWords = () => keptWithReading(document.body, owner, () => ({}));
+  const withWords = kept(() => {
+    readsDocument(document.body);
+    return {};
+  });
   let made = 0;
   const reading = kept(() => {
     made += 1;

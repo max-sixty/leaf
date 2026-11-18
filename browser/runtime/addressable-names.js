@@ -7,7 +7,8 @@
  * names anything. */
 import { isElementName } from "./registry-contract.js";
 import { registry } from "./registry.js";
-import { authoredScope, elementReading, HEADING, keptAnswer } from "./passages.js";
+import { authoredScope, elementReading, HEADING, readsElement } from "./passages.js";
+import { keptEach } from "./kept.js";
 import { TEXT_BLOCK } from "./kernel-facts.js";
 import { uiInside, upFrom } from "./shadow.js";
 import { excerptWords } from "./words.js";
@@ -107,14 +108,16 @@ const SECTIONS = "section, article";
 /** The caption that names plain markup by that rule, or null: a disclosure's first
  * <summary>, an hgroup's heading, or the heading a section or article opens with, alone
  * or in an <hgroup>. Finding it reads the element's children, so the answer is kept as
- * long as the page reading stands (`keptAnswer`), as an element's words are: a label
- * asked again on every pass, or a preview climbing past a long run of paragraphs, reads
- * them once.
+ * long as the piece of the page reading the element stands in (passages.js,
+ * `readsElement`), as an element's words are: a label asked again on every pass, or a
+ * preview climbing past a long run of paragraphs, reads them once.
  * @param {Element} container @returns {Element | null} */
 export const leadingTitle = (container) =>
-  registered(container)
-    ? null
-    : keptAnswer(container, "leading title", () => openingTitle(container));
+  registered(container) ? null : openingTitleKept(container);
+const openingTitleKept = keptEach((/** @type {Element} */ container) => {
+  readsElement(container);
+  return openingTitle(container);
+});
 /** @param {Element} element @returns {Element | null} */
 function openingTitle(element) {
   const child = (/** @type {string} */ selector) =>
@@ -204,13 +207,16 @@ export const addressableName = (element) =>
 export const LABEL_WORDS = 60;
 /** @param {Element} element @returns {Naming | null} */
 const captionNaming = (element) => {
-  const caption = keptAnswer(element, "caption", () =>
-    [...element.children].find(
-      (child) => child.matches("figcaption, caption") && !uiInside(child, element),
-    ),
-  );
+  const caption = captionOf(element);
   return caption && elementReading(caption, "named") ? { by: caption } : null;
 };
+// An element's own caption, kept as its words are (passages.js, `readsElement`).
+const captionOf = keptEach((/** @type {Element} */ element) => {
+  readsElement(element);
+  return [...element.children].find(
+    (child) => child.matches("figcaption, caption") && !uiInside(child, element),
+  );
+});
 // A form control's caption is its <label>.
 /** @param {Element & Partial<Pick<HTMLInputElement, "labels" | "alt">>} element
  * @returns {Naming | null} */

@@ -51,7 +51,7 @@ import { computed } from "/vendor/signals-core.js";
  *   versions: Map<Version, number> | null,
  *   within: Set<Entry> | null,
  *   catchUps: Set<CatchUp> | null,
- *   threw: boolean,
+ *   fresh: boolean,
  *   checked: number,
  * }} Entry */
 
@@ -114,7 +114,7 @@ const sameArguments = (held, args) =>
 /** Whether every version an entry read, and every reading it read, stands.
  * @param {Entry} entry @returns {boolean} */
 function stands(entry) {
-  if (entry.threw) return false;
+  if (entry.fresh) return false;
   if (entry.checked === moves) return true;
   if (entry.versions)
     for (const [counted, at] of entry.versions) if (counted[AT]() !== at) return false;
@@ -132,7 +132,7 @@ function entryOf(make, key, args) {
     value: computed(() => {
       // A signal it read moved: what it reads now is all it reads.
       entry.versions = entry.within = entry.catchUps = null;
-      entry.threw = false;
+      entry.fresh = false;
       const outer = making;
       making = entry;
       try {
@@ -144,7 +144,7 @@ function entryOf(make, key, args) {
     versions: null,
     within: null,
     catchUps: null,
-    threw: false,
+    fresh: false,
     checked: moves,
   };
   return entry;
@@ -184,11 +184,17 @@ export function keptEach(make) {
         // Made again when next asked for, as is a reading around it that caught the
         // throw.
         if (entries.get(key) === entry) entries.delete(key);
-        if (making) making.threw = true;
+        if (making) making.fresh = true;
         throw error;
       }
+      // One that read a fact nothing versions is kept for no later read.
+      if (entry.fresh && entries.get(key) === entry) entries.delete(key);
       if (making && making !== entry) {
-        (making.within ??= new Set()).add(entry);
+        if (entry.fresh) making.fresh = true;
+        // Only a reading a version can move stands no longer than its own inputs; any
+        // other changes only with its arguments or a signal, which the reading around it
+        // hears for itself.
+        if (entry.versions || entry.within) (making.within ??= new Set()).add(entry);
         if (entry.catchUps)
           for (const each of entry.catchUps) (making.catchUps ??= new Set()).add(each);
       }
@@ -197,6 +203,13 @@ export function keptEach(make) {
       depth -= 1;
     }
   };
+}
+
+/** Says that the reading being made, if one is, reads a fact no version tracks, such as
+ * the words of an element no document reads, so it is made afresh each time it is read,
+ * as is every reading around it. */
+export function unkept() {
+  if (making) making.fresh = true;
 }
 
 /** A reader of what `make` makes of the arguments it is read with, kept as `keptEach`

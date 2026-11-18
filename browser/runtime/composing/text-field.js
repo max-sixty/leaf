@@ -355,13 +355,15 @@ class Draft {
   }
 }
 
-// Whether the last Return held Shift. A textarea's Return and Shift+Return are both a
-// line break to `beforeinput`, which a field without its editor asks about
-// (`#typeAtRest`).
-let shiftedReturn = false;
+// The last Return and whether it held Shift, which a field without its editor reads: a
+// textarea's Return and Shift+Return are both a line break to `beforeinput`
+// (`#typeAtRest`). Seen from the window as it goes down, a key typed in a field is the
+// field's host's; once dispatched, an event from a shadow tree names no target.
+/** @type {{field: EventTarget | null, shifted: boolean} | null} */
+let lastReturn = null;
 inputs.observe((event) => {
   if (event instanceof KeyboardEvent && event.key === "Enter")
-    shiftedReturn = event.shiftKey;
+    lastReturn = { field: event.target, shifted: event.shiftKey };
 });
 
 /** @typedef {LeafText} LeafTextElement For its tag (`runtime-globals.d.ts`). */
@@ -572,7 +574,12 @@ class LeafText extends HTMLElement {
     return reaches({ left: x, right: x + 1, top: y, bottom: foot }, 0);
   }
 
-  static observedAttributes = ["aria-label", "aria-describedby", "placeholder"];
+  static observedAttributes = [
+    "aria-label",
+    "aria-describedby",
+    "aria-multiline",
+    "placeholder",
+  ];
 
   constructor() {
     super();
@@ -635,11 +642,9 @@ class LeafText extends HTMLElement {
       return;
     }
     if (event instanceof InputEvent && event.type === "beforeinput") {
-      if (
-        event.inputType === "insertLineBreak" &&
-        (this.#oneLine || (!shiftedReturn && !this.#returned()))
-      )
-        event.preventDefault();
+      if (event.inputType !== "insertLineBreak") return;
+      const shifted = lastReturn?.field === this && lastReturn.shifted;
+      if ((!shifted && !this.#returned()) || this.#oneLine) event.preventDefault();
       return;
     }
     if (event.type === "compositionend") this.#composing = false;
@@ -675,8 +680,14 @@ class LeafText extends HTMLElement {
     if (this.#view || this.#root.activeElement !== this.#rest) return;
     const { anchor, head } = this.#range;
     const [start, end] = anchor <= head ? [anchor, head] : [head, anchor];
-    if (this.#rest.selectionStart !== start || this.#rest.selectionEnd !== end)
-      this.#rest.setSelectionRange(start, end, anchor <= head ? "forward" : "backward");
+    const direction = anchor <= head ? "forward" : "backward";
+    const rest = this.#rest;
+    if (
+      rest.selectionStart !== start ||
+      rest.selectionEnd !== end ||
+      rest.selectionDirection !== direction
+    )
+      rest.setSelectionRange(start, end, direction);
   }
 
   #returned() {

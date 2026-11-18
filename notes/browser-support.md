@@ -1344,6 +1344,9 @@ same host inside `body`; HeadlessChrome 158.0.8127.18 gave "ab" in both, and a
 `textarea` after `body` gave "ab" in both engines. A text field's box before
 CodeMirror loads (`composing/text-field.js`, `#rest`) and the served row's field
 (`bootstrap.js`, `standRow`) are textareas for this, which edit the same way in
-every engine; CodeMirror deletes by its own commands and is unaffected. Recheck by
+every engine. CodeMirror deletes from the keyboard by its own commands, but
+`document.execCommand("delete")` on a selection in a loaded panel editor still
+returns false and deletes nothing in Firefox; standing the chrome inside `body`
+would cure both, at the cost of the isolation it has after `body`. Recheck by
 appending `<div contenteditable>` after `body` in Firefox, typing "abcd" into it and
 pressing Backspace twice.

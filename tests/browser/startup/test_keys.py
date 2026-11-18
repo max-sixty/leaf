@@ -562,7 +562,7 @@ def test_the_panels_field_takes_backspace_before_its_editor_loads(
     request, serve, engine
 ):
     """Words typed in the served field go on in the panel's field as it mounts, before
-    the field's editor has loaded, and Backspace deletes there: Firefox deletes nothing
+    the field's editor has loaded, and Backspace and Shift+Return edit there: Firefox deletes nothing
     from a `contenteditable` standing after `body`, as the chrome does, so the field's
     box before its editor is a textarea."""
     page, served, box, release = _served_field(request.getfixturevalue(engine), serve)
@@ -580,6 +580,10 @@ def test_the_panels_field_takes_backspace_before_its_editor_loads(
     page.keyboard.press("Backspace")
     page.keyboard.type("s")
     expect(field).to_have_js_property("value", "cats")
+    # Shift+Return makes a line there, as in the editor.
+    page.keyboard.press("Shift+Enter")
+    expect(field).to_have_js_property("value", "cats\n")
+    page.keyboard.press("Backspace")
 
     page.unroute("**/vendor/codemirror.esm.js*")
     editor.pop().continue_()

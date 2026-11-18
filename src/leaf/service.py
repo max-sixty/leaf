@@ -300,8 +300,8 @@ def commit_provider() -> ModuleType | None:
     machine, as leaf.page's container keeps its pages in the session's Durable
     Object, or None where it names none. Leaf acknowledges a page transaction only once
     the module's `publish(transaction)` returns, and a drafts write only once its
-    `publish_drafts(page_dir, drafts)` does (`drafts.py`); either raising fails what it
-    commits."""
+    `publish_drafts(page_dir, drafts, replaces)` answers with the store the host holds
+    (`drafts.py`); either raising fails what it commits."""
     provider = os.environ.get("LEAF_PAGE_COMMIT")
     return importlib.import_module(provider) if provider else None
 
